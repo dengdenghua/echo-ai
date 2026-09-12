@@ -1,0 +1,215 @@
+import { beforeEach, describe, expect, it } from "vitest";
+import { fireEvent, screen } from "@testing-library/react";
+
+import { getLocalSettings } from "@/core/settings";
+import { renderWithProviders } from "@/test/harness";
+
+import SandboxSettingsPage from "./sandbox-settings-page";
+
+describe("SandboxSettingsPage", () => {
+  beforeEach(() => {
+    window.localStorage.clear();
+  });
+
+  it("renders three independent axes with defaults highlighted", () => {
+    renderWithProviders(<SandboxSettingsPage />);
+
+    // Execution environment axis.
+    expect(screen.getByRole("button", { name: /^Sandbox/ })).toHaveAttribute(
+      "aria-pressed",
+      "true",
+    );
+    expect(screen.getByRole("button", { name: /^Local/ })).toBeInTheDocument();
+
+    // Permission level axis.
+    expect(
+      screen.getByRole("button", { name: /^Ask for approval/ }),
+    ).toHaveAttribute("aria-pressed", "true");
+    expect(
+      screen.getByRole("button", { name: /^Approve for me/ }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: /^Full access/ }),
+    ).toBeInTheDocument();
+
+    // Network access axis — three tiers, deny highlighted by default.
+    expect(screen.getByRole("button", { name: /^Blocked/ })).toHaveAttribute(
+      "aria-pressed",
+      "true",
+    );
+    expect(
+      screen.getByRole("button", { name: /^Common domains/ }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: /^Allowed/ }),
+    ).toBeInTheDocument();
+  });
+
+  it("switches the execution environment without touching the other axes", () => {
+    renderWithProviders(<SandboxSettingsPage />);
+
+    fireEvent.click(screen.getByRole("button", { name: /^Local/ }));
+
+    const persisted = getLocalSettings();
+    expect(persisted.context.execution_environment).toBe("local");
+    expect(persisted.context.sandbox_mode).toBe("full");
+    // The permission axis is untouched.
+    expect(persisted.context.permission_mode).toBe("default");
+    expect(persisted.context.approval_policy).toBeUndefined();
+    // The network axis is untouched.
+    expect(persisted.context.network_access).toBe("deny");
+
+    expect(screen.getByRole("button", { name: /^Local/ })).toHaveAttribute(
+      "aria-pressed",
+      "true",
+    );
+  });
+
+  it("treats full access as local execution plus unrestricted network", () => {
+    renderWithProviders(<SandboxSettingsPage />);
+
+    fireEvent.click(screen.getByRole("button", { name: /^Full access/ }));
+
+    const persisted = getLocalSettings();
+    expect(persisted.context.permission_mode).toBe("bypassPermissions");
+    expect(persisted.context.approval_policy).toBe("never");
+    expect(persisted.context.approvals_reviewer).toBe("user");
+    expect(persisted.context.execution_environment).toBe("local");
+    expect(persisted.context.sandbox_mode).toBe("full");
+    expect(persisted.context.network_access).toBe("full");
+
+    expect(
+      screen.getByRole("button", { name: /^Full access/ }),
+    ).toHaveAttribute("aria-pressed", "true");
+    expect(screen.getByRole("button", { name: /^Local/ })).toHaveAttribute(
+      "aria-pressed",
+      "true",
+    );
+    expect(screen.getByRole("button", { name: /^Allowed/ })).toHaveAttribute(
+      "aria-pressed",
+      "true",
+    );
+    expect(screen.getByRole("button", { name: /^Sandbox/ })).toBeDisabled();
+    expect(screen.getByRole("button", { name: /^Blocked/ })).toBeDisabled();
+    expect(
+      screen.getByRole("button", { name: /^Common domains/ }),
+    ).toBeDisabled();
+  });
+
+  it("routes Approve for me through automatic review in the workspace sandbox", () => {
+    renderWithProviders(<SandboxSettingsPage />);
+
+    fireEvent.click(screen.getByRole("button", { name: /^Approve for me/ }));
+
+    const persisted = getLocalSettings();
+    expect(persisted.context.permission_mode).toBe("acceptEdits");
+    expect(persisted.context.approval_policy).toBe("on-request");
+    expect(persisted.context.approvals_reviewer).toBe("auto_review");
+    expect(persisted.context.execution_environment).toBe("sandbox");
+    expect(persisted.context.sandbox_mode).toBe("sandbox");
+  });
+
+  it("switches network access to the common-domains tier without touching the other axes", () => {
+    renderWithProviders(<SandboxSettingsPage />);
+
+    fireEvent.click(screen.getByRole("button", { name: /^Common domains/ }));
+
+    const persisted = getLocalSettings();
+    expect(persisted.context.network_access).toBe("common");
+    // The other axes are untouched.
+    expect(persisted.context.permission_mode).toBe("default");
+    expect(persisted.context.execution_environment).toBe("sandbox");
+
+    expect(
+      screen.getByRole("button", { name: /^Common domains/ }),
+    ).toHaveAttribute("aria-pressed", "true");
+  });
+
+  it("switches network access to the full tier", () => {
+    renderWithProviders(<SandboxSettingsPage />);
+
+    fireEvent.click(screen.getByRole("button", { name: /^Allowed/ }));
+
+    const persisted = getLocalSettings();
+    expect(persisted.context.network_access).toBe("full");
+    expect(screen.getByRole("button", { name: /^Allowed/ })).toHaveAttribute(
+      "aria-pressed",
+      "true",
+    );
+  });
+
+  it("restores the official sandbox boundary when selecting an approval mode", () => {
+    window.localStorage.setItem(
+      "echo.local-settings",
+      JSON.stringify({
+        context: {
+          permission_mode: "acceptEdits",
+          execution_environment: "local",
+          sandbox_mode: "full",
+          approval_policy: "on-request",
+          // Legacy boolean storage normalizes to the "full" tier.
+          network_access: true,
+        },
+      }),
+    );
+
+    renderWithProviders(<SandboxSettingsPage />);
+    expect(screen.getByRole("button", { name: /^Local/ })).toHaveAttribute(
+      "aria-pressed",
+      "true",
+    );
+    expect(
+      screen.getByRole("button", { name: /^Approve for me/ }),
+    ).toHaveAttribute("aria-pressed", "true");
+    expect(screen.getByRole("button", { name: /^Allowed/ })).toHaveAttribute(
+      "aria-pressed",
+      "true",
+    );
+
+    // Selecting an approval mode restores its official workspace sandbox.
+    fireEvent.click(screen.getByRole("button", { name: /^Ask for approval/ }));
+
+    const persisted = getLocalSettings();
+    expect(persisted.context.permission_mode).toBe("default");
+    expect(persisted.context.approvals_reviewer).toBe("user");
+    expect(persisted.context.execution_environment).toBe("sandbox");
+    expect(persisted.context.sandbox_mode).toBe("sandbox");
+    // Unchanged axes keep their raw stored value (legacy true).
+    expect(persisted.context.network_access).toBe(true);
+  });
+});
+
+it("toggles the guardian independent review switch and persists it", () => {
+  renderWithProviders(<SandboxSettingsPage />);
+
+  // Off by default.
+  expect(screen.queryByLabelText(/Review model/)).not.toBeInTheDocument();
+
+  const toggle = screen.getByRole("switch", {
+    name: /Enable independent review/i,
+  });
+  fireEvent.click(toggle);
+  expect(toggle).toHaveAttribute("data-state", "checked");
+
+  // Enabling reveals the review-model input, empty by default
+  // (empty = follow the conversation's own model).
+  const modelInput = screen.getByLabelText(/Review model/);
+  expect(modelInput).toHaveValue("");
+
+  // Persisted to local settings.
+  const saved = getLocalSettings();
+  expect(saved.context.guardian_review_enabled).toBe(true);
+
+  fireEvent.change(modelInput, { target: { value: "agnes-2.5-flash" } });
+  expect(getLocalSettings().context.guardian_review_model).toBe(
+    "agnes-2.5-flash",
+  );
+  // Clearing the input resets to "follow conversation model".
+  fireEvent.change(modelInput, { target: { value: "" } });
+  expect(getLocalSettings().context.guardian_review_model).toBeUndefined();
+
+  // Toggling off hides the model input and clears the flag.
+  fireEvent.click(toggle);
+  expect(screen.queryByLabelText(/Review model/)).not.toBeInTheDocument();
+  expect(getLocalSettings().context.guardian_review_enabled).toBe(false);
+});

@@ -1,0 +1,417 @@
+[project]
+name = "echo-ai-runtime"
+version = "0.1.0"
+description = "Biomimetic self-evolving agent OS."
+readme = "README.md"
+license = "Apache-2.0"
+requires-python = ">=3.11"
+authors = [{name = "echo-ai contributors"}]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+]
+dependencies = [
+    "cryptography>=50.0.0",
+    "defusedxml>=0.7.1",
+    "packaging>=24.0",
+    "pillow>=12.3.0",
+    "pydantic>=2.12.0",
+]
+
+[project.optional-dependencies]
+minimal = [
+    "httpx>=0.27",
+    "python-dotenv>=1.0",
+]
+dev = [
+    "pytest>=8.0",
+    "pytest-asyncio>=0.24",
+    "pytest-cov>=5.0",
+    "pytest-timeout>=2.2",
+    # Optional first-party surfaces have import-level contract tests. Keep the
+    # lightweight runtime packages in dev so clean CI collects the same suite
+    # as a feature-complete workstation without pulling full model stacks.
+    "av>=12.0",
+    "a2a-sdk>=1.1.0,<2.0",
+    "bcrypt>=4.0",
+    # instrumentation imports the API package opportunistically; when that
+    # package is present, its test path requires the SDK as well. Keeping the
+    # pair in dev prevents a clean CI install from selecting a half-enabled
+    # tracing state that collects tests and then fails at fixture setup.
+    "opentelemetry-api>=1.25",
+    "opentelemetry-sdk>=1.25",
+    "mcp>=2.0.0,<3.0",
+    "playwright>=1.48",
+    # Windows does not ship an IANA timezone database. Runtime modules use
+    # ZoneInfo("Asia/Shanghai") at import time, so clean Windows CI needs it.
+    "tzdata>=2025.1; sys_platform == 'win32'",
+    # Pinned to the minor that formatted the tree (see the repo-wide
+    # `style: ruff format` commit) — an unpinned ruff drifts the format
+    # check red on every formatter release.
+    "ruff>=0.15.12,<0.16",
+    # starlette >=1.3 moved TestClient onto the httpx2 package; without it
+    # every TestClient-based test errors at import on fresh CI installs.
+    "httpx2>=2.0",
+    # `make security` invokes these as bare commands; declare them so a clean
+    # `make install` provides them instead of the gate silently no-opping.
+    "bandit>=1.7",
+    "pip-audit>=2.7",
+    # Pinned to the minor that generated tools/lint/mypy_baseline.txt — a
+    # newer mypy shifts messages/rules and drifts the ratchet red on
+    # unrelated PRs. Bump deliberately, then --write-baseline.
+    "mypy>=2.1,<2.2",
+    # mypy targets Python 3.11 below. NumPy 2.5's stubs use the Python 3.12
+    # `type` statement, so allowing 2.5+ makes the type gate abort before it
+    # checks our code when CI itself happens to run on Python 3.12.
+    "numpy>=1.26,<2.5",
+    # The lsp_* skills resolve a server beside this interpreter first, so a
+    # declared pyright makes them work after a plain `make install`. Undeclared,
+    # they degraded to "no language server installed" on a fresh clone and the
+    # end-to-end test in tests/test_lsp_real_server.py skipped itself.
+    "pyright>=1.1.400",
+]
+tracing = [
+    "opentelemetry-api>=1.25",
+    "opentelemetry-sdk>=1.25",
+]
+local-auth = [
+    "bcrypt>=4.0",
+]
+serve = [
+    "fastapi>=0.115,<1.0",
+    "starlette>=1.3.1",
+    "uvicorn[standard]>=0.32",
+    "pyyaml>=6.0",
+    "python-multipart>=0.0.31",
+]
+# ── Packaged desktop core ────────────────────────────
+# The lean dependency set embedded into the self-contained Windows backend.
+# Development mode also uses it for its uv-managed smoke runtime. This is the
+# single source of truth for the curated core — keep in sync with
+# frontend/electron/backend-runtime.cjs::CORE_DEPS.
+desktop-core = [
+    "cryptography>=50.0.0",
+    "fastapi>=0.115,<1.0",
+    "starlette>=1.3.1",
+    "uvicorn[standard]>=0.32",
+    "pyyaml>=6.0",
+    "python-multipart>=0.0.31",
+    "httpx>=0.27",
+    "python-dotenv>=1.0",
+    "ddgs>=9.0",
+    "pydantic>=2.12.0",
+    "packaging>=24.0",
+    # anthropic is required at boot — the default desktop config routes the
+    # planner through AnthropicModelRouter, constructed eagerly at startup.
+    # Keep in sync with backend-runtime.cjs::CORE_DEPS.
+    "anthropic>=0.40,<1.0",
+    # First-party Office plugins and artifact previews must work in the
+    # packaged desktop runtime, not only in a developer environment that
+    # happens to have these libraries installed.
+    "python-docx>=1.2.0",
+    "openpyxl>=3.1.5",
+    "python-pptx>=1.0.2",
+    "pypdf>=6.15.0",
+    "reportlab>=4.4.4",
+]
+# Build-only toolchain for the self-contained Windows backend. Keep the direct
+# tool pin exact; uv.lock pins its full transitive dependency graph.
+desktop-build = [
+    "pyinstaller==6.16.0",
+]
+# ── Web skills · httpx-gated ─────────────────────────────
+web = [
+    "httpx>=0.27",
+    "ddgs>=9.0",
+]
+# ── Native multi-platform Reach (subtitles + robust feeds) ──
+reach = [
+    "httpx>=0.27",
+    "feedparser>=6.0.11",
+    "yt-dlp>=2026.8.12",
+]
+# ── Web content extraction (Readability-style main content) ─
+extract = [
+    "trafilatura>=2.0",
+    "pypdf>=6.15.0",
+]
+# Local Office authoring/editing. Kept as an explicit extra for headless
+# server installs while desktop-core includes it so the shipped app never
+# advertises a capability that is missing at runtime.
+office = [
+    "python-docx>=1.2.0",
+    "openpyxl>=3.1.5",
+    "python-pptx>=1.0.2",
+    "pypdf>=6.15.0",
+    "reportlab>=4.4.4",
+]
+# File Agent's echo-storage backend is an independently deployed service,
+# not an import dependency of this package. Until it publishes a registry
+# release, install its sibling checkout separately (`pip install -e
+# ../echo-storage`) or point ECHO_STORAGE_CMD at its executable.
+# ── LLM provider adapters ────────────────────────────────
+anthropic = [
+    "anthropic>=0.40,<1.0",
+]
+# ── MCP client ───────────────────────────────────────────
+mcp = [
+    "mcp>=2.0.0,<3.0",
+    "pydantic-settings>=2.14.2",
+    "pyjwt[crypto]>=2.13.0",
+]
+# ── A2A (Agent-to-Agent) client ─────────────────────────
+a2a = [
+    "a2a-sdk>=1.1.0,<2.0",
+]
+# ── Browser skills ───────────────────────────────────────
+browser = [
+    "playwright>=1.48",
+]
+# ── Desktop / computer use skills ────────────────────────
+desktop = [
+    "pyautogui>=0.9.54",
+    "pillow>=10.0",
+    "uiautomation>=2.0; platform_system == 'Windows'",
+]
+# ── Local vision skills (image semantic index / album / OCR) ──
+# Heavy binary deps. The image-semantic / image-album skills self-gate on
+# import (they degrade gracefully when these are missing), so they stay out
+# of the base install. Install with `pip install -e ".[vision]"`.
+vision = [
+    "fastembed>=0.8.0",
+    "insightface>=1.0.1",
+    "opencv-python-headless>=5.0.0.93",
+    "rapidocr-onnxruntime>=1.3.0",
+]
+# ── Local video understanding + AI retrieval (speech-to-text) ──
+video = [
+    "av>=12.0",
+    "faster-whisper>=1.0.0",
+]
+# ── Video hardware acceleration (CUDA / TensorRT ONNX Runtime) ──
+video-gpu = [
+    "onnxruntime-gpu>=1.17",
+]
+# ── Code intelligence (AST code_search / code_edit) ──────
+code-intel = [
+    "tree-sitter>=0.23",
+    "tree-sitter-python>=0.23",
+    "tree-sitter-typescript>=0.23",
+]
+discord = [
+    "cryptography>=50.0.0",
+]
+channels = [
+    "httpx>=0.27",
+    "cryptography>=50.0.0",
+]
+mantle-ssh = [
+    # 5.0.0 removes RSA/SHA-1 signing and verification upstream.
+    "paramiko>=5.0.0",
+]
+hearts-redis = [
+    "redis>=5.0",
+]
+hearts-etcd = [
+    # Legacy optional adapter. PyPI has no 0.2 release; 0.1.6 is the latest
+    # published version. Keep the constraint honest so every extra resolves.
+    "etcd3-py>=0.1.6,<0.2",
+]
+skin = [
+    "watchdog>=4.0",
+]
+# ── SWE-bench evaluation ─────────────────────────────────
+swebench = [
+    "datasets>=2.14",
+    "gitpython>=3.1.58",
+    "swebench>=2.0",
+]
+docs = [
+    "mkdocs>=1.6",
+    "mkdocs-material>=9.5",
+    "pymdown-extensions>=11.0.1",
+]
+# Release-only metadata validation. Keep this exact and lock it so the
+# privileged PyPI publishing job never installs an ambient tool version.
+release = [
+    "twine==7.0.0",
+]
+all = [
+    # serve
+    "fastapi>=0.115,<1.0",
+    "starlette>=1.3.1",
+    "uvicorn[standard]>=0.32",
+    "pyyaml>=6.0",
+    "python-multipart>=0.0.31",
+    # web / IM
+    "httpx>=0.27",
+    "feedparser>=6.0.11",
+    "yt-dlp>=2026.8.12",
+    "pypdf>=6.15.0",
+    "python-docx>=1.2.0",
+    "openpyxl>=3.1.5",
+    "python-pptx>=1.0.2",
+    "reportlab>=4.4.4",
+    # LLM providers
+    "anthropic>=0.40,<1.0",
+    # MCP client
+    "mcp>=2.0.0,<3.0",
+    "pydantic-settings>=2.14.2",
+    "pyjwt[crypto]>=2.13.0",
+    # browsers
+    "playwright>=1.48",
+    # desktop
+    "pyautogui>=0.9.54",
+    "pillow>=12.3.0",
+    "uiautomation>=2.0; platform_system == 'Windows'",
+    # code intelligence (AST)
+    "tree-sitter>=0.23",
+    "tree-sitter-python>=0.23",
+    "tree-sitter-typescript>=0.23",
+    # local vision (image semantic index / album / OCR)
+    "fastembed>=0.8.0",
+    "insightface>=1.0.1",
+    "opencv-python-headless>=5.0.0.93",
+    "rapidocr-onnxruntime>=1.3.0",
+    # observability
+    "opentelemetry-api>=1.25",
+    "opentelemetry-sdk>=1.25",
+    # Implementation note.
+    "cryptography>=50.0.0",
+    # Implementation note.
+    "paramiko>=5.0.0",
+    "redis>=5.0",
+    "watchdog>=4.0",
+    # local-auth
+    "bcrypt>=4.0",
+    # web content extraction
+    "trafilatura>=2.0",
+    # hearts-etcd
+    "etcd3-py>=0.1.6,<0.2",
+]
+
+[project.urls]
+Homepage = "https://github.com/dengdenghua/echo-ai"
+Documentation = "https://github.com/dengdenghua/echo-ai/blob/main/README.md"
+Repository = "https://github.com/dengdenghua/echo-ai"
+Issues = "https://github.com/dengdenghua/echo-ai/issues"
+Changelog = "https://github.com/dengdenghua/echo-ai/blob/main/CHANGELOG.md"
+
+# ─── Single source of truth for the canonical repo URL ──────────
+# All other files (frontend/package.json, mkdocs.yml, install.sh,
+# permissions.example.json, the in-app About page, the in-app
+# GITHUB_URL constant, …) MUST match this value. CI enforces this via
+# tools/lint/repo_url_check.py. To move the project to a new home,
+# change this one line and re-run the linter.
+[tool.echo]
+repo_url = "https://github.com/dengdenghua/echo-ai"
+
+[project.scripts]
+echo-lint = "tools.lint.invariant_check:main"
+echo = "runtime.cli:main"
+echo-ai = "runtime.cli:main"
+
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools]
+include-package-data = true
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["runtime*", "tools*", "echo_runtime*", "demos*"]
+exclude = [
+    "tests*",
+    "*.fixtures*",
+    "runtime.platform.plugins.bundled.narrative_studio*",
+    "runtime.platform.plugins.bundled.paper_trading*",
+]
+
+# ─── pytest ──────────────────────────────────────────
+[tool.pytest.ini_options]
+minversion = "8.0"
+testpaths = ["tests"]
+addopts = [
+    "--strict-markers",
+    "--strict-config",
+    "-ra",
+]
+markers = [
+    "slow: marks tests as slow (deselect with '-m \"not slow\"')",
+    "integration: end-to-end integration tests",
+    "contract: schema, packaging, and generated-artifact contract tests",
+    "platform: operating-system and filesystem portability tests",
+    "live: tests that require real external services or credentials",
+]
+
+# ─── ruff ────────────────────────────────────────────
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+extend-exclude = [
+    "tools/lint/fixtures",
+]
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "UP", "B", "N", "SIM", "RET"]
+ignore = [
+    "E501",  # line too long (由 formatter 管)
+    "N818",  # exception naming (InvariantViolation 不加 Error 后缀)
+]
+
+[tool.ruff.lint.per-file-ignores]
+# realtime_cerebrum.py re-imports split-module helpers at the bottom
+# under their original names for backward compat. They can't move to
+# the top: realtime_react_stream.py imports FROM realtime_cerebrum,
+# so a top-of-file import here would be circular.
+"runtime/sensing/gateway/realtime_cerebrum.py" = ["E402"]
+
+[tool.ruff.format]
+quote-style = "double"
+
+# ─── coverage ────────────────────────────────────────
+[tool.coverage.run]
+# The release gate covers code shipped in the production runtime. Developer
+# maintenance tools have their own unit tests and CI ratchets; including their
+# platform-specific command entrypoints made the product metric depend on
+# which CI host happened to execute the suite.
+source = ["runtime"]
+omit = ["*/tests/*", "*/fixtures/*"]
+
+[tool.coverage.report]
+# Keep the local threshold in sync with .github/workflows/ci.yml
+# (pytest --cov-fail-under=77.5): a bare `make test` / `pytest --cov` must
+# fail below the same exact (unrounded) line CI does.
+fail_under = 77.5
+exclude_lines = [
+    "pragma: no cover",
+    "if TYPE_CHECKING:",
+    "raise NotImplementedError",
+]
+
+# ─── mypy ────────────────────────────────────────────
+# Incremental adoption via tools/lint/mypy_ratchet.py: existing errors on
+# the checked packages are frozen in mypy_baseline.txt; the gate only fails
+# on NEW ones. Settings are deliberately lenient (not --strict) — this is a
+# ratchet on an untyped-by-default codebase, not a full typing mandate.
+[tool.mypy]
+python_version = "3.11"
+ignore_missing_imports = true
+follow_imports = "silent"
+# The codebase is pydantic-heavy and uses populate_by_name + camelCase
+# aliases; without this plugin mypy reports ~40 false "unexpected keyword
+# argument … did you mean <camelCase>?" errors on constructors that are
+# correct at runtime (and misses genuinely-missing required args). The
+# plugin resolves both.
+plugins = ["pydantic.mypy"]
+# Bundled third-party agent-plugin scripts (market skills) carry duplicate
+# module names that abort mypy before it reaches real code — never our own.
+exclude = "(agent_market_sources|/fixtures/|/visuals/)"
+warn_unused_ignores = false
+warn_redundant_casts = false
+disable_error_code = ["import-untyped"]
+
+[tool.setuptools.package-data]
+"runtime.projectos" = ["role_catalog.json"]

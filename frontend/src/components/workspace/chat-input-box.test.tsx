@@ -1,0 +1,2232 @@
+import {
+  act,
+  fireEvent,
+  screen,
+  waitFor,
+  within,
+} from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
+import { useState } from "react";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+
+import { renderWithProviders } from "@/test/harness";
+import { queueComposerImageEntry } from "@/core/composer-image-inbox";
+
+import type * as UploadsApiModule from "@/core/uploads/api";
+import type * as ComputerApiModule from "@/core/computer/api";
+
+import { ChatInputBox } from "./chat-input-box";
+import type { GroupTaskStrategy } from "./group-task-strategy";
+import type { AgentModeName } from "./mode-selector";
+
+const uploadFilesMock = vi.fn();
+const uploadWithProgressMock = vi.fn();
+const captureComputerAppshotMock = vi.hoisted(() => vi.fn());
+const modelCatalog = vi.hoisted(() => ({
+  current: [] as Array<Record<string, unknown>>,
+}));
+const capabilityCatalog = vi.hoisted(() => ({
+  pluginOptions: [] as Array<{ enabled?: boolean } | undefined>,
+  skillOptions: [] as Array<{ enabled?: boolean } | undefined>,
+  plugins: [
+    {
+      id: "seedance",
+      name: "Seedance",
+      description: "Generate videos",
+      enabled: true,
+      state: "running",
+    },
+    {
+      id: "disabled-plugin",
+      name: "Disabled plugin",
+      description: "Hidden",
+      enabled: false,
+      state: "stopped",
+    },
+  ],
+  skills: [
+    {
+      name: "video-generate",
+      description: "Generate a video from a prompt",
+      enabled: true,
+      category: "media",
+    },
+    {
+      name: "disabled-skill",
+      description: "Hidden",
+      enabled: false,
+      category: "other",
+    },
+  ],
+}));
+
+// Only the transport is stubbed — ``useAttachmentUploads`` runs for real so the
+// progress/gating tests exercise the actual state machine. The hook imports
+// from ``./api`` directly, so that module is what has to be mocked; the barrel
+// re-exports it.
+vi.mock("@/core/uploads/api", async (importOriginal) => {
+  const actual = await importOriginal<UploadsApiModule>();
+  return {
+    ...actual,
+    uploadFiles: (...args: unknown[]) => uploadFilesMock(...args),
+    uploadFilesWithProgress: (...args: unknown[]) =>
+      uploadWithProgressMock(...args),
+  };
+});
+
+vi.mock("@/core/computer/api", async (importOriginal) => {
+  const actual = await importOriginal<ComputerApiModule>();
+  return {
+    ...actual,
+    captureComputerAppshot: captureComputerAppshotMock,
+  };
+});
+
+vi.mock("@/core/models/hooks", () => ({
+  useModels: () => ({
+    models: modelCatalog.current,
+  }),
+}));
+
+vi.mock("@/core/plugins/hooks", () => ({
+  usePlugins: (options?: { enabled?: boolean }) => {
+    capabilityCatalog.pluginOptions.push(options);
+    return {
+      plugins: capabilityCatalog.plugins,
+      isLoading: false,
+      error: null,
+      refetch: vi.fn(),
+    };
+  },
+}));
+
+vi.mock("@/core/skills/hooks", () => ({
+  useSkills: (options?: { enabled?: boolean }) => {
+    capabilityCatalog.skillOptions.push(options);
+    return {
+      skills: capabilityCatalog.skills,
+      isLoading: false,
+      isFetching: false,
+      error: null,
+      refetch: vi.fn(),
+    };
+  },
+}));
+
+vi.mock("@/providers/AuthProvider", () => ({
+  useAuth: () => ({
+    isLoading: false,
+    authStatus: { enabled: false, allow_registration: false },
+    user: null,
+    isAuthenticated: false,
+    login: vi.fn(),
+    smsLogin: vi.fn(),
+    guestLogin: vi.fn(),
+    register: vi.fn(),
+    logout: vi.fn(),
+    refresh: vi.fn(),
+  }),
+}));
+
+vi.mock("./evolution-indicator", () => ({
+  EvolutionIndicator: () => null,
+}));
+
+vi.mock("./file-activity-indicator", () => ({
+  FileActivityIndicator: () => null,
+}));
+
+vi.mock("./preview-refresh-indicator", () => ({
+  PreviewRefreshIndicator: () => null,
+}));
+
+function textarea(): HTMLTextAreaElement {
+  const el = document.querySelector("textarea");
+  if (!el) throw new Error("textarea not found");
+  return el as HTMLTextAreaElement;
+}
+
+async function openAgentSettings() {
+  const trigger = screen.getByLabelText("Insert into input");
+  fireEvent.pointerDown(trigger, { button: 0, ctrlKey: false });
+  fireEvent.click(trigger);
+  fireEvent.click(await screen.findByText("Research settings"));
+}
+
+async function openToolsMenu() {
+  const trigger = screen.getByTestId("chat-tools-trigger");
+  fireEvent.pointerDown(trigger, { button: 0, ctrlKey: false });
+  fireEvent.click(trigger);
+  return screen.findByRole("menu");
+}
+
+it("keeps the plus entry visually lightweight when focused", () => {
+  renderWithProviders(<ChatInputBox mode="react" threadId="thread-plus" />);
+
+  expect(screen.getByTestId("chat-tools-trigger")).toHaveClass(
+    "focus-visible:outline-none",
+  );
+});
+
+it("keeps an accepted mode suggestion reflected in the status strip", async () => {
+  window.localStorage.setItem(
+    "echo:modeOverride",
+    JSON.stringify({ "/workspace/mode-suggestion": { mode: "develop" } }),
+  );
+  const fetchSpy = vi
+    .spyOn(globalThis, "fetch")
+    .mockImplementation(async (input: RequestInfo | URL) => {
+      const url = String(input);
+      if (url.includes("/agent-modes/detect")) {
+        return new Response(
+          JSON.stringify({
+            recommended_mode: "coder",
+            confidence: 0.9,
+            reason: "test",
+            signals: {},
+          }),
+          { status: 200, headers: { "Content-Type": "application/json" } },
+        );
+      }
+      return new Response(JSON.stringify({ modes: [] }), {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      });
+    });
+
+  function Harness() {
+    const [projectMode, setProjectMode] = useState<AgentModeName>("develop");
+    return (
+      <ChatInputBox
+        mode="code"
+        threadId="thread-mode-suggestion"
+        workDir="/workspace/mode-suggestion"
+        showWorkDirSelector
+        projectAgentMode={projectMode}
+        onProjectAgentModeChange={setProjectMode}
+        modeIntentSuggestion={{ mode: "uxui", label: "Design" }}
+        onAcceptModeIntent={async (next) => setProjectMode(next)}
+      />
+    );
+  }
+
+  const user = userEvent.setup();
+  renderWithProviders(<Harness />);
+  await user.click(screen.getByTestId("mode-intent-accept"));
+
+  await waitFor(() =>
+    expect(screen.getByTestId("chat-status-strip")).toHaveTextContent(
+      /Design|设计|UX\/UI/,
+    ),
+  );
+  fetchSpy.mockRestore();
+});
+
+function uploadedInfo(file: File) {
+  return {
+    filename: file.name,
+    size: file.size,
+    path: `/artifacts/${file.name}`,
+    virtual_path: `uploads/${file.name}`,
+    artifact_url: `https://example.test/${file.name}`,
+    content_type: file.type,
+  };
+}
+
+beforeEach(() => {
+  // Composer drafts intentionally persist across reloads, but not across
+  // independent tests. A full-suite predecessor may otherwise leave a draft
+  // under a reused thread id and make send-failure isolation assertions flaky.
+  window.localStorage.clear();
+  window.sessionStorage.clear();
+  modelCatalog.current = [
+    {
+      id: "test-model",
+      name: "test-model",
+      model: "test-model",
+      display_name: "Test Model",
+    },
+  ];
+  uploadFilesMock.mockReset();
+  uploadWithProgressMock.mockReset();
+  captureComputerAppshotMock.mockReset();
+  capabilityCatalog.pluginOptions = [];
+  capabilityCatalog.skillOptions = [];
+  // Attaching now uploads immediately, so every test needs a transport.
+  // The default resolves at once; progress-specific tests override it.
+  uploadWithProgressMock.mockImplementation(
+    async (
+      _threadId: string,
+      files: File[],
+      options?: { onProgress?: (p: number) => void },
+    ) => {
+      options?.onProgress?.(100);
+      return { files: files.map(uploadedInfo) };
+    },
+  );
+});
+
+describe("<ChatInputBox /> cowork materials", () => {
+  it("places the automation target picker inside the plus menu", async () => {
+    renderWithProviders(
+      <ChatInputBox
+        mode="react"
+        threadId="thread-target-menu"
+        automationTarget={{
+          kind: "desktop_window",
+          source: "computer",
+          id: "window-7",
+          title: "Project notes",
+          app_name: "Notes",
+        }}
+        onAutomationTargetChange={vi.fn()}
+      />,
+    );
+
+    expect(screen.queryByTestId("automation-target-trigger")).toBeNull();
+    expect(
+      screen.getByTestId("automation-target-active-indicator"),
+    ).toBeInTheDocument();
+
+    const menu = await openToolsMenu();
+    expect(
+      within(menu).getByTestId("automation-target-submenu-trigger"),
+    ).toHaveTextContent("Window · Project notes");
+    expect(within(menu).queryByTestId("chat-add-appshot")).toBeNull();
+  });
+
+  it("renders the shared model profile control independently of agent role", () => {
+    renderWithProviders(
+      <ChatInputBox
+        mode="react"
+        threadId="thread-unified-model-control"
+        modelProfileControl
+      />,
+    );
+
+    expect(screen.getByTestId("coder-engine-trigger")).toBeInTheDocument();
+    expect(screen.queryByTestId("model-picker-trigger")).toBeNull();
+  });
+
+  it("opens the Teach & Repeat library for /record without sending a message", async () => {
+    const user = userEvent.setup();
+    const onSwitchPanel = vi.fn();
+    const onSubmit = vi.fn();
+    renderWithProviders(
+      <ChatInputBox
+        mode="react"
+        threadId="thread-record"
+        onSwitchPanel={onSwitchPanel}
+        onSubmit={onSubmit}
+      />,
+    );
+
+    await user.type(textarea(), "/record");
+    await user.click(screen.getByLabelText("Send"));
+
+    expect(onSwitchPanel).toHaveBeenCalledWith("teach-repeat");
+    expect(onSubmit).not.toHaveBeenCalled();
+  });
+
+  it("replaces Inspiration with the response strategy in collaboration", () => {
+    renderWithProviders(
+      <ChatInputBox
+        mode="react"
+        threadId="thread-response-mode"
+        showInspirationToggle
+        responseModeControl={
+          <div data-testid="response-mode-control">Conversation type</div>
+        }
+      />,
+    );
+
+    const control = screen.getByTestId("response-mode-control");
+    expect(control.closest(".composer-footer")).toBeInTheDocument();
+    expect(control.closest(".composer-footer__response")).toBeInTheDocument();
+    expect(
+      screen
+        .getByTestId("model-picker-trigger")
+        .closest(".composer-footer__model"),
+    ).toBeInTheDocument();
+    expect(screen.queryByTestId("chat-mode-toggle")).toBeNull();
+    expect(screen.getByTestId("chat-send-button")).toBeInTheDocument();
+  });
+
+  it("uses the same two-mode selector in personal group space", async () => {
+    const onStrategyChange = vi.fn();
+    const onSubmit = vi.fn();
+
+    function ControlledGroupComposer() {
+      const [strategy, setStrategy] = useState<GroupTaskStrategy>("auto");
+      return (
+        <ChatInputBox
+          mode="react"
+          threadId="thread-group-strategy"
+          isGroupConversation
+          showWorkDirSelector
+          groupTaskStrategy={strategy}
+          onGroupTaskStrategyChange={(next) => {
+            onStrategyChange(next);
+            setStrategy(next);
+          }}
+          onSubmit={onSubmit}
+        />
+      );
+    }
+
+    renderWithProviders(<ControlledGroupComposer />);
+
+    expect(
+      screen.getByRole("button", { name: "Add content" }),
+    ).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: /^General/ }));
+    expect(screen.getAllByRole("option")).toHaveLength(2);
+    fireEvent.click(screen.getByRole("option", { name: /Design/ }));
+
+    await waitFor(() => expect(onStrategyChange).toHaveBeenLastCalledWith("uxui"));
+    expect(onSubmit).not.toHaveBeenCalled();
+    expect(screen.queryByTestId("group-task-strategy-chip")).toBeNull();
+    expect(screen.queryByTestId("group-task-strategy-indicator")).toBeNull();
+    expect(screen.getByRole("button", { name: /^Design/ })).toBeInTheDocument();
+
+    expect(screen.getByRole("button", { name: /^Design/ })).toBeInTheDocument();
+  });
+
+  it("offers the same general and design modes with or without a folder", async () => {
+    const first = renderWithProviders(
+      <ChatInputBox
+        mode="react"
+        threadId="thread-group-personal"
+        isGroupConversation
+        showWorkDirSelector
+        groupTaskStrategy="auto"
+        onGroupTaskStrategyChange={vi.fn()}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: /^General/ }));
+    expect(screen.getByRole("option", { name: /General/ })).toBeInTheDocument();
+    expect(screen.getByRole("option", { name: /Design/ })).toBeInTheDocument();
+    expect(screen.getAllByRole("option")).toHaveLength(2);
+    first.unmount();
+
+    renderWithProviders(
+      <ChatInputBox
+        mode="code"
+        threadId="thread-group-project"
+        workDir="/workspace/project"
+        isGroupConversation
+        showWorkDirSelector
+        groupTaskStrategy="auto"
+        onGroupTaskStrategyChange={vi.fn()}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: /^General/ }));
+    expect(screen.getByRole("option", { name: /General/ })).toBeInTheDocument();
+    expect(screen.getByRole("option", { name: /Design/ })).toBeInTheDocument();
+    expect(screen.getAllByRole("option")).toHaveLength(2);
+  });
+
+  it("shows the mode selector without a folder inside Design Canvas", () => {
+    renderWithProviders(
+      <ChatInputBox
+        mode="code"
+        threadId="thread-embedded-design"
+        showModeSelector
+        showWorkDirSelector={false}
+        projectAgentMode="uxui"
+        onProjectAgentModeChange={vi.fn()}
+      />,
+    );
+
+    expect(screen.getByTestId("chat-status-strip")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /^Design/ })).toBeInTheDocument();
+    expect(screen.queryByTestId("workdir-selector")).toBeNull();
+  });
+
+  it("keeps project planning separate from the per-turn task strategy", async () => {
+    const onProjectCapabilityAction = vi.fn();
+    const onStrategyChange = vi.fn();
+    const unbound = renderWithProviders(
+      <ChatInputBox
+        mode="react"
+        threadId="thread-group-project-plan"
+        isGroupConversation
+        showWorkDirSelector
+        groupTaskStrategy="auto"
+        onGroupTaskStrategyChange={onStrategyChange}
+        onProjectCapabilityAction={onProjectCapabilityAction}
+      />,
+    );
+
+    let menu = await openToolsMenu();
+    fireEvent.click(
+      within(menu).getByTestId("group-project-capability-action"),
+    );
+    expect(onProjectCapabilityAction).toHaveBeenCalledTimes(1);
+    expect(onStrategyChange).not.toHaveBeenCalled();
+    expect(screen.queryByTestId("group-task-strategy-chip")).toBeNull();
+    unbound.unmount();
+
+    const onBoundStrategyChange = vi.fn();
+    renderWithProviders(
+      <ChatInputBox
+        mode="code"
+        threadId="thread-group-bound-project"
+        workDir="/workspace/project"
+        isGroupConversation
+        showWorkDirSelector
+        groupTaskStrategy="auto"
+        onGroupTaskStrategyChange={onBoundStrategyChange}
+        projectCapabilityEnabled
+        onProjectCapabilityAction={onProjectCapabilityAction}
+        responseModeControl={
+          <div data-testid="bound-project-response-mode">AI participation</div>
+        }
+      />,
+    );
+    fireEvent.click(screen.getByRole("button", { name: /^General/ }));
+    fireEvent.click(screen.getByRole("option", { name: /Design/ }));
+    menu = await openToolsMenu();
+    expect(
+      within(menu).getByText("Open project workbench"),
+    ).toBeInTheDocument();
+    expect(within(menu).queryByText("Create project plan")).toBeNull();
+    expect(within(menu).queryByTestId("group-task-strategy-audit")).toBeNull();
+    expect(onBoundStrategyChange).toHaveBeenCalledWith("uxui");
+    expect(onProjectCapabilityAction).toHaveBeenCalledTimes(1);
+    expect(
+      screen.getByTestId("bound-project-response-mode"),
+    ).toBeInTheDocument();
+  });
+
+  it("keeps personal/project status visible in groups and hides only default permission chrome", async () => {
+    const onGroupTaskStrategyChange = vi.fn();
+    const group = renderWithProviders(
+      <ChatInputBox
+        mode="react"
+        threadId="thread-group-clean-footer"
+        isGroupConversation
+        groupTaskStrategy="auto"
+        onGroupTaskStrategyChange={onGroupTaskStrategyChange}
+        showWorkDirSelector
+        statusTrailing={<span data-testid="group-roster-inline">avatars</span>}
+        permissionMode="default"
+      />,
+    );
+
+    expect(screen.getByTestId("chat-status-strip")).toBeInTheDocument();
+    expect(
+      screen
+        .getByTestId("chat-status-strip")
+        .contains(screen.getByTestId("group-roster-inline")),
+    ).toBe(true);
+    expect(screen.getByTitle("Personal space")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: /^General/ }));
+    fireEvent.click(screen.getByRole("option", { name: /Design/ }));
+    await waitFor(() => expect(onGroupTaskStrategyChange).toHaveBeenCalledWith("uxui"));
+    expect(screen.queryByTestId("permission-mode-trigger")).toBeNull();
+    group.unmount();
+
+    renderWithProviders(
+      <ChatInputBox
+        mode="react"
+        threadId="thread-group-risk-warning"
+        isGroupConversation
+        permissionMode="bypassPermissions"
+      />,
+    );
+
+    expect(screen.getByTestId("permission-mode-trigger")).toHaveAccessibleName(
+      "Permissions: Full access",
+    );
+  });
+
+  it("keeps the existing private composer controls unchanged", async () => {
+    renderWithProviders(
+      <ChatInputBox
+        mode="react"
+        threadId="thread-private-controls"
+        showWorkDirSelector
+        permissionMode="default"
+      />,
+    );
+
+    expect(screen.getByTestId("chat-status-strip")).toBeInTheDocument();
+    expect(screen.getByTestId("permission-mode-trigger")).toHaveAccessibleName(
+      "Permissions: Ask for approval",
+    );
+    expect(
+      screen.getByRole("button", { name: "Insert into input" }),
+    ).toBeInTheDocument();
+
+    const menu = await openToolsMenu();
+    expect(within(menu).queryByText("Start a task")).toBeNull();
+    expect(within(menu).queryByTestId("group-task-strategy-auto")).toBeNull();
+  });
+
+  it("returns the selected row id when two endpoints share one wire model", async () => {
+    modelCatalog.current = [
+      {
+        id: "deepseek-v4-flash",
+        name: "deepseek-v4-flash",
+        model: "deepseek-v4-flash",
+        display_name: "DeepSeek primary",
+        entry_id: "deepseek-primary",
+        selection_id: "selection-deepseek-primary-default",
+        reasoning_efforts: ["off", "high"],
+        context_window: 256_000,
+        context_profile: "default",
+        supports_thinking: true,
+        supports_vision: false,
+        supports_tool_use: true,
+      },
+      {
+        id: "deepseek-v4-flash",
+        name: "deepseek-v4-flash",
+        model: "deepseek-v4-flash",
+        display_name: "DeepSeek backup",
+        entry_id: "deepseek-backup",
+        selection_id: "selection-deepseek-backup-default",
+        reasoning_efforts: ["off", "high", "xhigh"],
+        context_window: 128_000,
+        context_profile: "default",
+        supports_thinking: true,
+        supports_vision: true,
+        supports_tool_use: false,
+      },
+    ];
+    const user = userEvent.setup();
+    const onModelChange = vi.fn();
+    renderWithProviders(
+      <ChatInputBox
+        mode="react"
+        threadId="thread-duplicate-models"
+        modelName="selection-deepseek-primary-default"
+        onModelChange={onModelChange}
+      />,
+    );
+
+    await user.click(screen.getByTestId("model-picker-trigger"));
+    const menu = await screen.findByTestId("model-picker-menu");
+    await user.click(
+      within(menu).getByText("DeepSeek backup").closest("button")!,
+    );
+
+    expect(onModelChange).toHaveBeenCalledWith(
+      "selection-deepseek-backup-default",
+    );
+  });
+
+  it("gives the composer a persistent accessible name", () => {
+    renderWithProviders(
+      <ChatInputBox
+        mode="react"
+        threadId="thread-accessible-name"
+        onSubmit={vi.fn()}
+        onDeepResearch={vi.fn()}
+      />,
+    );
+
+    expect(screen.getByTestId("chat-composer-input")).toHaveAttribute(
+      "aria-label",
+      "How can I assist you today?",
+    );
+  });
+
+  it("keeps the add menu focused on user-facing context and task controls", async () => {
+    const user = userEvent.setup();
+    renderWithProviders(
+      <ChatInputBox
+        mode="deep"
+        threadId="thread-1"
+        allowAgentModes
+        onDeepResearch={vi.fn()}
+      />,
+    );
+
+    // Scope the negative assertions to the menu: the composer status strip
+    // always renders a permission-mode label ("Default"), so a document-wide
+    // queryByText would fail on chrome that has nothing to do with the menu.
+    const menu = await openToolsMenu();
+    const inMenu = within(menu);
+
+    expect(screen.getByText("Research settings")).toBeInTheDocument();
+    expect(screen.getByText("Upload images")).toBeInTheDocument();
+    expect(screen.getByText("Project files")).toBeInTheDocument();
+    expect(screen.getByText("Commands")).toBeInTheDocument();
+    expect(screen.getByText("Plugins")).toBeInTheDocument();
+    expect(screen.getByText("Skills")).toBeInTheDocument();
+    await user.hover(screen.getByTestId("chat-commands-submenu"));
+    expect(await screen.findByText("Spec")).toBeInTheDocument();
+    expect(screen.getByText("Plan")).toBeInTheDocument();
+    expect(
+      screen.getByText("Goal").closest('[role="menuitem"]'),
+    ).toHaveTextContent("🎯Goal");
+    expect(screen.getByText("Milestone")).toBeInTheDocument();
+    expect(screen.getByText("Browser")).toBeInTheDocument();
+    expect(screen.getByText("Chrome")).toBeInTheDocument();
+    expect(screen.queryByText("Add material")).not.toBeInTheDocument();
+    expect(
+      screen.queryByText("Add image (paste / drag / select)"),
+    ).not.toBeInTheDocument();
+    expect(inMenu.queryByText("Default")).not.toBeInTheDocument();
+    expect(inMenu.queryByText("Web search")).not.toBeInTheDocument();
+    expect(inMenu.queryByText("Create PPT")).not.toBeInTheDocument();
+    expect(inMenu.queryByText("Create page")).not.toBeInTheDocument();
+    expect(inMenu.queryByText("Format table")).not.toBeInTheDocument();
+    expect(inMenu.queryByText("Generate image")).not.toBeInTheDocument();
+    expect(inMenu.queryByText("Scheduled Task")).not.toBeInTheDocument();
+    expect(inMenu.queryByText("Project Files")).not.toBeInTheDocument();
+    expect(inMenu.queryByText("Research context")).not.toBeInTheDocument();
+    expect(inMenu.queryByText("Web Search Research")).not.toBeInTheDocument();
+  });
+
+  it("inserts user-facing plan and goal modes without switching the model mode", async () => {
+    const user = userEvent.setup();
+    const onModeChange = vi.fn();
+    renderWithProviders(
+      <ChatInputBox
+        mode="react"
+        threadId="thread-1"
+        allowAgentModes
+        onModeChange={onModeChange}
+        onDeepResearch={vi.fn()}
+      />,
+    );
+
+    await openToolsMenu();
+    await user.hover(screen.getByTestId("chat-commands-submenu"));
+    fireEvent.click(await screen.findByText("Plan"));
+
+    expect(textarea().value).toBe("");
+    expect(screen.getByTestId("composer-command-prefix")).toHaveTextContent(
+      "Plan",
+    );
+    expect(screen.getByTestId("composer-command-prefix")).toHaveClass(
+      "font-bold",
+      "text-sky-600",
+    );
+    expect(onModeChange).not.toHaveBeenCalled();
+
+    fireEvent.change(textarea(), {
+      target: { value: "Audit this repo" },
+    });
+    await openToolsMenu();
+    await user.hover(screen.getByTestId("chat-commands-submenu"));
+    fireEvent.click(await screen.findByText("Goal"));
+
+    expect(textarea().value).toBe("Audit this repo");
+    expect(screen.getByTestId("composer-command-prefix")).toHaveTextContent(
+      "Goal",
+    );
+    expect(screen.getByTestId("composer-command-prefix")).toHaveTextContent(
+      "🎯",
+    );
+    expect(screen.getByTestId("composer-command-prefix")).toHaveClass(
+      "font-bold",
+      "text-violet-600",
+    );
+    expect(screen.getByTestId("composer-long-task-indicator")).toHaveAttribute(
+      "aria-label",
+      "Goal 模式 · 点击退出",
+    );
+    expect(screen.getByTestId("composer-long-task-indicator")).toHaveClass(
+      "text-muted-foreground",
+    );
+    expect(
+      screen.getByTestId("composer-long-task-indicator"),
+    ).toHaveTextContent("🎯");
+    const longTaskIndicator = screen.getByTestId(
+      "composer-long-task-indicator",
+    );
+    const permissionTrigger = screen.getByTestId("permission-mode-trigger");
+    expect(longTaskIndicator.closest(".ml-auto")).toBeNull();
+    expect(
+      permissionTrigger.compareDocumentPosition(longTaskIndicator) &
+        Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+    expect(onModeChange).not.toHaveBeenCalled();
+  });
+
+  it("keeps marker-only Codex drafts unsent until the task is written", async () => {
+    const onSubmit = vi.fn();
+    renderWithProviders(
+      <ChatInputBox
+        mode="react"
+        threadId="thread-1"
+        onSubmit={onSubmit}
+        onDeepResearch={vi.fn()}
+      />,
+    );
+
+    fireEvent.change(textarea(), { target: { value: "/mode plan\n" } });
+
+    expect(screen.getByTitle("Send")).toBeDisabled();
+    fireEvent.click(screen.getByTitle("Send"));
+    expect(onSubmit).not.toHaveBeenCalled();
+    expect(textarea().value).toBe("");
+    expect(screen.getByTestId("composer-command-prefix")).toHaveTextContent(
+      "Plan",
+    );
+  });
+
+  it("shows Milestone as a mode and sends through the Project OS command", async () => {
+    const user = userEvent.setup();
+    const onSubmit = vi.fn();
+    renderWithProviders(
+      <ChatInputBox
+        mode="react"
+        threadId="thread-project-mode"
+        onSubmit={onSubmit}
+      />,
+    );
+
+    await openToolsMenu();
+    await user.hover(screen.getByTestId("chat-commands-submenu"));
+    fireEvent.click(await screen.findByText("Milestone"));
+
+    expect(textarea()).toHaveValue("");
+    expect(screen.getByTestId("composer-command-prefix")).toHaveTextContent(
+      "Milestone",
+    );
+    expect(screen.getByTestId("composer-command-prefix")).toHaveClass(
+      "font-bold",
+      "text-rose-600",
+    );
+    expect(textarea()).toHaveClass("pl-[7.5rem]");
+    expect(screen.getByTitle("Send")).toBeDisabled();
+
+    fireEvent.change(textarea(), { target: { value: "Ship the release" } });
+    fireEvent.click(screen.getByTitle("Send"));
+
+    await waitFor(() =>
+      expect(onSubmit).toHaveBeenCalledWith({
+        text: "/project run\nShip the release",
+      }),
+    );
+    expect(screen.getByTestId("composer-long-task-indicator")).toHaveAttribute(
+      "aria-label",
+      "里程碑模式 · 点击退出",
+    );
+    expect(screen.getByTestId("composer-command-prefix")).toHaveTextContent(
+      "Milestone",
+    );
+    expect(textarea()).toHaveValue("");
+
+    fireEvent.click(screen.getByTestId("composer-long-task-indicator"));
+    expect(screen.queryByTestId("composer-long-task-indicator")).toBeNull();
+    expect(screen.queryByTestId("composer-command-prefix")).toBeNull();
+  });
+
+  it("lazily exposes plugins and skills as removable colored references", async () => {
+    const user = userEvent.setup();
+    const onSubmit = vi.fn();
+    renderWithProviders(
+      <ChatInputBox
+        mode="react"
+        threadId="thread-capability-menu"
+        onSubmit={onSubmit}
+      />,
+    );
+
+    expect(capabilityCatalog.pluginOptions.at(-1)).toEqual({ enabled: false });
+    expect(capabilityCatalog.skillOptions.at(-1)).toEqual({ enabled: false });
+
+    await openToolsMenu();
+    expect(capabilityCatalog.pluginOptions.at(-1)).toEqual({ enabled: true });
+    expect(capabilityCatalog.skillOptions.at(-1)).toEqual({ enabled: true });
+    await user.hover(screen.getByTestId("chat-plugins-submenu"));
+    fireEvent.click(await screen.findByText("Seedance"));
+
+    expect(
+      screen.getByTestId("composer-capability-plugin-seedance"),
+    ).toHaveClass("text-violet-700");
+    expect(screen.getByTitle("Send")).toBeDisabled();
+
+    fireEvent.change(textarea(), { target: { value: "Create launch clip" } });
+    await openToolsMenu();
+    await user.hover(screen.getByTestId("chat-skills-submenu"));
+    const search = await screen.findByTestId("chat-skill-search");
+    fireEvent.change(search, { target: { value: "video" } });
+    expect(screen.queryByText("disabled-skill")).not.toBeInTheDocument();
+    fireEvent.click(await screen.findByText("video-generate"));
+
+    await openToolsMenu();
+    await user.hover(screen.getByTestId("chat-commands-submenu"));
+    fireEvent.click(await screen.findByText("Browser"));
+    await openToolsMenu();
+    await user.hover(screen.getByTestId("chat-commands-submenu"));
+    fireEvent.click(await screen.findByText("Chrome"));
+    expect(
+      screen.getByTestId("composer-capability-surface-chrome"),
+    ).toHaveTextContent("Chrome");
+    expect(
+      screen.queryByTestId("composer-capability-surface-browser"),
+    ).not.toBeInTheDocument();
+    await openToolsMenu();
+    await user.hover(screen.getByTestId("chat-commands-submenu"));
+    fireEvent.click(await screen.findByText("Browser"));
+    await openToolsMenu();
+    await user.hover(screen.getByTestId("chat-commands-submenu"));
+    fireEvent.click(await screen.findByText("Goal"));
+
+    expect(
+      screen.getByTestId("composer-capability-skill-video-generate"),
+    ).toHaveClass("text-blue-700");
+    expect(
+      screen.getByTestId("composer-capability-surface-browser"),
+    ).toHaveClass("text-cyan-700");
+    expect(screen.getByTestId("composer-command-prefix")).toHaveTextContent(
+      "Goal",
+    );
+
+    fireEvent.click(screen.getByTitle("Send"));
+    await waitFor(() =>
+      expect(onSubmit).toHaveBeenCalledWith({
+        text: "/mode goal\n@plugin:seedance @skill:video-generate @Browser\nCreate launch clip",
+      }),
+    );
+  });
+
+  it("removes an empty highlighted command with Backspace", () => {
+    renderWithProviders(
+      <ChatInputBox
+        mode="react"
+        threadId="thread-1"
+        defaultValue={"/mode goal\n"}
+      />,
+    );
+
+    fireEvent.keyDown(screen.getByTestId("chat-composer-input"), {
+      key: "Backspace",
+      isComposing: true,
+    });
+    expect(screen.getByTestId("composer-command-prefix")).toBeInTheDocument();
+
+    fireEvent.keyDown(screen.getByTestId("chat-composer-input"), {
+      key: "Backspace",
+    });
+
+    expect(
+      screen.queryByTestId("composer-command-prefix"),
+    ).not.toBeInTheDocument();
+    expect(screen.getByTestId("chat-composer-input")).toHaveValue("");
+  });
+
+  it("sends default execution mode through the normal message path", async () => {
+    const onSubmit = vi.fn();
+    const onDeepResearch = vi.fn().mockResolvedValue(true);
+    renderWithProviders(
+      <ChatInputBox
+        mode="react"
+        threadId="thread-1"
+        onSubmit={onSubmit}
+        onDeepResearch={onDeepResearch}
+      />,
+    );
+
+    fireEvent.change(textarea(), { target: { value: "Run the agent" } });
+    fireEvent.click(screen.getByTitle("Send"));
+
+    await waitFor(() =>
+      expect(onSubmit).toHaveBeenCalledWith({ text: "Run the agent" }),
+    );
+    expect(onDeepResearch).not.toHaveBeenCalled();
+  });
+
+  it("sends vague tasks through so the model can decide whether to clarify", async () => {
+    const onSubmit = vi.fn();
+    renderWithProviders(
+      <ChatInputBox mode="react" threadId="thread-1" onSubmit={onSubmit} />,
+    );
+
+    fireEvent.change(textarea(), {
+      target: { value: "Research a promising niche market" },
+    });
+    fireEvent.click(screen.getByTitle("Send"));
+
+    await waitFor(() =>
+      expect(onSubmit).toHaveBeenCalledWith({
+        text: "Research a promising niche market",
+      }),
+    );
+    expect(textarea().value).toBe("");
+  });
+
+  it("suppresses duplicate submissions before the parent status updates", () => {
+    const onSubmit = vi.fn();
+    renderWithProviders(
+      <ChatInputBox mode="react" threadId="thread-1" onSubmit={onSubmit} />,
+    );
+
+    fireEvent.change(textarea(), { target: { value: "Run once" } });
+    const send = screen.getByTitle("Send");
+    fireEvent.click(send);
+    fireEvent.click(send);
+
+    expect(onSubmit).toHaveBeenCalledTimes(1);
+  });
+
+  it("allows sending a pasted image without typed text", async () => {
+    const onSubmit = vi.fn();
+    renderWithProviders(
+      <ChatInputBox mode="react" threadId="thread-1" onSubmit={onSubmit} />,
+    );
+
+    const image = new File(["img"], "screen.png", { type: "image/png" });
+    fireEvent.paste(textarea(), {
+      clipboardData: {
+        items: [
+          {
+            kind: "file",
+            type: "image/png",
+            getAsFile: () => image,
+          },
+        ],
+      },
+    });
+
+    // Send stays blocked until the attachment finishes uploading.
+    await waitFor(() => expect(screen.getByTitle("Send")).toBeEnabled());
+    fireEvent.click(screen.getByTitle("Send"));
+
+    await waitFor(() =>
+      expect(onSubmit).toHaveBeenCalledWith({
+        text: "",
+        images: [image],
+        uploaded: [uploadedInfo(image)],
+      }),
+    );
+  });
+
+  it("adds clicked workspace files to the composer and sends them as turn context", async () => {
+    const onSubmit = vi.fn();
+    renderWithProviders(
+      <ChatInputBox
+        mode="react"
+        threadId="thread-1"
+        workDir="/repo/echo"
+        onSubmit={onSubmit}
+      />,
+    );
+
+    act(() => {
+      window.dispatchEvent(
+        new CustomEvent("echo:open-file", {
+          detail: {
+            threadId: "thread-1",
+            path: "src/app.tsx",
+            workDir: "/repo/echo",
+          },
+        }),
+      );
+    });
+
+    expect(await screen.findByText("app.tsx")).toBeInTheDocument();
+    expect(screen.getByTitle("Send")).toBeEnabled();
+    fireEvent.click(screen.getByTitle("Send"));
+
+    await waitFor(() =>
+      expect(onSubmit).toHaveBeenCalledWith({
+        text: expect.stringContaining(
+          "path=src/app.tsx workspace=/repo/echo",
+        ),
+      }),
+    );
+  });
+
+  it("sends selected local files through the normal attachment path", async () => {
+    const onSubmit = vi.fn();
+    renderWithProviders(
+      <ChatInputBox mode="react" threadId="thread-1" onSubmit={onSubmit} />,
+    );
+
+    const file = new File(["brief"], "brief.md", { type: "text/markdown" });
+    const contextInput = screen.getByTestId(
+      "chat-device-file-input",
+    ) as HTMLInputElement;
+    fireEvent.change(contextInput, {
+      target: { files: [file] },
+    });
+
+    expect(await screen.findByText("brief.md")).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByTitle("Send")).toBeEnabled());
+    fireEvent.click(screen.getByTitle("Send"));
+
+    await waitFor(() =>
+      expect(onSubmit).toHaveBeenCalledWith({
+        text: expect.stringContaining("upload=brief.md"),
+        files: [file],
+        uploaded: [uploadedInfo(file)],
+      }),
+    );
+  });
+
+  it("treats legacy deep Agent state as a normal message until research settings open", async () => {
+    const onSubmit = vi.fn();
+    const onDeepResearch = vi.fn().mockResolvedValue(true);
+    renderWithProviders(
+      <ChatInputBox
+        mode="deep"
+        threadId="thread-1"
+        onSubmit={onSubmit}
+        onDeepResearch={onDeepResearch}
+      />,
+    );
+
+    fireEvent.change(textarea(), {
+      target: { value: "Continue in agent mode" },
+    });
+    fireEvent.click(screen.getByTitle("Send"));
+
+    await waitFor(() =>
+      expect(onSubmit).toHaveBeenCalledWith({
+        text: "Continue in agent mode",
+      }),
+    );
+    expect(onDeepResearch).not.toHaveBeenCalled();
+  });
+
+  it("prefills the composer and switches to cowork from a thinking plan event", async () => {
+    const onModeChange = vi.fn();
+    renderWithProviders(
+      <ChatInputBox
+        mode="react"
+        threadId="thread-1"
+        allowAgentModes
+        onModeChange={onModeChange}
+        onDeepResearch={vi.fn()}
+      />,
+    );
+
+    window.dispatchEvent(
+      new CustomEvent("echo:start-deep-research", {
+        detail: { threadId: "other-thread", topic: "wrong topic" },
+      }),
+    );
+    expect(textarea().value).toBe("");
+
+    await act(async () => {
+      window.dispatchEvent(
+        new CustomEvent("echo:start-deep-research", {
+          detail: { threadId: "thread-1", topic: "NAS market research" },
+        }),
+      );
+    });
+
+    await waitFor(() => {
+      expect(textarea().value).toBe("NAS market research");
+    });
+    expect(onModeChange).toHaveBeenCalledWith("deep");
+  });
+
+  it("keeps permissions separate from conversation mode", async () => {
+    const onModeChange = vi.fn();
+    renderWithProviders(
+      <ChatInputBox
+        mode="react"
+        threadId="thread-1"
+        onModeChange={onModeChange}
+        showInspirationToggle
+        onDeepResearch={vi.fn()}
+      />,
+    );
+
+    window.dispatchEvent(
+      new CustomEvent("echo:start-deep-research", {
+        detail: { threadId: "thread-1", topic: "NAS market research" },
+      }),
+    );
+
+    await waitFor(() => {
+      expect(textarea().value).toBe("NAS market research");
+    });
+    expect(onModeChange).not.toHaveBeenCalled();
+
+    expect(screen.queryByText("Swarm")).toBeNull();
+    expect(screen.queryByText("Add Research Material")).toBeNull();
+    expect(screen.queryByTestId("reasoning-mode-trigger")).toBeNull();
+
+    expect(screen.queryByTestId("chat-mode-toggle")).toBeNull();
+    const executionMode = screen.getByRole("button", {
+      name: /Ask for approval/,
+    });
+    fireEvent.pointerDown(executionMode, { button: 0, ctrlKey: false });
+    fireEvent.click(executionMode);
+
+    await screen.findByTestId("permission-mode-option-default");
+    expect(screen.queryByTestId("execution-mode-option-discussion")).toBeNull();
+    expect(screen.getAllByRole("menuitemradio")).toHaveLength(3);
+    expect(onModeChange).not.toHaveBeenCalled();
+  });
+
+  it("shows permissions independently of a legacy chat mode", async () => {
+    renderWithProviders(
+      <ChatInputBox
+        mode="chat"
+        threadId="thread-1"
+        showInspirationToggle
+        onModeChange={vi.fn()}
+      />,
+    );
+    const trigger = screen.getByTestId("permission-mode-trigger");
+    expect(trigger).toHaveTextContent("Ask for approval");
+    fireEvent.pointerDown(trigger, { button: 0, ctrlKey: false });
+    fireEvent.click(trigger);
+    expect(
+      await screen.findByTestId("permission-mode-option-default"),
+    ).toHaveAttribute("aria-checked", "true");
+    expect(screen.queryByTestId("execution-mode-option-discussion")).toBeNull();
+  });
+
+  it("lets users select the reasoning effort", async () => {
+    modelCatalog.current = modelCatalog.current.map((model) => ({
+      ...model,
+      reasoning_efforts: ["medium", "high", "xhigh"],
+    }));
+    const onReasoningEffortChange = vi.fn();
+    renderWithProviders(
+      <ChatInputBox
+        mode="react"
+        threadId="thread-1"
+        modelName="test-model"
+        reasoningEffort="medium"
+        onReasoningEffortChange={onReasoningEffortChange}
+      />,
+    );
+
+    const trigger = screen.getByRole("button", { name: "Select Model" });
+    fireEvent.pointerDown(trigger, { button: 0, ctrlKey: false });
+    fireEvent.click(trigger);
+    expect(
+      await screen.findByRole("radiogroup", { name: "Reasoning effort" }),
+    ).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("radio", { name: "Ultra" }));
+
+    expect(onReasoningEffortChange).toHaveBeenCalledWith("xhigh");
+  });
+
+  it("shows the context compressor as a persistent input control", () => {
+    const { rerender } = renderWithProviders(
+      <ChatInputBox
+        mode="react"
+        threadId="thread-1"
+        contextTokens={500}
+        maxContextTokens={1000}
+      />,
+    );
+
+    expect(screen.getByLabelText(/Context Usage: 50%/)).toBeInTheDocument();
+
+    rerender(
+      <ChatInputBox
+        mode="react"
+        threadId="thread-1"
+        contextTokens={600}
+        maxContextTokens={1000}
+      />,
+    );
+
+    expect(screen.getByLabelText(/Context Usage: 60%/)).toBeInTheDocument();
+  });
+
+  it("submits only enabled URL/text materials", async () => {
+    const onDeepResearch = vi.fn().mockResolvedValue(true);
+    renderWithProviders(
+      <ChatInputBox
+        mode="deep"
+        threadId="thread-1"
+        allowAgentModes
+        onDeepResearch={onDeepResearch}
+      />,
+    );
+
+    fireEvent.change(textarea(), { target: { value: "Research NAS market" } });
+    await openAgentSettings();
+    fireEvent.change(
+      screen.getByPlaceholderText("https://example.com, https://..."),
+      {
+        target: { value: "https://www.synology.com/" },
+      },
+    );
+    fireEvent.change(screen.getByPlaceholderText("Material Note"), {
+      target: { value: "official site" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: /^URL$/i }));
+
+    fireEvent.change(screen.getByPlaceholderText("Text Title"), {
+      target: { value: "Internal notes" },
+    });
+    fireEvent.change(screen.getByPlaceholderText("Paste text material"), {
+      target: { value: "Users care about backup." },
+    });
+    fireEvent.click(screen.getByRole("button", { name: /^Text$/i }));
+    fireEvent.change(
+      screen.getByPlaceholderText("https://example.com, https://..."),
+      {
+        target: { value: "https://old-thread.example/research" },
+      },
+    );
+    fireEvent.change(screen.getByPlaceholderText("Text Title"), {
+      target: { value: "old thread title" },
+    });
+    fireEvent.change(screen.getByPlaceholderText("Paste text material"), {
+      target: { value: "unsaved old thread material" },
+    });
+    fireEvent.change(screen.getByPlaceholderText("Material Note"), {
+      target: { value: "old thread note" },
+    });
+
+    fireEvent.click(screen.getAllByTitle("Toggle Material")[0]);
+    fireEvent.click(screen.getByTitle("Send"));
+
+    await waitFor(() => expect(onDeepResearch).toHaveBeenCalledTimes(1));
+    // Sending clears the optimistic draft asynchronously. Wait for that
+    // contract before unmounting so the following test cannot observe a late
+    // state write when the full suite is under load.
+    await waitFor(() => expect(textarea().value).toBe(""));
+    const [, options] = onDeepResearch.mock.calls[0];
+    expect(options.materials).toEqual([
+      expect.objectContaining({
+        kind: "text",
+        title: "Internal notes",
+        text: "Users care about backup.",
+      }),
+    ]);
+  });
+
+  it("uploads files and submits them as file materials", async () => {
+    uploadFilesMock.mockResolvedValue({
+      success: true,
+      message: "ok",
+      files: [
+        {
+          filename: "brief.md",
+          path: "F:/uploads/thread-1/brief.md",
+          virtual_path: "/uploads/brief.md",
+          artifact_url: "/api/artifacts/brief.md",
+          size: 123,
+          modified: 1,
+          extension: ".md",
+        },
+      ],
+    });
+    const onDeepResearch = vi.fn().mockResolvedValue(true);
+    renderWithProviders(
+      <ChatInputBox
+        mode="deep"
+        threadId="thread-1"
+        allowAgentModes
+        onDeepResearch={onDeepResearch}
+      />,
+    );
+
+    fireEvent.change(textarea(), { target: { value: "Research NAS market" } });
+    await openAgentSettings();
+    const fileInput = document.querySelector(
+      'input[type="file"]',
+    ) as HTMLInputElement;
+    fireEvent.change(fileInput, {
+      target: {
+        files: [new File(["hello"], "brief.md", { type: "text/markdown" })],
+      },
+    });
+
+    await screen.findByText("brief.md");
+    fireEvent.click(screen.getByTitle("Send"));
+
+    await waitFor(() => expect(onDeepResearch).toHaveBeenCalledTimes(1));
+    const [, options] = onDeepResearch.mock.calls[0];
+    expect(uploadFilesMock).toHaveBeenCalledWith("thread-1", [
+      expect.objectContaining({ name: "brief.md" }),
+    ]);
+    expect(options.materials).toEqual([
+      expect.objectContaining({
+        kind: "file",
+        title: "brief.md",
+        path: "F:/uploads/thread-1/brief.md",
+      }),
+    ]);
+  });
+
+  it("ignores an old research upload when the same filename is added in a new thread", async () => {
+    const uploadResult = (owner: string) => ({
+      success: true,
+      message: owner,
+      files: [
+        {
+          filename: "same.md",
+          path: `/${owner}/same.md`,
+          virtual_path: `/uploads/${owner}/same.md`,
+          artifact_url: `/api/artifacts/${owner}/same.md`,
+          size: 4,
+          modified: 1,
+          extension: ".md",
+        },
+      ],
+    });
+    type UploadResult = ReturnType<typeof uploadResult>;
+    let finishOld!: (result: UploadResult) => void;
+    let finishNew!: (result: UploadResult) => void;
+    uploadFilesMock
+      .mockImplementationOnce(
+        () =>
+          new Promise((resolve) => {
+            finishOld = resolve;
+          }),
+      )
+      .mockImplementationOnce(
+        () =>
+          new Promise((resolve) => {
+            finishNew = resolve;
+          }),
+      );
+    const onDeepResearch = vi.fn().mockResolvedValue(true);
+    const renderComposer = (threadId: string) => (
+      <ChatInputBox
+        mode="deep"
+        threadId={threadId}
+        allowAgentModes
+        onDeepResearch={onDeepResearch}
+      />
+    );
+    const { rerender } = renderWithProviders(
+      renderComposer("research-thread-a"),
+    );
+
+    await openAgentSettings();
+    const materialInput = document.querySelector(
+      'input[type="file"]',
+    ) as HTMLInputElement;
+    fireEvent.change(materialInput, {
+      target: {
+        files: [new File(["same"], "same.md", { type: "text/markdown" })],
+      },
+    });
+    await waitFor(() => expect(uploadFilesMock).toHaveBeenCalledTimes(1));
+
+    rerender(renderComposer("research-thread-b"));
+    await openAgentSettings();
+    await waitFor(() =>
+      expect(
+        screen.getByRole("button", { name: /^Add files$/i }),
+      ).toBeEnabled(),
+    );
+    const newMaterialInput = document.querySelector(
+      'input[type="file"]',
+    ) as HTMLInputElement;
+    fireEvent.change(newMaterialInput, {
+      target: {
+        files: [new File(["same"], "same.md", { type: "text/markdown" })],
+      },
+    });
+    await waitFor(() => expect(uploadFilesMock).toHaveBeenCalledTimes(2));
+
+    await act(async () => {
+      finishOld(uploadResult("old-thread"));
+      await Promise.resolve();
+    });
+    expect(screen.queryByText("same.md")).toBeNull();
+    expect(screen.getByRole("button", { name: /^Add files$/i })).toBeDisabled();
+
+    await act(async () => {
+      finishNew(uploadResult("new-thread"));
+      await Promise.resolve();
+    });
+    expect(await screen.findByText("same.md")).toBeInTheDocument();
+
+    fireEvent.change(textarea(), { target: { value: "Research new thread" } });
+    fireEvent.click(screen.getByTitle("Send"));
+    await waitFor(() => expect(onDeepResearch).toHaveBeenCalledTimes(1));
+    expect(onDeepResearch.mock.calls[0][1].materials).toEqual([
+      expect.objectContaining({ path: "/new-thread/same.md" }),
+    ]);
+  });
+
+  it("does not expose raw upload errors in the composer", async () => {
+    uploadFilesMock.mockRejectedValueOnce(
+      new Error("S3 credential token leaked from upstream"),
+    );
+    renderWithProviders(
+      <ChatInputBox
+        mode="deep"
+        threadId="thread-1"
+        allowAgentModes
+        onDeepResearch={vi.fn()}
+      />,
+    );
+
+    await openAgentSettings();
+    const fileInput = document.querySelector(
+      'input[type="file"]',
+    ) as HTMLInputElement;
+    fireEvent.change(fileInput, {
+      target: {
+        files: [new File(["hello"], "brief.md", { type: "text/markdown" })],
+      },
+    });
+
+    expect(await screen.findByText("Upload failed")).toBeInTheDocument();
+    expect(
+      screen.queryByText("S3 credential token leaked from upstream"),
+    ).not.toBeInTheDocument();
+  });
+
+  it("lets the planner choose research roles instead of sending a fixed template", async () => {
+    const onDeepResearch = vi.fn().mockResolvedValue(true);
+    renderWithProviders(
+      <ChatInputBox
+        mode="deep"
+        threadId="thread-1"
+        allowAgentModes
+        onDeepResearch={onDeepResearch}
+      />,
+    );
+
+    fireEvent.change(textarea(), { target: { value: "Research NAS market" } });
+    await openAgentSettings();
+    fireEvent.click(screen.getByTitle("Send"));
+
+    await waitFor(() => expect(onDeepResearch).toHaveBeenCalledTimes(1));
+    const [, options] = onDeepResearch.mock.calls[0];
+    expect(options.roles).toBeUndefined();
+    expect(options.maxSubagents).toBeUndefined();
+  });
+});
+
+describe("<ChatInputBox /> live steering", () => {
+  it("keeps text input sendable while a turn is streaming", () => {
+    const onSubmit = vi.fn();
+    const onStop = vi.fn();
+    renderWithProviders(
+      <ChatInputBox
+        mode="react"
+        threadId="thread-live"
+        status="streaming"
+        onSubmit={onSubmit}
+        onStop={onStop}
+      />,
+    );
+
+    const input = screen.getByTestId("chat-composer-input");
+    expect(input).not.toBeDisabled();
+    fireEvent.change(input, { target: { value: "先暂停修改，核对根因" } });
+    fireEvent.click(screen.getByTestId("chat-steer-button"));
+
+    expect(onSubmit).toHaveBeenCalledWith({
+      text: "先暂停修改，核对根因",
+      images: undefined,
+      files: undefined,
+    });
+  });
+
+  it("disables the stop action while a stop request is pending", () => {
+    const onSubmit = vi.fn();
+    const onStop = vi.fn();
+    const { rerender } = renderWithProviders(
+      <ChatInputBox
+        mode="react"
+        threadId="thread-live"
+        status="streaming"
+        onSubmit={onSubmit}
+        onStop={onStop}
+      />,
+    );
+
+    fireEvent.change(screen.getByTestId("chat-composer-input"), {
+      target: { value: "do not steer after stop starts" },
+    });
+    rerender(
+      <ChatInputBox
+        mode="react"
+        threadId="thread-live"
+        status="streaming"
+        onSubmit={onSubmit}
+        onStop={onStop}
+        isStopping
+      />,
+    );
+    const steerButton = screen.getByTestId("chat-steer-button");
+    expect(steerButton).toBeDisabled();
+    expect(steerButton).not.toHaveAttribute("aria-busy");
+    fireEvent.click(steerButton);
+    expect(onSubmit).not.toHaveBeenCalled();
+
+    const stopButton = screen.getByTitle("Stopping…");
+    expect(stopButton).toBeDisabled();
+    expect(stopButton).toHaveAttribute("aria-busy", "true");
+    fireEvent.click(stopButton);
+    expect(onStop).not.toHaveBeenCalled();
+  });
+});
+
+describe("<ChatInputBox /> connection recovery", () => {
+  it("keeps the draft editable and unsent until the thread is ready", () => {
+    const onSubmit = vi.fn();
+    const { rerender } = renderWithProviders(
+      <ChatInputBox
+        mode="react"
+        threadId="thread-recovering"
+        readyForMutations={false}
+        connectionPhase="resuming"
+        onSubmit={onSubmit}
+      />,
+    );
+
+    const input = screen.getByTestId("chat-composer-input");
+    fireEvent.change(input, { target: { value: "keep this draft" } });
+
+    expect(input).not.toBeDisabled();
+    expect(screen.getByTestId("chat-connection-status")).toHaveTextContent(
+      "Restoring connection… Your draft is safe.",
+    );
+    expect(screen.getByTestId("chat-send-button")).toBeDisabled();
+    fireEvent.keyDown(input, { key: "Enter", code: "Enter" });
+    expect(onSubmit).not.toHaveBeenCalled();
+    expect(input).toHaveValue("keep this draft");
+
+    rerender(
+      <ChatInputBox
+        mode="react"
+        threadId="thread-recovering"
+        readyForMutations
+        connectionPhase="ready"
+        onSubmit={onSubmit}
+      />,
+    );
+
+    expect(screen.queryByTestId("chat-connection-status")).toBeNull();
+    expect(screen.getByTestId("chat-send-button")).toBeEnabled();
+    fireEvent.click(screen.getByTestId("chat-send-button"));
+    expect(onSubmit).toHaveBeenCalledWith({
+      text: "keep this draft",
+      images: undefined,
+      files: undefined,
+    });
+    expect(input).toHaveValue("");
+  });
+
+  it("keeps the draft when the mutation boundary detects a reconnect race", () => {
+    const onSubmit = vi.fn(() => false);
+    renderWithProviders(
+      <ChatInputBox
+        mode="react"
+        threadId="thread-reconnect-race"
+        readyForMutations
+        connectionPhase="ready"
+        onSubmit={onSubmit}
+      />,
+    );
+
+    const input = screen.getByTestId("chat-composer-input");
+    fireEvent.change(input, { target: { value: "do not lose this" } });
+    fireEvent.click(screen.getByTestId("chat-send-button"));
+
+    expect(onSubmit).toHaveBeenCalledTimes(1);
+    expect(input).toHaveValue("do not lose this");
+  });
+
+  it("offers a retry after recovery fails without clearing the draft", () => {
+    const onRetryConnection = vi.fn();
+    renderWithProviders(
+      <ChatInputBox
+        mode="react"
+        threadId="thread-recovery-error"
+        readyForMutations={false}
+        connectionPhase="recovery_error"
+        onRetryConnection={onRetryConnection}
+      />,
+    );
+
+    const input = screen.getByTestId("chat-composer-input");
+    fireEvent.change(input, { target: { value: "still here" } });
+    expect(screen.getByTestId("chat-connection-status")).toHaveTextContent(
+      "Couldn't restore the connection.",
+    );
+    fireEvent.click(screen.getByTestId("chat-connection-retry"));
+
+    expect(onRetryConnection).toHaveBeenCalledTimes(1);
+    expect(input).toHaveValue("still here");
+  });
+
+  it("contains synchronous retry failures", () => {
+    const onRetryConnection = vi.fn(() => {
+      throw new Error("retry failed");
+    });
+    renderWithProviders(
+      <ChatInputBox
+        mode="react"
+        threadId="thread-recovery-error"
+        readyForMutations={false}
+        connectionPhase="recovery_error"
+        onRetryConnection={onRetryConnection}
+      />,
+    );
+
+    expect(() =>
+      fireEvent.click(screen.getByTestId("chat-connection-retry")),
+    ).not.toThrow();
+    expect(onRetryConnection).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("<ChatInputBox /> thread-scoped composer state", () => {
+  it("restores an unsent new-task draft after its provisional ID changes", () => {
+    const first = renderWithProviders(
+      <ChatInputBox
+        mode="react"
+        threadId="provisional-a"
+        draftStorageKey="__new__"
+      />,
+    );
+    fireEvent.change(textarea(), { target: { value: "new task draft" } });
+    first.unmount();
+    const second = renderWithProviders(
+      <ChatInputBox
+        mode="react"
+        threadId="provisional-b"
+        draftStorageKey="__new__"
+      />,
+    );
+    expect(textarea()).toHaveValue("new task draft");
+    second.rerender(
+      <ChatInputBox mode="react" threadId="existing-conversation" />,
+    );
+    expect(textarea()).toHaveValue("");
+  });
+
+  it("flushes the final keystrokes on pagehide and unmount", () => {
+    const { unmount } = renderWithProviders(
+      <ChatInputBox mode="react" threadId="draft-fast-exit" />,
+    );
+    fireEvent.change(textarea(), { target: { value: "before hiding" } });
+    fireEvent(window, new Event("pagehide"));
+    expect(
+      localStorage.getItem("echo:composer-draft:draft-fast-exit"),
+    ).toContain("before hiding");
+    fireEvent.change(textarea(), { target: { value: "before leaving" } });
+    unmount();
+    renderWithProviders(
+      <ChatInputBox mode="react" threadId="draft-fast-exit" />,
+    );
+    expect(textarea()).toHaveValue("before leaving");
+  });
+
+  it("does not resurrect a sent draft on immediate unmount", () => {
+    const onSubmit = vi.fn();
+    const { unmount } = renderWithProviders(
+      <ChatInputBox
+        mode="react"
+        threadId="draft-sent-exit"
+        onSubmit={onSubmit}
+      />,
+    );
+    fireEvent.change(textarea(), { target: { value: "send once" } });
+    fireEvent(window, new Event("pagehide"));
+    fireEvent.keyDown(textarea(), { key: "Enter" });
+    expect(onSubmit).toHaveBeenCalledTimes(1);
+    unmount();
+    renderWithProviders(
+      <ChatInputBox mode="react" threadId="draft-sent-exit" />,
+    );
+    expect(textarea()).toHaveValue("");
+  });
+
+  it("leaves IME confirmation to the input method", () => {
+    const onSubmit = vi.fn();
+    renderWithProviders(
+      <ChatInputBox mode="react" threadId="ime-confirm" onSubmit={onSubmit} />,
+    );
+    fireEvent.change(textarea(), { target: { value: "中文" } });
+    fireEvent.keyDown(textarea(), { key: "Enter", isComposing: true });
+    fireEvent.keyDown(textarea(), { key: "Enter", keyCode: 229 });
+    expect(onSubmit).not.toHaveBeenCalled();
+    expect(textarea()).toHaveValue("中文");
+    fireEvent.keyDown(textarea(), { key: "Enter" });
+    expect(onSubmit).toHaveBeenCalledTimes(1);
+  });
+
+  it("flushes the previous draft before a sub-300ms thread switch", async () => {
+    const { rerender } = renderWithProviders(
+      <ChatInputBox mode="react" threadId="draft-thread-a" />,
+    );
+
+    fireEvent.change(textarea(), {
+      target: { value: "unsaved final keystrokes" },
+    });
+    rerender(<ChatInputBox mode="react" threadId="draft-thread-b" />);
+    await waitFor(() => expect(textarea()).toHaveValue(""));
+
+    rerender(<ChatInputBox mode="react" threadId="draft-thread-a" />);
+    await waitFor(() =>
+      expect(textarea()).toHaveValue("unsaved final keystrokes"),
+    );
+  });
+
+  it("clears images, files, and research materials when the thread changes", async () => {
+    const revokeObjectURL = vi.spyOn(URL, "revokeObjectURL");
+    const { rerender } = renderWithProviders(
+      <ChatInputBox
+        mode="deep"
+        threadId="attachment-thread-a"
+        allowAgentModes
+        onDeepResearch={vi.fn()}
+      />,
+    );
+
+    const image = new File(["image"], "thread-a.png", { type: "image/png" });
+    fireEvent.paste(textarea(), {
+      clipboardData: {
+        items: [
+          {
+            kind: "file",
+            type: "image/png",
+            getAsFile: () => image,
+          },
+        ],
+      },
+    });
+    const contextFile = new File(["notes"], "thread-a.md", {
+      type: "text/markdown",
+    });
+    fireEvent.change(screen.getByTestId("chat-device-file-input"), {
+      target: { files: [contextFile] },
+    });
+    await openAgentSettings();
+    fireEvent.change(screen.getByPlaceholderText("Paste text material"), {
+      target: { value: "thread A research context" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: /^Text$/i }));
+
+    expect(document.querySelector('img[alt="thread-a.png"]')).toBeTruthy();
+    expect(screen.getByText("thread-a.md")).toBeInTheDocument();
+    expect(screen.getByText("thread A research context")).toBeInTheDocument();
+
+    rerender(
+      <ChatInputBox
+        mode="deep"
+        threadId="attachment-thread-b"
+        allowAgentModes
+        onDeepResearch={vi.fn()}
+      />,
+    );
+
+    await waitFor(() => {
+      expect(document.querySelector('img[alt="thread-a.png"]')).toBeNull();
+      expect(screen.queryByText("thread-a.md")).toBeNull();
+      expect(screen.queryByText("thread A research context")).toBeNull();
+    });
+    await openAgentSettings();
+    expect(
+      screen.getByPlaceholderText("https://example.com, https://..."),
+    ).toHaveValue("");
+    expect(screen.getByPlaceholderText("Text Title")).toHaveValue("");
+    expect(screen.getByPlaceholderText("Paste text material")).toHaveValue("");
+    expect(screen.getByPlaceholderText("Material Note")).toHaveValue("");
+    expect(revokeObjectURL).toHaveBeenCalled();
+    revokeObjectURL.mockRestore();
+  });
+
+  it("does not attach an appshot that finishes after switching threads", async () => {
+    let finishCapture!: (value: ComputerApiModule.ComputerAppshot) => void;
+    captureComputerAppshotMock.mockImplementation(
+      () =>
+        new Promise((resolve) => {
+          finishCapture = resolve;
+        }),
+    );
+    const { rerender } = renderWithProviders(
+      <ChatInputBox mode="react" threadId="appshot-thread-a" />,
+    );
+
+    await openToolsMenu();
+    fireEvent.click(screen.getByTestId("chat-add-appshot"));
+    await waitFor(() =>
+      expect(captureComputerAppshotMock).toHaveBeenCalledWith({
+        controlSessionId: "thread:appshot-thread-a",
+      }),
+    );
+
+    rerender(<ChatInputBox mode="react" threadId="appshot-thread-b" />);
+    await act(async () => {
+      finishCapture({
+        schema: "echo.appshot.v1",
+        ok: true,
+        snapshot_id: "old-snapshot",
+        created_at: 1,
+        target: {
+          kind: "desktop_window",
+          source: "computer",
+          id: "window-1",
+          title: "Old window",
+          app_name: "OldApp",
+        },
+        screenshot: {
+          ok: true,
+          data_url: "data:image/png;base64,aW1n",
+        },
+        accessibility: { available: true },
+      });
+      await Promise.resolve();
+    });
+
+    expect(document.querySelector('img[alt^="Appshot-"]')).toBeNull();
+    expect(uploadWithProgressMock).not.toHaveBeenCalled();
+  });
+
+  it("does not attach a queued image decoded after switching threads", async () => {
+    const dataUrl = "data:image/png;base64,cXVldWVkLW9sZC10aHJlYWQ=";
+    let finishDecode!: (response: Response) => void;
+    const realFetch = globalThis.fetch;
+    const fetchSpy = vi
+      .spyOn(globalThis, "fetch")
+      .mockImplementation((input, init) => {
+        if (String(input) === dataUrl) {
+          return new Promise((resolve) => {
+            finishDecode = resolve;
+          });
+        }
+        return realFetch(input, init);
+      });
+    queueComposerImageEntry({
+      threadId: "queue-thread-a",
+      dataUrl,
+      filename: "queued-old-thread.png",
+      sourceLabel: "Old browser capture",
+    });
+    const { rerender } = renderWithProviders(
+      <ChatInputBox mode="react" threadId="queue-thread-a" />,
+    );
+    await waitFor(() => expect(fetchSpy).toHaveBeenCalledWith(dataUrl));
+
+    rerender(<ChatInputBox mode="react" threadId="queue-thread-b" />);
+    await act(async () => {
+      finishDecode({
+        blob: async () => new Blob(["image"], { type: "image/png" }),
+      } as Response);
+      await Promise.resolve();
+    });
+
+    expect(
+      document.querySelector('img[alt="queued-old-thread.png"]'),
+    ).toBeNull();
+    expect(uploadWithProgressMock).not.toHaveBeenCalled();
+    fetchSpy.mockRestore();
+  });
+});
+
+describe("<ChatInputBox /> send-failure draft restore", () => {
+  function dispatchSendFailed(detail: {
+    threadId?: string | null;
+    text?: string | null;
+    images?: File[] | null;
+    sourceLabel?: string | null;
+  }) {
+    act(() => {
+      window.dispatchEvent(new CustomEvent("echo:send-failed", { detail }));
+    });
+  }
+
+  it("restores the draft when a send fails after optimistic clear", async () => {
+    renderWithProviders(
+      <ChatInputBox
+        mode="react"
+        threadId="thread-1"
+        onSubmit={vi.fn()}
+        onDeepResearch={vi.fn()}
+      />,
+    );
+
+    fireEvent.change(textarea(), { target: { value: "hello agent" } });
+    fireEvent.click(screen.getByTitle("Send"));
+    await waitFor(() => expect(textarea().value).toBe(""));
+
+    dispatchSendFailed({ threadId: "thread-1", text: "hello agent" });
+
+    await waitFor(() => expect(textarea().value).toBe("hello agent"));
+  });
+
+  it("ignores failures from other threads", () => {
+    renderWithProviders(
+      <ChatInputBox
+        mode="react"
+        threadId="thread-1"
+        onSubmit={vi.fn()}
+        onDeepResearch={vi.fn()}
+      />,
+    );
+
+    dispatchSendFailed({ threadId: "thread-other", text: "not mine" });
+
+    expect(textarea().value).toBe("");
+  });
+
+  it("does not clobber text the user already retyped", () => {
+    renderWithProviders(
+      <ChatInputBox
+        mode="react"
+        threadId="thread-1"
+        onSubmit={vi.fn()}
+        onDeepResearch={vi.fn()}
+      />,
+    );
+
+    fireEvent.change(textarea(), { target: { value: "new attempt" } });
+    dispatchSendFailed({ threadId: "thread-1", text: "old failed text" });
+
+    expect(textarea().value).toBe("new attempt");
+  });
+
+  it("restores failed screenshots when the composer had been cleared", async () => {
+    const image = new File(["img"], "failed-shot.png", { type: "image/png" });
+    renderWithProviders(
+      <ChatInputBox
+        mode="react"
+        threadId="thread-1"
+        onSubmit={vi.fn()}
+        onDeepResearch={vi.fn()}
+      />,
+    );
+
+    dispatchSendFailed({
+      threadId: "thread-1",
+      images: [image],
+      sourceLabel: "浏览器截图",
+    });
+
+    await waitFor(() =>
+      expect(
+        document.querySelector('img[alt="failed-shot.png"]'),
+      ).toBeInTheDocument(),
+    );
+    expect(screen.getByTitle("Send")).toBeEnabled();
+    expect(screen.getByText("浏览器截图")).toBeInTheDocument();
+  });
+
+  it("accepts externally injected browser screenshots for the active thread", async () => {
+    const image = new File(["img"], "browser-shot.png", { type: "image/png" });
+    renderWithProviders(
+      <ChatInputBox
+        mode="react"
+        threadId="thread-1"
+        onSubmit={vi.fn()}
+        onDeepResearch={vi.fn()}
+      />,
+    );
+
+    act(() => {
+      window.dispatchEvent(
+        new CustomEvent("echo:inject-composer-images", {
+          detail: {
+            threadId: "thread-1",
+            images: [image],
+            sourceLabel: "浏览器截图",
+          },
+        }),
+      );
+    });
+
+    await waitFor(() =>
+      expect(
+        document.querySelector('img[alt="browser-shot.png"]'),
+      ).toBeInTheDocument(),
+    );
+    expect(screen.getByText("浏览器截图")).toBeInTheDocument();
+  });
+
+  it("hydrates queued browser screenshots when the composer mounts", async () => {
+    const pngDataUrl =
+      "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAusB9WnR5WQAAAAASUVORK5CYII=";
+    queueComposerImageEntry({
+      dataUrl: pngDataUrl,
+      filename: "queued-browser-shot.png",
+      sourceLabel: "浏览器截图",
+    });
+
+    renderWithProviders(
+      <ChatInputBox
+        mode="react"
+        threadId="thread-1"
+        onSubmit={vi.fn()}
+        onDeepResearch={vi.fn()}
+      />,
+    );
+
+    await waitFor(() =>
+      expect(
+        document.querySelector('img[alt="queued-browser-shot.png"]'),
+      ).toBeInTheDocument(),
+    );
+    expect(screen.getByText("浏览器截图")).toBeInTheDocument();
+  });
+});
+
+// ── upload on attach · the chip is the upload, not a promise of one ─
+//
+// Attachments used to upload inside the send handler. Nothing was in flight
+// while the chip sat in the composer, so a progress bar was impossible and the
+// only completion signal was a toast that appeared, detached, after send.
+describe("<ChatInputBox /> upload on attach", () => {
+  /** aria-label is stable; the title explains *why* send is blocked. */
+  const sendButton = () => screen.getByLabelText("Send");
+
+  function pasteImage(name = "shot.png") {
+    const image = new File(["img"], name, { type: "image/png" });
+    fireEvent.paste(textarea(), {
+      clipboardData: {
+        items: [{ kind: "file", type: "image/png", getAsFile: () => image }],
+      },
+    });
+    return image;
+  }
+
+  /** A transport whose completion and progress the test drives by hand. */
+  function deferredTransport() {
+    let resolve!: (value: { files: ReturnType<typeof uploadedInfo>[] }) => void;
+    let reject!: (err: Error) => void;
+    let emit: ((percent: number) => void) | undefined;
+    uploadWithProgressMock.mockImplementation(
+      (
+        _threadId: string,
+        _files: File[],
+        options?: { onProgress?: (p: number) => void },
+      ) => {
+        emit = options?.onProgress;
+        return new Promise((res, rej) => {
+          resolve = res;
+          reject = rej;
+        });
+      },
+    );
+    return {
+      progress: (percent: number) => act(() => emit?.(percent)),
+      finish: (files: File[]) =>
+        act(async () => resolve({ files: files.map(uploadedInfo) })),
+      fail: async (message: string) => {
+        await act(async () => {
+          reject(new Error(message));
+        });
+      },
+    };
+  }
+
+  it("starts uploading as soon as an image is attached", async () => {
+    renderWithProviders(<ChatInputBox mode="react" threadId="thread-1" />);
+    const image = pasteImage();
+
+    await waitFor(() =>
+      expect(uploadWithProgressMock).toHaveBeenCalledTimes(1),
+    );
+    expect(uploadWithProgressMock.mock.calls[0][0]).toBe("thread-1");
+    expect(uploadWithProgressMock.mock.calls[0][1]).toEqual([image]);
+  });
+
+  it("shows byte progress on the chip while the upload runs", async () => {
+    const transport = deferredTransport();
+    renderWithProviders(<ChatInputBox mode="react" threadId="thread-1" />);
+    pasteImage();
+
+    await waitFor(() => expect(uploadWithProgressMock).toHaveBeenCalled());
+    transport.progress(42);
+
+    const bar = await screen.findByRole("progressbar");
+    expect(bar).toHaveAttribute("aria-valuenow", "42");
+    expect(bar).toHaveAttribute("data-upload-status", "uploading");
+    expect(screen.getByText("42%")).toBeInTheDocument();
+  });
+
+  it("blocks send until the progress bar completes", async () => {
+    const transport = deferredTransport();
+    const onSubmit = vi.fn();
+    renderWithProviders(
+      <ChatInputBox mode="react" threadId="thread-1" onSubmit={onSubmit} />,
+    );
+    const image = pasteImage();
+
+    await waitFor(() => expect(uploadWithProgressMock).toHaveBeenCalled());
+    transport.progress(70);
+    expect(sendButton()).toBeDisabled();
+    // A disabled button that says nothing looks broken.
+    expect(sendButton()).toHaveAttribute(
+      "title",
+      "Waiting for attachments to finish uploading",
+    );
+    fireEvent.click(sendButton());
+    expect(onSubmit).not.toHaveBeenCalled();
+
+    await transport.finish([image]);
+    await waitFor(() => expect(sendButton()).toBeEnabled());
+    expect(screen.queryByRole("progressbar")).not.toBeInTheDocument();
+  });
+
+  it("carries the server-side upload info into the sent message", async () => {
+    const onSubmit = vi.fn();
+    renderWithProviders(
+      <ChatInputBox mode="react" threadId="thread-1" onSubmit={onSubmit} />,
+    );
+    const image = pasteImage("into-chat.png");
+
+    await waitFor(() => expect(sendButton()).toBeEnabled());
+    fireEvent.click(sendButton());
+
+    await waitFor(() =>
+      expect(onSubmit).toHaveBeenCalledWith(
+        expect.objectContaining({
+          images: [image],
+          uploaded: [uploadedInfo(image)],
+        }),
+      ),
+    );
+  });
+
+  it("marks a failed attachment and keeps send blocked", async () => {
+    const transport = deferredTransport();
+    renderWithProviders(<ChatInputBox mode="react" threadId="thread-1" />);
+    const image = pasteImage("broken.png");
+
+    await waitFor(() => expect(uploadWithProgressMock).toHaveBeenCalled());
+    await transport.fail("disk full");
+
+    const bar = await screen.findByRole("progressbar");
+    expect(bar).toHaveAttribute("data-upload-status", "error");
+    expect(sendButton()).toBeDisabled();
+    expect(screen.getByLabelText("Retry upload")).toBeInTheDocument();
+    expect(bar).toHaveAttribute("aria-label", "Upload failed");
+    expect(image.name).toBe("broken.png");
+  });
+
+  it("retries a failed upload from the chip", async () => {
+    const transport = deferredTransport();
+    renderWithProviders(<ChatInputBox mode="react" threadId="thread-1" />);
+    const image = pasteImage("retry-me.png");
+
+    await waitFor(() => expect(uploadWithProgressMock).toHaveBeenCalled());
+    await transport.fail("network down");
+    const retry = await screen.findByLabelText("Retry upload");
+    expect(image.name).toBe("retry-me.png");
+
+    uploadWithProgressMock.mockResolvedValue({ files: [uploadedInfo(image)] });
+    fireEvent.click(retry);
+
+    await waitFor(() => expect(sendButton()).toBeEnabled());
+    expect(uploadWithProgressMock).toHaveBeenCalledTimes(2);
+  });
+
+  it("stops tracking an attachment that is removed mid-upload", async () => {
+    deferredTransport();
+    // Own thread id: the composer persists drafts per thread, and a leaked
+    // draft from another test would keep Send enabled for the wrong reason.
+    renderWithProviders(<ChatInputBox mode="react" threadId="thread-remove" />);
+    pasteImage("discarded.png");
+
+    await waitFor(() => expect(uploadWithProgressMock).toHaveBeenCalled());
+    fireEvent.click(screen.getByTitle("Remove"));
+
+    // Removing the chip must also clear its upload, or an abandoned transfer
+    // would keep the send button disabled forever.
+    await waitFor(() => expect(sendButton()).toBeDisabled());
+    expect(screen.queryByRole("progressbar")).not.toBeInTheDocument();
+  });
+});

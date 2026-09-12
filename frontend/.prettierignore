@@ -1,0 +1,18 @@
+# Dependencies and generated build output
+node_modules/
+dist/
+release/
+playwright-report/
+test-results/
+coverage/
+.vite/
+
+# Local visual-review and tool output
+.codex-logs/
+output/
+
+# Generated or externally maintained files
+pnpm-lock.yaml
+src/core/api/openapi-types.ts
+src/core/realtime/protocol-enums.generated.ts
+src/styles/tailwind-prebuilt.css

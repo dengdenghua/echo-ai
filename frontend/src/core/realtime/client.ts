@@ -1,0 +1,684 @@
+// Realtime WebSocket client.
+//
+// One client per thread (or per conversation). Owns:
+//
+//   * The WebSocket lifecycle — connect, exponential reconnect, close.
+//   * JSON-RPC id minting + pending request tracker.
+//   * Approval handler — server-initiated requests are routed to a
+//     caller-supplied callback that returns the decision; the client
+//     replies on the same channel.
+//   * Notification dispatch — pushed events go through the supplied
+//     reducer; observers subscribe to state snapshots.
+//
+// Designed to live behind a React hook (see ``useRealtimeThread``)
+// that exposes ``state``, ``send``, ``startTurn``, ``resolveApproval``.
+
+import { nextBackoffDelay } from "@/core/streaming/backoff";
+import { swallow } from "@/core/utils/log";
+import { webSocketAuthProtocols } from "@/core/auth/websocket";
+import {
+  type Envelope,
+  type JsonRpcError,
+  type JsonRpcId,
+  type JsonRpcRequest,
+  type JsonRpcResponse,
+  type Notification,
+  isNotification,
+  isRequest,
+  isResponse,
+} from "./envelope";
+
+export interface RealtimeClientOptions {
+  url: string;
+  onIncomingRequest: (request: JsonRpcRequest) => Promise<unknown>;
+  onNotification: (note: Notification) => void;
+  /** Receive one coalesced animation-frame batch in a single callback.
+   * When omitted, buffered notifications retain the legacy one-callback-per-
+   * notification behaviour through ``onNotification``. */
+  onNotificationBatch?: (notes: Notification[]) => void;
+  onOpen?: () => void;
+  onClose?: (code: number, reason: string) => void;
+  onError?: (err: Event | Error) => void;
+  // Reconnect schedule. Each retry waits the indexed delay (ms) until
+  // ``maxBackoffMs`` is reached, then plateaus there.
+  initialBackoffMs?: number;
+  maxBackoffMs?: number;
+  // Bearer token resolver. Called per-connect so a refreshed token is
+  // picked up after reconnect without restarting the page.
+  authToken?: () => string | null;
+}
+
+interface PendingRequest {
+  resolve: (value: unknown) => void;
+  reject: (reason: JsonRpcError | Error) => void;
+  timeoutTimer?: ReturnType<typeof setTimeout>;
+}
+
+interface OutboxEntry {
+  text: string;
+  // Only caller-originated JSON-RPC requests participate in ``pending``.
+  // Notifications and replies can be dropped without a Promise to settle.
+  requestId?: JsonRpcId;
+}
+
+export interface RealtimeRequestOptions {
+  /** Optional caller-owned deadline. Long-running requests such as
+   * ``turn/start`` deliberately have no default timeout. */
+  timeoutMs?: number;
+}
+
+const DEFAULT_INITIAL_BACKOFF = 500;
+const DEFAULT_MAX_BACKOFF = 15_000;
+const OUTBOX_CAPACITY = 256;
+
+// Delta notification methods that participate in delta-coalescing.
+// Used by the coalesce step (which merges N consecutive deltas with the
+// same itemId into one). Snapshot-style notifications (item/started,
+// item/completed) are batched too — see BATCHED_METHODS — but never
+// merged.
+const DELTA_METHODS = new Set([
+  "item/agentMessage/delta",
+  "item/reasoning/textDelta",
+  "item/plan/delta",
+  "item/commandExecution/outputDelta",
+]);
+
+// Application-level heartbeat interval. Keeps proxies and firewalls from
+// silently closing idle WebSocket connections during long tool executions.
+const HEARTBEAT_INTERVAL_MS = 25_000;
+// If we don't see a pong for this long, the connection is considered
+// wedged (silent TCP half-open, proxy black-hole, etc) and we force-close
+// it so the reconnect path runs. Two missed pings + slack.
+const PONG_TIMEOUT_MS = 70_000;
+
+// Methods coalesced/batched on the next animation frame to keep React
+// renders down. Includes both delta methods AND the lifecycle envelopes
+// (item/started, item/completed) so the dispatch order matches the
+// websocket arrival order even though item/* land synchronously and
+// deltas hop through requestAnimationFrame. Without buffering started/
+// completed too, a frame boundary between ``started`` and the deltas
+// reorders them: completed lands first, the reducer's status guard
+// then drops the deltas as "stale" and the user sees an empty bubble.
+// ``item/fileChange/hunkDelta`` rides the buffer for the same ordering
+// reason (the reducer drops hunk deltas for items it hasn't seen), but
+// stays out of DELTA_METHODS: hunks are structured payloads, not
+// appendable text, so they must never coalesce.
+const BATCHED_METHODS = new Set([
+  "item/started",
+  "item/completed",
+  "item/agentMessage/delta",
+  "item/reasoning/textDelta",
+  "item/plan/delta",
+  "item/commandExecution/outputDelta",
+  "item/fileChange/hunkDelta",
+]);
+
+export class RealtimeClient {
+  private ws: WebSocket | null = null;
+  private nextId = 1;
+  private pending = new Map<JsonRpcId, PendingRequest>();
+  private opts: RealtimeClientOptions;
+  private closed = false;
+  private reconnectAttempts = 0;
+  private reconnectTimer: ReturnType<typeof setTimeout> | null = null;
+  private outbox: OutboxEntry[] = [];
+  // Backoff bounds, captured once so changing the option after construct
+  // doesn't behave inconsistently mid-flight.
+  private readonly initialBackoff: number;
+  private readonly maxBackoff: number;
+  // Delta batching: buffer high-frequency delta notifications and flush
+  // them together in a single animation frame to reduce React re-renders.
+  private deltaBuffer: Notification[] = [];
+  private deltaFlushPending = false;
+  // Heartbeat timer — cleared on close and reconnect.
+  private heartbeatTimer: ReturnType<typeof setInterval> | null = null;
+  // Timestamp of the last pong (or open). Used by the heartbeat tick to
+  // decide whether the connection should be considered dead.
+  private lastPongAt = 0;
+
+  constructor(opts: RealtimeClientOptions) {
+    this.opts = opts;
+    this.initialBackoff = opts.initialBackoffMs ?? DEFAULT_INITIAL_BACKOFF;
+    this.maxBackoff = opts.maxBackoffMs ?? DEFAULT_MAX_BACKOFF;
+    // Flush the moment the tab goes hidden: a requestAnimationFrame
+    // scheduled while visible never fires in a background tab, so
+    // anything still buffered would sit there (and grow) until the tab
+    // is foregrounded — meanwhile non-batched methods (turn/interrupted,
+    // turn/completed, error) keep dispatching immediately and would
+    // overtake the buffered item events. ``typeof document`` guard keeps
+    // this SSR-safe.
+    if (typeof document !== "undefined") {
+      document.addEventListener("visibilitychange", this.onVisibilityChange);
+    }
+  }
+
+  private onVisibilityChange = (): void => {
+    if (document.hidden) {
+      this.flushDeltaBuffer();
+    }
+  };
+
+  // ── Lifecycle ──────────────────────────────────────────────
+
+  connect(): void {
+    if (this.closed) return;
+    if (
+      this.ws &&
+      (this.ws.readyState === WebSocket.OPEN ||
+        this.ws.readyState === WebSocket.CONNECTING)
+    ) {
+      return;
+    }
+    const { url, protocols } = this.buildConnection();
+    let ws: WebSocket;
+    try {
+      ws = new WebSocket(url, protocols);
+    } catch (err) {
+      this.reportError(err instanceof Error ? err : new Error(String(err)));
+      this.scheduleReconnect();
+      return;
+    }
+    this.ws = ws;
+
+    ws.onopen = () => {
+      if (this.closed || this.ws !== ws) {
+        ws.close();
+        return;
+      }
+      this.reconnectAttempts = 0;
+      this.lastPongAt = Date.now();
+      this.flushOutbox();
+      this.startHeartbeat();
+      this.opts.onOpen?.();
+    };
+    ws.onmessage = (ev) => {
+      if (this.closed || this.ws !== ws) return;
+      this.dispatch(typeof ev.data === "string" ? ev.data : "", ws);
+    };
+    ws.onerror = (ev) => {
+      if (this.closed || this.ws !== ws) return;
+      this.reportError(ev);
+    };
+    ws.onclose = (ev) => {
+      // Browser event delivery is asynchronous. A delayed close from an old
+      // transport epoch must not tear down the replacement socket, fail its
+      // pending requests, or schedule a second reconnect.
+      if (this.ws !== ws) return;
+      this.ws = null;
+      this.stopHeartbeat();
+      this.flushDeltaBuffer();
+      this.opts.onClose?.(ev.code, ev.reason);
+      this.failPending(
+        new Error(`websocket closed (${ev.code} ${ev.reason || "no reason"})`),
+      );
+      // Clear the outbox on disconnect. Pending requests have just been
+      // rejected, and queued notifications/replies belong to the dead
+      // transport epoch. Replaying any of them after reconnect could start
+      // duplicate work or deliver stale control messages.
+      this.outbox.length = 0;
+      if (!this.closed) {
+        this.scheduleReconnect();
+      }
+    };
+  }
+
+  close(): void {
+    this.closed = true;
+    this.stopHeartbeat();
+    if (typeof document !== "undefined") {
+      document.removeEventListener("visibilitychange", this.onVisibilityChange);
+    }
+    this.flushDeltaBuffer();
+    if (this.reconnectTimer != null) {
+      clearTimeout(this.reconnectTimer);
+      this.reconnectTimer = null;
+    }
+    this.ws?.close();
+    this.failPending(new Error("client closed"));
+  }
+
+  // ── Send paths ─────────────────────────────────────────────
+
+  request<R = unknown>(
+    method: string,
+    params: Record<string, unknown> = {},
+    options: RealtimeRequestOptions = {},
+  ): Promise<R> {
+    if (this.closed) {
+      return Promise.reject(new Error("client closed"));
+    }
+    const id = this.nextId++;
+    const envelope: JsonRpcRequest = { jsonrpc: "2.0", id, method, params };
+    return new Promise<R>((resolve, reject) => {
+      const pending: PendingRequest = {
+        resolve: (v: unknown) => resolve(v as R),
+        reject,
+      };
+      const timeoutMs = options.timeoutMs;
+      if (
+        typeof timeoutMs === "number" &&
+        Number.isFinite(timeoutMs) &&
+        timeoutMs > 0
+      ) {
+        pending.timeoutTimer = setTimeout(() => {
+          // A response/close may already have settled this id. Identity-check
+          // the handler as well as the key so a future id-reuse change cannot
+          // let an old timer reject a newer request.
+          if (this.pending.get(id) !== pending) return;
+          this.pending.delete(id);
+          this.removeQueuedRequest(id);
+          pending.reject(
+            new Error(
+              `realtime request ${method} timed out after ${timeoutMs}ms`,
+            ),
+          );
+        }, timeoutMs);
+      }
+      this.pending.set(id, pending);
+      this.send(envelope);
+    });
+  }
+
+  notify(method: string, params: Record<string, unknown> = {}): void {
+    this.send({ jsonrpc: "2.0", method, params });
+  }
+
+  // Reply to a server-initiated request. Bypasses the pending tracker —
+  // we are the *responder*, not the requester.
+  reply(id: JsonRpcId, result: unknown, error?: JsonRpcError): void {
+    const env: JsonRpcResponse = error
+      ? { jsonrpc: "2.0", id, error }
+      : { jsonrpc: "2.0", id, result };
+    this.send(env);
+  }
+
+  // ── Internal ───────────────────────────────────────────────
+
+  // Credentials ride the ``Sec-WebSocket-Protocol`` handshake header
+  // instead of a ``?token=`` query param. Query strings end up in access
+  // logs, proxy logs and browser history. Base64url makes every UTF-8 token
+  // legal inside the subprotocol header, so unusual credentials never need
+  // to fall back to the URL. The gateway decodes the second protocol and
+  // echoes only the non-secret ``bearer.b64`` marker.
+  private buildConnection(): { url: string; protocols?: string[] } {
+    const token = this.opts.authToken?.() ?? null;
+    return { url: this.opts.url, protocols: webSocketAuthProtocols(token) };
+  }
+
+  private send(env: Envelope): void {
+    // A deliberately closed client never reconnects. Do not retain late
+    // approval replies/notifications in an outbox that can never flush.
+    if (this.closed) return;
+    const text = JSON.stringify(env);
+    if (this.ws?.readyState === WebSocket.OPEN) {
+      this.ws.send(text);
+      return;
+    }
+    // Buffer; flushed on next ``onopen``. Bound the buffer so a
+    // perpetually-disconnected client doesn't grow without limit.
+    if (this.outbox.length >= OUTBOX_CAPACITY) {
+      const evicted = this.outbox.shift();
+      if (evicted?.requestId !== undefined) {
+        const handler = this.pending.get(evicted.requestId);
+        if (handler) {
+          this.pending.delete(evicted.requestId);
+          this.clearPendingTimeout(handler);
+          handler.reject(
+            new Error(
+              "realtime backpressure: outbox capacity exceeded; request dropped before send",
+            ),
+          );
+        }
+      }
+    }
+    this.outbox.push({
+      text,
+      ...(isRequest(env) ? { requestId: env.id } : {}),
+    });
+  }
+
+  private flushOutbox(): void {
+    if (!this.ws || this.ws.readyState !== WebSocket.OPEN) return;
+    const pending = this.outbox.splice(0, this.outbox.length);
+    for (const entry of pending) {
+      this.ws.send(entry.text);
+    }
+  }
+
+  private removeQueuedRequest(requestId: JsonRpcId): void {
+    const index = this.outbox.findIndex(
+      (entry) => entry.requestId === requestId,
+    );
+    if (index >= 0) this.outbox.splice(index, 1);
+  }
+
+  private clearPendingTimeout(handler: PendingRequest): void {
+    if (handler.timeoutTimer === undefined) return;
+    clearTimeout(handler.timeoutTimer);
+    handler.timeoutTimer = undefined;
+  }
+
+  private dispatch(text: string, sourceSocket: WebSocket): void {
+    if (!text) return;
+    let env: unknown;
+    try {
+      env = JSON.parse(text) as unknown;
+    } catch (err) {
+      this.reportError(err instanceof Error ? err : new Error(String(err)));
+      return;
+    }
+    if (isResponse(env)) {
+      const handler = this.pending.get(env.id);
+      if (!handler) return;
+      this.pending.delete(env.id);
+      this.clearPendingTimeout(handler);
+      if (env.error) {
+        handler.reject(env.error);
+      } else {
+        handler.resolve(env.result);
+      }
+      return;
+    }
+    if (isRequest(env)) {
+      // Server-initiated. Route to the caller and reply with the
+      // decision. Errors are translated to a JSON-RPC error response so
+      // the server's awaiting future doesn't hang. The response belongs to
+      // this exact transport epoch: if the handler settles after the socket
+      // closes, never enqueue it for a later connection (the request id is
+      // scoped to the dead server session).
+      let requestResult: Promise<unknown>;
+      try {
+        requestResult = this.opts.onIncomingRequest(env);
+      } catch (err) {
+        const message = err instanceof Error ? err.message : String(err);
+        this.replyOnSocket(sourceSocket, env.id, null, {
+          code: -32603,
+          message,
+        });
+        return;
+      }
+      requestResult
+        .then((result) => this.replyOnSocket(sourceSocket, env.id, result))
+        .catch((err: unknown) => {
+          const message = err instanceof Error ? err.message : String(err);
+          this.replyOnSocket(sourceSocket, env.id, null, {
+            code: -32603,
+            message,
+          });
+        });
+      return;
+    }
+    if (isNotification(env)) {
+      // Server-side liveness reply. Updating the watermark must happen
+      // *before* any further routing — pong should never reach the
+      // application reducer.
+      if (env.method === "pong") {
+        this.lastPongAt = Date.now();
+        return;
+      }
+      if (BATCHED_METHODS.has(env.method)) {
+        this.deltaBuffer.push(env);
+        this.scheduleFlush();
+      } else {
+        // Ordering invariant: a non-batched notification must never
+        // overtake events still sitting in the delta buffer. Within the
+        // buffering window (a frame in the foreground, a macrotask in a
+        // hidden tab) turn/completed, turn/interrupted, workbench
+        // snapshots or errors would otherwise reach the reducer before
+        // the buffered item/started they logically follow — e.g. an
+        // interrupt lands first, the reducer marks the turn done, then
+        // the late-flushed item spins forever. Flushing synchronously
+        // here keeps every cross-method sequence in WebSocket arrival
+        // order. Non-batched methods are low-frequency (a handful per
+        // turn), so this doesn't erode the coalescing win; the already
+        // scheduled rAF/setTimeout callback sees an empty buffer and
+        // returns without re-dispatching.
+        this.flushDeltaBuffer();
+        try {
+          this.opts.onNotification(env);
+        } catch (err) {
+          this.reportError(err instanceof Error ? err : new Error(String(err)));
+        }
+      }
+      return;
+    }
+    this.reportError(new Error("invalid JSON-RPC 2.0 websocket envelope"));
+  }
+
+  // Foreground: coalesce on the next animation frame (caps React
+  // renders at the display rate during high-frequency streaming).
+  // Hidden tab: rAF callbacks are suspended, so fall back to a
+  // macrotask — otherwise the buffer grows unbounded and immediately-
+  // dispatched methods reorder past the buffered item events.
+  private scheduleFlush(): void {
+    if (this.deltaFlushPending) return;
+    this.deltaFlushPending = true;
+    if (typeof document !== "undefined" && document.hidden) {
+      setTimeout(() => this.flushDeltaBuffer(), 0);
+    } else {
+      requestAnimationFrame(() => this.flushDeltaBuffer());
+    }
+  }
+
+  private flushDeltaBuffer(): void {
+    this.deltaFlushPending = false;
+    if (this.deltaBuffer.length === 0) return;
+    const batch = coalesceDeltaNotifications(this.deltaBuffer.splice(0));
+    if (this.opts.onNotificationBatch) {
+      try {
+        this.opts.onNotificationBatch(batch);
+      } catch (err) {
+        this.reportError(err instanceof Error ? err : new Error(String(err)));
+      }
+      return;
+    }
+    for (const note of batch) {
+      // A single bad notification (reducer bug, listener throw) used
+      // to abort the whole RAF batch and silently drop subsequent
+      // deltas — including the agentMessage chunks the user is
+      // staring at. Isolate each handler call so one bad apple
+      // doesn't poison the rest of the frame.
+      try {
+        this.opts.onNotification(note);
+      } catch (err) {
+        this.reportError(err instanceof Error ? err : new Error(String(err)));
+      }
+    }
+  }
+
+  private reportError(error: Event | Error): void {
+    swallow(error);
+    try {
+      this.opts.onError?.(error);
+    } catch (callbackError) {
+      // Error reporting is observational. A faulty observer must never make
+      // WebSocket event dispatch throw back into the browser.
+      swallow(callbackError);
+    }
+  }
+
+  private replyOnSocket(
+    sourceSocket: WebSocket,
+    id: JsonRpcId,
+    result: unknown,
+    error?: JsonRpcError,
+  ): void {
+    if (
+      this.closed ||
+      this.ws !== sourceSocket ||
+      sourceSocket.readyState !== WebSocket.OPEN
+    ) {
+      return;
+    }
+    const env: JsonRpcResponse = error
+      ? { jsonrpc: "2.0", id, error }
+      : { jsonrpc: "2.0", id, result };
+    sourceSocket.send(JSON.stringify(env));
+  }
+
+  private startHeartbeat(): void {
+    this.stopHeartbeat();
+    this.heartbeatTimer = setInterval(() => {
+      // Detect a wedged connection: server is alive enough for the
+      // socket to stay open but stopped responding (proxy half-open,
+      // load-balancer ghost session). Force-close so onclose triggers
+      // the reconnect path.
+      if (
+        this.lastPongAt > 0 &&
+        Date.now() - this.lastPongAt > PONG_TIMEOUT_MS
+      ) {
+        this.ws?.close(4000, "pong timeout");
+        return;
+      }
+      this.notify("ping", {});
+    }, HEARTBEAT_INTERVAL_MS);
+  }
+
+  private stopHeartbeat(): void {
+    if (this.heartbeatTimer != null) {
+      clearInterval(this.heartbeatTimer);
+      this.heartbeatTimer = null;
+    }
+  }
+
+  private scheduleReconnect(): void {
+    if (this.closed) return;
+    if (this.reconnectTimer != null) return;
+    const wait = nextBackoffDelay(this.reconnectAttempts, {
+      initialMs: this.initialBackoff,
+      maxMs: this.maxBackoff,
+    });
+    this.reconnectAttempts++;
+    this.reconnectTimer = setTimeout(() => {
+      this.reconnectTimer = null;
+      this.connect();
+    }, wait);
+  }
+
+  private failPending(reason: Error): void {
+    if (this.pending.size === 0) return;
+    for (const handler of this.pending.values()) {
+      this.clearPendingTimeout(handler);
+      handler.reject(reason);
+    }
+    this.pending.clear();
+  }
+}
+
+// Convenience builder: returns a wired client with sensible defaults
+// for an echo-ai backend.
+export function createDefaultClient(args: {
+  baseURL: string;
+  threadId?: string;
+  authToken?: () => string | null;
+  onIncomingRequest: RealtimeClientOptions["onIncomingRequest"];
+  onNotification: RealtimeClientOptions["onNotification"];
+  onNotificationBatch?: RealtimeClientOptions["onNotificationBatch"];
+  onOpen?: RealtimeClientOptions["onOpen"];
+  onClose?: RealtimeClientOptions["onClose"];
+  onError?: RealtimeClientOptions["onError"];
+}): RealtimeClient {
+  const wsUrl = toWebSocketURL(args.baseURL, "/api/realtime");
+  return new RealtimeClient({
+    url: wsUrl,
+    authToken: args.authToken,
+    onIncomingRequest: args.onIncomingRequest,
+    onNotification: args.onNotification,
+    onNotificationBatch: args.onNotificationBatch,
+    onOpen: args.onOpen,
+    onClose: args.onClose,
+    onError: args.onError,
+  });
+}
+
+export function toWebSocketURL(httpBase: string, path: string): string {
+  const trimmed = (httpBase || "").replace(/\/+$/, "");
+  if (!trimmed) {
+    // Same-origin (vite dev proxy routes /api/* through to backend).
+    if (typeof window !== "undefined") {
+      const proto = window.location.protocol === "https:" ? "wss:" : "ws:";
+      return `${proto}//${window.location.host}${path}`;
+    }
+    return path;
+  }
+  if (trimmed.startsWith("https://")) return `wss://${trimmed.slice(8)}${path}`;
+  if (trimmed.startsWith("http://")) return `ws://${trimmed.slice(7)}${path}`;
+  return `${trimmed}${path}`;
+}
+
+function coalesceDeltaNotifications(batch: Notification[]): Notification[] {
+  const merged: Notification[] = [];
+  // Deltas of an open merge run, joined ONCE when the run closes. The
+  // naive ``merged.delta += next.delta`` recopies the growing prefix on
+  // every merge — quadratic in a busy frame where dozens of deltas for
+  // the same item land between animation frames.
+  let runParts: string[] = [];
+  const closeRun = (): void => {
+    // A lone delta keeps its original envelope — nothing was merged.
+    if (runParts.length <= 1) {
+      runParts = [];
+      return;
+    }
+    const seed = merged[merged.length - 1];
+    if (seed) {
+      merged[merged.length - 1] = {
+        ...seed,
+        params: {
+          ...(seed.params as Record<string, unknown>),
+          delta: runParts.join(""),
+        },
+      };
+    }
+    runParts = [];
+  };
+  for (const note of batch) {
+    const last = merged[merged.length - 1];
+    if (last && runParts.length > 0 && canMergeDeltaNotifications(last, note)) {
+      runParts.push(
+        String((note.params as Record<string, unknown>).delta ?? ""),
+      );
+      continue;
+    }
+    closeRun();
+    merged.push(note);
+    if (DELTA_METHODS.has(note.method)) {
+      runParts = [String((note.params as Record<string, unknown>).delta ?? "")];
+    }
+  }
+  closeRun();
+  return merged;
+}
+
+function canMergeDeltaNotifications(
+  left: Notification,
+  right: Notification,
+): boolean {
+  if (left.method !== right.method) return false;
+  // Only delta-style notifications carry appendable text. ``item/started``
+  // / ``item/completed`` snapshots must never merge — they replace,
+  // not append, so coalescing two of them would silently drop one.
+  if (!DELTA_METHODS.has(left.method)) return false;
+  const leftParams = left.params as Record<string, unknown>;
+  const rightParams = right.params as Record<string, unknown>;
+  // Durable deltas must reach the replay-dedupe ledger one envelope per
+  // event id. Merging them would keep only the seed's eventId, so a later
+  // thread/events fetch could apply every swallowed id again. Matching ids
+  // must stay separate too: they are duplicate deliveries for the ledger to
+  // reject, not text fragments that should be concatenated twice.
+  if (leftParams.eventId !== undefined || rightParams.eventId !== undefined) {
+    return false;
+  }
+  if (left.method === "item/reasoning/textDelta") {
+    return (
+      leftParams.threadId === rightParams.threadId &&
+      leftParams.turnId === rightParams.turnId &&
+      leftParams.itemId === rightParams.itemId &&
+      leftParams.contentIndex === rightParams.contentIndex
+    );
+  }
+  return (
+    leftParams.threadId === rightParams.threadId &&
+    leftParams.turnId === rightParams.turnId &&
+    leftParams.itemId === rightParams.itemId
+  );
+}

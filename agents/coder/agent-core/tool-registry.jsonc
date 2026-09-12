@@ -1,0 +1,33 @@
+{
+  "arms": [
+    "web_read",
+    "fs_writer",
+    "git",
+    "shell"
+  ],
+  "extra_affinity": [
+    "code",
+    "refactor",
+    "debug",
+    "test",
+    "bug",
+    "fix",
+    "plugin",
+    "skill"
+  ],
+  "private_skills": [
+    "frontend-ui-engineering",
+    "backend-building",
+    "typescript-best-practices",
+    "code-quality",
+    "code-vuln-audit",
+    "test-driven-dev",
+    "skill-creator",
+    "webapp-building",
+    "plugin-creator",
+    "agent-generator",
+    "github",
+    "browser-testing-with-devtools",
+    "project-delivery-review"
+  ]
+}

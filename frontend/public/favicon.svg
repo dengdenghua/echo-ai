@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" fill="none" role="img" aria-label="Echo">
+  <!-- Head -->
+  <circle cx="16" cy="12" r="7" fill="currentColor"/>
+  <!-- Eyes -->
+  <circle cx="13.5" cy="11" r="1.5" fill="white"/>
+  <circle cx="18.5" cy="11" r="1.5" fill="white"/>
+  <circle cx="13.8" cy="11.3" r="0.7" fill="#1a1a1e"/>
+  <circle cx="18.8" cy="11.3" r="0.7" fill="#1a1a1e"/>
+  <!-- Tentacles -->
+  <g stroke="currentColor" stroke-width="2.2" stroke-linecap="round" fill="none">
+    <path d="M10 17 C7 21, 6 25, 7.5 28"/>
+    <path d="M13 18 C11.5 22, 11 26, 12 28.5"/>
+    <path d="M16 18.5 C15.5 23, 15.5 26.5, 16 29"/>
+    <path d="M19 18 C20.5 22, 21 26, 20 28.5"/>
+    <path d="M22 17 C25 21, 26 25, 24.5 28"/>
+  </g>
+</svg>

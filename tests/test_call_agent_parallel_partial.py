@@ -1,0 +1,947 @@
+"""Graceful-degradation contract for ``call_agent_parallel``.
+
+When some sub-agents in a parallel fan-out fail (timeout, transport,
+crash) the ones that succeeded must still surface to the lead. The
+return envelope reports ``ok``/``successes``/``failures``/``partial``
+plus a ``[partial-degradation]`` note so the lead can decide whether
+to synthesise from partial data or escalate.
+"""
+
+from __future__ import annotations
+
+import json
+import re
+import threading
+import time
+from typing import Any
+
+import pytest
+
+
+@pytest.fixture(autouse=True)
+def _reset_runner_and_budget():
+    """Isolate every test from module-level state in the bridge and
+    the per-turn delegation counter."""
+    from runtime.execution.subagents.bridge import (
+        set_sub_agent_runner,
+        set_subagent_registry,
+    )
+    from runtime.execution.suckers.delegation_budget import (
+        _TURN_DELEGATIONS,
+        _TURN_FAILED_FINGERPRINTS,
+    )
+
+    set_sub_agent_runner(None)
+    set_subagent_registry(None)
+    _TURN_DELEGATIONS.clear()
+    _TURN_FAILED_FINGERPRINTS.clear()
+    yield
+    set_sub_agent_runner(None)
+    set_subagent_registry(None)
+    _TURN_DELEGATIONS.clear()
+    _TURN_FAILED_FINGERPRINTS.clear()
+
+
+def _patch_bridge(monkeypatch, scripted: dict[str, Any]):
+    """Replace ``call_subagent`` so each (agent_id, prompt) returns a
+    canned result. ``scripted`` maps prompt → result dict."""
+
+    def _fake_call_subagent(agent_id="", prompt="", **_kw):
+        canned = scripted.get(prompt)
+        if canned is None:
+            return {
+                "agent_id": agent_id,
+                "output": f"echo:{prompt}",
+                "success": True,
+                "error": None,
+            }
+        # Always stamp the agent_id so the test doesn't have to
+        # repeat it in every canned entry.
+        out = dict(canned)
+        out.setdefault("agent_id", agent_id)
+        return out
+
+    monkeypatch.setattr(
+        "runtime.execution.subagents.call_subagent",
+        _fake_call_subagent,
+    )
+    monkeypatch.setattr(
+        "runtime.execution.subagents.bridge.call_subagent",
+        _fake_call_subagent,
+    )
+
+
+def _specs(*prompts: str) -> list[dict[str, str]]:
+    return [{"agent_id": "researcher", "prompt": p} for p in prompts]
+
+
+def _ok(output: str) -> dict[str, Any]:
+    return {"output": output, "success": True, "error": None}
+
+
+def _fail(error: str, error_type: str | None = None) -> dict[str, Any]:
+    r: dict[str, Any] = {"output": "", "success": False, "error": error}
+    if error_type is not None:
+        r["error_type"] = error_type
+    return r
+
+
+def _seed_subagent_reviews(path, *, role: str, statuses: list[str]) -> None:
+    from runtime.memory.learning.review_queue import ReviewQueue
+
+    queue = ReviewQueue(path)
+    for idx, status in enumerate(statuses):
+        added = queue.add_from_task_run_review(
+            {
+                "status": "completed",
+                "task_id": f"task-{idx}",
+                "thread_id": "thread-1",
+                "turn_id": f"turn-{idx}",
+                "agent_id": role,
+                "learning_candidates": [
+                    {
+                        "kind": "subagent_output",
+                        "priority": "P2",
+                        "memory_bucket": "experience",
+                        "title": f"{role} sample {idx}",
+                        "text": f"{role} output {idx}",
+                        "subagent": {
+                            "role": role,
+                            "agent_id": role,
+                            "files_touched": [],
+                        },
+                    }
+                ],
+            }
+        )
+        if status != "pending":
+            queue.decide(added["items"][0]["id"], action=status, reason="test")
+
+
+# ─────────────────────────────────────────────────────────────────────
+
+
+def test_all_three_succeed(monkeypatch):
+    from runtime.execution.suckers.delegation_skills import _call_agent_parallel
+
+    _patch_bridge(
+        monkeypatch,
+        {
+            "p1": _ok("o1"),
+            "p2": _ok("o2"),
+            "p3": _ok("o3"),
+        },
+    )
+
+    r = _call_agent_parallel(specs=_specs("p1", "p2", "p3"))
+
+    assert r["ok"] is True
+    assert r["partial"] is False
+    assert r["success_count"] == 3
+    assert r["total"] == 3
+    assert r["failures"] == []
+    assert r["notes"] == []
+    assert len(r["successes"]) == 3
+    assert {s["output"] for s in r["successes"]} == {"o1", "o2", "o3"}
+
+
+def test_first_success_settles_early_and_cancels_remaining_lane(monkeypatch):
+    from runtime.execution.suckers.delegation_skills import _call_agent_parallel
+    from runtime.safety.approval.cancellation import current_cancellation_token
+
+    slow_started = threading.Event()
+    slow_cancelled = threading.Event()
+
+    def _fake_call_subagent(agent_id="", prompt="", **_kw):
+        if prompt == "fast":
+            assert slow_started.wait(timeout=1)
+            return {"agent_id": agent_id, "output": "winner", "success": True}
+        slow_started.set()
+        token = current_cancellation_token()
+        deadline = time.monotonic() + 2
+        while not token.is_cancelled and time.monotonic() < deadline:
+            time.sleep(0.005)
+        if token.is_cancelled:
+            slow_cancelled.set()
+        return {
+            "agent_id": agent_id,
+            "output": "",
+            "success": False,
+            "status": "cancelled",
+            "error": token.reason or "not cancelled",
+        }
+
+    monkeypatch.setattr("runtime.execution.subagents.call_subagent", _fake_call_subagent)
+
+    started_at = time.monotonic()
+    result = _call_agent_parallel(
+        specs=_specs("slow", "fast"),
+        completion_policy="first_success",
+    )
+
+    assert time.monotonic() - started_at < 1
+    assert result["ok"] is True
+    assert result["policy_satisfied"] is True
+    assert result["completion_policy"] == "first_success"
+    assert result["success_count"] == 1
+    assert result["cancelled_count"] == 1
+    assert result["successes"][0]["output"] == "winner"
+    assert slow_cancelled.wait(timeout=1)
+
+
+def test_quorum_settles_after_required_successes(monkeypatch):
+    from runtime.execution.suckers.delegation_skills import _call_agent_parallel
+    from runtime.safety.approval.cancellation import current_cancellation_token
+
+    slow_started = threading.Event()
+    slow_cancelled = threading.Event()
+
+    def _fake_call_subagent(agent_id="", prompt="", **_kw):
+        if prompt.startswith("fast"):
+            assert slow_started.wait(timeout=1)
+            return {"agent_id": agent_id, "output": prompt, "success": True}
+        slow_started.set()
+        token = current_cancellation_token()
+        deadline = time.monotonic() + 2
+        while not token.is_cancelled and time.monotonic() < deadline:
+            time.sleep(0.005)
+        if token.is_cancelled:
+            slow_cancelled.set()
+        return {
+            "agent_id": agent_id,
+            "output": "",
+            "success": False,
+            "status": "cancelled",
+            "error": token.reason or "not cancelled",
+        }
+
+    monkeypatch.setattr("runtime.execution.subagents.call_subagent", _fake_call_subagent)
+
+    result = _call_agent_parallel(
+        specs=_specs("slow", "fast-1", "fast-2"),
+        completion_policy="quorum",
+        quorum=2,
+    )
+
+    assert result["policy_satisfied"] is True
+    assert result["completion_target"] == 2
+    assert result["success_count"] == 2
+    assert result["cancelled_count"] == 1
+    assert slow_cancelled.wait(timeout=1)
+
+
+def test_first_completed_can_settle_on_failure_without_claiming_success(monkeypatch):
+    from runtime.execution.suckers.delegation_skills import _call_agent_parallel
+    from runtime.safety.approval.cancellation import current_cancellation_token
+
+    slow_started = threading.Event()
+    slow_cancelled = threading.Event()
+
+    def _fake_call_subagent(agent_id="", prompt="", **_kw):
+        if prompt == "fast-failure":
+            assert slow_started.wait(timeout=1)
+            return {
+                "agent_id": agent_id,
+                "output": "",
+                "success": False,
+                "error": "provider rejected request",
+            }
+        slow_started.set()
+        token = current_cancellation_token()
+        deadline = time.monotonic() + 2
+        while not token.is_cancelled and time.monotonic() < deadline:
+            time.sleep(0.005)
+        if token.is_cancelled:
+            slow_cancelled.set()
+        return {
+            "agent_id": agent_id,
+            "output": "",
+            "success": False,
+            "status": "cancelled",
+            "error": token.reason or "not cancelled",
+        }
+
+    monkeypatch.setattr("runtime.execution.subagents.call_subagent", _fake_call_subagent)
+
+    result = _call_agent_parallel(
+        specs=_specs("slow", "fast-failure"),
+        completion_policy="first_completed",
+    )
+
+    assert result["policy_satisfied"] is True
+    assert result["ok"] is False
+    assert result["success_count"] == 0
+    assert result["failed"] == 1
+    assert result["cancelled_count"] == 1
+    assert slow_cancelled.wait(timeout=1)
+
+
+def test_impossible_quorum_stops_remaining_work(monkeypatch):
+    from runtime.execution.suckers.delegation_skills import _call_agent_parallel
+    from runtime.safety.approval.cancellation import current_cancellation_token
+
+    slow_started = threading.Event()
+    slow_cancelled = threading.Event()
+
+    def _fake_call_subagent(agent_id="", prompt="", **_kw):
+        if prompt.startswith("fail"):
+            assert slow_started.wait(timeout=1)
+            return {
+                "agent_id": agent_id,
+                "output": "",
+                "success": False,
+                "error": f"{prompt} failed",
+            }
+        slow_started.set()
+        token = current_cancellation_token()
+        deadline = time.monotonic() + 2
+        while not token.is_cancelled and time.monotonic() < deadline:
+            time.sleep(0.005)
+        if token.is_cancelled:
+            slow_cancelled.set()
+        return {
+            "agent_id": agent_id,
+            "output": "",
+            "success": False,
+            "status": "cancelled",
+            "error": token.reason or "not cancelled",
+        }
+
+    monkeypatch.setattr("runtime.execution.subagents.call_subagent", _fake_call_subagent)
+
+    result = _call_agent_parallel(
+        specs=_specs("slow", "fail-1", "fail-2"),
+        completion_policy="quorum",
+        quorum=3,
+    )
+
+    assert result["policy_satisfied"] is False
+    assert result["ok"] is False
+    assert result["failed"] >= 1
+    assert result["cancelled_count"] >= 1
+    assert result["failed"] + result["cancelled_count"] == 3
+    assert slow_cancelled.wait(timeout=1)
+
+
+def test_invalid_completion_policy_fails_before_spawning(monkeypatch):
+    from runtime.execution.suckers.delegation_skills import _call_agent_parallel
+
+    called = False
+
+    def _fake_call_subagent(**_kw):
+        nonlocal called
+        called = True
+        return {"output": "unexpected", "success": True}
+
+    monkeypatch.setattr("runtime.execution.subagents.call_subagent", _fake_call_subagent)
+    result = _call_agent_parallel(
+        specs=_specs("a"),
+        completion_policy="eventually_maybe",
+    )
+
+    assert result["ok"] is False
+    assert "completion_policy" in result["error"]
+    assert called is False
+
+
+def test_specs_json_string_is_accepted(monkeypatch):
+    from runtime.execution.suckers.delegation_skills import _call_agent_parallel
+
+    _patch_bridge(
+        monkeypatch,
+        {
+            "p1": _ok("o1"),
+            "p2": _ok("o2"),
+        },
+    )
+
+    r = _call_agent_parallel(specs=json.dumps(_specs("p1", "p2")))
+
+    assert r["ok"] is True
+    assert r["success_count"] == 2
+    assert r["total"] == 2
+    assert {s["output"] for s in r["successes"]} == {"o1", "o2"}
+
+
+def test_specs_dict_wrapper_is_accepted(monkeypatch):
+    from runtime.execution.suckers.delegation_skills import _call_agent_parallel
+
+    _patch_bridge(
+        monkeypatch,
+        {
+            "p1": _ok("o1"),
+            "p2": _ok("o2"),
+        },
+    )
+
+    r = _call_agent_parallel(specs={"agents": _specs("p1", "p2")})
+
+    assert r["ok"] is True
+    assert r["success_count"] == 2
+    assert r["total"] == 2
+
+
+def test_parallel_timeout_string_is_coerced(monkeypatch):
+    from runtime.execution.suckers.delegation_skills import _call_agent_parallel
+
+    captured: list[Any] = []
+
+    def _fake_call_subagent(agent_id="", prompt="", **kw):
+        captured.append(kw.get("timeout_s"))
+        return {
+            "agent_id": agent_id,
+            "output": f"echo:{prompt}",
+            "success": True,
+            "error": None,
+        }
+
+    monkeypatch.setattr(
+        "runtime.execution.subagents.call_subagent",
+        _fake_call_subagent,
+    )
+
+    r = _call_agent_parallel(specs=_specs("p1"), timeout_s="600")
+
+    assert r["ok"] is True
+    assert captured == [600]
+
+
+def test_parallel_spec_carries_dynamic_skill_grants(monkeypatch):
+    from runtime.execution.suckers.delegation_skills import _call_agent_parallel
+
+    captured: list[dict[str, Any] | None] = []
+
+    def _fake_call_subagent(agent_id="", prompt="", **kw):
+        captured.append(kw.get("context"))
+        return {
+            "agent_id": agent_id,
+            "output": f"echo:{prompt}",
+            "success": True,
+            "error": None,
+        }
+
+    monkeypatch.setattr(
+        "runtime.execution.subagents.call_subagent",
+        _fake_call_subagent,
+    )
+
+    r = _call_agent_parallel(
+        specs=[
+            {
+                "agent_id": "researcher",
+                "prompt": "Compare two vendors",
+                "skill_packs": ["research", "files"],
+                "skills": ["query_skill"],
+                "plugins": ["browser"],
+            }
+        ]
+    )
+
+    assert r["ok"] is True
+    assert len(captured) == 1
+    ctx = captured[0] or {}
+    grants = ctx.get("extra_tool_allowlist")
+    assert "web_search" in grants
+    assert "fetch_url" in grants
+    assert "glob_files" in grants
+    assert "query_skill" in grants
+    assert "browser_state" in grants
+    assert ctx["skill_pack_names"] == ["research", "files"]
+    assert ctx["plugin_grants"] == ["browser"]
+
+
+def test_parallel_spec_cannot_expand_or_replace_parent_security_context(monkeypatch):
+    from runtime.execution.suckers.delegation_skills import _call_agent_parallel
+
+    captured: list[dict[str, Any] | None] = []
+
+    def _fake_call_subagent(agent_id="", prompt="", **kw):
+        captured.append(kw.get("context"))
+        return {
+            "agent_id": agent_id,
+            "output": "bounded",
+            "success": True,
+            "error": None,
+        }
+
+    monkeypatch.setattr("runtime.execution.subagents.call_subagent", _fake_call_subagent)
+
+    result = _call_agent_parallel(
+        specs=[
+            {
+                "agent_id": "researcher",
+                "prompt": "Inspect safely",
+                "context": {
+                    "sandboxPolicy": {"type": "dangerFullAccess", "networkAccess": True},
+                    "workspace_path": "/tmp/escaped",
+                    "approval_policy": "never",
+                    "_inherited_injection_taint": "none",
+                    "enable_subagent_fitness_routing": False,
+                    "domain_hint": "safe metadata",
+                },
+            }
+        ],
+        context={
+            "sandboxPolicy": {"type": "readOnly", "networkAccess": False},
+            "workspace_path": "/workspace/parent",
+            "approval_policy": "untrusted",
+            "_inherited_injection_taint": "high",
+            "enable_subagent_fitness_routing": True,
+        },
+    )
+
+    assert result["ok"] is True
+    child = captured[0] or {}
+    assert child["sandboxPolicy"] == {"type": "readOnly", "networkAccess": False}
+    assert child["workspace_path"] == "/workspace/parent"
+    assert child["approval_policy"] == "untrusted"
+    assert child["_inherited_injection_taint"] == "high"
+    assert child["enable_subagent_fitness_routing"] is True
+    assert child["domain_hint"] == "safe metadata"
+    assert child["_delegation_context_policy"] == {
+        "schema": "echo.delegation_context_policy.v1",
+        "monotonic": True,
+        "stripped_keys": [
+            "_inherited_injection_taint",
+            "approval_policy",
+            "enable_subagent_fitness_routing",
+            "sandboxPolicy",
+            "workspace_path",
+        ],
+    }
+
+
+def test_agent_name_task_shape_is_accepted(monkeypatch):
+    from runtime.execution.suckers.delegation_skills import _call_agent_parallel
+
+    seen: list[tuple[str, str]] = []
+
+    def _fake_call_subagent(agent_id="", prompt="", **_kw):
+        seen.append((agent_id, prompt))
+        return {
+            "agent_id": agent_id,
+            "output": prompt,
+            "success": True,
+            "error": None,
+        }
+
+    monkeypatch.setattr(
+        "runtime.execution.subagents.call_subagent",
+        _fake_call_subagent,
+    )
+
+    r = _call_agent_parallel(
+        specs=[
+            {"agent_name": "Agent A", "task": "Task A"},
+            {"agent_name": "Agent B", "task": "Task B"},
+        ]
+    )
+
+    assert r["ok"] is True
+    assert r["success_count"] == 2
+    assert len(seen) == 2
+    assert {agent_id for agent_id, _prompt in seen} == {"explorer"}
+    assert any("Agent A" in prompt and "Task A" in prompt for _agent_id, prompt in seen)
+    assert any("Agent B" in prompt and "Task B" in prompt for _agent_id, prompt in seen)
+
+
+def test_parallel_blocks_retired_subagent_for_high_risk(monkeypatch, tmp_path):
+    from runtime.execution.suckers.delegation_skills import _call_agent_parallel
+
+    path = tmp_path / "review_queue.json"
+    _seed_subagent_reviews(
+        path,
+        role="researcher",
+        statuses=["rejected", "rejected", "rejected"],
+    )
+    called = {"hit": False}
+
+    def _fake_call_subagent(agent_id="", prompt="", **_kw):
+        called["hit"] = True
+        return _ok("should not run")
+
+    monkeypatch.setattr(
+        "runtime.execution.subagents.call_subagent",
+        _fake_call_subagent,
+    )
+
+    r = _call_agent_parallel(
+        specs=_specs("danger"),
+        context={
+            "task_risk_level": "high",
+            "review_queue_path": str(path),
+        },
+    )
+
+    assert called["hit"] is False
+    assert r["ok"] is False
+    assert r["failed"] == 1
+    failure = r["failures"][0]
+    assert failure["error_type"] == "subagent_route_blocked"
+    assert failure["subagent_route_decision"]["action"] == "block"
+
+
+def test_parallel_allows_retired_subagent_for_low_risk_with_warning(
+    monkeypatch,
+    tmp_path,
+):
+    from runtime.execution.suckers.delegation_skills import _call_agent_parallel
+
+    path = tmp_path / "review_queue.json"
+    _seed_subagent_reviews(
+        path,
+        role="researcher",
+        statuses=["rejected", "rejected", "rejected"],
+    )
+    captured: list[dict[str, Any] | None] = []
+
+    def _fake_call_subagent(agent_id="", prompt="", **kw):
+        captured.append(kw.get("context"))
+        return _ok("low risk result")
+
+    monkeypatch.setattr(
+        "runtime.execution.subagents.call_subagent",
+        _fake_call_subagent,
+    )
+
+    r = _call_agent_parallel(
+        specs=_specs("low"),
+        context={
+            "task_risk_level": "low",
+            "review_queue_path": str(path),
+        },
+    )
+
+    assert r["ok"] is True
+    decision = r["successes"][0]["subagent_route_decision"]
+    assert decision["action"] == "allow_with_warning"
+    assert decision["verdict"] == "retire_candidate"
+    assert captured[0]["subagent_route_decision"] == decision
+
+
+def test_prompt_only_spec_defaults_to_researcher(monkeypatch):
+    from runtime.execution.suckers.delegation_skills import _call_agent_parallel
+
+    seen: list[str] = []
+
+    def _fake_call_subagent(agent_id="", prompt="", **_kw):
+        seen.append(agent_id)
+        return {
+            "agent_id": agent_id,
+            "output": prompt,
+            "success": True,
+            "error": None,
+        }
+
+    monkeypatch.setattr(
+        "runtime.execution.subagents.call_subagent",
+        _fake_call_subagent,
+    )
+
+    r = _call_agent_parallel(specs=[{"instruction": "Summarize risk"}])
+
+    assert r["ok"] is True
+    assert seen == ["researcher"]
+
+
+def test_legacy_role_goal_spec_is_accepted_without_retry(monkeypatch):
+    """A live lead model still emitted the older role/goal shape.
+
+    Accepting it at the boundary avoids a failed visible call followed by an
+    otherwise identical retry with agent_id/prompt.
+    """
+    from runtime.execution.suckers.delegation_skills import _call_agent_parallel
+
+    seen: list[tuple[str, str]] = []
+
+    def _fake_call_subagent(agent_id="", prompt="", **_kw):
+        seen.append((agent_id, prompt))
+        return {
+            "agent_id": agent_id,
+            "output": "done",
+            "success": True,
+            "error": None,
+        }
+
+    monkeypatch.setattr(
+        "runtime.execution.subagents.call_subagent",
+        _fake_call_subagent,
+    )
+
+    result = _call_agent_parallel(
+        specs=[{"role": "schema_reader", "goal": "Read the schema once"}],
+    )
+
+    assert result["ok"] is True
+    assert len(seen) == 1
+    assert "Read the schema once" in seen[0][1]
+
+
+def test_all_three_fail(monkeypatch):
+    from runtime.execution.suckers.delegation_skills import _call_agent_parallel
+
+    _patch_bridge(
+        monkeypatch,
+        {
+            "p1": _fail("TimeoutError: subagent timed out", "timeout"),
+            "p2": _fail("ConnectionError: refused", "transport"),
+            "p3": _fail("RuntimeError: boom"),
+        },
+    )
+
+    r = _call_agent_parallel(specs=_specs("p1", "p2", "p3"))
+
+    assert r["ok"] is False
+    assert r["partial"] is False  # only partial when SOME succeed
+    assert r["success_count"] == 0
+    assert r["successes"] == []
+    assert len(r["failures"]) == 3
+    assert r["total"] == 3
+
+
+def test_two_of_three_succeed_marks_partial(monkeypatch):
+    from runtime.execution.suckers.delegation_skills import _call_agent_parallel
+
+    _patch_bridge(
+        monkeypatch,
+        {
+            "p1": _ok("alpha"),
+            "p2": _fail("TimeoutError: subagent timed out after 30s", "timeout"),
+            "p3": _ok("gamma"),
+        },
+    )
+
+    r = _call_agent_parallel(specs=_specs("p1", "p2", "p3"))
+
+    assert r["ok"] is True
+    assert r["partial"] is True
+    assert r["success_count"] == 2
+    assert r["total"] == 3
+    assert len(r["successes"]) == 2
+    assert len(r["failures"]) == 1
+    assert r["failures"][0]["error_type"] == "timeout"
+    assert r["notes"], "expected a degradation note"
+    note = r["notes"][0]
+    assert "partial-degradation" in note
+    assert "2/3" in note
+    assert "timeout" in note
+
+
+def test_one_of_three_succeeds(monkeypatch):
+    from runtime.execution.suckers.delegation_skills import _call_agent_parallel
+
+    _patch_bridge(
+        monkeypatch,
+        {
+            "p1": _ok("only-one"),
+            "p2": _fail("ConnectionError: refused", "transport"),
+            "p3": _fail("TimeoutError: timed out", "timeout"),
+        },
+    )
+
+    r = _call_agent_parallel(specs=_specs("p1", "p2", "p3"))
+
+    assert r["ok"] is True
+    assert r["partial"] is True
+    assert r["success_count"] == 1
+    assert r["total"] == 3
+    assert {f["error_type"] for f in r["failures"]} == {"transport", "timeout"}
+
+
+def test_backward_compat_outputs_field_present(monkeypatch):
+    """Legacy callers may read ``outputs`` (list of successful output
+    strings, in result order). Keep emitting it."""
+    from runtime.execution.suckers.delegation_skills import _call_agent_parallel
+
+    _patch_bridge(
+        monkeypatch,
+        {
+            "a": _ok("A"),
+            "b": _fail("boom"),
+            "c": _ok("C"),
+        },
+    )
+
+    r = _call_agent_parallel(specs=_specs("a", "b", "c"))
+
+    assert "outputs" in r
+    assert isinstance(r["outputs"], list)
+    # only successful outputs, in completion order
+    assert sorted(r["outputs"]) == ["A", "C"]
+    # the legacy ``results`` / ``count`` shape is also still there
+    assert "results" in r
+    assert r["count"] == 3
+
+
+def test_parallel_envelope_preserves_agent_telemetry_and_partial_output(monkeypatch):
+    from runtime.execution.suckers.delegation_skills import _call_agent_parallel
+
+    _patch_bridge(
+        monkeypatch,
+        {
+            "ok": {
+                "agent_id": "researcher",
+                "output": "finished synthesis",
+                "success": True,
+                "error": None,
+                "iteration_count": 7,
+                "duration_s": 12.5,
+                "files_touched": ["reports/research.md"],
+                "codename": "Spark-01",
+                "avatar": ":search:",
+            },
+            "cap": {
+                "agent_id": "reviewer",
+                "output": "partial notes before cap",
+                "success": False,
+                "error": "ROUND_CAP_EXCEEDED",
+                "error_type": "round_cap_exceeded",
+                "round_cap_exceeded": True,
+                "rounds_completed": 25,
+            },
+        },
+    )
+
+    r = _call_agent_parallel(
+        specs=[
+            {"agent_id": "researcher", "prompt": "ok"},
+            {"agent_id": "reviewer", "prompt": "cap"},
+        ]
+    )
+
+    assert r["ok"] is True
+    assert r["partial"] is True
+    assert r["successes"][0]["iteration_count"] == 7
+    assert r["successes"][0]["duration_s"] == 12.5
+    assert r["successes"][0]["files_touched"] == ["reports/research.md"]
+    assert r["successes"][0]["codename"] == "Spark-01"
+    assert r["failures"][0]["round_cap_exceeded"] is True
+    assert r["failures"][0]["rounds_completed"] == 25
+    assert r["failures"][0]["partial_output"] == "partial notes before cap"
+    # A round-cap failure is now auto-retried once; the retry also failed, so
+    # the original failure is preserved with a retry note appended to the error.
+    assert r["failures"][0]["retried"] is True
+    assert "ROUND_CAP_EXCEEDED" in r["failures"][0]["error"]
+    assert r["partial_outputs"] == [
+        {
+            "agent_id": "reviewer",
+            "spec_index": 1,
+            "task_label": "reviewer",
+            "error": r["failures"][0]["error"],
+            "error_type": "round_cap_exceeded",
+            "output": "partial notes before cap",
+        }
+    ]
+
+
+def test_error_type_passes_through_from_bridge(monkeypatch):
+    from runtime.execution.suckers.delegation_skills import _call_agent_parallel
+
+    _patch_bridge(
+        monkeypatch,
+        {
+            "p1": _fail("blew up", "custom_explosion"),
+            "p2": _fail("network kaput", "transport"),
+            "p3": _ok("kept-going"),
+        },
+    )
+
+    r = _call_agent_parallel(specs=_specs("p1", "p2", "p3"))
+
+    types = {f["agent_id"]: f["error_type"] for f in r["failures"]}
+    # All failures came from the same agent_id ("researcher") in this
+    # test setup — match by error string instead.
+    by_error = {f["error"]: f["error_type"] for f in r["failures"]}
+    assert by_error["blew up"] == "custom_explosion"
+    assert by_error["network kaput"] == "transport"
+    # touch ``types`` so the linter doesn't complain about an unused var
+    assert types  # just non-empty
+
+
+def test_notes_wording_lists_count_and_reasons(monkeypatch):
+    """The synthetic note must mention success_count/total and the
+    deduplicated set of failure reasons."""
+    from runtime.execution.suckers.delegation_skills import _call_agent_parallel
+
+    _patch_bridge(
+        monkeypatch,
+        {
+            "p1": _ok("ok-1"),
+            "p2": _fail("TimeoutError: timed out", "timeout"),
+            "p3": _fail("ConnectionError: refused", "transport"),
+            "p4": _fail("TimeoutError: another timeout", "timeout"),
+        },
+    )
+
+    r = _call_agent_parallel(specs=_specs("p1", "p2", "p3", "p4"))
+
+    assert r["partial"] is True
+    assert len(r["notes"]) == 1
+    note = r["notes"][0]
+    # 1/4 sub-agents completed; 3 failed (reasons: timeout, transport)
+    pattern = re.compile(
+        r"\[partial-degradation\] 1/4 sub-agents completed; "
+        r"3 failed \(reasons: [a-z_, ]+\)"
+    )
+    assert pattern.search(note), f"note did not match expected shape: {note!r}"
+    # both unique reasons must appear, dedup'd
+    assert "timeout" in note
+    assert "transport" in note
+    # the note tells the agent what to do
+    assert "Synthesise" in note or "synthesise" in note.lower()
+
+
+def test_parallel_cannot_overshoot_flat_per_turn_cap(monkeypatch):
+    """A single ``call_agent_parallel`` must not spawn past the flat per-turn
+    cap (5): the batch is truncated to the remaining slots, so a model can't
+    pack N specs into one call to dodge the cap. Dropped lanes are surfaced so
+    the lead doesn't silently claim they ran."""
+    from runtime.execution.suckers.delegation_skills import _call_agent_parallel
+    from runtime.platform.process.session import Session, session_scope
+
+    _patch_bridge(monkeypatch, {})
+
+    sess = Session(turn_id="turn-cap-overshoot")
+    with session_scope(sess):
+        r = _call_agent_parallel(specs=_specs(*[f"p{i}" for i in range(20)]))
+
+    assert r["ok"] is True
+    assert r["success_count"] == 5
+    assert r["total"] == 5
+    assert r["dropped"] == 15
+    assert any("budget-clipped" in n for n in r["notes"])
+
+
+def test_parallel_no_turn_id_keeps_enforcement_off(monkeypatch):
+    """With no ambient Session the flat cap is OFF (unchanged behaviour), so a
+    batch larger than the cap is NOT truncated — matching ``check_absolute_cap``'s
+    documented no-turn semantics."""
+    from runtime.execution.suckers.delegation_skills import _call_agent_parallel
+
+    _patch_bridge(monkeypatch, {})
+
+    r = _call_agent_parallel(specs=_specs(*[f"p{i}" for i in range(20)]))
+
+    assert r["ok"] is True
+    assert r["success_count"] == 20
+    assert r["total"] == 20
+    assert "dropped" not in r
+
+
+def test_failure_keeps_retry_prohibition_and_retained_workspace():
+    from runtime.execution.suckers._delegation_skills_parallel import _build_parallel_envelope
+
+    result = _build_parallel_envelope(
+        [
+            {
+                "agent_id": "coder",
+                "success": False,
+                "error": "export failed",
+                "retry_allowed": False,
+                "retained_workspace": "retained-checkout",
+            }
+        ],
+        total=1,
+    )
+    assert result["failures"][0]["retry_allowed"] is False
+    assert result["failures"][0]["retained_workspace"] == "retained-checkout"

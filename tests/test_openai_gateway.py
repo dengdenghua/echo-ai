@@ -1,0 +1,1078 @@
+"""Implementation note."""
+
+from __future__ import annotations
+
+import json
+
+import pytest
+
+fastapi = pytest.importorskip("fastapi")
+from fastapi import FastAPI  # noqa: E402
+from fastapi.testclient import TestClient  # noqa: E402
+
+from runtime.platform.config import AgentConfig, PlannerConfig, build_from_config  # noqa: E402
+from runtime.platform.models import ParsedIntent  # noqa: E402
+from runtime.sensing.gateway import create_openai_router  # noqa: E402
+from runtime.sensing.gateway.openai_gateway import (  # noqa: E402
+    _direct_llm_fallback_with_usage,
+    _stream_direct_llm_fallback,
+)
+from runtime.sensing.gateway.openai_gateway.request_parser import (  # noqa: E402
+    _model_runtime_options,
+)
+from runtime.sensing.model_router.models import ModelResponse, ModelStreamEvent  # noqa: E402
+
+# ═══════════════════════════════════════════════════════════
+# Implementation note.
+# ═══════════════════════════════════════════════════════════
+
+
+@pytest.fixture
+def stack():
+    cfg = AgentConfig(
+        planner=PlannerConfig(
+            type="llm",
+            model="mock/gw",
+            mock_response=json.dumps(
+                {
+                    "reasoning": "r",
+                    "nodes": [{"skill": "list_cwd", "args": {"path": "."}}],
+                }
+            ),
+        ),
+    )
+    return build_from_config(cfg)
+
+
+@pytest.fixture
+def client(stack):
+    app = FastAPI()
+    app.include_router(create_openai_router(stack))
+    return TestClient(app)
+
+
+# ═══════════════════════════════════════════════════════════
+# /v1/models
+# ═══════════════════════════════════════════════════════════
+
+
+class TestListModels:
+    def test_models_endpoint_returns_openai_shape(self, client):
+        r = client.get("/v1/models")
+        assert r.status_code == 200
+        data = r.json()
+        assert data["object"] == "list"
+        assert isinstance(data["data"], list)
+        assert len(data["data"]) >= 1
+
+        # Implementation note.
+        for m in data["data"]:
+            assert "id" in m
+            assert m["object"] == "model"
+            assert "created" in m
+            assert "owned_by" in m
+
+        # Implementation note.
+        ids = {m["id"] for m in data["data"]}
+        assert "echo-ai" in ids
+
+    def test_list_includes_registered_skills(self, client):
+        data = client.get("/v1/models").json()
+        ids = {m["id"] for m in data["data"]}
+        # Implementation note.
+        assert "echo-ai/list_cwd" in ids
+
+
+class TestMixVirtualModel:
+    """echo-mix = mixture-of-agents over /v1/chat/completions."""
+
+    def test_models_endpoint_advertises_echo_mix(self, client):
+        ids = {m["id"] for m in client.get("/v1/models").json()["data"]}
+        assert "echo-mix" in ids
+
+    def test_chat_completion_routes_through_mix(self, client):
+        r = client.post(
+            "/v1/chat/completions",
+            json={
+                "model": "echo-mix",
+                "messages": [{"role": "user", "content": "explain mixture of agents"}],
+            },
+        )
+        assert r.status_code == 200
+        data = r.json()
+        # echoes the virtual model + carries Mix provenance
+        assert data["model"] == "echo-mix"
+        assert data["object"] == "chat.completion"
+        mix_meta = data["echo"]["mix"]
+        assert mix_meta["proposers"] >= 1
+        assert mix_meta["drafts_used"] >= 1
+        assert mix_meta["degraded"] is False
+        assert isinstance(data["choices"][0]["message"]["content"], str)
+
+    def test_mix_streaming_emits_valid_sse(self, client):
+        r = client.post(
+            "/v1/chat/completions",
+            json={
+                "model": "echo-mix",
+                "stream": True,
+                "messages": [{"role": "user", "content": "hi"}],
+            },
+        )
+        assert r.status_code == 200
+        body = r.text
+        assert "chat.completion.chunk" in body
+        assert "data: [DONE]" in body
+
+    def test_mix_config_get_and_put(self, client, monkeypatch, tmp_path):
+        from runtime.sensing.gateway.openai_gateway import mix
+
+        monkeypatch.setattr(mix, "_config_path", lambda: tmp_path / "mix_config.json")
+        # default GET (no file yet) returns the shape with defaults
+        r = client.get("/api/mix-config")
+        assert r.status_code == 200
+        assert set(r.json()) >= {"proposers", "aggregator", "n"}
+        # PUT validates + persists, GET round-trips it
+        r = client.put(
+            "/api/mix-config",
+            json={
+                "proposers": ["m1", "m2"],
+                "aggregator": "agg",
+                "n": 2,
+            },
+        )
+        assert r.status_code == 200
+        assert r.json()["proposers"] == ["m1", "m2"]
+        got = client.get("/api/mix-config").json()
+        assert got["aggregator"] == "agg"
+        assert got["n"] == 2
+
+
+# ═══════════════════════════════════════════════════════════
+# Implementation note.
+# ═══════════════════════════════════════════════════════════
+
+
+class TestChatCompletionsNonStream:
+    def test_happy_path(self, client):
+        r = client.post(
+            "/v1/chat/completions",
+            json={
+                "model": "echo-ai",
+                "messages": [{"role": "user", "content": "list cwd"}],
+            },
+        )
+        assert r.status_code == 200
+        data = r.json()
+
+        # OpenAI shape
+        assert data["object"] == "chat.completion"
+        assert "id" in data and data["id"].startswith("chatcmpl-")
+        assert "created" in data
+        assert data["model"] == "echo-ai"
+        assert isinstance(data["choices"], list) and len(data["choices"]) == 1
+
+        choice = data["choices"][0]
+        assert choice["index"] == 0
+        assert choice["message"]["role"] == "assistant"
+        assert isinstance(choice["message"]["content"], str)
+        assert choice["finish_reason"] in ("stop", "failed")
+
+        # Implementation note.
+        assert "usage" in data
+        for k in ("prompt_tokens", "completion_tokens", "total_tokens"):
+            assert k in data["usage"]
+        assert data["usage"]["prompt_tokens"] == 100
+        assert data["usage"]["total_tokens"] >= data["usage"]["prompt_tokens"]
+
+        # Implementation note.
+        assert "echo" in data
+        assert "task_id" in data["echo"]
+        assert "step_count" in data["echo"]
+        assert data["echo"]["planner_usage"]["input_tokens"] == 100
+
+    def test_multimodal_content_text_extracted(self, client):
+        r = client.post(
+            "/v1/chat/completions",
+            json={
+                "model": "echo-ai",
+                "messages": [
+                    {
+                        "role": "user",
+                        "content": [
+                            {"type": "text", "text": "list the current directory"},
+                            {"type": "image_url", "image_url": "data:..."},  # Implementation note.
+                        ],
+                    }
+                ],
+            },
+        )
+        assert r.status_code == 200
+        # Implementation note.
+
+    def test_last_user_message_wins(self, client):
+        """Implementation note."""
+        r = client.post(
+            "/v1/chat/completions",
+            json={
+                "messages": [
+                    {"role": "user", "content": "old question"},
+                    {"role": "assistant", "content": "old answer"},
+                    {"role": "user", "content": "the real goal"},
+                ],
+            },
+        )
+        assert r.status_code == 200
+
+    def test_full_history_reaches_planner_context(self, client, stack):
+        """The gateway should keep the last user message as the goal
+        while still passing prior turns into the planner prompt."""
+        r = client.post(
+            "/v1/chat/completions",
+            json={
+                "messages": [
+                    {"role": "system", "content": "Always prefer concise plans."},
+                    {"role": "user", "content": "My project is echo-ai."},
+                    {"role": "assistant", "content": "Noted."},
+                    {"role": "user", "content": "Use that context now."},
+                ],
+            },
+        )
+        assert r.status_code == 200
+
+        planner_request = stack.planner.router.call_log[0]
+        planner_user_prompt = planner_request.messages[-1].content
+        assert "CONVERSATION HISTORY" in planner_user_prompt
+        assert "[system] Always prefer concise plans." in planner_user_prompt
+        assert "[user] My project is echo-ai." in planner_user_prompt
+        assert "[assistant] Noted." in planner_user_prompt
+        assert "USER GOAL: Use that context now." in planner_user_prompt
+
+    def test_explicit_profile_memory_reaches_planner_context(self, client, stack):
+        r = client.post(
+            "/v1/chat/completions",
+            json={
+                "messages": [
+                    {
+                        "role": "user",
+                        "content": "remember that I prefer concise Chinese answers",
+                    },
+                    {"role": "user", "content": "Use my preference now."},
+                ],
+            },
+        )
+        assert r.status_code == 200
+
+        planner_request = stack.planner.router.call_log[0]
+        planner_user_prompt = planner_request.messages[-1].content
+        assert "USER PROFILE MEMORY" in planner_user_prompt
+        assert "I prefer concise Chinese answers" in planner_user_prompt
+        assert "USER GOAL: Use my preference now." in planner_user_prompt
+
+
+class TestChatCompletionsErrors:
+    def test_empty_messages_400(self, client):
+        r = client.post("/v1/chat/completions", json={"messages": []})
+        assert r.status_code == 400
+        assert "messages" in r.json()["detail"]
+
+    def test_no_messages_400(self, client):
+        r = client.post("/v1/chat/completions", json={})
+        assert r.status_code == 400
+
+    def test_only_system_no_user_400(self, client):
+        r = client.post(
+            "/v1/chat/completions", json={"messages": [{"role": "system", "content": "you are x"}]}
+        )
+        assert r.status_code == 400
+        assert "no user message" in r.json()["detail"]
+
+    def test_static_planner_fallback_does_not_500(self):
+        """Implementation note."""
+        cfg = AgentConfig(planner=PlannerConfig(type="static"))
+        stack = build_from_config(cfg)
+        app = FastAPI()
+        app.include_router(create_openai_router(stack))
+        client = TestClient(app)
+
+        r = client.post(
+            "/v1/chat/completions",
+            json={
+                "messages": [{"role": "user", "content": "no rules"}],
+            },
+        )
+        assert r.status_code == 200
+        payload = r.json()
+        assert payload["object"] == "chat.completion"
+        assert payload["choices"][0]["message"]["role"] == "assistant"
+
+
+def test_custom_model_ignores_configured_max_tokens(tmp_path, monkeypatch):
+    data_dir = tmp_path / "data"
+    data_dir.mkdir()
+    (data_dir / "custom_models.json").write_text(
+        json.dumps(
+            {
+                "mimo2.5": {
+                    "model": "mimo-v2.5-pro",
+                    "max_tokens": 8192000,
+                    "supports_thinking": True,
+                    # Non-openai-compat custom models clamp to the gateway
+                    # default (131072). Openai-compat is exercised below.
+                    "provider": "anthropic",
+                }
+            }
+        ),
+        encoding="utf-8",
+    )
+    monkeypatch.setenv("ECHO_DATA_DIR", str(data_dir))
+
+    supports_thinking, max_tokens = _model_runtime_options(
+        "mimo2.5",
+        "mimo-v2.5-pro",
+    )
+
+    assert supports_thinking is True
+    assert max_tokens == 131072
+
+
+def test_custom_model_without_max_tokens_uses_unbounded_default(tmp_path, monkeypatch):
+    data_dir = tmp_path / "data"
+    data_dir.mkdir()
+    (data_dir / "custom_models.json").write_text(
+        json.dumps(
+            {
+                "mimo2.5": {
+                    "model": "mimo-v2.5-pro",
+                    "supports_thinking": True,
+                    "provider": "anthropic",
+                }
+            }
+        ),
+        encoding="utf-8",
+    )
+    monkeypatch.setenv("ECHO_DATA_DIR", str(data_dir))
+
+    supports_thinking, max_tokens = _model_runtime_options(
+        "mimo2.5",
+        "mimo-v2.5-pro",
+    )
+
+    assert supports_thinking is True
+    assert max_tokens == 131072
+
+
+def test_custom_openai_compat_model_returns_unbounded(tmp_path, monkeypatch):
+    """Custom OpenAI-compatible models intentionally return ``None`` for
+    max_tokens so the upstream provider's own limit applies. Pins the
+    distinction added when the gateway started supporting non-openai
+    custom adapters.
+    """
+    data_dir = tmp_path / "data"
+    data_dir.mkdir()
+    (data_dir / "custom_models.json").write_text(
+        json.dumps(
+            {
+                "mimo2.5": {
+                    "model": "mimo-v2.5-pro",
+                    "supports_thinking": True,
+                    "provider": "openai-compatible",
+                }
+            }
+        ),
+        encoding="utf-8",
+    )
+    monkeypatch.setenv("ECHO_DATA_DIR", str(data_dir))
+
+    supports_thinking, max_tokens = _model_runtime_options(
+        "mimo2.5",
+        "mimo-v2.5-pro",
+    )
+
+    assert supports_thinking is True
+    assert max_tokens is None
+
+
+def test_custom_openai_compat_models_list_variant_returns_unbounded(
+    tmp_path,
+    monkeypatch,
+):
+    """Runtime options must reverse-lookup concrete rows from models[].
+
+    The in-app picker exposes variants like ``kimi-for-coding`` as rows,
+    while the persisted custom-model entry is keyed by a friendlier id
+    such as ``kimi-code``. The stream fallback asks for options by the
+    variant id, so this must not fall through to built-in model defaults.
+    """
+    data_dir = tmp_path / "data"
+    data_dir.mkdir()
+    (data_dir / "custom_models.json").write_text(
+        json.dumps(
+            {
+                "kimi-code": {
+                    "models": ["kimi-for-coding"],
+                    "supports_thinking": True,
+                    "provider": "openai",
+                }
+            }
+        ),
+        encoding="utf-8",
+    )
+    monkeypatch.setenv("ECHO_DATA_DIR", str(data_dir))
+
+    supports_thinking, max_tokens = _model_runtime_options(
+        "kimi-for-coding",
+        "kimi-for-coding",
+    )
+
+    assert supports_thinking is True
+    assert max_tokens is None
+
+
+def test_direct_llm_fallback_strips_inline_reasoning_from_reply():
+    class _Router:
+        default_model = "gpt-5-test"
+
+        def call(self, _request):
+            return ModelResponse(
+                text=(
+                    "<details>\n<summary>Reasoning</summary>\n"
+                    "private scratchpad\n</details>\n\n"
+                    "<read_only>\n</read_only>\n\nfinal answer"
+                ),
+                thinking="private scratchpad",
+                input_tokens=7,
+                output_tokens=11,
+            )
+
+    class _Planner:
+        router = _Router()
+        planner_model = "gpt-5-test"
+
+    class _Stack:
+        planner = _Planner()
+        journal = None
+
+    intent = ParsedIntent(
+        raw="test",
+        intent_type="task",
+        normalized_goal="test",
+        user_context={"conversation_messages": [{"role": "user", "content": "test"}]},
+    )
+
+    reply, usage = _direct_llm_fallback_with_usage(
+        _Stack(),
+        intent,
+        agent=None,
+        model="gpt-5-test",
+    )
+
+    assert reply == "final answer"
+    assert usage == {"input_tokens": 7, "output_tokens": 11}
+
+
+# ═══════════════════════════════════════════════════════════
+# Implementation note.
+# ═══════════════════════════════════════════════════════════
+
+
+class TestChatCompletionsStream:
+    def test_stream_returns_event_stream(self, client):
+        with client.stream(
+            "POST",
+            "/v1/chat/completions",
+            json={
+                "stream": True,
+                "messages": [{"role": "user", "content": "list"}],
+            },
+        ) as r:
+            assert r.status_code == 200
+            assert r.headers["content-type"].startswith("text/event-stream")
+
+            body_parts: list[str] = []
+            for chunk in r.iter_text():
+                body_parts.append(chunk)
+                if "[DONE]" in chunk:
+                    break
+
+            body = "".join(body_parts)
+            # Implementation note.
+            assert "data: " in body
+            assert "[DONE]" in body
+            # Implementation note.
+            for line in body.splitlines():
+                if line.startswith("data: ") and "[DONE]" not in line:
+                    payload = line[len("data: ") :]
+                    parsed = json.loads(payload)
+                    assert parsed["object"] == "chat.completion.chunk"
+                    assert "choices" in parsed
+                    break
+            else:
+                pytest.fail("no valid chunk found in stream")
+
+    def test_glm_stream_does_not_emit_fake_reasoning(self):
+        class _Router:
+            default_model = "glm-test"
+
+            def call(self, _request):
+                return ModelResponse(
+                    text=(
+                        "<read_only>\n</read_only>\n\n"
+                        "final answer should stream without fake reasoning"
+                    ),
+                    input_tokens=3,
+                    output_tokens=12,
+                )
+
+            def call_stream(self, _request):
+                yield ModelStreamEvent(
+                    type="text_delta",
+                    delta=(
+                        "<read_only>\n</read_only>\n\n"
+                        "final answer should stream without fake reasoning"
+                    ),
+                )
+                yield ModelStreamEvent(
+                    type="done",
+                    final=ModelResponse(
+                        text=(
+                            "<read_only>\n</read_only>\n\n"
+                            "final answer should stream without fake reasoning"
+                        ),
+                        input_tokens=3,
+                        output_tokens=12,
+                    ),
+                )
+
+        class _Planner:
+            router = _Router()
+            planner_model = "glm-test"
+
+        class _Stack:
+            planner = _Planner()
+            journal = None
+
+        intent = ParsedIntent(
+            raw="test",
+            intent_type="task",
+            normalized_goal="test",
+            user_context={
+                "conversation_messages": [
+                    {"role": "user", "content": "test"},
+                ],
+                "interaction_mode": "office",
+            },
+        )
+
+        events = list(
+            _stream_direct_llm_fallback(
+                _Stack(),
+                intent,
+                agent=None,
+                model="glm-test",
+            )
+        )
+
+        assert events
+        assert not any(kind == "reasoning" for kind, _delta, _final in events)
+        assert [kind for kind, _delta, _final in events].count("done") == 1
+        text_chunks = [delta for kind, delta, _final in events if kind == "text"]
+        public_text = "".join(text_chunks)
+        assert public_text.startswith("final answer")
+        assert "read_only" not in public_text
+
+
+# ═══════════════════════════════════════════════════════════
+# Implementation note.
+# ═══════════════════════════════════════════════════════════
+
+
+class TestMountOnUIApp:
+    def test_ui_app_can_host_gateway(self, stack):
+        from runtime.platform.ui import create_app
+
+        app = create_app(journal=stack.journal, registry=stack.registry)
+        app.include_router(create_openai_router(stack))
+        client = TestClient(app)
+
+        # Implementation note.
+        assert client.get("/api/status").status_code == 200
+        # Implementation note.
+        assert client.get("/v1/models").status_code == 200
+
+        # Implementation note.
+        r = client.post(
+            "/v1/chat/completions",
+            json={
+                "messages": [{"role": "user", "content": "list"}],
+            },
+        )
+        assert r.status_code == 200
+
+
+# ═══════════════════════════════════════════════════════════
+# Implementation note.
+# ═══════════════════════════════════════════════════════════
+
+
+class TestOpenAISDKCompat:
+    def test_response_matches_chatcompletion_model(self, client):
+        """Implementation note."""
+        data = client.post(
+            "/v1/chat/completions",
+            json={
+                "messages": [{"role": "user", "content": "list"}],
+            },
+        ).json()
+
+        # Implementation note.
+        required = {"id", "object", "created", "model", "choices", "usage"}
+        assert required.issubset(data.keys())
+
+        choice = data["choices"][0]
+        assert set(choice.keys()) >= {"index", "message", "finish_reason"}
+        assert set(choice["message"].keys()) >= {"role", "content"}
+
+
+class TestCompatPathBindsSession:
+    """The compat gateway used to run the tool-execution graph with no
+    Session bound at all, so the executor's scope/sandbox/plan-mode
+    write-block and approval gates (all keyed on
+    ``current_session() is not None``) were silent no-ops on this path.
+    These pin that ``stack.runtime.run`` now always sees an active
+    Session, on both the sync and the streaming code paths."""
+
+    def test_run_chat_binds_session_scope(self, stack, client, monkeypatch):
+        from runtime.platform.process.session import current_session
+        from runtime.safety.evolution import runtime_outcomes
+
+        captured: list[object] = []
+        planner_sessions: list[object] = []
+        settled: list[tuple[str, bool | None]] = []
+        real_run = stack.runtime.run
+        real_plan = stack.planner.plan
+
+        def _spy_run(*args, **kwargs):
+            captured.append(current_session())
+            return real_run(*args, **kwargs)
+
+        def _spy_plan(*args, **kwargs):
+            planner_sessions.append(current_session())
+            return real_plan(*args, **kwargs)
+
+        monkeypatch.setattr(stack.runtime, "run", _spy_run)
+        monkeypatch.setattr(stack.planner, "plan", _spy_plan)
+        monkeypatch.setattr(
+            runtime_outcomes,
+            "settle_runtime_candidate_outcomes",
+            lambda turn_id, *, success, **_: settled.append((turn_id, success)),
+        )
+
+        r = client.post(
+            "/v1/chat/completions",
+            json={
+                "messages": [{"role": "user", "content": "list"}],
+                "conversation_id": "convo-sync-1",
+            },
+        )
+        assert r.status_code == 200
+        assert len(captured) == 1
+        assert len(planner_sessions) == 1
+        session = captured[0]
+        planner_session = planner_sessions[0]
+        assert session is not None
+        assert planner_session is session
+        assert session.thread_id == "convo-sync-1"
+        assert session.metadata.get("enforce_executor_approval") is True
+        assert settled == [(session.turn_id, True)]
+        # Session must not leak past the call.
+        assert current_session() is None
+
+    def test_run_chat_uses_tenant_partitioned_initialized_workspace(
+        self,
+        stack,
+        monkeypatch,
+        tmp_path,
+    ):
+        from pathlib import Path
+
+        from runtime.platform.models import ParsedIntent
+        from runtime.platform.process.session import current_session
+        from runtime.sensing.gateway._openai_gateway_router_run import _run_chat
+
+        monkeypatch.setenv("ECHO_DATA_DIR", str(tmp_path / "data"))
+        captured: list[object] = []
+        real_run = stack.runtime.run
+
+        def _spy_run(*args, **kwargs):
+            captured.append(current_session())
+            return real_run(*args, **kwargs)
+
+        monkeypatch.setattr(stack.runtime, "run", _spy_run)
+
+        conversation_id = "../../shared-conversation-secret"
+        identities = (
+            ("tenant-a-secret", "alice-secret"),
+            ("tenant-a-secret", "bob-secret"),
+            ("tenant-b-secret", "alice-secret"),
+        )
+        for tenant_id, actor in identities:
+            response = _run_chat(
+                stack,
+                ParsedIntent(
+                    raw="list",
+                    intent_type="task",
+                    normalized_goal="list",
+                ),
+                "echo-ai",
+                "default",
+                actor=actor,
+                conversation_id=conversation_id,
+                tenant_id=tenant_id,
+                owner_actor_id=actor,
+            )
+            assert response["echo"]["success"] is True
+
+        artifact_roots = [
+            Path(session.metadata["_artifact_output_root"])
+            for session in captured
+            if session is not None
+        ]
+        assert len(artifact_roots) == 3
+        assert len(set(artifact_roots)) == 3
+        assert all(root.is_dir() for root in artifact_roots)
+        assert all(root.is_relative_to(tmp_path / "data" / "workspaces") for root in artifact_roots)
+        assert all(
+            all(raw not in str(root) for raw in (*identity, conversation_id))
+            for root, identity in zip(artifact_roots, identities, strict=True)
+        )
+
+    def test_run_chat_local_workspace_is_opaque_unique_and_initialized(
+        self,
+        stack,
+        monkeypatch,
+        tmp_path,
+    ):
+        from pathlib import Path
+
+        from runtime.platform.models import ParsedIntent
+        from runtime.platform.process.session import current_session
+        from runtime.sensing.gateway._openai_gateway_router_run import _run_chat
+
+        monkeypatch.setenv("ECHO_DATA_DIR", str(tmp_path / "data"))
+        captured: list[object] = []
+        real_run = stack.runtime.run
+
+        def _spy_run(*args, **kwargs):
+            captured.append(current_session())
+            return real_run(*args, **kwargs)
+
+        monkeypatch.setattr(stack.runtime, "run", _spy_run)
+        conversation_ids = ("a/b", "a?b", "../../escape")
+        for conversation_id in conversation_ids:
+            response = _run_chat(
+                stack,
+                ParsedIntent(raw="list", intent_type="task", normalized_goal="list"),
+                "echo-ai",
+                "default",
+                conversation_id=conversation_id,
+            )
+            assert response["echo"]["success"] is True
+
+        artifact_roots = [
+            Path(session.metadata["_artifact_output_root"])
+            for session in captured
+            if session is not None
+        ]
+        assert len(set(artifact_roots)) == len(conversation_ids)
+        assert all(root.is_dir() for root in artifact_roots)
+        assert all(root.is_relative_to(tmp_path / "data" / "workspaces") for root in artifact_roots)
+        assert all(
+            conversation_id not in str(root)
+            for root, conversation_id in zip(artifact_roots, conversation_ids, strict=True)
+        )
+
+    def test_run_chat_rejects_preexisting_managed_workspace_symlink(
+        self,
+        stack,
+        monkeypatch,
+        tmp_path,
+    ):
+        from hashlib import sha256
+
+        from runtime.platform.models import ParsedIntent
+        from runtime.platform.runtime_policy.workspaces import managed_workspace_path
+        from runtime.sensing.gateway._openai_gateway_router_run import _run_chat
+
+        data_dir = tmp_path / "data"
+        monkeypatch.setenv("ECHO_DATA_DIR", str(data_dir))
+        conversation_id = "symlink-conversation"
+        workspace = managed_workspace_path(
+            data_dir / "workspaces",
+            tenant_id="tenant-a",
+            actor_id="alice",
+            thread_id=sha256(conversation_id.encode("utf-8")).hexdigest()[:32],
+        )
+        outside = tmp_path / "outside"
+        outside.mkdir()
+        workspace.parent.mkdir(parents=True)
+        workspace.symlink_to(outside, target_is_directory=True)
+
+        with pytest.raises(ValueError, match="symlink"):
+            _run_chat(
+                stack,
+                ParsedIntent(raw="list", intent_type="task", normalized_goal="list"),
+                "echo-ai",
+                "default",
+                actor="alice",
+                tenant_id="tenant-a",
+                owner_actor_id="alice",
+                conversation_id=conversation_id,
+            )
+        assert not (outside / "workspace.json").exists()
+
+    def test_stream_chat_binds_session_scope(self, stack, client, monkeypatch):
+        from pathlib import Path
+
+        from runtime.platform.process.session import current_session
+        from runtime.safety.evolution import runtime_outcomes
+
+        captured: list[object] = []
+        planner_sessions: list[object] = []
+        settled: list[tuple[str, bool | None]] = []
+        real_run = stack.runtime.run
+        real_plan = stack.planner.plan
+
+        def _spy_run(*args, **kwargs):
+            captured.append(current_session())
+            return real_run(*args, **kwargs)
+
+        def _spy_plan(*args, **kwargs):
+            planner_sessions.append(current_session())
+            return real_plan(*args, **kwargs)
+
+        monkeypatch.setattr(stack.runtime, "run", _spy_run)
+        monkeypatch.setattr(stack.planner, "plan", _spy_plan)
+        monkeypatch.setattr(
+            runtime_outcomes,
+            "settle_runtime_candidate_outcomes",
+            lambda turn_id, *, success, **_: settled.append((turn_id, success)),
+        )
+
+        with client.stream(
+            "POST",
+            "/v1/chat/completions",
+            json={
+                "messages": [{"role": "user", "content": "list"}],
+                "conversation_id": "convo-stream-1",
+                "stream": True,
+            },
+        ) as r:
+            assert r.status_code == 200
+            for _ in r.iter_lines():
+                pass
+
+        assert len(captured) == 1
+        assert len(planner_sessions) == 1
+        session = captured[0]
+        assert session is not None
+        assert planner_sessions[0] is session
+        assert session.thread_id == "convo-stream-1"
+        assert session.conversation_id == "convo-stream-1"
+        assert session.metadata.get("enforce_executor_approval") is True
+        assert session.metadata.get("owner_actor_id") is None
+        assert Path(session.metadata["_artifact_output_root"]).is_dir()
+        assert settled == [(session.turn_id, True)]
+        assert current_session() is None
+
+    def test_stream_chat_partitions_authenticated_workspace_and_scope(
+        self,
+        stack,
+        monkeypatch,
+        tmp_path,
+    ):
+        from pathlib import Path
+
+        from runtime.platform.models import ParsedIntent
+        from runtime.platform.process.scope import resolve_execution_scope
+        from runtime.platform.process.session import current_session
+        from runtime.safety.evolution import runtime_outcomes
+        from runtime.sensing.gateway.openai_gateway.stream_handler import (
+            _stream_chat_wrapped,
+        )
+
+        monkeypatch.setenv("ECHO_DATA_DIR", str(tmp_path / "data"))
+        planner_sessions: list[object] = []
+        runtime_sessions: list[tuple[object, object]] = []
+        real_plan = stack.planner.plan
+        real_run = stack.runtime.run
+
+        def _spy_plan(*args, **kwargs):
+            planner_sessions.append(current_session())
+            return real_plan(*args, **kwargs)
+
+        def _spy_run(*args, **kwargs):
+            session = current_session()
+            runtime_sessions.append((session, resolve_execution_scope(session)))
+            return real_run(*args, **kwargs)
+
+        monkeypatch.setattr(stack.planner, "plan", _spy_plan)
+        monkeypatch.setattr(stack.runtime, "run", _spy_run)
+        monkeypatch.setattr(
+            runtime_outcomes,
+            "settle_runtime_candidate_outcomes",
+            lambda *_args, **_kwargs: None,
+        )
+
+        intent = ParsedIntent(raw="list", intent_type="task", normalized_goal="list")
+        conversation_id = "../../same-conversation-secret"
+        identities = (("tenant-a-secret", "alice-secret"), ("tenant-b-secret", "bob-secret"))
+        for tenant_id, actor in identities:
+            list(
+                _stream_chat_wrapped(
+                    stack,
+                    intent,
+                    "echo-ai",
+                    "default",
+                    actor=actor,
+                    conversation_id=conversation_id,
+                    tenant_id=tenant_id,
+                    owner_actor_id=actor,
+                )
+            )
+
+        assert len(planner_sessions) == len(runtime_sessions) == 2
+        roots: list[Path] = []
+        for index, ((session, scope), identity) in enumerate(
+            zip(runtime_sessions, identities, strict=True)
+        ):
+            assert planner_sessions[index] is session
+            tenant_id, actor = identity
+            assert session.actor == actor
+            assert session.metadata["tenant_id"] == tenant_id
+            assert session.metadata["owner_actor_id"] == actor
+            root = Path(session.metadata["_artifact_output_root"])
+            roots.append(root)
+            assert scope.primary_write == root.resolve()
+            assert root.is_dir()
+            assert all(raw not in str(root) for raw in (tenant_id, actor, conversation_id))
+        assert roots[0] != roots[1]
+
+    @pytest.mark.parametrize(
+        ("success", "degraded", "disposition", "expected"),
+        [
+            (True, False, "completed", True),
+            (True, True, "completed_with_warning", False),
+            (False, False, "failed", False),
+            (False, False, "cancelled", None),
+            (False, False, "interrupted", None),
+        ],
+    )
+    def test_sync_and_stream_candidate_settlement_are_symmetric(
+        self,
+        stack,
+        monkeypatch,
+        tmp_path,
+        success,
+        degraded,
+        disposition,
+        expected,
+    ):
+        from types import SimpleNamespace
+
+        from runtime.platform.models import ParsedIntent
+        from runtime.safety.evolution import runtime_outcomes
+        from runtime.sensing.gateway import _openai_gateway_router_run as run_module
+        from runtime.sensing.gateway.openai_gateway.stream_handler import (
+            _stream_chat_wrapped,
+        )
+
+        monkeypatch.setenv("ECHO_DATA_DIR", str(tmp_path / "data"))
+        settled: list[bool | None] = []
+        monkeypatch.setattr(
+            runtime_outcomes,
+            "settle_runtime_candidate_outcomes",
+            lambda _turn_id, *, success, **_: settled.append(success),
+        )
+        trajectory = SimpleNamespace(
+            outcome=SimpleNamespace(
+                success=success,
+                degraded=degraded,
+                disposition=disposition,
+            ),
+            step_count=0,
+        )
+        monkeypatch.setattr(stack.runtime, "run", lambda *_args, **_kwargs: trajectory)
+        monkeypatch.setattr(run_module, "synthesize_reply", lambda *_args, **_kwargs: "ok")
+        intent = ParsedIntent(raw="list", intent_type="task", normalized_goal="list")
+
+        run_module._run_chat(
+            stack,
+            intent,
+            "echo-ai",
+            "default",
+            conversation_id="sync-settlement",
+        )
+        list(
+            _stream_chat_wrapped(
+                stack,
+                intent,
+                "echo-ai",
+                "default",
+                conversation_id="stream-settlement",
+            )
+        )
+
+        assert settled == [expected, expected]
+
+    @pytest.mark.parametrize("failure_phase", ["planner", "runtime"])
+    def test_sync_and_stream_failures_settle_negative_once(
+        self,
+        stack,
+        monkeypatch,
+        tmp_path,
+        failure_phase,
+    ):
+        from runtime.platform.models import ParsedIntent
+        from runtime.safety.evolution import runtime_outcomes
+        from runtime.sensing.gateway import _openai_gateway_router_run as run_module
+        from runtime.sensing.gateway.openai_gateway.stream_handler import (
+            _stream_chat_wrapped,
+        )
+
+        monkeypatch.setenv("ECHO_DATA_DIR", str(tmp_path / "data"))
+        settled: list[bool | None] = []
+        monkeypatch.setattr(
+            runtime_outcomes,
+            "settle_runtime_candidate_outcomes",
+            lambda _turn_id, *, success, **_: settled.append(success),
+        )
+        monkeypatch.setattr(run_module, "_direct_llm_fallback", lambda *_args, **_kwargs: None)
+
+        def _fail(*_args, **_kwargs):
+            raise RuntimeError(f"{failure_phase} boom")
+
+        if failure_phase == "planner":
+            monkeypatch.setattr(stack.planner, "plan", _fail)
+        else:
+            monkeypatch.setattr(stack.runtime, "run", _fail)
+
+        intent = ParsedIntent(raw="list", intent_type="task", normalized_goal="list")
+        with pytest.raises(Exception, match=f"{failure_phase} boom"):
+            run_module._run_chat(
+                stack,
+                intent,
+                "echo-ai",
+                "default",
+                conversation_id=f"sync-{failure_phase}-failure",
+            )
+        frames = list(
+            _stream_chat_wrapped(
+                stack,
+                intent,
+                "echo-ai",
+                "default",
+                conversation_id=f"stream-{failure_phase}-failure",
+            )
+        )
+        assert any('"finish_reason": "failed"' in frame for frame in frames)
+        assert settled == [False, False]

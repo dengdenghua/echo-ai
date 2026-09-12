@@ -1,0 +1,29 @@
+{
+  "arms": [
+    "web_read",
+    "browser_read"
+  ],
+  "extra_affinity": [
+    "ecommerce",
+    "operations",
+    "analytics",
+    "strategy",
+    "supply",
+    "traffic",
+    "cro",
+    "fulfillment"
+  ],
+  "private_skills": [
+    "ad-creative",
+    "seo-audit",
+    "pricing-advisor",
+    "competitive-seo-intel",
+    "creative-ecommerce-images",
+    "chart-image",
+    "marketing-growth",
+    "spreadsheets",
+    "general-writer",
+    "work-report-expert",
+    "external-8ae583fa1618bdd30337ea4d"
+  ]
+}

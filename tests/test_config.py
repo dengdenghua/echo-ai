@@ -1,0 +1,438 @@
+"""Implementation note."""
+
+from __future__ import annotations
+
+from pathlib import Path
+
+import pytest
+
+from runtime.platform.config import (
+    AgentConfig,
+    BudgetConfig,
+    ConfigLoadError,
+    ImmunityConfig,
+    LearnConfig,
+    PlannerConfig,
+    build_from_config,
+    load_from_dict,
+    load_from_yaml,
+)
+
+# ═══════════════════════════════════════════════════════════
+# Implementation note.
+# ═══════════════════════════════════════════════════════════
+
+
+class TestSchemaDefaults:
+    def test_empty_config_valid(self):
+        cfg = load_from_dict({})
+        assert cfg.journal_max_bytes == 50_000_000  # Audit R-04: bounded default
+        cfg = AgentConfig()
+        assert cfg.name == "echo-ai"
+        assert cfg.planner.type == "static"
+        assert cfg.budget.max_tokens == 100_000
+        assert cfg.budget.max_usd == 1.00
+        assert cfg.budget.model_iteration_timeout_s == 120.0
+        assert cfg.budget.convergence_max_tokens == 2000
+        assert cfg.immunity.unknown_policy == "quarantine"
+        assert cfg.local_auth.allow_any_username is False
+        assert cfg.local_auth.login_max_failures == 5
+        assert cfg.local_auth.login_ip_max_failures == 20
+        assert cfg.local_auth.login_failure_window_seconds == 300
+        assert cfg.local_auth.login_lockout_seconds == 60
+        assert cfg.local_auth.login_rate_limit_max_entries == 10_000
+        assert cfg.intel_sources == []
+        assert cfg.mcp_servers == []
+        assert cfg.execution.deployment_mode == "local"
+        assert cfg.execution.process_sandbox == "auto"
+
+    def test_immunity_default_excludes_wildcard_mcp(self):
+        # SECURITY: the yaml-driven default must match the TrustEngine
+        # in-process default — neither trusts mcp://* out of the box.
+        from runtime.safety.auth.trust_engine import TrustEngine
+
+        cfg = AgentConfig()
+        assert "mcp://*" not in cfg.immunity.trusted_sources
+        assert cfg.immunity.trusted_sources == TrustEngine().trusted_sources
+
+    def test_planner_invalid_type_rejected(self):
+        from pydantic import ValidationError
+
+        with pytest.raises(ValidationError):
+            PlannerConfig(type="weird")  # type: ignore[arg-type]
+
+    def test_budget_must_be_positive(self):
+        from pydantic import ValidationError
+
+        with pytest.raises(ValidationError):
+            BudgetConfig(max_tokens=-1)
+
+    def test_learn_paths_must_be_local_filesystem_paths(self):
+        from pydantic import ValidationError
+
+        cfg = LearnConfig(rules_persist_path=" data/learned_rules.json ")
+        assert cfg.rules_persist_path == "data/learned_rules.json"
+
+        with pytest.raises(ValidationError):
+            LearnConfig(memories_persist_path="")
+
+        with pytest.raises(ValidationError):
+            LearnConfig(static_rules_persist_path="https://example.test/rules.json")
+
+        with pytest.raises(ValidationError):
+            LearnConfig(learn_from_journal="data/journal.jsonl\x00")
+
+
+# ═══════════════════════════════════════════════════════════
+# load_from_dict
+# ═══════════════════════════════════════════════════════════
+
+
+class TestLoadFromDict:
+    def test_partial_config_fills_defaults(self):
+        cfg = load_from_dict({"name": "test-agent"})
+        assert cfg.name == "test-agent"
+        assert cfg.planner.type == "static"  # default
+
+    def test_full_config(self):
+        cfg = load_from_dict(
+            {
+                "name": "x",
+                "planner": {"type": "llm", "model": "mock/test"},
+                "budget": {"max_tokens": 1000, "max_usd": 0.05},
+                "intel_sources": [{"source_id": "s1", "query": "q1"}],
+            }
+        )
+        assert cfg.planner.type == "llm"
+        assert cfg.budget.max_tokens == 1000
+        assert len(cfg.intel_sources) == 1
+        assert cfg.intel_sources[0].source_id == "s1"
+
+    def test_invalid_schema_raises(self):
+        with pytest.raises(ConfigLoadError):
+            load_from_dict({"planner": {"type": "invalid_type"}})
+
+    def test_execution_contract_is_typed(self):
+        cfg = load_from_dict(
+            {
+                "execution": {
+                    "deployment_mode": "commercial",
+                    "process_sandbox": "strict",
+                }
+            }
+        )
+        assert cfg.execution.deployment_mode == "commercial"
+        assert cfg.execution.process_sandbox == "strict"
+
+
+class TestEnvInterpolation:
+    def test_env_var_substituted(self, monkeypatch):
+        monkeypatch.setenv("MY_KEY", "sk-secret")
+        cfg = load_from_dict(
+            {
+                "planner": {
+                    "type": "llm",
+                    "model": "claude-haiku-4-5",
+                    "anthropic_api_key": "${MY_KEY}",
+                }
+            }
+        )
+        assert cfg.planner.anthropic_api_key == "sk-secret"
+
+    def test_missing_env_becomes_empty(self, monkeypatch):
+        monkeypatch.delenv("NOT_SET_12345", raising=False)
+        cfg = load_from_dict({"planner": {"type": "llm", "mock_response": "${NOT_SET_12345}"}})
+        assert cfg.planner.mock_response == ""
+
+    def test_nested_list_interpolation(self, monkeypatch):
+        monkeypatch.setenv("TRUST", "mcp://fs/*")
+        cfg = load_from_dict({"immunity": {"trusted_sources": ["skill://public/*", "${TRUST}"]}})
+        assert cfg.immunity.trusted_sources[1] == "mcp://fs/*"
+
+
+# ═══════════════════════════════════════════════════════════
+# load_from_yaml
+# ═══════════════════════════════════════════════════════════
+
+
+class TestLoadFromYaml:
+    def test_valid_yaml_file(self, tmp_path: Path):
+        path = tmp_path / "cfg.yaml"
+        path.write_text(
+            "name: test-yaml\nplanner:\n  type: llm\n  model: mock/test\n",
+            encoding="utf-8",
+        )
+        cfg = load_from_yaml(path)
+        assert cfg.name == "test-yaml"
+        assert cfg.planner.model == "mock/test"
+
+    def test_missing_file(self, tmp_path: Path):
+        with pytest.raises(ConfigLoadError, match="not found"):
+            load_from_yaml(tmp_path / "nope.yaml")
+
+    def test_malformed_yaml(self, tmp_path: Path):
+        path = tmp_path / "bad.yaml"
+        path.write_text("planner:\n  type: [unclosed list", encoding="utf-8")
+        with pytest.raises(ConfigLoadError, match="YAML parse failed"):
+            load_from_yaml(path)
+
+    def test_non_mapping_yaml_rejected(self, tmp_path: Path):
+        path = tmp_path / "list.yaml"
+        path.write_text("- a\n- b\n", encoding="utf-8")
+        with pytest.raises(ConfigLoadError, match="mapping"):
+            load_from_yaml(path)
+
+    def test_empty_yaml_uses_defaults(self, tmp_path: Path):
+        path = tmp_path / "empty.yaml"
+        path.write_text("", encoding="utf-8")
+        cfg = load_from_yaml(path)
+        assert cfg.name == "echo-ai"
+
+
+# ═══════════════════════════════════════════════════════════
+# build_from_config
+# ═══════════════════════════════════════════════════════════
+
+
+class TestBuildFromConfig:
+    def test_default_stack(self):
+        stack = build_from_config(AgentConfig())
+        # 5 builtins + web (httpx available) + maybe mcp
+        assert len(stack.registry) >= 5
+        assert not stack.is_llm_planner  # default static
+
+    def test_llm_planner_stack(self):
+        cfg = AgentConfig(
+            planner=PlannerConfig(type="llm", model="mock/test", mock_response='{"nodes":[]}')
+        )
+        stack = build_from_config(cfg)
+        assert stack.is_llm_planner
+        assert stack.approval_router is stack.planner.router
+
+    def test_web_disabled_keeps_local_coding_tools(self):
+        stack = build_from_config(AgentConfig(enable_web_skills=False))
+
+        for name in (
+            "read_file",
+            "grep_text",
+            "write_text_file",
+            "edit_file",
+            "run_tests",
+            "lint_check",
+            "format_code",
+            "exec_shell",
+            "git_diff",
+        ):
+            assert stack.registry.has(name), name
+
+        for name in (
+            "web_search",
+            "fetch_url",
+            "crawl_site",
+            "browser_navigate",
+            "live_browser_navigate",
+        ):
+            assert not stack.registry.has(name), name
+
+    def test_oct_llm_stack_without_anthropic_key(self, monkeypatch, tmp_path: Path):
+        monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
+        monkeypatch.delenv("ANTHROPIC_AUTH_TOKEN", raising=False)
+        monkeypatch.setenv("ECHO_DATA_DIR", str(tmp_path / "data"))
+        cfg = load_from_dict(
+            {
+                "planner": {"type": "llm", "model": "oct"},
+                "oct": {
+                    "enabled": True,
+                    "jwt_secret": "oct-test-secret-key-32chars-long",
+                },
+            }
+        )
+
+        stack = build_from_config(cfg)
+
+        assert stack.is_llm_planner
+        assert stack.planner.planner_model == "oct"
+
+    def test_static_stack_routes_research_to_web_search(self):
+        cfg = AgentConfig(
+            planner=PlannerConfig(type="static"),
+            enable_web_skills=True,
+        )
+        stack = build_from_config(cfg)
+        goal = "nas\u8c03\u7814"
+
+        from runtime.platform.models import ParsedIntent
+
+        graph = stack.planner.plan(ParsedIntent(raw=goal, intent_type="task", normalized_goal=goal))
+
+        assert graph.strategy == "research_web_search"
+        assert graph.nodes[0].skill_ref == "web_search"
+        assert graph.nodes[0].args_template["query"] == goal
+
+    def test_journal_file_uses_jsonl(self, tmp_path: Path):
+        path = tmp_path / "events.jsonl"
+        cfg = AgentConfig(journal_file=str(path))
+        stack = build_from_config(cfg)
+        # Implementation note.
+        from uuid import uuid4
+
+        from runtime.platform.models import (
+            ArmId,
+            TaskId,
+            Trajectory,
+            TrajectoryOutcome,
+        )
+
+        traj = Trajectory(
+            task_id=TaskId(uuid4()),
+            arm_id=ArmId("x"),
+            steps=[],
+            outcome=TrajectoryOutcome(success=True),
+        )
+        stack.journal.write_trajectory(traj)
+        assert path.exists()
+        assert path.read_text(encoding="utf-8").strip() != ""
+
+    def test_immunity_custom_trusted_sources(self):
+        cfg = AgentConfig(
+            immunity=ImmunityConfig(
+                trusted_sources=["custom://source/*"],
+                unknown_policy="reject",
+            )
+        )
+        stack = build_from_config(cfg)
+        assert "custom://source/*" in stack.immunity.trusted_sources
+        assert stack.immunity.unknown_policy == "reject"
+
+
+# ═══════════════════════════════════════════════════════════
+# Implementation note.
+# ═══════════════════════════════════════════════════════════
+
+
+class TestExampleYamlFile:
+    def test_example_config_loads(self):
+        """Implementation note."""
+        example = Path(__file__).parent.parent / "config.example.yaml"
+        if not example.exists():
+            pytest.skip("config.example.yaml not shipped")
+        cfg = load_from_yaml(example)
+        assert cfg.planner.type in ("static", "llm")
+        # Implementation note.
+
+    @pytest.mark.parametrize("filename", ["config.example.yaml", "config.local.yaml"])
+    def test_shipped_configs_keep_internal_react_callers_self_whitelisted(self, filename: str):
+        config_path = Path(__file__).parent.parent / filename
+        if not config_path.exists():
+            pytest.skip(f"{filename} not shipped")
+
+        cfg = load_from_yaml(config_path)
+
+        assert "react_loop" in cfg.immunity.self_whitelist
+        assert "react_arm" in cfg.immunity.self_whitelist
+
+    def test_example_config_builds_with_mock(self, tmp_path: Path):
+        """Implementation note."""
+        example = Path(__file__).parent.parent / "config.example.yaml"
+        if not example.exists():
+            pytest.skip("config.example.yaml not shipped")
+        text = example.read_text(encoding="utf-8").replace("claude-haiku-4-5-20251001", "mock/test")
+        patched = tmp_path / "patched.yaml"
+        patched.write_text(text, encoding="utf-8")
+        cfg = load_from_yaml(patched)
+        stack = build_from_config(cfg)
+        assert stack.registry is not None
+
+
+# ═══════════════════════════════════════════════════════════
+# Implementation note.
+# ═══════════════════════════════════════════════════════════
+
+
+class TestCLIConfigFlag:
+    def test_run_with_config_flag(self, tmp_path: Path, capsys):
+        from runtime.cli import main
+
+        cfg_path = tmp_path / "cfg.yaml"
+        cfg_path.write_text(
+            "planner:\n"
+            "  type: llm\n"
+            "  model: mock/planner\n"
+            '  mock_response: \'{"reasoning":"t","nodes":[{"skill":"list_cwd","args":{}}]}\'\n'
+            "budget:\n"
+            "  max_tokens: 5000\n"
+            "  max_usd: 0.05\n",
+            encoding="utf-8",
+        )
+        rc = main(
+            [
+                "--no-color",
+                "run",
+                "list files",
+                "--config",
+                str(cfg_path),
+            ]
+        )
+        assert rc in (0, 1)  # Implementation note.
+        out = capsys.readouterr().out
+        assert "config-driven" in out
+
+
+# ═══════════════════════════════════════════════════════════
+# Audit R-03: weak JWT secrets rejected at startup
+# ═══════════════════════════════════════════════════════════
+
+# NB: keep "$" out of the literal — the loader interpolates $VAR / ${VAR}
+# in config values, so a $ in a secret would be eaten by env lookup.
+_STRONG_SECRET = "V8!xQ#z9mK2@Lp4%Yw7^Nc1&Fd3*Gh5!Tq7#Rp9"
+
+
+class TestJwtSecretValidation:
+    def test_weak_dev_literal_rejected_local_auth(self):
+        """Audit R-03: the leaked dev literal must fail startup validation."""
+        with pytest.raises(ValueError, match="known weak/default"):
+            load_from_dict(
+                {
+                    "local_auth": {
+                        "enabled": True,
+                        "jwt_secret": "dev-secret-key-32-chars-minimum-required",
+                    }
+                }
+            )
+
+    def test_weak_dev_literal_rejected_oct(self):
+        with pytest.raises(ValueError, match="known weak/default"):
+            load_from_dict(
+                {"oct": {"enabled": True, "jwt_secret": "dev-secret-key-32-chars-minimum-required"}}
+            )
+
+    def test_low_entropy_long_secret_rejected(self):
+        """Long-but-predictable (all lowercase) secrets must not pass."""
+        with pytest.raises(ValueError, match="too predictable"):
+            load_from_dict({"local_auth": {"jwt_secret": "a" * 40}})
+
+    def test_strong_secret_accepted(self):
+        cfg = load_from_dict(
+            {
+                "local_auth": {"enabled": True, "jwt_secret": _STRONG_SECRET},
+                "oct": {"enabled": True, "jwt_secret": _STRONG_SECRET},
+            }
+        )
+        assert cfg.local_auth.jwt_secret == _STRONG_SECRET
+        assert cfg.oct.jwt_secret == _STRONG_SECRET
+
+    def test_dev_yaml_env_injected_secret(self, monkeypatch, tmp_path: Path):
+        """Audit R-03: dev.yaml must not carry a literal secret — the value
+        comes from ECHO_LOCAL_AUTH_JWT_SECRET."""
+        monkeypatch.setenv("ECHO_LOCAL_AUTH_JWT_SECRET", _STRONG_SECRET)
+        dev = Path("config/dev.yaml")
+        cfg = load_from_yaml(dev)
+        assert cfg.local_auth.jwt_secret == _STRONG_SECRET
+
+    def test_dev_yaml_unset_env_fails_closed(self, monkeypatch, tmp_path: Path):
+        """Unset env -> empty interpolation -> schema min_length rejects ->
+        startup fails rather than silently using an empty secret."""
+        monkeypatch.delenv("ECHO_LOCAL_AUTH_JWT_SECRET", raising=False)
+        dev = Path("config/dev.yaml")
+        with pytest.raises(ValueError):
+            load_from_yaml(dev)

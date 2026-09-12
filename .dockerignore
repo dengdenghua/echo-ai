@@ -1,0 +1,95 @@
+# Tests and local runtime artifacts
+tests/
+.pytest_cache/
+.coverage
+htmlcov/
+.ruff_cache/
+.codex-logs/
+.codex-audits/
+.marvis_static/
+.agents/
+.design-qa/
+.run/
+.trae/
+.workbuddy/
+logs/
+/data/
+deliverables/
+ura-artifacts/
+_outer_preflatten_*/
+# Imported memories and every local runtime/home/cache/work directory are not
+# Docker build inputs. Sending them to a remote BuildKit daemon can disclose
+# prompts, sessions, credentials, SQLite state, or worktree contents even when
+# no Dockerfile COPY instruction ultimately selects them.
+.echo/
+.echo-*/
+test-results/
+
+# Registry materialization cache.  The image receives skills.lock.json and a
+# bundled wheel fallback; copying a developer machine's ignored cache would
+# make local and clean-release images contain different skill catalogs.
+skills/public/*/
+
+# Python build/cache output
+**/__pycache__/
+**/*.pyc
+**/*.pyo
+**/*.egg-info/
+build/
+dist/
+
+# Editor metadata
+.vscode/
+.idea/
+.claude/
+
+# Git metadata
+.git/
+.gitignore
+
+# Runtime data
+/data/
+*.jsonl
+*.sqlite
+*.sqlite3
+agents/*/sessions/
+agents/*/workspace/
+agents/*/visuals/backups/
+agents/*/agent-core/.soul_history/
+agents/**/*.lock
+agents/**/*.bak
+*.db
+
+# Environment files
+.env
+.env.*
+!.env.example
+config.local.yaml
+config.local*.yaml
+
+# Documentation excluded from production image
+docs/
+*.md
+!README.md
+# The Python wheel's deterministic offline skill fallback is package data,
+# not documentation.  Keep every markdown resource in that catalog available
+# to the py-builder even though general repository docs stay out of context.
+!runtime/execution/all_skills/**/*.md
+
+# Local deployment sources excluded from runtime image
+deploy/
+docker-compose*.yml
+Dockerfile
+.dockerignore
+mkdocs.yml
+Makefile
+
+# Frontend build/dependency output
+frontend/node_modules/
+frontend/build/
+frontend/dist/
+frontend/.vite/
+frontend/.next/
+frontend/coverage/
+frontend/playwright-report/
+frontend/_shot*.mjs

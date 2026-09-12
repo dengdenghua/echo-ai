@@ -1,0 +1,66 @@
+# Lightweight cloud control plane and public-share relay for a small server.
+# Put Caddy/Nginx in front and expose it through HTTPS; the service itself binds
+# loopback by default.  See deploy/SHARE_RELAY.md before enabling the public
+# hostname.
+services:
+  account-message-service:
+    build:
+      context: ..
+      dockerfile: deploy/cloud-service.Dockerfile
+    image: echo-cloud-service:latest
+    container_name: echo-cloud-service
+    restart: unless-stopped
+    entrypoint: ["python", "-m", "uvicorn"]
+    command:
+      - runtime.cloud_edge.app:create_cloud_edge_app_from_env
+      - --factory
+      - --host
+      - "0.0.0.0"
+      - --port
+      - "8090"
+      - --proxy-headers
+      - --forwarded-allow-ips=127.0.0.1
+    ports:
+      - "${ECHO_CLOUD_EDGE_BIND_IP:-127.0.0.1}:${ECHO_CLOUD_EDGE_PORT:-8090}:8090"
+    environment:
+      ECHO_CLOUD_EDGE_TOKEN_SECRET: ${ECHO_CLOUD_EDGE_TOKEN_SECRET:?set an independent 32+ character token secret}
+      ECHO_CLOUD_EDGE_ADMIN_KEY: ${ECHO_CLOUD_EDGE_ADMIN_KEY:?set an independent 32+ character admin key}
+      ECHO_CLOUD_REGISTRATION_CODE: ${ECHO_CLOUD_REGISTRATION_CODE:?set a 12+ character registration code}
+      # Narrow server-to-server credential accepted only by thread-share routes.
+      # It must be independent from the general Cloud Edge admin key.
+      ECHO_CLOUD_SHARE_RELAY_KEY: ${ECHO_CLOUD_SHARE_RELAY_KEY:?set an independent 32+ character share relay key}
+      ECHO_CLOUD_EDGE_OWNER_ID: ${ECHO_CLOUD_EDGE_OWNER_ID:-admin}
+      ECHO_CLOUD_EDGE_TENANT_ID: ${ECHO_CLOUD_EDGE_TENANT_ID:-default}
+      ECHO_CLOUD_EDGE_DATA_DIR: /data
+      # Canonical origin used to mint absolute links for desktop clients.  It
+      # must be a stable HTTPS origin; never derive public links from Host or
+      # X-Forwarded-* request headers.
+      ECHO_PUBLIC_SHARE_BASE_URL: ${ECHO_PUBLIC_SHARE_BASE_URL:-https://share.echo-age.com}
+      # Public-share retention and disk-abuse guards.  Values are bytes/seconds.
+      ECHO_CLOUD_EDGE_SHARE_TTL_SECONDS: ${ECHO_CLOUD_EDGE_SHARE_TTL_SECONDS:-2592000}
+      ECHO_CLOUD_EDGE_SHARE_MAX_PER_OWNER: ${ECHO_CLOUD_EDGE_SHARE_MAX_PER_OWNER:-50}
+      ECHO_CLOUD_EDGE_SHARE_MAX_SNAPSHOT_BYTES: ${ECHO_CLOUD_EDGE_SHARE_MAX_SNAPSHOT_BYTES:-1048576}
+      ECHO_CLOUD_EDGE_SHARE_MAX_TOTAL_BYTES: ${ECHO_CLOUD_EDGE_SHARE_MAX_TOTAL_BYTES:-536870912}
+    volumes:
+      # Durable SQLite/share state.  Create and back up this host directory;
+      # do not replace it with an anonymous container volume.
+      - ../data/cloud-edge:/data
+    stop_grace_period: 30s
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; r=urllib.request.urlopen('http://localhost:8090/readyz', timeout=3); raise SystemExit(0 if r.status == 200 else 1)"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+          cpus: "1.0"
+        reservations:
+          memory: 128M
+    logging:
+      driver: json-file
+      options:
+        max-size: "20m"
+        max-file: "3"

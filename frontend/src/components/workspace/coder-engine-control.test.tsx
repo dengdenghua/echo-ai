@@ -1,0 +1,1262 @@
+import { fireEvent, screen, waitFor, within } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+
+import { renderWithProviders } from "@/test/harness";
+
+import {
+  CoderEngineControl,
+  CoderEngineSettings,
+} from "./coder-engine-control";
+
+vi.mock("@/providers/AuthProvider", () => ({
+  useAuth: () => ({
+    user: { user_id: "actor-a", actor_id: "actor-a", username: "Alice" },
+  }),
+}));
+
+const fetchMock = vi.fn();
+
+const systemProfile = {
+  mode: "follow_system",
+  effective_model: "gpt-5.6",
+  system_model: "gpt-5.6",
+  reasoning_effort: "high",
+  compatible: true,
+  compatibility_reason: null,
+  provider: "openai-compatible",
+};
+
+const accountProfile = {
+  ...systemProfile,
+  mode: "chatgpt",
+  effective_model: "gpt-5.6-codex",
+  provider: "openai",
+};
+
+const models = {
+  source: "codex",
+  models: [
+    {
+      id: "gpt-5.6-codex",
+      display_name: "GPT-5.6 Codex",
+      reasoning_efforts: ["medium", "high", "xhigh"],
+      default_reasoning_effort: "high",
+      hidden: false,
+      is_default: true,
+      input_modalities: ["text", "image"],
+    },
+  ],
+};
+
+function jsonResponse(body: unknown, status = 200) {
+  return {
+    ok: status >= 200 && status < 300,
+    status,
+    json: async () => body,
+  };
+}
+
+function urlOf(input: RequestInfo | URL) {
+  return typeof input === "string" ? input : input.toString();
+}
+
+beforeEach(() => {
+  localStorage.clear();
+  fetchMock.mockReset();
+  fetchMock.mockImplementation(async (input: RequestInfo | URL) => {
+    const url = urlOf(input);
+    if (url.includes("/model-profile")) return jsonResponse(systemProfile);
+    if (url.includes("/account")) {
+      return jsonResponse({
+        account: null,
+        requires_openai_auth: false,
+        login_pending: false,
+        login_id: null,
+        login_error: null,
+      });
+    }
+    if (url.includes("/models")) return jsonResponse(models);
+    return jsonResponse({});
+  });
+  vi.stubGlobal("fetch", fetchMock);
+});
+
+afterEach(() => {
+  vi.unstubAllGlobals();
+  vi.restoreAllMocks();
+  Reflect.deleteProperty(window, "echo");
+});
+
+describe("CoderEngineControl", () => {
+  it("places custom models before official models in the left tab", async () => {
+    const user = userEvent.setup();
+    renderWithProviders(
+      <CoderEngineControl
+        systemModels={[
+          { name: "official/qwen", entry_id: "official", display_name: "极速" },
+          { name: "custom", entry_id: "my-api", display_name: "我的 API" },
+        ]}
+      />,
+      { locale: "zh-CN" },
+    );
+    await user.click(await screen.findByTestId("coder-engine-trigger"));
+    expect(
+      screen
+        .getByRole("button", { name: "我的 API", exact: true })
+        .compareDocumentPosition(
+          screen.getByRole("button", { name: "极速", exact: true }),
+        ) & Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+    expect(
+      screen.getByRole("button", { name: "Codex", exact: true }),
+    ).toBeVisible();
+    expect(
+      screen.getByRole("button", { name: "添加自定义模型", exact: true }),
+    ).toBeVisible();
+  });
+  it("keeps OpenCode models out of custom API and hides the empty custom tab", async () => {
+    const user = userEvent.setup();
+    renderWithProviders(
+      <CoderEngineControl
+        systemModels={[{ name: "big-pickle", entry_id: "opencode-zen" }]}
+      />,
+      { locale: "zh-CN" },
+    );
+    await user.click(await screen.findByTestId("coder-engine-trigger"));
+    expect(
+      screen.queryByRole("button", { name: "自定义 API" }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "官方模型", exact: true }),
+    ).toHaveAttribute("aria-pressed", "true");
+    expect(
+      screen.queryByRole("button", { name: "big-pickle", exact: true }),
+    ).not.toBeInTheDocument();
+  });
+  it("offers recovery when no API models are configured without changing the source", async () => {
+    const user = userEvent.setup();
+    renderWithProviders(<CoderEngineControl systemModels={[]} />, {
+      locale: "zh-CN",
+    });
+    await user.click(await screen.findByTestId("coder-engine-trigger"));
+    expect(
+      await screen.findByText("暂无可用模型，请在下方添加自定义模型。"),
+    ).toBeVisible();
+    expect(
+      screen.queryByText("当前是编排模型，请在下方选择实际模型"),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "添加自定义模型" }),
+    ).toBeVisible();
+    await user.click(
+      screen.getByRole("button", { name: "Codex", exact: true }),
+    );
+    expect(
+      screen.queryByText("暂无可用模型，请在下方添加自定义模型。"),
+    ).not.toBeInTheDocument();
+    expect(
+      fetchMock.mock.calls.some(
+        ([, init]) => init?.method === "PUT" || init?.method === "POST",
+      ),
+    ).toBe(false);
+  });
+
+  it("keeps authorization separate without a duplicate API entry", async () => {
+    renderWithProviders(<CoderEngineSettings authorizationOnly />, {
+      locale: "zh-CN",
+    });
+    expect(
+      await screen.findByRole("button", { name: "登录 ChatGPT" }),
+    ).toBeVisible();
+    expect(
+      screen.queryByRole("button", { name: /跟随系统模型/ }),
+    ).not.toBeInTheDocument();
+    expect(screen.queryByText("模型来源")).not.toBeInTheDocument();
+    expect(screen.queryByLabelText("OpenAI API Key")).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "添加 API 连接" }),
+    ).not.toBeInTheDocument();
+    expect(
+      fetchMock.mock.calls.some(
+        ([, init]) => init?.method === "PUT" || init?.method === "POST",
+      ),
+    ).toBe(false);
+  });
+
+  it("finishes a recovered authorization without switching the model source", async () => {
+    let reads = 0;
+    fetchMock.mockImplementation(async (input: RequestInfo | URL) => {
+      const url = urlOf(input);
+      if (url.includes("/model-profile")) return jsonResponse(systemProfile);
+      if (url.includes("/account")) {
+        reads += 1;
+        return jsonResponse(
+          reads === 1
+            ? { account: null, login_pending: true, login_id: "pending-auth" }
+            : {
+                account: { type: "chatgpt", email: "test@example.test" },
+                login_pending: false,
+              },
+        );
+      }
+      return jsonResponse({});
+    });
+    renderWithProviders(<CoderEngineSettings authorizationOnly />, {
+      locale: "zh-CN",
+    });
+    expect(await screen.findByText("Codex 账号已连接")).toBeVisible();
+    expect(
+      fetchMock.mock.calls.some(
+        ([input, init]) =>
+          urlOf(input).includes("/model-profile") &&
+          init?.method &&
+          init.method !== "GET",
+      ),
+    ).toBe(false);
+    expect(screen.queryByRole("combobox")).not.toBeInTheDocument();
+  });
+
+  it("uses localized Coder settings copy for Japanese and Korean", async () => {
+    const user = userEvent.setup();
+    const japanese = renderWithProviders(<CoderEngineSettings />, {
+      locale: "ja-JP",
+    });
+    expect(await screen.findByText("Coderエンジン")).toBeVisible();
+    await screen.findByText("モデルのソース");
+    await user.click(
+      screen.getByRole("button", { name: /ChatGPT \/ Codexを使用/ }),
+    );
+    expect(
+      screen.getByRole("button", { name: "ChatGPTにログイン" }),
+    ).toBeVisible();
+    japanese.unmount();
+
+    renderWithProviders(<CoderEngineSettings />, { locale: "ko-KR" });
+    expect(await screen.findByText("Coder 엔진")).toBeVisible();
+    await screen.findByText("모델 출처");
+    await user.click(
+      screen.getByRole("button", { name: /ChatGPT \/ Codex 사용/ }),
+    );
+    expect(
+      screen.getByRole("button", { name: "ChatGPT로 로그인" }),
+    ).toBeVisible();
+  });
+
+  it("lets the Echo kernel switch between system and ChatGPT subscription models without mutating the Codex profile", async () => {
+    const user = userEvent.setup();
+    const onChange = vi.fn();
+    const onEffectiveModelChange = vi.fn();
+    const onReasoningEffortChange = vi.fn();
+    fetchMock.mockImplementation(async (input: RequestInfo | URL) => {
+      const url = urlOf(input);
+      if (url.includes("/model-profile")) return jsonResponse(systemProfile);
+      if (url.includes("/account")) {
+        return jsonResponse({
+          account: { type: "chatgpt", email: null, plan_type: "plus" },
+          requires_openai_auth: true,
+          login_pending: false,
+        });
+      }
+      if (url.includes("/models")) return jsonResponse(models);
+      return jsonResponse({});
+    });
+
+    renderWithProviders(
+      <CoderEngineControl
+        executionEngine="echo"
+        value="echo-custom-model:v1:deepseek-selection"
+        onChange={onChange}
+        onEffectiveModelChange={onEffectiveModelChange}
+        reasoningEffort="high"
+        onReasoningEffortChange={onReasoningEffortChange}
+        systemModels={[
+          { name: "big-pickle", entry_id: "opencode-zen", is_free: true },
+          {
+            name: "deepseek",
+            display_name: "DeepSeek",
+            source_display_name: "OpenCode Zen",
+            entry_id: "deepseek-endpoint",
+            selection_id: "echo-custom-model:v1:deepseek-selection",
+            model: "deepseek-chat",
+            is_free: true,
+            reasoning_efforts: ["low", "high"],
+          },
+        ]}
+      />,
+      { locale: "zh-CN" },
+    );
+
+    expect(await screen.findByTestId("coder-engine-trigger")).toHaveAttribute(
+      "aria-label",
+      "OpenCode Zen · DeepSeek",
+    );
+    expect(
+      within(screen.getByTestId("coder-engine-trigger")).getByText("DeepSeek"),
+    ).toHaveClass("text-emerald-600");
+    fireEvent.pointerDown(screen.getByTestId("coder-engine-trigger"), {
+      button: 0,
+      ctrlKey: false,
+    });
+    fireEvent.click(screen.getByTestId("coder-engine-trigger"));
+    expect(await screen.findByRole("menu")).toHaveClass("w-72");
+    expect(screen.getByRole("button", { name: "DeepSeek" })).toHaveTextContent(
+      "DeepSeek",
+    );
+    expect(
+      within(screen.getByRole("button", { name: "DeepSeek" })).getByText(
+        "DeepSeek",
+      ),
+    ).toHaveClass("text-emerald-600");
+    expect(
+      screen.queryByRole("button", { name: /自动.*按任务智能选择/ }),
+    ).not.toBeInTheDocument();
+    await user.click(await screen.findByText("Codex", { selector: "button" }));
+    await user.click(
+      await screen.findByRole("button", { name: "GPT-5.6 Codex" }),
+    );
+
+    expect(onChange).toHaveBeenCalledWith("chatgpt/gpt-5.6-codex");
+    expect(onEffectiveModelChange).toHaveBeenCalledWith("gpt-5.6-codex");
+    expect(
+      screen.queryByRole("radiogroup", { name: "上下文长度" }),
+    ).not.toBeInTheDocument();
+    expect(
+      fetchMock.mock.calls.some(
+        ([input, init]) =>
+          urlOf(input as RequestInfo | URL).includes("/model-profile") &&
+          (init as RequestInit | undefined)?.method === "PUT",
+      ),
+    ).toBe(false);
+
+    await user.click(screen.getByText("官方模型"));
+    await user.click(screen.getByRole("button", { name: "DeepSeek" }));
+    expect(onChange).toHaveBeenLastCalledWith(
+      "echo-custom-model:v1:deepseek-selection",
+    );
+    expect(onEffectiveModelChange).toHaveBeenLastCalledWith("DeepSeek");
+    await user.click(screen.getByRole("button", { name: "高" }));
+    expect(onReasoningEffortChange).toHaveBeenCalledWith("high");
+  });
+
+  it("offers both system and Codex model domains with system reasoning controls", async () => {
+    const user = userEvent.setup();
+    fetchMock.mockImplementation(
+      async (input: RequestInfo | URL, init?: RequestInit) => {
+        const url = urlOf(input);
+        if (url.includes("/model-profile") && init?.method === "PUT") {
+          const body = JSON.parse(String(init.body));
+          return jsonResponse({
+            ...systemProfile,
+            selected_model: body.model || null,
+            effective_model: body.model || systemProfile.system_model,
+            model_source: body.model ? "role" : "system",
+            reasoning_effort: body.reasoning_effort || null,
+          });
+        }
+        if (url.includes("/model-profile")) return jsonResponse(systemProfile);
+        if (url.includes("/account")) {
+          return jsonResponse({
+            account: null,
+            requires_openai_auth: false,
+            login_pending: false,
+          });
+        }
+        return jsonResponse(models);
+      },
+    );
+    renderWithProviders(
+      <CoderEngineControl
+        systemModels={[
+          {
+            name: "mix",
+            display_name: "mix",
+            model: "echo-mix",
+          },
+          {
+            name: "deepseek",
+            display_name: "DeepSeek",
+            entry_id: "deepseek-endpoint",
+            model: "deepseek-chat",
+            context_window: 256_000,
+            reasoning_efforts: ["low", "high"],
+          },
+          {
+            name: "deepseek::1m",
+            display_name: "DeepSeek",
+            entry_id: "deepseek-endpoint",
+            model: "deepseek-chat",
+            context_window: 1_000_000,
+            context_profile: "1m",
+            reasoning_efforts: ["low", "high"],
+          },
+        ]}
+      />,
+      { locale: "zh-CN" },
+    );
+
+    expect(await screen.findByText("gpt-5.6")).toBeInTheDocument();
+    expect(screen.getByTestId("coder-engine-trigger")).toHaveAttribute(
+      "aria-label",
+      "系统 · gpt-5.6",
+    );
+    await user.hover(screen.getByTestId("coder-engine-trigger"));
+    expect(await screen.findByRole("tooltip")).toHaveTextContent(
+      "系统 · gpt-5.6",
+    );
+    await user.unhover(screen.getByTestId("coder-engine-trigger"));
+    fireEvent.pointerDown(screen.getByTestId("coder-engine-trigger"), {
+      button: 0,
+      ctrlKey: false,
+    });
+    fireEvent.click(screen.getByTestId("coder-engine-trigger"));
+
+    expect(await screen.findByText("官方模型")).toBeInTheDocument();
+    expect(
+      screen.getByText("Codex", { selector: "button" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "mix" }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "big-pickle" }),
+    ).not.toBeInTheDocument();
+    expect(screen.getAllByText("DeepSeek")).toHaveLength(1);
+    await user.click(screen.getByRole("button", { name: "DeepSeek" }));
+    await waitFor(() =>
+      expect(fetchMock).toHaveBeenCalledWith(
+        expect.stringContaining("/model-profile"),
+        expect.objectContaining({
+          method: "PUT",
+          body: expect.stringContaining('"model":"deepseek-endpoint"'),
+        }),
+      ),
+    );
+    const context = await screen.findByRole("radiogroup", {
+      name: "上下文长度",
+    });
+    expect(
+      within(context).getByRole("radio", { name: "标准 · 256K" }),
+    ).toHaveAttribute("aria-checked", "true");
+    await user.click(within(context).getByRole("radio", { name: "Max · 1M" }));
+    await waitFor(() =>
+      expect(
+        fetchMock.mock.calls.some(([, init]) =>
+          String((init as RequestInit | undefined)?.body).includes(
+            '"model":"deepseek::1m"',
+          ),
+        ),
+      ).toBe(true),
+    );
+    expect(await screen.findByRole("button", { name: "高" })).toBeVisible();
+    await user.click(screen.getByRole("button", { name: "高" }));
+    await waitFor(() =>
+      expect(
+        fetchMock.mock.calls.some(([, init]) =>
+          String((init as RequestInit | undefined)?.body).includes(
+            '"reasoning_effort":"high"',
+          ),
+        ),
+      ).toBe(true),
+    );
+  });
+
+  it("explains that the system orchestrator cannot run Coder work directly", async () => {
+    fetchMock.mockImplementation(async (input: RequestInfo | URL) => {
+      const url = urlOf(input);
+      if (url.includes("/model-profile")) {
+        return jsonResponse({
+          ...systemProfile,
+          effective_model: "echo-mix",
+          system_model: "echo-mix",
+          compatible: false,
+        });
+      }
+      if (url.includes("/account")) {
+        return jsonResponse({
+          account: null,
+          requires_openai_auth: false,
+          login_pending: false,
+        });
+      }
+      return jsonResponse(models);
+    });
+    renderWithProviders(
+      <CoderEngineControl
+        systemModels={[
+          { name: "mix", display_name: "mix", model: "echo-mix" },
+          {
+            name: "deepseek",
+            display_name: "DeepSeek",
+            model: "deepseek-chat",
+          },
+        ]}
+      />,
+      { locale: "zh-CN" },
+    );
+
+    fireEvent.pointerDown(await screen.findByTestId("coder-engine-trigger"), {
+      button: 0,
+      ctrlKey: false,
+    });
+    fireEvent.click(screen.getByTestId("coder-engine-trigger"));
+
+    expect(
+      screen.queryByText("当前是编排模型，请在下方选择实际模型"),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "mix" }),
+    ).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "DeepSeek" })).toBeVisible();
+  });
+
+  it.each([true, false])(
+    "keeps the confirmed model until saving succeeds (success=%s)",
+    async (success) => {
+      const user = userEvent.setup();
+      const onEffectiveModelChange = vi.fn();
+      let finishSave:
+        | ((response: ReturnType<typeof jsonResponse>) => void)
+        | undefined;
+      const pendingSave = new Promise<ReturnType<typeof jsonResponse>>(
+        (resolve) => {
+          finishSave = resolve;
+        },
+      );
+      fetchMock.mockImplementation(
+        async (input: RequestInfo | URL, init?: RequestInit) => {
+          const url = urlOf(input);
+          if (url.includes("/model-profile") && init?.method === "PUT") {
+            return pendingSave;
+          }
+          if (url.includes("/model-profile"))
+            return jsonResponse(systemProfile);
+          if (url.includes("/account")) {
+            return jsonResponse({
+              account: { type: "chatgpt", email: null, plan_type: "plus" },
+              requires_openai_auth: true,
+              login_pending: false,
+            });
+          }
+          if (url.includes("/models")) return jsonResponse(models);
+          return jsonResponse({});
+        },
+      );
+      const view = renderWithProviders(
+        <CoderEngineControl onEffectiveModelChange={onEffectiveModelChange} />,
+        { locale: "zh-CN" },
+      );
+
+      await screen.findByText("gpt-5.6");
+      fireEvent.pointerDown(screen.getByTestId("coder-engine-trigger"), {
+        button: 0,
+        ctrlKey: false,
+      });
+      fireEvent.click(screen.getByTestId("coder-engine-trigger"));
+      await user.click(
+        await screen.findByText("Codex", { selector: "button" }),
+      );
+      await user.click(
+        await screen.findByRole("button", { name: "GPT-5.6 Codex" }),
+      );
+
+      expect(screen.getByTestId("coder-engine-trigger")).toHaveTextContent(
+        "gpt-5.6",
+      );
+      expect(screen.getByTestId("coder-engine-trigger")).not.toHaveTextContent(
+        "gpt-5.6-codex",
+      );
+      expect(onEffectiveModelChange).not.toHaveBeenCalled();
+      expect(view.container.querySelector(".animate-spin")).toBeNull();
+
+      finishSave?.(
+        success
+          ? jsonResponse(accountProfile)
+          : jsonResponse({ detail: "Save failed" }, 503),
+      );
+      if (!success) {
+        expect(await screen.findByRole("alert")).toHaveTextContent(
+          "Save failed",
+        );
+        expect(
+          screen.getByTestId("coder-engine-trigger"),
+        ).not.toHaveTextContent("gpt-5.6-codex");
+        expect(onEffectiveModelChange).not.toHaveBeenCalled();
+        return;
+      }
+      await waitFor(() =>
+        expect(screen.getByTestId("coder-engine-trigger")).toHaveTextContent(
+          "gpt-5.6-codex",
+        ),
+      );
+      expect(onEffectiveModelChange).toHaveBeenCalledWith("gpt-5.6-codex");
+    },
+  );
+
+  it("hides reasoning when the model has no supported options", async () => {
+    fetchMock.mockImplementation(async (input: RequestInfo | URL) => {
+      const url = urlOf(input);
+      if (url.includes("/model-profile")) {
+        return jsonResponse({
+          ...systemProfile,
+          selected_model: "deepseek",
+          effective_model: "deepseek",
+          model_source: "role",
+        });
+      }
+      if (url.includes("/account")) {
+        return jsonResponse({ account: null, login_pending: false });
+      }
+      return jsonResponse(models);
+    });
+
+    renderWithProviders(
+      <CoderEngineControl
+        systemModels={[
+          {
+            name: "deepseek",
+            display_name: "DeepSeek",
+            reasoning_efforts: [],
+          },
+        ]}
+      />,
+      { locale: "zh-CN" },
+    );
+
+    fireEvent.pointerDown(await screen.findByTestId("coder-engine-trigger"), {
+      button: 0,
+      ctrlKey: false,
+    });
+    fireEvent.click(screen.getByTestId("coder-engine-trigger"));
+
+    expect(screen.queryByText("推理等级")).not.toBeInTheDocument();
+  });
+});
+
+describe("CoderEngineSettings", () => {
+  it("reuses system credentials and keeps independent account setup optional without changing the active source", async () => {
+    const user = userEvent.setup();
+    fetchMock.mockImplementation(async (input: RequestInfo | URL) => {
+      const url = urlOf(input);
+      if (url.includes("/model-profile")) return jsonResponse(systemProfile);
+      if (url.includes("/account")) {
+        return jsonResponse({
+          account: null,
+          login_pending: false,
+          login_error: "Codex login did not complete",
+        });
+      }
+      return jsonResponse({});
+    });
+    renderWithProviders(<CoderEngineSettings />, { locale: "zh-CN" });
+    expect(await screen.findByText("系统连接")).toBeVisible();
+    expect(
+      screen.getByText(/复用系统模型连接的服务地址与 API Key/),
+    ).toBeVisible();
+    expect(
+      screen.queryByRole("button", { name: "登录 ChatGPT" }),
+    ).not.toBeInTheDocument();
+    expect(screen.queryByLabelText("OpenAI API Key")).not.toBeInTheDocument();
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+    expect(screen.queryByText("未连接")).not.toBeInTheDocument();
+
+    await user.click(
+      screen.getByRole("button", { name: /使用 ChatGPT \/ Codex/ }),
+    );
+    expect(screen.getByRole("button", { name: "登录 ChatGPT" })).toBeVisible();
+    expect(screen.getByText(/当前仍使用系统模型连接/)).toBeVisible();
+    expect(screen.getByText("系统连接")).toBeVisible();
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: /跟随系统模型/ }),
+    ).toHaveAttribute("aria-pressed", "true");
+    await user.click(screen.getByText("高级：使用独立 OpenAI Key"));
+    expect(screen.getByText(/已在系统中配置 Key/)).toBeVisible();
+    await user.type(screen.getByLabelText("OpenAI API Key"), "sk-unsent-draft");
+    await user.click(screen.getByRole("button", { name: /跟随系统模型/ }));
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+    expect(screen.queryByLabelText("OpenAI API Key")).not.toBeInTheDocument();
+    await user.click(
+      screen.getByRole("button", { name: /使用 ChatGPT \/ Codex/ }),
+    );
+    await user.click(screen.getByText("高级：使用独立 OpenAI Key"));
+    expect(screen.getByLabelText("OpenAI API Key")).toHaveValue("");
+    expect(
+      fetchMock.mock.calls.some(([, init]) =>
+        ["PUT", "POST"].includes(init?.method),
+      ),
+    ).toBe(false);
+    expect(localStorage.length).toBe(0);
+  });
+
+  it("keeps system settings usable when the independent account service fails", async () => {
+    fetchMock.mockImplementation(async (input: RequestInfo | URL) => {
+      const url = urlOf(input);
+      if (url.includes("/model-profile")) return jsonResponse(systemProfile);
+      if (url.includes("/account"))
+        return jsonResponse({ detail: "Account service unavailable" }, 503);
+      return jsonResponse({});
+    });
+    renderWithProviders(<CoderEngineSettings />, { locale: "zh-CN" });
+    expect(await screen.findByText("已选模型 · gpt-5.6")).toBeVisible();
+    expect(screen.getByRole("button", { name: /跟随系统模型/ })).toBeEnabled();
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+  });
+
+  it("distinguishes a connected account from an unusable model and applies the chat default explicitly", async () => {
+    const user = userEvent.setup();
+    let profile = {
+      ...systemProfile,
+      selected_model: null as string | null,
+      effective_model: null as string | null,
+      system_model: "echo-ai",
+      provider: "echo_responses_proxy",
+      compatible: false,
+      compatibility_reason:
+        "System model is an orchestration alias; select an executable model or use a Codex account" as
+          | string
+          | null,
+      execution_available: false,
+      execution_unavailable_reason: "model_incompatible" as string | null,
+    };
+    fetchMock.mockImplementation(
+      async (input: RequestInfo | URL, init?: RequestInit) => {
+        const url = urlOf(input);
+        if (url.includes("/model-profile")) {
+          if (init?.method === "PUT") {
+            const body = JSON.parse(String(init.body));
+            profile = {
+              ...profile,
+              mode: body.mode,
+              selected_model: body.model,
+              effective_model: body.model,
+              compatible: true,
+              compatibility_reason: null,
+              execution_available: true,
+              execution_unavailable_reason: null,
+              provider: "codex_account",
+            };
+          }
+          return jsonResponse(profile);
+        }
+        if (url.includes("/account"))
+          return jsonResponse({
+            account: { type: "chatgpt" },
+            login_pending: false,
+          });
+        if (url.includes("/models")) return jsonResponse(models);
+        return jsonResponse({});
+      },
+    );
+    renderWithProviders(
+      <CoderEngineSettings conversationDefaultModel="chatgpt/gpt-5.6-sol" />,
+      { locale: "zh-CN" },
+    );
+    expect(await screen.findByText("系统连接")).toBeVisible();
+    expect(screen.getByText("待选择可执行模型")).toBeVisible();
+    expect(screen.getByText("暂不可执行")).toBeVisible();
+    expect(screen.getByText(/后端默认值是自动路由入口/)).toBeVisible();
+    expect(
+      screen.queryByText(/当前通过 Codex 引擎运行/),
+    ).not.toBeInTheDocument();
+    expect(
+      fetchMock.mock.calls.some(([, init]) => init?.method === "PUT"),
+    ).toBe(false);
+    await user.click(
+      screen.getByRole("button", { name: "使用对话默认模型 · gpt-5.6-sol" }),
+    );
+    expect(await screen.findByText("已选模型 · gpt-5.6-sol")).toBeVisible();
+    expect(screen.getByText("可由 Codex 引擎运行")).toBeVisible();
+    expect(fetchMock).toHaveBeenCalledWith(
+      expect.stringContaining("/model-profile"),
+      expect.objectContaining({
+        method: "PUT",
+        body: JSON.stringify({ mode: "chatgpt", model: "gpt-5.6-sol" }),
+      }),
+    );
+    expect(
+      screen.queryByRole("button", { name: /使用对话默认模型/ }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("shows missing executable readiness even when the model is compatible and the account is connected", async () => {
+    fetchMock.mockImplementation(async (input: RequestInfo | URL) => {
+      const url = urlOf(input);
+      if (url.includes("/model-profile"))
+        return jsonResponse({
+          ...accountProfile,
+          execution_available: false,
+          execution_unavailable_reason: "executable_unavailable",
+        });
+      if (url.includes("/account"))
+        return jsonResponse({
+          account: { type: "chatgpt" },
+          login_pending: false,
+        });
+      if (url.includes("/models")) return jsonResponse(models);
+      return jsonResponse({});
+    });
+    renderWithProviders(<CoderEngineSettings />, { locale: "zh-CN" });
+    expect(await screen.findByText("暂不可执行")).toBeVisible();
+    expect(screen.getByText("账号已连接")).toBeVisible();
+    expect(
+      screen.getByText("未找到 Codex 程序，请检查本地安装。"),
+    ).toBeVisible();
+    expect(screen.queryByText("可由 Codex 引擎运行")).not.toBeInTheDocument();
+  });
+
+  it("does not apply a ChatGPT subscription default through an API key account", async () => {
+    fetchMock.mockImplementation(async (input: RequestInfo | URL) => {
+      const url = urlOf(input);
+      if (url.includes("/model-profile")) return jsonResponse(accountProfile);
+      if (url.includes("/account"))
+        return jsonResponse({
+          account: { type: "apiKey" },
+          login_pending: false,
+        });
+      if (url.includes("/models")) return jsonResponse(models);
+      return jsonResponse({});
+    });
+    renderWithProviders(
+      <CoderEngineSettings conversationDefaultModel="chatgpt/gpt-5.6-sol" />,
+      { locale: "zh-CN" },
+    );
+    await screen.findByText("账号已连接");
+    expect(
+      screen.queryByRole("button", { name: /使用对话默认模型/ }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("starts and explicitly cancels a device-code login without persisting the auth URL", async () => {
+    const user = userEvent.setup();
+    let cancelled = false;
+    const openExternal = vi.fn().mockResolvedValue(undefined);
+    Object.defineProperty(window, "echo", {
+      configurable: true,
+      value: { app: { openExternal } },
+    });
+    const storageWrite = vi.spyOn(Storage.prototype, "setItem");
+
+    fetchMock.mockImplementation(
+      async (input: RequestInfo | URL, init?: RequestInit) => {
+        const url = urlOf(input);
+        if (url.includes("/model-profile")) return jsonResponse(systemProfile);
+        if (url.includes("/account")) {
+          return jsonResponse({
+            account: null,
+            requires_openai_auth: false,
+            login_pending: false,
+            login_error: cancelled ? "Codex login did not complete" : null,
+          });
+        }
+        if (url.endsWith("/login") && init?.method === "POST") {
+          return jsonResponse({
+            type: "chatgptDeviceCode",
+            login_id: "device-login-1",
+            verification_url: "https://auth.example.test/device?state=one-time",
+            user_code: "ABCD-EFGH",
+          });
+        }
+        if (url.endsWith("/device-login-1/cancel")) {
+          cancelled = true;
+          return jsonResponse({ cancelled: true });
+        }
+        return jsonResponse(models);
+      },
+    );
+
+    renderWithProviders(<CoderEngineSettings />, { locale: "zh-CN" });
+    await user.click(
+      await screen.findByRole("button", { name: /使用 ChatGPT \/ Codex/ }),
+    );
+    await screen.findByRole("button", { name: "使用设备码" });
+    await user.click(screen.getByRole("button", { name: "使用设备码" }));
+
+    expect(await screen.findByText("ABCD-EFGH")).toBeInTheDocument();
+    expect(openExternal).toHaveBeenCalledWith(
+      "https://auth.example.test/device?state=one-time",
+    );
+    expect(storageWrite).not.toHaveBeenCalled();
+    expect(localStorage.length).toBe(0);
+
+    await user.click(screen.getByRole("button", { name: "取消授权" }));
+    await waitFor(() =>
+      expect(fetchMock).toHaveBeenCalledWith(
+        expect.stringContaining("/device-login-1/cancel"),
+        expect.objectContaining({ method: "POST" }),
+      ),
+    );
+    expect(await screen.findByText("已取消登录")).toBeVisible();
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+  });
+
+  it("preserves an unfinished browser login across unmount and rehydrates it", async () => {
+    const user = userEvent.setup();
+    let pending = false;
+    Object.defineProperty(window, "echo", {
+      configurable: true,
+      value: { app: { openExternal: vi.fn().mockResolvedValue(undefined) } },
+    });
+    fetchMock.mockImplementation(
+      async (input: RequestInfo | URL, init?: RequestInit) => {
+        const url = urlOf(input);
+        if (url.includes("/model-profile")) return jsonResponse(systemProfile);
+        if (url.includes("/account")) {
+          return jsonResponse({
+            account: null,
+            requires_openai_auth: false,
+            login_pending: pending,
+            login_id: pending ? "browser-login-1" : null,
+            login_error: null,
+          });
+        }
+        if (url.endsWith("/login") && init?.method === "POST") {
+          pending = true;
+          return jsonResponse({
+            type: "chatgpt",
+            login_id: "browser-login-1",
+            auth_url: "https://auth.example.test/oauth",
+          });
+        }
+        if (url.endsWith("/browser-login-1/cancel")) {
+          pending = false;
+          return jsonResponse({ cancelled: true });
+        }
+        return jsonResponse({});
+      },
+    );
+
+    const view = renderWithProviders(<CoderEngineSettings />, {
+      locale: "en-US",
+    });
+    await user.click(
+      await screen.findByRole("button", { name: /Use ChatGPT \/ Codex/ }),
+    );
+    await screen.findByRole("button", { name: "Sign in with ChatGPT" });
+    await user.click(
+      screen.getByRole("button", { name: "Sign in with ChatGPT" }),
+    );
+    await screen.findAllByText("Authorization pending");
+    view.unmount();
+
+    expect(
+      fetchMock.mock.calls.some(([input, init]) => {
+        const url = urlOf(input as RequestInfo | URL);
+        return (
+          url.endsWith("/browser-login-1/cancel") &&
+          (init as RequestInit | undefined)?.method === "POST"
+        );
+      }),
+    ).toBe(false);
+
+    renderWithProviders(<CoderEngineSettings />, { locale: "en-US" });
+    const cancel = await screen.findByRole("button", {
+      name: "Cancel authorization",
+    });
+    expect(
+      fetchMock.mock.calls.filter(([input, init]) => {
+        const url = urlOf(input as RequestInfo | URL);
+        return url.endsWith("/login") && init?.method === "POST";
+      }),
+    ).toHaveLength(1);
+    await user.click(cancel);
+    await waitFor(() =>
+      expect(fetchMock).toHaveBeenCalledWith(
+        expect.stringContaining("/browser-login-1/cancel"),
+        expect.objectContaining({ method: "POST" }),
+      ),
+    );
+  });
+
+  it("submits an API key once, clears the input immediately, and switches to the Codex account source", async () => {
+    const user = userEvent.setup();
+    let connected = false;
+    fetchMock.mockImplementation(
+      async (input: RequestInfo | URL, init?: RequestInit) => {
+        const url = urlOf(input);
+        if (url.includes("/account")) {
+          return jsonResponse({
+            account: connected
+              ? { type: "apiKey", email: null, plan_type: null }
+              : null,
+            requires_openai_auth: false,
+            login_pending: false,
+          });
+        }
+        if (url.endsWith("/login") && init?.method === "POST") {
+          connected = true;
+          return jsonResponse({ type: "apiKey" });
+        }
+        if (url.includes("/model-profile") && init?.method === "PUT") {
+          return jsonResponse(accountProfile);
+        }
+        if (url.includes("/model-profile")) return jsonResponse(systemProfile);
+        if (url.includes("/models")) return jsonResponse(models);
+        return jsonResponse({});
+      },
+    );
+    const storageWrite = vi.spyOn(Storage.prototype, "setItem");
+
+    renderWithProviders(<CoderEngineSettings />, { locale: "en-US" });
+    await user.click(
+      await screen.findByRole("button", { name: /Use ChatGPT \/ Codex/ }),
+    );
+    await user.click(screen.getByText("Advanced: separate OpenAI key"));
+    const keyInput = screen.getByLabelText("OpenAI API key");
+    await user.type(keyInput, "sk-only-in-request");
+    await user.click(screen.getByRole("button", { name: "Connect API key" }));
+
+    expect(keyInput).toHaveValue("");
+    await waitFor(() => {
+      const request = fetchMock.mock.calls.find(([input, init]) => {
+        const url = urlOf(input as RequestInfo | URL);
+        return (
+          url.endsWith("/login") && (init as RequestInit)?.method === "POST"
+        );
+      });
+      expect(request).toBeDefined();
+      expect(JSON.parse(String((request?.[1] as RequestInit).body))).toEqual({
+        type: "apiKey",
+        api_key: "sk-only-in-request",
+      });
+    });
+    await waitFor(() => {
+      expect(
+        fetchMock.mock.calls.some(([input, init]) => {
+          const url = urlOf(input as RequestInfo | URL);
+          const body = JSON.parse(
+            String((init as RequestInit | undefined)?.body ?? "{}"),
+          );
+          return url.includes("/model-profile") && body.mode === "chatgpt";
+        }),
+      ).toBe(true);
+    });
+    expect(storageWrite).not.toHaveBeenCalled();
+    expect(document.body.textContent).not.toContain("sk-only-in-request");
+  });
+
+  it("does not start a second login when the backend reports one already pending", async () => {
+    fetchMock.mockImplementation(
+      async (input: RequestInfo | URL, _init?: RequestInit) => {
+        const url = urlOf(input);
+        if (url.includes("/model-profile")) return jsonResponse(systemProfile);
+        if (url.includes("/account")) {
+          return jsonResponse({
+            account: null,
+            requires_openai_auth: false,
+            login_pending: true,
+            login_id: "recovered-login-1",
+            login_error: null,
+          });
+        }
+        return jsonResponse({});
+      },
+    );
+
+    renderWithProviders(<CoderEngineSettings />, { locale: "en-US" });
+
+    expect(
+      await screen.findByRole("button", { name: "Sign in with ChatGPT" }),
+    ).toBeDisabled();
+    expect(
+      screen.getByRole("button", { name: "Use device code" }),
+    ).toBeDisabled();
+    expect(
+      screen.getByRole("button", { name: "Connect API key" }),
+    ).toBeDisabled();
+    expect(
+      screen.getByRole("button", { name: "Cancel authorization" }),
+    ).toBeEnabled();
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "Cancel authorization" }),
+    );
+    await waitFor(() =>
+      expect(fetchMock).toHaveBeenCalledWith(
+        expect.stringContaining("/recovered-login-1/cancel"),
+        expect.objectContaining({ method: "POST" }),
+      ),
+    );
+  });
+
+  it("leaves the pending state when App Server reports a failed login", async () => {
+    let accountReads = 0;
+    fetchMock.mockImplementation(async (input: RequestInfo | URL) => {
+      const url = urlOf(input);
+      if (url.includes("/model-profile")) return jsonResponse(systemProfile);
+      if (url.includes("/account")) {
+        accountReads += 1;
+        return jsonResponse(
+          accountReads === 1
+            ? {
+                account: null,
+                requires_openai_auth: true,
+                login_pending: true,
+                login_id: "failed-login-1",
+                login_error: null,
+              }
+            : {
+                account: null,
+                requires_openai_auth: true,
+                login_pending: false,
+                login_id: null,
+                login_error: "Codex login did not complete",
+              },
+        );
+      }
+      return jsonResponse({});
+    });
+
+    renderWithProviders(<CoderEngineSettings />, { locale: "en-US" });
+
+    expect(
+      await screen.findByText("Codex login did not complete"),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Sign in with ChatGPT" }),
+    ).toBeEnabled();
+    expect(
+      screen.queryByRole("button", { name: "Cancel authorization" }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("offers reasoning effort for the account default model", async () => {
+    fetchMock.mockImplementation(async (input: RequestInfo | URL) => {
+      const url = urlOf(input);
+      if (url.includes("/model-profile")) {
+        return jsonResponse({
+          ...accountProfile,
+          effective_model: null,
+          reasoning_effort: null,
+        });
+      }
+      if (url.includes("/account")) {
+        return jsonResponse({
+          account: {
+            type: "chatgpt",
+            email: "a@example.test",
+            plan_type: "plus",
+          },
+          requires_openai_auth: true,
+          login_pending: false,
+          login_id: null,
+          login_error: null,
+        });
+      }
+      if (url.includes("/models")) return jsonResponse(models);
+      return jsonResponse({});
+    });
+
+    renderWithProviders(<CoderEngineSettings />, { locale: "en-US" });
+
+    const effort = await screen.findByLabelText("Reasoning effort");
+    await waitFor(() => expect(effort).toBeEnabled());
+  });
+
+  it("shows ChatGPT quota remainder, reset time, and account token totals", async () => {
+    const user = userEvent.setup();
+    fetchMock.mockImplementation(
+      async (input: RequestInfo | URL, init?: RequestInit) => {
+        const url = urlOf(input);
+        if (url.includes("/model-profile")) return jsonResponse(accountProfile);
+        if (url.includes("/account")) {
+          return jsonResponse({
+            account: {
+              type: "chatgpt",
+              email: "a@example.test",
+              plan_type: "plus",
+            },
+            requires_openai_auth: true,
+            login_pending: false,
+          });
+        }
+        if (url.includes("/models")) return jsonResponse(models);
+        if (url.includes("/rate-limits")) {
+          return jsonResponse({
+            buckets: [
+              {
+                limit_id: "codex",
+                limit_name: "Codex",
+                primary: {
+                  used_percent: 25,
+                  remaining_percent: 75,
+                  window_duration_mins: 15,
+                  resets_at: 1_730_947_200,
+                },
+                secondary: null,
+                plan_type: "plus",
+                rate_limit_reached_type: null,
+              },
+            ],
+            reset_credits_available: 2,
+          });
+        }
+        if (url.includes("/usage")) {
+          return jsonResponse({
+            summary: {
+              lifetime_tokens: 1_234_567,
+              peak_daily_tokens: 45_678,
+            },
+            daily_usage_buckets: [],
+          });
+        }
+        if (url.includes("/apps")) {
+          if (init?.method === "PUT") {
+            return jsonResponse({
+              apps: [
+                {
+                  id: "google_drive",
+                  name: "Google Drive",
+                  description: "Search Drive files",
+                  is_accessible: true,
+                  is_enabled: false,
+                  selected: true,
+                },
+              ],
+            });
+          }
+          return jsonResponse({
+            apps: [
+              {
+                id: "google_drive",
+                name: "Google Drive",
+                description: "Search Drive files",
+                is_accessible: true,
+                is_enabled: false,
+                selected: false,
+              },
+            ],
+          });
+        }
+        return jsonResponse({});
+      },
+    );
+
+    renderWithProviders(<CoderEngineSettings />, { locale: "en-US" });
+
+    const remaining = await screen.findByText("75% remaining");
+    expect(remaining).not.toBeVisible();
+    await user.click(
+      screen.getByText("Connectors and usage", { selector: "summary" }),
+    );
+    expect(remaining).toBeVisible();
+    expect(await screen.findByText("1,234,567")).toBeVisible();
+    expect(screen.getByText("45,678")).toBeVisible();
+    expect(screen.getByText("2")).toBeVisible();
+    await user.click(
+      await screen.findByRole("button", { name: /Google Drive/ }),
+    );
+    await waitFor(() =>
+      expect(
+        fetchMock.mock.calls.some(([input, init]) => {
+          const url = urlOf(input as RequestInfo | URL);
+          return (
+            url.includes("/apps") &&
+            (init as RequestInit | undefined)?.method === "PUT" &&
+            String((init as RequestInit).body).includes("google_drive")
+          );
+        }),
+      ).toBe(true),
+    );
+  });
+});
