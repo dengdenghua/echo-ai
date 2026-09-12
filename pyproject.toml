@@ -49,7 +49,7 @@ dev = [
     # Pinned to the minor that formatted the tree (see the repo-wide
     # `style: ruff format` commit) — an unpinned ruff drifts the format
     # check red on every formatter release.
-    "ruff>=0.15.12,<0.16",
+    "ruff>=0.15.12,<0.17",
     # starlette >=1.3 moved TestClient onto the httpx2 package; without it
     # every TestClient-based test errors at import on fresh CI installs.
     "httpx2>=2.0",
