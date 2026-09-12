@@ -1,0 +1,62 @@
+# Echo desktop default configuration.
+#
+# This file is copied into the Electron userData directory on first launch.
+# It intentionally contains no API keys. Users can edit the copied config or
+# configure providers from the app UI.
+
+name: echo-desktop
+version_compat: "0.2"
+
+planner:
+  type: llm
+  model: echo-ai
+  max_nodes: 10
+
+budget:
+  max_tokens: 50000
+  max_usd: 0.50
+  max_latency_ms: 600000
+
+immunity:
+  trusted_sources:
+    - "skill://public/*"
+    - "mcp://anthropic/*"
+    - "mcp://fs/*"
+  self_whitelist:
+    - "cerebrum"
+    - "ganglia"
+    - "arms/*"
+    - "intel_collector/*"
+  unknown_policy: quarantine
+
+# Single-user desktop profile: an explicit "full access" selection also
+# bypasses the interactive approval prompt.  Shared/production configs keep
+# this opt-in disabled.
+safety:
+  allow_client_approval_bypass: true
+
+journal_file: null
+enable_web_skills: true
+default_arm_id: code_arm
+
+oct:
+  enabled: true
+  base_url: https://api.echo-age.com
+  default_model: qwen3.5-flash
+  request_timeout_seconds: 15
+  llm_timeout_seconds: 120
+  mock_mode: false
+  jwt_secret: __ECHO_DESKTOP_ACCOUNT_JWT_SECRET__
+  jwt_expire_seconds: 2592000
+  jwt_issuer: echo-ai
+
+local_auth:
+  enabled: true
+  allow_any_username: true
+  # Replaced atomically with a unique high-entropy value by
+  # frontend/electron/desktop-config.cjs before the backend starts.
+  jwt_secret: __ECHO_DESKTOP_ACCOUNT_JWT_SECRET__
+  jwt_expire_seconds: 604800
+  jwt_issuer: echo-ai
+  actor_prefix: "local:"
+  default_roles: [user, local]

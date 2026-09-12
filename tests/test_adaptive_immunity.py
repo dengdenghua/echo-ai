@@ -1,0 +1,325 @@
+"""Immunity Adaptive tier — behavioural anomaly z-score scoring.
+
+Pins the protocol invariants: I4 cold-start conservatism (0.5 with no
+baseline), learned baselines, high z-score quarantine, and the
+TrustEngine integration where adaptive only tightens (quarantines a
+trusted source behaving anomalously) and self callers bypass it.
+"""
+
+from runtime.platform.models import (
+    AntigenSignature,
+    CostEntry,
+    ToolCall,
+)
+from runtime.safety.auth.adaptive_immunity import AdaptiveImmunity
+from runtime.safety.auth.trust_engine import TrustEngine
+
+
+def _sig(entity_id: str) -> AntigenSignature:
+    return AntigenSignature(
+        entity_id=entity_id,
+        entity_type="skill",
+        content_hash="abc",
+        origin="public",
+    )
+
+
+def _call(sucker: str = "run_sql", caller: str = "outsider", *, latency=0.0, tokens=0):
+    return ToolCall(
+        sucker_id=sucker,
+        caller=caller,
+        args={},
+        predicted_cost=CostEntry(latency_ms=latency, tokens_in=tokens),
+    )
+
+
+class TestRiskScoring:
+    def test_cold_start_is_conservative(self):
+        a = AdaptiveImmunity()
+        score = a.compute_risk("x", predicted_latency_ms=9999, predicted_tokens=9999)
+        assert score.composite == 0.5
+        assert "cold_start" in score.reason
+
+    def test_normal_call_scores_low_after_baseline(self):
+        a = AdaptiveImmunity()
+        for _ in range(50):
+            a.learn("x", latency_ms=100.0, tokens=200.0)
+        score = a.compute_risk("x", predicted_latency_ms=105, predicted_tokens=205)
+        assert score.composite < 0.2
+        assert not a.is_anomalous(score)
+
+    def test_outlier_call_scores_high(self):
+        a = AdaptiveImmunity(quarantine_threshold=0.7)
+        # Tight baseline around 100ms / 200 tokens with real variance.
+        for i in range(50):
+            a.learn("x", latency_ms=100.0 + (i % 5), tokens=200.0 + (i % 5))
+        score = a.compute_risk("x", predicted_latency_ms=5000, predicted_tokens=9000)
+        assert score.composite > 0.7
+        assert a.is_anomalous(score)
+
+    def test_zero_variance_baseline_flags_deviation(self):
+        a = AdaptiveImmunity()
+        for _ in range(20):
+            a.learn("x", latency_ms=100.0, tokens=200.0)
+        same = a.compute_risk("x", predicted_latency_ms=100, predicted_tokens=200)
+        assert same.composite < 0.2  # identical to baseline → low
+        off = a.compute_risk("x", predicted_latency_ms=999, predicted_tokens=999)
+        assert off.composite > same.composite  # different → higher
+
+    def test_window_caps_sample_count(self):
+        a = AdaptiveImmunity(window_size=10)
+        for _ in range(50):
+            a.learn("x", latency_ms=1.0, tokens=1.0)
+        assert a.sample_count("x") == 10
+
+    def test_single_axis_anomaly_reaches_threshold(self):
+        # A tool that hangs (latency spike) or exfiltrates (token spike)
+        # is anomalous on ONE axis. Averaging two axes used to halve the
+        # signal below threshold; max-of-axes must catch it.
+        a = AdaptiveImmunity(quarantine_threshold=0.7)
+        for i in range(50):
+            a.learn("x", latency_ms=100.0 + (i % 5), tokens=200.0 + (i % 5))
+        # Latency normal, tokens 100x (classic exfil signature).
+        score = a.compute_risk("x", predicted_latency_ms=102, predicted_tokens=20000)
+        assert a.is_anomalous(score), score.composite
+        # And the mirror: latency spike, tokens normal.
+        score2 = a.compute_risk("x", predicted_latency_ms=50000, predicted_tokens=201)
+        assert a.is_anomalous(score2), score2.composite
+
+    def test_absent_prediction_is_cold_start_not_anomaly(self):
+        # The runtime doesn't populate predicted_cost (arrives 0/0).
+        # That must NOT read as a 6σ anomaly against a real baseline —
+        # otherwise wiring learn() would quarantine all normal traffic.
+        a = AdaptiveImmunity(quarantine_threshold=0.7)
+        for _ in range(50):
+            a.learn("x", latency_ms=100.0, tokens=200.0)
+        score = a.compute_risk("x", predicted_latency_ms=0.0, predicted_tokens=0.0)
+        assert not a.is_anomalous(score)
+        assert "no_prediction" in score.reason
+
+    def test_threshold_floored_above_cold_start(self):
+        # A threshold at/below cold_start would quarantine every
+        # cold-start call with no recovery path.
+        a = AdaptiveImmunity(quarantine_threshold=0.3, cold_start_score=0.5)
+        assert a.quarantine_threshold > 0.5
+        cold = a.compute_risk("never-seen", predicted_latency_ms=10, predicted_tokens=10)
+        assert not a.is_anomalous(cold)
+
+    def test_learn_builds_baseline_via_trust_engine(self):
+        # TrustEngine.learn must reach the adaptive baseline (the
+        # executor calls this post-execution).
+        adaptive = AdaptiveImmunity()
+        engine = TrustEngine(trusted_sources=["skill://public/*"], adaptive=adaptive)
+        for _ in range(7):
+            engine.learn(_call(sucker="run_sql"), latency_ms=120.0, tokens=240.0)
+        assert adaptive.sample_count("run_sql") == 7
+
+
+class TestTrustEngineIntegration:
+    def _engine(self, **kw):
+        return TrustEngine(
+            trusted_sources=["skill://public/*"],
+            adaptive=AdaptiveImmunity(**kw),
+        )
+
+    def test_disabled_by_default(self):
+        engine = TrustEngine(trusted_sources=["skill://public/*"])
+        assert engine.adaptive is None
+        report = engine.check(_call(), _sig("skill://public/run_sql"))
+        assert report.verdict == "allow"
+
+    def test_trusted_but_anomalous_is_quarantined(self):
+        engine = self._engine(quarantine_threshold=0.7)
+        # Build a baseline, then probe with a wild outlier.
+        for _ in range(30):
+            engine.learn(_call(latency=100, tokens=200), latency_ms=100, tokens=200)
+        report = engine.check(_call(latency=8000, tokens=9000), _sig("skill://public/run_sql"))
+        assert report.verdict == "quarantine"
+        assert report.strategy_used == "adaptive"
+        assert report.risk is not None
+
+    def test_trusted_and_normal_still_allowed(self):
+        engine = self._engine()
+        for _ in range(30):
+            engine.learn(_call(latency=100, tokens=200), latency_ms=100, tokens=200)
+        report = engine.check(_call(latency=102, tokens=201), _sig("skill://public/run_sql"))
+        assert report.verdict == "allow"
+        assert report.strategy_used == "innate"
+
+    def test_self_caller_bypasses_adaptive(self):
+        # I2: self-whitelisted callers never reach the adaptive tier,
+        # even with a wild cost — no autoimmunity.
+        engine = self._engine()
+        for _ in range(30):
+            engine.learn(_call(latency=100, tokens=200), latency_ms=100, tokens=200)
+        report = engine.check(
+            _call(caller="cerebrum", latency=99999, tokens=99999),
+            _sig("skill://public/run_sql"),
+        )
+        assert report.verdict == "allow"
+        assert report.strategy_used == "tolerance"
+
+    def test_cold_start_does_not_quarantine(self):
+        # I4: with no baseline (score 0.5 < 0.7), a trusted source is
+        # allowed, not quarantined.
+        engine = self._engine(quarantine_threshold=0.7)
+        report = engine.check(_call(latency=9999, tokens=9999), _sig("skill://public/run_sql"))
+        assert report.verdict == "allow"
+
+
+class TestObservedScoring:
+    """score_observed: retrospective audit-only anomaly on REAL observed cost
+    (sound where pre-execute prediction isn't supplied)."""
+
+    def test_observed_cold_start_conservative(self):
+        a = AdaptiveImmunity()
+        score = a.score_observed("x", latency_ms=9999, tokens=9999)
+        assert score.composite == 0.5
+        assert not a.is_anomalous(score)
+
+    def test_observed_normal_low_after_baseline(self):
+        a = AdaptiveImmunity()
+        for _ in range(50):
+            a.learn("x", latency_ms=100.0, tokens=200.0)
+        score = a.score_observed("x", latency_ms=105, tokens=205)
+        assert score.composite < 0.2
+        assert not a.is_anomalous(score)
+
+    def test_observed_outlier_flagged(self):
+        a = AdaptiveImmunity(quarantine_threshold=0.7)
+        for i in range(50):
+            a.learn("x", latency_ms=100.0 + (i % 5), tokens=200.0 + (i % 5))
+        # 100x the baseline latency — classic hang/exfil signature.
+        score = a.score_observed("x", latency_ms=10000, tokens=200)
+        assert score.composite >= 0.7
+        assert a.is_anomalous(score)
+
+
+class TestLearnAnomalyDetection:
+    """TrustEngine.learn flags behavioural anomalies via log AND quarantines
+    the sucker; the observed call itself is never blocked (it already ran)."""
+
+    def test_learn_flags_and_quarantines_anomaly(self, caplog):
+        import logging
+
+        a = AdaptiveImmunity(quarantine_threshold=0.7)
+        engine = TrustEngine(adaptive=a)
+        call = _call(sucker="run_sql")
+        for i in range(30):  # tight normal baseline
+            engine.learn(call, latency_ms=100.0 + (i % 5), tokens=200.0 + (i % 5))
+        with caplog.at_level(logging.WARNING, logger="echo.safety.trust"):
+            result = engine.learn(call, latency_ms=10000.0, tokens=200.0)
+        assert result is None  # learn carries no verdict — the call already ran
+        assert any("behavioural anomaly" in r.message for r in caplog.records)
+        # 2026-06: audit-only logging upgraded to real isolation (895e82f) —
+        # the anomalous sucker is now quarantined for future check() calls.
+        assert a.is_quarantined("run_sql")
+        assert a.sample_count("run_sql") == 31  # observation still learned
+
+    def test_learn_normal_call_no_anomaly_log(self, caplog):
+        import logging
+
+        a = AdaptiveImmunity(quarantine_threshold=0.7)
+        engine = TrustEngine(adaptive=a)
+        call = _call(sucker="run_sql")
+        for _ in range(30):
+            engine.learn(call, latency_ms=100.0, tokens=200.0)
+        with caplog.at_level(logging.WARNING, logger="echo.safety.trust"):
+            engine.learn(call, latency_ms=101.0, tokens=201.0)
+        assert not any("behavioural anomaly" in r.message for r in caplog.records)
+
+    def test_self_whitelisted_calls_do_not_poison_shared_adaptive_state(self, caplog):
+        import logging
+
+        adaptive = AdaptiveImmunity(quarantine_threshold=0.7)
+        engine = TrustEngine(adaptive=adaptive)
+        call = ToolCall(sucker_id="run_tests", caller="react_loop", args={})
+
+        with caplog.at_level(logging.WARNING, logger="echo.safety.trust"):
+            for _ in range(30):
+                engine.learn(call, latency_ms=100.0, tokens=200.0)
+            engine.learn(call, latency_ms=10000.0, tokens=200.0)
+
+        assert adaptive.sample_count("run_tests") == 0
+        assert adaptive.is_quarantined("run_tests") is False
+        assert not any("behavioural anomaly" in record.message for record in caplog.records)
+
+
+class TestBaselinePrediction:
+    """predict() + TrustEngine.check fallback: when the runtime doesn't
+    populate ToolCall.predicted_cost (the actual situation today — all
+    three execute_step callers omit it), the adaptive tier falls back to
+    the sucker's baseline mean. This activates the pre-execute scoring
+    path that was previously inert (cold-start 0.5 on every call)."""
+
+    def test_predict_returns_none_cold_start(self):
+        # No baseline yet → None → compute_risk stays cold-start.
+        a = AdaptiveImmunity()
+        assert a.predict("never-seen") is None
+
+    def test_predict_returns_none_below_min_samples(self):
+        # Below _MIN_SAMPLES (5) → still None (mean/variance not meaningful).
+        a = AdaptiveImmunity()
+        for _ in range(4):
+            a.learn("x", latency_ms=100.0, tokens=200.0)
+        assert a.predict("x") is None
+
+    def test_predict_returns_baseline_mean(self):
+        # Mature baseline → predict returns the mean.
+        a = AdaptiveImmunity()
+        for _ in range(30):
+            a.learn("x", latency_ms=100.0, tokens=200.0)
+        pred = a.predict("x")
+        assert pred is not None
+        assert pred.latency_ms == 100.0
+        assert pred.tokens_in == 200  # int(tok_mean)
+
+    def test_check_falls_back_to_baseline_when_predicted_cost_none(self):
+        # The real-world path: ToolCall.predicted_cost is None (callers
+        # don't populate it). With a mature baseline, check() should
+        # still score the call — a normal call sits at z≈0 and is
+        # allowed (falls through to innate allow), an outlier is
+        # quarantined.
+        engine = TrustEngine(
+            trusted_sources=["skill://public/*"],
+            adaptive=AdaptiveImmunity(quarantine_threshold=0.7),
+        )
+        # Build baseline via learn() (post-execute path, already wired).
+        for _ in range(30):
+            engine.learn(
+                ToolCall(sucker_id="run_sql", caller="outsider", args={}),
+                latency_ms=100.0,
+                tokens=200.0,
+            )
+        # ToolCall with NO predicted_cost — simulates execute_step callers.
+        normal_call = ToolCall(sucker_id="run_sql", caller="outsider", args={})
+        report = engine.check(normal_call, _sig("skill://public/run_sql"))
+        # Normal call against its own baseline mean → z≈0 → not anomalous
+        # → falls through to innate trusted → allow.
+        assert report.verdict == "allow"
+        assert report.strategy_used == "innate"
+
+    def test_check_quarantines_outlier_even_without_predicted_cost(self):
+        # Same setup, but the call's real cost would be an outlier. Since
+        # predict() returns the baseline MEAN (not the call's actual cost),
+        # pre-execute scoring can't see the outlier — it scores the mean
+        # against itself (z≈0). The outlier is still caught post-execute
+        # by score_observed() in learn(). This test pins that contract:
+        # pre-execute stays permissive (mean-vs-mean), post-execute catches.
+        engine = TrustEngine(
+            trusted_sources=["skill://public/*"],
+            adaptive=AdaptiveImmunity(quarantine_threshold=0.7),
+        )
+        for _ in range(30):
+            engine.learn(
+                ToolCall(sucker_id="run_sql", caller="outsider", args={}),
+                latency_ms=100.0,
+                tokens=200.0,
+            )
+        # No predicted_cost → predict() returns mean (100/200) → z≈0 → allow.
+        call = ToolCall(sucker_id="run_sql", caller="outsider", args={})
+        report = engine.check(call, _sig("skill://public/run_sql"))
+        assert report.verdict == "allow"  # pre-execute can't see the outlier
+        # But learn() with the real observed outlier DOES quarantine.
+        engine.learn(call, latency_ms=10000.0, tokens=200.0)
+        assert engine.adaptive.is_quarantined("run_sql")

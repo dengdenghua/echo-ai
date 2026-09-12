@@ -1,0 +1,612 @@
+"""Regression tests for delegation_skills enhancements (2026-06).
+
+Pins 3 operator-facing improvements:
+  1. Timeout raised from 300s → 900s (gives ~15 rounds instead of 5)
+  2. Custom agent_id fallback (sleep_researcher_eight → researcher)
+  3. Retry-once on transient failures (timeout / connection errors)
+
+These tests mock call_subagent so they run fast without spawning real
+subagents. The contract is that delegation_skills calls call_subagent
+with the right arguments and handles results correctly.
+"""
+
+from __future__ import annotations
+
+from typing import Any
+from unittest.mock import patch
+
+import pytest
+
+
+@pytest.fixture
+def mock_subagent():
+    """Mock runtime.execution.subagents.call_subagent at the source."""
+    with patch("runtime.execution.subagents.call_subagent") as m:
+        yield m
+
+
+@pytest.fixture
+def mock_builtins():
+    """Mock _allowed_agent_ids to return a known set."""
+    allowed = {"general", "researcher", "debugger", "explorer", "reviewer"}
+    with patch(
+        "runtime.execution.suckers.delegation_skills._allowed_agent_ids",
+        return_value=allowed,
+    ):
+        yield allowed
+
+
+# ── Timeout default ───────────────────────────────────────
+
+
+def test_call_agent_uses_900s_timeout_by_default(mock_subagent, mock_builtins):
+    """_call_agent default timeout_s = 900 (was 300 before 2026-06)."""
+    from runtime.execution.suckers.delegation_skills import _call_agent
+
+    mock_subagent.return_value = {
+        "agent_id": "researcher",
+        "output": "done",
+        "success": True,
+    }
+
+    result = _call_agent(agent_id="researcher", prompt="test task")
+
+    assert result["success"] is True
+    mock_subagent.assert_called_once()
+    # Check the timeout_s kwarg passed to call_subagent
+    call_kwargs = mock_subagent.call_args[1]
+    assert call_kwargs["timeout_s"] == 900
+
+
+def test_call_agent_parallel_uses_900s_timeout_by_default(mock_subagent, mock_builtins):
+    """_call_agent_parallel default timeout_s = 900."""
+    from runtime.execution.suckers.delegation_skills import _call_agent_parallel
+
+    mock_subagent.return_value = {
+        "agent_id": "researcher",
+        "output": "done",
+        "success": True,
+    }
+
+    result = _call_agent_parallel(
+        specs=[{"agent_id": "researcher", "prompt": "test"}],
+    )
+
+    assert result["ok"] is True
+    assert result["success_count"] == 1
+    # First call was the single spec
+    call_kwargs = mock_subagent.call_args[1]
+    assert call_kwargs["timeout_s"] == 900
+
+
+def test_call_agent_respects_explicit_timeout(mock_subagent, mock_builtins):
+    """User-provided timeout_s overrides the default."""
+    from runtime.execution.suckers.delegation_skills import _call_agent
+
+    mock_subagent.return_value = {
+        "agent_id": "researcher",
+        "output": "done",
+        "success": True,
+    }
+
+    _call_agent(agent_id="researcher", prompt="test", timeout_s=1800)
+
+    call_kwargs = mock_subagent.call_args[1]
+    assert call_kwargs["timeout_s"] == 1800
+
+
+def test_call_agent_passes_explicit_continuation_session(mock_subagent, mock_builtins):
+    from runtime.execution.suckers.delegation_skills import _call_agent
+
+    mock_subagent.return_value = {
+        "agent_id": "researcher",
+        "output": "continued",
+        "success": True,
+        "session_id": "private-session-7",
+    }
+
+    result = _call_agent(
+        agent_id="researcher",
+        prompt="continue",
+        continue_session_id="private-session-7",
+    )
+
+    assert result["success"] is True
+    assert mock_subagent.call_args.kwargs["continue_session_id"] == "private-session-7"
+
+
+# ── Custom agent_id fallback ──────────────────────────────
+
+
+def test_custom_agent_id_resolves_to_researcher(mock_subagent, mock_builtins):
+    """sleep_researcher_eight → researcher (research-shaped name)."""
+    from runtime.execution.suckers.delegation_skills import _call_agent
+
+    mock_subagent.return_value = {
+        "agent_id": "researcher",
+        "output": "done",
+        "success": True,
+    }
+
+    result = _call_agent(
+        agent_id="sleep_researcher_eight",
+        prompt="Investigate sleep patterns",
+    )
+
+    assert result["success"] is True
+    # Response should show the ORIGINAL custom name to the operator
+    assert result["agent_id"] == "sleep_researcher_eight"
+    assert result["resolved_to"] == "researcher"
+    assert result["custom_role"] == "sleep_researcher_eight"
+    # call_subagent was invoked with the RESOLVED builtin
+    call_args = mock_subagent.call_args
+    assert call_args[1]["agent_id"] == "researcher"
+    # Prompt was wrapped with role label
+    prompt = call_args[1]["prompt"]
+    assert "sleep_researcher_eight" in prompt
+    assert "Role:" in prompt
+
+
+def test_custom_agent_id_debugger_shape(mock_subagent, mock_builtins):
+    """kyc_debugger_v2 → debugger (debug-shaped name)."""
+    from runtime.execution.suckers.delegation_skills import _call_agent
+
+    mock_subagent.return_value = {
+        "agent_id": "debugger",
+        "output": "fixed",
+        "success": True,
+    }
+
+    result = _call_agent(agent_id="kyc_debugger_v2", prompt="Fix KYC bug")
+
+    assert result["success"] is True
+    assert result["agent_id"] == "kyc_debugger_v2"
+    assert result["resolved_to"] == "debugger"
+    assert mock_subagent.call_args[1]["agent_id"] == "debugger"
+
+
+def test_custom_agent_id_audit_shape(mock_subagent, mock_builtins):
+    """streaming-auditor / typography-auditor → explorer (file-audit persona,
+    deadline-bounded) instead of the web-focused researcher."""
+    from runtime.execution.suckers.delegation_skills import _call_agent
+
+    mock_subagent.return_value = {
+        "agent_id": "explorer",
+        "output": "audit findings",
+        "success": True,
+    }
+
+    result = _call_agent(
+        agent_id="streaming-auditor",
+        prompt="Audit the frontend streaming UX",
+    )
+
+    assert result["success"] is True
+    assert result["agent_id"] == "streaming-auditor"
+    assert result["resolved_to"] == "explorer"
+    assert mock_subagent.call_args[1]["agent_id"] == "explorer"
+
+
+def test_custom_agent_id_generic_fallback(mock_subagent, mock_builtins):
+    """unknown_shape_foo → explorer/researcher/general (first available)."""
+    from runtime.execution.suckers.delegation_skills import _call_agent
+
+    mock_subagent.return_value = {
+        "agent_id": "explorer",
+        "output": "done",
+        "success": True,
+    }
+
+    result = _call_agent(agent_id="custom_task_alpha", prompt="Do thing")
+
+    assert result["success"] is True
+    # Fallback order: explorer, researcher, general
+    resolved = result.get("resolved_to")
+    assert resolved in {"explorer", "researcher", "general"}
+
+
+def test_custom_agent_id_parallel(mock_subagent, mock_builtins):
+    """Custom names work in _call_agent_parallel too."""
+    from runtime.execution.suckers.delegation_skills import _call_agent_parallel
+
+    mock_subagent.return_value = {
+        "agent_id": "researcher",
+        "output": "result",
+        "success": True,
+    }
+
+    result = _call_agent_parallel(
+        specs=[
+            {"agent_id": "sleep_researcher_one", "prompt": "Task A"},
+            {"agent_id": "sleep_researcher_two", "prompt": "Task B"},
+        ],
+    )
+
+    assert result["ok"] is True
+    assert result["success_count"] == 2
+    # Both should have been resolved to researcher
+    assert mock_subagent.call_count == 2
+    requested_ids = {
+        call.kwargs["context"]["requested_agent_id"] for call in mock_subagent.call_args_list
+    }
+    assert requested_ids == {"sleep_researcher_one", "sleep_researcher_two"}
+    resolved_ids = {
+        call.kwargs["context"]["resolved_agent_id"] for call in mock_subagent.call_args_list
+    }
+    assert resolved_ids
+    assert resolved_ids <= {"explorer", "researcher", "general"}
+
+
+def test_builtin_agent_id_not_wrapped(mock_subagent, mock_builtins):
+    """Real builtin names (researcher) skip the fallback logic."""
+    from runtime.execution.suckers.delegation_skills import _call_agent
+
+    mock_subagent.return_value = {
+        "agent_id": "researcher",
+        "output": "done",
+        "success": True,
+    }
+
+    result = _call_agent(agent_id="researcher", prompt="Do research")
+
+    assert result["success"] is True
+    # No custom_role injected when the name is already a builtin
+    assert "custom_role" not in result
+    assert "resolved_to" not in result
+    # Prompt NOT wrapped
+    prompt = mock_subagent.call_args[1]["prompt"]
+    assert "Role:" not in prompt
+
+
+# ── Retry on transient failure ────────────────────────────
+
+
+def test_retry_on_timeout_success(mock_subagent, mock_builtins):
+    """Timeout on first call, success on retry → return success."""
+    from runtime.execution.suckers.delegation_skills import _call_agent
+
+    # First call times out
+    # Second call (retry) succeeds
+    mock_subagent.side_effect = [
+        {
+            "agent_id": "researcher",
+            "output": "",
+            "success": False,
+            "error": "TimeoutError: timed out after 900s",
+            "error_type": "timeout",
+        },
+        {
+            "agent_id": "researcher",
+            "output": "recovered",
+            "success": True,
+        },
+    ]
+
+    result = _call_agent(agent_id="researcher", prompt="test")
+
+    assert result["success"] is True
+    assert result["output"] == "recovered"
+    assert result.get("retried") is True
+    assert mock_subagent.call_count == 2
+
+
+def test_retry_on_connection_error(mock_subagent, mock_builtins):
+    """ConnectionError triggers retry."""
+    from runtime.execution.suckers.delegation_skills import _call_agent
+
+    mock_subagent.side_effect = [
+        {
+            "agent_id": "researcher",
+            "output": "",
+            "success": False,
+            "error": "ConnectionError: connection refused",
+            "error_type": "ConnectionError",
+        },
+        {
+            "agent_id": "researcher",
+            "output": "fixed",
+            "success": True,
+        },
+    ]
+
+    result = _call_agent(agent_id="researcher", prompt="test")
+
+    assert result["success"] is True
+    assert mock_subagent.call_count == 2
+
+
+def test_retry_on_both_fail(mock_subagent, mock_builtins):
+    """Both attempts timeout → return failure with retry note."""
+    from runtime.execution.suckers.delegation_skills import _call_agent
+
+    mock_subagent.side_effect = [
+        {
+            "agent_id": "researcher",
+            "output": "",
+            "success": False,
+            "error": "timeout on first",
+            "error_type": "timeout",
+        },
+        {
+            "agent_id": "researcher",
+            "output": "",
+            "success": False,
+            "error": "timeout on retry",
+            "error_type": "timeout",
+        },
+    ]
+
+    result = _call_agent(agent_id="researcher", prompt="test")
+
+    assert result["success"] is False
+    assert result.get("retried") is True
+    # Error message combines both failures
+    assert "timeout on first" in result["error"]
+    assert "retry also failed" in result["error"]
+    assert mock_subagent.call_count == 2
+
+
+def test_no_retry_on_structural_failure(mock_subagent, mock_builtins):
+    """Structural failures (bad prompt, unknown role) don't retry."""
+    from runtime.execution.suckers.delegation_skills import _call_agent
+
+    mock_subagent.return_value = {
+        "agent_id": "researcher",
+        "output": "",
+        "success": False,
+        "error": "ValueError: malformed prompt",
+        "error_type": "ValueError",
+    }
+
+    result = _call_agent(agent_id="researcher", prompt="")
+
+    assert result["success"] is False
+    # No retry — only 1 call
+    assert mock_subagent.call_count == 1
+    assert "retried" not in result
+
+
+def test_retry_parallel_per_spec(mock_subagent, mock_builtins):
+    """Parallel: each spec retries independently."""
+    from runtime.execution.suckers.delegation_skills import _call_agent_parallel
+
+    # Spec A: timeout → success on retry
+    # Spec B: success immediately
+    # Key the timeout off researcher's OWN call counter, not a shared
+    # global one: the two specs run in concurrent worker threads, so a
+    # shared "first call overall" check races on thread scheduling
+    # (debugger sometimes lands first, then researcher never times out).
+    # researcher's retry is sequential within its own worker, so a
+    # per-agent counter is deterministic.
+    researcher_calls = {"n": 0}
+
+    def side_effect_fn(*args: Any, **kwargs: Any) -> dict[str, Any]:
+        aid = kwargs.get("agent_id")
+        if aid == "researcher":
+            researcher_calls["n"] += 1
+            if researcher_calls["n"] == 1:
+                # First call to researcher times out
+                return {
+                    "agent_id": "researcher",
+                    "output": "",
+                    "success": False,
+                    "error": "timeout",
+                    "error_type": "timeout",
+                }
+        # All other calls succeed
+        return {
+            "agent_id": aid,
+            "output": "done",
+            "success": True,
+        }
+
+    mock_subagent.side_effect = side_effect_fn
+
+    result = _call_agent_parallel(
+        specs=[
+            {"agent_id": "researcher", "prompt": "A"},
+            {"agent_id": "debugger", "prompt": "B"},
+        ],
+    )
+
+    assert result["ok"] is True
+    assert result["success_count"] == 2
+    # researcher called twice (timeout + retry), debugger called once
+    assert mock_subagent.call_count == 3
+
+
+# ── Backward compat / edge cases ──────────────────────────
+
+
+def test_unknown_custom_name_no_fallback_available(mock_subagent):
+    """If no builtins exist at all, custom name fails gracefully."""
+    from runtime.execution.suckers.delegation_skills import _call_agent
+
+    # Mock _allowed_agent_ids to return empty set
+    with patch(
+        "runtime.execution.suckers.delegation_skills._allowed_agent_ids",
+        return_value=set(),
+    ):
+        result = _call_agent(agent_id="custom_foo", prompt="test")
+
+    assert result["success"] is False
+    # Either "no fallback" or "unknown subagent" depending on path
+    err = result["error"].lower()
+    assert "unknown" in err or "no fallback" in err
+
+
+def test_budget_exhausted_no_retry(mock_subagent, mock_builtins):
+    """Budget exhaustion doesn't trigger retry logic."""
+    from runtime.execution.suckers.delegation_skills import _call_agent
+
+    # Mock _check_absolute_cap to return exhausted budget
+    # (5/5, within=False)
+    with patch(
+        "runtime.execution.suckers.delegation_skills._check_absolute_cap",
+        return_value=(5, False),
+    ):
+        result = _call_agent(agent_id="researcher", prompt="test")
+
+    assert result["success"] is False
+    assert "budget exhausted" in result["error"]
+    # call_subagent never invoked
+    mock_subagent.assert_not_called()
+
+
+# ── output_schema passthrough (structured delegation) ─────────────
+
+
+def test_call_agent_threads_output_schema(mock_subagent, mock_builtins):
+    """A dict output_schema is forwarded verbatim to call_subagent, and the
+    parsed/schema_ok envelope flows back to the caller."""
+    from runtime.execution.suckers.delegation_skills import _call_agent
+
+    schema = {
+        "type": "object",
+        "properties": {"verdict": {"type": "string"}},
+        "required": ["verdict"],
+    }
+    mock_subagent.return_value = {
+        "agent_id": "researcher",
+        "output": '{"verdict": "yes"}',
+        "parsed": {"verdict": "yes"},
+        "schema_ok": True,
+        "success": True,
+    }
+
+    result = _call_agent(
+        agent_id="researcher",
+        prompt="decide",
+        output_schema=schema,
+    )
+
+    assert result["parsed"] == {"verdict": "yes"}
+    assert result["schema_ok"] is True
+    assert mock_subagent.call_args[1]["output_schema"] == schema
+
+
+def test_call_agent_parses_stringified_schema(mock_subagent, mock_builtins):
+    """Some models stringify nested objects — a JSON-string schema is parsed
+    into a dict before being forwarded."""
+    from runtime.execution.suckers.delegation_skills import _call_agent
+
+    mock_subagent.return_value = {"agent_id": "researcher", "output": "x", "success": True}
+
+    _call_agent(
+        agent_id="researcher",
+        prompt="go",
+        output_schema='{"type": "object"}',
+    )
+
+    assert mock_subagent.call_args[1]["output_schema"] == {"type": "object"}
+
+
+def test_call_agent_ignores_malformed_schema(mock_subagent, mock_builtins):
+    """A non-dict, non-JSON schema is ignored (forwarded as None) rather than
+    crashing the delegation."""
+    from runtime.execution.suckers.delegation_skills import _call_agent
+
+    mock_subagent.return_value = {"agent_id": "researcher", "output": "x", "success": True}
+
+    _call_agent(agent_id="researcher", prompt="go", output_schema="not json {[")
+
+    assert mock_subagent.call_args[1]["output_schema"] is None
+
+
+def test_call_agent_parallel_propagates_react_stack(mock_subagent, mock_builtins):
+    """ContextVars don't cross threads, so the parallel dispatcher must capture
+    the parent's react stack (in the calling thread) and inject it into every
+    worker's context — otherwise a parallel child can't be driven through the
+    main react loop."""
+    from runtime.execution.subagents._ambient import react_stack_scope
+    from runtime.execution.suckers.delegation_skills import _call_agent_parallel
+
+    mock_subagent.return_value = {
+        "agent_id": "researcher",
+        "output": "done",
+        "success": True,
+    }
+
+    fake_stack = object()
+    with react_stack_scope(fake_stack):
+        _call_agent_parallel(
+            specs=[
+                {"agent_id": "researcher", "prompt": "a"},
+                {"agent_id": "researcher", "prompt": "b"},
+            ],
+        )
+
+    assert mock_subagent.call_count == 2
+    for call in mock_subagent.call_args_list:
+        ctx = call.kwargs["context"]
+        assert ctx.get("react_stack") is fake_stack
+
+
+def test_call_agent_parallel_propagates_parent_tool_id(mock_subagent, mock_builtins):
+    from runtime.execution.suckers.delegation_skills import _call_agent_parallel
+    from runtime.platform.process.session import Session
+
+    mock_subagent.return_value = {
+        "agent_id": "researcher",
+        "output": "done",
+        "success": True,
+    }
+    session = Session(metadata={"_active_parent_tool_use_id": "parallel-parent-1"})
+
+    _call_agent_parallel(
+        specs=[{"agent_id": "researcher", "prompt": "inspect"}],
+        session=session,
+    )
+
+    assert mock_subagent.call_args.kwargs["context"]["parent_tool_use_id"] == ("parallel-parent-1")
+
+
+def test_call_agent_parallel_prefers_context_local_parent_tool_id(mock_subagent, mock_builtins):
+    """Parallel parent calls must not race through shared Session metadata."""
+    from runtime.execution.suckers.delegation_skills import _call_agent_parallel
+    from runtime.platform.process.session import Session, parent_tool_use_scope
+
+    mock_subagent.return_value = {
+        "agent_id": "researcher",
+        "output": "done",
+        "success": True,
+    }
+    session = Session(metadata={"_active_parent_tool_use_id": "stale-parent"})
+
+    with parent_tool_use_scope("exact-parent-call"):
+        _call_agent_parallel(
+            specs=[{"agent_id": "researcher", "prompt": "inspect"}],
+            session=session,
+        )
+
+    assert mock_subagent.call_args.kwargs["context"]["parent_tool_use_id"] == "exact-parent-call"
+
+
+# ─── Audit F-04: git lane failure degrades, never breaks the batch ─────────
+
+
+def test_isolated_git_lane_failure_degrades_to_failed_lane(mock_builtins, monkeypatch, tmp_path):
+    """A subprocess.CalledProcessError from worktree creation must degrade to
+    one failed lane instead of escaping and killing the whole parallel batch."""
+    import subprocess
+
+    import runtime.execution.subagents.isolated_worktree as wt_loop
+    from runtime.execution.suckers._delegation_skills_parallel import _call_agent_parallel
+    from tests.test_isolated_subagent import _host
+
+    _repo, parent, _log = _host(tmp_path)
+
+    def _boom(repo_root, name, **_kwargs):
+        raise subprocess.CalledProcessError(128, ["git", "worktree", "add"])
+
+    monkeypatch.setattr(wt_loop, "worktree_scope", _boom)
+
+    result = _call_agent_parallel(
+        specs=[{"agent_id": "researcher", "prompt": "x", "isolate": True}],
+        session=parent,
+    )
+    assert result["ok"] is False
+    assert result["success_count"] == 0
+    assert result["failures"], "expected a failed lane record, not an exception"
+    err = str(result["failures"][0].get("error") or "")
+    assert "CalledProcessError" in err

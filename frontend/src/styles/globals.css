@@ -1,0 +1,2384 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+
+/* Chat font-size uses the official `prose-sm|base|lg` class names
+   (set in markdown-content.tsx), but the @tailwindcss/typography
+   plugin isn't installed in this project. We `@source` the three
+   class names so Tailwind keeps them in the build, and define the
+   sizes by hand further down with a font-size scale. */
+@source inline("prose-{sm,base,lg}");
+
+@source inline("text-{xs,sm,base,lg,xl,2xl,3xl,4xl,5xl,6xl}");
+@source inline("font-{normal,medium,semibold,bold,extrabold}");
+@source inline("leading-{none,tight,snug,normal,relaxed,loose}");
+
+@source inline("m{t,b,l,r,x,y}-{0,1,2,3,4,5,6,8,10,12,16,20,24}");
+@source inline("p{t,b,l,r,x,y}-{0,1,2,3,4,5,6,8,10,12,16,20,24}");
+@source inline("space-{x,y}-{1,2,3,4,5,6,8}");
+
+@source inline("list-{disc,decimal,none,inside,outside}");
+
+@source inline("text-{left,center,right,justify}");
+@source inline("text-{slate,gray,zinc,neutral,stone}-{50,100,200,300,400,500,600,700,800,900,950}");
+@source inline("italic");
+@source inline("underline");
+@source inline("line-through");
+
+@source inline("font-mono");
+@source inline("bg-{slate,gray,zinc,muted}-{50,100,200}");
+@source inline("rounded{,-sm,-md,-lg,-xl}");
+@source inline("border{,-2,-4}");
+@source inline("border-{slate,gray,zinc,border}-{200,300}");
+
+@source inline("border-l-{2,4}");
+@source inline("border-l-{slate,gray,primary}-{300,400,500}");
+
+@source inline("text-{blue,primary,accent}-{500,600,700}");
+@source inline("hover:text-{blue,primary,accent}-{600,700,800}");
+@source inline("hover:underline");
+
+@source inline("border-collapse");
+@source inline("table-auto");
+@source inline("w-full");
+@source inline("divide-{x,y}");
+@source inline("divide-{slate,gray,border}-{200,300}");
+
+@source inline("max-w-{xs,sm,md,lg,xl,2xl,full}");
+@source inline("h-auto");
+@source inline("object-cover");
+
+@source inline("border-t");
+@source inline("border-{slate,gray,border}-{200,300}");
+
+@source inline("block");
+@source inline("inline");
+@source inline("inline-block");
+@source inline("break-words");
+@source inline("overflow-{auto,hidden,x-auto}");
+@source inline("whitespace-pre-wrap");
+
+@source inline("text-{foreground,muted-foreground,primary,secondary,accent}");
+@source inline("text-{2xs,3xs,micro,mini}");
+@source inline("bg-{background,muted,primary,secondary,accent}");
+@source inline("bg-{destructive,primary,accent,secondary,ring,chart-3}/10");
+@source inline("border-{border,input}");
+
+@custom-variant dark (&:is(.dark *));
+
+@theme {
+  --font-sans:
+    "Inter", ui-sans-serif, system-ui, -apple-system, "PingFang SC",
+    "Hiragino Sans GB", "Microsoft YaHei", "Noto Sans CJK SC", sans-serif,
+    "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol", "Noto Color Emoji";
+
+  --animate-fade-in: fade-in 0.15s ease-out;
+  @keyframes fade-in {
+    from {
+      opacity: 0.3;
+    }
+    to {
+      opacity: 1;
+    }
+  }
+
+  --animate-fade-in-up: fade-in-up 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  @keyframes fade-in-up {
+    from {
+      opacity: 0;
+      transform: translateY(6px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+
+  /* ChatGPT-style smooth message entrance: subtle slide-up with fade.
+     Applied to new message groups (not streaming tokens within a group).
+     Uses ChatGPT's exact easing: cubic-bezier(0.33, 1, 0.68, 1) */
+  @keyframes message-entrance {
+    from {
+      opacity: 0;
+      transform: translateY(-8px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+
+  --animate-community-pop: community-pop 0.35s cubic-bezier(0.34, 1.56, 0.64, 1);
+  @keyframes community-pop {
+    0% {
+      transform: scale(1);
+    }
+    40% {
+      transform: scale(1.45);
+    }
+    100% {
+      transform: scale(1);
+    }
+  }
+
+  --animate-streaming-bounce: streaming-bounce 1.4s ease-in-out infinite;
+  @keyframes streaming-bounce {
+    0%,
+    80%,
+    100% {
+      transform: translateY(0);
+    }
+    40% {
+      transform: translateY(-6px);
+    }
+  }
+
+  --animate-skeleton-entrance: skeleton-entrance 0.35s ease-out forwards;
+  @keyframes skeleton-entrance {
+    from {
+      opacity: 0;
+      transform: scaleX(0);
+    }
+    to {
+      opacity: 1;
+      transform: scaleX(1);
+    }
+  }
+
+  /* Implementation note. */
+  --animate-learn-pulse: learn-pulse 1.2s cubic-bezier(0.16, 1, 0.3, 1) 2;
+  @keyframes learn-pulse {
+    0% {
+      transform: scale(1);
+      filter: drop-shadow(0 0 0 transparent);
+    }
+    25% {
+      transform: scale(1.12);
+      filter: drop-shadow(
+        0 0 8px color-mix(in oklch, var(--primary) 60%, transparent)
+      );
+    }
+    60% {
+      transform: scale(0.96);
+      filter: drop-shadow(
+        0 0 4px color-mix(in oklch, var(--primary) 30%, transparent)
+      );
+    }
+    100% {
+      transform: scale(1);
+      filter: drop-shadow(0 0 0 transparent);
+    }
+  }
+
+  --animate-learn-badge: learn-badge 2s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  @keyframes learn-badge {
+    0% {
+      opacity: 0;
+      transform: translateY(0) scale(0.6);
+    }
+    15% {
+      opacity: 1;
+      transform: translateY(-4px) scale(1.15);
+    }
+    25% {
+      transform: translateY(-4px) scale(1);
+    }
+    80% {
+      opacity: 1;
+      transform: translateY(-4px) scale(1);
+    }
+    100% {
+      opacity: 0;
+      transform: translateY(-10px) scale(0.9);
+    }
+  }
+
+  --animate-pulse-soft: pulse-soft 2.5s ease-in-out infinite;
+  @keyframes pulse-soft {
+    0%,
+    100% {
+      opacity: 1;
+    }
+    50% {
+      opacity: 0.5;
+    }
+  }
+
+  @keyframes shimmer {
+    from {
+      background-position: -200% 0;
+    }
+    to {
+      background-position: 200% 0;
+    }
+  }
+
+  /* Shared diagonal shimmer sweep (used by the loading skeleton). */
+  @keyframes codex-shimmer {
+    0% {
+      background-position: 140% 0;
+    }
+    100% {
+      background-position: -120% 0;
+    }
+  }
+}
+
+/* Persona accents remain available for illustrations and subtle atmosphere.
+   Shared controls use the user's application palette on every surface. */
+.persona-shell[data-persona-theme="eve"] {
+  --persona-primary: oklch(0.62 0.18 304);
+  --persona-companion: oklch(0.7 0.13 205);
+}
+.persona-shell[data-persona-theme="kane"] {
+  --persona-primary: oklch(0.58 0.2 292);
+  --persona-companion: oklch(0.66 0.15 275);
+}
+.persona-shell[data-persona-theme="raven"] {
+  --persona-primary: oklch(0.69 0.16 78);
+  --persona-companion: oklch(0.62 0.13 62);
+}
+.persona-shell[data-persona-theme="luna"] {
+  --persona-primary: oklch(0.7 0.16 350);
+  --persona-companion: oklch(0.76 0.11 10);
+}
+.persona-shell[data-persona-theme="shion"] {
+  --persona-primary: oklch(0.57 0.19 292);
+  --persona-companion: oklch(0.65 0.14 315);
+}
+.persona-shell[data-persona-theme="noah"] {
+  --persona-primary: oklch(0.7 0.16 76);
+  --persona-companion: oklch(0.65 0.13 55);
+}
+.persona-shell[data-persona-theme="zero"] {
+  --persona-primary: oklch(0.72 0.14 345);
+  --persona-companion: oklch(0.76 0.1 320);
+}
+
+/* Character color belongs to character content. Shared actions inherit the
+   user's application palette, including dialogs rendered through portals. */
+.persona-shell[data-persona-theme] {
+  --persona-wash: color-mix(in oklch, var(--persona-companion) 9%, transparent);
+}
+
+.dark .persona-shell[data-persona-theme] {
+  --persona-wash: color-mix(
+    in oklch,
+    var(--persona-companion) 12%,
+    transparent
+  );
+}
+
+@theme inline {
+  /* Common UI text keeps a readable floor when density reduces rem sizing.
+     Content typography and the user's density preference remain independent. */
+  --text-ui: max(13px, 0.875rem);
+  --text-ui--line-height: 1.5;
+  --text-ui-caption: max(12px, 0.8rem);
+  --text-ui-caption--line-height: 1.5;
+  --text-ui-body: max(14px, 0.9375rem);
+  --text-ui-body--line-height: 1.6;
+  --text-ui-title: max(20px, 1.375rem);
+  --text-ui-title--line-height: 1.35;
+
+  /* Micro typography ladder. Font-size theme keys live in the
+     ``--text-*`` namespace in Tailwind v4 (``--font-size-*`` is silently
+     ignored — an earlier iteration of this block used it and the classes
+     never generated). The numeric xs-rungs (3xs=8px, 2xs=9px) can't
+     express 10px/11px, so they get semantic names instead — these
+     replace the old ``text-[10px]`` / ``text-[11px]`` arbitrary values.
+     No line-height is paired on purpose: the arbitrary values they
+     replace didn't set one either, so leading keeps inheriting. */
+  --text-micro: 0.625rem;
+  --text-mini: 0.6875rem;
+  /* 12.5px — dialog descriptions / compact buttons; replaces text-[12.5px].
+     No line-height paired, same rationale as micro/mini above. */
+  --text-caption: 0.78125rem;
+  --text-2xs: 0.5625rem;
+  --text-3xs: 0.5rem;
+
+  /* Letter-spacing tiers for uppercase eyebrow/label text — replaces the
+     tracking-[0.12em]/[0.14em]/[0.16em]/[0.18em] arbitrary-value spread. */
+  --tracking-caps: 0.12em;
+  --tracking-eyebrow: 0.16em;
+
+  /* duration-* utility namespace: Tailwind v4 resolves named durations from
+     ``--transition-duration-*`` theme keys. The runtime values stay in
+     ``:root`` as --motion-duration-* — keep the two in sync. */
+  --transition-duration-instant: 100ms;
+  --transition-duration-fast: 150ms;
+  --transition-duration-base: 200ms;
+  --transition-duration-slow: 300ms;
+
+  --radius-sm: calc((var(--radius) - 4px) * var(--corner-radius-scale, 1));
+  --radius-md: calc((var(--radius) - 2px) * var(--corner-radius-scale, 1));
+  --radius-lg: calc(var(--radius) * var(--corner-radius-scale, 1));
+  --radius-xl: calc((var(--radius) + 4px) * var(--corner-radius-scale, 1));
+  --radius-2xl: calc((var(--radius) + 8px) * var(--corner-radius-scale, 1));
+  --radius-3xl: calc((var(--radius) + 12px) * var(--corner-radius-scale, 1));
+  --radius-4xl: calc((var(--radius) + 16px) * var(--corner-radius-scale, 1));
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --color-chart-1: var(--chart-1);
+  --color-chart-2: var(--chart-2);
+  --color-chart-3: var(--chart-3);
+  --color-chart-4: var(--chart-4);
+  --color-chart-5: var(--chart-5);
+  --color-chart-6: var(--chart-6);
+  --color-chart-7: var(--chart-7);
+  --color-chart-8: var(--chart-8);
+  /* Status colors — semantic states (success / warning / info). Errors
+     already have ``--color-destructive``. Values switch per color scheme,
+     so a single ``text-success`` replaces the old
+     ``text-emerald-700 dark:text-emerald-300`` pairs. */
+  --color-success: var(--success);
+  --color-warning: var(--warning);
+  --color-info: var(--info);
+  --color-sidebar: var(--sidebar);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-ring: var(--sidebar-ring);
+
+  /* Dialog and panel widths — semantic tokens for consistent sizing */
+  --dialog-sm: 360px;
+  --dialog-md: 425px;
+  --dialog-lg: 480px;
+  --dialog-xl: 520px;
+  --dialog-2xl: 768px;
+
+  /* Panel and container heights — common fixed heights */
+  --panel-height-sm: 220px;
+  --panel-height-md: 320px;
+  --panel-height-lg: 400px;
+  --panel-height-xl: 560px;
+  --panel-height-2xl: 720px;
+
+  /* Max widths for truncated text — common truncation widths */
+  --text-truncate-sm: 112px;
+  --text-truncate-md: 140px;
+  --text-truncate-lg: 180px;
+  --text-truncate-xl: 220px;
+  --text-truncate-2xl: 320px;
+
+  --animate-aurora: aurora 8s ease-in-out infinite alternate;
+  @keyframes aurora {
+    0% {
+      background-position: 0% 50%;
+      transform: rotate(-5deg) scale(0.9);
+    }
+    25% {
+      background-position: 50% 100%;
+      transform: rotate(5deg) scale(1.1);
+    }
+    50% {
+      background-position: 100% 50%;
+      transform: rotate(-3deg) scale(0.95);
+    }
+    75% {
+      background-position: 50% 0%;
+      transform: rotate(3deg) scale(1.05);
+    }
+    100% {
+      background-position: 0% 50%;
+      transform: rotate(-5deg) scale(0.9);
+    }
+  }
+  --animate-shine: shine var(--duration) infinite linear;
+  @keyframes shine {
+    0% {
+      background-position: 0% 0%;
+    }
+    50% {
+      background-position: 100% 100%;
+    }
+    to {
+      background-position: 0% 0%;
+    }
+  }
+}
+
+:root {
+  /* Global corner-radius scale. Values:
+       1     = default rounded
+       0.5   = crisp
+       1.5   = pill / friendly
+     Controlled at runtime via <html data-corner-scale="…">. */
+  --corner-radius-scale: 1;
+  --appearance-radius-xs: calc(0.25rem * var(--corner-radius-scale, 1));
+  --appearance-radius-sm: calc(0.375rem * var(--corner-radius-scale, 1));
+  --appearance-radius-md: calc(0.5rem * var(--corner-radius-scale, 1));
+  --appearance-radius-lg: calc(0.75rem * var(--corner-radius-scale, 1));
+  --appearance-radius-xl: calc(0.75rem * var(--corner-radius-scale, 1));
+  --appearance-radius-2xl: calc(0.875rem * var(--corner-radius-scale, 1));
+  --appearance-radius-3xl: calc(1.5rem * var(--corner-radius-scale, 1));
+  --appearance-radius-panel: calc(1rem * var(--corner-radius-scale, 1));
+  --appearance-radius-control: calc(0.625rem * var(--corner-radius-scale, 1));
+  --appearance-radius-pill: calc(999px * var(--corner-radius-scale, 1));
+
+  /* Semantic design tokens. These map to existing theme vars
+     but give components a stable surface to consume, so the
+     foreground/background/border aliases remain consistent
+     across the workspace. */
+  --color-token-foreground: var(--foreground);
+  --color-token-text-primary: var(--foreground);
+  --color-token-text-secondary: var(--muted-foreground);
+  --color-token-text-tertiary: color-mix(
+    in oklch,
+    var(--muted-foreground) 85%,
+    transparent
+  );
+  --color-token-description-foreground: var(--muted-foreground);
+  --color-token-disabled-foreground: color-mix(
+    in oklch,
+    var(--muted-foreground) 65%,
+    transparent
+  );
+  --color-token-border: var(--border);
+  --color-token-focus-border: var(--ring);
+  --color-token-dropdown-background: var(--popover);
+  --color-token-list-hover-background: color-mix(
+    in oklch,
+    var(--accent) 85%,
+    transparent
+  );
+  --color-token-surface-raised: var(--card);
+  --color-token-surface-inset: var(--muted);
+  --color-token-link: var(--primary);
+  --color-token-link-hover: color-mix(
+    in oklch,
+    var(--primary) 75%,
+    var(--foreground) 25%
+  );
+
+  /* Density scale. Apply via <html data-density="...">. */
+  --density-base-font-size: 15px;
+  --density-row-padding-y: calc(var(--spacing) * 1.5);
+  --density-row-padding-x: calc(var(--spacing) * 2.5);
+  --density-gap: calc(var(--spacing) * 4);
+  --density-page-padding: calc(var(--spacing) * 4);
+  --density-panel-padding: calc(var(--spacing) * 4);
+  --density-header-padding-y: calc(var(--spacing) * 3);
+  --density-header-padding-x: calc(var(--spacing) * 5);
+  --density-card-min-height: 184px;
+
+  /* Shadow scale — four tiers matching common UI patterns */
+  --shadow-xs: 0 1px 2px rgba(15, 23, 42, 0.04);
+  --shadow-sm:
+    0 1px 2px rgba(15, 23, 42, 0.06), 0 2px 4px rgba(15, 23, 42, 0.04);
+  --shadow-md:
+    0 2px 6px rgba(15, 23, 42, 0.06), 0 8px 20px rgba(15, 23, 42, 0.06);
+  --shadow-lg:
+    0 4px 12px rgba(15, 23, 42, 0.08), 0 16px 36px rgba(15, 23, 42, 0.08);
+  --shadow-xl:
+    0 8px 20px rgba(15, 23, 42, 0.1), 0 24px 60px rgba(15, 23, 42, 0.12);
+  --shadow-card: var(--shadow-xs);
+  --shadow-elevated: var(--shadow-sm);
+  --shadow-floating: var(--shadow-md);
+  --shadow-modal: var(--shadow-xl);
+
+  /* Motion scale — duration & easing for consistent transitions */
+  --motion-duration-instant: 100ms;
+  --motion-duration-fast: 150ms;
+  --motion-duration-base: 200ms;
+  --motion-duration-slow: 300ms;
+  --motion-ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+  --motion-ease-in-out: cubic-bezier(0.4, 0, 0.2, 1);
+  --motion-ease-out-back: cubic-bezier(0.34, 1.56, 0.64, 1);
+
+  /* Border opacity tiers — subtle to prominent */
+  --border-subtle: color-mix(in oklch, var(--border) 30%, transparent);
+  --border-default: color-mix(in oklch, var(--border) 60%, transparent);
+  --border-strong: color-mix(in oklch, var(--border) 85%, transparent);
+
+  --radius: 0.5rem;
+  --background: #ffffff;
+  --foreground: #1d1d1f;
+  --card: #ffffff;
+  --card-foreground: #1d1d1f;
+  --popover: #ffffff;
+  --popover-foreground: #1d1d1f;
+  --primary: #b13f6c;
+  --primary-foreground: #ffffff;
+  --secondary: #f8eaf0;
+  --secondary-foreground: #1d1d1f;
+  --muted: #f5f5f5;
+  --muted-foreground: #6e6e73;
+  --accent: #f8eaf0;
+  --accent-foreground: #1d1d1f;
+  --destructive: oklch(0.577 0.245 27.325);
+  --border: #e2e2e2;
+  --input: #d6d6d6;
+  --ring: #b13f6c;
+  --chart-1: #b13f6c;
+  --chart-2: oklch(0.6 0.15 180);
+  --chart-3: oklch(0.55 0.2 330);
+  --chart-4: oklch(0.65 0.18 80);
+  --chart-5: oklch(0.6 0.22 20);
+  /* Extended categorical accents (azure / orange / green) for per-category
+     icon coloring such as the tool timeline. */
+  --chart-6: oklch(0.62 0.14 210);
+  --chart-7: oklch(0.62 0.17 50);
+  --chart-8: oklch(0.6 0.16 140);
+  /* Status colors (light scheme) */
+  --success: oklch(0.6 0.15 160);
+  --warning: oklch(0.63 0.15 60);
+  --info: oklch(0.56 0.16 250);
+  --sidebar: #fdf7fa;
+  --sidebar-foreground: #1d1d1f;
+  --sidebar-primary: #b13f6c;
+  --sidebar-primary-foreground: #ffffff;
+  --sidebar-accent: #f8eaf0;
+  --sidebar-accent-foreground: #1d1d1f;
+  --sidebar-border: #e2e2e2;
+  --sidebar-ring: #b13f6c;
+
+  --container-width-xs: calc(var(--spacing) * 72);
+  --container-width-sm: calc(var(--spacing) * 144);
+  --container-width-md: calc(var(--spacing) * 204);
+  --container-width-lg: calc(var(--spacing) * 256);
+}
+
+/* Classic blue accent on neutral surfaces. */
+[data-theme="steel"] {
+  --background: #ffffff;
+  --foreground: #1d1d1f;
+  --card: #ffffff;
+  --card-foreground: #1d1d1f;
+  --popover: #ffffff;
+  --popover-foreground: #1d1d1f;
+  --primary: #0066cc;
+  --primary-foreground: #ffffff;
+  --secondary: #f3f3f3;
+  --secondary-foreground: #1d1d1f;
+  --muted: #f5f5f5;
+  --muted-foreground: #6e6e73;
+  --accent: #eeeeee;
+  --accent-foreground: #1d1d1f;
+  --destructive: oklch(0.577 0.245 27.325);
+  --border: #e2e2e2;
+  --input: #d6d6d6;
+  --ring: #0066cc;
+  --sidebar: #f7f7f7;
+  --sidebar-foreground: #1d1d1f;
+  --sidebar-primary: #0066cc;
+  --sidebar-primary-foreground: #ffffff;
+  --sidebar-accent: #eeeeee;
+  --sidebar-accent-foreground: #1d1d1f;
+  --sidebar-border: #e2e2e2;
+  --sidebar-ring: #0066cc;
+}
+
+.dark {
+  --background: #161617;
+  --foreground: #f5f5f7;
+  --card: #202022;
+  --card-foreground: #f5f5f7;
+  --popover: #262628;
+  --popover-foreground: #f5f5f7;
+  --primary: #efb0ca;
+  --primary-foreground: #161617;
+  --secondary: #2c2c2e;
+  --secondary-foreground: #f5f5f7;
+  --muted: #29292b;
+  --muted-foreground: #a1a1a8;
+  --accent: #323235;
+  --accent-foreground: #f5f5f7;
+  --destructive: oklch(0.704 0.191 22.216);
+  --border: #38383c;
+  --input: #414145;
+  --ring: #efb0ca;
+  --chart-1: #efb0ca;
+  --chart-2: oklch(0.6 0.17 180);
+  --chart-3: oklch(0.65 0.2 330);
+  --chart-4: oklch(0.7 0.18 80);
+  --chart-5: oklch(0.65 0.22 20);
+  --chart-6: oklch(0.72 0.13 210);
+  --chart-7: oklch(0.72 0.15 50);
+  --chart-8: oklch(0.72 0.15 140);
+  /* Status colors (dark scheme) */
+  --success: oklch(0.74 0.15 160);
+  --warning: oklch(0.79 0.13 70);
+  --info: oklch(0.74 0.14 250);
+  --sidebar: #1c1c1e;
+  --sidebar-foreground: #f5f5f7;
+  --sidebar-primary: #efb0ca;
+  --sidebar-primary-foreground: #161617;
+  --sidebar-accent: #303033;
+  --sidebar-accent-foreground: #f5f5f7;
+  --sidebar-border: #38383c;
+  --sidebar-ring: #efb0ca;
+
+  --shadow-xs: 0 1px 2px rgba(0, 0, 0, 0.25);
+  --shadow-md: 0 2px 6px rgba(0, 0, 0, 0.3), 0 10px 24px rgba(0, 0, 0, 0.25);
+  --shadow-lg: 0 4px 12px rgba(0, 0, 0, 0.35), 0 18px 40px rgba(0, 0, 0, 0.3);
+  --shadow-xl: 0 8px 20px rgba(0, 0, 0, 0.4), 0 28px 64px rgba(0, 0, 0, 0.45);
+  --shadow-card: var(--shadow-xs);
+  --shadow-elevated: var(--shadow-sm);
+  --shadow-floating: var(--shadow-md);
+  --shadow-modal: var(--shadow-xl);
+
+  --border-subtle: color-mix(in oklch, var(--border) 30%, transparent);
+  --border-default: color-mix(in oklch, var(--border) 60%, transparent);
+  --border-strong: color-mix(in oklch, var(--border) 85%, transparent);
+}
+
+/* 冷钢蓝（steel）深色模式 */
+[data-theme="steel"].dark {
+  --background: #161617;
+  --foreground: #f5f5f7;
+  --card: #202022;
+  --card-foreground: #f5f5f7;
+  --popover: #262628;
+  --popover-foreground: #f5f5f7;
+  --primary: #78b5ff;
+  --primary-foreground: #161617;
+  --secondary: #2c2c2e;
+  --secondary-foreground: #f5f5f7;
+  --muted: #29292b;
+  --muted-foreground: #a1a1a8;
+  --accent: #323235;
+  --accent-foreground: #f5f5f7;
+  --destructive: oklch(0.704 0.191 22.216);
+  --border: #38383c;
+  --input: #414145;
+  --ring: #78b5ff;
+  --sidebar: #1c1c1e;
+  --sidebar-foreground: #f5f5f7;
+  --sidebar-primary: #78b5ff;
+  --sidebar-primary-foreground: #161617;
+  --sidebar-accent: #303033;
+  --sidebar-accent-foreground: #f5f5f7;
+  --sidebar-border: #38383c;
+  --sidebar-ring: #78b5ff;
+}
+
+/* Restrained accents share neutral surfaces in light and dark modes. */
+
+/* apricot → 蜜杏：主色相 42、高明度暖橙粉，中性色相 50 的奶杏底调。
+   与 amber（陶土 40）同色相区但明度高一档、彩度低一档，走柔和路线。 */
+[data-theme="apricot"] {
+  --background: #ffffff;
+  --foreground: #1d1d1f;
+  --card: #ffffff;
+  --card-foreground: #1d1d1f;
+  --popover: #ffffff;
+  --popover-foreground: #1d1d1f;
+  --primary: #aa5038;
+  --primary-foreground: #ffffff;
+  --secondary: #fbece5;
+  --secondary-foreground: #1d1d1f;
+  --muted: #f5f5f5;
+  --muted-foreground: #6e6e73;
+  --accent: #fbece5;
+  --accent-foreground: #1d1d1f;
+  --border: #e2e2e2;
+  --input: #d6d6d6;
+  --ring: #aa5038;
+  --sidebar: #fef8f4;
+  --sidebar-foreground: #1d1d1f;
+  --sidebar-primary: #aa5038;
+  --sidebar-primary-foreground: #ffffff;
+  --sidebar-accent: #fbece5;
+  --sidebar-accent-foreground: #1d1d1f;
+  --sidebar-border: #e2e2e2;
+  --sidebar-ring: #aa5038;
+  --chart-1: #aa5038;
+}
+[data-theme="apricot"].dark {
+  --background: #161617;
+  --foreground: #f5f5f7;
+  --card: #202022;
+  --card-foreground: #f5f5f7;
+  --popover: #262628;
+  --popover-foreground: #f5f5f7;
+  --primary: #f2b69f;
+  --primary-foreground: #161617;
+  --secondary: #2c2c2e;
+  --secondary-foreground: #f5f5f7;
+  --muted: #29292b;
+  --muted-foreground: #a1a1a8;
+  --accent: #323235;
+  --accent-foreground: #f5f5f7;
+  --border: #38383c;
+  --input: #414145;
+  --ring: #f2b69f;
+  --sidebar: #1c1c1e;
+  --sidebar-foreground: #f5f5f7;
+  --sidebar-primary: #f2b69f;
+  --sidebar-primary-foreground: #161617;
+  --sidebar-accent: #303033;
+  --sidebar-accent-foreground: #f5f5f7;
+  --sidebar-border: #38383c;
+  --sidebar-ring: #f2b69f;
+  --chart-1: #f2b69f;
+}
+
+/* mint → 薄荷：主色相 162、高明度清透绿，中性色相 168 的雪青底调。
+   与 emerald（松玉 178）区分在明度高一档、色相更偏黄绿，更轻盈。 */
+[data-theme="mint"] {
+  --background: #ffffff;
+  --foreground: #1d1d1f;
+  --card: #ffffff;
+  --card-foreground: #1d1d1f;
+  --popover: #ffffff;
+  --popover-foreground: #1d1d1f;
+  --primary: #686b73;
+  --primary-foreground: #ffffff;
+  --secondary: #f3f3f3;
+  --secondary-foreground: #1d1d1f;
+  --muted: #f5f5f5;
+  --muted-foreground: #6e6e73;
+  --accent: #eeeeee;
+  --accent-foreground: #1d1d1f;
+  --border: #e2e2e2;
+  --input: #d6d6d6;
+  --ring: #686b73;
+  --sidebar: #f7f7f7;
+  --sidebar-foreground: #1d1d1f;
+  --sidebar-primary: #686b73;
+  --sidebar-primary-foreground: #ffffff;
+  --sidebar-accent: #eeeeee;
+  --sidebar-accent-foreground: #1d1d1f;
+  --sidebar-border: #e2e2e2;
+  --sidebar-ring: #686b73;
+  --chart-1: #686b73;
+}
+[data-theme="mint"].dark {
+  --background: #161617;
+  --foreground: #f5f5f7;
+  --card: #202022;
+  --card-foreground: #f5f5f7;
+  --popover: #262628;
+  --popover-foreground: #f5f5f7;
+  --primary: #c7c9d0;
+  --primary-foreground: #161617;
+  --secondary: #2c2c2e;
+  --secondary-foreground: #f5f5f7;
+  --muted: #29292b;
+  --muted-foreground: #a1a1a8;
+  --accent: #323235;
+  --accent-foreground: #f5f5f7;
+  --border: #38383c;
+  --input: #414145;
+  --ring: #c7c9d0;
+  --sidebar: #1c1c1e;
+  --sidebar-foreground: #f5f5f7;
+  --sidebar-primary: #c7c9d0;
+  --sidebar-primary-foreground: #161617;
+  --sidebar-accent: #303033;
+  --sidebar-accent-foreground: #f5f5f7;
+  --sidebar-border: #38383c;
+  --sidebar-ring: #c7c9d0;
+  --chart-1: #c7c9d0;
+}
+
+/* emerald → 松玉（jade）：主色相 178，中性色相 185 的青灰底调。 */
+[data-theme="emerald"] {
+  --background: #ffffff;
+  --foreground: #1d1d1f;
+  --card: #ffffff;
+  --card-foreground: #1d1d1f;
+  --popover: #ffffff;
+  --popover-foreground: #1d1d1f;
+  --primary: #85641f;
+  --primary-foreground: #ffffff;
+  --secondary: #f7f0dd;
+  --secondary-foreground: #1d1d1f;
+  --muted: #f5f5f5;
+  --muted-foreground: #6e6e73;
+  --accent: #f7f0dd;
+  --accent-foreground: #1d1d1f;
+  --border: #e2e2e2;
+  --input: #d6d6d6;
+  --ring: #85641f;
+  --sidebar: #fdfbf4;
+  --sidebar-foreground: #1d1d1f;
+  --sidebar-primary: #85641f;
+  --sidebar-primary-foreground: #ffffff;
+  --sidebar-accent: #f7f0dd;
+  --sidebar-accent-foreground: #1d1d1f;
+  --sidebar-border: #e2e2e2;
+  --sidebar-ring: #85641f;
+  --chart-1: #85641f;
+}
+[data-theme="emerald"].dark {
+  --background: #161617;
+  --foreground: #f5f5f7;
+  --card: #202022;
+  --card-foreground: #f5f5f7;
+  --popover: #262628;
+  --popover-foreground: #f5f5f7;
+  --primary: #e6d199;
+  --primary-foreground: #161617;
+  --secondary: #2c2c2e;
+  --secondary-foreground: #f5f5f7;
+  --muted: #29292b;
+  --muted-foreground: #a1a1a8;
+  --accent: #323235;
+  --accent-foreground: #f5f5f7;
+  --border: #38383c;
+  --input: #414145;
+  --ring: #e6d199;
+  --sidebar: #1c1c1e;
+  --sidebar-foreground: #f5f5f7;
+  --sidebar-primary: #e6d199;
+  --sidebar-primary-foreground: #161617;
+  --sidebar-accent: #303033;
+  --sidebar-accent-foreground: #f5f5f7;
+  --sidebar-border: #38383c;
+  --sidebar-ring: #e6d199;
+  --chart-1: #e6d199;
+}
+
+/* violet → 丁香紫（lilac）：主色相 322，中性色相 320 的紫灰底调。
+   明度提到 0.60 与蔷薇粉/蜜杏/薄荷同档，归入柔和组。 */
+[data-theme="violet"] {
+  --background: #ffffff;
+  --foreground: #1d1d1f;
+  --card: #ffffff;
+  --card-foreground: #1d1d1f;
+  --popover: #ffffff;
+  --popover-foreground: #1d1d1f;
+  --primary: #8052ac;
+  --primary-foreground: #ffffff;
+  --secondary: #f1eafa;
+  --secondary-foreground: #1d1d1f;
+  --muted: #f5f5f5;
+  --muted-foreground: #6e6e73;
+  --accent: #f1eafa;
+  --accent-foreground: #1d1d1f;
+  --border: #e2e2e2;
+  --input: #d6d6d6;
+  --ring: #8052ac;
+  --sidebar: #faf7fd;
+  --sidebar-foreground: #1d1d1f;
+  --sidebar-primary: #8052ac;
+  --sidebar-primary-foreground: #ffffff;
+  --sidebar-accent: #f1eafa;
+  --sidebar-accent-foreground: #1d1d1f;
+  --sidebar-border: #e2e2e2;
+  --sidebar-ring: #8052ac;
+  --chart-1: #8052ac;
+}
+[data-theme="violet"].dark {
+  --background: #161617;
+  --foreground: #f5f5f7;
+  --card: #202022;
+  --card-foreground: #f5f5f7;
+  --popover: #262628;
+  --popover-foreground: #f5f5f7;
+  --primary: #d0b5ed;
+  --primary-foreground: #161617;
+  --secondary: #2c2c2e;
+  --secondary-foreground: #f5f5f7;
+  --muted: #29292b;
+  --muted-foreground: #a1a1a8;
+  --accent: #323235;
+  --accent-foreground: #f5f5f7;
+  --border: #38383c;
+  --input: #414145;
+  --ring: #d0b5ed;
+  --sidebar: #1c1c1e;
+  --sidebar-foreground: #f5f5f7;
+  --sidebar-primary: #d0b5ed;
+  --sidebar-primary-foreground: #161617;
+  --sidebar-accent: #303033;
+  --sidebar-accent-foreground: #f5f5f7;
+  --sidebar-border: #38383c;
+  --sidebar-ring: #d0b5ed;
+  --chart-1: #d0b5ed;
+}
+
+/* amber → 陶土（clay）：色相 40。金黄在 AA 对比度下必然压暗成土黄，
+   改走暖陶红更耐看；id 保留 amber 以免影响已保存的用户偏好。 */
+[data-theme="amber"] {
+  --background: #ffffff;
+  --foreground: #1d1d1f;
+  --card: #ffffff;
+  --card-foreground: #1d1d1f;
+  --popover: #ffffff;
+  --popover-foreground: #1d1d1f;
+  --primary: #807366;
+  --primary-foreground: #ffffff;
+  --secondary: #f3f3f3;
+  --secondary-foreground: #1d1d1f;
+  --muted: #f5f5f5;
+  --muted-foreground: #6e6e73;
+  --accent: #eeeeee;
+  --accent-foreground: #1d1d1f;
+  --border: #e2e2e2;
+  --input: #d6d6d6;
+  --ring: #807366;
+  --sidebar: #f7f7f7;
+  --sidebar-foreground: #1d1d1f;
+  --sidebar-primary: #807366;
+  --sidebar-primary-foreground: #ffffff;
+  --sidebar-accent: #eeeeee;
+  --sidebar-accent-foreground: #1d1d1f;
+  --sidebar-border: #e2e2e2;
+  --sidebar-ring: #807366;
+  --chart-1: #807366;
+}
+[data-theme="amber"].dark {
+  --background: #161617;
+  --foreground: #f5f5f7;
+  --card: #202022;
+  --card-foreground: #f5f5f7;
+  --popover: #262628;
+  --popover-foreground: #f5f5f7;
+  --primary: #c9beb0;
+  --primary-foreground: #161617;
+  --secondary: #2c2c2e;
+  --secondary-foreground: #f5f5f7;
+  --muted: #29292b;
+  --muted-foreground: #a1a1a8;
+  --accent: #323235;
+  --accent-foreground: #f5f5f7;
+  --border: #38383c;
+  --input: #414145;
+  --ring: #c9beb0;
+  --sidebar: #1c1c1e;
+  --sidebar-foreground: #f5f5f7;
+  --sidebar-primary: #c9beb0;
+  --sidebar-primary-foreground: #161617;
+  --sidebar-accent: #303033;
+  --sidebar-accent-foreground: #f5f5f7;
+  --sidebar-border: #38383c;
+  --sidebar-ring: #c9beb0;
+  --chart-1: #c9beb0;
+}
+
+/* teal → 黛青（slate teal）：主色相 215、低彩度，中性色相 220 的烟灰蓝底调。 */
+[data-theme="teal"] {
+  --background: #ffffff;
+  --foreground: #1d1d1f;
+  --card: #ffffff;
+  --card-foreground: #1d1d1f;
+  --popover: #ffffff;
+  --popover-foreground: #1d1d1f;
+  --primary: #34363b;
+  --primary-foreground: #ffffff;
+  --secondary: #f3f3f3;
+  --secondary-foreground: #1d1d1f;
+  --muted: #f5f5f5;
+  --muted-foreground: #6e6e73;
+  --accent: #eeeeee;
+  --accent-foreground: #1d1d1f;
+  --border: #e2e2e2;
+  --input: #d6d6d6;
+  --ring: #34363b;
+  --sidebar: #f7f7f7;
+  --sidebar-foreground: #1d1d1f;
+  --sidebar-primary: #34363b;
+  --sidebar-primary-foreground: #ffffff;
+  --sidebar-accent: #eeeeee;
+  --sidebar-accent-foreground: #1d1d1f;
+  --sidebar-border: #e2e2e2;
+  --sidebar-ring: #34363b;
+  --chart-1: #34363b;
+}
+[data-theme="teal"].dark {
+  --background: #161617;
+  --foreground: #f5f5f7;
+  --card: #202022;
+  --card-foreground: #f5f5f7;
+  --popover: #262628;
+  --popover-foreground: #f5f5f7;
+  --primary: #dedee3;
+  --primary-foreground: #161617;
+  --secondary: #2c2c2e;
+  --secondary-foreground: #f5f5f7;
+  --muted: #29292b;
+  --muted-foreground: #a1a1a8;
+  --accent: #323235;
+  --accent-foreground: #f5f5f7;
+  --border: #38383c;
+  --input: #414145;
+  --ring: #dedee3;
+  --sidebar: #1c1c1e;
+  --sidebar-foreground: #f5f5f7;
+  --sidebar-primary: #dedee3;
+  --sidebar-primary-foreground: #161617;
+  --sidebar-accent: #303033;
+  --sidebar-accent-foreground: #f5f5f7;
+  --sidebar-border: #38383c;
+  --sidebar-ring: #dedee3;
+  --chart-1: #dedee3;
+}
+
+/* 浏览器首页「跟随配色」默认背景。
+   由 --primary / --background 等语义变量驱动，随浅/深色与 rouge/steel
+   配色实时同步，无需为每种配色单独写死。 */
+.browser-backdrop-palette {
+  background-image:
+    radial-gradient(
+      circle at 22% 14%,
+      color-mix(in oklch, var(--primary) 22%, transparent),
+      transparent 30%
+    ),
+    radial-gradient(
+      circle at 78% 18%,
+      color-mix(in oklch, var(--primary) 12%, transparent),
+      transparent 28%
+    ),
+    radial-gradient(
+      circle at 70% 88%,
+      color-mix(in oklch, var(--primary) 16%, transparent),
+      transparent 35%
+    ),
+    linear-gradient(
+      145deg,
+      var(--background) 0%,
+      color-mix(in oklch, var(--background) 55%, var(--muted)) 50%,
+      var(--background) 100%
+    );
+}
+.browser-backdrop-palette-swatch {
+  background-image: linear-gradient(
+    145deg,
+    var(--primary) 0%,
+    var(--background) 100%
+  );
+}
+
+/* ===== 极简液态玻璃（Minimal Liquid Glass）=====
+   设计理念：轻透、克制、无多余装饰。保留毛玻璃质感但大幅降低饱和度，
+   去掉内高光与多层阴影，仅保留极淡的描边与单阴影。 */
+
+/* 主玻璃容器：大面板用 */
+.liquid-glass {
+  background: color-mix(in oklch, var(--card) 40%, transparent);
+  backdrop-filter: blur(20px) saturate(120%);
+  -webkit-backdrop-filter: blur(20px) saturate(120%);
+  border: 0.5px solid color-mix(in oklch, white 20%, transparent);
+  box-shadow: 0 4px 20px -6px color-mix(in oklch, black 8%, transparent);
+}
+.dark .liquid-glass {
+  background: color-mix(in oklch, var(--card) 35%, transparent);
+  border-color: color-mix(in oklch, white 8%, transparent);
+  box-shadow: 0 4px 20px -6px color-mix(in oklch, black 30%, transparent);
+}
+
+/* 次级玻璃：小按钮/搜索框/小组件 */
+.liquid-glass-subtle {
+  background: color-mix(in oklch, var(--card) 45%, transparent);
+  backdrop-filter: blur(16px) saturate(120%);
+  -webkit-backdrop-filter: blur(16px) saturate(120%);
+  border: 0.5px solid color-mix(in oklch, white 15%, transparent);
+  box-shadow: 0 2px 10px -4px color-mix(in oklch, black 6%, transparent);
+}
+.dark .liquid-glass-subtle {
+  background: color-mix(in oklch, var(--card) 40%, transparent);
+  border-color: color-mix(in oklch, white 6%, transparent);
+  box-shadow: 0 2px 10px -4px color-mix(in oklch, black 20%, transparent);
+}
+
+/* Dock 专用：比普通面板稍强一点的存在感 */
+.liquid-glass-dock {
+  background: color-mix(in oklch, var(--card) 42%, transparent);
+  backdrop-filter: blur(24px) saturate(125%);
+  -webkit-backdrop-filter: blur(24px) saturate(125%);
+  border: 0.5px solid color-mix(in oklch, white 22%, transparent);
+  box-shadow: 0 6px 24px -8px color-mix(in oklch, black 12%, transparent);
+}
+.dark .liquid-glass-dock {
+  background: color-mix(in oklch, var(--card) 32%, transparent);
+  border-color: color-mix(in oklch, white 10%, transparent);
+  box-shadow: 0 6px 24px -8px color-mix(in oklch, black 35%, transparent);
+}
+
+/* 应用图标容器：极轻，几乎无阴影 */
+.liquid-glass-icon {
+  background: color-mix(in oklch, var(--card) 55%, transparent);
+  backdrop-filter: blur(12px) saturate(115%);
+  -webkit-backdrop-filter: blur(12px) saturate(115%);
+  border: 0.5px solid color-mix(in oklch, white 18%, transparent);
+  box-shadow: 0 1px 4px -1px color-mix(in oklch, black 5%, transparent);
+}
+.dark .liquid-glass-icon {
+  background: color-mix(in oklch, var(--card) 45%, transparent);
+  border-color: color-mix(in oklch, white 7%, transparent);
+  box-shadow: 0 1px 4px -1px color-mix(in oklch, black 18%, transparent);
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+  body {
+    @apply bg-background text-foreground antialiased;
+    /* Smooth theme transitions for color properties.
+       Exclude transform/opacity to avoid interference with component animations.
+       Users with prefers-reduced-motion will skip this via the rule below. */
+    transition:
+      background-color 200ms ease-out,
+      color 200ms ease-out,
+      border-color 200ms ease-out;
+  }
+
+  /* Smooth transitions for all color-based CSS variables during theme switch */
+  :root,
+  .dark,
+  [data-theme] {
+    transition:
+      background-color 200ms ease-out,
+      color 200ms ease-out,
+      border-color 200ms ease-out;
+  }
+
+  /* Consistent focus-visible ring for all interactive elements.
+     Individual components (Button, Input, etc.) define their own
+     focus styles, but this provides a baseline for custom elements
+     that use tabIndex or are natively focusable (a, button, etc.). */
+  :focus-visible {
+    @apply outline-2 outline-offset-2 outline-ring;
+  }
+
+  #root {
+    position: relative;
+    z-index: 1;
+    min-height: 100vh;
+  }
+
+  .desktop-overlay,
+  .desktop-overlay body,
+  .desktop-overlay #root {
+    background: transparent;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+      scroll-behavior: auto !important;
+    }
+  }
+
+  @media (max-width: 768px) {
+    .workspace-panel,
+    .workspace-panel-subtle,
+    .dark .workspace-panel,
+    .dark .workspace-panel-subtle {
+      backdrop-filter: none;
+      -webkit-backdrop-filter: none;
+    }
+  }
+
+  html {
+    font-size: var(--density-base-font-size);
+  }
+
+  [data-density="relaxed"] {
+    --density-base-font-size: 16px;
+    --density-row-padding-y: calc(var(--spacing) * 1.75);
+    --density-row-padding-x: calc(var(--spacing) * 3);
+    --density-gap: calc(var(--spacing) * 5);
+    --density-page-padding: calc(var(--spacing) * 5);
+    --density-panel-padding: calc(var(--spacing) * 5);
+    --density-header-padding-y: calc(var(--spacing) * 3.5);
+    --density-header-padding-x: calc(var(--spacing) * 5.5);
+    --density-card-min-height: 204px;
+  }
+
+  [data-density="compact"] {
+    --density-base-font-size: 14px;
+    --density-row-padding-y: calc(var(--spacing) * 1.25);
+    --density-row-padding-x: calc(var(--spacing) * 2);
+    --density-gap: calc(var(--spacing) * 3);
+    --density-page-padding: calc(var(--spacing) * 3.5);
+    --density-panel-padding: calc(var(--spacing) * 3.5);
+    --density-header-padding-y: calc(var(--spacing) * 2.5);
+    --density-header-padding-x: calc(var(--spacing) * 4);
+    --density-card-min-height: 168px;
+  }
+
+  [data-density="dense"] {
+    --density-base-font-size: 13px;
+    --density-row-padding-y: calc(var(--spacing) * 1);
+    --density-row-padding-x: calc(var(--spacing) * 1.75);
+    --density-gap: calc(var(--spacing) * 2.5);
+    --density-page-padding: calc(var(--spacing) * 3);
+    --density-panel-padding: calc(var(--spacing) * 3);
+    --density-header-padding-y: calc(var(--spacing) * 2);
+    --density-header-padding-x: calc(var(--spacing) * 3.5);
+    --density-card-min-height: 152px;
+  }
+
+  [data-density="ultradense"] {
+    --density-base-font-size: 12.5px;
+    --density-row-padding-y: calc(var(--spacing) * 0.75);
+    --density-row-padding-x: calc(var(--spacing) * 1.5);
+    --density-gap: calc(var(--spacing) * 2);
+    --density-page-padding: calc(var(--spacing) * 2.5);
+    --density-panel-padding: calc(var(--spacing) * 2.5);
+    --density-header-padding-y: calc(var(--spacing) * 1.75);
+    --density-header-padding-x: calc(var(--spacing) * 3);
+    --density-card-min-height: 136px;
+  }
+
+  [data-density="compact"] .ui-dense-row {
+    padding-block: var(--density-row-padding-y);
+    padding-inline: var(--density-row-padding-x);
+  }
+  [data-density="relaxed"] .ui-dense-row,
+  [data-density="dense"] .ui-dense-row,
+  [data-density="ultradense"] .ui-dense-row {
+    padding-block: var(--density-row-padding-y);
+    padding-inline: var(--density-row-padding-x);
+  }
+
+  /* Chat font-size (markdown-content.tsx toggles `prose-sm|base|lg`
+     on the MessageResponse root). @tailwindcss/typography isn't
+     installed, so define the three variants by hand. Sizes match
+     the official plugin so they stay consistent if we ever add it.
+     The `:where(...)` block forces the cascade down to direct prose
+     descendants so headings/lists/paragraphs scale with the chosen
+     base, not the page's own root font size. */
+  .prose-sm
+    :where(p, h1, h2, h3, h4, h5, h6, li, blockquote, ul, ol, pre, code, table),
+  .prose-base
+    :where(p, h1, h2, h3, h4, h5, h6, li, blockquote, ul, ol, pre, code, table),
+  .prose-lg
+    :where(
+      p,
+      h1,
+      h2,
+      h3,
+      h4,
+      h5,
+      h6,
+      li,
+      blockquote,
+      ul,
+      ol,
+      pre,
+      code,
+      table
+    ) {
+    font-size: inherit;
+  }
+  .prose-sm {
+    font-size: 0.875rem; /* 14px */
+    line-height: 1.7142857;
+  }
+  .prose-base {
+    font-size: 1rem; /* 16px */
+    line-height: 1.75;
+  }
+  .prose-lg {
+    font-size: 1.125rem; /* 18px */
+    line-height: 1.7777778;
+  }
+  .ui-density-stack {
+    gap: var(--density-gap);
+  }
+  .ui-density-page {
+    padding: var(--density-page-padding);
+  }
+  .ui-density-panel {
+    padding: var(--density-panel-padding);
+  }
+  .ui-density-header {
+    padding-block: var(--density-header-padding-y);
+    padding-inline: var(--density-header-padding-x);
+  }
+  .ui-density-card {
+    min-height: var(--density-card-min-height);
+  }
+
+  /* Kimi-style semantic stream tail. The cursor is attached to the final
+     rendered text block, so it stays beside the newest character instead of
+     dropping onto a new line after Streamdown's block-level root. */
+  @keyframes kimi-stream-tail-pulse {
+    0%,
+    100% {
+      opacity: 0.34;
+      transform: scale(0.86);
+    }
+    50% {
+      opacity: 0.72;
+      transform: scale(1);
+    }
+  }
+
+  .kimi-streaming-tail > :where(p, h1, h2, h3, h4, h5, h6):last-child::after,
+  .kimi-streaming-tail > :where(ul, ol):last-child > li:last-child::after,
+  .kimi-streaming-tail > blockquote:last-child > p:last-child::after {
+    content: "";
+    display: inline-block;
+    width: 0.45rem;
+    height: 0.45rem;
+    margin-left: 0.2rem;
+    border-radius: 9999px;
+    background: color-mix(in oklch, var(--muted-foreground) 62%, transparent);
+    vertical-align: 0.06em;
+    animation: kimi-stream-tail-pulse 1.05s ease-in-out infinite;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .kimi-streaming-tail > :where(p, h1, h2, h3, h4, h5, h6):last-child::after,
+    .kimi-streaming-tail > :where(ul, ol):last-child > li:last-child::after,
+    .kimi-streaming-tail > blockquote:last-child > p:last-child::after {
+      animation: none;
+      opacity: 0.55;
+    }
+  }
+
+  /* Completed chat turns remain in normal flow and in the accessibility tree,
+     but the browser can skip off-screen style/layout/paint work. The newest
+     turn deliberately omits this class so streaming growth is never locked. */
+  .message-turn-history {
+    content-visibility: auto;
+    contain-intrinsic-size: auto 20rem;
+  }
+
+  /* Skeleton: muted base with a diagonal shimmer band. */
+  .codex-skeleton {
+    position: relative;
+    overflow: visible;
+    background: color-mix(in oklch, var(--muted) 65%, transparent);
+  }
+  .codex-skeleton::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background-image: linear-gradient(
+      112deg,
+      transparent 22%,
+      color-mix(in oklch, var(--foreground) 5%, transparent) 38%,
+      color-mix(in oklch, var(--foreground) 14%, transparent) 49%,
+      color-mix(in oklch, var(--foreground) 5%, transparent) 56%,
+      transparent 74%
+    );
+    background-position: 140% 0;
+    background-repeat: no-repeat;
+    background-size: 220% 100%;
+    animation: codex-shimmer 1.8s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .codex-skeleton::before {
+      animation: none;
+      opacity: 0;
+    }
+    .codex-skeleton {
+      animation: pulse 2s ease-in-out infinite;
+    }
+  }
+
+  /* Frosted command palette surface. Radix Dialog sets the
+     positioning; we just tune the glass, border radius, and item feel. */
+  .codex-command-surface {
+    background-color: color-mix(in oklch, var(--popover) 90%, transparent);
+    border: 1px solid color-mix(in oklch, var(--border) 75%, transparent);
+    border-radius: var(--radius-3xl);
+    box-shadow:
+      0 16px 32px -8px rgba(0, 0, 0, 0.28),
+      0 2px 6px -2px rgba(0, 0, 0, 0.12);
+  }
+  .dark .codex-command-surface {
+    background-color: color-mix(in oklch, var(--popover) 80%, transparent);
+    box-shadow:
+      0 16px 40px -8px rgba(0, 0, 0, 0.55),
+      0 2px 6px -2px rgba(0, 0, 0, 0.3);
+  }
+
+  .gradient-text {
+    background: linear-gradient(
+      135deg,
+      var(--primary) 0%,
+      oklch(0.58 0.22 280) 50%,
+      oklch(0.62 0.24 320) 100%
+    );
+    -webkit-background-clip: text;
+    background-clip: text;
+    -webkit-text-fill-color: transparent;
+  }
+
+  .gradient-border {
+    position: relative;
+    border: none;
+    background:
+      linear-gradient(var(--card), var(--card)) padding-box,
+      linear-gradient(
+          135deg,
+          var(--primary),
+          oklch(0.55 0.22 280),
+          oklch(0.6 0.24 320)
+        )
+        border-box;
+    border-radius: var(--radius-lg);
+    border: 2px solid transparent;
+  }
+
+  .hover-lift {
+    transition:
+      transform 0.2s cubic-bezier(0.4, 0, 0.2, 1),
+      box-shadow 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+  .hover-lift:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 4px 16px -2px rgba(0, 0, 0, 0.08);
+  }
+  .dark .hover-lift:hover {
+    box-shadow: 0 4px 16px -2px rgba(0, 0, 0, 0.35);
+  }
+
+  .skeleton {
+    background: linear-gradient(
+      90deg,
+      var(--muted) 25%,
+      color-mix(in oklch, var(--muted-foreground) 10%, transparent) 50%,
+      var(--muted) 75%
+    );
+    background-size: 200% 100%;
+    animation: shimmer 1.5s infinite;
+  }
+
+  html {
+    scroll-behavior: smooth;
+    scrollbar-gutter: stable;
+  }
+
+  ::-webkit-scrollbar {
+    width: 5px;
+    height: 5px;
+  }
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  ::-webkit-scrollbar-thumb {
+    background: color-mix(in oklch, var(--muted-foreground) 20%, transparent);
+    border-radius: 8px;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background: color-mix(in oklch, var(--muted-foreground) 40%, transparent);
+  }
+
+  ::selection {
+    background: color-mix(in oklch, var(--primary) 28%, transparent);
+    color: var(--foreground);
+  }
+
+  /* Workaround for Radix UI bug: body pointer-events stays "none"
+     after a Dialog/Popover/DropdownMenu closes. This blocks text
+     selection and clicks across the entire page. */
+  body[style*="pointer-events: none"] {
+    pointer-events: auto !important;
+  }
+
+  [data-slot="tooltip-content"] {
+    animation: tooltip-in 0.12s ease-out forwards;
+  }
+  @keyframes tooltip-in {
+    from {
+      opacity: 0;
+      transform: scale(0.97) translateX(-50%);
+    }
+    to {
+      opacity: 1;
+      transform: scale(1) translateX(-50%);
+    }
+  }
+
+  [data-slot="dropdown-menu-content"] {
+    animation: dropdown-in 0.12s ease-out forwards;
+    transform-origin: top;
+  }
+  @keyframes dropdown-in {
+    from {
+      opacity: 0;
+      transform: scaleY(0.97) translateY(-1px);
+    }
+    to {
+      opacity: 1;
+      transform: scaleY(1) translateY(0);
+    }
+  }
+
+  .container-md {
+    width: 100%;
+    @media (width >= 40rem) {
+      max-width: 40rem;
+    }
+    @media (width >= 48rem) {
+      max-width: 48rem;
+    }
+    @media (width >= 64rem) {
+      max-width: 64rem;
+    }
+    @media (width >= 80rem) {
+      max-width: 80rem;
+    }
+  }
+
+  .golden-text {
+    background: linear-gradient(135deg, #d19e1d 0%, #e9c665 50%, #e3a812 100%);
+    -webkit-background-clip: text;
+    background-clip: text;
+    -webkit-text-fill-color: transparent;
+    text-fill-color: transparent;
+  }
+
+  .css-starfield {
+    background:
+      radial-gradient(
+        1px 1px at 10% 20%,
+        rgba(255, 255, 255, 0.8),
+        transparent
+      ),
+      radial-gradient(
+        1.5px 1.5px at 40% 15%,
+        rgba(200, 180, 255, 0.7),
+        transparent
+      ),
+      radial-gradient(
+        1px 1px at 55% 70%,
+        rgba(255, 255, 255, 0.5),
+        transparent
+      ),
+      radial-gradient(
+        1.5px 1.5px at 70% 35%,
+        rgba(180, 200, 255, 0.6),
+        transparent
+      ),
+      radial-gradient(
+        1px 1px at 85% 55%,
+        rgba(255, 255, 255, 0.7),
+        transparent
+      ),
+      radial-gradient(
+        1.5px 1.5px at 60% 10%,
+        rgba(200, 200, 255, 0.6),
+        transparent
+      ),
+      radial-gradient(
+        1px 1px at 30% 90%,
+        rgba(255, 255, 255, 0.4),
+        transparent
+      ),
+      radial-gradient(1px 1px at 80% 85%, rgba(255, 255, 255, 0.5), transparent);
+    animation: starfield-drift 60s linear infinite;
+  }
+
+  @keyframes starfield-drift {
+    0% {
+      background-position:
+        0% 0%,
+        0% 0%,
+        0% 0%,
+        0% 0%,
+        0% 0%,
+        0% 0%,
+        0% 0%,
+        0% 0%;
+    }
+    100% {
+      background-position:
+        100% 100%,
+        50% -100%,
+        -50% 100%,
+        100% -50%,
+        50% 100%,
+        -50% -100%,
+        100% 50%,
+        -100% -50%;
+    }
+  }
+
+  .workspace-shell {
+    position: relative;
+    background:
+      linear-gradient(
+        180deg,
+        color-mix(in oklch, var(--background) 94%, white 6%),
+        var(--background) 28rem
+      ),
+      var(--background);
+  }
+
+  .dark .workspace-shell {
+    background:
+      linear-gradient(
+        180deg,
+        color-mix(in oklch, var(--background) 90%, white 3%),
+        var(--background) 28rem
+      ),
+      var(--background);
+  }
+
+  .workspace-panel {
+    border: 1px solid color-mix(in oklch, var(--border) 88%, transparent);
+    border-radius: var(--appearance-radius-panel);
+    background: color-mix(in oklch, var(--card) 92%, var(--background) 8%);
+    transition:
+      background 0.2s ease,
+      border-color 0.2s ease;
+  }
+
+  .workspace-panel:hover {
+    border-color: color-mix(in oklch, var(--border) 76%, var(--primary) 24%);
+    background: color-mix(in oklch, var(--card) 96%, var(--background) 4%);
+  }
+
+  .workspace-panel-subtle {
+    border: 1px solid color-mix(in oklch, var(--border) 84%, transparent);
+    border-radius: var(--appearance-radius-2xl);
+    background: color-mix(in oklch, var(--card) 84%, var(--background) 16%);
+    transition:
+      background 0.2s ease,
+      border-color 0.2s ease;
+  }
+
+  .workspace-panel-subtle:hover {
+    border-color: color-mix(in oklch, var(--border) 72%, var(--primary) 28%);
+    background: color-mix(in oklch, var(--card) 92%, var(--background) 8%);
+  }
+
+  .dark .workspace-panel {
+    border-color: color-mix(in oklch, var(--border) 86%, transparent);
+    background: color-mix(in oklch, var(--card) 90%, var(--background) 10%);
+    transition:
+      background 0.2s ease,
+      border-color 0.2s ease;
+  }
+
+  .dark .workspace-panel:hover {
+    border-color: color-mix(in oklch, var(--border) 70%, var(--primary) 30%);
+    background: color-mix(in oklch, var(--card) 94%, var(--background) 6%);
+  }
+
+  .dark .workspace-panel-subtle {
+    border-color: color-mix(in oklch, var(--border) 78%, transparent);
+    background: color-mix(in oklch, var(--card) 80%, var(--background) 20%);
+    transition:
+      background 0.2s ease,
+      border-color 0.2s ease;
+  }
+
+  .dark .workspace-panel-subtle:hover {
+    border-color: color-mix(in oklch, var(--border) 64%, var(--primary) 36%);
+    background: color-mix(in oklch, var(--card) 88%, var(--background) 12%);
+  }
+
+  :root [data-slot="input"],
+  :root [data-slot="textarea"],
+  :root [data-slot="select-trigger"] {
+    background: color-mix(in oklch, var(--card) 82%, var(--background) 18%);
+    border-color: color-mix(in oklch, var(--input) 88%, transparent);
+  }
+
+  .dark [data-slot="input"],
+  .dark [data-slot="textarea"],
+  .dark [data-slot="select-trigger"] {
+    background: color-mix(in oklch, var(--input) 68%, transparent);
+    border-color: color-mix(in oklch, var(--border) 92%, transparent);
+  }
+
+  :root [data-slot="input"]:focus,
+  :root [data-slot="textarea"]:focus,
+  :root [data-slot="select-trigger"]:focus {
+    background: var(--card);
+    border-color: color-mix(in oklch, var(--ring) 48%, var(--border) 52%);
+  }
+
+  :root [data-slot="button"][data-variant="default"] {
+    box-shadow: 0 1px 2px color-mix(in oklch, var(--primary) 14%, transparent);
+  }
+
+  :root [data-slot="button"][data-variant="outline"],
+  :root [data-slot="button"][data-variant="secondary"] {
+    border-color: color-mix(in oklch, var(--border) 88%, transparent);
+  }
+
+  :root :is(.workspace-panel, .workspace-panel-subtle) {
+    border-radius: var(--appearance-radius-panel) !important;
+  }
+
+  :root
+    :is([data-slot="card"], [data-slot="dialog-content"], [data-slot="alert"]) {
+    border-radius: var(--appearance-radius-2xl) !important;
+  }
+
+  /* Structural workspace chrome must keep hard edges. These are layout
+     boundaries, not cards, so they should not inherit the global radius
+     slider defaults. */
+  :root
+    :is(
+      [data-slot="sidebar-container"],
+      [data-slot="sidebar-inner"],
+      [data-slot="sidebar-inset"]
+    ) {
+    border-radius: 0 !important;
+  }
+
+  :root
+    :is(
+      [data-slot="dropdown-menu-content"],
+      [data-slot="select-content"],
+      [data-slot="popover-content"],
+      [data-slot="hover-card-content"],
+      [data-slot="segmented-control"]
+    ) {
+    border-radius: var(--appearance-radius-xl) !important;
+  }
+
+  :root
+    :is(
+      [data-slot="button"],
+      [data-slot="input"],
+      [data-slot="textarea"],
+      [data-slot="select-trigger"],
+      [data-slot="dropdown-menu-item"],
+      [data-slot="dropdown-menu-checkbox-item"],
+      [data-slot="dropdown-menu-radio-item"],
+      [data-slot="select-item"],
+      [data-slot="segmented-control-item"],
+      [data-slot="tabs-list"]
+    ) {
+    border-radius: var(--appearance-radius-control) !important;
+  }
+
+  :root [data-slot="switch"] {
+    border-radius: var(--appearance-radius-pill) !important;
+  }
+
+  :root [data-slot="switch-thumb"] {
+    border-radius: calc(var(--appearance-radius-control) - 2px) !important;
+  }
+
+  :root
+    :is(
+      [data-slot="button"],
+      [data-slot="input"],
+      [data-slot="textarea"],
+      [data-slot="select-trigger"],
+      [data-slot="card"],
+      [data-slot="badge"],
+      [data-slot="tabs-trigger"],
+      [data-slot="switch"]
+    ) {
+    /* Never let the shared motion token silently animate layout geometry.
+       A duration without an explicit property falls back to `all`, which made
+       streaming height changes and scrollbar appearance look like an
+       accordion. Keep the useful visual feedback while width, height, gap,
+       padding and position update synchronously. */
+    transition-property:
+      color, background-color, border-color, text-decoration-color, fill,
+      stroke, opacity, box-shadow, transform !important;
+    transition-duration: var(--motion-duration-fast) !important;
+    transition-timing-function: var(--motion-ease-out) !important;
+  }
+}
+
+@layer components {
+  /* Long answers keep the conversation column calm while wide technical
+     content manages its own width. Streamdown already supplies the semantic
+     table and controls; these rules make that boundary reliable inside the
+     timeline's overflow-clipped viewport and remove the heavy card look. */
+  .chat-markdown {
+    min-width: 0;
+    max-width: 100%;
+  }
+
+  /* The user's own messages render in a neutral --muted bubble, so body
+     text stays --foreground and the default --primary-tinted links read
+     correctly against it. Only inline code needs a nudge: its own
+     `--primary 12%` tint sits at nearly the same value as the grey bubble,
+     so the chip loses its edge. Lift it onto the lighter card surface.
+     Scoped to .is-user so the assistant stream is untouched. */
+  .is-user :where(code):not(pre code) {
+    background: color-mix(in oklch, var(--card) 70%, transparent);
+    border: 1px solid var(--border);
+  }
+
+  /* Public progress is conversation, not telemetry. Keep it on the same
+     reading axis as the answer and reserve icons/muted type for actual tool
+     actions. This mirrors a person saying what they are doing between steps. */
+  .narrative-progress-row {
+    font-size: 1rem;
+    font-weight: 500;
+    line-height: 1.75;
+  }
+
+  .narrative-progress-copy {
+    color: inherit;
+    font-size: inherit;
+    line-height: inherit;
+  }
+
+  .narrative-progress-copy :where(p) {
+    margin-block: 0;
+  }
+
+  .narrative-process-flow > :where(* + *) {
+    margin-top: 0.15rem;
+  }
+
+  /* Keep the transcript width fixed when its vertical scrollbar appears and
+     contain wheel momentum inside the conversation. Without this, streaming
+     height changes can shift the entire text column by a few pixels. */
+  .message-list-scroll-viewport {
+    overscroll-behavior: contain;
+    scrollbar-gutter: stable;
+    transition: none;
+  }
+
+  /* Streaming and expandable panels must not animate their scroll geometry.
+     Reserving the gutter also prevents the content column from shifting when
+     a list becomes scrollable. */
+  .stable-scroll-viewport {
+    overscroll-behavior: contain;
+    scrollbar-gutter: stable;
+    transition: none;
+  }
+
+  /* The collapsed workbench drawer can leave less than 100px for its empty
+     state after the tab header and machine rail are accounted for. Keep the
+     compact state readable instead of letting its description clip below the
+     drawer edge; larger workbench surfaces retain the full explanation. */
+  .workbench-empty-page {
+    container: workbench-empty / size;
+  }
+
+  @container workbench-empty (max-height: 140px) {
+    .workbench-empty-page {
+      padding: 0.75rem;
+    }
+
+    .workbench-empty-page-content {
+      gap: 0.5rem;
+    }
+
+    .workbench-empty-page-icon > div {
+      width: 2rem;
+      height: 2rem;
+    }
+
+    .workbench-empty-page-icon svg {
+      width: 1rem;
+      height: 1rem;
+    }
+
+    .workbench-empty-page-description {
+      display: none;
+    }
+  }
+
+  /* Live private reasoning uses its content height until it reaches the
+     waterfall cap. Once the reader browses history, the component freezes its
+     last outer height so incoming tokens cannot move the historical viewport. */
+  .live-thinking-window {
+    min-width: 0;
+    overscroll-behavior: contain;
+    scrollbar-width: thin;
+  }
+
+  @media (max-width: 640px) {
+    .narrative-progress-row {
+      font-size: 0.9375rem;
+      line-height: 1.7;
+    }
+  }
+
+  .chat-markdown :where(p, li, blockquote) {
+    overflow-wrap: anywhere;
+    text-wrap: pretty;
+  }
+
+  .chat-markdown :where(h1, h2, h3, h4, h5, h6) {
+    overflow-wrap: anywhere;
+    text-wrap: balance;
+  }
+
+  .chat-markdown [data-streamdown="table-wrapper"] {
+    min-width: 0;
+    max-width: 100%;
+    margin-block: 1.1rem;
+    gap: 0.15rem;
+  }
+
+  .chat-markdown [data-streamdown="table-wrapper"] > div:last-child {
+    max-width: 100%;
+    overflow-x: auto;
+    overscroll-behavior-inline: contain;
+    padding-bottom: 0.25rem;
+    scrollbar-gutter: stable;
+  }
+
+  .chat-markdown [data-streamdown="table"] {
+    width: max-content;
+    min-width: 100%;
+    max-width: none;
+    border-width: 0 !important;
+    background: transparent !important;
+  }
+
+  .chat-markdown [data-streamdown="table-header"],
+  .chat-markdown [data-streamdown="table-body"] {
+    background: transparent !important;
+  }
+
+  .chat-markdown [data-streamdown="table-row"] {
+    border-color: color-mix(in oklch, var(--border) 55%, transparent);
+  }
+
+  .chat-markdown [data-streamdown="table-header-cell"] {
+    min-width: 8.5rem;
+    padding: 0.45rem 0.75rem;
+    border-bottom: 1px solid
+      color-mix(in oklch, var(--foreground) 20%, transparent);
+    color: color-mix(in oklch, var(--primary) 72%, var(--foreground));
+    font-size: 0.82em;
+    letter-spacing: 0.01em;
+  }
+
+  .chat-markdown [data-streamdown="table-cell"] {
+    min-width: 10rem;
+    max-width: min(32rem, 72vw);
+    padding: 0.58rem 0.75rem;
+    vertical-align: top;
+    white-space: normal;
+    overflow-wrap: anywhere;
+  }
+
+  .chat-markdown
+    [data-streamdown="table-wrapper"]
+    > div:first-child:has(button) {
+    min-height: 1.25rem;
+    opacity: 0.45;
+    transition: opacity 120ms ease;
+  }
+
+  .chat-markdown
+    [data-streamdown="table-wrapper"]:hover
+    > div:first-child:has(button),
+  .chat-markdown
+    [data-streamdown="table-wrapper"]:focus-within
+    > div:first-child:has(button) {
+    opacity: 1;
+  }
+
+  @media (max-width: 640px) {
+    .chat-markdown [data-streamdown="table-header-cell"] {
+      min-width: 7.5rem;
+      padding-inline: 0.625rem;
+    }
+
+    .chat-markdown [data-streamdown="table-cell"] {
+      min-width: 9rem;
+      max-width: 82vw;
+      padding-inline: 0.625rem;
+    }
+  }
+
+  /* ─── Claude-style colored markdown ───────────────────────────────
+     Accent-driven rendering so the chat reads like Claude's: headings,
+     inline code, blockquotes, list markers, HRs and table headers all
+     pick up the brand accent (--primary) instead of staying flat
+     black/white. Everything is mixed from theme CSS variables, so the
+     light/dark modes and brand variants (default orange, steel blue)
+     adapt automatically. Shiki-highlighted code blocks are untouched
+     (inline `code` only; `:not(pre code)` guard). */
+  .chat-markdown :where(h1, h2, h3, h4) {
+    color: color-mix(in oklch, var(--foreground) 82%, var(--primary));
+  }
+
+  .chat-markdown :where(h1) {
+    padding-bottom: 0.4rem;
+    border-bottom: 1px solid
+      color-mix(in oklch, var(--primary) 26%, transparent);
+  }
+
+  .chat-markdown :where(code):not(pre code) {
+    background: color-mix(in oklch, var(--primary) 12%, transparent);
+    color: color-mix(in oklch, var(--foreground) 78%, var(--primary));
+    border-radius: 0.3rem;
+    padding: 0.14em 0.36em;
+    font-size: 0.875em;
+    font-weight: 500;
+    box-decoration-break: clone;
+    -webkit-box-decoration-break: clone;
+  }
+
+  .chat-markdown :where(blockquote) {
+    border-left: 3px solid var(--primary);
+    background: color-mix(in oklch, var(--primary) 7%, transparent);
+    padding: 0.4rem 0.9rem;
+    border-radius: 0 0.5rem 0.5rem 0;
+  }
+
+  .chat-markdown :where(ul li)::marker,
+  .chat-markdown :where(ol li)::marker {
+    color: var(--primary);
+  }
+
+  .chat-markdown :where(hr) {
+    border-color: color-mix(in oklch, var(--primary) 32%, transparent);
+  }
+
+  .chat-markdown :where(strong) {
+    color: color-mix(in oklch, var(--foreground) 90%, var(--primary));
+  }
+
+  /* Heading sizes in em so they scale with the prose size steps
+     (prose-sm/base/lg) instead of relying on UA defaults, where h5/h6
+     render smaller than body text and h2 balloons to 1.5em. Moved to
+     @layer base so they override Streamdown's @layer utilities classes. */
+  .chat-markdown :where(h1) {
+    font-size: 1.5em;
+    font-weight: 700;
+  }
+  .chat-markdown :where(h2) {
+    font-size: 1.3em;
+    font-weight: 700;
+  }
+  .chat-markdown :where(h3) {
+    font-size: 1.15em;
+    font-weight: 600;
+  }
+  .chat-markdown :where(h4) {
+    font-size: 1em;
+    font-weight: 600;
+  }
+  .chat-markdown :where(h5) {
+    font-size: 0.95em;
+    font-weight: 600;
+  }
+  .chat-markdown :where(h6) {
+    font-size: 0.9em;
+    font-weight: 600;
+  }
+
+  .octo-appearance-step-slider {
+    position: relative;
+    z-index: 1;
+    width: 100%;
+    height: 14px;
+    margin: 0;
+    cursor: pointer;
+    appearance: none;
+    -webkit-appearance: none;
+    border: 1px solid color-mix(in oklch, var(--border) 65%, transparent);
+    border-radius: 999px;
+    background: color-mix(in oklch, var(--muted) 72%, transparent);
+    outline: none;
+  }
+
+  .octo-appearance-step-slider::-webkit-slider-runnable-track {
+    height: 14px;
+    border-radius: 999px;
+    background: transparent;
+  }
+
+  .octo-appearance-step-slider::-webkit-slider-thumb {
+    width: 24px;
+    height: 24px;
+    margin-top: -6px;
+    appearance: none;
+    -webkit-appearance: none;
+    border: 1px solid color-mix(in oklch, white 70%, var(--primary) 30%);
+    border-radius: 999px;
+    background: radial-gradient(
+      circle at 35% 28%,
+      color-mix(in oklch, white 96%, transparent),
+      color-mix(in oklch, white 64%, var(--primary) 24%) 58%,
+      color-mix(in oklch, var(--primary) 60%, white 24%)
+    );
+    box-shadow:
+      inset 0 1px 0 color-mix(in oklch, white 82%, transparent),
+      0 7px 18px color-mix(in oklch, var(--primary) 22%, transparent);
+  }
+
+  .octo-appearance-step-slider::-moz-range-track {
+    height: 14px;
+    border-radius: 999px;
+    background: transparent;
+  }
+
+  .octo-appearance-step-slider::-moz-range-thumb {
+    width: 24px;
+    height: 24px;
+    border: 1px solid color-mix(in oklch, white 70%, var(--primary) 30%);
+    border-radius: 999px;
+    background: radial-gradient(
+      circle at 35% 28%,
+      color-mix(in oklch, white 96%, transparent),
+      color-mix(in oklch, white 64%, var(--primary) 24%) 58%,
+      color-mix(in oklch, var(--primary) 60%, white 24%)
+    );
+    box-shadow:
+      inset 0 1px 0 color-mix(in oklch, white 82%, transparent),
+      0 7px 18px color-mix(in oklch, var(--primary) 22%, transparent);
+  }
+
+  .octo-appearance-step-slider:focus-visible {
+    box-shadow:
+      0 0 0 4px color-mix(in oklch, var(--ring) 18%, transparent),
+      0 10px 26px rgb(15 23 42 / 0.08);
+  }
+}
+
+@layer base {
+  .page-header-icon {
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .page-header-icon::after {
+    content: "";
+    position: absolute;
+    inset: -4px;
+    border-radius: inherit;
+    background: inherit;
+    filter: blur(12px);
+    opacity: 0.35;
+    z-index: -1;
+  }
+
+  .stat-glow {
+    position: relative;
+    overflow: hidden;
+  }
+
+  .stat-glow::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    background: radial-gradient(
+      circle at top right,
+      color-mix(in oklch, var(--primary) 5%, transparent),
+      transparent 60%
+    );
+    pointer-events: none;
+  }
+
+  /* Codex composer footer: responsive atoms via container queries.
+     Apply .composer-footer to the footer row; children use the
+     .composer-footer__* classes to collapse at narrow widths. */
+  /* The full-workbench composer starts as one row, growing with text or attachments. */
+  [data-composer-placement="floating"] [data-composer-root] {
+    translate: none;
+    transform: none;
+  }
+  [data-composer-placement="floating"] [data-composer-welcome] {
+    display: none;
+  }
+  [data-composer-placement="floating"] [data-testid="chat-composer"] {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    align-items: center;
+    padding: 4px 8px;
+    border-radius: 24px !important;
+    box-shadow: 0 2px 8px rgb(0 0 0 / 3%);
+  }
+  [data-composer-placement="floating"] [data-testid="chat-composer"] > * {
+    grid-column: 1 / -1;
+  }
+  [data-composer-placement="floating"] .composer-editor {
+    grid-column: 2;
+    grid-row: 20;
+    min-width: 0;
+  }
+  [data-composer-placement="floating"] .composer-editor textarea {
+    display: block;
+    min-height: 36px !important;
+    padding-top: 7px !important;
+    padding-bottom: 7px !important;
+    font-size: 13px;
+    line-height: 22px;
+  }
+  [data-composer-placement="floating"] .composer-footer {
+    display: contents !important;
+    container-type: normal;
+  }
+  [data-composer-placement="floating"] .composer-footer > :first-child {
+    grid-column: 1;
+    grid-row: 20;
+    flex-wrap: nowrap;
+  }
+  [data-composer-placement="floating"] .composer-footer > :last-child {
+    grid-column: 3;
+    grid-row: 20;
+    max-width: 260px;
+  }
+  [data-composer-placement="floating"] [data-testid="permission-mode-trigger"] {
+    width: 28px;
+    height: 28px;
+    justify-content: center;
+    padding: 0;
+  }
+  [data-composer-placement="floating"] [data-testid="permission-mode-trigger"] > span,
+  [data-composer-placement="floating"] [data-testid="permission-mode-trigger"] > svg:last-child {
+    display: none;
+  }
+  [data-composer-placement="floating"] [data-testid="chat-tools-trigger"] {
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+  }
+  .composer-footer {
+    container: composer-footer / inline-size;
+  }
+  .composer-footer__model [data-testid="model-picker-trigger"] {
+    max-width: 9rem;
+  }
+  @container composer-footer (width <= 440px) {
+    .composer-footer__label--sm {
+      display: none;
+    }
+    .composer-footer__secondary {
+      display: none;
+    }
+    .composer-footer__model [data-testid="model-picker-trigger"] {
+      max-width: 6.5rem;
+      padding-inline: 0.375rem;
+    }
+  }
+  @container composer-footer (width <= 320px) {
+    .composer-footer__label--xs {
+      display: none;
+    }
+    .composer-footer__model {
+      display: none;
+    }
+    .composer-footer__response [data-testid="team-mode-picker"] span {
+      display: none;
+    }
+  }
+  @container composer-footer (width <= 280px) {
+    .composer-footer__secondary {
+      display: none;
+    }
+  }
+  @container composer-footer (width >= 300px) {
+    .composer-footer__icon-collapsed {
+      display: none;
+    }
+  }
+
+  /* 对话区 ↔ 侧边栏 双向联动高亮：弱显示原则下的一次性提示（≤2s），
+     仅 CSS transition，无循环动画。class 由共享 linkage store 的消费
+     组件按 2s 生命周期添加/移除；transition 挂在定位属性基座上，保证
+     高亮出现与消退都平滑。视觉聚焦 = 底色 + 左侧强调条 + 描边 + 轻微
+     缩放（transform 不引发布局抖动）。 */
+  [data-timeline-item-id] {
+    transition:
+      background-color var(--motion-duration-slow, 300ms) ease-out,
+      box-shadow var(--motion-duration-slow, 300ms) ease-out,
+      outline-color var(--motion-duration-slow, 300ms) ease-out,
+      transform var(--motion-duration-slow, 300ms) ease-out;
+  }
+
+  .timeline-item-linkage-highlight {
+    background-color: color-mix(in oklch, var(--primary) 12%, transparent);
+    border-radius: var(--radius-md, 6px);
+    outline: 1.5px solid color-mix(in oklch, var(--primary) 55%, transparent);
+    outline-offset: 1px;
+    box-shadow: inset 2px 0 0
+      color-mix(in oklch, var(--primary) 60%, transparent);
+    transform: scale(1.02);
+  }
+
+  /* reduced-motion 下保留边框/底色提示，去掉缩放的位移动感 */
+  @media (prefers-reduced-motion: reduce) {
+    .timeline-item-linkage-highlight {
+      transform: none;
+    }
+  }
+}
+
+/* Realtime chat header descendant rules need utility-layer precedence so
+   viewport utilities such as `sm:inline` cannot override the chat column's
+   own container query. Wrapper-level collapse rules live beside the JSX as
+   named-container variants. */
+@layer utilities {
+  @container realtime-header (width <= 720px) {
+    .realtime-group-header__members [data-slot="task-collaborator-label"] {
+      display: none;
+    }
+
+    .realtime-group-header__members [data-slot="task-collaborator-trigger"] {
+      max-width: 4.75rem;
+      gap: 0.25rem;
+      padding-inline: 0.375rem;
+    }
+  }
+
+  @container realtime-header (width <= 580px) {
+    .realtime-group-header__project [data-slot="project-capability-label"],
+    .realtime-group-header__project [data-slot="project-capability-separator"] {
+      display: none;
+    }
+
+    .realtime-group-header__project [data-slot="project-capability-button"] {
+      max-width: 7rem;
+      gap: 0.375rem;
+      padding-inline: 0.375rem;
+    }
+  }
+
+  @container realtime-header (width <= 420px) {
+    .realtime-group-header__project [data-slot="project-capability-icon"] {
+      display: none;
+    }
+  }
+}
+
+  /* Shared starting position in the content area below either 44px header. */
+  .workspace-start-position,
+  [data-workspace-start="true"] {
+    position: absolute;
+    inset-inline: 0;
+    top: clamp(48px, 40%, 360px);
+    bottom: auto;
+    padding-top: 0;
+    background: none;
+  }
+  .workspace-start-composer {
+    width: 100%;
+    max-width: 720px;
+    translate: none;
+    transform: none;
+  }
+  .workspace-start-heading {
+    height: 80px;
+    max-width: 720px;
+    padding: 0;
+    justify-content: flex-start;
+  }
+  .composer-workspace-control {
+    display: flex;
+    width: 104px;
+    min-width: 0;
+    flex-shrink: 0;
+  }
+  .composer-workspace-control > * {
+    width: 100%;
+    min-width: 0;
+  }

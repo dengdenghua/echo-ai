@@ -1,0 +1,292 @@
+import { screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
+import { describe, expect, test, vi } from "vitest";
+
+import type { CoworkRoomMessage } from "@/core/cowork";
+import { renderWithProviders } from "@/test/harness";
+
+import { buildCoworkMessageProjectActionInput } from "./cowork-room-message-actions";
+import {
+  CoworkRoomTimeline,
+  CoworkRoomTimelineEntry,
+  dedupeCoworkRoomMessages,
+} from "./cowork-room-timeline";
+
+const messages: CoworkRoomMessage[] = [
+  {
+    seq: 4,
+    participant_id: "planner",
+    display_name: "规划师",
+    text: "请 @agent:researcher 完成竞品调研",
+    ts: "2026-08-21T01:00:00Z",
+    metadata: {
+      entity_refs: [{ kind: "milestone", id: "M-1", label: "调研阶段" }],
+    },
+  },
+  {
+    seq: 5,
+    participant_id: "project-os",
+    display_name: "Project OS",
+    text: "已创建事项",
+    metadata: {
+      message_type: "system_card",
+      system_card: {
+        type: "create_item",
+        title: "已创建事项 · 完成竞品调研",
+        summary: "来自群聊消息",
+        status: "pending",
+        target: { kind: "task", id: "PT-1", label: "完成竞品调研" },
+      },
+    },
+  },
+];
+
+describe("CoworkRoomTimeline", () => {
+  test("renders member mentions, entity refs and Project OS system cards", async () => {
+    const user = userEvent.setup();
+    const onEntityClick = vi.fn();
+    renderWithProviders(
+      <CoworkRoomTimeline
+        messages={messages}
+        participants={[
+          { id: "planner", display_name: "规划师", kind: "agent" },
+          { id: "researcher", display_name: "研究员", kind: "agent" },
+        ]}
+        onEntityClick={onEntityClick}
+      />,
+      { locale: "zh-CN" },
+    );
+
+    expect(screen.getByText("@研究员")).toHaveAttribute(
+      "title",
+      "@agent:researcher",
+    );
+    expect(screen.getByText("已创建事项 · 完成竞品调研")).toBeInTheDocument();
+    expect(screen.getByTestId("cowork-system-card")).toHaveAttribute(
+      "data-density",
+      "compact",
+    );
+
+    await user.click(screen.getByRole("button", { name: "完成竞品调研" }));
+    expect(onEntityClick).toHaveBeenCalledWith(
+      expect.objectContaining({ kind: "task", id: "PT-1" }),
+    );
+  });
+
+  test("builds a create-item action and assigns the first mentioned agent", () => {
+    expect(
+      buildCoworkMessageProjectActionInput("create_item", messages[0], {
+        projectId: "P-1",
+        milestoneId: "M-1",
+      }),
+    ).toEqual(
+      expect.objectContaining({
+        action: "create_item",
+        project_id: "P-1",
+        milestone_id: "M-1",
+        assigned_agent: "researcher",
+        title: "请 @agent:researcher 完成竞品调研",
+      }),
+    );
+  });
+
+  test("embeds one room event without creating a nested log", () => {
+    renderWithProviders(
+      <div role="log" aria-label="统一群聊时间线">
+        <CoworkRoomTimelineEntry
+          message={messages[0]}
+          participants={[{ id: "planner", display_name: "规划师" }]}
+        />
+      </div>,
+      { locale: "zh-CN" },
+    );
+
+    expect(screen.getAllByRole("log")).toHaveLength(1);
+    expect(screen.getByText("规划师")).toBeInTheDocument();
+  });
+
+  test("opens the author's member card from an in-conversation avatar", async () => {
+    const user = userEvent.setup();
+    renderWithProviders(
+      <CoworkRoomTimelineEntry
+        message={messages[0]}
+        participants={[
+          {
+            id: "planner",
+            display_name: "规划师",
+            kind: "agent",
+            description: "负责规划协作步骤。",
+          },
+        ]}
+      />,
+      { locale: "zh-CN" },
+    );
+
+    await user.click(
+      screen.getByRole("button", { name: "规划师 · 查看成员信息" }),
+    );
+    expect(screen.getByLabelText("规划师 的成员信息")).toBeInTheDocument();
+    expect(screen.getByText("负责规划协作步骤。")).toBeInTheDocument();
+  });
+
+  test("keeps only one member card open across conversation avatars", async () => {
+    const user = userEvent.setup();
+    renderWithProviders(
+      <CoworkRoomTimeline
+        messages={[
+          messages[0],
+          {
+            seq: 7,
+            participant_id: "researcher",
+            display_name: "研究员",
+            text: "我会补充资料。",
+          },
+        ]}
+        participants={[
+          { id: "planner", display_name: "规划师", kind: "agent" },
+          { id: "researcher", display_name: "研究员", kind: "agent" },
+        ]}
+      />,
+      { locale: "zh-CN" },
+    );
+
+    await user.click(
+      screen.getByRole("button", { name: "规划师 · 查看成员信息" }),
+    );
+    expect(screen.getByLabelText("规划师 的成员信息")).toBeInTheDocument();
+
+    await user.click(
+      screen.getByRole("button", { name: "研究员 · 查看成员信息" }),
+    );
+    expect(
+      screen.queryByLabelText("规划师 的成员信息"),
+    ).not.toBeInTheDocument();
+    expect(screen.getByLabelText("研究员 的成员信息")).toBeInTheDocument();
+  });
+
+  test("renders a structured reply reference without relying on markdown quotes", () => {
+    renderWithProviders(
+      <CoworkRoomTimelineEntry
+        message={{
+          seq: 6,
+          participant_id: "researcher",
+          display_name: "研究员",
+          text: "我会今天完成",
+          metadata: {
+            reply_to: {
+              seq: 4,
+              participant_id: "planner",
+              display_name: "规划师",
+              text: "请完成竞品调研",
+            },
+          },
+        }}
+        participants={[{ id: "planner", display_name: "规划师" }]}
+      />,
+      { locale: "zh-CN" },
+    );
+
+    expect(screen.getByText("回复 规划师")).toBeInTheDocument();
+    expect(screen.getByText("请完成竞品调研")).toBeInTheDocument();
+  });
+
+  test("keeps reply and mention available when the room has no project binding", async () => {
+    const user = userEvent.setup();
+    const onReply = vi.fn();
+    const onMentionAuthor = vi.fn();
+    renderWithProviders(
+      <CoworkRoomTimelineEntry
+        message={messages[0]}
+        messageActions={{ onReply, onMentionAuthor }}
+      />,
+      { locale: "zh-CN" },
+    );
+
+    await user.click(screen.getByRole("button", { name: "回复消息" }));
+    await user.click(screen.getByRole("button", { name: "提及 规划师" }));
+    expect(onReply).toHaveBeenCalledWith(messages[0]);
+    expect(onMentionAuthor).toHaveBeenCalledWith(messages[0]);
+    expect(screen.queryByLabelText("消息项目操作")).not.toBeInTheDocument();
+  });
+
+  test("removes thread mirrors and repeated producer source ids", () => {
+    expect(
+      dedupeCoworkRoomMessages([
+        {
+          seq: 1,
+          text: "线程镜像",
+          metadata: { source_message_id: "thread:human-1" },
+        },
+        {
+          seq: 2,
+          text: "项目卡",
+          metadata: {
+            source_message_id: "project-action:1",
+            message_type: "system_card",
+          },
+        },
+        {
+          seq: 3,
+          text: "重复项目卡",
+          metadata: { source_message_id: "project-action:1" },
+        },
+        { seq: 4, text: "无来源的房间消息" },
+      ]).map((message) => message.text),
+    ).toEqual(["项目卡", "无来源的房间消息"]);
+  });
+
+  test("badges 数字员工 lines and their takeovers, not bare agents", () => {
+    renderWithProviders(
+      <CoworkRoomTimeline
+        messages={[
+          {
+            seq: 1,
+            participant_id: "reviewer",
+            display_name: "审校员",
+            text: "托管阶段的产出",
+            metadata: { sender_kind: "role", sender_driver: "ai" },
+          },
+          {
+            seq: 2,
+            participant_id: "reviewer",
+            display_name: "审校员",
+            text: "接管阶段的产出",
+            metadata: { sender_kind: "role", sender_driver: "human" },
+          },
+          {
+            seq: 3,
+            participant_id: "planner",
+            display_name: "规划师",
+            text: "裸 AI 的日常消息",
+            metadata: { sender_kind: "agent", sender_driver: "ai" },
+          },
+          {
+            seq: 4,
+            display_name: "旧库迁移的行",
+            text: "无归属的历史消息",
+          },
+        ]}
+        participants={[
+          {
+            id: "reviewer",
+            display_name: "审校员",
+            kind: "role",
+            accountable_owner: "user-1",
+          },
+          { id: "planner", display_name: "规划师", kind: "agent" },
+        ]}
+      />,
+      { locale: "zh-CN" },
+    );
+
+    // 数字员工 + 托管: the badge names the accountability anchor.
+    expect(screen.getByText("数字员工 · user-1 负责")).toBeInTheDocument();
+    // 接管: the amber badge states who holds the wheel — and the earlier
+    // AI-driven line keeps its own attribution (history is not rewritten).
+    expect(screen.getByText("真人接管 · user-1")).toBeInTheDocument();
+    // Bare agent daily chatter and humans stay unbadged (no noise).
+    expect(screen.queryByText("AI 生成")).not.toBeInTheDocument();
+    // Legacy rows without attribution say so explicitly — never guessed.
+    expect(screen.getByText("来源未标注")).toBeInTheDocument();
+  });
+});

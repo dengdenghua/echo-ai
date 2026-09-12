@@ -1,0 +1,197 @@
+# echo-ai · 单机全栈部署（生产基线 / 压测）
+# 包含: agent + Redis + Jaeger + Prometheus + Grafana
+#
+# 此清单只有一个 Agent 和一个 Redis，不构成 HA。Redis 为跨进程事件总线
+# （Nerves）和分布式记忆（Hemolymph）提供共享后端；跨机生产请改接托管
+# Redis / Sentinel / Cluster，并为文件状态配置共享存储或外部后端。
+# Jaeger / Prometheus / Grafana 提供完整的可观测性栈。
+#
+# 初次使用:
+#   1. cp config.example.yaml config.yaml  # 复制并启用 oct 或 local_auth；否则非回环 bind 会 fail closed
+#   2. 在 .env 中设置 REDIS_PASSWORD 和 GRAFANA_PASSWORD
+#   3. mkdir -p data/ data/redis data/grafana
+#
+# 启动:
+#   docker compose -f docker-compose.full.yml up -d
+#   docker compose -f docker-compose.full.yml logs -f echo-ai
+#
+# 访问:
+#   http://localhost:8310        · Agent UI
+#   http://localhost:16686       · Jaeger UI (分布式追踪)
+#   http://localhost:3311        · Grafana (指标面板)
+#   http://localhost:9090        · Prometheus (指标采集)
+
+services:
+  # ─── Agent 主服务 ───────────────────────────────
+  echo-ai:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    # Local build tag only; it is never a published release identity.
+    image: echo-ai:latest
+    container_name: echo-ai
+    restart: unless-stopped
+    ports:
+      - "${ECHO_BIND_IP:-127.0.0.1}:${PORT:-8310}:8000"
+    environment:
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      TAVILY_API_KEY: ${TAVILY_API_KEY:-}
+      ECHO_LOCAL_AUTH_JWT_SECRET: ${ECHO_LOCAL_AUTH_JWT_SECRET:-}
+      ECHO_ADMIN_PASSWORD_HASH: ${ECHO_ADMIN_PASSWORD_HASH:-}
+      ECHO_CLOUD_EDGE_TOKEN_SECRET: ${ECHO_CLOUD_EDGE_TOKEN_SECRET:-}
+      ECHO_PUBLIC_SHARE_RELAY_URL: ${ECHO_PUBLIC_SHARE_RELAY_URL:-}
+      ECHO_PUBLIC_SHARE_RELAY_API_KEY: ${ECHO_PUBLIC_SHARE_RELAY_API_KEY:-}
+      ECHO_PUBLIC_SHARE_RELAY_BEARER_TOKEN: ${ECHO_PUBLIC_SHARE_RELAY_BEARER_TOKEN:-}
+      ECHO_PUBLIC_SHARE_BASE_URL: ${ECHO_PUBLIC_SHARE_BASE_URL:-}
+      ECHO_THREAD_SHARE_TTL_SECONDS: ${ECHO_THREAD_SHARE_TTL_SECONDS:-2592000}
+      ECHO_THREAD_SHARE_MAX_ACTIVE_PER_OWNER: ${ECHO_THREAD_SHARE_MAX_ACTIVE_PER_OWNER:-100}
+      ECHO_THREAD_SHARE_MAX_SNAPSHOT_BYTES: ${ECHO_THREAD_SHARE_MAX_SNAPSHOT_BYTES:-1200000}
+      ECHO_HEARTS_REDIS_URL: redis://:${REDIS_PASSWORD:?REDIS_PASSWORD must be set in .env}@redis:6379/0
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://jaeger:4318
+      OTEL_EXPORTER_OTLP_PROTOCOL: http/protobuf
+      OTEL_SERVICE_NAME: echo-ai
+      ECHO_LOG_LEVEL: ${ECHO_LOG_LEVEL:-INFO}
+    volumes:
+      - ./data:/data
+      # Named volume is seeded from the image on first use, then preserves
+      # registry-installed skills/agents across container replacement.
+      - echo-resources:/app/resources
+      - ./config.yaml:/etc/echo/config.yaml:ro
+    depends_on:
+      redis:
+        condition: service_healthy
+      jaeger:
+        condition: service_started
+    command:
+      - serve
+      - --config
+      - /etc/echo/config.yaml
+      - --host
+      - "0.0.0.0"
+      - --port
+      - "8000"
+      - --learn-interval
+      - "${LEARN_INTERVAL_S:-0}"
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/readyz', timeout=3)"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
+    deploy:
+      resources:
+        limits:
+          memory: 4G
+          cpus: "4.0"
+        reservations:
+          memory: 1G
+    logging:
+      driver: json-file
+      options:
+        max-size: "50m"
+        max-file: "5"
+
+  # ─── Redis · 事件总线 + 分布式记忆后端 ──────────
+  redis:
+    image: redis:7.4.11-alpine@sha256:ff02b58f971e7d7d156a1267e283fcbbeee91773b6aa36c49dac28ecfe28eadf
+    container_name: echo-redis
+    restart: unless-stopped
+    environment:
+      REDIS_PASSWORD: ${REDIS_PASSWORD:?REDIS_PASSWORD must be set in .env}
+      # redis-cli consumes this without putting the password in the probe argv.
+      REDISCLI_AUTH: ${REDIS_PASSWORD:?REDIS_PASSWORD must be set in .env}
+    command: [
+      "redis-server",
+      "--appendonly", "yes",
+      "--save", "60", "1",
+      "--requirepass", "${REDIS_PASSWORD:?REDIS_PASSWORD must be set in .env}"
+    ]
+    volumes:
+      - ./data/redis:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+          cpus: "1.0"
+    logging:
+      driver: json-file
+      options:
+        max-size: "20m"
+        max-file: "3"
+
+  # ─── Jaeger · 分布式追踪 ────────────────────────
+  jaeger:
+    image: jaegertracing/all-in-one:1.60
+    container_name: echo-jaeger
+    restart: unless-stopped
+    environment:
+      COLLECTOR_OTLP_ENABLED: "true"
+    ports:
+      - "127.0.0.1:16686:16686"
+      - "127.0.0.1:4317:4317"
+      - "127.0.0.1:4318:4318"
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+    logging:
+      driver: json-file
+      options:
+        max-size: "20m"
+        max-file: "3"
+
+  # ─── Prometheus · 指标采集 ──────────────────────
+  prometheus:
+    image: prom/prometheus:v2.53.0
+    container_name: echo-prometheus
+    restart: unless-stopped
+    volumes:
+      - ./deploy/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+    ports:
+      - "127.0.0.1:9090:9090"
+    depends_on:
+      - echo-ai
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+    logging:
+      driver: json-file
+      options:
+        max-size: "20m"
+        max-file: "3"
+
+  # ─── Grafana · 指标可视化 ───────────────────────
+  grafana:
+    image: grafana/grafana:11.0.0
+    container_name: echo-grafana
+    restart: unless-stopped
+    environment:
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_PASSWORD:?GRAFANA_PASSWORD must be set}
+      GF_AUTH_ANONYMOUS_ENABLED: "false"
+    volumes:
+      - ./data/grafana:/var/lib/grafana
+      - ./deploy/grafana-datasources.yml:/etc/grafana/provisioning/datasources/datasources.yml:ro
+    ports:
+      - "127.0.0.1:3311:3000"
+    depends_on:
+      - prometheus
+      - jaeger
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+    logging:
+      driver: json-file
+      options:
+        max-size: "20m"
+        max-file: "3"
+
+volumes:
+  echo-resources:
+    name: echo-resources

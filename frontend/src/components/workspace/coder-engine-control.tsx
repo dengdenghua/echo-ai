@@ -1,0 +1,2277 @@
+import { openCustomModelSetup } from "@/core/models/setup";
+import { supportedReasoningEfforts } from "@/core/models/execution-capabilities";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import {
+  AlertTriangleIcon,
+  CheckCircle2Icon,
+  ChevronDownIcon,
+  ClipboardIcon,
+  ExternalLinkIcon,
+  KeyRoundIcon,
+  Loader2Icon,
+  LogOutIcon,
+  RefreshCwIcon,
+  ShieldCheckIcon,
+  UserRoundIcon,
+} from "lucide-react";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type FormEvent,
+} from "react";
+
+import { Button } from "@/components/ui/button";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { Input } from "@/components/ui/input";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
+  cancelCoderLogin,
+  coderQueryKeys,
+  getCoderAccount,
+  getCoderApps,
+  getCoderModelProfile,
+  getCoderModels,
+  getCoderRateLimits,
+  getCoderUsage,
+  logoutCoderAccount,
+  startCoderLogin,
+  updateCoderApps,
+  updateCoderModelProfile,
+  type CoderLoginResult,
+  type CoderLoginType,
+  type CoderModelProfile,
+} from "@/core/coder/api";
+import { useI18n } from "@/core/i18n/hooks";
+import { cn } from "@/lib/utils";
+import { useAuth } from "@/providers/AuthProvider";
+import type { ReasoningEffort } from "@/core/threads";
+import {
+  isFreePickerModel,
+  ModelContextSetting,
+  type PickerModel,
+} from "@/components/workspace/model-picker";
+
+const COPY = {
+  zh: {
+    triggerFallback: "Coder 模型",
+    followSystem: "跟随系统模型",
+    followSystemShort: "系统",
+    followSystemDescription:
+      "复用系统模型连接的服务地址与 API Key，无需重复配置。",
+    systemConnection: "系统连接",
+    accountSetupHint: "登录成功后切换到 Codex 账号，当前仍使用系统模型连接。",
+    accountMode: "使用 ChatGPT / Codex",
+    accountModeShort: "Codex 账号",
+    subscriptionModeShort: "ChatGPT 订阅",
+    accountModeDescription:
+      "通过 ChatGPT 订阅登录；独立 OpenAI Key 在高级选项中配置。",
+    loading: "正在读取 Coder 配置…",
+    loadFailed: "暂时无法读取 Coder 模型配置。",
+    retry: "重试",
+    compatible: "可由 Codex 引擎运行",
+    incompatible: "当前系统模型与 Codex 不兼容",
+    unavailable: "暂不可执行",
+    backendDefault: "跟随后端默认模型",
+    backendDefaultHint:
+      "使用服务端配置的默认模型，与上方对话默认模型分别保存。",
+    accountConnected: "账号已连接",
+    pendingModel: "待选择可执行模型",
+    aliasHint:
+      "后端默认值是自动路由入口，尚未指定可供 Codex 执行的模型。请选择具体模型，或使用已连接的 ChatGPT / Codex 账号。",
+    routeHint:
+      "所选模型尚未接入后端路由。请接入该模型，或使用 ChatGPT / Codex 账号。",
+    proxyHint: "系统模型服务暂不可用，请检查后端模型连接。",
+    savedUnavailable: "配置已保存，当前尚不可执行",
+    useChatDefault: (model: string) => `使用对话默认模型 · ${model}`,
+    provider: "Provider",
+    effectiveModel: "实际模型",
+    systemModel: "系统模型",
+    title: "Coder 引擎",
+    subtitle:
+      "Coder 是普通角色；人设、技能和小队规则由 Echo 管理，代码执行由 Codex 引擎完成。",
+    sourceTitle: "模型来源",
+    systemSource: "官方模型",
+    subscriptionSource: "ChatGPT 订阅",
+    apiKeySource: "OpenAI API Key（按量）",
+    systemDefault: "跟随系统默认",
+    systemDefaultHint: "使用系统当前配置",
+    smartRoutingHint: "按任务智能选择",
+    systemOrchestratorHint: "当前是编排模型，请在下方选择实际模型",
+    signInToChoose: "登录后选择 Codex 模型",
+    reasoningShort: "推理等级",
+    reasoningAdaptive: "当前模型自动控制",
+    connected: "已连接",
+    notConnected: "未连接",
+    pending: "等待授权",
+    connectChatGPT: "登录 ChatGPT",
+    connectDevice: "使用设备码",
+    connectApiKey: "高级：使用独立 OpenAI Key",
+    reuseApiKeyHint:
+      "已在系统中配置 Key？选择“跟随系统模型”即可复用。这里只用于 Codex 独立连接，不适用于其他服务商的 Key。",
+    browserLoginHint:
+      "授权页会直接在系统浏览器打开，授权地址不会写入本地存储。",
+    deviceCode: "设备码",
+    openAuthorization: "打开授权页面",
+    cancelLogin: "取消授权",
+    copyCode: "复制设备码",
+    copied: "已复制",
+    account: "Codex 账号",
+    apiKeyLabel: "OpenAI API Key",
+    apiKeyPlaceholder: "sk-…（只提交给本机后端）",
+    apiKeyHint: "Key 不会进入 URL、localStorage、角色配置或日志。",
+    submitApiKey: "连接 API Key",
+    logout: "断开连接",
+    model: "Codex 模型",
+    modelDefault: "使用 Codex 默认模型",
+    modelUnavailable: "连接账号后加载可用模型",
+    reasoning: "推理强度",
+    reasoningDefault: "跟随模型默认",
+    allowance: "使用额度",
+    remaining: "剩余",
+    resetsAt: "重置时间",
+    lifetimeTokens: "累计 Token",
+    peakDailyTokens: "单日峰值",
+    resetCredits: "可用额度重置",
+    usageUnavailable: "此登录方式不提供 ChatGPT 账户用量。",
+    connectors: "OpenAI Connectors",
+    connectorsHint: "仅启用你明确选择的连接；调用仍需经过 Echo 审批。",
+    connectorUnavailable: "当前账号没有可访问的 Connector。",
+    accountDetails: "Connector 与用量",
+    saved: "已更新 Coder 模型配置",
+    loginStarted: "请在授权页面完成登录",
+    loginComplete: "Codex 账号已连接",
+    loginFailed: "Codex 授权未完成",
+    loginCancelled: "已取消登录",
+    apiKeyConnected: "API Key 已安全连接",
+    accountSummary: (email: string, plan: string) =>
+      [email, plan].filter(Boolean).join(" · ") || "Codex 账号",
+    openSettings: "管理登录与模型",
+    activeSummary: (model: string) => `已选模型 · ${model}`,
+    technicalDetails: "配置详情",
+  },
+  en: {
+    triggerFallback: "Coder model",
+    followSystem: "Follow system model",
+    followSystemShort: "System",
+    followSystemDescription:
+      "Reuse the system model connection's endpoint and API key. No duplicate setup needed.",
+    systemConnection: "System connection",
+    accountSetupHint:
+      "Sign-in will switch to the Codex account. The system model connection remains active until then.",
+    accountMode: "Use ChatGPT / Codex",
+    accountModeShort: "Codex account",
+    subscriptionModeShort: "ChatGPT subscription",
+    accountModeDescription:
+      "Sign in with ChatGPT; a separate OpenAI key is available under advanced options.",
+    loading: "Loading Coder configuration…",
+    loadFailed: "The Coder model configuration is unavailable.",
+    retry: "Retry",
+    compatible: "Compatible with the Codex engine",
+    incompatible: "The system model is not compatible with Codex",
+    unavailable: "Execution unavailable",
+    backendDefault: "Follow backend default model",
+    backendDefaultHint:
+      "Use the server default, saved separately from the chat default above.",
+    accountConnected: "Account connected",
+    pendingModel: "Select an executable model",
+    aliasHint:
+      "The backend default is an automatic routing entry, not an executable Codex model. Select a specific model or use your connected ChatGPT / Codex account.",
+    routeHint:
+      "The selected model has no backend route. Connect that model or use a ChatGPT / Codex account.",
+    proxyHint:
+      "The system model service is unavailable. Check the backend model connection.",
+    savedUnavailable: "Configuration saved; execution is still unavailable",
+    useChatDefault: (model: string) => `Use chat default · ${model}`,
+    provider: "Provider",
+    effectiveModel: "Effective model",
+    systemModel: "System model",
+    title: "Coder engine",
+    subtitle:
+      "Coder remains a regular role. Echo owns its persona, skills, and team rules; Codex runs the coding work.",
+    sourceTitle: "Model source",
+    systemSource: "Official models",
+    subscriptionSource: "ChatGPT subscription",
+    apiKeySource: "OpenAI API key (metered)",
+    systemDefault: "Follow system default",
+    systemDefaultHint: "Use the current system configuration",
+    smartRoutingHint: "Choose intelligently per task",
+    systemOrchestratorHint:
+      "The current model is an orchestrator; choose an executable model below",
+    signInToChoose: "Sign in to choose Codex models",
+    reasoningShort: "Reasoning effort",
+    reasoningAdaptive: "Controlled automatically by this model",
+    connected: "Connected",
+    notConnected: "Not connected",
+    pending: "Authorization pending",
+    connectChatGPT: "Sign in with ChatGPT",
+    connectDevice: "Use device code",
+    connectApiKey: "Advanced: separate OpenAI key",
+    reuseApiKeyHint:
+      "Already configured a key in the system? Choose Follow system model to reuse it. This option is for an independent Codex connection, not keys from other providers.",
+    browserLoginHint:
+      "Authorization opens directly in your system browser. The URL is never saved in local storage.",
+    deviceCode: "Device code",
+    openAuthorization: "Open authorization page",
+    cancelLogin: "Cancel authorization",
+    copyCode: "Copy device code",
+    copied: "Copied",
+    account: "Codex account",
+    apiKeyLabel: "OpenAI API key",
+    apiKeyPlaceholder: "sk-… (sent only to the local backend)",
+    apiKeyHint:
+      "The key is never placed in a URL, localStorage, role profile, or log.",
+    submitApiKey: "Connect API key",
+    logout: "Disconnect",
+    model: "Codex model",
+    modelDefault: "Use Codex default model",
+    modelUnavailable: "Connect an account to load available models",
+    reasoning: "Reasoning effort",
+    reasoningDefault: "Use model default",
+    allowance: "Usage allowance",
+    remaining: "remaining",
+    resetsAt: "Resets",
+    lifetimeTokens: "Lifetime tokens",
+    peakDailyTokens: "Peak daily tokens",
+    resetCredits: "Rate-limit resets",
+    usageUnavailable:
+      "This login method does not expose ChatGPT account usage.",
+    connectors: "OpenAI connectors",
+    connectorsHint:
+      "Only explicitly selected connections are exposed. Calls still require Echo approval.",
+    connectorUnavailable:
+      "No accessible connectors are available for this account.",
+    accountDetails: "Connectors and usage",
+    saved: "Coder model configuration updated",
+    loginStarted: "Complete sign-in in the authorization page",
+    loginComplete: "Codex account connected",
+    loginFailed: "Codex authorization did not complete",
+    loginCancelled: "Sign-in cancelled",
+    apiKeyConnected: "API key connected securely",
+    accountSummary: (email: string, plan: string) =>
+      [email, plan].filter(Boolean).join(" · ") || "Codex account",
+    openSettings: "Manage sign-in and models",
+    activeSummary: (model: string) => `Selected model · ${model}`,
+    technicalDetails: "Configuration details",
+  },
+};
+
+const COPY_JA: typeof COPY.en = {
+  ...COPY.en,
+  triggerFallback: "Coderモデル",
+  followSystem: "システムモデルに従う",
+  followSystemShort: "システム",
+  followSystemDescription:
+    "システムモデル接続のURLとAPIキーを再利用します。再設定は不要です。",
+  systemConnection: "システム接続",
+  accountSetupHint:
+    "ログイン後にCodexアカウントへ切り替えます。それまではシステムモデル接続を使用します。",
+  accountMode: "ChatGPT / Codexを使用",
+  accountModeShort: "Codexアカウント",
+  subscriptionModeShort: "ChatGPTサブスクリプション",
+  accountModeDescription:
+    "ChatGPTでログインします。独立したOpenAIキーは詳細オプションで設定できます。",
+  loading: "Coder設定を読み込み中…",
+  loadFailed: "Coderモデル設定を読み込めません。",
+  retry: "再試行",
+  compatible: "Codexエンジンで実行可能",
+  incompatible: "システムモデルはCodexと互換性がありません",
+  unavailable: "実行できません",
+  backendDefault: "バックエンドのデフォルトモデルに従う",
+  backendDefaultHint:
+    "チャットのデフォルトモデルとは別に、サーバーのデフォルトを保存します。",
+  accountConnected: "アカウント接続済み",
+  pendingModel: "実行可能なモデルを選択",
+  aliasHint:
+    "バックエンドのデフォルトは自動ルーティング入口で、実行可能なCodexモデルではありません。具体的なモデルまたは接続済みのChatGPT / Codexアカウントを選択してください。",
+  routeHint:
+    "選択したモデルにはバックエンドルートがありません。モデルを接続するか、ChatGPT / Codexアカウントを使用してください。",
+  proxyHint:
+    "システムモデルサービスを利用できません。バックエンドのモデル接続を確認してください。",
+  savedUnavailable: "設定を保存しましたが、現在は実行できません",
+  useChatDefault: (model) => `チャットのデフォルトを使用 · ${model}`,
+  provider: "プロバイダー",
+  effectiveModel: "実効モデル",
+  systemModel: "システムモデル",
+  title: "Coderエンジン",
+  subtitle:
+    "Coderは通常のロールです。ペルソナ、スキル、チームルールはEchoが管理し、コード実行はCodexエンジンが担当します。",
+  sourceTitle: "モデルのソース",
+  systemSource: "公式モデル",
+  subscriptionSource: "ChatGPTサブスクリプション",
+  apiKeySource: "OpenAI APIキー（従量制）",
+  systemDefault: "システムのデフォルトに従う",
+  systemDefaultHint: "現在のシステム設定を使用",
+  smartRoutingHint: "タスクごとに自動選択",
+  systemOrchestratorHint:
+    "現在のモデルはオーケストレーターです。下から実行モデルを選択してください",
+  signInToChoose: "ログインしてCodexモデルを選択",
+  reasoningShort: "推論レベル",
+  reasoningAdaptive: "このモデルが自動制御",
+  connected: "接続済み",
+  notConnected: "未接続",
+  pending: "認証待ち",
+  connectChatGPT: "ChatGPTにログイン",
+  connectDevice: "デバイスコードを使用",
+  connectApiKey: "詳細：独立したOpenAIキー",
+  reuseApiKeyHint:
+    "設定済みのキーは「システムモデルに従う」で再利用できます。ここではCodex専用のOpenAIキーを設定します。他社のキーは使用できません。",
+  browserLoginHint:
+    "認証ページはシステムブラウザーで直接開きます。URLはローカルストレージに保存されません。",
+  deviceCode: "デバイスコード",
+  openAuthorization: "認証ページを開く",
+  cancelLogin: "認証をキャンセル",
+  copyCode: "デバイスコードをコピー",
+  copied: "コピーしました",
+  account: "Codexアカウント",
+  apiKeyLabel: "OpenAI APIキー",
+  apiKeyPlaceholder: "sk-…（ローカルバックエンドにのみ送信）",
+  apiKeyHint: "キーはURL、localStorage、ロール設定、ログに入りません。",
+  submitApiKey: "APIキーを接続",
+  logout: "接続を解除",
+  model: "Codexモデル",
+  modelDefault: "Codexのデフォルトモデルを使用",
+  modelUnavailable: "アカウントを接続して利用可能なモデルを読み込む",
+  reasoning: "推論強度",
+  reasoningDefault: "モデルのデフォルトに従う",
+  allowance: "利用枠",
+  remaining: "残り",
+  resetsAt: "リセット時刻",
+  lifetimeTokens: "累計トークン",
+  peakDailyTokens: "日次ピーク",
+  resetCredits: "レート制限リセット",
+  usageUnavailable:
+    "このログイン方式ではChatGPTアカウントの使用量を取得できません。",
+  connectors: "OpenAIコネクター",
+  connectorsHint:
+    "明示的に選択した接続だけを公開します。呼び出しにはEchoの承認が必要です。",
+  connectorUnavailable: "このアカウントで利用できるコネクターはありません。",
+  accountDetails: "コネクターと使用量",
+  saved: "Coderモデル設定を更新しました",
+  loginStarted: "認証ページでログインを完了してください",
+  loginComplete: "Codexアカウントを接続しました",
+  loginFailed: "Codex認証を完了できませんでした",
+  loginCancelled: "ログインをキャンセルしました",
+  apiKeyConnected: "APIキーを安全に接続しました",
+  accountSummary: (email, plan) =>
+    [email, plan].filter(Boolean).join(" · ") || "Codexアカウント",
+  openSettings: "ログインとモデルを管理",
+  activeSummary: (model) => `選択中のモデル · ${model}`,
+  technicalDetails: "設定の詳細",
+};
+
+const COPY_KO: typeof COPY.en = {
+  ...COPY.en,
+  triggerFallback: "Coder 모델",
+  followSystem: "시스템 모델 따르기",
+  followSystemShort: "시스템",
+  followSystemDescription:
+    "시스템 모델 연결의 주소와 API 키를 재사용합니다. 다시 설정할 필요가 없습니다.",
+  systemConnection: "시스템 연결",
+  accountSetupHint:
+    "로그인 후 Codex 계정으로 전환합니다. 그전까지는 시스템 모델 연결을 사용합니다.",
+  accountMode: "ChatGPT / Codex 사용",
+  accountModeShort: "Codex 계정",
+  subscriptionModeShort: "ChatGPT 구독",
+  accountModeDescription:
+    "ChatGPT로 로그인합니다. 별도의 OpenAI 키는 고급 옵션에서 설정할 수 있습니다.",
+  loading: "Coder 설정을 불러오는 중…",
+  loadFailed: "Coder 모델 설정을 불러올 수 없습니다.",
+  retry: "다시 시도",
+  compatible: "Codex 엔진에서 실행 가능",
+  incompatible: "시스템 모델이 Codex와 호환되지 않습니다",
+  unavailable: "실행할 수 없음",
+  backendDefault: "백엔드 기본 모델 따르기",
+  backendDefaultHint:
+    "위의 채팅 기본 모델과 별도로 서버 기본 모델을 사용합니다.",
+  accountConnected: "계정 연결됨",
+  pendingModel: "실행 가능한 모델 선택",
+  aliasHint:
+    "백엔드 기본값은 자동 라우팅 항목이며 실행 가능한 Codex 모델이 아닙니다. 특정 모델이나 연결된 ChatGPT / Codex 계정을 선택하세요.",
+  routeHint:
+    "선택한 모델에 백엔드 경로가 없습니다. 모델을 연결하거나 ChatGPT / Codex 계정을 사용하세요.",
+  proxyHint:
+    "시스템 모델 서비스를 사용할 수 없습니다. 백엔드 모델 연결을 확인하세요.",
+  savedUnavailable: "설정을 저장했지만 현재 실행할 수 없습니다",
+  useChatDefault: (model) => `채팅 기본 모델 사용 · ${model}`,
+  provider: "제공자",
+  effectiveModel: "실제 모델",
+  systemModel: "시스템 모델",
+  title: "Coder 엔진",
+  subtitle:
+    "Coder는 일반 역할입니다. 페르소나, 스킬, 팀 규칙은 Echo가 관리하고 코드 실행은 Codex 엔진이 담당합니다.",
+  sourceTitle: "모델 출처",
+  systemSource: "공식 모델",
+  subscriptionSource: "ChatGPT 구독",
+  apiKeySource: "OpenAI API 키(종량제)",
+  systemDefault: "시스템 기본값 따르기",
+  systemDefaultHint: "현재 시스템 설정 사용",
+  smartRoutingHint: "작업별로 지능적으로 선택",
+  systemOrchestratorHint:
+    "현재 모델은 오케스트레이터입니다. 아래에서 실행 모델을 선택하세요",
+  signInToChoose: "로그인하여 Codex 모델 선택",
+  reasoningShort: "추론 수준",
+  reasoningAdaptive: "이 모델이 자동으로 제어",
+  connected: "연결됨",
+  notConnected: "연결되지 않음",
+  pending: "인증 대기 중",
+  connectChatGPT: "ChatGPT로 로그인",
+  connectDevice: "디바이스 코드 사용",
+  connectApiKey: "고급: 별도의 OpenAI 키",
+  reuseApiKeyHint:
+    "이미 시스템에 키를 설정했다면 시스템 모델 따르기를 선택해 재사용하세요. 이 옵션은 Codex 전용 OpenAI 키를 위한 것으로 다른 제공자의 키는 사용할 수 없습니다.",
+  browserLoginHint:
+    "인증 페이지는 시스템 브라우저에서 직접 열립니다. URL은 로컬 저장소에 저장되지 않습니다.",
+  deviceCode: "디바이스 코드",
+  openAuthorization: "인증 페이지 열기",
+  cancelLogin: "인증 취소",
+  copyCode: "디바이스 코드 복사",
+  copied: "복사됨",
+  account: "Codex 계정",
+  apiKeyLabel: "OpenAI API 키",
+  apiKeyPlaceholder: "sk-… (로컬 백엔드에만 전송)",
+  apiKeyHint:
+    "키는 URL, localStorage, 역할 설정 또는 로그에 저장되지 않습니다.",
+  submitApiKey: "API 키 연결",
+  logout: "연결 해제",
+  model: "Codex 모델",
+  modelDefault: "Codex 기본 모델 사용",
+  modelUnavailable: "계정을 연결해 사용 가능한 모델 불러오기",
+  reasoning: "추론 강도",
+  reasoningDefault: "모델 기본값 따르기",
+  allowance: "사용량 한도",
+  remaining: "남음",
+  resetsAt: "재설정 시각",
+  lifetimeTokens: "누적 토큰",
+  peakDailyTokens: "일일 최대 토큰",
+  resetCredits: "요청 제한 재설정",
+  usageUnavailable:
+    "이 로그인 방식에서는 ChatGPT 계정 사용량을 제공하지 않습니다.",
+  connectors: "OpenAI 커넥터",
+  connectorsHint:
+    "명시적으로 선택한 연결만 노출합니다. 호출에는 Echo 승인이 필요합니다.",
+  connectorUnavailable: "이 계정에서 사용할 수 있는 커넥터가 없습니다.",
+  accountDetails: "커넥터 및 사용량",
+  saved: "Coder 모델 설정이 업데이트되었습니다",
+  loginStarted: "인증 페이지에서 로그인을 완료하세요",
+  loginComplete: "Codex 계정이 연결되었습니다",
+  loginFailed: "Codex 인증을 완료하지 못했습니다",
+  loginCancelled: "로그인이 취소되었습니다",
+  apiKeyConnected: "API 키가 안전하게 연결되었습니다",
+  accountSummary: (email, plan) =>
+    [email, plan].filter(Boolean).join(" · ") || "Codex 계정",
+  openSettings: "로그인 및 모델 관리",
+  activeSummary: (model) => `선택한 모델 · ${model}`,
+  technicalDetails: "설정 상세",
+};
+
+function copyForLocale(locale: string) {
+  const normalized = (locale || "en").toLowerCase();
+  if (normalized.startsWith("zh")) return COPY.zh;
+  if (normalized.startsWith("ja")) return COPY_JA;
+  if (normalized.startsWith("ko")) return COPY_KO;
+  return COPY.en;
+}
+
+async function openSensitiveAuthorizationUrl(url: string): Promise<boolean> {
+  // Do not use the regular in-app URL router here: it persists its navigation
+  // handoff in localStorage, while OAuth URLs can contain one-time state.
+  if (!/^https?:\/\//i.test(url)) return false;
+  if (window.echo?.app?.openExternal) {
+    await window.echo.app.openExternal(url);
+    return true;
+  }
+  const opened = window.open(url, "_blank", "noopener,noreferrer");
+  if (opened) opened.opener = null;
+  return Boolean(opened);
+}
+
+function profileLabel(
+  profile: CoderModelProfile | undefined,
+  copy: typeof COPY.en,
+) {
+  if (!profile) return copy.triggerFallback;
+  const source =
+    profile.source === "follow_system"
+      ? copy.followSystemShort
+      : copy.accountModeShort;
+  return profile.effective_model
+    ? `${source} · ${profile.effective_model}`
+    : source;
+}
+
+function compactProfileLabel(
+  profile: CoderModelProfile | undefined,
+  copy: typeof COPY.en,
+) {
+  if (!profile) return copy.triggerFallback;
+  return (
+    profile.effective_model ||
+    (profile.source === "follow_system"
+      ? copy.followSystemShort
+      : copy.accountModeShort)
+  );
+}
+
+function reasoningLabel(effort: ReasoningEffort, locale: string) {
+  const language = locale.toLowerCase().slice(0, 2);
+  const labels: Record<ReasoningEffort, Record<string, string>> = {
+    off: { zh: "关闭", ja: "オフ", ko: "끔", en: "Off" },
+    minimal: { zh: "极低", ja: "最小", ko: "최소", en: "Minimal" },
+    low: { zh: "低", ja: "低", ko: "낮음", en: "Low" },
+    medium: { zh: "中", ja: "中", ko: "중간", en: "Medium" },
+    high: { zh: "高", ja: "高", ko: "높음", en: "High" },
+    xhigh: { zh: "极高", ja: "超高", ko: "매우 높음", en: "XHigh" },
+    max: { zh: "最大", ja: "最大", ko: "최대", en: "Max" },
+  };
+  return labels[effort][language] ?? labels[effort].en;
+}
+
+function pickerModelValue(model: PickerModel) {
+  return model.selection_id || model.entry_id || model.name;
+}
+
+function systemModelFamilyKey(model: PickerModel) {
+  if (model.entry_id && model.model) {
+    return `${model.entry_id}\u0000${model.model}`;
+  }
+  return model.name.replace(/::1m$/, "");
+}
+
+function modelMatches(model: PickerModel, value: string | null | undefined) {
+  if (!value) return false;
+  return [
+    model.selection_id,
+    model.entry_id,
+    model.name,
+    model.model,
+    model.id,
+  ].includes(value);
+}
+
+function isCoderSystemModel(model: PickerModel) {
+  const identifiers = [
+    model.name,
+    model.model,
+    model.entry_id,
+    pickerModelValue(model),
+  ]
+    .filter((value): value is string => Boolean(value))
+    .map((value) => value.trim().toLowerCase());
+  return !identifiers.some((value) => isSystemOrchestratorModel(value));
+}
+
+function isSystemOrchestratorModel(value: string | null | undefined) {
+  const normalized = value?.trim().toLowerCase();
+  return ["mix", "echo-mix", "echo-ai"].includes(normalized || "");
+}
+
+function profileCanExecute(profile: CoderModelProfile) {
+  return profile.compatible && profile.execution_available !== false;
+}
+
+function profileProblem(profile: CoderModelProfile, locale: string) {
+  const copy = copyForLocale(locale);
+  if (!profile.compatible) {
+    if (
+      isSystemOrchestratorModel(
+        profile.effective_model ||
+          profile.selected_model ||
+          profile.system_model,
+      )
+    ) {
+      return copy.aliasHint;
+    }
+    if (
+      profile.compatibility_reason?.includes("no exact Echo ModelRouter route")
+    )
+      return copy.routeHint;
+    if (
+      profile.compatibility_reason?.includes("Responses proxy is unavailable")
+    )
+      return copy.proxyHint;
+    return profile.compatibility_reason || copy.incompatible;
+  }
+  if (profile.execution_available !== false) return null;
+  const language = locale.toLowerCase().slice(0, 2);
+  const reasons: Record<string, Record<string, string>> = {
+    disabled: {
+      zh: "Codex 引擎尚未启用。",
+      ja: "Codexエンジンが有効になっていません。",
+      ko: "Codex 엔진이 활성화되지 않았습니다.",
+      en: "The Codex engine is disabled.",
+    },
+    executable_unavailable: {
+      zh: "未找到 Codex 程序，请检查本地安装。",
+      ja: "Codex実行ファイルが見つかりません。ローカルインストールを確認してください。",
+      ko: "Codex 실행 파일을 찾을 수 없습니다. 로컬 설치를 확인하세요.",
+      en: "Codex executable not found. Check the local installation.",
+    },
+    tools_unavailable: {
+      zh: "执行工具尚未就绪，请检查后端服务。",
+      ja: "実行ツールの準備ができていません。バックエンドサービスを確認してください。",
+      ko: "실행 도구가 준비되지 않았습니다. 백엔드 서비스를 확인하세요.",
+      en: "Execution tools are not ready. Check the backend service.",
+    },
+    account_required: {
+      zh: "请先连接 ChatGPT / Codex 账号。",
+      ja: "先にChatGPT / Codexアカウントを接続してください。",
+      ko: "먼저 ChatGPT / Codex 계정을 연결하세요.",
+      en: "Connect a ChatGPT / Codex account first.",
+    },
+    account_unavailable: {
+      zh: "账号凭据暂不可用，请重新连接。",
+      ja: "アカウント認証情報を利用できません。再接続してください。",
+      ko: "계정 자격 증명을 사용할 수 없습니다. 다시 연결하세요.",
+      en: "Account credentials are unavailable. Reconnect your account.",
+    },
+  };
+  const reason = reasons[profile.execution_unavailable_reason || ""];
+  return reason ? (reason[language] ?? reason.en) : copy.unavailable;
+}
+
+function ProfileCompatibility({
+  profile,
+  compact = false,
+}: {
+  profile: CoderModelProfile;
+  compact?: boolean;
+}) {
+  const { locale } = useI18n();
+  const copy = copyForLocale(locale);
+  const available = profileCanExecute(profile);
+  return (
+    <div
+      className={cn(
+        "flex gap-2 rounded-lg border px-3 py-2 text-xs",
+        available
+          ? "border-success/20 bg-success/[0.06] text-success"
+          : "border-warning/25 bg-warning/[0.06] text-warning",
+      )}
+    >
+      {available ? (
+        <CheckCircle2Icon className="mt-0.5 size-3.5 shrink-0" />
+      ) : (
+        <AlertTriangleIcon className="mt-0.5 size-3.5 shrink-0" />
+      )}
+      <div className="min-w-0">
+        <div className="font-medium">
+          {available ? copy.compatible : copy.unavailable}
+        </div>
+        {!compact && profileProblem(profile, locale) ? (
+          <div className="mt-0.5 break-words text-current/80">
+            {profileProblem(profile, locale)}
+          </div>
+        ) : null}
+      </div>
+    </div>
+  );
+}
+
+function UsageStat({
+  label,
+  value,
+  locale,
+}: {
+  label: string;
+  value: number | null | undefined;
+  locale: string;
+}) {
+  return (
+    <div className="rounded-lg border border-border bg-background/60 p-3">
+      <div className="text-xs text-muted-foreground">{label}</div>
+      <div className="mt-1 font-mono text-sm font-medium">
+        {typeof value === "number" ? value.toLocaleString(locale) : "—"}
+      </div>
+    </div>
+  );
+}
+
+export function CoderEngineControl({
+  systemModels = [],
+  disabled = false,
+  executionEngine = "codex",
+  value,
+  onChange,
+  onEffectiveModelChange,
+  reasoningEffort,
+  onReasoningEffortChange,
+}: {
+  systemModels?: PickerModel[];
+  disabled?: boolean;
+  executionEngine?: "echo" | "codex";
+  value?: string;
+  onChange?: (model: string) => void;
+  onEffectiveModelChange?: (model: string) => void;
+  reasoningEffort?: ReasoningEffort;
+  onReasoningEffortChange?: (effort: ReasoningEffort) => void;
+}) {
+  const { locale } = useI18n();
+  const copy = copyForLocale(locale);
+  const queryClient = useQueryClient();
+  const { user, isLoading: authLoading } = useAuth();
+  const principalKey = user?.actor_id || user?.user_id || "local";
+  const queryKeys = useMemo(() => coderQueryKeys(principalKey), [principalKey]);
+  const [open, setOpen] = useState(false);
+  const [viewSource, setViewSource] = useState<
+    "follow_system" | "codex_account"
+  >("follow_system");
+  const profileQuery = useQuery({
+    queryKey: queryKeys.profile,
+    queryFn: ({ signal }) => getCoderModelProfile(signal),
+    enabled: !authLoading,
+    staleTime: 30_000,
+  });
+  const accountQuery = useQuery({
+    queryKey: queryKeys.account,
+    queryFn: ({ signal }) => getCoderAccount(signal),
+    enabled: !authLoading,
+    staleTime: 10_000,
+  });
+  const modelsQuery = useQuery({
+    queryKey: queryKeys.models,
+    queryFn: ({ signal }) => getCoderModels(signal),
+    enabled: Boolean(accountQuery.data?.account),
+    staleTime: 60_000,
+  });
+  const saveProfile = useMutation({
+    scope: { id: `coder-model-profile:${principalKey}` },
+    mutationFn: updateCoderModelProfile,
+    onMutate: async () => {
+      await queryClient.cancelQueries({ queryKey: queryKeys.profile });
+    },
+    onSuccess: (profile) => {
+      queryClient.setQueryData(queryKeys.profile, profile);
+    },
+  });
+  const profile = profileQuery.data;
+  const nativeKernel = executionEngine === "echo";
+  const pendingNativeModelRef = useRef(value || "auto");
+  useEffect(() => {
+    pendingNativeModelRef.current = value || "auto";
+  }, [value]);
+  const nativeAccountModel = nativeKernel
+    ? String(value || "").replace(/^chatgpt[/:]/i, "")
+    : "";
+  const nativeAccountSelected =
+    nativeKernel && /^chatgpt[/:]/i.test(String(value || ""));
+  const chatGPTSubscriptionConnected =
+    accountQuery.data?.account?.type === "chatgpt";
+  const visibleAccountSource =
+    accountQuery.data?.account?.type === "apiKey"
+      ? copy.apiKeySource
+      : copy.subscriptionSource;
+  const visibleSystemModels = useMemo(() => {
+    const seen = new Set<string>();
+    return [...systemModels]
+      .sort(
+        (a, b) =>
+          Number(a.entry_id === "official") - Number(b.entry_id === "official"),
+      )
+      .filter((model) => {
+        if (!isCoderSystemModel(model)) return false;
+        if (["opencode-zen", "opencode-go"].includes(model.entry_id || ""))
+          return false;
+        if (model.context_profile === "1m") return false;
+        const key = pickerModelValue(model);
+        if (seen.has(key)) return false;
+        seen.add(key);
+        return true;
+      });
+  }, [systemModels]);
+  const activeSystemModel = useMemo(
+    () =>
+      (nativeKernel
+        ? systemModels.find((model) => modelMatches(model, value))
+        : profile?.source === "follow_system"
+          ? systemModels.find((model) =>
+              modelMatches(
+                model,
+                profile.selected_model || profile.effective_model,
+              ),
+            )
+          : undefined) ??
+      systemModels.find((model) => modelMatches(model, profile?.system_model)),
+    [
+      profile?.effective_model,
+      profile?.selected_model,
+      profile?.source,
+      profile?.system_model,
+      systemModels,
+      nativeKernel,
+      value,
+    ],
+  );
+  const visibleSystemModelName =
+    activeSystemModel?.display_name ||
+    activeSystemModel?.name ||
+    activeSystemModel?.model ||
+    (!nativeKernel ? profile?.effective_model?.replace(/^official\//, "") : undefined) ||
+    value?.replace(/^official\//, "") ||
+    "auto";
+  const visibleSystemSource = activeSystemModel?.source_display_name;
+  const fullProfileLabel = nativeKernel
+    ? nativeAccountSelected
+      ? `${copy.subscriptionModeShort} · ${nativeAccountModel}`
+      : `${visibleSystemSource || copy.followSystemShort} · ${visibleSystemModelName}`
+    : profile?.source === "codex_account" && profile.effective_model
+      ? `${visibleAccountSource} · ${profile.effective_model}`
+      : profile?.source === "follow_system"
+        ? `${visibleSystemSource || copy.followSystemShort} · ${visibleSystemModelName}`
+        : profileLabel(profile, copy);
+  const activeCodexModel = useMemo(
+    () =>
+      nativeKernel
+        ? modelsQuery.data?.models.find(
+            (model) => model.id === nativeAccountModel,
+          )
+        : profile?.source === "codex_account"
+          ? modelsQuery.data?.models.find(
+              (model) =>
+                model.id === profile?.effective_model ||
+                (!profile?.effective_model && model.is_default),
+            )
+          : undefined,
+    [
+      modelsQuery.data?.models,
+      nativeAccountModel,
+      nativeKernel,
+      profile?.effective_model,
+      profile?.source,
+    ],
+  );
+  const offeredEfforts = useMemo(
+    () =>
+      supportedReasoningEfforts(
+        viewSource === "codex_account" ? activeCodexModel : activeSystemModel,
+      ),
+    [activeCodexModel, activeSystemModel, viewSource],
+  );
+
+  const changeReasoningEffort = (effort: ReasoningEffort) => {
+    if (nativeKernel) {
+      onReasoningEffortChange?.(effort);
+      return;
+    }
+    if (!profile) return;
+    saveProfile.mutate({
+      source: viewSource,
+      ...(profile.source === viewSource && profile.selected_model
+        ? { model: profile.selected_model }
+        : {}),
+      reasoning_effort: effort,
+    });
+  };
+
+  const selectSystemModel = (model?: string) => {
+    if (nativeKernel) {
+      const nextValue = model || "auto";
+      const pendingValue = pendingNativeModelRef.current;
+      const pendingSystemModel = model
+        ? systemModels.find((candidate) => modelMatches(candidate, model))
+        : undefined;
+      const alreadySelected = model
+        ? !/^chatgpt[/:]/i.test(pendingValue) &&
+          Boolean(
+            pendingSystemModel &&
+            modelMatches(pendingSystemModel, pendingValue),
+          )
+        : !/^chatgpt[/:]/i.test(pendingValue) &&
+          (!pendingValue ||
+            pendingValue === "auto" ||
+            pendingValue === "default");
+      if (alreadySelected) return;
+      pendingNativeModelRef.current = nextValue;
+      onChange?.(nextValue);
+      onEffectiveModelChange?.(
+        pendingSystemModel?.display_name ||
+          pendingSystemModel?.model ||
+          model ||
+          profile?.system_model ||
+          copy.systemDefault,
+      );
+      return;
+    }
+    const alreadySelected = model
+      ? profile?.source === "follow_system" &&
+        profile.model_source === "role" &&
+        Boolean(activeSystemModel && modelMatches(activeSystemModel, model))
+      : profile?.source === "follow_system" &&
+        profile.model_source === "system";
+    if (alreadySelected) return;
+    saveProfile.mutate(
+      {
+        source: "follow_system",
+        ...(model ? { model } : {}),
+        reasoning_effort: null,
+      },
+      {
+        onSuccess: (nextProfile) =>
+          onEffectiveModelChange?.(
+            nextProfile.effective_model || model || copy.systemDefault,
+          ),
+      },
+    );
+  };
+
+  const selectAccountModel = (model: string) => {
+    if (nativeKernel) {
+      const nextValue = `chatgpt/${model}`;
+      if (pendingNativeModelRef.current === nextValue) return;
+      pendingNativeModelRef.current = nextValue;
+      onChange?.(nextValue);
+      onEffectiveModelChange?.(model);
+      return;
+    }
+    if (
+      profile?.source === "codex_account" &&
+      profile.effective_model === model
+    ) {
+      return;
+    }
+    saveProfile.mutate(
+      { source: "codex_account", model },
+      {
+        onSuccess: (nextProfile) =>
+          onEffectiveModelChange?.(nextProfile.effective_model || model),
+      },
+    );
+  };
+
+  const controlPending = !nativeKernel && saveProfile.isPending;
+  const compactLabel = nativeKernel
+    ? nativeAccountSelected
+      ? nativeAccountModel
+      : visibleSystemModelName
+    : profile?.source === "follow_system" && activeSystemModel
+      ? visibleSystemModelName
+      : compactProfileLabel(profile, copy)?.replace(/^official\//, "");
+  const selectedReasoningEffort = nativeKernel
+    ? reasoningEffort
+    : profile?.reasoning_effort;
+  const activeSystemSelectionValue = nativeKernel
+    ? value
+    : profile?.source === "follow_system"
+      ? profile.selected_model || profile.effective_model
+      : profile?.system_model;
+
+  const openModelSettings = () => {
+    setOpen(false);
+    window.dispatchEvent(
+      new CustomEvent("echo:open-settings", { detail: { tab: "models" } }),
+    );
+  };
+
+  return (
+    <DropdownMenu
+      open={open}
+      onOpenChange={(nextOpen) => {
+        setOpen(nextOpen);
+        if (nextOpen) {
+          setViewSource(
+            nativeKernel
+              ? nativeAccountSelected
+                ? "codex_account"
+                : "follow_system"
+              : profile?.source || "follow_system",
+          );
+        }
+      }}
+    >
+      <Tooltip delayDuration={80}>
+        <TooltipTrigger asChild>
+          <DropdownMenuTrigger asChild>
+            <button
+              type="button"
+              data-testid="coder-engine-trigger"
+              aria-label={fullProfileLabel}
+              className="inline-flex min-w-0 max-w-32 items-center gap-1 rounded-lg border border-transparent bg-transparent px-2 py-1 text-xs text-muted-foreground outline-none transition hover:border-border-default hover:bg-muted/60 hover:text-foreground data-[state=open]:bg-muted data-[state=open]:text-foreground"
+              disabled={disabled}
+            >
+              {profileQuery.isLoading ? (
+                <Loader2Icon className="size-3 animate-spin" />
+              ) : null}
+              <span
+                className={cn(
+                  "truncate",
+                  !nativeAccountSelected &&
+                    isFreePickerModel(activeSystemModel) &&
+                    "text-emerald-600 dark:text-emerald-400",
+                )}
+              >
+                {compactLabel}
+              </span>
+              <ChevronDownIcon className="size-3 opacity-60" />
+            </button>
+          </DropdownMenuTrigger>
+        </TooltipTrigger>
+        <TooltipContent side="top" sideOffset={6}>
+          {fullProfileLabel}
+        </TooltipContent>
+      </Tooltip>
+      <DropdownMenuContent
+        align="end"
+        side="top"
+        sideOffset={6}
+        className="w-72 p-1.5"
+      >
+        {profileQuery.isError ? (
+          <div className="space-y-2 rounded-lg border border-destructive/20 bg-destructive/[0.04] p-2 text-xs text-destructive">
+            <div>{copy.loadFailed}</div>
+            <button
+              type="button"
+              className="font-medium hover:underline"
+              onClick={() => void profileQuery.refetch()}
+            >
+              {copy.retry}
+            </button>
+          </div>
+        ) : profile ? (
+          <>
+            <div className="flex flex-wrap gap-0.5 rounded-lg bg-muted/45 p-0.5 [&>button]:flex-1 [&>button]:whitespace-nowrap">
+              <button
+                type="button"
+                aria-pressed={viewSource === "follow_system"}
+                disabled={controlPending}
+                onClick={() => {
+                  setViewSource("follow_system");
+                }}
+                className={cn(
+                  "h-7 rounded-md px-2 text-xs outline-none transition focus-visible:ring-1 focus-visible:ring-inset focus-visible:ring-ring/40",
+                  viewSource === "follow_system"
+                    ? "bg-background font-medium text-foreground shadow-sm"
+                    : "text-muted-foreground hover:text-foreground",
+                )}
+              >
+                {copy.systemSource}
+              </button>
+              <button
+                type="button"
+                aria-pressed={viewSource === "codex_account"}
+                disabled={controlPending}
+                onClick={() => setViewSource("codex_account")}
+                className={cn(
+                  "h-7 rounded-md px-2 text-xs outline-none transition focus-visible:ring-1 focus-visible:ring-inset focus-visible:ring-ring/40",
+                  viewSource === "codex_account"
+                    ? "bg-background font-medium text-foreground shadow-sm"
+                    : "text-muted-foreground hover:text-foreground",
+                )}
+              >
+                Codex
+              </button>
+            </div>
+
+            <div className="mt-1 max-h-52 space-y-0.5 overflow-y-auto">
+              {viewSource === "follow_system" ? (
+                <>
+                  {visibleSystemModels.length === 0 && (
+                    <p className="px-2 py-3 text-xs text-muted-foreground">
+                      {locale === "zh-CN"
+                        ? "暂无可用模型，请在下方添加自定义模型。"
+                        : "No models available. Add a custom model below."}
+                    </p>
+                  )}
+                  {visibleSystemModels.map((model, index) => {
+                    const selected = nativeKernel
+                      ? !nativeAccountSelected && modelMatches(model, value)
+                      : profile.source === "follow_system" &&
+                        profile.model_source === "role" &&
+                        modelMatches(
+                          model,
+                          profile.selected_model || profile.effective_model,
+                        );
+                    const contextVariantSelected = Boolean(
+                      activeSystemModel &&
+                      systemModelFamilyKey(activeSystemModel) ===
+                        systemModelFamilyKey(model) &&
+                      (nativeKernel
+                        ? !nativeAccountSelected &&
+                          value !== "auto" &&
+                          value !== "default"
+                        : profile.source === "follow_system" &&
+                          profile.model_source === "role"),
+                    );
+                    return (
+                      <div
+                        key={`${pickerModelValue(model)}:${model.id || model.model || index}:${index}`}
+                        className={cn(
+                          "flex h-8 w-full items-stretch rounded-md text-xs hover:bg-muted/60",
+                          (selected || contextVariantSelected) &&
+                            "bg-muted/70 text-foreground",
+                        )}
+                      >
+                        <button
+                          type="button"
+                          disabled={controlPending}
+                          onClick={() =>
+                            selectSystemModel(pickerModelValue(model))
+                          }
+                          className="flex min-w-0 flex-1 items-center justify-between gap-2 rounded-md px-2 text-left"
+                        >
+                          <span
+                            className={cn(
+                              "truncate",
+                              isFreePickerModel(model) &&
+                                "text-emerald-600 dark:text-emerald-400",
+                            )}
+                          >
+                            {model.display_name || model.name}
+                          </span>
+                          {selected || contextVariantSelected ? (
+                            <CheckCircle2Icon className="size-3.5 shrink-0 text-muted-foreground" />
+                          ) : null}
+                        </button>
+                      </div>
+                    );
+                  })}
+                </>
+              ) : accountQuery.data?.account &&
+                (!nativeKernel || chatGPTSubscriptionConnected) ? (
+                <>
+                  {(modelsQuery.data?.models ?? []).map((model) => (
+                    <button
+                      key={model.id}
+                      type="button"
+                      disabled={controlPending}
+                      className={cn(
+                        "flex w-full items-center justify-between gap-2 rounded-md px-2 py-1.5 text-left text-xs hover:bg-muted",
+                        (nativeKernel
+                          ? nativeAccountSelected &&
+                            nativeAccountModel === model.id
+                          : profile.source === "codex_account" &&
+                            profile.effective_model === model.id) &&
+                          "bg-muted/70 text-foreground",
+                      )}
+                      onClick={() => selectAccountModel(model.id)}
+                    >
+                      <span className="truncate">
+                        {model.display_name || model.id}
+                      </span>
+                      {(
+                        nativeKernel
+                          ? nativeAccountSelected &&
+                            nativeAccountModel === model.id
+                          : profile.source === "codex_account" &&
+                            profile.effective_model === model.id
+                      ) ? (
+                        <CheckCircle2Icon className="size-3.5 shrink-0" />
+                      ) : null}
+                    </button>
+                  ))}
+                  {modelsQuery.isLoading ? (
+                    <div className="flex items-center gap-2 px-2 py-1.5 text-xs text-muted-foreground">
+                      <Loader2Icon className="size-3 animate-spin" />{" "}
+                      {copy.loading}
+                    </div>
+                  ) : null}
+                </>
+              ) : (
+                <button
+                  type="button"
+                  onClick={openModelSettings}
+                  className="flex h-9 w-full items-center gap-2 rounded-md px-2 text-left text-xs text-muted-foreground hover:bg-muted/60 hover:text-foreground"
+                >
+                  <UserRoundIcon className="size-3.5" />
+                  {copy.signInToChoose}
+                </button>
+              )}
+            </div>
+
+            {offeredEfforts.length > 0 ? (
+              <div className="mt-1 border-t border-border-default pt-1">
+                <div className="flex items-center justify-between px-1 pb-1 text-xs text-muted-foreground">
+                  <span>{copy.reasoningShort}</span>
+                </div>
+                <div
+                  className="grid gap-0.5 rounded-md bg-muted/35 p-0.5"
+                  style={{
+                    gridTemplateColumns: `repeat(${offeredEfforts.length}, minmax(0, 1fr))`,
+                  }}
+                >
+                  {offeredEfforts.map((effort) => (
+                    <button
+                      key={effort}
+                      type="button"
+                      disabled={controlPending}
+                      onClick={() => changeReasoningEffort(effort)}
+                      className={cn(
+                        "h-6 rounded px-1 text-xs transition",
+                        (
+                          nativeKernel
+                            ? selectedReasoningEffort === effort
+                            : profile.source === viewSource &&
+                              profile.reasoning_effort === effort
+                        )
+                          ? "bg-background text-foreground shadow-sm"
+                          : "text-muted-foreground hover:text-foreground",
+                      )}
+                    >
+                      {reasoningLabel(effort, locale)}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            ) : null}
+            {saveProfile.isError ? (
+              <p role="alert" className="px-2 py-2 text-xs text-destructive">
+                {saveProfile.error instanceof Error
+                  ? saveProfile.error.message
+                  : copy.unavailable}
+              </p>
+            ) : null}
+
+            {viewSource === "follow_system" && activeSystemModel ? (
+              <ModelContextSetting
+                models={systemModels}
+                selected={activeSystemModel}
+                value={activeSystemSelectionValue}
+                disabled={controlPending}
+                onChange={selectSystemModel}
+                className="mx-1 mt-1 border-t border-border-default px-0.5 pt-1.5"
+              />
+            ) : null}
+
+            {!nativeKernel && !profileCanExecute(profile) ? (
+              <div className="mt-1">
+                <ProfileCompatibility profile={profile} compact />
+              </div>
+            ) : null}
+          </>
+        ) : (
+          <div className="flex items-center gap-2 p-2 text-xs text-muted-foreground">
+            <Loader2Icon className="size-3.5 animate-spin" /> {copy.loading}
+          </div>
+        )}
+        <button
+          type="button"
+          onClick={() => {
+            setOpen(false);
+            openCustomModelSetup();
+          }}
+          className="mt-1 flex h-7 w-full items-center justify-center gap-1.5 rounded-md border-t border-border px-2 pt-1 text-xs text-muted-foreground transition hover:text-foreground"
+        >
+          <KeyRoundIcon className="size-3.5" />
+          {locale === "zh-CN" ? "添加自定义模型" : "Add custom model"}
+        </button>
+      </DropdownMenuContent>
+    </DropdownMenu>
+  );
+}
+
+export function CoderEngineSettings({
+  conversationDefaultModel,
+  conversationDefaultLabel,
+  accountSetupRequest = 0,
+  authorizationOnly = false,
+}: {
+  conversationDefaultModel?: string;
+  conversationDefaultLabel?: string;
+  accountSetupRequest?: number;
+  authorizationOnly?: boolean;
+} = {}) {
+  const { locale } = useI18n();
+  const copy = copyForLocale(locale);
+  const queryClient = useQueryClient();
+  const { user } = useAuth();
+  const principalKey = user?.actor_id || user?.user_id || "local";
+  const queryKeys = useMemo(() => coderQueryKeys(principalKey), [principalKey]);
+  const [activeLogin, setActiveLogin] = useState<CoderLoginResult | null>(null);
+  const [accountSetupOpen, setAccountSetupOpen] = useState(false);
+  useEffect(() => {
+    if (accountSetupRequest > 0) setAccountSetupOpen(true);
+  }, [accountSetupRequest]);
+  const [loginError, setLoginError] = useState<string | null>(null);
+  const [loginNotice, setLoginNotice] = useState<string | null>(null);
+  const [copied, setCopied] = useState(false);
+  const [loginBusy, setLoginBusy] = useState<
+    CoderLoginType | "cancel" | "logout" | null
+  >(null);
+  const loginStartedAtRef = useRef(0);
+  const mountedRef = useRef(true);
+  const activeLoginRef = useRef<CoderLoginResult | null>(null);
+  const dismissedLoginErrorRef = useRef<string | null>(null);
+
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => {
+      mountedRef.current = false;
+      // Login is backend-owned and intentionally survives renderer reloads or
+      // settings-route unmounts. The next instance rehydrates the opaque id;
+      // only the explicit Cancel/Logout controls terminate the operation.
+    };
+  }, []);
+
+  const profileQuery = useQuery({
+    queryKey: queryKeys.profile,
+    queryFn: ({ signal }) => getCoderModelProfile(signal),
+    staleTime: 30_000,
+  });
+  const accountQuery = useQuery({
+    queryKey: queryKeys.account,
+    queryFn: ({ signal }) => getCoderAccount(signal),
+    staleTime: 5_000,
+  });
+  const refetchAccount = accountQuery.refetch;
+  const profile = profileQuery.data;
+  const loginPending = Boolean(accountQuery.data?.login_pending || activeLogin);
+  const showAccountPanel =
+    authorizationOnly ||
+    profile?.source === "codex_account" ||
+    accountSetupOpen ||
+    loginPending;
+
+  useEffect(() => {
+    const state = accountQuery.data;
+    if (
+      state?.login_error &&
+      state.login_error !== dismissedLoginErrorRef.current
+    ) {
+      setLoginError(state.login_error);
+    }
+    if (state?.login_pending && state.login_id && !activeLoginRef.current) {
+      // Login operations outlive a renderer reload. Rehydrate the opaque id
+      // from the backend so polling and explicit cancellation remain
+      // available without persisting an OAuth URL or device code locally.
+      const recovered: CoderLoginResult = {
+        type: "chatgpt",
+        login_id: state.login_id,
+      };
+      activeLoginRef.current = recovered;
+      loginStartedAtRef.current = 0;
+      setActiveLogin(recovered);
+      setAccountSetupOpen(true);
+    }
+  }, [accountQuery.data]);
+  const modelsQuery = useQuery({
+    queryKey: queryKeys.models,
+    queryFn: ({ signal }) => getCoderModels(signal),
+    enabled:
+      !authorizationOnly &&
+      showAccountPanel &&
+      Boolean(accountQuery.data?.account),
+    staleTime: 60_000,
+  });
+  const hasChatGPTUsage =
+    showAccountPanel && accountQuery.data?.account?.type === "chatgpt";
+  const rateLimitsQuery = useQuery({
+    queryKey: queryKeys.rateLimits,
+    queryFn: ({ signal }) => getCoderRateLimits(signal),
+    enabled: hasChatGPTUsage,
+    staleTime: 30_000,
+    refetchInterval: hasChatGPTUsage ? 60_000 : false,
+  });
+  const usageQuery = useQuery({
+    queryKey: queryKeys.usage,
+    queryFn: ({ signal }) => getCoderUsage(signal),
+    enabled: hasChatGPTUsage,
+    staleTime: 5 * 60_000,
+  });
+  const appsQuery = useQuery({
+    queryKey: queryKeys.apps,
+    queryFn: ({ signal }) => getCoderApps(signal),
+    enabled: hasChatGPTUsage,
+    staleTime: 60_000,
+  });
+  const saveApps = useMutation({
+    scope: { id: "coder-app-selection" },
+    mutationFn: updateCoderApps,
+    onSuccess: (apps) => queryClient.setQueryData(queryKeys.apps, apps),
+    onError: (error) => {
+      setLoginError(error instanceof Error ? error.message : String(error));
+    },
+  });
+  const saveProfile = useMutation({
+    scope: { id: `coder-model-profile:${principalKey}` },
+    mutationFn: updateCoderModelProfile,
+    onMutate: () => {
+      setLoginError(null);
+      setLoginNotice(null);
+    },
+    onSuccess: (profile) => {
+      queryClient.setQueryData(queryKeys.profile, profile);
+      setAccountSetupOpen(false);
+      setLoginNotice(
+        profileCanExecute(profile) ? copy.saved : copy.savedUnavailable,
+      );
+    },
+  });
+
+  const completeAccountLogin = useCallback(async () => {
+    activeLoginRef.current = null;
+    setActiveLogin(null);
+    setLoginNotice(copy.loginComplete);
+    await Promise.all([
+      queryClient.invalidateQueries({ queryKey: queryKeys.models }),
+      queryClient.invalidateQueries({ queryKey: queryKeys.rateLimits }),
+      queryClient.invalidateQueries({ queryKey: queryKeys.usage }),
+      queryClient.invalidateQueries({ queryKey: queryKeys.apps }),
+    ]);
+    if (!authorizationOnly) {
+      const profile = await updateCoderModelProfile({
+        source: "codex_account",
+      });
+      queryClient.setQueryData(queryKeys.profile, profile);
+    }
+  }, [
+    authorizationOnly,
+    copy.loginComplete,
+    queryClient,
+    queryKeys.apps,
+    queryKeys.models,
+    queryKeys.profile,
+    queryKeys.rateLimits,
+    queryKeys.usage,
+  ]);
+
+  useEffect(() => {
+    if (!activeLogin?.login_id) return;
+    let stopped = false;
+    const poll = async () => {
+      const result = await refetchAccount();
+      if (stopped) return;
+      const state = result.data;
+      const expected = activeLogin.type === "apiKey" ? "apiKey" : "chatgpt";
+      if (
+        state?.account?.type === expected &&
+        !state.login_pending &&
+        Date.now() - loginStartedAtRef.current > 500
+      ) {
+        try {
+          await completeAccountLogin();
+        } catch (error) {
+          setLoginError(error instanceof Error ? error.message : String(error));
+        }
+      } else if (
+        state &&
+        !state.login_pending &&
+        !state.account &&
+        Date.now() - loginStartedAtRef.current > 500
+      ) {
+        // App Server reports failed/cancelled login completion by clearing the
+        // pending id. Do not retain the stale renderer operation forever.
+        activeLoginRef.current = null;
+        setActiveLogin(null);
+        setLoginError(state.login_error || copy.loginFailed);
+      }
+    };
+    const timer = window.setInterval(() => void poll(), 1500);
+    void poll();
+    return () => {
+      stopped = true;
+      window.clearInterval(timer);
+    };
+  }, [activeLogin, completeAccountLogin, copy.loginFailed, refetchAccount]);
+
+  const beginLogin = async (type: CoderLoginType, apiKey?: string) => {
+    dismissedLoginErrorRef.current = null;
+    setLoginBusy(type);
+    setLoginError(null);
+    setLoginNotice(null);
+    setCopied(false);
+    try {
+      const result = await startCoderLogin(type, apiKey);
+      loginStartedAtRef.current = Date.now();
+      if (type === "apiKey") {
+        if (!mountedRef.current) return;
+        await accountQuery.refetch();
+        await completeAccountLogin();
+        setLoginNotice(copy.apiKeyConnected);
+        return;
+      }
+      if (!mountedRef.current) {
+        // The backend operation may have committed after this renderer went
+        // away. Leave it intact so a replacement renderer can rehydrate it.
+        return;
+      }
+      activeLoginRef.current = result;
+      setActiveLogin(result);
+      setLoginNotice(copy.loginStarted);
+      const url = result.auth_url || result.verification_url;
+      if (url) await openSensitiveAuthorizationUrl(url);
+    } catch (error) {
+      if (mountedRef.current) {
+        setLoginError(error instanceof Error ? error.message : String(error));
+      }
+    } finally {
+      if (mountedRef.current) setLoginBusy(null);
+    }
+  };
+
+  const submitApiKey = (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    const form = event.currentTarget;
+    const key = String(new FormData(form).get("api_key") ?? "").trim();
+    // Clear the DOM immediately. The key is never copied into React state,
+    // browser storage, a URL, telemetry, or a log message.
+    form.reset();
+    if (key) void beginLogin("apiKey", key);
+  };
+
+  const cancelLogin = async () => {
+    if (!activeLogin?.login_id) return;
+    setLoginBusy("cancel");
+    setLoginError(null);
+    try {
+      const cancelled = await cancelCoderLogin(activeLogin.login_id);
+      activeLoginRef.current = null;
+      setActiveLogin(null);
+      if (cancelled) {
+        setLoginNotice(copy.loginCancelled);
+      } else {
+        setLoginError(copy.loginFailed);
+      }
+      const result = await accountQuery.refetch();
+      if (cancelled) {
+        dismissedLoginErrorRef.current = result.data?.login_error || null;
+        setLoginError(null);
+      }
+    } catch (error) {
+      setLoginError(error instanceof Error ? error.message : String(error));
+    } finally {
+      setLoginBusy(null);
+    }
+  };
+
+  const logout = async () => {
+    setLoginBusy("logout");
+    setLoginError(null);
+    try {
+      await logoutCoderAccount();
+    } catch (error) {
+      setLoginError(error instanceof Error ? error.message : String(error));
+    } finally {
+      // Logout resets the model preference server-side before touching the
+      // account. Always discard optimistic/stale account state, even when the
+      // remote logout operation reports a recoverable failure.
+      activeLoginRef.current = null;
+      setActiveLogin(null);
+      queryClient.removeQueries({ queryKey: queryKeys.models });
+      queryClient.removeQueries({ queryKey: queryKeys.rateLimits });
+      queryClient.removeQueries({ queryKey: queryKeys.usage });
+      queryClient.removeQueries({ queryKey: queryKeys.apps });
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: queryKeys.account }),
+        queryClient.invalidateQueries({ queryKey: queryKeys.profile }),
+      ]);
+      setLoginBusy(null);
+    }
+  };
+
+  const account = accountQuery.data?.account;
+  const currentModel =
+    modelsQuery.data?.models.find(
+      (model) => model.id === profile?.effective_model,
+    ) ??
+    modelsQuery.data?.models.find((model) => model.is_default) ??
+    null;
+  const reasoningOptions = supportedReasoningEfforts(currentModel);
+  const busy = saveProfile.isPending || loginBusy !== null;
+  const chatDefault = conversationDefaultModel?.trim() || "";
+  const chatDefaultUsesAccount = /^chatgpt[/:]/i.test(chatDefault);
+  const chatDefaultModel = chatDefaultUsesAccount
+    ? chatDefault.replace(/^chatgpt[/:]/i, "")
+    : chatDefault;
+  const chatDefaultSource = chatDefaultUsesAccount
+    ? "codex_account"
+    : "follow_system";
+  const canUseChatDefault = Boolean(
+    chatDefaultModel &&
+    !["auto", "default", "inherit", "follow_system"].includes(
+      chatDefaultModel.toLowerCase(),
+    ) &&
+    !isSystemOrchestratorModel(chatDefaultModel) &&
+    (!chatDefaultUsesAccount || account?.type === "chatgpt"),
+  );
+  const matchesChatDefault =
+    profile?.source === chatDefaultSource &&
+    (profile?.selected_model || profile?.effective_model) === chatDefaultModel;
+  const executionAvailable = profile ? profileCanExecute(profile) : false;
+  const error = saveProfile.error
+    ? saveProfile.error instanceof Error
+      ? saveProfile.error.message
+      : String(saveProfile.error)
+    : showAccountPanel
+      ? loginError
+      : null;
+  const notice =
+    showAccountPanel ||
+    loginNotice === copy.saved ||
+    loginNotice === copy.savedUnavailable
+      ? loginNotice
+      : null;
+
+  return (
+    <section
+      data-testid="coder-engine-settings"
+      className="rounded-lg border border-border bg-card/45 p-3"
+    >
+      <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+        <div className="min-w-0">
+          <div className="flex flex-wrap items-center gap-2">
+            <h2 className="text-base font-semibold">
+              {authorizationOnly ? copy.account : copy.title}
+            </h2>
+            <span
+              className={cn(
+                "rounded-md px-2 py-0.5 text-xs font-medium",
+                (authorizationOnly || profile?.source === "codex_account") &&
+                  account
+                  ? "bg-success/10 text-success"
+                  : loginPending
+                    ? "bg-info/10 text-info"
+                    : "bg-muted text-muted-foreground",
+              )}
+            >
+              {!authorizationOnly && profile?.source === "follow_system"
+                ? copy.systemConnection
+                : account
+                  ? copy.accountConnected
+                  : loginPending
+                    ? copy.pending
+                    : copy.notConnected}
+            </span>
+          </div>
+          <p className="mt-0.5 max-w-3xl text-xs leading-5 text-muted-foreground">
+            {authorizationOnly
+              ? {
+                  "zh-CN":
+                    "这里只管理授权。使用账号还是系统 API，请在对话输入框中选择。",
+                  "en-US":
+                    "Manage authorization here. Choose this account or a system API in the conversation composer.",
+                  "ja-JP":
+                    "ここでは認証のみを管理します。アカウントとシステム API は入力欄で選択できます。",
+                  "ko-KR":
+                    "여기서는 인증만 관리합니다. 계정 또는 시스템 API는 대화 입력창에서 선택하세요.",
+                }[locale]
+              : copy.subtitle}
+          </p>
+        </div>
+        <Button
+          type="button"
+          size="sm"
+          variant={
+            profileQuery.isError || accountQuery.isError ? "outline" : "ghost"
+          }
+          aria-label={copy.retry}
+          title={copy.retry}
+          onClick={() => {
+            void profileQuery.refetch();
+            void accountQuery.refetch();
+            if (account) void modelsQuery.refetch();
+            if (hasChatGPTUsage) {
+              void rateLimitsQuery.refetch();
+              void usageQuery.refetch();
+              void appsQuery.refetch();
+            }
+          }}
+          disabled={profileQuery.isFetching || accountQuery.isFetching}
+        >
+          <RefreshCwIcon
+            className={cn(
+              "size-3.5",
+              (profileQuery.isFetching || accountQuery.isFetching) &&
+                "animate-spin",
+            )}
+          />
+          {profileQuery.isError || accountQuery.isError ? copy.retry : null}
+        </Button>
+      </div>
+
+      {profileQuery.isLoading ? (
+        <div className="mt-4 flex items-center gap-2 text-sm text-muted-foreground">
+          <Loader2Icon className="size-4 animate-spin" /> {copy.loading}
+        </div>
+      ) : profileQuery.isError || !profile ? (
+        <div
+          role="alert"
+          className="mt-4 rounded-lg border border-destructive/20 bg-destructive/[0.04] p-3 text-sm text-destructive"
+        >
+          {copy.loadFailed}
+        </div>
+      ) : (
+        <div className="mt-3 space-y-3">
+          {!authorizationOnly && (
+            <>
+              <div>
+                <div className="mb-1.5 text-xs font-medium text-muted-foreground">
+                  {copy.sourceTitle}
+                </div>
+                <div className="grid gap-2 md:grid-cols-2">
+                  <button
+                    type="button"
+                    aria-pressed={profile.source === "follow_system"}
+                    disabled={busy || loginPending}
+                    className={cn(
+                      "flex min-h-11 items-center gap-2.5 rounded-lg border px-3 py-2 text-left transition",
+                      profile.source === "follow_system"
+                        ? "border-primary/40 bg-primary/[0.07] ring-1 ring-primary/15"
+                        : "border-border hover:border-border-strong hover:bg-muted/30",
+                    )}
+                    onClick={() => {
+                      setAccountSetupOpen(false);
+                      setLoginError(null);
+                      setLoginNotice(null);
+                      if (profile.source !== "follow_system") {
+                        saveProfile.mutate({ source: "follow_system" });
+                      }
+                    }}
+                  >
+                    <ShieldCheckIcon className="size-4 shrink-0 text-primary" />
+                    <span className="min-w-0">
+                      <span className="block text-sm font-medium">
+                        {copy.followSystem}
+                      </span>
+                      <span className="block text-xs leading-5 text-muted-foreground">
+                        {copy.followSystemDescription}
+                      </span>
+                    </span>
+                  </button>
+                  <button
+                    type="button"
+                    aria-pressed={profile.source === "codex_account"}
+                    aria-expanded={!account ? showAccountPanel : undefined}
+                    disabled={busy || loginPending}
+                    className={cn(
+                      "flex min-h-11 items-center gap-2.5 rounded-lg border px-3 py-2 text-left transition disabled:cursor-not-allowed disabled:opacity-60",
+                      profile.source === "codex_account"
+                        ? "border-primary/40 bg-primary/[0.07] ring-1 ring-primary/15"
+                        : "border-border hover:border-border-strong hover:bg-muted/30",
+                    )}
+                    onClick={() => {
+                      if (account) {
+                        saveProfile.mutate({ source: "codex_account" });
+                      } else {
+                        dismissedLoginErrorRef.current =
+                          accountQuery.data?.login_error || null;
+                        setLoginError(null);
+                        setLoginNotice(null);
+                        setAccountSetupOpen(true);
+                      }
+                    }}
+                  >
+                    <UserRoundIcon className="size-4 shrink-0 text-primary" />
+                    <span className="min-w-0">
+                      <span className="block text-sm font-medium">
+                        {copy.accountMode}
+                      </span>
+                      <span className="block text-xs leading-5 text-muted-foreground">
+                        {copy.accountModeDescription}
+                      </span>
+                    </span>
+                  </button>
+                </div>
+              </div>
+
+              <div className="flex flex-wrap items-center gap-3 rounded-lg border border-border bg-background/45 px-3 py-2 text-xs">
+                <span className="min-w-0 flex-1 truncate font-medium text-foreground">
+                  {profile.compatible
+                    ? copy.activeSummary(
+                        profile.effective_model ||
+                          (profile.source === "codex_account"
+                            ? currentModel?.id || copy.modelDefault
+                            : copy.systemDefault),
+                      )
+                    : copy.pendingModel}
+                </span>
+                <span
+                  className={cn(
+                    "ml-auto inline-flex items-center gap-1.5 font-medium",
+                    executionAvailable ? "text-success" : "text-warning",
+                  )}
+                >
+                  {executionAvailable ? (
+                    <CheckCircle2Icon className="size-3.5" />
+                  ) : (
+                    <AlertTriangleIcon className="size-3.5" />
+                  )}
+                  {executionAvailable ? copy.compatible : copy.unavailable}
+                </span>
+                <details className="basis-full text-muted-foreground">
+                  <summary className="cursor-pointer select-none text-xs hover:text-foreground">
+                    {copy.technicalDetails}
+                  </summary>
+                  <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 border-t border-border pt-2">
+                    <span>
+                      {copy.systemModel}{" "}
+                      <code className="text-foreground/80">
+                        {profile.system_model || "—"}
+                      </code>
+                    </span>
+                    <span>
+                      {copy.provider}{" "}
+                      <code className="text-foreground/80">
+                        {profile.provider || "—"}
+                      </code>
+                    </span>
+                  </div>
+                </details>
+              </div>
+              {profileProblem(profile, locale) ? (
+                <p className="text-xs text-warning">
+                  {profileProblem(profile, locale)}
+                </p>
+              ) : null}
+              {canUseChatDefault && !matchesChatDefault ? (
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  className="h-auto max-w-full whitespace-normal text-left"
+                  disabled={busy}
+                  onClick={() =>
+                    saveProfile.mutate({
+                      source: chatDefaultSource,
+                      model: chatDefaultModel,
+                    })
+                  }
+                >
+                  {copy.useChatDefault(
+                    conversationDefaultLabel || chatDefaultModel,
+                  )}
+                </Button>
+              ) : null}
+
+              {showAccountPanel &&
+              !account &&
+              profile.source === "follow_system" ? (
+                <p className="text-xs leading-5 text-muted-foreground">
+                  {copy.accountSetupHint}
+                </p>
+              ) : null}
+            </>
+          )}
+          {showAccountPanel ? (
+            accountQuery.isLoading ? (
+              <p className="text-xs text-muted-foreground">{copy.loading}</p>
+            ) : accountQuery.isError ? (
+              <p role="alert" className="text-xs text-destructive">
+                {copy.loadFailed}
+              </p>
+            ) : account ? (
+              <div className="space-y-3">
+                <div
+                  className={cn(
+                    "grid gap-3 rounded-lg bg-muted/25 p-3 sm:items-end",
+                    authorizationOnly
+                      ? "sm:grid-cols-[1fr_auto]"
+                      : "sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_minmax(0,1fr)_auto]",
+                  )}
+                >
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-2 text-sm font-medium">
+                      <CheckCircle2Icon className="size-4 text-success" />
+                      {copy.account}
+                    </div>
+                    <div className="mt-1 truncate text-xs text-muted-foreground">
+                      {copy.accountSummary(
+                        account.email || "",
+                        account.plan_type || account.type,
+                      )}
+                    </div>
+                  </div>
+                  {!authorizationOnly && (
+                    <label className="space-y-1.5 text-xs text-muted-foreground">
+                      <span>{copy.model}</span>
+                      <Select
+                        value={
+                          profile.source === "codex_account"
+                            ? profile.effective_model || "__default__"
+                            : "__default__"
+                        }
+                        disabled={busy || modelsQuery.isLoading}
+                        onValueChange={(model) =>
+                          saveProfile.mutate({
+                            source: "codex_account",
+                            ...(model === "__default__" ? {} : { model }),
+                          })
+                        }
+                      >
+                        <SelectTrigger
+                          className="w-full"
+                          aria-label={copy.model}
+                        >
+                          <SelectValue placeholder={copy.modelDefault} />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="__default__">
+                            {copy.modelDefault}
+                          </SelectItem>
+                          {(modelsQuery.data?.models ?? []).map((model) => (
+                            <SelectItem key={model.id} value={model.id}>
+                              {model.display_name || model.id}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </label>
+                  )}
+                  {!authorizationOnly && reasoningOptions.length > 0 ? (
+                    <label className="space-y-1.5 text-xs text-muted-foreground">
+                      <span>{copy.reasoning}</span>
+                      <Select
+                        value={profile.reasoning_effort || "__default__"}
+                        disabled={busy || reasoningOptions.length === 0}
+                        onValueChange={(reasoning) =>
+                          saveProfile.mutate({
+                            source: "codex_account",
+                            model: profile.effective_model || undefined,
+                            reasoning_effort:
+                              reasoning === "__default__" ? null : reasoning,
+                          })
+                        }
+                      >
+                        <SelectTrigger
+                          className="w-full"
+                          aria-label={copy.reasoning}
+                        >
+                          <SelectValue placeholder={copy.reasoningDefault} />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="__default__">
+                            {copy.reasoningDefault}
+                          </SelectItem>
+                          {reasoningOptions.map((reasoning) => (
+                            <SelectItem key={reasoning} value={reasoning}>
+                              {reasoning}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </label>
+                  ) : null}
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="ghost"
+                    disabled={busy}
+                    onClick={() => void logout()}
+                  >
+                    <LogOutIcon className="size-3.5" /> {copy.logout}
+                  </Button>
+                </div>
+
+                {hasChatGPTUsage ? (
+                  <details className="group rounded-lg border border-border bg-background/40 px-3 py-2">
+                    <summary className="flex cursor-pointer list-none items-center gap-2 text-sm font-medium marker:content-none">
+                      <ChevronDownIcon className="size-3.5 text-muted-foreground transition-transform group-open:rotate-180" />
+                      {copy.accountDetails}
+                    </summary>
+                    <div className="mt-3 space-y-4 border-t border-border pt-3">
+                      <div className="space-y-2">
+                        <div>
+                          <div className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                            {copy.connectors}
+                          </div>
+                          <p className="mt-1 text-xs text-muted-foreground">
+                            {copy.connectorsHint}
+                          </p>
+                        </div>
+                        <div className="grid gap-2 sm:grid-cols-2">
+                          {(appsQuery.data?.apps ?? [])
+                            .filter((app) => app.is_accessible)
+                            .map((app) => (
+                              <button
+                                key={app.id}
+                                type="button"
+                                aria-pressed={app.selected}
+                                disabled={saveApps.isPending}
+                                className={cn(
+                                  "rounded-lg border p-3 text-left transition",
+                                  app.selected
+                                    ? "border-primary/40 bg-primary/[0.07]"
+                                    : "border-border hover:bg-muted/30",
+                                )}
+                                onClick={() => {
+                                  const selected = (appsQuery.data?.apps ?? [])
+                                    .filter((item) =>
+                                      item.id === app.id
+                                        ? !item.selected
+                                        : item.selected,
+                                    )
+                                    .map((item) => item.id);
+                                  saveApps.mutate(selected);
+                                }}
+                              >
+                                <span className="flex items-center justify-between gap-2 text-sm font-medium">
+                                  <span className="truncate">{app.name}</span>
+                                  {app.selected ? (
+                                    <CheckCircle2Icon className="size-4 shrink-0 text-primary" />
+                                  ) : null}
+                                </span>
+                                {app.description ? (
+                                  <span className="mt-1 line-clamp-2 block text-xs text-muted-foreground">
+                                    {app.description}
+                                  </span>
+                                ) : null}
+                              </button>
+                            ))}
+                        </div>
+                        {!appsQuery.isLoading &&
+                        (appsQuery.data?.apps ?? []).filter(
+                          (app) => app.is_accessible,
+                        ).length === 0 ? (
+                          <p className="text-xs text-muted-foreground">
+                            {copy.connectorUnavailable}
+                          </p>
+                        ) : null}
+                      </div>
+                      <div className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                        {copy.allowance}
+                      </div>
+                      <div className="grid gap-2 sm:grid-cols-2">
+                        {(rateLimitsQuery.data?.buckets ?? []).map((bucket) => {
+                          const window = bucket.primary;
+                          return (
+                            <div
+                              key={bucket.limit_id}
+                              className="rounded-lg border border-border bg-background/60 p-3"
+                            >
+                              <div className="flex items-center justify-between gap-2 text-xs">
+                                <span className="truncate font-medium">
+                                  {bucket.limit_name || bucket.limit_id}
+                                </span>
+                                {window ? (
+                                  <span className="text-muted-foreground">
+                                    {Math.round(window.remaining_percent)}%{" "}
+                                    {copy.remaining}
+                                  </span>
+                                ) : null}
+                              </div>
+                              {window ? (
+                                <>
+                                  <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-muted">
+                                    <div
+                                      className="h-full rounded-full bg-primary transition-[width]"
+                                      style={{
+                                        width: `${Math.max(0, Math.min(100, window.used_percent))}%`,
+                                      }}
+                                    />
+                                  </div>
+                                  <div className="mt-1.5 text-xs text-muted-foreground">
+                                    {copy.resetsAt}:{" "}
+                                    {new Date(
+                                      window.resets_at * 1000,
+                                    ).toLocaleString(locale)}
+                                  </div>
+                                </>
+                              ) : null}
+                            </div>
+                          );
+                        })}
+                      </div>
+                      <div className="grid gap-2 sm:grid-cols-3">
+                        <UsageStat
+                          label={copy.lifetimeTokens}
+                          value={usageQuery.data?.summary?.lifetime_tokens}
+                          locale={locale}
+                        />
+                        <UsageStat
+                          label={copy.peakDailyTokens}
+                          value={usageQuery.data?.summary?.peak_daily_tokens}
+                          locale={locale}
+                        />
+                        <UsageStat
+                          label={copy.resetCredits}
+                          value={rateLimitsQuery.data?.reset_credits_available}
+                          locale={locale}
+                        />
+                      </div>
+                    </div>
+                  </details>
+                ) : (
+                  <p className="border-t border-border pt-3 text-xs text-muted-foreground">
+                    {copy.usageUnavailable}
+                  </p>
+                )}
+              </div>
+            ) : (
+              <div className="space-y-3 rounded-lg border border-border p-3">
+                <div>
+                  <div className="text-sm font-medium">{copy.account}</div>
+                  <p className="mt-1 text-xs leading-5 text-muted-foreground">
+                    {copy.browserLoginHint}
+                  </p>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  <Button
+                    type="button"
+                    size="sm"
+                    disabled={busy || loginPending}
+                    onClick={() => void beginLogin("chatgpt")}
+                  >
+                    <UserRoundIcon className="size-3.5" /> {copy.connectChatGPT}
+                  </Button>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    disabled={busy || loginPending}
+                    onClick={() => void beginLogin("chatgptDeviceCode")}
+                  >
+                    <ExternalLinkIcon className="size-3.5" />{" "}
+                    {copy.connectDevice}
+                  </Button>
+                </div>
+
+                {activeLogin ? (
+                  <div className="rounded-lg border border-info/25 bg-info/[0.05] p-3 text-sm">
+                    <div className="flex items-center gap-2 font-medium text-info">
+                      <Loader2Icon className="size-4 animate-spin" />{" "}
+                      {copy.pending}
+                    </div>
+                    {activeLogin.user_code ? (
+                      <div className="mt-3 flex flex-wrap items-center gap-2">
+                        <span className="text-xs text-muted-foreground">
+                          {copy.deviceCode}
+                        </span>
+                        <code className="rounded-md border border-border bg-background px-2 py-1 font-mono text-base tracking-wider">
+                          {activeLogin.user_code}
+                        </code>
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="ghost"
+                          onClick={async () => {
+                            try {
+                              await navigator.clipboard.writeText(
+                                activeLogin.user_code || "",
+                              );
+                              setCopied(true);
+                            } catch {
+                              setCopied(false);
+                            }
+                          }}
+                        >
+                          <ClipboardIcon className="size-3.5" />{" "}
+                          {copied ? copy.copied : copy.copyCode}
+                        </Button>
+                      </div>
+                    ) : null}
+                    <div className="mt-3 flex flex-wrap gap-2">
+                      {activeLogin.auth_url || activeLogin.verification_url ? (
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="outline"
+                          onClick={() =>
+                            void openSensitiveAuthorizationUrl(
+                              activeLogin.auth_url ||
+                                activeLogin.verification_url ||
+                                "",
+                            )
+                          }
+                        >
+                          <ExternalLinkIcon className="size-3.5" />{" "}
+                          {copy.openAuthorization}
+                        </Button>
+                      ) : null}
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="ghost"
+                        disabled={loginBusy === "cancel"}
+                        onClick={() => void cancelLogin()}
+                      >
+                        {copy.cancelLogin}
+                      </Button>
+                    </div>
+                  </div>
+                ) : null}
+
+                {!authorizationOnly && (
+                  <details className="rounded-lg border border-border bg-muted/20 px-3 py-2">
+                    <summary className="cursor-pointer text-sm font-medium">
+                      {copy.connectApiKey}
+                    </summary>
+                    <form
+                      className="mt-3 space-y-2"
+                      onSubmit={submitApiKey}
+                      autoComplete="off"
+                    >
+                      <p className="text-xs leading-5 text-muted-foreground">
+                        {copy.reuseApiKeyHint}
+                      </p>
+                      <label className="block space-y-1.5 text-xs text-muted-foreground">
+                        <span>{copy.apiKeyLabel}</span>
+                        <Input
+                          name="api_key"
+                          type="password"
+                          required
+                          autoComplete="new-password"
+                          data-1p-ignore="true"
+                          data-lpignore="true"
+                          spellCheck={false}
+                          placeholder={copy.apiKeyPlaceholder}
+                        />
+                      </label>
+                      <p className="flex items-start gap-1.5 text-xs leading-5 text-muted-foreground">
+                        <KeyRoundIcon className="mt-0.5 size-3.5 shrink-0" />{" "}
+                        {copy.apiKeyHint}
+                      </p>
+                      <Button
+                        type="submit"
+                        size="sm"
+                        disabled={busy || loginPending}
+                      >
+                        {loginBusy === "apiKey" ? (
+                          <Loader2Icon className="size-3.5 animate-spin" />
+                        ) : (
+                          <KeyRoundIcon className="size-3.5" />
+                        )}
+                        {copy.submitApiKey}
+                      </Button>
+                    </form>
+                  </details>
+                )}
+              </div>
+            )
+          ) : null}
+
+          {error ? (
+            <div
+              role="alert"
+              className="flex gap-2 rounded-lg border border-destructive/20 bg-destructive/[0.04] p-3 text-xs text-destructive"
+            >
+              <AlertTriangleIcon className="mt-0.5 size-3.5 shrink-0" /> {error}
+            </div>
+          ) : null}
+          {notice ? (
+            <div
+              role="status"
+              className={cn(
+                "flex gap-2 rounded-lg border p-3 text-xs",
+                notice === copy.savedUnavailable
+                  ? "border-warning/20 bg-warning/[0.04] text-warning"
+                  : "border-success/20 bg-success/[0.04] text-success",
+              )}
+            >
+              {notice === copy.savedUnavailable ? (
+                <AlertTriangleIcon className="mt-0.5 size-3.5 shrink-0" />
+              ) : (
+                <CheckCircle2Icon className="mt-0.5 size-3.5 shrink-0" />
+              )}
+              {notice}
+            </div>
+          ) : null}
+        </div>
+      )}
+    </section>
+  );
+}

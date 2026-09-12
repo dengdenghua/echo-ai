@@ -1,0 +1,38 @@
+# config/dev.yaml - 开发环境配置
+# 继承 base.yaml 并覆盖特定项
+
+extends: base.yaml
+
+name: echo-dev
+
+# 开发环境使用更大的预算
+budget:
+  max_tokens: 100000
+  max_usd: 2.00
+  max_latency_ms: 600000
+
+# 开发环境启用持久化
+journal_file: data/dev_journal.jsonl
+
+# 开发环境启用学习
+learn:
+  learn_from_journal: data/dev_rules.jsonl
+  learn_memories_from_journal: data/dev_memories.jsonl
+  learn_kg_from_journal: data/dev_kg.jsonl
+
+# 开发环境使用本地认证
+local_auth:
+  enabled: true
+  allow_any_username: true
+  # Audit R-03: no literal secret in git. Inject a strong secret via env
+  # (e.g. ECHO_LOCAL_AUTH_JWT_SECRET="$(openssl rand -hex 32)").
+  # Schema rejects weak/default values at startup; if the env var is unset
+  # the empty value fails validation and startup aborts (fail closed).
+  jwt_secret: ${ECHO_LOCAL_AUTH_JWT_SECRET}
+  jwt_expire_seconds: 86400  # 1 day
+
+# 开发环境允许客户端绕过审批（仅单用户）
+safety:
+  allow_client_approval_bypass: true
+  enable_trust_signal: false
+  enable_llm_judge: false

@@ -1,0 +1,16 @@
+{
+  "name": "echo-ai-commitlint",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Root-level commitlint configuration and git hooks for the echo-ai repository",
+  "scripts": {
+    "prepare": "husky",
+    "lint:commit": "commitlint"
+  },
+  "devDependencies": {
+    "@commitlint/config-conventional": "^21.2.0",
+    "commitlint": "^21.2.1",
+    "husky": "^9.1.7"
+  }
+}

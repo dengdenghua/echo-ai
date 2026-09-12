@@ -1,0 +1,1043 @@
+import { getBackendBaseURL } from "@/core/config";
+import { authHeaders } from "@/core/auth/api";
+import { openCustomModelSetup } from "@/core/models/setup";
+import { supportedReasoningEfforts } from "@/core/models/execution-capabilities";
+import {
+  ChevronDownIcon,
+  PlusIcon,
+  SearchIcon,
+  SparklesIcon,
+} from "lucide-react";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { useI18n } from "@/core/i18n/hooks";
+import type { Translations } from "@/core/i18n/locales/types";
+import { DEFAULT_CONTEXT_WINDOW_TOKENS } from "@/core/models/context-window";
+import type { ReasoningEffort } from "@/core/threads";
+import { cn } from "@/lib/utils";
+
+/** Minimal slice of the backend model shape used by the picker. */
+export interface PickerModel {
+  id?: string | null;
+  name: string;
+  display_name?: string | null;
+  source_display_name?: string | null;
+  description?: string | null;
+  entry_id?: string | null;
+  selection_id?: string | null;
+  model?: string | null;
+  supports_thinking?: boolean;
+  supports_vision?: boolean;
+  supports_tool_use?: boolean;
+  is_free?: boolean;
+  supports_reasoning_effort?: boolean;
+  /** UI effort tiers this model genuinely accepts. undefined/null = full
+   *  default set; [] = no meaningful effort control (picker hides it). */
+  reasoning_efforts?: ReasoningEffort[] | null;
+  context_window?: number | null;
+  context_profile?: string | null;
+  [key: string]: unknown;
+}
+
+function selectionValue(model: PickerModel): string {
+  return model.selection_id || model.entry_id || model.name;
+}
+
+export function isFreePickerModel(model: PickerModel | undefined): boolean {
+  // A provider name is not a price guarantee. Unknown or explicitly paid
+  // models must not inherit the free styling from their Zen connection.
+  return model?.is_free === true;
+}
+
+/** Compare series releases and keep the two newest numbered generations per family. */
+export function partitionModelReleases(
+  models: PickerModel[],
+  value?: string | null,
+) {
+  const releases = models.map((model) => {
+    const name = (model.model || model.name).toLowerCase();
+    const match = name.match(
+      /^(claude-(?:opus|sonnet|haiku|fable)-|gpt-|gemini-|grok-|glm-|kimi-k|minimax-m|muse-spark-|qwen|deepseek-v|mimo-v|nemotron-|ling-)([0-9]+(?:[.-][0-9]+)*)(.*)$/,
+    );
+    return {
+      model,
+      generationKey: match
+        ? [
+            model.entry_id || "",
+            match[1]!.startsWith("claude-") ? "claude" : match[1],
+            Boolean(model.is_free),
+          ].join(":")
+        : null,
+      key: match
+        ? [
+            model.entry_id || "",
+            match[1],
+            match[3],
+            Boolean(model.is_free),
+          ].join(":")
+        : null,
+      version: match ? match[2]!.split(/[.-]/).map(Number) : [],
+    };
+  });
+  const compare = (a: number[], b: number[]) => {
+    for (let i = 0; i < Math.max(a.length, b.length); i++) {
+      const delta = (a[i] || 0) - (b[i] || 0);
+      if (delta) return delta;
+    }
+    return 0;
+  };
+  const latest = new Map<string, number[]>();
+  const generations = new Map<string, number[][]>();
+  for (const item of releases) {
+    if (!item.generationKey) continue;
+    const versions = generations.get(item.generationKey) || [];
+    if (!versions.some((version) => compare(version, item.version) === 0)) {
+      versions.push(item.version);
+      versions.sort((a, b) => compare(b, a));
+    }
+    generations.set(item.generationKey, versions);
+  }
+  for (const item of releases)
+    if (
+      item.key &&
+      (!latest.has(item.key) ||
+        compare(item.version, latest.get(item.key)!) > 0)
+    )
+      latest.set(item.key, item.version);
+  const current: PickerModel[] = [],
+    older: PickerModel[] = [];
+  for (const item of releases) {
+    const hidden =
+      ((item.key && compare(item.version, latest.get(item.key)!) < 0) ||
+        (item.generationKey &&
+          generations
+            .get(item.generationKey)!
+            .findIndex((version) => compare(version, item.version) === 0) >=
+            2)) &&
+      !modelMatchesValue(item.model, value);
+    (hidden ? older : current).push(item.model);
+  }
+  return { current, older };
+}
+
+function deduplicatePickerModels(models: PickerModel[]): PickerModel[] {
+  const seen = new Set<string>();
+  return models.filter((model) => {
+    if (model.context_profile === "1m") return false;
+    const key = selectionValue(model);
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+}
+
+function longContextSelectionValue(model: PickerModel): string {
+  // Older catalogs have no selection_id; their routable 1M alias is the
+  // ``variant::1m`` name, not the entry id (which means the default profile).
+  return model.selection_id || model.name;
+}
+
+function modelFamilyKey(model: PickerModel): string {
+  if (model.entry_id && model.model) {
+    return `${model.entry_id}\u0000${model.model}`;
+  }
+  return model.name.replace(/::1m$/, "");
+}
+
+function modelMatchesValue(
+  model: PickerModel,
+  value: string | null | undefined,
+): boolean {
+  if (!value) return false;
+  return [
+    model.selection_id,
+    model.entry_id,
+    model.name,
+    model.model,
+    model.id,
+  ].includes(value);
+}
+
+function contextSelectionValue(model: PickerModel): string {
+  return model.context_profile === "1m"
+    ? longContextSelectionValue(model)
+    : selectionValue(model);
+}
+
+function contextWindowTokens(model: PickerModel): number {
+  const explicit = Number(model.context_window);
+  if (Number.isFinite(explicit) && explicit > 0) return Math.floor(explicit);
+  return model.context_profile === "1m"
+    ? 1_000_000
+    : DEFAULT_CONTEXT_WINDOW_TOKENS;
+}
+
+function formatContextWindow(tokens: number): string {
+  if (tokens >= 1_000_000) {
+    const millions = tokens / 1_000_000;
+    return `${Number.isInteger(millions) ? millions : millions.toFixed(1)}M`;
+  }
+  if (tokens >= 1_000) return `${Math.round(tokens / 1_000)}K`;
+  return tokens.toLocaleString();
+}
+
+export function ModelContextSetting({
+  models,
+  selected,
+  value,
+  disabled,
+  onChange,
+  className,
+}: {
+  models: PickerModel[];
+  selected: PickerModel | undefined;
+  value?: string | null;
+  disabled?: boolean;
+  onChange: (value: string) => void;
+  className?: string;
+}) {
+  const { t } = useI18n();
+  const options = useMemo(() => {
+    if (!selected) return [];
+    const family = modelFamilyKey(selected);
+    const seen = new Set<string>();
+    return models
+      .filter((model) => modelFamilyKey(model) === family)
+      .filter((model) => {
+        const key = contextSelectionValue(model);
+        if (seen.has(key)) return false;
+        seen.add(key);
+        return true;
+      })
+      .sort(
+        (left, right) => contextWindowTokens(left) - contextWindowTokens(right),
+      );
+  }, [models, selected]);
+
+  // This is a quick *choice*, not a model-spec readout. Keep the existing
+  // picker unchanged for models that only expose one context window.
+  if (!selected || options.length < 2) return null;
+
+  const current =
+    options.find((model) => modelMatchesValue(model, value)) ??
+    options.find(
+      (model) => model.context_profile === selected.context_profile,
+    ) ??
+    options[0]!;
+  const currentTokens = contextWindowTokens(current);
+  return (
+    <section
+      data-testid="model-context-setting"
+      className={cn("space-y-1", className)}
+    >
+      <div className="flex items-center justify-between gap-2 text-ui">
+        <span className="font-medium text-muted-foreground/80">
+          {t.modelPicker.contextLength}
+        </span>
+        <span className="tabular-nums text-foreground/80">
+          {formatContextWindow(currentTokens)}
+        </span>
+      </div>
+      <div
+        role="radiogroup"
+        aria-label={t.modelPicker.contextLength}
+        className="grid gap-0.5 rounded-md bg-muted/40 p-0.5"
+        style={{
+          gridTemplateColumns: `repeat(${options.length}, minmax(0, 1fr))`,
+        }}
+      >
+        {options.map((model) => {
+          const optionValue = contextSelectionValue(model);
+          const optionTokens = contextWindowTokens(model);
+          const optionExpanded = model.context_profile === "1m";
+          const optionSelected = model === current;
+          const profileLabel = optionExpanded
+            ? t.modelPicker.contextMax
+            : t.modelPicker.contextStandard;
+          const formatted = formatContextWindow(optionTokens);
+          return (
+            <button
+              key={optionValue}
+              type="button"
+              role="radio"
+              aria-label={`${profileLabel} · ${formatted}`}
+              aria-checked={optionSelected}
+              disabled={disabled}
+              onClick={(event) => {
+                event.preventDefault();
+                if (!optionSelected) onChange(optionValue);
+              }}
+              className={cn(
+                "flex h-7 min-w-0 items-center justify-center gap-1 rounded px-1.5 text-ui transition-colors",
+                optionSelected
+                  ? "bg-background text-foreground shadow-[var(--shadow-xs)]"
+                  : "text-muted-foreground hover:text-foreground",
+                "disabled:cursor-not-allowed disabled:opacity-45",
+              )}
+            >
+              <span className="truncate">{profileLabel}</span>
+              <span className="shrink-0 tabular-nums text-[11px] opacity-70">
+                {formatted}
+              </span>
+            </button>
+          );
+        })}
+      </div>
+    </section>
+  );
+}
+
+interface OfficialMeta {
+  key: string;
+  displayName: string;
+  id: string;
+  multiplier: string;
+  recommended: boolean;
+}
+
+/**
+ * Echo Mix — the built-in mixture-of-agents virtual model. Surfaces in the
+ * Official tab when the backend advertises ``echo-mix`` via /api/llm-models.
+ */
+const MIX_META: OfficialMeta = {
+  key: "echo-mix",
+  id: "echo-mix",
+  displayName: "mix",
+  multiplier: "Mix",
+  recommended: true,
+};
+
+/** Rough strength scale used to map an unsupported effort onto the nearest
+ *  tier a provider genuinely accepts (the wire value may differ). */
+const EFFORT_STRENGTH: Record<ReasoningEffort, number> = {
+  off: 0,
+  minimal: 1,
+  low: 2,
+  medium: 3,
+  high: 4,
+  xhigh: 5,
+  max: 6,
+};
+
+function resolveEffectiveEffort(
+  current: ReasoningEffort,
+  offered: ReasoningEffort[],
+): ReasoningEffort {
+  if (offered.includes(current)) return current;
+  const base = EFFORT_STRENGTH[current] ?? 0;
+  // Prefer the smallest offered tier at or above the selection (the backend
+  // promotes below-high efforts for DeepSeek-style providers); otherwise the
+  // largest offered tier.
+  let candidate: ReasoningEffort | undefined;
+  for (const tier of offered) {
+    if ((EFFORT_STRENGTH[tier] ?? 0) >= base) {
+      candidate = tier;
+      break;
+    }
+  }
+  if (candidate) return candidate;
+  return offered[offered.length - 1] ?? "high";
+}
+
+function reasoningEffortLabel(
+  effort: ReasoningEffort,
+  t: Translations,
+): string {
+  switch (effort) {
+    case "off":
+      return t.inputBox.reasoningEffortOff;
+    case "minimal":
+      return t.inputBox.reasoningEffortMinimal;
+    case "low":
+      return t.inputBox.reasoningEffortLow;
+    case "medium":
+      return t.inputBox.reasoningEffortMedium;
+    case "high":
+      return t.inputBox.reasoningEffortHigh;
+    case "xhigh":
+      return t.inputBox.reasoningEffortXHigh;
+    case "max":
+      return t.inputBox.reasoningEffortMax;
+  }
+}
+
+function ReasoningEffortSetting({
+  value,
+  disabled,
+  efforts,
+  onChange,
+}: {
+  value?: ReasoningEffort;
+  disabled?: boolean;
+  efforts?: ReasoningEffort[] | null;
+  onChange: (effort: ReasoningEffort) => void;
+}) {
+  const { t } = useI18n();
+  const rawCurrent = value ?? "medium";
+  const offered = supportedReasoningEfforts({ reasoning_efforts: efforts });
+  if (offered.length === 0) return null;
+  const effective = resolveEffectiveEffort(rawCurrent, offered);
+  const mapped = effective !== rawCurrent;
+  const title = t.inputBox.reasoningEffort;
+
+  return (
+    <div className="mx-1 mt-1 border-t border-border-default pt-1">
+      <div className="mb-0.5 flex items-center justify-between px-1">
+        <span className="text-ui font-medium text-muted-foreground/70">
+          {title}
+        </span>
+        <span className="text-ui text-muted-foreground">
+          {t.inputBox.reasoningEffortCurrent(
+            reasoningEffortLabel(effective, t),
+          )}
+        </span>
+      </div>
+      {mapped && (
+        <div className="mb-1 px-1 text-[11px] text-muted-foreground/70">
+          {t.inputBox.reasoningEffortMapped(
+            reasoningEffortLabel(rawCurrent, t),
+            reasoningEffortLabel(effective, t),
+          )}
+        </div>
+      )}
+      <div
+        role="radiogroup"
+        aria-label={title}
+        className="grid gap-0.5 rounded-md bg-muted/35 p-0.5"
+        style={{
+          gridTemplateColumns: `repeat(${offered.length}, minmax(0, 1fr))`,
+        }}
+      >
+        {offered.map((effort) => {
+          const selected = effort === effective;
+          return (
+            <button
+              key={effort}
+              type="button"
+              role="radio"
+              aria-checked={selected}
+              disabled={disabled}
+              onClick={(event) => {
+                event.preventDefault();
+                onChange(effort);
+              }}
+              className={cn(
+                "h-5 rounded-md px-1 text-ui transition-colors",
+                selected
+                  ? "bg-background text-foreground shadow-[var(--shadow-xs)]"
+                  : "text-muted-foreground hover:text-foreground",
+                "disabled:cursor-not-allowed disabled:opacity-45",
+              )}
+            >
+              {reasoningEffortLabel(effort, t)}
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+/**
+ * Single row in the list. The primary action and any trailing action are
+ * sibling buttons so each option remains valid, independently focusable HTML.
+ * `right` is reserved for passive content that belongs to the primary action.
+ */
+function PickerRow({
+  label,
+  right,
+  trailingAction,
+  badge,
+  selected,
+  disabled,
+  onSelect,
+}: {
+  label: ReactNode;
+  right?: ReactNode;
+  trailingAction?: ReactNode;
+  badge?: ReactNode;
+  selected?: boolean;
+  disabled?: boolean;
+  onSelect: () => void;
+}) {
+  return (
+    <div
+      className={cn(
+        // Match sidebar NavRow language: h-8, opacity-based emphasis,
+        // monochrome. No color accent — selection reads via opacity and
+        // a 2px leading bar the way active nav items do.
+        "group/row relative flex h-7 w-full items-stretch rounded-md text-ui opacity-75 transition-[opacity,background-color]",
+        "hover:bg-muted/40 hover:opacity-100 focus-within:bg-muted/40 focus-within:opacity-100",
+        disabled &&
+          "cursor-not-allowed opacity-35 hover:opacity-35 hover:bg-transparent",
+        selected &&
+          !disabled &&
+          "opacity-100 bg-[color:color-mix(in_oklch,var(--sidebar-accent)_55%,transparent)] before:absolute before:left-0 before:top-1 before:bottom-1 before:w-[2px] before:rounded-r before:bg-primary/70",
+      )}
+    >
+      <button
+        type="button"
+        disabled={disabled}
+        aria-pressed={selected}
+        onClick={onSelect}
+        className={cn(
+          "flex min-w-0 flex-1 items-center gap-1.5 rounded-md px-2 text-left",
+          "focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring focus-visible:ring-inset",
+          trailingAction && "rounded-r-none pr-1",
+          disabled && "cursor-not-allowed",
+        )}
+      >
+        <span className="flex min-w-0 flex-1 items-center gap-1.5 truncate">
+          <span className="truncate">{label}</span>
+          {badge}
+        </span>
+        {right !== undefined && (
+          <span className="shrink-0 text-ui tabular-nums text-muted-foreground/70 transition-colors group-hover/row:text-muted-foreground">
+            {right}
+          </span>
+        )}
+      </button>
+      {trailingAction}
+    </div>
+  );
+}
+
+export interface ModelPickerProps {
+  models: PickerModel[];
+  value?: string | null;
+  onChange: (name: string) => void;
+  reasoningEffort?: ReasoningEffort;
+  reasoningEffortDisabled?: boolean;
+  onReasoningEffortChange?: (effort: ReasoningEffort) => void;
+  /** Render prop for a custom trigger. */
+  renderTrigger?: (selected: PickerModel | undefined) => ReactNode;
+  showSettingsLink?: boolean;
+  engineSource?: "opencode";
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
+}
+
+export function ModelPicker({
+  models,
+  value,
+  onChange,
+  reasoningEffort,
+  reasoningEffortDisabled,
+  onReasoningEffortChange,
+  renderTrigger,
+  showSettingsLink = true,
+  engineSource,
+  open: controlledOpen,
+  onOpenChange,
+}: ModelPickerProps) {
+  const { t, locale } = useI18n();
+  const [showOlder, setShowOlder] = useState(false);
+  const [query, setQuery] = useState("");
+  const searchRef = useRef<HTMLInputElement>(null);
+  const resultsRef = useRef<HTMLDivElement>(null);
+  const searchCopy = {
+    "zh-CN": ["搜索模型或提供商", "没有匹配的模型"],
+    "ja-JP": ["モデルやプロバイダーを検索", "一致するモデルがありません"],
+    "ko-KR": ["모델 또는 제공업체 검색", "일치하는 모델이 없습니다"],
+    "en-US": ["Search models or providers", "No matching models"],
+  }[locale];
+  const [openCodeSource, setOpenCodeSource] = useState<
+    "opencode-zen" | "opencode-go" | "official" | "api"
+  >(() =>
+    models.some(
+      (m) => m.entry_id === "opencode-go" && modelMatchesValue(m, value),
+    )
+      ? "opencode-go"
+      : "opencode-zen",
+  );
+  const [uncontrolledOpen, setUncontrolledOpen] = useState(false);
+  const open = controlledOpen ?? uncontrolledOpen;
+  const [nativeEfforts, setNativeEfforts] = useState<{model: string; efforts: string[]} | null>(null);
+  useEffect(() => {
+    if (!open || engineSource !== "opencode" || !value) return;
+    const controller = new AbortController();
+    setNativeEfforts(null);
+    void fetch(`${getBackendBaseURL()}/api/opencode/reasoning-variants?model=${encodeURIComponent(value)}`, {
+      headers: authHeaders(), signal: controller.signal,
+    }).then(async (response) => {
+      if (!response.ok) return;
+      const data = await response.json();
+      if (!controller.signal.aborted) setNativeEfforts({model: value, efforts: data.reasoning_efforts ?? []});
+    }).catch(() => {});
+    return () => controller.abort();
+  }, [open, engineSource, value]);
+  const setOpen = (nextOpen: boolean) => {
+    if (!nextOpen) setQuery("");
+    (onOpenChange ?? setUncontrolledOpen)(nextOpen);
+  };
+
+  // "auto" is a UI-only sentinel — the backend reads it as "let the
+  // ModelRouter middleware pick per-task". We resolve it to a synthetic
+  // PickerModel so the trigger + highlighted row can render a label.
+  const isAutoMode = (value ?? "").trim().toLowerCase() === "auto";
+  const selected = useMemo(() => {
+    if (isAutoMode) {
+      return {
+        name: "auto",
+        display_name: t.modelPicker.autoModelLabel,
+        description: t.modelPicker.autoModelDescription,
+      };
+    }
+    if (value) {
+      const matched = models.find(
+        (m) =>
+          m.name === value ||
+          m.model === value ||
+          ("id" in m && m.id === value) ||
+          m.entry_id === value ||
+          m.selection_id === value,
+      );
+      // A stored selection the current catalog no longer advertises (a
+      // removed/renamed custom model, or the list still loading) must stay
+      // visible as-is — silently snapping to the first row (Mix) would make
+      // the picker lie about what the thread actually uses after a reload.
+      return (
+        matched ?? {
+          name: value,
+          display_name: value,
+          unavailable: true,
+        }
+      );
+    }
+    return models[0];
+  }, [
+    isAutoMode,
+    value,
+    models,
+    t.modelPicker.autoModelLabel,
+    t.modelPicker.autoModelDescription,
+  ]);
+
+  const officialMetas = useMemo(() => {
+    // Surface the built-in Mix model in the Official tab only when the
+    // backend actually advertises it (via /api/llm-models).
+    const hasMix = models.some(
+      (m) => m.name === MIX_META.id || m.model === MIX_META.id,
+    );
+    return hasMix ? [MIX_META] : [];
+  }, [models]);
+
+  const selectedMeta = useMemo(() => {
+    if (!selected) return null;
+    return (
+      officialMetas.find(
+        (meta) =>
+          meta.id === selected.name ||
+          meta.id === selected.model ||
+          meta.displayName === selected.display_name,
+      ) ?? null
+    );
+  }, [officialMetas, selected]);
+
+  /**
+   * One flat list, in the order the backend returned.
+   *
+   * The dropdown used to split Official / Custom across tabs. With a handful
+   * of configured endpoints that cost two clicks to reach a neighbouring
+   * model and hid the selected row behind whichever tab opened by default.
+   * Unconfigured official rows are dropped here rather than rendered grey —
+   * they are a settings concern, and a column of unclickable placeholders is
+   * the bulk of what made this panel feel heavy.
+   *
+   * ``::1m`` variants are folded into the selected model's context-length
+   * control, so one model still occupies one line without hiding Max mode.
+   */
+  const flatEntries = useMemo(
+    () =>
+      deduplicatePickerModels(models)
+        .filter(
+          (model) =>
+            !engineSource ||
+            (openCodeSource === "official"
+              ? Boolean(
+                  model.entry_id &&
+                  !["opencode-zen", "opencode-go"].includes(model.entry_id),
+                )
+              : model.entry_id === openCodeSource),
+        )
+        .sort((a, b) =>
+          engineSource
+            ? openCodeSource === "official"
+              ? Number(a.entry_id === "official") -
+                Number(b.entry_id === "official")
+              : Number(isFreePickerModel(b)) - Number(isFreePickerModel(a))
+            : 0,
+        ),
+    [models, engineSource, openCodeSource],
+  );
+
+  const releaseGroups = useMemo(
+    () =>
+      engineSource && openCodeSource === "official"
+        ? { current: flatEntries, older: [] }
+        : partitionModelReleases(flatEntries, value),
+    [flatEntries, value, engineSource, openCodeSource],
+  );
+  const searchTerms = query.trim().toLowerCase().split(/\s+/).filter(Boolean);
+  const searchResults = searchTerms.length
+    ? flatEntries.filter((model) => {
+        const text = [
+          model.name,
+          model.display_name,
+          model.model,
+          model.provider,
+          model.source_display_name,
+        ]
+          .filter(Boolean)
+          .join(" ")
+          .toLowerCase();
+        return searchTerms.every((term) => text.includes(term));
+      })
+    : null;
+  const olderLabel =
+    locale === "zh-CN"
+      ? "旧版模型"
+      : locale === "ja-JP"
+        ? "旧バージョン"
+        : locale === "ko-KR"
+          ? "이전 모델"
+          : "Older models";
+  const handleSelect = (name: string) => {
+    onChange(name);
+    setOpen(false);
+  };
+
+  // Clean up model name: remove trailing question marks and whitespace
+  const cleanModelName = (name: string | undefined | null): string => {
+    if (!name) return "";
+    return name.replace(/\?+$/, "").trim();
+  };
+
+  // The trigger keeps the Auto sparkles + label + chevron (the
+  // model-name + multiplier header and the in-list Auto row were the
+  // red-box duplicates that got removed). The Auto toggle now lives
+  // exclusively on the Auto row at the top of the dropdown panel
+  // — one control, one backing state, two visible surfaces.
+  const selectedDisplayLabel = isAutoMode
+    ? t.modelPicker.autoModelLabel
+    : cleanModelName(selectedMeta?.displayName) ||
+      cleanModelName(selected?.display_name) ||
+      cleanModelName(selected?.name) ||
+      t.modelPicker.selectModel;
+  const selectedIsFree = isFreePickerModel(selected);
+
+  const renderModelRow = (m: PickerModel) => {
+    // selection_id identifies endpoint + upstream variant +
+    // context profile. Legacy catalogs fall back to entry/name.
+    const selectKey = selectionValue(m);
+    const selectedFamily =
+      !isAutoMode && selected && modelFamilyKey(m) === modelFamilyKey(selected);
+    return (
+      <PickerRow
+        key={selectKey}
+        label={
+          <span
+            className={cn(
+              isFreePickerModel(m) && "text-emerald-600 dark:text-emerald-400",
+            )}
+          >
+            {m.display_name || m.name}
+          </span>
+        }
+        selected={Boolean(selectedFamily)}
+        right={
+          engineSource &&
+          ["opencode-zen", "opencode-go"].includes(m.entry_id || "") ? (
+            <span aria-hidden="true" className="text-muted-foreground">
+              {m.entry_id === "opencode-go" ? "Go" : "Zen"}
+            </span>
+          ) : undefined
+        }
+        onSelect={() => handleSelect(selectKey)}
+      />
+    );
+  };
+
+  const triggerButton = (
+    <button
+      type="button"
+      data-testid="model-picker-trigger"
+      className={cn(
+        "inline-flex h-8 min-w-0 items-center gap-1 rounded-lg border border-transparent",
+        "bg-transparent px-1.5 py-1 text-ui text-muted-foreground transition outline-none",
+        "hover:border-border-default hover:bg-muted/60 hover:text-foreground",
+        "data-[state=open]:bg-muted data-[state=open]:text-foreground",
+      )}
+      aria-label={t.modelPicker.selectModel}
+      title={
+        selectedIsFree
+          ? `${selectedDisplayLabel} · ${t.modelPicker.freeBadge}`
+          : `${selectedDisplayLabel}${selected?.entry_id === "opencode-go" ? " · Go" : ""}`
+      }
+    >
+      {isAutoMode && <SparklesIcon className="size-3 shrink-0 text-primary" />}
+      <span
+        className={cn(
+          "max-w-28 truncate",
+          selectedIsFree && "text-emerald-600 dark:text-emerald-400",
+        )}
+      >
+        {selectedDisplayLabel}
+      </span>
+      {selected?.entry_id === "opencode-go" && (
+        <span className="text-[10px] text-muted-foreground">Go</span>
+      )}
+      {selectedIsFree ? (
+        <span className="flex shrink-0 items-center gap-1 text-[10px] font-medium leading-none text-emerald-600 dark:text-emerald-400">
+          <span
+            className="size-1.5 rounded-full bg-emerald-500"
+            aria-hidden="true"
+          />
+        </span>
+      ) : null}
+      <ChevronDownIcon className="size-3 opacity-60" />
+    </button>
+  );
+
+  // Default trigger composition: the trigger button alone is
+  // wrapped by DropdownMenuTrigger asChild. The Auto switch used
+  // to sit to the left of the trigger, but it duplicates the Auto
+  // row at the top of the dropdown panel — same backing state, same
+  // "auto" sentinel — so the inline switch is redundant and removed.
+  const defaultTriggerContainer = (
+    <DropdownMenuTrigger asChild>{triggerButton}</DropdownMenuTrigger>
+  );
+
+  return (
+    <DropdownMenu
+      open={open}
+      onOpenChange={(nextOpen) => {
+        if (
+          nextOpen &&
+          ["opencode-zen", "opencode-go", "official"].includes(
+            selected?.entry_id || "",
+          )
+        ) {
+          setOpenCodeSource(
+            selected!.entry_id as "opencode-zen" | "opencode-go" | "official",
+          );
+        } else if (nextOpen && selected?.entry_id) {
+          setOpenCodeSource("official");
+        }
+        setOpen(nextOpen);
+      }}
+    >
+      {renderTrigger ? (
+        <DropdownMenuTrigger asChild>
+          {renderTrigger(selected)}
+        </DropdownMenuTrigger>
+      ) : (
+        defaultTriggerContainer
+      )}
+      <DropdownMenuContent
+        data-testid="model-picker-menu"
+        align="end"
+        side="top"
+        sideOffset={6}
+        className="w-72 p-1.5"
+        onFocus={(event) => {
+          if (event.target === event.currentTarget) searchRef.current?.focus();
+        }}
+      >
+        <div className="mb-1 flex items-center gap-2 border-b border-border-subtle px-2 py-2">
+          <SearchIcon
+            className="size-3.5 shrink-0 text-muted-foreground"
+            aria-hidden="true"
+          />
+          <input
+            ref={searchRef}
+            value={query}
+            aria-label={searchCopy[0]}
+            placeholder={searchCopy[0]}
+            onChange={(event) => setQuery(event.target.value)}
+            onKeyDown={(event) => {
+              if (event.key === "Escape" && !event.nativeEvent.isComposing)
+                return;
+              event.stopPropagation();
+              if (
+                event.nativeEvent.isComposing ||
+                event.nativeEvent.keyCode === 229
+              )
+                return;
+              if (event.key === "ArrowDown") {
+                event.preventDefault();
+                resultsRef.current
+                  ?.querySelector<HTMLButtonElement>("button:not(:disabled)")
+                  ?.focus();
+              }
+              if (event.key === "Enter") event.preventDefault();
+            }}
+            className="min-w-0 flex-1 bg-transparent text-xs outline-none placeholder:text-muted-foreground"
+          />
+        </div>
+        {engineSource && (
+          <div className="grid grid-cols-2 gap-1 rounded-lg bg-muted/45 p-0.5">
+            {(["official", "opencode-zen"] as const).map((source) => (
+              <button
+                type="button"
+                key={source}
+                aria-pressed={
+                  (openCodeSource === "official") === (source === "official")
+                }
+                onClick={() => {
+                  setOpenCodeSource(source);
+                  setShowOlder(false);
+                }}
+                className={cn(
+                  "h-7 rounded-md text-xs",
+                  (openCodeSource === "official") === (source === "official")
+                    ? "bg-background font-medium shadow-sm"
+                    : "text-muted-foreground",
+                )}
+              >
+                {source === "official" ? "官方模型" : "OpenCode"}
+              </button>
+            ))}
+          </div>
+        )}
+        {engineSource && openCodeSource !== "official" && (
+          <div className="my-1 flex gap-1 px-1" aria-label="OpenCode 服务">
+            {(["opencode-zen", "opencode-go"] as const).map((source) => (
+              <button
+                key={source}
+                type="button"
+                aria-pressed={openCodeSource === source}
+                onClick={() => {
+                  setOpenCodeSource(source);
+                  setShowOlder(false);
+                }}
+                className={cn(
+                  "h-6 flex-1 rounded-md text-xs",
+                  openCodeSource === source
+                    ? "bg-muted font-medium text-foreground"
+                    : "text-muted-foreground hover:bg-muted/50",
+                )}
+              >
+                {source === "opencode-zen" ? "Zen" : "Go"}
+              </button>
+            ))}
+          </div>
+        )}
+        {/* Echo routing is not a concrete OpenCode provider model. */}
+        {!engineSource && (
+          <div className="p-1 pb-0">
+            <PickerRow
+              label={
+                <span className="inline-flex items-center gap-1.5">
+                  <SparklesIcon className="size-3 shrink-0 text-info" />
+                  {t.modelPicker.autoModelLabel}
+                </span>
+              }
+              right={
+                <span className="rounded border border-info/40 px-1 py-0 text-ui text-info">
+                  {t.modelPicker.autoModelBadge}
+                </span>
+              }
+              selected={isAutoMode}
+              onSelect={() => handleSelect("auto")}
+            />
+          </div>
+        )}
+
+        {onReasoningEffortChange && (
+          <ReasoningEffortSetting
+            value={reasoningEffort}
+            disabled={reasoningEffortDisabled}
+            efforts={engineSource === "opencode"
+              ? supportedReasoningEfforts({reasoning_efforts: nativeEfforts?.model === value ? nativeEfforts.efforts : []})
+              : supportedReasoningEfforts(selected)}
+            onChange={onReasoningEffortChange}
+          />
+        )}
+        {!engineSource && (
+          <ModelContextSetting
+            models={models}
+            selected={selected}
+            value={value}
+            disabled={reasoningEffortDisabled}
+            onChange={onChange}
+            className="mx-1 mt-1 border-t border-border-default px-0.5 pt-1"
+          />
+        )}
+
+        <div className="p-1 pt-0.5">
+          <div
+            ref={resultsRef}
+            className="flex max-h-44 flex-col gap-0.5 overflow-y-auto"
+          >
+            {searchResults ? (
+              searchResults.length ? (
+                searchResults.map(renderModelRow)
+              ) : (
+                <div
+                  role="status"
+                  className="px-2 py-4 text-center text-ui text-muted-foreground"
+                >
+                  {searchCopy[1]}
+                </div>
+              )
+            ) : flatEntries.length === 0 ? (
+              <div className="px-2 py-4 text-center text-ui text-muted-foreground">
+                {t.modelPicker.noCustomModels}
+              </div>
+            ) : (
+              <>
+                {releaseGroups.current.map(renderModelRow)}
+                {releaseGroups.older.length > 0 && (
+                  <>
+                    <button
+                      type="button"
+                      aria-expanded={showOlder}
+                      onClick={() => setShowOlder((v) => !v)}
+                      className="mt-1 flex w-full items-center justify-between rounded-md border-t border-border-subtle px-2 py-2 text-xs text-muted-foreground hover:bg-muted/60"
+                    >
+                      <span>
+                        {olderLabel} · {releaseGroups.older.length}
+                      </span>
+                      <ChevronDownIcon
+                        className={cn(
+                          "size-3 transition-transform",
+                          showOlder && "rotate-180",
+                        )}
+                      />
+                    </button>
+                    {showOlder && releaseGroups.older.map(renderModelRow)}
+                  </>
+                )}
+              </>
+            )}
+          </div>
+          {showSettingsLink && (
+            <div className="mt-1.5 border-t pt-1.5">
+              <button
+                type="button"
+                onClick={() => {
+                  setOpen(false);
+                  openCustomModelSetup();
+                }}
+                className={cn(
+                  "flex w-full items-center justify-center gap-1.5 rounded-md",
+                  "px-2 py-1.5 text-ui text-muted-foreground transition",
+                  "hover:bg-accent hover:text-foreground",
+                )}
+              >
+                <PlusIcon className="size-3.5" />
+                {locale === "zh-CN" ? "添加自定义模型" : "Add custom model"}
+              </button>
+            </div>
+          )}
+        </div>
+      </DropdownMenuContent>
+    </DropdownMenu>
+  );
+}

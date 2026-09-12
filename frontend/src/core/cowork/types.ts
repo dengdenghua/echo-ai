@@ -1,0 +1,425 @@
+/**
+ * Who a member *is* — the accountability axis.
+ *  - agent: bare AI; the platform answers for it.
+ *  - role:  数字员工, a role-bound AI with a named human owner
+ *           (`accountable_owner`), so a person — not the platform — answers.
+ *  - human: a person.
+ */
+export type CoworkMemberKind = "agent" | "role" | "human";
+/** Who is currently driving a member: its AI (托管) or a person (接管). */
+export type CoworkMemberDriver = "ai" | "human";
+export type CoworkMemberRole = "participant" | "observer";
+export type CoworkMode = "chat" | "cluster" | "swarm" | "project";
+export type CoworkGrantScope = "all" | "from_join" | "range" | "summary";
+
+export interface CoworkContextGrant {
+  scope: CoworkGrantScope;
+  from_msg?: number | null;
+  to_msg?: number | null;
+}
+
+export interface CoworkMember {
+  id: string;
+  kind: CoworkMemberKind;
+  role: CoworkMemberRole;
+  joined_at_message?: number | null;
+  grant: CoworkContextGrant;
+  muted?: boolean;
+  invited_by?: string;
+  /** The human accountable for a `role` (数字员工) member. */
+  accountable_owner?: string;
+  /** `ai` = 托管; `human` = 接管 (its owner holds the wheel). */
+  driver?: CoworkMemberDriver;
+  is_takeover?: boolean;
+  identity_problem?: string | null;
+}
+
+export interface CoworkState {
+  roster: CoworkMember[];
+  mode: CoworkMode;
+  event_count: number;
+  is_one_to_one: boolean;
+  room_id?: string | null;
+  workspace?: Record<string, unknown> | null;
+  /** Members a person is currently driving (托管 → 接管). */
+  takeover_ids?: string[];
+  /** Members that cannot be attributed to anyone (see identity_problem). */
+  unattributed_ids?: string[];
+}
+
+export interface CoworkEvent {
+  action:
+    | "invite"
+    | "leave"
+    | "mute"
+    | "unmute"
+    | "mode"
+    | "room_link"
+    | "drive";
+  actor: string;
+  target_id: string;
+  target_kind: CoworkMemberKind;
+  role: CoworkMemberRole;
+  grant: CoworkContextGrant;
+  mode?: CoworkMode | null;
+  at_message?: number | null;
+  ts: string;
+  seq: number;
+  /** For action="invite" + kind="role": the accountable owner. */
+  owner?: string;
+  /** For action="drive": who now holds the wheel. */
+  driver?: CoworkMemberDriver | null;
+}
+
+export interface CoworkGroupResponse {
+  thread_id: string;
+  state: CoworkState;
+  blackboard: Record<string, unknown>;
+  events: CoworkEvent[];
+  responders: string[];
+}
+
+export interface CoworkInviteInput {
+  target_id: string;
+  kind?: CoworkMemberKind;
+  role?: CoworkMemberRole;
+  grant?: Partial<CoworkContextGrant>;
+  at_message?: number | null;
+}
+
+export interface CoworkModeInput {
+  mode: CoworkMode;
+}
+
+export interface CoworkRosterInput {
+  agent_ids: string[];
+  mode: CoworkMode;
+}
+
+export interface CoworkRosterResponse {
+  ok: boolean;
+  state: CoworkState;
+  events: CoworkEvent[];
+}
+
+export interface CollabRoomMessageInput {
+  text: string;
+  participant_id?: string;
+  display_name?: string;
+  /** Stable producer-side id. Retries with the same id are idempotent. */
+  source_message_id?: string;
+  message_type?: CoworkRoomMessageType;
+  entity_refs?: CoworkRoomEntityRef[];
+  system_card?: CoworkRoomSystemCard | null;
+  reply_to?: CoworkRoomReplyReference | null;
+  metadata?: Record<string, unknown>;
+}
+
+export interface CollabRoomMessageResponse {
+  ok: boolean;
+  room_id: string;
+  seq: number;
+  message?: CoworkRoomMessage | null;
+}
+
+export interface CoworkAnnotationAuthor {
+  display_name: string;
+  avatar_color: string;
+}
+
+export interface CoworkAnnotationReply {
+  reply_id: string;
+  author: CoworkAnnotationAuthor | null;
+  body: string;
+  created_at: number;
+}
+
+export interface CoworkAnnotation {
+  annotation_id: string;
+  message_id: string;
+  author: CoworkAnnotationAuthor | null;
+  body: string;
+  created_at: number;
+  resolved: boolean;
+  replies: CoworkAnnotationReply[];
+}
+
+export interface CoworkAnnotationInput {
+  message_id: string;
+  body: string;
+  display_name?: string;
+  avatar_color?: string;
+}
+
+export interface CoworkAnnotationReplyInput {
+  body: string;
+  display_name?: string;
+  avatar_color?: string;
+}
+
+export interface CoworkMessageReaction {
+  message_id: string;
+  emoji: string;
+  count: number;
+  participant_ids: string[];
+  active?: boolean;
+}
+
+export interface CoworkMessageReactionInput {
+  message_id: string;
+  emoji: string;
+}
+
+export interface CoworkPinnedMessage {
+  message_id: string;
+  pinned_by: string;
+  created_at: number;
+}
+
+export type CoworkRoomMessageType = "message" | "system_card";
+
+/** A typed pointer from the room timeline into the canonical Project OS. */
+export interface CoworkRoomEntityRef {
+  kind: string;
+  id: string;
+  project_id?: string;
+  milestone_id?: string;
+  task_id?: string;
+  label?: string;
+  [key: string]: unknown;
+}
+
+export type CoworkMessageProjectAction =
+  | "link_milestone"
+  | "create_item"
+  | "record_decision"
+  | "publish_artifact";
+
+export interface CoworkRoomProjectActionReceipt {
+  id: string;
+  action: CoworkMessageProjectAction;
+  project_id: string;
+  target: CoworkRoomEntityRef;
+  event_id?: string;
+  applied_at?: string;
+  [key: string]: unknown;
+}
+
+/** Presentation payload written by Project OS after a message action. */
+export interface CoworkRoomSystemCard {
+  schema?: string;
+  type: CoworkMessageProjectAction | string;
+  title: string;
+  summary?: string;
+  status?: string;
+  project_id?: string;
+  target?: CoworkRoomEntityRef;
+  source_message_seq?: number;
+  [key: string]: unknown;
+}
+
+export interface CoworkRoomMessageMetadata {
+  schema?: string;
+  source_message_id?: string;
+  message_type?: CoworkRoomMessageType;
+  entity_refs?: CoworkRoomEntityRef[];
+  system_card?: CoworkRoomSystemCard | null;
+  /** Structured parent pointer for threaded replies (kept separate from text quoting). */
+  reply_to?: CoworkRoomReplyReference | null;
+  project_actions?: CoworkRoomProjectActionReceipt[];
+  /** Server-resolved sender attribution (see `senderAttribution`). */
+  sender_kind?: CoworkSenderKind;
+  sender_driver?: CoworkSenderDriver;
+  [key: string]: unknown;
+}
+
+export interface CoworkRoomReplyReference {
+  message_id?: string;
+  seq?: number;
+  participant_id?: string;
+  display_name?: string;
+  text?: string;
+}
+
+export interface CoworkRoomMessageReceipt {
+  message_id: string;
+  participant_id: string;
+  status: "delivered" | "read";
+  seq?: number | null;
+  updated_at?: string;
+}
+
+/** Canonical message returned by GET /api/collab/{thread_id}. */
+/** What a recorded message says about its sender (server-resolved). */
+export type CoworkSenderKind = "agent" | "role" | "human" | "unknown";
+export type CoworkSenderDriver = "ai" | "human" | "unknown";
+
+/** Server-resolved sender attribution stored on the message metadata. */
+export interface CoworkSenderAttribution {
+  sender_kind?: CoworkSenderKind;
+  sender_driver?: CoworkSenderDriver;
+}
+
+export interface CoworkRoomMessage {
+  session_id?: string;
+  seq: number;
+  room_id?: string;
+  participant_id?: string;
+  display_name?: string;
+  /** Legacy `RoomMessageStore` rows carry the attribution top-level; the
+   * canonical store keeps it inside `metadata`. Prefer `senderAttribution()`. */
+  sender_kind?: CoworkSenderKind;
+  sender_driver?: CoworkSenderDriver;
+  text: string;
+  ts?: string;
+  metadata?: CoworkRoomMessageMetadata;
+  receipts?: CoworkRoomMessageReceipt[];
+}
+
+/**
+ * Resolve the sender attribution of a message across both storage shapes:
+ * legacy rows carry `sender_kind` / `sender_driver` top-level, canonical
+ * collaboration rows keep them in `metadata`. Defaults to "unknown" — never to
+ * "agent" — because an unattributable line must stay unattributable.
+ */
+export function senderAttribution(
+  message: Pick<CoworkRoomMessage, "sender_kind" | "sender_driver" | "metadata">,
+): Required<CoworkSenderAttribution> {
+  return {
+    sender_kind: message.sender_kind ?? message.metadata?.sender_kind ?? "unknown",
+    sender_driver:
+      message.sender_driver ?? message.metadata?.sender_driver ?? "unknown",
+  };
+}
+
+export type CoworkProjectTaskType =
+  | "design"
+  | "code"
+  | "research"
+  | "analysis"
+  | "review";
+export type CoworkProjectPriority = "P0" | "P1" | "P2" | "P3";
+
+export interface CoworkMessageProjectActionInput {
+  action: CoworkMessageProjectAction;
+  action_id?: string;
+  project_id?: string;
+  milestone_id?: string;
+  item_id?: string;
+  title?: string;
+  description?: string;
+  task_type?: CoworkProjectTaskType;
+  priority?: CoworkProjectPriority;
+  estimate?: number;
+  due_at?: string;
+  acceptance_criteria?: string[];
+  assigned_role?: string;
+  assigned_agent?: string;
+  depends_on?: string[];
+  decision?: string;
+  rationale?: string;
+  artifact?: Record<string, unknown>;
+}
+
+export interface CoworkMessageProjectActionResponse {
+  ok: boolean;
+  replayed: boolean;
+  created: boolean;
+  action_id: string;
+  action: CoworkMessageProjectAction;
+  project_id: string;
+  milestone_id?: string;
+  target: CoworkRoomEntityRef;
+  receipt: CoworkRoomProjectActionReceipt;
+  event?: Record<string, unknown>;
+  task?: Record<string, unknown>;
+  source_message: CoworkRoomMessage;
+  system_card_message?: CoworkRoomMessage | null;
+}
+
+/** Room-member projection used by the timeline and @ autocomplete adapter. */
+export interface CoworkRoomParticipant {
+  id?: string;
+  participant_id?: string;
+  name?: string;
+  display_name?: string;
+  kind?: CoworkMemberKind;
+  /** `ai` = 托管; `human` = 接管 (its owner holds the wheel). */
+  driver?: CoworkMemberDriver;
+  /** The human accountable for a `role` (数字员工) participant. */
+  accountable_owner?: string | null;
+  is_takeover?: boolean;
+  identity_problem?: string | null;
+  avatar_url?: string | null;
+  icon?: string | null;
+  description?: string | null;
+  [key: string]: unknown;
+}
+
+export interface CollabRoomInput {
+  id?: string | null;
+  name?: string;
+  members?: Array<Record<string, unknown>>;
+  leaderId?: string | null;
+  mode?: CoworkMode | null;
+}
+
+export interface CollabRoomResponse {
+  ok: boolean;
+  created: boolean;
+  room: Record<string, unknown>;
+  session: CollaborationSession;
+}
+
+export type CoworkSearchKind =
+  | "blackboard"
+  | "task"
+  | "event"
+  | "room_message"
+  | "room_task";
+
+export interface CoworkSearchHit {
+  kind: CoworkSearchKind;
+  title: string;
+  snippet: string;
+  score: number;
+  actor: string;
+  ts: string | null;
+  ref: Record<string, unknown>;
+}
+
+export interface CoworkSearchResponse {
+  thread_id: string;
+  query: string;
+  hits: CoworkSearchHit[];
+}
+
+export interface CoworkMemberPresence {
+  member_id: string;
+  last_read: number;
+  last_read_message_seq?: number;
+  last_seen_at: string | null;
+  online: boolean;
+  unread: number;
+}
+
+export interface CoworkPresenceResponse {
+  thread_id: string;
+  members: CoworkMemberPresence[];
+}
+
+/** Unified collaboration session — one view over the cowork thread (canonical)
+ * plus a linked Team Room's transcript + participants. Mirrors the backend
+ * CollaborationSession (GET /api/collab/{thread_id}). */
+export interface CollaborationSession {
+  session_id: string;
+  room_id: string | null;
+  mode: CoworkMode;
+  roster: CoworkMember[];
+  blackboard: Record<string, unknown>;
+  tasks: Record<string, unknown>[];
+  presence: CoworkMemberPresence[];
+  room_messages: CoworkRoomMessage[];
+  room_participants: CoworkRoomParticipant[];
+  room_tasks: Record<string, unknown>[];
+}

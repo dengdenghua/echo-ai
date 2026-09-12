@@ -1,0 +1,23 @@
+{
+  "arms": [
+    "desktop_operator"
+  ],
+  "extra_affinity": [
+    "desktop",
+    "gui",
+    "vision",
+    "automation",
+    "screenshot",
+    "native_app"
+  ],
+  "private_skills": [
+    "browser-use",
+    "browser-testing-with-devtools",
+    "documents",
+    "spreadsheets",
+    "pdf",
+    "work-report-expert",
+    "project-delivery-review",
+    "project-retrospective"
+  ]
+}

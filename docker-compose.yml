@@ -1,0 +1,121 @@
+# echo-ai · 最小部署栈
+# 仅 agent 单进程 · 适用于开发 / 测试 / 低负载场景
+#
+# 启动:
+#   docker compose up -d
+#   docker compose logs -f
+#   docker compose down
+#
+# 需要跨进程事件总线（Redis / NATS）请使用:
+#   docker compose -f docker-compose.full.yml up -d
+#
+# 初次使用:
+#   1. cp config.example.yaml config.yaml  # 复制并启用 oct 或 local_auth；否则非回环 bind 会 fail closed
+#   2. 设置环境变量 ANTHROPIC_API_KEY
+#   3. mkdir -p data/
+
+services:
+  echo-ai:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: echo-ai:latest
+    container_name: echo-ai
+    restart: unless-stopped
+    ports:
+      - "${ECHO_BIND_IP:-127.0.0.1}:${PORT:-8310}:8000"
+    environment:
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      TAVILY_API_KEY: ${TAVILY_API_KEY:-}
+      # Config files may reference these via ${...}; `.env` values are not
+      # otherwise injected into a Compose container automatically.
+      ECHO_LOCAL_AUTH_JWT_SECRET: ${ECHO_LOCAL_AUTH_JWT_SECRET:-}
+      ECHO_ADMIN_PASSWORD_HASH: ${ECHO_ADMIN_PASSWORD_HASH:-}
+      ECHO_CLOUD_EDGE_TOKEN_SECRET: ${ECHO_CLOUD_EDGE_TOKEN_SECRET:-}
+      # Optional managed public-share relay. Keep credentials server-side;
+      # never bake them into the Vite bundle or desktop renderer.
+      ECHO_PUBLIC_SHARE_RELAY_URL: ${ECHO_PUBLIC_SHARE_RELAY_URL:-}
+      ECHO_PUBLIC_SHARE_RELAY_API_KEY: ${ECHO_PUBLIC_SHARE_RELAY_API_KEY:-}
+      ECHO_PUBLIC_SHARE_RELAY_BEARER_TOKEN: ${ECHO_PUBLIC_SHARE_RELAY_BEARER_TOKEN:-}
+      # Used only when this same container is itself reachable at the public UI URL.
+      ECHO_PUBLIC_SHARE_BASE_URL: ${ECHO_PUBLIC_SHARE_BASE_URL:-}
+      ECHO_THREAD_SHARE_TTL_SECONDS: ${ECHO_THREAD_SHARE_TTL_SECONDS:-2592000}
+      ECHO_THREAD_SHARE_MAX_ACTIVE_PER_OWNER: ${ECHO_THREAD_SHARE_MAX_ACTIVE_PER_OWNER:-100}
+      ECHO_THREAD_SHARE_MAX_SNAPSHOT_BYTES: ${ECHO_THREAD_SHARE_MAX_SNAPSHOT_BYTES:-1200000}
+      OTEL_EXPORTER_OTLP_ENDPOINT: ${OTEL_EXPORTER_OTLP_ENDPOINT:-}
+      OTEL_SERVICE_NAME: echo-ai
+      ECHO_LOG_LEVEL: ${ECHO_LOG_LEVEL:-INFO}
+      # File Agent 文档库:连同栈的 storage 服务(用 --profile storage 拉起;
+      # 没起则 search_documents 自然降级,不影响 agent)。
+      ECHO_STORAGE_URL: http://echo-storage:8767
+    volumes:
+      - ./data:/data
+      # Named volume is seeded from the image on first use, then preserves
+      # registry-installed skills/agents across container replacement.
+      - echo-resources:/app/resources
+      - ./config.yaml:/etc/echo/config.yaml:ro
+    command:
+      - serve
+      - --config
+      - /etc/echo/config.yaml
+      - --host
+      - "0.0.0.0"
+      - --port
+      - "8000"
+      - --learn-interval
+      - "${LEARN_INTERVAL_S:-0}"
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/readyz', timeout=3)"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    deploy:
+      resources:
+        limits:
+          memory: 2G
+          cpus: "2.0"
+        reservations:
+          memory: 512M
+    logging:
+      driver: json-file
+      options:
+        max-size: "50m"
+        max-file: "5"
+
+  # ── File Agent / 数字资产管家 后端(可选,独立镜像)─────────────
+  # 默认不启动;`docker compose --profile storage up -d` 才连它一起拉起 →
+  # 一条命令起 agent + storage,但平时 `docker compose up` 仍是 agent 单进程。
+  # 独立项目,build 上下文指向兄弟仓(源码同级 clone 时可用);也可换成已发布镜像。
+  echo-storage:
+    profiles: ["storage"]
+    build:
+      context: ../echo-storage
+      dockerfile: Dockerfile
+    image: echo-storage:latest
+    container_name: echo-storage
+    restart: unless-stopped
+    ports:
+      - "${STORAGE_PORT:-8767}:8767"
+    environment:
+      ECHO_STORAGE_PATH: /data/storage.sqlite3
+      # 把 Storage 的嵌入指向本地/同栈模型(可选 · OpenAI-兼容端点,如 Ollama)
+      ECHO_EMBED_URL: ${ECHO_EMBED_URL:-}
+      ECHO_EMBED_MODEL: ${ECHO_EMBED_MODEL:-bge-m3}
+    volumes:
+      - ./data/storage:/data
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8767/v1/manifest', timeout=3)"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    logging:
+      driver: json-file
+      options:
+        max-size: "50m"
+        max-file: "5"
+
+volumes:
+  echo-resources:
+    name: echo-resources

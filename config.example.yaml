@@ -1,0 +1,335 @@
+# echo-ai · example configuration
+# 复制为 config.yaml 后按需修改 · 所有值均可通过 ${ENV_VAR} 引用环境变量
+
+# ─────────────── 预设模板 ─────────────────
+# 一行配置 · 覆盖下方所有默认值
+# 可选: personal | team | enterprise | research
+# 设为 null 则手动配置下方各项
+preset: personal
+
+name: my-echo
+version_compat: "0.2"
+
+# ─────────────── Planner 规划器 ─────────────────
+# 决定如何将用户目标拆解为任务图 (TaskGraph)
+#
+# type: static  → 零 LLM 成本，基于规则匹配（demo / CI / 离线模式）
+#        llm    → 真 LLM 驱动规划（需要 ANTHROPIC_API_KEY）
+# model: 当 type=llm 时选择模型
+#   - "claude-haiku-4-5-20251001"  便宜快模型
+#   - "claude-sonnet-4-6"          平衡
+#   - "claude-opus-4-7"            最强（成本高）
+#   - "mock/planner"               离线 demo，返回 mock_response
+# mock_response: 仅 mock/planner 时生效，JSON 格式的任务图
+# max_nodes: 规划图最大节点数（1-50）
+planner:
+  type: llm
+  model: claude-haiku-4-5-20251001
+  mock_response: null
+  max_nodes: 10
+
+# ─────────────── Evolve 自进化模型 ─────────────────
+# 控制进化评估（deep_reflect / deep_evolve）使用的模型
+# 核心原则：用户用什么模型，进化就用什么模型，不硬编码 Key
+#
+# strategy:
+#   inherit               → 继承 planner 的模型和 base_url（默认，零配置）
+#   cheaper_same_provider → 自动选同提供商的便宜模型（如 mimo-v2.5-pro → mimo-v2-flash）
+#   explicit              → 显式指定 model / base_url / api_key_env
+#
+# model:       strategy=explicit 时指定模型名（如 mimo-v2-flash）
+# base_url:    strategy=explicit 时指定 API 地址（如 https://api.xiaomimimo.com/v1）
+# api_key_env: 读取 API Key 的环境变量名（如 MIMO_API_KEY），不硬编码 Key
+evolve:
+  strategy: inherit
+  model: null
+  base_url: null
+  api_key_env: null
+
+# ─────────────── Evolve 显式配置示例 ─────────────────
+# 如果你想用 MiMo Flash 做进化评估（降低 80% 成本），取消注释：
+# evolve:
+#   strategy: explicit
+#   model: mimo-v2-flash
+#   base_url: https://api.xiaomimimo.com/v1
+#   api_key_env: MIMO_API_KEY        # 设置环境变量: set MIMO_API_KEY=tp-xxx
+
+# ─────────────── Budget 预算 ─────────────────
+# 硬顶约束 · 触发即任务失败（不会自动放宽）
+#
+# max_tokens:    单任务最大 token 消耗
+# max_usd:       单任务最大美元花费
+# max_latency_ms: 单任务最大耗时（毫秒），600_000 = 10 分钟
+# model_iteration_timeout_s: ReAct 单轮模型迭代（隐性思考）的墙钟超时（秒），
+#   10–900，默认 120。超时仅由本 config 控制，无环境变量覆盖。
+# convergence_max_tokens: 普通模式强制收敛的 max_tokens 上限，默认 2000；
+#   research/swarm 模式收敛固定为 5000。
+budget:
+  max_tokens: 100000
+  max_usd: 1.00
+  max_latency_ms: 600000
+  model_iteration_timeout_s: 120
+  convergence_max_tokens: 2000
+  # 默认只把累计 token 作为用量统计；它不是当前上下文窗口占用。
+  # 如需用累计 token 作为严格停机线，需同时开启下面两个开关。
+  budget_auto_pause: false
+  cumulative_token_auto_pause: false
+
+# ─────────────── Immunity 免疫系统 ─────────────────
+# 三层信任模型：self_whitelist（无条件放行）→ trusted_sources（签名信任）
+# → unknown_policy（未命中以上两者时的处理策略）
+#
+# trusted_sources: fnmatch 模式匹配信任的技能/MCP 来源
+#   - skill://public/*  社区验证过的公开技能
+#   - skill://all_skills/plugin-creator  本地内置插件脚手架技能
+#   - mcp://anthropic/* Anthropic 官方 MCP 服务器
+# self_whitelist: fnmatch 模式匹配的"自己人"（不会被免疫攻击）
+#   - cerebrum / ganglia / arms/* / react_loop / react_arm  核心器官与内部执行循环
+# unknown_policy: quarantine（隔离观察）| reject（拒绝）| allow（放行）
+immunity:
+  trusted_sources:
+    - "skill://public/*"
+    - "skill://all_skills/plugin-creator"
+    - "mcp://anthropic/*"
+    - "mcp://fs/*"
+  self_whitelist:
+    - "cerebrum"
+    - "ganglia"
+    - "arms/*"
+    - "react_loop"
+    - "react_arm"
+    - "intel_collector/*"
+  unknown_policy: quarantine
+  # ── Memory tier · 抗体记忆 ──
+  # 同一来源在窗口内累计 attack_threshold 次硬拒绝后晶化为攻击模式，
+  # 此后即使命中 trusted_sources 也直接 reject（防被攻陷的信任源）。
+  # attack_memory_path 设置后抗体跨重启持久化；不设则仅进程内生效。
+  # attack_memory_path: data/immunity_antibodies.json
+  attack_threshold: 3
+  attack_window_seconds: 3600
+  # ── Adaptive tier · 行为异常评分 ──
+  # 每个 sucker 维护延迟/token 成本的滑动窗口基线，偏离基线过远
+  # （z-score 复合分 ≥ 阈值）的调用被 quarantine —— 即使来源可信。
+  # 默认开：冷启动期间基线不足时保守返回 0.5（中性），不会误隔离；
+  # 积累 200 次调用后基线稳定，z-score 才有意义。
+  enable_adaptive: true
+  adaptive_window_size: 200
+  adaptive_quarantine_threshold: 0.7
+
+# ─────────────── Intel Sources 情报源 ─────────────────
+# 主动搜索外部情报并写入 Journal · serve 模式下按频率定时抓取
+#
+# 每项:
+#   source_id:         唯一标识
+#   query:             搜索关键词
+#   max_results:       单次最多结果数
+#   fetch_top_n:       实际抓取前 N 条（0 = 全部）
+#   frequency_seconds: 刷新间隔
+#   tags:              标签（用于分类和过滤）
+intel_sources:
+  - source_id: claude_updates
+    query: "anthropic claude new release"
+    max_results: 5
+    fetch_top_n: 1
+    frequency_seconds: 3600
+    tags: ["llm", "weekly"]
+  - source_id: ai_news
+    query: "AI agent framework news 2025"
+    max_results: 3
+    frequency_seconds: 21600
+
+# ─────────────── MCP Servers ─────────────────────
+# Model Context Protocol 外部服务器 · 为 Agent 提供额外工具
+#
+# 每个条目:
+#   name:        唯一名称
+#   command:     启动命令
+#   args:        命令参数
+#   env:         环境变量（可引用 ${ENV}）
+#   name_prefix: 工具名前缀，用于避免命名冲突
+#
+# 示例（取消注释即启用文件系统 MCP 服务器）:
+#   - name: fs
+#     command: npx
+#     args: ["-y", "@modelcontextprotocol/server-filesystem", "/tmp"]
+#     env: {}
+#     name_prefix: "mcp_fs_"
+mcp_servers: []
+
+# ─────────────── Learn 学习/反思配置 ───────────────
+# 从 Journal 历史事件中学习 · 6 路反思生产器各自独立触发
+#
+# learn_from_journal:              从 Journal JSONL 提取规避规则
+#   min_hits:                         至少 N 次相同模式的失败才生成规则
+#   max_rules:                        规则总数上限（防膨胀）
+# learn_memories_from_journal:      从 Journal 聚类压缩长时记忆
+# learn_kg_from_journal:            从 Journal 构建知识图谱三元组
+#   kg_max_triples:                   单次最多提取的三元组数
+# rewrite_from_journal:             从 Journal 优化工作流规则集
+#   rewrite_min_confidence:           规则重写的最低置信度 (0.0-1.0)
+#   rewrite_min_severity:            最低严重度: low | mid | high
+# assess_recipe_from_journal:       从 Journal 评估策略组合（配方）效果
+#
+# 持久化路径（null = 仅内存，路径 = 写 JSONL 文件）:
+#   rules_persist_path / memories_persist_path / static_rules_persist_path
+learn:
+  learn_from_journal: null
+  min_hits: 3
+  max_rules: 30
+  learn_memories_from_journal: null
+  learn_kg_from_journal: null
+  kg_max_triples: 15
+  rewrite_from_journal: null
+  rewrite_min_confidence: 0.7
+  rewrite_min_severity: mid
+  assess_recipe_from_journal: null
+
+# ─────────────── Journal & 全局开关 ──────────────
+# journal_file:     null = 仅内存 · "path/to/events.jsonl" = JSONL 持久化
+# enable_web_skills: 自动注册 fetch_url / web_search 技能（需 httpx 可用）
+# default_arm_id:   默认腕足 ID（用于单腕任务分配）
+journal_file: null
+# journal_max_bytes: 50000000  # Audit R-04: 有界默认 50MB；JSONL 到上限轮转，内存 journal 用环形缓冲（~1KiB/事件）
+enable_web_skills: true
+default_arm_id: code_arm
+
+# ─────────────── oct 账号网关(推荐)─────────────────
+# echo 自己的账号网关(echo-mobile server)
+# 邮箱验证码登录 + 积分/会员/用量/商品/订单 + LLM 中转计费(/v1)
+#
+# enabled:               是否启用(⚠️ 启用时 jwt_secret 必填)
+# base_url:              网关根地址(线上 https://api.echo-age.com;本地测试可指 http://127.0.0.1:8099)
+# default_model:         默认模型 id
+# request_timeout_seconds: 账号/积分请求超时
+# llm_timeout_seconds:   LLM 中转(/v1/chat/completions)超时
+# mock_mode:             开发模式(走网关 ALLOW_MOCK_AUTH 的 devCode)
+# jwt_secret:            agent 自有会话 JWT 的 HS256 密钥 ⚠️ 32+ 字符强随机值(启用时必填)
+oct:
+  enabled: false   # 改 true 启用 · 同时必须设 jwt_secret(32+ 字符)
+  base_url: https://api.echo-age.com
+  default_model: qwen3.5-flash
+  request_timeout_seconds: 15
+  llm_timeout_seconds: 120
+  mock_mode: false
+  jwt_secret: null    # ⚠️ enabled=true 时必须设 32+ 字符强随机值
+  jwt_expire_seconds: 2592000
+  jwt_issuer: echo-ai
+# ─────────────── Local Auth 本地认证 ─────────────
+# 本地用户名登录 · 不依赖第三方服务
+#
+# enabled:              是否启用
+# allow_any_username:   允许任意用户名（false 时需配合 allowed_usernames 白名单）
+# allowed_usernames:    用户名白名单（仅 allow_any_username=false 时生效）
+# login_max_failures:   同一直连 IP + 规范化用户名在窗口内的失败阈值
+# login_ip_max_failures: 同一直连 IP 跨用户名的总失败阈值（防 username spray）
+# login_failure_window_seconds: 失败计数滑动窗口（秒）
+# login_lockout_seconds: 达到阈值后的短期锁定（秒）
+# login_rate_limit_max_entries: 单进程限速状态内存上限
+# jwt_secret:           JWT 签名密钥 ⚠️ 32+ 字符强随机值
+# jwt_expire_seconds:   JWT 过期时间（秒），604800 = 7 天
+# jwt_issuer:           JWT 签发者标识
+# actor_prefix:         用户名前缀（用于命名空间隔离，如 "local:alice"）
+# default_roles:        新用户默认角色
+local_auth:
+  enabled: false
+  allow_any_username: false
+  allowed_usernames: []
+  login_max_failures: 5
+  login_ip_max_failures: 20
+  login_failure_window_seconds: 300
+  login_lockout_seconds: 60
+  login_rate_limit_max_entries: 10000
+  jwt_secret: null
+  jwt_expire_seconds: 604800
+  jwt_issuer: echo-ai
+  actor_prefix: "local:"
+  default_roles: [user, local]
+  # Explicit local administrators; takes effect after restart and successful login.
+  admin_usernames: []
+
+# ─────────────── Safety: guard kill-switch 安全守卫开关 ─────────────
+# Persistently disable individual ReAct guards by label. Useful when
+# a guard is firing too many false positives in this project — see
+# the weekly_guard_reports/ output and per-label precision data.
+#
+# Two kill-switch layers exist; both are MERGED (union):
+#   * This file (project-level baseline; survives restarts)
+#   * ECHO_DISABLED_GUARDS env var (emergency runtime override;
+#     adds to whatever this file already disables)
+#
+# Each entry is a guard's exact label (visible in Final Answer
+# rejections as "[<label>] ..." and in the weekly digest report).
+# Removing or fixing the underlying detector is preferred over
+# disabling — but disabling is the right escape hatch when noise
+# is hurting the agent's productivity.
+safety:
+  # Keep false on shared or remotely reachable deployments. Set true only on
+  # a trusted single-user host when the UI's “Full Access / 全权执行” mode
+  # should be allowed to send approvalPolicy=never. Prompt-injection taint and
+  # hard safety blocks still escalate risky operations independently.
+  allow_client_approval_bypass: false
+
+  # Examples — uncomment to disable persistently in this project:
+  # disabled_guards:
+  #   - magic-number guard
+  #   - long-function guard
+  disabled_guards: []
+
+  # ─── Trust-signal escalation (P0 → P1 bridge) ─────────────
+  # When true, the constitution gate consults the guard-telemetry
+  # trust score on each outbound message. If the agent has been
+  # repeatedly tripping real security guards (suspect bucket,
+  # score ≤ 0.20), a clean allow is upgraded to human_gate so a
+  # human reviews. Trust signal NEVER relaxes a block — only
+  # tightens an allow. Default off; turn on once the judge batch
+  # has accumulated a few weeks of verdict data so the trust
+  # score is meaningful. Override at runtime with the env var
+  # ECHO_ENABLE_TRUST_SIGNAL=1 / 0.
+  enable_trust_signal: false
+
+  # ─── Constitution LLM judge (semantic outbound gate) ──────
+  # When true, serve registers an LLM judge at startup and the
+  # constitution gate consults it on every outbound message that
+  # passes the regex rule layer (verdicts cached 60s per message+
+  # destination). Whether a judge "block" hard-enforces or stays
+  # audit-only follows the constitution profile (strict enforces;
+  # normal/lax audit-only). Judge failures fail open — the regex
+  # rule layer is always the hard floor. Adds ~one Haiku call per
+  # unique outbound message. Env override: ECHO_ENABLE_LLM_JUDGE.
+  enable_llm_judge: false
+  # Optional judge model override (defaults to a low-latency model):
+  # llm_judge_model: claude-haiku-4-5-20251001
+
+  # ─── Per-guard overrides (fine-grained kill-switch) ───────
+  # Map of guard label -> True/False. Overrides take precedence
+  # over disabled_guards (so True here re-enables a guard listed
+  # there). Use this to whitelist a single guard back on after a
+  # blanket disable, or to surgically turn off a guard that's
+  # firing too many false positives this week.
+  guard_overrides: {}
+    # Examples:
+    # magic-number guard: false   # turn off
+    # weak-test guard: true       # explicit on (overrides any blanket off)
+
+execution:
+  # Members and realtime Auto requests default to OpenCode; explicit engines
+  # and dedicated Codex roles retain their selection.
+  # Without Zen credentials, official anonymous zero-cost models are available.
+  # Paid or unknown-price models fail before inference; no native fallback.
+  # Shared deployments currently need echo (OpenCode supports local only).
+  member_engine: opencode
+  # null follows the member policy: OpenCode keeps unattended model calls off.
+  # true opts into configured background evolution/experiment/summary models.
+  # Memory buckets still update deterministically when model calls are off.
+  background_model_calls: null
+  # local keeps the single-user desktop/developer contract. For a networked
+  # commercial service use shared/commercial/production/server; serve then
+  # requires a hard process sandbox and refuses startup when unavailable.
+  deployment_mode: local
+  # auto selects the best backend; commercial modes still fail closed if the
+  # host has no hard backend. Use strict/bwrap/seatbelt to pin one explicitly.
+  process_sandbox: auto  # 风险边界见 docs/security/sandbox-risk-boundary.md (audit S-06)
+
+  # ─── Process sandbox backend (exec_shell / verify / git / quality) ───
+  # Runtime env var ECHO_PROCESS_SANDBOX can override this in deployments.
+  # Values: auto, soft, strict, bwrap, seatbelt.

@@ -1,0 +1,82 @@
+# Implementation note.
+#
+# Implementation note.
+#   sudo useradd -r -s /usr/sbin/nologin echo
+#   sudo mkdir -p /opt/echo-ai /var/lib/echo /etc/echo
+#   sudo chown -R echo:echo /opt/echo-ai /var/lib/echo /etc/echo
+#
+# Implementation note.
+#   sudo -u echo python -m venv /opt/echo-ai/.venv
+#   sudo -u echo /opt/echo-ai/.venv/bin/pip install \
+#       "echo-ai-runtime[serve,local-auth,anthropic]"
+# Implementation note.
+#   # sudo -u echo git clone <repo> /opt/echo-ai/src
+#   # sudo -u echo /opt/echo-ai/.venv/bin/pip install -e /opt/echo-ai/src".[serve]"
+#
+# Implementation note.
+#   sudo cp deploy/systemd-config.yaml /etc/echo/config.yaml
+# Implementation note.
+#   sudo cp deploy/systemd.env.example /etc/echo/echo.env
+#   sudo chmod 600 /etc/echo/echo.env
+#   sudo chown echo:echo /etc/echo/echo.env
+#
+# Implementation note.
+#   sudo cp deploy/echo-ai.service /etc/systemd/system/
+#   sudo systemctl daemon-reload
+#   sudo systemctl enable --now echo-ai
+#
+# Implementation note.
+#   sudo systemctl status echo-ai
+#   sudo journalctl -u echo-ai -f
+#   sudo systemctl restart echo-ai
+
+[Unit]
+Description=Echo-Agent · biomimetic self-evolving agent OS
+Documentation=https://github.com/dengdenghua/echo-ai
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=echo
+Group=echo
+WorkingDirectory=/var/lib/echo
+
+# Implementation note.
+EnvironmentFile=/etc/echo/echo.env
+Environment=ECHO_DATA_DIR=/var/lib/echo
+
+# Implementation note.
+ExecStart=/opt/echo-ai/.venv/bin/echo-ai serve \
+    --config /etc/echo/config.yaml \
+    --host 0.0.0.0 \
+    --port 8000
+
+Restart=on-failure
+RestartSec=5s
+StartLimitInterval=60s
+StartLimitBurst=5
+
+# Implementation note.
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/var/lib/echo
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictNamespaces=true
+RestrictRealtime=true
+RestrictSUIDSGID=true
+LockPersonality=true
+MemoryDenyWriteExecute=true
+PrivateDevices=true
+CapabilityBoundingSet=
+
+# Implementation note.
+MemoryMax=2G
+TasksMax=512
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,36 @@
+{
+  "arms": [
+    "web_read",
+    "fs_writer",
+    "git",
+    "shell",
+    "browser_read",
+    "browser_interact",
+    "desktop_operator"
+  ],
+  "extra_affinity": [
+    "admin",
+    "system",
+    "manage",
+    "code",
+    "refactor",
+    "debug",
+    "test",
+    "frontend",
+    "ui",
+    "design",
+    "web-design",
+    "gemini",
+    "vertex",
+    "google-ai"
+  ],
+  "private_skills": [
+    "code-quality",
+    "code-vuln-audit",
+    "skill-creator",
+    "plugin-creator",
+    "agent-generator",
+    "github",
+    "project-retrospective"
+  ]
+}

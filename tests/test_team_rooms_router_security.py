@@ -1,0 +1,835 @@
+"""Security regression tests for team_rooms_router membership enforcement.
+
+These pin the fix that eliminated 8 bare ``_auth(request)`` calls and
+replaced them with ``_require_member`` / ``_require_owner``. Without
+these checks, any authenticated user could enumerate all teams, modify
+any team, delete any team, or kick participants from any team they
+weren't a member of.
+
+Companion to ``test_team_tasks_router_security.py`` — both routers
+share the same underlying authz model.
+"""
+
+from __future__ import annotations
+
+import base64
+import json
+from pathlib import Path
+from typing import Any
+
+import pytest
+
+fastapi = pytest.importorskip("fastapi")
+from fastapi import FastAPI  # noqa: E402
+from fastapi.testclient import TestClient  # noqa: E402
+from starlette.websockets import WebSocketDisconnect  # noqa: E402
+
+from runtime.safety.auth.identity import Identity, IdentityStore  # noqa: E402
+from runtime.sensing.gateway.team_rooms_router import (  # noqa: E402
+    create_team_rooms_router,
+)
+
+
+def _build_app(
+    tmp_path: Path,
+) -> tuple[TestClient, dict[str, str]]:
+    """Build app with require_auth=True + 3 identities (alice, bob, carol)."""
+    store = IdentityStore()
+    keys: dict[str, str] = {}
+    for actor in ("alice", "bob", "carol"):
+        api_key = f"sk-test-{actor}"
+        store.add(
+            Identity(actor_id=actor, metadata={"tenant_id": "tenant-acme"}),
+            api_key_plaintext=api_key,
+        )
+        keys[actor] = api_key
+
+    app = FastAPI()
+    app.include_router(
+        create_team_rooms_router(
+            state_path=tmp_path / "rooms.json",
+            identity_store=store,
+            require_auth=True,
+        )
+    )
+    return TestClient(app), keys
+
+
+def _bearer(api_key: str) -> dict[str, str]:
+    return {"Authorization": f"Bearer {api_key}"}
+
+
+def _create_team(
+    client: TestClient,
+    keys: dict[str, str],
+    team_id: str,
+    owner: str,
+) -> dict[str, Any]:
+    """Create a team owned by ``owner``."""
+    resp = client.post(
+        "/api/teams",
+        json={
+            "id": team_id,
+            "name": f"Team {team_id}",
+            "members": [{"name": owner, "role": "owner"}],
+        },
+        headers=_bearer(keys[owner]),
+    )
+    assert resp.status_code == 200, resp.json()
+    return resp.json()
+
+
+# ── list_teams: filter to caller's own teams ───────────────────────
+
+
+def test_list_teams_filters_by_membership(tmp_path: Path) -> None:
+    """User A should NOT see User B's teams in the list."""
+    client, keys = _build_app(tmp_path)
+    _create_team(client, keys, "alice-team", owner="alice")
+    _create_team(client, keys, "bob-team", owner="bob")
+
+    # alice sees only her team
+    resp = client.get("/api/teams", headers=_bearer(keys["alice"]))
+    assert resp.status_code == 200
+    team_ids = {t["id"] for t in resp.json()["teams"]}
+    assert team_ids == {"alice-team"}
+
+    # bob sees only his
+    resp = client.get("/api/teams", headers=_bearer(keys["bob"]))
+    team_ids = {t["id"] for t in resp.json()["teams"]}
+    assert team_ids == {"bob-team"}
+
+    # carol sees nothing (no teams)
+    resp = client.get("/api/teams", headers=_bearer(keys["carol"]))
+    assert resp.json()["count"] == 0
+
+
+# ── get_team: only members can read ────────────────────────────────
+
+
+def test_get_team_blocks_non_member(tmp_path: Path) -> None:
+    client, keys = _build_app(tmp_path)
+    _create_team(client, keys, "alice-team", owner="alice")
+
+    # bob can't read alice's team
+    resp = client.get("/api/teams/alice-team", headers=_bearer(keys["bob"]))
+    assert resp.status_code == 403
+    assert "not a member" in resp.json()["detail"]
+
+
+def test_get_team_allows_member(tmp_path: Path) -> None:
+    client, keys = _build_app(tmp_path)
+    _create_team(client, keys, "alice-team", owner="alice")
+
+    resp = client.get("/api/teams/alice-team", headers=_bearer(keys["alice"]))
+    assert resp.status_code == 200
+
+
+# ── update_team: only members can rename ───────────────────────────
+
+
+def test_update_team_blocks_non_member(tmp_path: Path) -> None:
+    client, keys = _build_app(tmp_path)
+    _create_team(client, keys, "alice-team", owner="alice")
+
+    resp = client.put(
+        "/api/teams/alice-team",
+        json={"name": "Hijacked", "members": [{"name": "bob", "role": "owner"}]},
+        headers=_bearer(keys["bob"]),
+    )
+    assert resp.status_code == 403
+
+
+# ── delete_team: only owner can delete ─────────────────────────────
+
+
+def test_delete_team_blocks_non_owner(tmp_path: Path) -> None:
+    """Even a member who isn't the owner can't delete the team."""
+    client, keys = _build_app(tmp_path)
+    _create_team(client, keys, "alice-team", owner="alice")
+
+    # bob tries to delete — 403
+    resp = client.delete("/api/teams/alice-team", headers=_bearer(keys["bob"]))
+    assert resp.status_code == 403
+    assert "owner" in resp.json()["detail"].lower()
+
+
+def test_delete_team_allows_owner(tmp_path: Path) -> None:
+    client, keys = _build_app(tmp_path)
+    _create_team(client, keys, "alice-team", owner="alice")
+
+    resp = client.delete("/api/teams/alice-team", headers=_bearer(keys["alice"]))
+    assert resp.status_code == 200
+    assert resp.json()["deleted"] is True
+
+
+# ── create_invite: only members can invite ─────────────────────────
+
+
+def test_create_invite_blocks_non_member(tmp_path: Path) -> None:
+    client, keys = _build_app(tmp_path)
+    _create_team(client, keys, "alice-team", owner="alice")
+
+    resp = client.post(
+        "/api/teams/alice-team/invite",
+        json={},
+        headers=_bearer(keys["bob"]),
+    )
+    assert resp.status_code == 403
+
+
+def test_plain_member_cannot_manage_invites_and_owner_role_is_rejected(tmp_path: Path) -> None:
+    client, keys = _build_app(tmp_path)
+    _create_team(client, keys, "alice-team", owner="alice")
+    _invite_and_join(client, keys, "alice-team", "alice", "bob")
+
+    denied = client.post(
+        "/api/teams/alice-team/invite",
+        json={"role": "member"},
+        headers=_bearer(keys["bob"]),
+    )
+    invalid_role = client.post(
+        "/api/teams/alice-team/invite",
+        json={"role": "owner"},
+        headers=_bearer(keys["alice"]),
+    )
+
+    assert denied.status_code == 403
+    assert invalid_role.status_code == 422
+
+
+# ── unauthenticated callers are blocked at the auth layer ──────────
+
+
+def test_no_auth_token_returns_401(tmp_path: Path) -> None:
+    client, keys = _build_app(tmp_path)
+    _create_team(client, keys, "alice-team", owner="alice")
+
+    resp = client.get("/api/teams/alice-team")
+    assert resp.status_code == 401
+
+
+# ── invite preview is actor-agnostic inside the bound tenant ────────
+
+
+def test_invite_preview_works_for_non_member(tmp_path: Path) -> None:
+    """A same-tenant non-member may see only the minimal join preview."""
+    client, keys = _build_app(tmp_path)
+    _create_team(client, keys, "alice-team", owner="alice")
+
+    invite = client.post(
+        "/api/teams/alice-team/invite",
+        json={},
+        headers=_bearer(keys["alice"]),
+    )
+    assert invite.status_code == 200
+    token = invite.json()["invite_token"]
+
+    # carol (not a member) can preview
+    resp = client.get(
+        f"/api/team-invites/{token}",
+        headers=_bearer(keys["carol"]),
+    )
+    assert resp.status_code == 200
+    assert resp.json()["team"]["id"] == "alice-team"
+    assert set(resp.json()["team"]) == {
+        "id",
+        "name",
+        "member_count",
+        "participant_count",
+    }
+    assert "invite_token" not in json.dumps(resp.json())
+
+
+# ── single-user dev mode: require_auth=False bypasses checks ───────
+
+
+def test_dev_mode_bypasses_membership_checks(tmp_path: Path) -> None:
+    """When require_auth=False, _require_member is a no-op so local
+    development isn't broken."""
+    app = FastAPI()
+    app.include_router(
+        create_team_rooms_router(
+            state_path=tmp_path / "rooms.json",
+            require_auth=False,
+        )
+    )
+    client = TestClient(app)
+
+    # No auth header at all — should still work in dev mode
+    create = client.post(
+        "/api/teams",
+        json={
+            "id": "team-x",
+            "name": "Dev Team",
+            "members": [{"name": "anyone", "role": "owner"}],
+        },
+    )
+    assert create.status_code == 200
+    resp = client.get("/api/teams/team-x")
+    assert resp.status_code == 200
+
+
+# ── participant management: role/status/targeting is owner-only ─────
+#
+# Regression guard for the privilege-escalation hole where
+# ``update_participant`` / ``remove_participant`` only called
+# ``_require_member``: any member could promote themselves to owner,
+# rewrite another member's role, or kick anyone. The fix limits a plain
+# member to editing their OWN display_name and removing only themselves.
+
+
+def _invite_and_join(
+    client: TestClient,
+    keys: dict[str, str],
+    team_id: str,
+    owner: str,
+    joiner: str,
+    role: str = "member",
+) -> str:
+    """Owner mints an invite; ``joiner`` accepts it and becomes an active
+    participant. Returns the joiner's participant id (``actor-<joiner>``)."""
+    invite = client.post(
+        f"/api/teams/{team_id}/invite",
+        json={"role": role},
+        headers=_bearer(keys[owner]),
+    )
+    assert invite.status_code == 200, invite.json()
+    token = invite.json()["invite_token"]
+    joined = client.post(
+        f"/api/team-invites/{token}/join",
+        json={},
+        headers=_bearer(keys[joiner]),
+    )
+    assert joined.status_code == 200, joined.json()
+    return joined.json()["participant"]["id"]
+
+
+def test_invite_join_ignores_client_selected_participant_id(tmp_path: Path) -> None:
+    client, keys = _build_app(tmp_path)
+    team = _create_team(client, keys, "alice-team", owner="alice")
+    invite = client.post(
+        "/api/teams/alice-team/invite",
+        json={"role": "member"},
+        headers=_bearer(keys["alice"]),
+    )
+
+    joined = client.post(
+        f"/api/team-invites/{invite.json()['invite_token']}/join",
+        json={"participant_id": "owner-alice", "display_name": "Bob"},
+        headers=_bearer(keys["bob"]),
+    )
+
+    assert joined.status_code == 200
+    assert joined.json()["participant"]["id"] == "actor-bob"
+    participants = joined.json()["team"]["participants"]
+    assert any(
+        item["id"] == "owner-alice" and item["actor_id"] == "alice" and item["role"] == "owner"
+        for item in participants
+    )
+    assert team["owner_id"] == "alice"
+
+
+def test_removed_member_cannot_rejoin_with_still_valid_invite(tmp_path: Path) -> None:
+    client, keys = _build_app(tmp_path)
+    _create_team(client, keys, "alice-team", owner="alice")
+    invite = client.post(
+        "/api/teams/alice-team/invite",
+        json={"role": "member"},
+        headers=_bearer(keys["alice"]),
+    )
+    token = invite.json()["invite_token"]
+    joined = client.post(
+        f"/api/team-invites/{token}/join",
+        json={},
+        headers=_bearer(keys["bob"]),
+    )
+    participant_id = joined.json()["participant"]["id"]
+    removed = client.delete(
+        f"/api/teams/alice-team/participants/{participant_id}",
+        headers=_bearer(keys["alice"]),
+    )
+    assert removed.status_code == 200
+
+    rejoin = client.post(
+        f"/api/team-invites/{token}/join",
+        json={"participant_id": "fresh-seat"},
+        headers=_bearer(keys["bob"]),
+    )
+
+    assert rejoin.status_code == 403
+
+
+def test_member_cannot_promote_self_to_owner(tmp_path: Path) -> None:
+    client, keys = _build_app(tmp_path)
+    _create_team(client, keys, "alice-team", owner="alice")
+    bob_pid = _invite_and_join(client, keys, "alice-team", "alice", "bob")
+
+    resp = client.patch(
+        f"/api/teams/alice-team/participants/{bob_pid}",
+        json={"role": "owner"},
+        headers=_bearer(keys["bob"]),
+    )
+    assert resp.status_code == 403
+    assert "only the team owner" in resp.json()["detail"]
+
+
+def test_member_cannot_change_another_participant(tmp_path: Path) -> None:
+    client, keys = _build_app(tmp_path)
+    _create_team(client, keys, "alice-team", owner="alice")
+    _invite_and_join(client, keys, "alice-team", "alice", "bob")
+    carol_pid = _invite_and_join(client, keys, "alice-team", "alice", "carol")
+
+    # bob tries to rewrite carol's role
+    resp = client.patch(
+        f"/api/teams/alice-team/participants/{carol_pid}",
+        json={"role": "owner"},
+        headers=_bearer(keys["bob"]),
+    )
+    assert resp.status_code == 403
+
+
+def test_member_cannot_rename_another_participant(tmp_path: Path) -> None:
+    client, keys = _build_app(tmp_path)
+    _create_team(client, keys, "alice-team", owner="alice")
+    _invite_and_join(client, keys, "alice-team", "alice", "bob")
+    carol_pid = _invite_and_join(client, keys, "alice-team", "alice", "carol")
+
+    resp = client.patch(
+        f"/api/teams/alice-team/participants/{carol_pid}",
+        json={"display_name": "Pwned"},
+        headers=_bearer(keys["bob"]),
+    )
+    assert resp.status_code == 403
+    assert "your own" in resp.json()["detail"]
+
+
+def test_member_can_rename_self(tmp_path: Path) -> None:
+    """Self-service display-name change must still work for a plain member."""
+    client, keys = _build_app(tmp_path)
+    _create_team(client, keys, "alice-team", owner="alice")
+    bob_pid = _invite_and_join(client, keys, "alice-team", "alice", "bob")
+
+    resp = client.patch(
+        f"/api/teams/alice-team/participants/{bob_pid}",
+        json={"display_name": "Bobby"},
+        headers=_bearer(keys["bob"]),
+    )
+    assert resp.status_code == 200, resp.json()
+    assert resp.json()["participant"]["display_name"] == "Bobby"
+    # role is untouched — rename does not silently grant privilege
+    assert resp.json()["participant"]["role"] == "member"
+
+
+def test_member_cannot_kick_another(tmp_path: Path) -> None:
+    client, keys = _build_app(tmp_path)
+    _create_team(client, keys, "alice-team", owner="alice")
+    _invite_and_join(client, keys, "alice-team", "alice", "bob")
+    carol_pid = _invite_and_join(client, keys, "alice-team", "alice", "carol")
+
+    resp = client.delete(
+        f"/api/teams/alice-team/participants/{carol_pid}",
+        headers=_bearer(keys["bob"]),
+    )
+    assert resp.status_code == 403
+
+
+def test_member_can_leave(tmp_path: Path) -> None:
+    """A member removing THEMSELVES (leaving) is allowed."""
+    client, keys = _build_app(tmp_path)
+    _create_team(client, keys, "alice-team", owner="alice")
+    bob_pid = _invite_and_join(client, keys, "alice-team", "alice", "bob")
+
+    resp = client.delete(
+        f"/api/teams/alice-team/participants/{bob_pid}",
+        headers=_bearer(keys["bob"]),
+    )
+    assert resp.status_code == 200, resp.json()
+
+
+def test_owner_can_manage_participants(tmp_path: Path) -> None:
+    """The owner retains full control: promote, and kick others."""
+    client, keys = _build_app(tmp_path)
+    _create_team(client, keys, "alice-team", owner="alice")
+    bob_pid = _invite_and_join(client, keys, "alice-team", "alice", "bob")
+    carol_pid = _invite_and_join(client, keys, "alice-team", "alice", "carol")
+
+    promote = client.patch(
+        f"/api/teams/alice-team/participants/{bob_pid}",
+        json={"role": "owner"},
+        headers=_bearer(keys["alice"]),
+    )
+    assert promote.status_code == 200, promote.json()
+    assert promote.json()["participant"]["role"] == "owner"
+
+    kick = client.delete(
+        f"/api/teams/alice-team/participants/{carol_pid}",
+        headers=_bearer(keys["alice"]),
+    )
+    assert kick.status_code == 200, kick.json()
+
+
+# ── governance: mute + speaker-policy are owner-only ───────────────
+
+
+def test_owner_can_mute_member(tmp_path: Path) -> None:
+    client, keys = _build_app(tmp_path)
+    _create_team(client, keys, "alice-team", owner="alice")
+    bob_pid = _invite_and_join(client, keys, "alice-team", "alice", "bob")
+
+    resp = client.patch(
+        f"/api/teams/alice-team/participants/{bob_pid}",
+        json={"muted": True},
+        headers=_bearer(keys["alice"]),
+    )
+    assert resp.status_code == 200, resp.json()
+    assert resp.json()["participant"]["muted"] is True
+
+
+def test_member_cannot_mute_another(tmp_path: Path) -> None:
+    client, keys = _build_app(tmp_path)
+    _create_team(client, keys, "alice-team", owner="alice")
+    _invite_and_join(client, keys, "alice-team", "alice", "bob")
+    carol_pid = _invite_and_join(client, keys, "alice-team", "alice", "carol")
+
+    resp = client.patch(
+        f"/api/teams/alice-team/participants/{carol_pid}",
+        json={"muted": True},
+        headers=_bearer(keys["bob"]),
+    )
+    assert resp.status_code == 403
+
+
+def test_member_cannot_unmute_self(tmp_path: Path) -> None:
+    """A muted member must not be able to lift their own mute."""
+    client, keys = _build_app(tmp_path)
+    _create_team(client, keys, "alice-team", owner="alice")
+    bob_pid = _invite_and_join(client, keys, "alice-team", "alice", "bob")
+
+    # owner mutes bob
+    muted = client.patch(
+        f"/api/teams/alice-team/participants/{bob_pid}",
+        json={"muted": True},
+        headers=_bearer(keys["alice"]),
+    )
+    assert muted.status_code == 200, muted.json()
+
+    # bob tries to unmute himself — privileged, denied
+    resp = client.patch(
+        f"/api/teams/alice-team/participants/{bob_pid}",
+        json={"muted": False},
+        headers=_bearer(keys["bob"]),
+    )
+    assert resp.status_code == 403
+
+
+def test_owner_can_set_speaker_policy(tmp_path: Path) -> None:
+    client, keys = _build_app(tmp_path)
+    _create_team(client, keys, "alice-team", owner="alice")
+
+    resp = client.patch(
+        "/api/teams/alice-team/speaker-policy",
+        json={"speaker_policy": "admin_only"},
+        headers=_bearer(keys["alice"]),
+    )
+    assert resp.status_code == 200, resp.json()
+    assert resp.json()["speaker_policy"] == "admin_only"
+    assert resp.json()["team"]["speaker_policy"] == "admin_only"
+
+
+def test_member_cannot_set_speaker_policy(tmp_path: Path) -> None:
+    client, keys = _build_app(tmp_path)
+    _create_team(client, keys, "alice-team", owner="alice")
+    _invite_and_join(client, keys, "alice-team", "alice", "bob")
+
+    resp = client.patch(
+        "/api/teams/alice-team/speaker-policy",
+        json={"speaker_policy": "admin_only"},
+        headers=_bearer(keys["bob"]),
+    )
+    assert resp.status_code == 403
+
+
+# ── delegation (twin/hosted): the bound person's OWN opt-in only ────
+#
+# The inverse of mute: an admin must NOT be able to bind a twin or host
+# to someone else (that would be impersonation). Only the participant
+# themselves can set their own speaking delegation.
+
+
+def test_participant_sets_own_delegation(tmp_path: Path) -> None:
+    client, keys = _build_app(tmp_path)
+    _create_team(client, keys, "alice-team", owner="alice")
+    bob_pid = _invite_and_join(client, keys, "alice-team", "alice", "bob")
+
+    resp = client.patch(
+        f"/api/teams/alice-team/participants/{bob_pid}/delegation",
+        json={"speak_mode": "hosted", "host_id": "alice"},
+        headers=_bearer(keys["bob"]),
+    )
+    assert resp.status_code == 200, resp.json()
+    assert resp.json()["participant"]["speak_mode"] == "hosted"
+    assert resp.json()["participant"]["host_id"] == "alice"
+
+
+def test_owner_cannot_impose_delegation(tmp_path: Path) -> None:
+    """The critical impersonation guard: even the owner cannot bind a
+    twin/host onto another participant."""
+    client, keys = _build_app(tmp_path)
+    _create_team(client, keys, "alice-team", owner="alice")
+    bob_pid = _invite_and_join(client, keys, "alice-team", "alice", "bob")
+
+    resp = client.patch(
+        f"/api/teams/alice-team/participants/{bob_pid}/delegation",
+        json={"speak_mode": "twin", "twin_agent_id": "alice-puppet"},
+        headers=_bearer(keys["alice"]),
+    )
+    assert resp.status_code == 403
+    assert "themselves" in resp.json()["detail"]
+
+
+def test_member_cannot_set_others_delegation(tmp_path: Path) -> None:
+    client, keys = _build_app(tmp_path)
+    _create_team(client, keys, "alice-team", owner="alice")
+    _invite_and_join(client, keys, "alice-team", "alice", "bob")
+    carol_pid = _invite_and_join(client, keys, "alice-team", "alice", "carol")
+
+    resp = client.patch(
+        f"/api/teams/alice-team/participants/{carol_pid}/delegation",
+        json={"speak_mode": "hosted", "host_id": "bob"},
+        headers=_bearer(keys["bob"]),
+    )
+    assert resp.status_code == 403
+
+
+def test_hosted_mode_requires_host_id(tmp_path: Path) -> None:
+    client, keys = _build_app(tmp_path)
+    _create_team(client, keys, "alice-team", owner="alice")
+    bob_pid = _invite_and_join(client, keys, "alice-team", "alice", "bob")
+
+    resp = client.patch(
+        f"/api/teams/alice-team/participants/{bob_pid}/delegation",
+        json={"speak_mode": "hosted"},  # missing host_id
+        headers=_bearer(keys["bob"]),
+    )
+    assert resp.status_code == 400
+
+
+# ── transcript + websocket membership share the HTTP invite boundary ──
+
+
+def test_room_transcript_requires_active_membership(tmp_path: Path) -> None:
+    client, keys = _build_app(tmp_path)
+    _create_team(client, keys, "alice-team", owner="alice")
+
+    assert client.get("/api/teams/alice-team/messages").status_code == 401
+    assert (
+        client.get(
+            "/api/teams/alice-team/messages",
+            headers=_bearer(keys["bob"]),
+        ).status_code
+        == 403
+    )
+    allowed = client.get(
+        "/api/teams/alice-team/messages",
+        headers=_bearer(keys["alice"]),
+    )
+    assert allowed.status_code == 200
+    assert allowed.json()["team_id"] == "alice-team"
+
+
+def test_room_websocket_rejects_authenticated_non_member(tmp_path: Path) -> None:
+    client, keys = _build_app(tmp_path)
+    _create_team(client, keys, "alice-team", owner="alice")
+
+    with client.websocket_connect(
+        "/api/teams/alice-team/ws?participant_id=guessed-bob",
+        headers=_bearer(keys["bob"]),
+    ) as websocket:
+        error = websocket.receive_json()
+        assert error == {"type": "error", "message": "team invite required"}
+
+
+def test_room_websocket_accepts_browser_safe_bearer_subprotocol(tmp_path: Path) -> None:
+    client, keys = _build_app(tmp_path)
+    team = _create_team(client, keys, "alice-team", owner="alice")
+    participant_id = team["participants"][0]["id"]
+    encoded = base64.urlsafe_b64encode(keys["alice"].encode()).decode().rstrip("=")
+
+    with client.websocket_connect(
+        f"/api/teams/alice-team/ws?participant_id={participant_id}",
+        subprotocols=["bearer.b64", encoded],
+    ) as websocket:
+        ready = websocket.receive_json()
+        assert ready["type"] == "ready"
+        assert ready["participant"]["actor_id"] == "alice"
+
+
+def test_room_websocket_allows_invited_actor_and_resolves_stale_client_id(
+    tmp_path: Path,
+) -> None:
+    client, keys = _build_app(tmp_path)
+    _create_team(client, keys, "alice-team", owner="alice")
+    bob_pid = _invite_and_join(client, keys, "alice-team", "alice", "bob")
+
+    with client.websocket_connect(
+        "/api/teams/alice-team/ws?participant_id=stale-browser-id&display_name=Stale%20Name",
+        headers=_bearer(keys["bob"]),
+    ) as websocket:
+        ready = websocket.receive_json()
+        assert ready["type"] == "ready"
+        assert ready["participant"]["id"] == bob_pid
+        assert ready["participant"]["actor_id"] == "bob"
+        assert ready["participant"]["display_name"] == "bob"
+
+
+@pytest.mark.parametrize("push_kind", ["team:update", "presence", "message"])
+def test_cross_worker_push_evicts_revoked_websocket_before_payload(
+    tmp_path: Path,
+    push_kind: str,
+) -> None:
+    identities = IdentityStore()
+    keys: dict[str, str] = {}
+    for actor in ("alice", "bob"):
+        key = f"sk-{actor}"
+        identities.add(
+            Identity(actor_id=actor, metadata={"tenant_id": "tenant-acme"}),
+            api_key_plaintext=key,
+        )
+        keys[actor] = key
+    state_path = tmp_path / "rooms.json"
+    writer_app = FastAPI()
+    writer_app.include_router(
+        create_team_rooms_router(
+            state_path=state_path,
+            identity_store=identities,
+            require_auth=True,
+        )
+    )
+    stale_app = FastAPI()
+    stale_app.include_router(
+        create_team_rooms_router(
+            state_path=state_path,
+            identity_store=identities,
+            require_auth=True,
+        )
+    )
+    writer = TestClient(writer_app)
+    stale = TestClient(stale_app)
+    _create_team(writer, keys, "alice-team", owner="alice")
+    bob_id = _invite_and_join(writer, keys, "alice-team", "alice", "bob")
+    ws_url = "/api/teams/alice-team/ws"
+
+    with stale.websocket_connect(
+        f"{ws_url}?participant_id={bob_id}",
+        headers=_bearer(keys["bob"]),
+    ) as bob:
+        assert bob.receive_json()["type"] == "ready"
+        assert bob.receive_json()["type"] == "presence"
+
+        if push_kind == "message":
+            alice_socket = stale.websocket_connect(
+                f"{ws_url}?participant_id=owner-alice",
+                headers=_bearer(keys["alice"]),
+            )
+            alice = alice_socket.__enter__()
+            assert alice.receive_json()["type"] == "ready"
+            assert bob.receive_json()["type"] == "presence"
+            assert alice.receive_json()["type"] == "presence"
+        else:
+            alice_socket = None
+            alice = None
+
+        removed = writer.delete(
+            f"/api/teams/alice-team/participants/{bob_id}",
+            headers=_bearer(keys["alice"]),
+        )
+        assert removed.status_code == 200, removed.json()
+
+        if push_kind == "team:update":
+            pushed = stale.patch(
+                "/api/teams/alice-team/speaker-policy",
+                headers=_bearer(keys["alice"]),
+                json={"speaker_policy": "admin_only"},
+            )
+            assert pushed.status_code == 200, pushed.json()
+        elif push_kind == "presence":
+            alice_socket = stale.websocket_connect(
+                f"{ws_url}?participant_id=owner-alice",
+                headers=_bearer(keys["alice"]),
+            )
+            alice = alice_socket.__enter__()
+            assert alice.receive_json()["type"] == "ready"
+            assert alice.receive_json()["type"] == "presence"
+        else:
+            assert alice is not None
+            alice.send_json({"type": "message", "text": "still authorized"})
+            assert alice.receive_json()["type"] == "message"
+
+        bob.send_json({"type": "ping"})
+        with pytest.raises(WebSocketDisconnect) as exc_info:
+            bob.receive_json()
+        assert exc_info.value.code == 4403
+        if alice_socket is not None:
+            alice_socket.__exit__(None, None, None)
+
+    durable = writer.get(
+        "/api/teams/alice-team",
+        headers=_bearer(keys["alice"]),
+    ).json()
+    removed_participant = next(item for item in durable["participants"] if item["id"] == bob_id)
+    assert removed_participant["status"] == "removed"
+    assert (
+        stale.get(
+            "/api/teams/alice-team",
+            headers=_bearer(keys["bob"]),
+        ).status_code
+        == 403
+    )
+
+
+def test_transcript_rejects_unbound_legacy_participant_id(tmp_path: Path) -> None:
+    """A client-chosen participant id is not an authenticated membership."""
+    state_path = tmp_path / "rooms.json"
+    state_path.write_text(
+        json.dumps(
+            {
+                "teams": [
+                    {
+                        "id": "legacy-room",
+                        "name": "Legacy room",
+                        "owner_id": "alice",
+                        "created_at": "2026-01-01T00:00:00Z",
+                        "updated_at": "2026-01-01T00:00:00Z",
+                        "participants": [
+                            {
+                                "id": "bob",
+                                "display_name": "Unbound Bob",
+                                "actor_id": None,
+                                "joined_at": "2026-01-01T00:00:00Z",
+                                "status": "active",
+                            }
+                        ],
+                    }
+                ]
+            }
+        ),
+        encoding="utf-8",
+    )
+    identities = IdentityStore()
+    identities.add(Identity(actor_id="alice"), api_key_plaintext="sk-alice")
+    identities.add(Identity(actor_id="bob"), api_key_plaintext="sk-bob")
+    app = FastAPI()
+    app.include_router(
+        create_team_rooms_router(
+            state_path=state_path,
+            identity_store=identities,
+            require_auth=True,
+        )
+    )
+
+    response = TestClient(app).get(
+        "/api/teams/legacy-room/messages",
+        headers={"Authorization": "Bearer sk-bob"},
+    )
+    assert response.status_code == 403

@@ -1,0 +1,175 @@
+import { describe, expect, it, vi, beforeEach } from "vitest";
+import { render, screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
+
+vi.mock("@/core/i18n/hooks", () => ({
+  useI18n: () => ({
+    t: {
+      modes: {
+        develop: "编程",
+        developDesc: "",
+        developEffect: "",
+        developTooltip: "",
+        audit: "审查",
+        auditDesc: "",
+        auditEffect: "",
+        auditTooltip: "",
+        uxui: "界面",
+        uxuiDesc: "",
+        uxuiEffect: "",
+        uxuiTooltip: "",
+        manualOverrideShort: "手动",
+        standard: "标准",
+        ultra: "深度",
+      },
+    },
+    locale: "zh",
+    setLocale: () => Promise.resolve(),
+  }),
+}));
+
+import { ModeSelector, persistModeSelection } from "./mode-selector";
+
+function mockFetch() {
+  return vi.stubGlobal(
+    "fetch",
+    vi.fn(async (input: RequestInfo | URL) => {
+      const url = String(input);
+      if (url.includes("/agent-modes/detect")) {
+        return new Response(
+          JSON.stringify({
+            recommended_mode: "coder",
+            confidence: 0.9,
+            reason: "test",
+            signals: {},
+          }),
+          { status: 200, headers: { "Content-Type": "application/json" } },
+        );
+      }
+      if (url.includes("/agent-modes")) {
+        return new Response(
+          JSON.stringify({
+            modes: [{ name: "develop", display_name: "编程" }],
+          }),
+          { status: 200, headers: { "Content-Type": "application/json" } },
+        );
+      }
+      return new Response("not found", { status: 404 });
+    }),
+  );
+}
+
+describe("ModeSelector.onManualOverrideChange", () => {
+  beforeEach(() => {
+    window.localStorage.clear();
+    mockFetch();
+  });
+
+  it("reports true when the user manually switches modes", async () => {
+    const onManualOverrideChange = vi.fn();
+    const onUserModeChange = vi.fn();
+    const user = userEvent.setup();
+    render(
+      <ModeSelector
+        workDir="/workspace/a"
+        sessionId="s1"
+        mode="develop"
+        onModeChange={() => {}}
+        onUserModeChange={onUserModeChange}
+        onManualOverrideChange={onManualOverrideChange}
+      />,
+    );
+
+    // Open the popup and pick the only specialized option: Design.
+    await user.click(screen.getByRole("button", { haspopup: "listbox" }));
+    const options = await screen.findAllByRole("option");
+    expect(options).toHaveLength(2);
+    expect(
+      options.every((option) => !option.textContent?.includes("审查")),
+    ).toBe(true);
+    const design = options.find((o) => o.textContent?.includes("界面"));
+    expect(design).toBeTruthy();
+    await user.click(design!);
+
+    expect(onManualOverrideChange).toHaveBeenCalledWith(true);
+    expect(onUserModeChange).toHaveBeenCalledOnce();
+    expect(onUserModeChange).toHaveBeenCalledWith("uxui");
+  });
+
+  it("migrates a persisted audit mode to general on mount", () => {
+    window.localStorage.setItem(
+      "echo:modeOverride",
+      JSON.stringify({
+        "/workspace/a": { mode: "audit", auditIntensity: "max" },
+      }),
+    );
+    const onModeChange = vi.fn();
+    const onUserModeChange = vi.fn();
+    render(
+      <ModeSelector
+        workDir="/workspace/a"
+        sessionId="s1"
+        mode="develop"
+        onModeChange={onModeChange}
+        onUserModeChange={onUserModeChange}
+      />,
+    );
+
+    expect(onModeChange).toHaveBeenCalledWith("develop");
+    expect(onUserModeChange).not.toHaveBeenCalled();
+  });
+
+  it("renders a legacy audit prop as General without exposing a third option", async () => {
+    const user = userEvent.setup();
+    render(
+      <ModeSelector
+        workDir="/workspace/a"
+        sessionId="s1"
+        mode="audit"
+        onModeChange={() => {}}
+      />,
+    );
+
+    expect(screen.getByRole("button", { name: /编程/ })).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { haspopup: "listbox" }));
+    expect(await screen.findAllByRole("option")).toHaveLength(2);
+    expect(screen.queryByText("审查")).not.toBeInTheDocument();
+  });
+
+  it("saves personal mode locally without a backend mutation", async () => {
+    vi.stubGlobal("fetch", vi.fn(() => new Promise<Response>(() => {})));
+    await persistModeSelection("audit", "new", "");
+    expect(fetch).not.toHaveBeenCalled();
+    expect(JSON.parse(window.localStorage.getItem("echo:modeOverride")!))
+      .toEqual({ __personal__: { mode: "develop" } });
+  });
+
+  it("switches immediately even while backend reads remain pending", async () => {
+    vi.stubGlobal("fetch", vi.fn(() => new Promise<Response>(() => {})));
+    const onUserModeChange = vi.fn(() => {
+      expect(JSON.parse(window.localStorage.getItem("echo:modeOverride")!))
+        .toEqual({ __personal__: { mode: "uxui" } });
+    });
+    const user = userEvent.setup();
+    render(
+      <ModeSelector workDir="" sessionId="new" mode="develop"
+        onModeChange={() => {}} onUserModeChange={onUserModeChange} />,
+    );
+    await user.click(screen.getByRole("button", { haspopup: "listbox" }));
+    const design = (await screen.findAllByRole("option")).find((option) =>
+      option.textContent?.includes("界面"),
+    );
+    await user.click(design!);
+    expect(onUserModeChange).toHaveBeenCalledOnce();
+    expect(onUserModeChange).toHaveBeenCalledWith("uxui");
+  });
+
+  it("keeps workspace preferences separate when offline", async () => {
+    vi.stubGlobal("fetch", vi.fn(async () => { throw new TypeError("offline"); }));
+    await persistModeSelection("uxui", "s1", "/workspace/a");
+    await persistModeSelection("develop", "new", "");
+    expect(JSON.parse(window.localStorage.getItem("echo:modeOverride")!))
+      .toEqual({ "/workspace/a": { mode: "uxui" }, __personal__: { mode: "develop" } });
+    expect(fetch).not.toHaveBeenCalled();
+  });
+});

@@ -1,0 +1,27 @@
+{
+  "arms": [
+    "web_read",
+    "fs_writer",
+    "shell"
+  ],
+  "extra_affinity": [
+    "academic",
+    "research",
+    "papers",
+    "experiment",
+    "statistics",
+    "literature"
+  ],
+  "private_skills": [
+    "academic-paper-expert",
+    "paper-writing",
+    "deep-research",
+    "auto-stat-test",
+    "pdf",
+    "chart-image",
+    "spreadsheets",
+    "presentations",
+    "general-writer",
+    "project-delivery-review"
+  ]
+}
