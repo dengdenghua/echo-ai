@@ -266,3 +266,4 @@ pet-sidecar/.godot/
 
 # Root-level preview screenshots (local UI artifacts, never commit)
 /preview*.png
+.pytest-tmp/

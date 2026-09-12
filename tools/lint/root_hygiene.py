@@ -107,6 +107,9 @@ ROOT_ALLOWLIST: set[str] = {
     # ── Documentation ───────────────────────────────────────
     "README.md",
     "README.en.md",
+    # Windows launchers are user-facing entry points, intentionally at root.
+    "Start-Echo.cmd",
+    "Stop-Echo.cmd",
     "ROOT_LAYOUT.md",
     "QUICKSTART.md",
     "CONTRIBUTING.md",
