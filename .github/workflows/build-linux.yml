@@ -53,6 +53,7 @@ jobs:
           --extra desktop-build
 
       - name: Configure trusted first-party plugin publisher
+        if: ${{ vars.ECHO_PLUGIN_SIGNING_PUBLIC_KEY != '' }}
         env:
           ECHO_PLUGIN_SIGNING_PUBLIC_KEY: ${{ vars.ECHO_PLUGIN_SIGNING_PUBLIC_KEY }}
           ECHO_PLUGIN_SIGNING_PUBLISHER_ID: ${{ vars.ECHO_PLUGIN_SIGNING_PUBLISHER_ID }}
