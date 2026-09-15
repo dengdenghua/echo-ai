@@ -1563,6 +1563,26 @@ describe("<ChatInputBox /> live steering", () => {
 });
 
 describe("<ChatInputBox /> connection recovery", () => {
+  it("quotes only this conversation while keeping the existing draft unsent", () => {
+    const onSubmit = vi.fn();
+    renderWithProviders(<ChatInputBox mode="react" threadId="quote-target" onSubmit={onSubmit} />);
+    const input = screen.getByTestId("chat-composer-input");
+    fireEvent.change(input, { target: { value: "my unfinished reply" } });
+    fireEvent(window, new CustomEvent("echo:quote-message", { detail: { threadId: "another", text: "private" } }));
+    expect(input).toHaveValue("my unfinished reply");
+    fireEvent(window, new CustomEvent("echo:quote-message", { detail: { threadId: "quote-target", text: "line one\nline two" } }));
+    expect(input).toHaveValue("my unfinished reply");
+    expect(screen.getByTestId("composer-quote")).toHaveTextContent("line one");
+    fireEvent.click(screen.getByTestId("composer-remove-quote"));
+    expect(screen.queryByTestId("composer-quote")).toBeNull();
+    expect(input).toHaveValue("my unfinished reply");
+    fireEvent(window, new CustomEvent("echo:quote-message", { detail: { threadId: "quote-target", text: "line one\nline two" } }));
+    expect(onSubmit).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByTestId("chat-send-button"));
+    expect(onSubmit).toHaveBeenCalledWith(expect.objectContaining({ text: "my unfinished reply\n\n> line one\n> line two" }));
+    expect(screen.queryByTestId("composer-quote")).toBeNull();
+  });
+
   it("keeps the draft editable and unsent until the thread is ready", () => {
     const onSubmit = vi.fn();
     const { rerender } = renderWithProviders(

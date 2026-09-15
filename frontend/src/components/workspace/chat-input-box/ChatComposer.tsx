@@ -174,6 +174,16 @@ export function ChatComposer({
       // (external injection, e.g. "retry this message") wins when present.
       defaultValue || (loadComposerDraft(draftStorageKey) ?? ""),
   );
+  const quoteStorageKey = `quote:${draftStorageKey ?? "__new__"}`;
+  const [quoteState, setQuoteState] = useState(() => ({
+    key: quoteStorageKey, text: loadComposerDraft(quoteStorageKey) ?? "",
+  }));
+  const quoteText = quoteState.key === quoteStorageKey
+    ? quoteState.text : (loadComposerDraft(quoteStorageKey) ?? "");
+  const setQuoteText = useCallback((text: string) => {
+    saveComposerDraft(quoteStorageKey, text);
+    setQuoteState({ key: quoteStorageKey, text });
+  }, [quoteStorageKey]);
   // Restore the stored draft when the composer moves to a different thread
   // (the component is reused across navigation).
   const prevDraftThreadRef = useRef(draftStorageKey);
@@ -310,6 +320,24 @@ export function ChatComposer({
       return serializeComposerDraft({ ...parsed, body });
     });
   }, []);
+
+  useEffect(() => {
+    let focusTimer: ReturnType<typeof setTimeout> | undefined;
+    const quote = (event: Event) => {
+      const detail = (event as CustomEvent<unknown>).detail;
+      if (!detail || typeof detail !== "object") return;
+      const request = detail as { threadId?: unknown; text?: unknown };
+      if (!threadId || request.threadId !== threadId || typeof request.text !== "string" || !request.text.trim()) return;
+      setQuoteText(request.text.trim());
+      clearTimeout(focusTimer);
+      focusTimer = setTimeout(() => textareaRef.current?.focus(), 0);
+    };
+    window.addEventListener("echo:quote-message", quote);
+    return () => {
+      clearTimeout(focusTimer);
+      window.removeEventListener("echo:quote-message", quote);
+    };
+  }, [threadId, setQuoteText]);
 
   // Slash-command typeahead · shared hook (see use-slash-typeahead).
   // Returns the picker JSX + a keydown handler that we call FIRST in
@@ -572,7 +600,7 @@ export function ChatComposer({
 
   const handleSubmit = useCallback(async () => {
     const threadScope = composerThreadScopeRef.current;
-    const text = draft.trim();
+    let text = draft.trim();
     const sendableText = parseComposerDraft(text).body.trim();
     const hasImages = pendingImages.length > 0;
     const hasFiles = pendingFiles.length > 0;
@@ -613,6 +641,11 @@ export function ChatComposer({
       setDraft("");
       releaseSubmitLock();
       return;
+    }
+    if (quoteText) {
+      const parsed = parseComposerDraft(text);
+      const quoted = quoteText.split(/\r?\n/).map((line) => `> ${line}`).join("\n");
+      text = serializeComposerDraft({ ...parsed, body: `${parsed.body}\n\n${quoted}` });
     }
     if (isDeepResearchMode) {
       const localFileMaterials = pendingFiles
@@ -679,6 +712,7 @@ export function ChatComposer({
       }
       if (composerThreadScopeRef.current !== threadScope) return;
       if (result !== false) {
+        setQuoteText("");
         setDraft(
           activeLongTaskMode
             ? serializeComposerDraft({
@@ -713,6 +747,7 @@ export function ChatComposer({
     // If transport readiness changed between render and click, keep every
     // part of the draft instead of optimistically clearing an unsent message.
     if (accepted === false) return;
+    setQuoteText("");
     setDraft(
       activeLongTaskMode
         ? serializeComposerDraft({
@@ -733,6 +768,8 @@ export function ChatComposer({
     }
   }, [
     draft,
+    quoteText,
+    setQuoteText,
     submissionBlocked,
     isBusy,
     status,
@@ -1462,6 +1499,16 @@ export function ChatComposer({
         />
       </div>
       </div>
+      {quoteText && (
+        <div data-testid="composer-quote" className="mx-3 mb-2 flex min-w-0 items-center gap-2 border-l-2 border-muted-foreground/20 pl-2 text-xs text-muted-foreground/70">
+          <span className="min-w-0 flex-1 truncate" title={quoteText}>{quoteText}</span>
+          <button type="button" data-testid="composer-remove-quote" aria-label={t.conversation.removeQuote}
+            onClick={() => setQuoteText("")}
+            className="inline-flex size-5 shrink-0 items-center justify-center rounded-full hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
+            <XIcon className="size-3" />
+          </button>
+        </div>
+      )}
       {isDeepResearchMode && researchConfigOpen && (
         <ResearchSourcePicker
           researchUrlText={researchUrlText}

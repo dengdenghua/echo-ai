@@ -594,7 +594,7 @@ export function ChatPageLayout({
               fullWorkbench && !composerExpanded ? "compact" : "expanded"
             }
             className={cn(
-              "absolute right-0 bottom-0 left-0 z-30 flex justify-center px-3 pb-3",
+              "pointer-events-none absolute right-0 bottom-0 left-0 z-30 flex justify-center px-3 pb-3 [&>*]:pointer-events-auto",
               fullWorkbench
                 ? "pointer-events-none mx-auto w-full max-w-[760px] flex-col items-center gap-2 pb-6 pt-3 [&>*]:pointer-events-auto [&_[data-composer-context-strip]]:hidden [&_[data-composer-welcome]]:hidden [&_[data-composer-start]]:!translate-y-0"
                 : "bg-gradient-to-t from-background via-background/92 to-transparent pt-8",

@@ -3103,6 +3103,8 @@ export const zhCN: Translations = {
     messageSendFailed: "发送失败",
     previousMessagePending: "上一条消息仍在发送，请等待确认后重试",
     steeringTurnUnavailable: "原任务已不再运行，请重新发送为一条新消息",
+    removeQuote: "取消引用",
+    quoteMessage: "引用",
     editResend: "编辑并重发",
     regenerateResponse: "重新生成回复",
     forkFromHere: "从这里派生新会话",

@@ -3275,6 +3275,8 @@ export const koKR: Translations = {
       "이전 메시지를 보내는 중입니다. 전송이 확인된 후 다시 시도하세요.",
     steeringTurnUnavailable:
       "원래 작업이 더 이상 실행 중이 아닙니다. 새 메시지로 다시 보내세요.",
+    removeQuote: "인용 취소",
+    quoteMessage: "인용",
     editResend: "편집 후 보내기",
     regenerateResponse: "응답 다시 생성",
     forkFromHere: "여기에서 대화 분기",

@@ -3329,6 +3329,8 @@ export const jaJP: Translations = {
       "前のメッセージを送信中です。確認されてから再試行してください。",
     steeringTurnUnavailable:
       "元のタスクは実行中ではありません。新しいメッセージとして送信してください。",
+    removeQuote: "引用を解除",
+    quoteMessage: "引用",
     editResend: "編集して再送信",
     regenerateResponse: "応答を再生成",
     forkFromHere: "ここから会話を分岐",
