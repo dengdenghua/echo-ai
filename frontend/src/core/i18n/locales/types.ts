@@ -2693,6 +2693,8 @@ export interface Translations {
     messageSendFailed: string;
     previousMessagePending: string;
     steeringTurnUnavailable: string;
+    quoteMessage: string;
+    removeQuote: string;
     editResend: string;
     regenerateResponse: string;
     forkFromHere: string;

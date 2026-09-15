@@ -3351,6 +3351,8 @@ export const enUS: Translations = {
       "The previous message is still sending. Wait for confirmation, then retry.",
     steeringTurnUnavailable:
       "The original task is no longer running. Send this again as a new message.",
+    removeQuote: "Remove quote",
+    quoteMessage: "Quote",
     editResend: "Edit and resend",
     regenerateResponse: "Regenerate response",
     forkFromHere: "Fork conversation from here",

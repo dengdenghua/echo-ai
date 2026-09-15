@@ -2,10 +2,12 @@ import type { Message } from "@/core/api/types";
 import type { CoworkRoomMessage } from "@/core/cowork";
 import {
   CheckCircle2Icon,
+  CopyIcon,
   DnaIcon,
   FileIcon,
   GitForkIcon,
   Loader2Icon,
+  MessageSquareQuoteIcon,
   PencilIcon,
   RefreshCwIcon,
   ThumbsDownIcon,
@@ -50,6 +52,7 @@ import { resolveArtifactURL } from "@/core/artifacts/utils";
 import { jsonAuthHeaders } from "@/core/auth/api";
 import { canAccessOperatorControlPlane } from "@/core/auth/control-plane-access";
 import { getBackendBaseURL } from "@/core/config";
+import { copyTextToClipboard } from "@/core/clipboard";
 import { useI18n } from "@/core/i18n/hooks";
 import {
   getDualHelixShadowStatus,
@@ -72,7 +75,6 @@ import { useHumanMessagePlugins } from "@/core/streamdown";
 import { cn } from "@/lib/utils";
 import { useOptionalAuth } from "@/providers/AuthProvider";
 
-import { CopyButton } from "../copy-button";
 import {
   CoworkRoomMessageActions,
   type CoworkRoomMessageActionsProps,
@@ -103,6 +105,11 @@ import {
 } from "@/core/threads/optimistic-messages";
 import { ClarificationChoiceCard } from "./clarification-choice-card";
 import { GroundingChip } from "./grounding-chip";
+import {
+  MessageContextMenu,
+  MessageMoreActions,
+  type MessageMenuAction,
+} from "./message-action-menu";
 import { extractClarificationQuestionnaire } from "../clarification-questionnaire";
 
 export interface MessageListProjectActions extends Omit<
@@ -132,8 +139,10 @@ function isShadowRunActive(run: ShadowRun | null): boolean {
 
 export function ShadowReviewAction({
   context,
+  showLabel = false,
 }: {
   context: ShadowReviewContext;
+  showLabel?: boolean;
 }) {
   const auth = useOptionalAuth();
   const canReview = canAccessOperatorControlPlane(
@@ -249,7 +258,10 @@ export function ShadowReviewAction({
         type="button"
         onClick={() => void queueReview()}
         disabled={active}
-        className="inline-flex size-7 items-center justify-center rounded-lg text-foreground/60 transition-all duration-base hover:bg-primary/10 hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/45 disabled:cursor-wait disabled:opacity-60"
+        className={cn(
+          "inline-flex items-center gap-2 rounded-lg text-foreground/60 transition-all duration-base hover:bg-primary/10 hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/45 disabled:cursor-wait disabled:opacity-60",
+          showLabel ? "w-full px-2 py-1.5 text-sm" : "size-7 justify-center",
+        )}
         title={label}
         aria-label={label}
       >
@@ -262,6 +274,7 @@ export function ShadowReviewAction({
         ) : (
           <DnaIcon className="size-4" />
         )}
+        {showLabel && <span>{label}</span>}
       </button>
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
         <DialogContent className="max-h-[80dvh] overflow-y-auto sm:max-w-2xl">
@@ -599,7 +612,7 @@ export const MessageListItem = memo(function MessageListItem({
     !isLoading &&
     deliveryState === null &&
     (isHuman ||
-      (assistantIsSettledAnswer && clipboardText.length > 0 && isLastMessage));
+      (assistantIsSettledAnswer && clipboardText.length > 0));
   const params = useParams();
   const threadIdForFeedback = params.threadId ?? params.thread_id ?? null;
   const { messageMetadataBySourceId, ...coworkProjectMessageActions } =
@@ -651,144 +664,177 @@ export const MessageListItem = memo(function MessageListItem({
     [message.content, message.id, threadIdForFeedback, t.conversation],
   );
 
-  return (
-    <AIElementMessage
-      className={cn("group/conversation-message relative w-full", className)}
-      from={isHuman ? "user" : "assistant"}
-    >
-      <MessageContent
-        // Human bubbles used to pass `w-fit` here. Combined with the inner
-        // AIElementMessageContent's own `w-fit max-w-full min-w-0`, the
-        // outer `w-fit` could collapse the flex item's min-width to 0 and
-        // push text onto one-character-per-line because the flex item
-        // couldn't break in the middle of a 2-char string.
-        // Using `max-w-[85%]` instead keeps the right-aligned cap but
-        // gives the flex child room to stay on a single horizontal line.
-        className={isHuman ? "max-w-[85%] items-end" : "w-full"}
-        message={message}
-        isLoading={isLoading}
-        chatFontSize={chatFontSize}
-        suppressReasoningPanel={suppressReasoningPanel}
-        enableClarificationActions={enableClarificationActions}
-      />
-      {isHuman ? (
-        <HumanMessageDeliveryStatus
-          message={message}
-          threadId={threadIdForFeedback}
+  const forkFromHere = () => {
+    if (threadIdForFeedback == null || messageIndex == null) return;
+    forkThread.mutate(
+      { threadId: threadIdForFeedback, atMessageIndex: messageIndex },
+      {
+        onSuccess: (result) => {
+          toast.success(t.conversation.forkedThread);
+          navigate(`/workspace/realtime/${result.thread_id}`);
+        },
+        onError: () => toast.error(t.conversation.forkFailed),
+      },
+    );
+  };
+  const editOrRegenerate = () => {
+    window.dispatchEvent(
+      new CustomEvent(isHuman ? "echo:edit-message" : "echo:regenerate", {
+        detail: isHuman
+          ? {
+              text: extractTextFromMessage(message),
+              threadId: threadIdForFeedback,
+            }
+          : { threadId: threadIdForFeedback },
+      }),
+    );
+  };
+  const additionalActions = (
+    <>
+      {roomMessageForProjectActions && projectMessageActions ? (
+        <CoworkRoomMessageActions
+          {...coworkProjectMessageActions}
+          message={roomMessageForProjectActions}
+          className={cn("min-h-0", projectMessageActions.className)}
         />
       ) : null}
-      {afterContent}
-      {showMessageActions && (
-        <div
-          className={cn(
-            "flex items-center gap-1.5 text-foreground/60",
-            isHuman
-              ? "pointer-events-none absolute top-full right-0 z-20 mt-0.5 w-auto justify-end rounded-lg bg-background/90 px-1 py-0.5 opacity-0 shadow-[var(--shadow-xs)] transition-opacity group-hover/conversation-message:pointer-events-auto group-hover/conversation-message:opacity-100 focus-within:pointer-events-auto focus-within:opacity-100"
-              : "mt-2 w-full",
-          )}
-        >
-          {message.type === "ai" && (
-            <>
-              <button
-                onClick={() => {
+      {message.type === "ai" && shadowReview ? (
+        <ShadowReviewAction context={shadowReview} showLabel />
+      ) : null}
+    </>
+  );
+  const menuActions: MessageMenuAction[] = showMessageActions
+    ? [
+        {
+          id: "quote",
+          label: t.conversation.quoteMessage,
+          icon: <MessageSquareQuoteIcon />,
+          onSelect: () => {
+            window.dispatchEvent(new CustomEvent("echo:quote-message", {
+              detail: { threadId: threadIdForFeedback, text: clipboardText },
+            }));
+          },
+        },
+        {
+          id: "copy",
+          label: t.clipboard.copyToClipboard,
+          icon: <CopyIcon />,
+          onSelect: () => {
+            void copyTextToClipboard(clipboardText).catch(() =>
+              toast.error(t.clipboard.failedToCopyToClipboard),
+            );
+          },
+        },
+        ...(!isHuman
+          ? [
+              {
+                id: "like",
+                label: t.conversation.goodResponse,
+                icon: <ThumbsUpIcon />,
+                onSelect: () => {
                   void submitFeedback("liked");
-                }}
-                className="inline-flex size-7 items-center justify-center rounded-lg text-foreground/60 transition-all duration-base hover:bg-success/10 hover:text-success focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/45 dark:hover:text-success"
-                title={t.conversation.goodResponse}
-                aria-label={t.conversation.goodResponse}
-              >
-                <ThumbsUpIcon className="size-4" />
-              </button>
-              <button
-                onClick={() => {
+                },
+              },
+              {
+                id: "dislike",
+                label: t.conversation.badResponse,
+                icon: <ThumbsDownIcon />,
+                onSelect: () => {
                   void submitFeedback("disliked");
-                }}
-                className="inline-flex size-7 items-center justify-center rounded-lg text-foreground/60 transition-all duration-base hover:bg-destructive/10 hover:text-destructive focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/45 dark:hover:text-destructive"
-                title={t.conversation.badResponse}
-                aria-label={t.conversation.badResponse}
-              >
-                <ThumbsDownIcon className="size-4" />
-              </button>
-            </>
-          )}
-          <CopyButton
-            clipboardData={clipboardText}
-            size="icon-sm"
-            className="size-7 rounded-lg border-0 bg-transparent p-0 text-foreground/60 shadow-none transition-colors duration-base hover:bg-muted/60 hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring/45"
+                },
+              },
+            ]
+          : []),
+        ...(allowThreadFork &&
+        threadIdForFeedback != null &&
+        messageIndex != null
+          ? [
+              {
+                id: "fork",
+                label: t.conversation.forkFromHere,
+                icon: <GitForkIcon />,
+                onSelect: forkFromHere,
+              },
+            ]
+          : []),
+        ...(isHuman || isLastMessage ? [{
+          id: "edit-or-regenerate",
+          label: isHuman
+            ? t.conversation.editResend
+            : t.conversation.regenerateResponse,
+          icon: isHuman ? <PencilIcon /> : <RefreshCwIcon />,
+          onSelect: editOrRegenerate,
+        }] : []),
+      ]
+    : [];
+
+  return (
+    <MessageContextMenu actions={menuActions} extra={additionalActions}>
+      <AIElementMessage
+        className={cn("group/conversation-message relative w-full", className)}
+        from={isHuman ? "user" : "assistant"}
+      >
+        <MessageContent
+          // Human bubbles used to pass `w-fit` here. Combined with the inner
+          // AIElementMessageContent's own `w-fit max-w-full min-w-0`, the
+          // outer `w-fit` could collapse the flex item's min-width to 0 and
+          // push text onto one-character-per-line because the flex item
+          // couldn't break in the middle of a 2-char string.
+          // Using `max-w-[85%]` instead keeps the right-aligned cap but
+          // gives the flex child room to stay on a single horizontal line.
+          className={isHuman ? "max-w-[85%] items-end" : "w-full"}
+          message={message}
+          isLoading={isLoading}
+          chatFontSize={chatFontSize}
+          suppressReasoningPanel={suppressReasoningPanel}
+          enableClarificationActions={enableClarificationActions}
+        />
+        {isHuman ? (
+          <HumanMessageDeliveryStatus
+            message={message}
+            threadId={threadIdForFeedback}
           />
-          {roomMessageForProjectActions && projectMessageActions ? (
-            <CoworkRoomMessageActions
-              {...coworkProjectMessageActions}
-              message={roomMessageForProjectActions}
-              className={cn("min-h-0", projectMessageActions.className)}
-            />
-          ) : null}
-          {allowThreadFork &&
-          threadIdForFeedback != null &&
-          messageIndex != null ? (
-            <button
-              onClick={() => {
-                forkThread.mutate(
-                  {
-                    threadId: threadIdForFeedback,
-                    atMessageIndex: messageIndex,
-                  },
-                  {
-                    onSuccess: (result) => {
-                      toast.success(t.conversation.forkedThread);
-                      navigate(`/workspace/realtime/${result.thread_id}`);
-                    },
-                    onError: () => {
-                      toast.error(t.conversation.forkFailed);
-                    },
-                  },
-                );
-              }}
-              className="inline-flex size-7 items-center justify-center rounded-lg text-foreground/60 transition-all duration-base hover:bg-muted/60 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/45"
-              title={t.conversation.forkFromHere}
-              aria-label={t.conversation.forkFromHere}
+        ) : null}
+        {afterContent}
+        {showMessageActions && (
+          <div
+            data-testid="message-actions"
+            className={cn(
+              "flex items-center gap-1.5 text-foreground/60 opacity-0 pointer-events-none transition-opacity duration-150 group-hover/conversation-message:opacity-100 group-hover/conversation-message:pointer-events-auto group-focus-within/conversation-message:opacity-100 group-focus-within/conversation-message:pointer-events-auto has-[[data-state=open]]:opacity-100 has-[[data-state=open]]:pointer-events-auto [@media(hover:none)]:opacity-100 [@media(hover:none)]:pointer-events-auto motion-reduce:transition-none",
+              isHuman
+                ? "absolute top-full right-0 z-20 w-auto justify-end rounded-lg bg-background/90 px-1 py-0.5 shadow-[var(--shadow-xs)]"
+                : "mt-2 w-full",
+            )}
+          >
+            {menuActions
+              .filter((action) =>
+                ["copy", "like", "dislike", "edit-or-regenerate"].includes(action.id),
+              )
+              .map((action) => (
+                <button
+                  key={action.id}
+                  type="button"
+                  onClick={action.onSelect}
+                  title={action.label}
+                  aria-label={action.label}
+                  className="inline-flex size-7 items-center justify-center rounded-lg hover:bg-muted/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/45 [&_svg]:size-4 [@media(hover:none)]:hidden"
+                >
+                  {action.icon}
+                </button>
+              ))}
+            <MessageMoreActions
+              actions={menuActions}
+              label={t.common.more}
+              quickActionIds={["copy", "like", "dislike", "edit-or-regenerate"]}
             >
-              <GitForkIcon className="size-4" />
-            </button>
-          ) : null}
-          {message.type === "ai" && shadowReview ? (
-            <ShadowReviewAction context={shadowReview} />
-          ) : null}
-          {message.type === "ai" ? (
-            <button
-              onClick={() => {
-                window.dispatchEvent(
-                  new CustomEvent("echo:regenerate", {
-                    detail: { threadId: threadIdForFeedback },
-                  }),
-                );
-              }}
-              className="inline-flex size-7 items-center justify-center rounded-lg text-foreground/60 transition-all duration-base hover:bg-muted/60 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/45"
-              title={t.conversation.regenerateResponse}
-              aria-label={t.conversation.regenerateResponse}
-            >
-              <RefreshCwIcon className="size-4" />
-            </button>
-          ) : (
-            <button
-              onClick={() => {
-                const text = extractTextFromMessage(message);
-                window.dispatchEvent(
-                  new CustomEvent("echo:edit-message", {
-                    detail: { text, threadId: threadIdForFeedback },
-                  }),
-                );
-              }}
-              className="inline-flex size-6 items-center justify-center rounded-lg text-muted-foreground/70 transition-all duration-base hover:bg-muted/60 hover:text-foreground"
-              title={t.conversation.editResend}
-              aria-label={t.conversation.editResend}
-            >
-              <PencilIcon className="size-3.5" />
-            </button>
-          )}
-        </div>
-      )}
-    </AIElementMessage>
+              <div className="flex flex-col items-start gap-1">
+                {additionalActions}
+              </div>
+            </MessageMoreActions>
+          </div>
+        )}
+      </AIElementMessage>
+    </MessageContextMenu>
   );
 });
 
@@ -1200,15 +1246,18 @@ function MessageContent_({
     ) : null;
   if (isHuman) {
     const messageResponse = visibleContentToDisplay ? (
-      <ProjectCommandContent content={visibleContentToDisplay} renderBody={(body) => (
-      <AIElementMessageResponse
-        remarkPlugins={humanMessagePlugins.remarkPlugins}
-        rehypePlugins={humanMessagePlugins.rehypePlugins}
-        components={components}
-      >
-        {body}
-      </AIElementMessageResponse>
-      )} />
+      <ProjectCommandContent
+        content={visibleContentToDisplay}
+        renderBody={(body) => (
+          <AIElementMessageResponse
+            remarkPlugins={humanMessagePlugins.remarkPlugins}
+            rehypePlugins={humanMessagePlugins.rehypePlugins}
+            components={components}
+          >
+            {body}
+          </AIElementMessageResponse>
+        )}
+      />
     ) : null;
     return (
       // items-end right-aligns the inner bubble; flex-col keeps files
