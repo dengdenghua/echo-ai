@@ -150,6 +150,7 @@ export function ChatComposer({
   onModeChange,
   onDeepResearch,
   onSubmit,
+  onDraftChange,
   onStop,
   isStopping = false,
   isUploading = false,
@@ -307,6 +308,7 @@ export function ChatComposer({
   }, [clearPendingImagePreviews, resetAttachmentUploads, threadId]);
 
   const parsedComposerDraft = parseComposerDraft(draft);
+  useEffect(() => { onDraftChange?.(draft); }, [draft, onDraftChange]);
   const activeComposerMode = parsedComposerDraft.mode;
   const activeLongTaskMode =
     activeComposerMode === "goal" || activeComposerMode === "project"

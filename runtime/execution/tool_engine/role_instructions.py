@@ -207,6 +207,11 @@ def compose_role_instructions(
             sections.append(f"<{label}>\n{value}\n</{label}>")
 
     if registry is not None:
+        from runtime.core.cerebrum.design_capabilities import design_instructions
+
+        design = design_instructions(goal, context=metadata, registry=registry, agent=agent)
+        if design:
+            sections.append(design)
         explicit = resolve_explicit_skill_instructions(
             goal,
             registry=registry,

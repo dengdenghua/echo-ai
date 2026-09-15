@@ -712,6 +712,7 @@ def mount_routers_b(
 
         app.include_router(
             create_design_studio_router(
+                skill_registry=state.registry,
                 project_store=ctx.project_store,
                 identity_store=ctx.identity_store,
                 require_auth=ctx.require_auth,

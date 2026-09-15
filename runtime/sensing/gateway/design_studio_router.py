@@ -97,6 +97,12 @@ class WorkflowImport(BaseModel):
     ui: dict[str, Any] = Field(default_factory=dict)
 
 
+class DesignCapabilityRequest(BaseModel):
+    goal: str = Field(default="", max_length=32000)
+    preferences: dict[str, Any] = Field(default_factory=dict)
+    check_connection: bool = False
+
+
 class WorkflowSave(BaseModel):
     name: str = Field(min_length=1, max_length=120)
     workflow: dict[str, Any]
@@ -375,6 +381,7 @@ def _workflow_payload(path: Path) -> dict[str, Any] | None:
 
 def create_design_studio_router(
     *,
+    skill_registry: Any = None,
     project_store: Any = None,
     identity_store: Any = None,
     require_auth: bool = False,
@@ -438,6 +445,39 @@ def create_design_studio_router(
         tags=["design-studio"],
         dependencies=[Depends(_auth_dep)],
     )
+
+    @router.post("/capabilities/resolve")
+    async def resolve_capabilities(body: DesignCapabilityRequest, request: Request) -> dict[str, Any]:
+        from runtime.core.cerebrum.design_capabilities import resolve_design_plan
+        from runtime.memory.journal.journal_context import journal_context
+
+        principal = request.state.design_principal
+        with journal_context(tenant_id=getattr(principal, "tenant_id", None)):
+            plan = resolve_design_plan(
+                body.goal,
+                context={"agent_mode": "uxui", "design_capabilities": body.preferences},
+                registry=skill_registry,
+            )
+            plugins: dict[str, dict[str, Any]] = {}
+            for name in skill_registry.all_names() if skill_registry is not None else []:
+                skill = skill_registry.get(name)
+                source = str(getattr(skill, "trusted_source", ""))
+                if not source.startswith("plugin://"):
+                    continue
+                if not set(getattr(skill, "affinity", [])).intersection({"design", "image", "video", "audio"}):
+                    continue
+                plugin_id = source.removeprefix("plugin://").split("/", 1)[0]
+                item = plugins.setdefault(plugin_id, {"id": plugin_id, "available": False})
+                item["available"] = item["available"] or skill_registry.is_enabled(name)
+            plan["available_plugins"] = list(plugins.values())
+        plan["connection_checked"] = False
+        if body.check_connection and "comfyui_bridge" in plan["plugins"] and plan["ready"]:
+            status = await comfyui_status()
+            plan["connection_checked"] = True
+            if not status.get("online"):
+                plan["blockers"].append("ComfyUI 未连接，请在设计工作流设置中启动或配置本机服务")
+                plan["ready"] = False
+        return plan
 
     @router.get("/projects/{project_id}/canvas")
     def get_project_canvas(request: Request, project_id: str) -> dict[str, Any]:
@@ -678,7 +718,9 @@ def create_design_studio_router(
         root = _creative_skill_dir(skill_id)
         items: list[dict[str, str]] = []
         total_bytes = 0
-        for path in sorted(root.rglob("*")):
+        for path in sorted(root.rglob("*"), key=lambda p: (
+            p.relative_to(root).as_posix() != "SKILL.md", p.relative_to(root).as_posix(),
+        )):
             if (
                 not path.is_file()
                 or path.is_symlink()

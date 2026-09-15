@@ -1,4 +1,5 @@
 import { useHistoryDraft } from "@/core/threads/use-history-draft";
+import { parseDesignCapabilities } from "@/core/design/capabilities";
 import { useRemoteGroupAgents } from "@/core/agents/remote-agents";
 import { InviteDialog } from "@/components/workspace/collab/invite-dialog";
 import { Settings2Icon, XIcon } from "lucide-react";
@@ -1061,6 +1062,9 @@ function RealtimePageContent({
   }, [searchParams]);
   const [embeddedDesignContext, setEmbeddedDesignContext] =
     useState<DesignCanvasAgentContext | null>(null);
+  const designCapabilities = useMemo(() => parseDesignCapabilities(
+    searchParams.get("design_capabilities") ?? threadIdentityQuery.data?.metadata?.design_capabilities,
+  ), [searchParams, threadIdentityQuery.data?.metadata?.design_capabilities]);
   useEffect(() => {
     if (!embeddedDesignChat) {
       setEmbeddedDesignContext(null);
@@ -2675,6 +2679,8 @@ function RealtimePageContent({
           // decides which directory is bound; it no longer swaps in a second
           // general/build/research vocabulary.
           agent_mode: isCodingWorkspaceMode ? projectAgentMode : undefined,
+          design_capabilities: isCodingWorkspaceMode && projectAgentMode === "uxui"
+            ? designCapabilities : undefined,
           mode_preset: isCodingWorkspaceMode ? projectModePreset.id : undefined,
           workflow_preset: isCodingWorkspaceMode
             ? workflowPresetForMode(projectAgentMode)
@@ -2781,6 +2787,7 @@ function RealtimePageContent({
       commitThreadRoute,
       embeddedDesignChat,
       embeddedDesignContext,
+      designCapabilities,
       mainPerspectiveAgentId,
       effectiveMode,
       effectiveReasoningEffort,

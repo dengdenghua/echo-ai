@@ -44,10 +44,10 @@ describe("Echo Design platform contract", () => {
 
   it("matches the creation-home hierarchy before entering the canvas", () => {
     expect(pageSource).toContain("function DesignHomeView");
-    expect(pageSource).toContain("属于你的多模态 Agent 团队");
+    expect(pageSource).toContain("描述想法，开始创作");
     expect(pageSource).toContain("<ChatInputBox");
     expect(pageSource).toContain("modelName={settings.context.model_name}");
-    expect(pageSource).toContain("Echo 创作基座已就绪");
+    expect(pageSource).toContain('draftStorageKey="echo:design-home"');
     expect(pageSource).toContain("<CreativeProjectSelector");
     expect(pageSource).toContain("onSelect={handleCreativeProjectChange}");
     expect(pageSource).toContain("不会与其他角色自动共享");
@@ -56,53 +56,34 @@ describe("Echo Design platform contract", () => {
     expect(pageSource).toContain('data-echo-design-chat="true"');
     expect(pageSource).toContain("Design 使用指南");
     expect(pageSource).toContain("模型使用指南");
-    expect(pageSource).toContain('["home", "创作首页"]');
+    expect(pageSource).toContain('key={newTaskNonce || "current-design-task"}');
     expect(pageSource).toContain('searchParams.get("new_task")');
     expect(pageSource).toContain('next.delete("new_task")');
     expect(pageSource).toContain("新建本地项目");
-    expect(pageSource).toContain("当前角色的独立创作房间");
-    expect(pageSource).toContain("红人带货");
+    expect(pageSource).toContain("项目内容保存在这个角色的创作空间中");
+    expect(pageSource).toContain("美妆达人种草短片");
     expect(pageSource).toContain("使用提示词");
     expect(pageSource).toContain("grid-cols-3");
     expect(pageSource).toContain("createLocalCreativeProject");
     expect(pageSource).toContain("uploadHomeFiles");
-    expect(pageSource).toContain("DESIGN_MODEL_SELECTION_KEY");
+    expect(pageSource).toContain("DESIGN_CAPABILITIES_KEY");
     expect(pageSource).toContain("useThreadSettings(threadId");
-    expect(pageSource).toContain(
-      "按需选择已启用的创作插件，语言模型在输入框中选择",
-    );
-    expect(pageSource).toContain("可调用创作能力");
+    expect(pageSource).toContain("resolveDesignCapabilities(text, capabilities, true)");
+    expect(pageSource).not.toContain("可调用创作能力");
     expect(pageSource).toContain(
       'projectId || creativeProjectId ? "canvas" : "home"',
     );
   });
 
   it("binds real skills and plugins and compiles the graph for AI execution", () => {
-    expect(pageSource).toContain("useSkills()");
-    expect(pageSource).toContain("installedSkills={skills}");
-    expect(pageSource).toContain("useEnableSkill");
-    expect(pageSource).toContain("useEnableMarketSkill");
-    expect(pageSource).toContain("启用 Skill");
-    expect(pageSource).toContain("安装 Skill");
-    expect(pageSource).toContain("ensureSkillEnabled");
-    expect(pageSource).toContain("handleInstallSkill");
-    expect(pageSource).toContain('navigate("/workspace/skills")');
-    expect(pageSource).toContain("仅显示未安装");
-    expect(pageSource).toContain('value="popular"');
-    expect(pageSource).toContain("featuredSkillIds.has(item.id)");
-    expect(pageSource).toContain("官方精选");
-    expect(pageSource).toContain("用户精选");
-    expect(pageSource).toContain("其他 Skill ·");
-    expect(pageSource).toContain("/api/design/skills/");
-    expect(pageSource).toContain("Skill 文件");
-    expect(pageSource).toContain("<MarkdownContent");
-    expect(pageSource).toContain("detailDirectories");
-    expect(pageSource).toContain("renderedDetailContent");
-    expect(pageSource).toContain("\\`\\`\\`yaml");
-    expect(pageSource).toContain("Echo 原创 · Apache-2.0");
+    expect(pageSource).toContain("<DesignCapabilityPicker");
+    expect(pageSource).toContain("onSkills={onOpenSkills}");
+    expect(pageSource).toContain('const href = "/workspace/agents?tab=skills"');
+    expect(pageSource).toContain('{ type: "echo.workbench.navigate", href }');
+    expect(pageSource).toContain("workspaceHostOrigin()");
+    expect(pageSource).toContain("setActiveDesignCapabilities(capabilities)");
     expect(pageSource).toContain("<PluginNodeFrame");
     expect(pageSource).toContain("NATIVE_NODE_TEMPLATES.filter");
-    expect(pageSource).toContain("useAgents()");
     expect(pageSource).toContain("designCanvasRunPrompt(executionDocument)");
     expect(pageSource).toContain("embeddedDesignChatRoute");
     expect(pageSource).toContain("buildDesignCanvasAgentContext");
@@ -179,7 +160,7 @@ describe("Echo Design platform contract", () => {
     expect(pageSource).toContain("解除连接");
     expect(pageSource).toContain("<span>撤销</span>");
     expect(pageSource).toContain("<span>重做</span>");
-    expect(pageSource).toContain("⌘Z / ⇧⌘Z");
+    expect(pageSource).toContain("Ctrl/⌘+Z / Shift+Ctrl/⌘+Z");
     expect(pageSource).toContain("undoHistoryRef");
     expect(pageSource).toContain("复制节点");
     expect(pageSource).toContain("另存为");
@@ -260,10 +241,10 @@ describe("Echo Design platform contract", () => {
 
   it("keeps legacy embedded canvases synchronized inside a group workbench", () => {
     expect(pageSource).toContain(
-      "`${DESIGN_CANVAS_STORAGE_KEY}:project:${projectId}`",
+      '`${DESIGN_CANVAS_STORAGE_KEY}:project:${projectId}${canvasTaskId ? `:task:${encodeURIComponent(canvasTaskId)}` : ""}`',
     );
     expect(pageSource).toContain(
-      "/api/design/projects/${encodeURIComponent(projectId)}/canvas",
+      "/api/design/projects/${encodeURIComponent(canvasProjectId)}/canvas",
     );
     expect(pageSource).toContain(
       "expected_revision: serverRevisionRef.current",
@@ -295,9 +276,7 @@ describe("Echo Design platform contract", () => {
     expect(pageSource).toContain("/api/design/comfyui/dependencies");
     expect(pageSource).toContain("/diagnostics`");
     expect(pageSource).toContain("兼容性诊断");
-    expect(pageSource).toContain(
-      "已核对节点类型、必填输入、枚举值和本地模型文件",
-    );
+    expect(pageSource).toContain("已核对节点类型、输入与本地模型文件。");
     expect(pageSource).toContain('controlManagedComfy("install")');
     expect(pageSource).toContain('controlManagedComfy("update")');
     expect(pageSource).toContain('controlManagedComfy("manager/cancel")');
@@ -325,8 +304,10 @@ describe("Echo Design platform contract", () => {
     expect(pageSource).toContain("Echo 原创工作流模板");
   });
 
-  it("exposes the expanded original creative skill collection", () => {
-    expect(pageSource).toContain("CREATIVE_SKILL_COLLECTION");
+  it("keeps the original creative prompt collection in the catalog", () => {
+    expect(designCatalogSource).toContain(
+      "export const CREATIVE_SKILL_COLLECTION",
+    );
     expect(designCatalogSource).toContain("多模态视频提示词导演");
     expect(designCatalogSource).toContain("数字产品宣传片");
     expect(designCatalogSource).toContain("IP 潮玩六宫格动态海报");

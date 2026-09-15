@@ -560,6 +560,14 @@ def _stream_agentic_fallback_impl(
         )
 
     _intent_user_context = intent.user_context or {}
+    from runtime.core.cerebrum.design_capabilities import design_instructions
+
+    _design_prompt = design_instructions(
+        intent.normalized_goal, context=_intent_user_context,
+        registry=getattr(stack.executor, "registry", None), agent=agent,
+    )
+    if _design_prompt:
+        messages.insert(0, Message(role="system", content=_design_prompt))
     _ensure_explicit_browser_skills(
         getattr(stack.executor, "registry", None),
         _intent_user_context,

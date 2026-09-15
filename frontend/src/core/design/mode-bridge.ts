@@ -172,6 +172,7 @@ export function embeddedDesignChatRoute({
   creationSpace,
   parentOrigin,
   targetStageNodeId,
+  capabilities,
 }: {
   threadId?: string | null;
   prompt?: string;
@@ -181,6 +182,7 @@ export function embeddedDesignChatRoute({
   creationSpace?: string | null;
   parentOrigin?: string | null;
   targetStageNodeId?: string | null;
+  capabilities?: import("./capabilities").DesignCapabilities;
 }): string {
   const id = threadId && threadId !== "new" ? threadId : "new";
   const query = new URLSearchParams({
@@ -194,6 +196,7 @@ export function embeddedDesignChatRoute({
   if (creationSpace) query.set("creation_space", creationSpace);
   if (parentOrigin) query.set("design_parent_origin", parentOrigin);
   if (targetStageNodeId) query.set("design_stage", targetStageNodeId);
+  if (capabilities) query.set("design_capabilities", JSON.stringify(capabilities));
   return `/workspace/realtime/${encodeURIComponent(id)}?${query.toString()}`;
 }
 

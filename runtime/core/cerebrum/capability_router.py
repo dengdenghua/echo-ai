@@ -768,6 +768,12 @@ def activate_capabilities(
         )
         skills = [*leading_code_ui_skills, *skills]
 
+    from runtime.core.cerebrum.design_capabilities import design_priority, is_design_context
+
+    if is_design_context(user_context):
+        labels.append("design")
+        skills = [*design_priority(goal, user_context, registry), *skills]
+
     # Pinned skills + pack-expanded skills always lead the priority list
     # (they're an explicit user signal, stronger than keyword inference).
     # Filter through _skill_available so we don't claim a skill that
@@ -868,7 +874,7 @@ def order_skill_names(
     )
     candidates = (
         (*activation.priority_skills, *anchors)
-        if "media-generation" in activation.labels
+        if "media-generation" in activation.labels or "design" in activation.labels
         else (*anchors, *activation.priority_skills)
     )
     front = [name for name in (*pinned_plugin_actions, *candidates) if name in available]

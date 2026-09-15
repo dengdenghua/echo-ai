@@ -242,6 +242,14 @@ def build_turn_metadata(
             metadata[key] = value.strip()
         elif isinstance(value, bool):
             metadata[key] = value
+    if metadata.get("agent_mode") == "uxui":
+        from runtime.core.cerebrum.design_capabilities import design_preferences
+
+        metadata["design_capabilities"] = design_preferences(
+            ctx.get("design_capabilities", stored_meta.get("design_capabilities"))
+        )
+    else:
+        metadata.pop("design_capabilities", None)
     personal_instructions = ctx.get("personal_instructions")
     if personal_instructions is None and not explicit_conversation_mode:
         personal_instructions = stored_meta.get("personal_instructions")

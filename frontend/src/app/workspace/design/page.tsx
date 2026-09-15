@@ -1,8 +1,8 @@
 "use client";
 import { ChatInputBox } from "@/components/workspace/chat-input-box";
 import { useThreadSettings } from "@/core/settings";
-import { useHubPlugins } from "@/core/plugins/hooks";
-import { designMediaPlugins } from "./media-plugins";
+import { DesignCapabilityPicker } from "./design-capability-picker";
+import { AUTO_DESIGN_CAPABILITIES, parseDesignCapabilities, resolveDesignCapabilities, type DesignCapabilities } from "@/core/design/capabilities";
 import { TemplateCover } from "./template-cover";
 import { normalizePermissionMode } from "@/core/permissions";
 import { useIsMobile } from "@/hooks/use-mobile";
@@ -79,7 +79,6 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { useAgents } from "@/core/agents/hooks";
 import { useActiveAgentId } from "@/core/agents/active";
 import { DEFAULT_PRIMARY_AGENT_ID } from "@/core/agents/persona-policy";
 import { authHeaders } from "@/core/auth/api";
@@ -148,9 +147,8 @@ import { PluginNodeFrame } from "./plugin-node-frame";
 
 type ToolMode = "select" | "hand";
 type EmbeddedSurface = "director" | "editor" | "comfyui" | null;
-type DesignModelTab = "agent" | "image" | "video" | "audio";
 
-const DESIGN_MODEL_SELECTION_KEY = "echo-design-enabled-models-v1";
+const DESIGN_CAPABILITIES_KEY = "echo-design-capabilities-v2";
 const CREATIVE_SKILL_COVERS = [
   "/community/game-guide(1).jpg",
   "/community/weekly-highlights.jpg",
@@ -1234,7 +1232,7 @@ function DesignHomeView({
 }: {
   spaceSelector: React.ReactNode;
   threadId?: string;
-  onStart: (prompt: string, enabledModels: string[], files?: File[]) => void | Promise<void>;
+  onStart: (prompt: string, capabilities: DesignCapabilities, files?: File[]) => void | Promise<void>;
   onUseTemplate: (templateId: "ai-drama-series") => void;
   onOpenSkills: () => void;
 }) {
@@ -1252,8 +1250,6 @@ function DesignHomeView({
     }
   };
   const [settings, setSetting] = useThreadSettings(threadId ?? "");
-  const { plugins, isLoading: modelsLoading, error: pluginsError, refetch: refetchPlugins } = useHubPlugins();
-  const { agents, isLoading: agentsLoading } = useAgents();
   const [prompt, setPrompt] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [category, setCategory] = useState("全部");
@@ -1273,59 +1269,18 @@ function DesignHomeView({
       // Collapsing still works when browser storage is unavailable.
     }
   };
-  const [modelOpen, setModelOpen] = useState(false);
   const [guide, setGuide] = useState<"design" | "models" | null>(null);
-  const [modelTab, setModelTab] = useState<DesignModelTab>("agent");
-  const [enabledModels, setEnabledModels] = useState<Set<string>>(() => {
-    try {
-      const stored = window.localStorage.getItem(DESIGN_MODEL_SELECTION_KEY);
-      return new Set(stored ? (JSON.parse(stored) as string[]) : []);
-    } catch {
-      return new Set();
-    }
-  });
-  const modelDefaultsAppliedRef = useRef(
-    typeof window !== "undefined" &&
-      window.localStorage.getItem(DESIGN_MODEL_SELECTION_KEY) !== null,
-  );
   const [previewTitle, setPreviewTitle] = useState<string | null>(null);
-  const modelItems = useMemo(
-    () => [
-      ...agents.map((agent) => ({
-        id: `role:${agent.name}`,
-        tab: "agent" as const,
-        name: agent.display_name || agent.name,
-        detail: agent.description || "Echo Agent",
-        badge: "Agent",
-      })),
-      ...designMediaPlugins(plugins),
-    ],
-    [agents, plugins],
-  );
-  const visibleModelItems = modelItems.filter((item) => item.tab === modelTab);
-  const allModelIds = modelItems.map((item) => item.id);
-  const allModelsEnabled =
-    allModelIds.length > 0 && allModelIds.every((id) => enabledModels.has(id));
-
+  const [draftText, setDraftText] = useState("");
+  const [capabilityError, setCapabilityError] = useState("");
+  const [capabilities, setCapabilities] = useState<DesignCapabilities>(() => {
+    try { return parseDesignCapabilities(localStorage.getItem(DESIGN_CAPABILITIES_KEY)); }
+    catch { return AUTO_DESIGN_CAPABILITIES; }
+  });
   useEffect(() => {
-    if (
-      modelsLoading ||
-      agentsLoading ||
-      !modelItems.length ||
-      modelDefaultsAppliedRef.current
-    )
-      return;
-    modelDefaultsAppliedRef.current = true;
-    setEnabledModels(new Set(modelItems.map((item) => item.id)));
-  }, [agentsLoading, modelItems, modelsLoading]);
-
-  useEffect(() => {
-    if (!modelDefaultsAppliedRef.current) return;
-    window.localStorage.setItem(
-      DESIGN_MODEL_SELECTION_KEY,
-      JSON.stringify(Array.from(enabledModels)),
-    );
-  }, [enabledModels]);
+    try { localStorage.setItem(DESIGN_CAPABILITIES_KEY, JSON.stringify(capabilities)); }
+    catch { /* This selection still works without persistent storage. */ }
+  }, [capabilities]);
   const showcases: Array<{
     category: string;
     title: string;
@@ -1465,6 +1420,7 @@ function DesignHomeView({
             disabled={submitting}
             defaultValue={prompt}
             draftStorageKey="echo:design-home"
+            onDraftChange={setDraftText}
             workspaceControl={spaceSelector}
             showModeSelector
             projectAgentMode="uxui"
@@ -1473,8 +1429,7 @@ function DesignHomeView({
               if (mode === "develop") navigateWorkspace("/workspace/realtime/new");
             }}
             contextActions={<>
-            <button type="button" className="h-8 rounded-md px-2 hover:bg-muted/60 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring" onClick={() => { setModelOpen((value) => !value); void refetchPlugins(); }} aria-expanded={modelOpen}>创作插件</button>
-            <button type="button" className="h-8 rounded-md px-2 hover:bg-muted/60 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring" onClick={onOpenSkills}>技能库</button>
+            <DesignCapabilityPicker goal={draftText} value={capabilities} onChange={setCapabilities} onManage={() => navigateWorkspace("/workspace/agents?tab=plugins")} onSkills={onOpenSkills} />
             <button type="button" onClick={toggleTemplates} aria-expanded={templatesVisible} aria-controls="design-home-templates" className="flex h-8 items-center gap-1.5 rounded-md px-2 hover:bg-muted/60 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
               {templatesVisible ? "收起模板" : "展开模板"}
               <span className="text-muted-foreground">{showcases.length}</span>
@@ -1492,123 +1447,20 @@ function DesignHomeView({
             placeholder="描述创作需求，@ 引用文件，/ 调用技能…"
             onSubmit={({ text, images, files }) => {
               const attached = [...(images ?? []), ...(files ?? [])];
-              const labels = modelItems.filter((item) => enabledModels.has(item.id)).map((item) => item.id.startsWith("plugin:") ? `${item.name} (${item.id})` : item.name);
               setSubmitting(true);
-              void Promise.resolve(onStart(text, labels, attached)).finally(() => setSubmitting(false));
+              setCapabilityError("");
+              void resolveDesignCapabilities(text, capabilities, true)
+                .then(async plan => {
+                  if (!plan.ready) throw new Error(plan.blockers.join("；"));
+                  await onStart(text, capabilities, attached);
+                })
+                .catch(error => setCapabilityError(error instanceof Error ? error.message : "设计能力检查失败，请重试"))
+                .finally(() => setSubmitting(false));
               return false;
             }}
           />
-          {modelOpen ? (
-            <div className="absolute left-0 top-[calc(100%+8px)] z-50 w-[330px] overflow-hidden rounded-[16px] border border-border-default bg-background text-left shadow-[0_16px_40px_rgba(0,0,0,.16)]">
-              <div className="flex h-10 items-center gap-1 px-3">
-                <span className="text-[11px] font-semibold">创作插件</span>
-                <CircleHelpIcon
-                  className="size-3 text-muted-foreground"
-                  aria-label="勾选后，Agent 可在任务中调用这些能力"
-                />
-                <span className="flex-1" />
-                <span className="text-[10px] text-muted-foreground">全选</span>
-                <button
-                  type="button"
-                  role="switch"
-                  aria-checked={allModelsEnabled}
-                  onClick={() =>
-                    setEnabledModels(
-                      allModelsEnabled ? new Set() : new Set(allModelIds),
-                    )
-                  }
-                  className={cn(
-                    "relative h-5 w-9 rounded-full transition",
-                    allModelsEnabled ? "bg-violet-600" : "bg-muted",
-                  )}
-                >
-                  <span
-                    className={cn(
-                      "absolute top-0.5 size-4 rounded-full bg-white shadow-sm transition-all",
-                      allModelsEnabled ? "left-[18px]" : "left-0.5",
-                    )}
-                  />
-                </button>
-              </div>
-              <div className="mx-2 grid grid-cols-4 rounded-[9px] bg-muted/70 p-0.5">
-                {(
-                  [
-                    ["agent", "Agent"],
-                    ["image", "图片"],
-                    ["video", "视频"],
-                    ["audio", "音频"],
-                  ] as const
-                ).map(([id, label]) => (
-                  <button
-                    key={id}
-                    type="button"
-                    onClick={() => setModelTab(id)}
-                    className={cn(
-                      "h-7 rounded-[7px] text-[10px] text-muted-foreground",
-                      modelTab === id &&
-                        "bg-background font-medium text-foreground shadow-sm",
-                    )}
-                  >
-                    {label}
-                  </button>
-                ))}
-              </div>
-              <div className="max-h-[300px] overflow-y-auto p-2">
-                {(modelsLoading || agentsLoading) ? (
-                  <div className="grid h-24 place-items-center">
-                    <Loader2Icon className="size-4 animate-spin text-muted-foreground" />
-                  </div>
-                ) : visibleModelItems.length ? (
-                  visibleModelItems.map((item) => {
-                    const selected = enabledModels.has(item.id);
-                    return (
-                      <button
-                        key={item.id}
-                        type="button"
-                        role="switch"
-                        aria-checked={selected}
-                        onClick={() =>
-                          setEnabledModels((current) => {
-                            const next = new Set(current);
-                            if (next.has(item.id)) next.delete(item.id);
-                            else next.add(item.id);
-                            return next;
-                          })
-                        }
-                        className="flex w-full items-center gap-2.5 rounded-[10px] px-2.5 py-2 text-left hover:bg-muted/65"
-                      >
-                        <span className="grid size-7 shrink-0 place-items-center rounded-full bg-muted text-[9px] font-semibold">
-                          {item.name.slice(0, 1).toUpperCase()}
-                        </span>
-                        <span className="min-w-0 flex-1">
-                          <span className="flex items-center gap-1.5 truncate text-[11px] font-medium">
-                            {item.name}
-                            <span className="rounded bg-violet-100 px-1 py-px text-[8px] text-violet-700 dark:bg-violet-950 dark:text-violet-300">
-                              {item.badge}
-                            </span>
-                          </span>
-                          <span className="mt-0.5 block truncate text-[9px] text-muted-foreground">
-                            {item.detail}
-                          </span>
-                        </span>
-                        {selected ? (
-                          <CheckIcon className="size-3.5 shrink-0" />
-                        ) : null}
-                      </button>
-                    );
-                  })
-                ) : (
-                  <div className="p-8 text-center text-[10px] text-muted-foreground">
-                    {pluginsError && modelTab !== "agent" ? "插件加载失败，请重新打开重试" : "暂无已启用的插件，请前往插件管理安装或启用"}
-                  </div>
-                )}
-              </div>
-              <p className="border-t border-border-subtle px-3 py-2 text-[9px] leading-4 text-muted-foreground">
-                按需选择已启用的创作插件，语言模型在输入框中选择。
-                <button type="button" className="ml-2 underline" onClick={() => navigateWorkspace("/workspace/agents?tab=plugins")}>管理插件</button>
-              </p>
-            </div>
-          ) : null}
+          {submitting && <p role="status" className="mt-2 text-xs text-muted-foreground">正在检查设计能力…</p>}
+          {capabilityError && <p role="alert" className="mt-2 text-xs text-destructive">{capabilityError}。草稿已保留，可调整能力后重试。</p>}
         </div>
 
         <div id="design-home-templates" hidden={!templatesVisible}>
@@ -4538,6 +4390,7 @@ export default function DesignPage({
   const [assetsOpen, setAssetsOpen] = useState(false);
   const [embeddedSurface, setEmbeddedSurface] = useState<EmbeddedSurface>(null);
   const [comfyNative, setComfyNative] = useState(false);
+  const [activeDesignCapabilities, setActiveDesignCapabilities] = useState<DesignCapabilities>();
   const [designThreadId, setDesignThreadId] = useState<string | null>(
     sourceThreadId,
   );
@@ -5699,7 +5552,7 @@ export default function DesignPage({
     [canvasSyncState, creativeProjectId, document, projectId, selectedIds],
   );
   const runCanvas = useCallback(
-    (extra?: string) => {
+    (extra?: string, capabilities?: DesignCapabilities) => {
       const activeStage = selectedId
         ? document.nodes.find(
             (node) => node.id === selectedId && Boolean(node.stage),
@@ -5733,12 +5586,14 @@ export default function DesignPage({
         creativeProjectId: !embeddedProject ? creativeProjectId : undefined,
         parentOrigin: window.location.origin,
         targetStageNodeId: activeStage?.id,
+        capabilities: capabilities ?? activeDesignCapabilities,
       });
       setEmbeddedChatUrl(`${workspaceShellBase()}#${route}`);
       if (layout === "canvas") setLayout("chat-left");
     },
     [
       creativeProjectId,
+      activeDesignCapabilities,
       designThreadId,
       document,
       embeddedProject,
@@ -7963,16 +7818,14 @@ export default function DesignPage({
             }
             key={newTaskNonce || "current-design-task"}
             threadId={designThreadId ?? undefined}
-            onStart={async (prompt, enabledModels, files) => {
+            onStart={async (prompt, capabilities, files) => {
               const artifacts = files?.length ? await uploadHomeFiles(files) : [];
               if (files?.length && !artifacts?.length) return;
               const attachmentNote = artifacts?.length ? `\n\n参考附件：${artifacts.map((item) => item.url).join("\n")}` : "";
-              const capabilityNote = enabledModels.length
-                ? `\n\n可调用创作能力：${enabledModels.join("、")}`
-                : "";
-              addNode("brief", "创作需求", `${prompt}${capabilityNote}`);
+              setActiveDesignCapabilities(capabilities);
+              addNode("brief", "创作需求", prompt);
               setSection("canvas");
-              runCanvas(`${prompt}${capabilityNote}${attachmentNote}`);
+              runCanvas(`${prompt}${attachmentNote}`, capabilities);
             }}
             onUseTemplate={() => {
               const template = createDramaSeriesCanvas();

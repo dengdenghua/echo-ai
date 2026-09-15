@@ -811,6 +811,7 @@ def _format_skill_catalog(
         *(["deep-research", "report-writing", "docx"] if _research_cap else []),
     ]
     priority_set = set(priority)
+    priority_set.update(activation.priority_skills)
     names = [n for n in priority if n in names] + [n for n in names if n not in priority_set]
     names = order_skill_names(
         names,
