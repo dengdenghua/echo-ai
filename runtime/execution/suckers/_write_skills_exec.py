@@ -202,6 +202,12 @@ def _exec_shell(
         # caller env on top.
         run_env = _scrub_unconfined_env(env)
 
+    from runtime.platform.connectors.cli_profile import direct_cli_profile_env
+
+    profile = direct_cli_profile_env(argv)
+    if profile:
+        run_env = {**(run_env or {}), **profile}
+
     from runtime.platform.process.streaming import stream_run
 
     r = stream_run(
@@ -323,6 +329,11 @@ def _background_exec(
     **_kw: Any,
 ) -> dict[str, Any]:
     argv, parse_error = _parse_command(command)
+    from runtime.platform.connectors.cli_profile import direct_cli_profile_env
+
+    profile = direct_cli_profile_env(argv) if not parse_error else {}
+    if profile:
+        env = {**(env or {}), **profile}
     if parse_error:
         return {"error": parse_error}
     assert argv is not None
@@ -422,9 +433,7 @@ def _background_exec(
         run_env = policy.env_for()
         env_mode = "allowlist"
         try:
-            if os.environ.get("ECHO_PROCESS_SANDBOX") or os.environ.get(
-                "ECHO_DEPLOYMENT_MODE"
-            ):
+            if os.environ.get("ECHO_PROCESS_SANDBOX") or os.environ.get("ECHO_DEPLOYMENT_MODE"):
                 choice = resolved_process_backend(effective_process_sandbox_mode())
             else:
                 choice = resolved_process_backend()

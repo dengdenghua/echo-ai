@@ -352,13 +352,15 @@ class TestExecShell:
         r = _exec_shell(command=["no_such_binary_xyz_1234"])
         assert "error" in r
 
-    def test_stream_error_preserves_execution_policy(self, monkeypatch: pytest.MonkeyPatch):
+    def test_stream_error_preserves_execution_policy(
+        self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+    ):
         monkeypatch.setattr(
             "runtime.platform.process.streaming.stream_run",
             lambda *args, **kwargs: _stream_error_result("sandbox_violation"),
         )
 
-        r = _exec_shell(command=["blocked-tool"], sandbox_dir="/tmp")
+        r = _exec_shell(command=["blocked-tool"], sandbox_dir=str(tmp_path))
 
         assert "error" in r
         assert r["execution_policy"]["schema"] == "echo.execution_policy.v1"
@@ -629,7 +631,12 @@ def test_quality_paths_reject_scope_escape(tmp_path: Path, bad_path: str):
 
     for quality_tool in (_run_tests, _lint_check, _format_code):
         result = quality_tool(cwd=str(tmp_path), paths=bad_path)
-        assert result["error"] == f"invalid path: {bad_path}"
+        # Windows treats /tmp as drive-relative; either validation layer must
+        # reject the escape before launching a quality command.
+        assert result["error"] in {
+            f"invalid path: {bad_path}",
+            f"path escapes cwd: {bad_path}",
+        }
 
 
 # ═══════════════════════════════════════════════════════════
@@ -816,7 +823,7 @@ class TestBackgroundExec:
         monkeypatch.setenv("ECHO_DATA_DIR", str(tmp_path / "data"))
         stdout_path = tmp_path / "stdout.txt"
         stderr_path = tmp_path / "stderr.txt"
-        stdout_path.write_text("partial\n", encoding="utf-8")
+        stdout_path.write_bytes(b"partial\n")
         stderr_path.write_text("", encoding="utf-8")
         monkeypatch.setattr(
             "runtime.execution.suckers.write_skills._probe_process",

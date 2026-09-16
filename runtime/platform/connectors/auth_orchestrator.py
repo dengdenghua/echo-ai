@@ -268,6 +268,7 @@ class AuthOrchestrator:
                 "output": status_output[:500],
                 "connected": code == 0 and self._match_status(conn, status_output),
             }
+            detail["connected"] = detail["cli_status"]["connected"]
         # 设备流:status 确认已登录(或超时) → 终止并清理后台 auth 进程
         cli_connected = bool((detail.get("cli_status") or {}).get("connected")) or bool(
             detail.get("has_token")
@@ -299,8 +300,16 @@ class AuthOrchestrator:
         if conn.auth_mode == "none":
             return {"connected": True, "next_action": "connected", "message": "该连接器无需认证。"}
 
-        if conn.id == "opencode-zen" and not tokens and self._credentials.get_secret(conn.id, "api_key"):
-            return {"connected": True, "next_action": "connected", "message": "已复用保存的 OpenCode Key。"}
+        if (
+            conn.id == "opencode-zen"
+            and not tokens
+            and self._credentials.get_secret(conn.id, "api_key")
+        ):
+            return {
+                "connected": True,
+                "next_action": "connected",
+                "message": "已复用保存的 OpenCode Key。",
+            }
 
         if conn.id == "opencode-go":
             shared_key = (tokens or {}).get("api_key") or (tokens or {}).get("access_token")
@@ -312,7 +321,11 @@ class AuthOrchestrator:
                 self._credentials.begin_auth_generation(conn.id, {"shared_api_key": "opencode-zen"})
                 self._credentials.delete_secret(conn.id, "api_key")
                 self._credentials.delete_secret(conn.id, "access_token")
-                return {"connected": True, "next_action": "connected", "message": "已复用 OpenCode Key，Go 与 Zen 共用凭据。"}
+                return {
+                    "connected": True,
+                    "next_action": "connected",
+                    "message": "已复用 OpenCode Key，Go 与 Zen 共用凭据。",
+                }
 
         if tokens:
             flow_key = self._device_flow_key(conn.id)
@@ -729,7 +742,9 @@ class AuthOrchestrator:
 
     def resolve_env(self, conn: ConnectorDefinition) -> dict[str, str]:
         """为 CLI 子进程生成环境变量注入。"""
-        env: dict[str, str] = {}
+        from runtime.platform.connectors.cli_profile import cli_profile_env
+
+        env: dict[str, str] = cli_profile_env(conn.id) if conn.cli else {}
         for key in self._credentials.list_secrets(conn.id):
             if key.startswith(_ALLOWED_ENV_PREFIX) or key in {"access_token", "api_key"}:
                 val = self._credentials.get_secret(conn.id, key)
@@ -760,19 +775,21 @@ class AuthOrchestrator:
     @staticmethod
     def _match_status(conn: ConnectorDefinition, output: str) -> bool:
         status_match = conn.cli.get("statusMatch") or ""
-        if status_match and status_match in output:
-            return True
         match_json = conn.cli.get("statusMatchJson") or {}
         if match_json:
             try:
                 start = output.find("{")
                 data = json.loads(output[start:]) if start >= 0 else {}
-                for k, v in match_json.items():
-                    if str(data.get(k)) == str(v):
-                        return True
+                # JSON booleans stringify as True in Python, whereas manifests
+                # use true. Require every declared field, not any single match.
+                return isinstance(data, dict) and all(
+                    k in data and str(data[k]).lower() == str(v).lower()
+                    for k, v in match_json.items()
+                )
             except (json.JSONDecodeError, ValueError):  # noqa: BLE001
                 pass
-        return False
+            return False
+        return bool(status_match and status_match in output)
 
 
 def mcp_injection_for_server(

@@ -17,57 +17,35 @@ from __future__ import annotations
 import contextlib
 import hashlib
 import json
-import os
-import re
 import shutil
 from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
+from runtime.platform.capabilities._capability_ids import _slug
+from runtime.platform.capabilities._icon_metadata import (
+    _CONNECTOR_BRAND_ALIASES as _CONNECTOR_BRAND_ALIASES,
+)
+from runtime.platform.capabilities._icon_metadata import (
+    _ICON_PRIORITY as _ICON_PRIORITY,
+)
 from runtime.platform.io import JsonMutation, mutate_json_file, read_json_file
+from runtime.platform.process.paths import app_paths
 
 # ── 默认路径 ────────────────────────────────────────────────
 # Codex 格式插件统一放在我们 echo 名下(~/.echo/plugins/codex),
 # 不再直接读 Codex 的 ~/.codex/plugins/cache;旧缓存由 codex_discovery 一次性同步。
-CODEX_PLUGIN_CACHE = Path.home() / ".echo" / "plugins" / "codex"
-CONNECTOR_ROOT = Path(os.path.expanduser("~/.echo/connectors"))
+CODEX_PLUGIN_CACHE = app_paths().codex_plugins_path
+CONNECTOR_ROOT = app_paths().data_dir / "connectors"
 CONNECTOR_STATE_FILE = CONNECTOR_ROOT / "state.json"
-CAPABILITY_STATE_FILE = Path(os.path.expanduser("~/.echo/capabilities/state.json"))
-SKILLS_ROOT = Path(os.path.expanduser("~/.echo/skills"))
+CAPABILITY_STATE_FILE = app_paths().data_dir / "capabilities" / "state.json"
+SKILLS_ROOT = app_paths().data_dir / "skills"
 REPO_ROOT = Path(__file__).resolve().parents[3]
 NATIVE_PLUGIN_ICON_ROOT = REPO_ROOT / ".echo" / "plugins" / "codex"
 WORKBUDDY_CONNECTOR_ICON_ROOT = REPO_ROOT / "extensions" / "workbuddy-connectors" / "icons"
 STOREFRONT_ICON_ROOT = (
     REPO_ROOT / "extensions" / "workbuddy-experts" / "storefront" / "data" / "icons"
 )
-
-_CONNECTOR_BRAND_ALIASES = {
-    "linear-mcp": "linear",
-    "canva-ai": "canva",
-    "github": "github",
-    "notion": "notion",
-    "google-calendar": "google-calendar",
-    "google-drive": "google-drive",
-    "figma": "figma",
-    "slack": "slack",
-    "gmail": "gmail",
-}
-
-_ICON_PRIORITY = (
-    "app-icon.png",
-    "icon.svg",
-    "icon.png",
-    "logo-padded.svg",
-    "logo-padded.png",
-    "logo.svg",
-    "logo.png",
-)
-
-_SLUG_RE = re.compile(r"[^a-z0-9_-]+", re.I)
-
-
-def _slug(value: str) -> str:
-    return _SLUG_RE.sub("-", value.strip()).strip("-").lower()
 
 
 def _validate_state(data: Any) -> None:
@@ -98,7 +76,10 @@ class CapabilityRegistry:
         if connector_registry is None:
             from runtime.platform.connectors.connector_registry import ConnectorRegistry
 
-            connector_registry = ConnectorRegistry()
+            connector_registry = ConnectorRegistry(
+                state_file=CONNECTOR_STATE_FILE,
+                skills_root=SKILLS_ROOT,
+            )
         if auth_orchestrator is None:
             from runtime.platform.connectors.auth_orchestrator import AuthOrchestrator
 
@@ -158,6 +139,8 @@ class CapabilityRegistry:
             statuses = {}
         dependencies: list[dict[str, Any]] = []
         blockers: list[str] = []
+        if item.get("ownership_state") == "needs_adapter":
+            blockers.append("需要先配置 Echo 可用的服务地址与客户端身份；当前包含第三方宿主专用配置")
         visited_dependencies: set[str] = set()
         visiting_dependencies: set[str] = set()
 
@@ -225,12 +208,19 @@ class CapabilityRegistry:
                 {"name": str(name), "bundled": True}
                 for name in item.get("runtime_dependencies") or []
             ],
-            "changes": [
-                "verify_publisher_signature",
-                "stage_package_generation",
-                "project_bundled_skills",
-                "record_permissions_inactive",
-            ],
+            "changes": (
+                [
+                    "register_bundled_model_adapter",
+                    "record_permissions_inactive",
+                ]
+                if item.get("model_provider")
+                else [
+                    "verify_publisher_signature",
+                    "stage_package_generation",
+                    "project_bundled_skills",
+                    "record_permissions_inactive",
+                ]
+            ),
             "permission_review_required": bool(item.get("permissions")),
             "can_install": not blockers,
             "blockers": blockers,
@@ -247,6 +237,11 @@ class CapabilityRegistry:
             cloud_item = cloud_by_plugin.get(str(item.get("id") or ""))
             item["source"] = "connector"
             item["author"] = "WorkBuddy"
+            from runtime.platform.connectors.ownership import connector_ownership
+
+            definition = self._connectors.get(str(item["id"]))
+            if definition is not None:
+                item.update(connector_ownership(definition))
             item["category"] = c.get("type", "mcp")
             icon_path = self._connector_icon_path(item)
             if icon_path is not None:
@@ -259,9 +254,17 @@ class CapabilityRegistry:
                 item["icon"] = f"/api/capabilities/{item['id']}/icon?v={version}"
             if cloud_item is not None:
                 item.update(self._marketplace_requirements(cloud_item))
-                item["_cloud_id"] = (
-                    str(cloud_item.get("id") or "") if self._use_cloud_connector_installer else ""
-                )
+                # Declarative model adapters ship with the host as small JSON
+                # descriptors.  They call a remote model API; they never vendor
+                # or download provider source through the marketplace package.
+                if bool(item.get("model_provider")):
+                    item["_bundled_model_provider"] = True
+                else:
+                    item["_cloud_id"] = (
+                        str(cloud_item.get("id") or "")
+                        if self._use_cloud_connector_installer
+                        else ""
+                    )
             else:
                 item.setdefault("host_api", None)
                 item.setdefault("permissions", [])
@@ -670,6 +673,8 @@ class CapabilityRegistry:
         item = self.get(cid)
         if item is None:
             raise KeyError(f"capability not found: {cid}")
+        if item.get("ownership_state") == "needs_adapter":
+            raise ValueError("插件尚未完成 Echo 授权适配，不能使用第三方宿主专用配置安装")
         if item["source"] == "connector":
             if item.get("_cloud_id"):
                 from runtime.platform.plugins.cloud_catalog import CloudCatalog

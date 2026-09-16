@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
+from types import SimpleNamespace
 from uuid import uuid4
 
 from runtime.execution.suckers import Skill, SkillRegistry
@@ -183,7 +184,7 @@ def test_install_plan_is_deterministic_and_side_effect_free(tmp_path: Path) -> N
 
         @staticmethod
         def get(connector_id: str):
-            return object() if connector_id == "plan-only" else None
+            return SimpleNamespace(cli={}, mcp_servers={}) if connector_id == "plan-only" else None
 
     state = tmp_path / "capabilities.json"
     permission_state = tmp_path / "permission-grants.json"
@@ -236,7 +237,7 @@ def test_install_plan_resolves_nested_marketplace_dependencies(
 
         @staticmethod
         def get(connector_id: str):
-            return object() if connector_id == "root-package" else None
+            return SimpleNamespace(cli={}, mcp_servers={}) if connector_id == "root-package" else None
 
     monkeypatch.setattr(CloudCatalog, "__init__", lambda self, *args, **kwargs: None)
     monkeypatch.setattr(

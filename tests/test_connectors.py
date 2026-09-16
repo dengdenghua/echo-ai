@@ -388,6 +388,21 @@ class TestConnectorRegistry:
         assert result["cli_lifecycle"] == {"has_cli": False}
         assert reg.installed_ids() == {"opencode-zen"}
 
+    def test_bundled_model_provider_bypasses_cloud_package(self, tmp_path):
+        from runtime.platform.capabilities.capability_registry import CapabilityRegistry
+
+        connector_registry = ConnectorRegistry(
+            marketplace_root=FORK,
+            skills_root=tmp_path / "skills",
+            state_file=tmp_path / "state.json",
+        )
+        registry = CapabilityRegistry(connector_registry=connector_registry)
+        registry._use_cloud_connector_installer = True
+
+        item = next(item for item in registry._list_connectors() if item["id"] == "opencode-zen")
+        assert item["_bundled_model_provider"] is True
+        assert "_cloud_id" not in item
+
     def test_freebuff2api_is_an_explicit_community_model_adapter(self, tmp_path):
         reg = ConnectorRegistry(
             marketplace_root=FORK,

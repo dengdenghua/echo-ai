@@ -358,7 +358,11 @@ class CredentialStore:
     def list_secrets(self, connector_id: str) -> list[str]:
         data = self._read_all()
         keys = list(data.get("connectors", {}).get(connector_id, {}).keys())
-        if connector_id == "opencode-go" and "shared_api_key" in keys and self.get_secret(connector_id, "api_key"):
+        if (
+            connector_id == "opencode-go"
+            and "shared_api_key" in keys
+            and self.get_secret(connector_id, "api_key")
+        ):
             keys.append("api_key")
         return keys
 
