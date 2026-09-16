@@ -1421,6 +1421,7 @@ export interface CapabilityMarketPanelProps {
   source?: CapabilitySource | "";
   /** 使用接近 Codex 桌面端插件目录的紧凑双列列表。 */
   compact?: boolean;
+  requiredCapabilityIds?: readonly string[];
 }
 
 const CAPABILITY_PAGE_SIZE = 60;
@@ -1450,6 +1451,7 @@ export function CapabilityMarketPanel({
   showToolbar = true,
   source = "",
   compact = false,
+  requiredCapabilityIds,
 }: CapabilityMarketPanelProps = {}) {
   const queryClient = useQueryClient();
   const { confirm, confirmDialog } = useConfirmDialog();
@@ -1606,6 +1608,7 @@ export function CapabilityMarketPanel({
   }, [featuredIds, items, view]);
 
   const filtered = viewItems.filter((c) => {
+    if (requiredCapabilityIds && !requiredCapabilityIds.includes(c.id)) return false;
     if (typeFilter !== "all" && c.type !== typeFilter) return false;
     return (
       capabilityMatchesQuery(c, searchQuery) && capabilityMatchesQuery(c, query)

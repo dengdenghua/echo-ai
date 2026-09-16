@@ -954,7 +954,7 @@ export function ModelPicker({
             value={reasoningEffort}
             disabled={reasoningEffortDisabled}
             efforts={engineSource === "opencode"
-              ? supportedReasoningEfforts({reasoning_efforts: nativeEfforts?.model === value ? nativeEfforts.efforts : []})
+              ? supportedReasoningEfforts({reasoning_efforts: nativeEfforts && nativeEfforts.model === value ? nativeEfforts.efforts : []})
               : supportedReasoningEfforts(selected)}
             onChange={onReasoningEffortChange}
           />
