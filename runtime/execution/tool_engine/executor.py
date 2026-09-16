@@ -788,8 +788,17 @@ class ToolExecutor:
                     # skill_gate.gate_inner_dispatch.
                     def _invoke_captured_handler(**handler_args: Any) -> Any:
                         nonlocal _handler_executed
-                        _handler_executed = True
-                        return skill.handler(**handler_args)
+                        from runtime.execution.tool_engine.coordination_guard import (
+                            coordinated_resource,
+                            coordination_scope,
+                        )
+
+                        # Hold inside the actual worker: a timeout must not release
+                        # a device while the timed-out handler is still operating it.
+                        service = getattr(self, "coordination", None)
+                        with coordination_scope(service), coordinated_resource(service, skill):
+                            _handler_executed = True
+                            return skill.handler(**handler_args)
 
                     with use_trust_engine(self.immunity):
                         output, retry_tags = _call_handler_with_transient_retry(

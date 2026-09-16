@@ -29,6 +29,7 @@ from runtime.platform.models.llm import ToolSpec
 PRIORITY_SKILLS: frozenset[str] = frozenset(
     {
         "todo_write",
+        "collaboration",
         "search_capabilities",
         "query_capability",
         "use_capability",

@@ -221,7 +221,9 @@ def _execute_tool_in_subagent(
             return (f"(blocked: {_gate.message})", True)
 
     try:
-        output = skill.handler(**call.input)
+        from runtime.execution.tool_engine.coordination_guard import invoke_coordinated
+
+        output = invoke_coordinated(skill, call.input, service=getattr(registry, "coordination", None))
     except TypeError as exc:
         return (f"(TypeError: {exc})", True)
     except Exception as exc:  # noqa: BLE001

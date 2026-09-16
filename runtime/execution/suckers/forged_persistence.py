@@ -189,7 +189,9 @@ def _build_composite_handler_with_templates(
                     error_type = _block.error_type
                     error_msg = _block.message
                     break
-                outputs[f"n{i}"] = skill.handler(**call_args)
+                from runtime.execution.tool_engine.coordination_guard import invoke_coordinated
+
+                outputs[f"n{i}"] = invoke_coordinated(skill, call_args)
             except TemplateResolutionError as e:
                 success = False
                 failed_at = i

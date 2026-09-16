@@ -396,6 +396,11 @@ def wire_stack(
         app.state.cowork_group_store = cowork_runtime.group_store
         app.state.cowork_async_store = cowork_runtime.async_store
         app.state.collaboration_store = cowork_runtime.collaboration_store
+        if stack is not None:
+            from runtime.execution.suckers.collaboration_skills import register_collaboration_skills
+
+            register_collaboration_skills(stack.executor.registry, cowork_runtime.coordination)
+            stack.executor.coordination = cowork_runtime.coordination
 
         def _reconcile_collaboration_runs() -> None:
             try:

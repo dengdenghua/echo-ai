@@ -333,6 +333,23 @@ def create_cowork_group_router(
 
     router = APIRouter(tags=["cowork"], dependencies=[Depends(_thread_access_dep)])
 
+    from runtime.memory.cowork.coordination_service import CoordinationService
+
+    from ._cowork_coordination import mount_coordination_routes
+
+    coordination = getattr(runtime, "coordination", None) or CoordinationService(
+        group_store, _collaboration_store(), _async_store(), getattr(runtime, "thread_store", None)
+    )
+
+    def _coordination_authorized(thread: str, actor: str, tenant: str, write: bool) -> bool:
+        if not require_auth:
+            return True
+        decision = thread_access.resolve(thread, actor, tenant)
+        return decision.can_write if write else decision.can_read
+
+    coordination.authorize = _coordination_authorized
+    mount_coordination_routes(router, coordination, access, runtime)
+
     @router.get("/api/cowork/{thread_id}")
     def get_group(thread_id: str, until_seq: int | None = None) -> dict[str, Any]:
         """Folded group state (roster + mode), the shared blackboard, the raw
@@ -364,9 +381,7 @@ def create_cowork_group_router(
 
                 scope = scope_from_principal(
                     principal,
-                    allow_cross_tenant=bool(
-                        principal.roles.intersection({"admin", "operator"})
-                    ),
+                    allow_cross_tenant=bool(principal.roles.intersection({"admin", "operator"})),
                 )
                 with_scope = getattr(project_store, "with_scope", None)
                 if callable(with_scope):
@@ -375,8 +390,7 @@ def create_cowork_group_router(
             if project is not None:
                 for milestone in project_store.milestones_for(project.id):
                     tasks.extend(
-                        task.to_dict()
-                        for task in project_store.tasks_for_milestone(milestone.id)
+                        task.to_dict() for task in project_store.tasks_for_milestone(milestone.id)
                     )
         except Exception as exc:  # noqa: BLE001 — trust degrades to roster-only
             _logger = __import__("logging").getLogger("echo.cowork")

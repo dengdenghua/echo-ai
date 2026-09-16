@@ -209,6 +209,10 @@ def compose_role_instructions(
             sections.append(f"<{label}>\n{value}\n</{label}>")
 
     if registry is not None:
+        if "collaboration" in registry.all_names():
+            from runtime.memory.cowork.coordination_service import GUIDANCE
+
+            sections.append("<group-coordination>" + GUIDANCE + "</group-coordination>")
         from runtime.core.cerebrum.design_capabilities import design_instructions
 
         design = design_instructions(

@@ -800,7 +800,9 @@ class SkillForge:
                         error_type = _block.error_type
                         error_msg = _block.message
                         break
-                    outputs[f"n{i}"] = skill.handler(**call_args)
+                    from runtime.execution.tool_engine.coordination_guard import invoke_coordinated
+
+                    outputs[f"n{i}"] = invoke_coordinated(skill, call_args)
                 except TemplateResolutionError as e:
                     # Previous step's output shape didn't match the
                     # template · most likely a sub-skill changed its

@@ -570,7 +570,9 @@ def _use_capability_for_registry(registry: SkillRegistry):
                 "error": _block.message,
             }
         try:
-            result = skill.handler(**call_args)
+            from runtime.execution.tool_engine.coordination_guard import invoke_coordinated
+
+            result = invoke_coordinated(skill, call_args)
         except Exception as exc:  # noqa: BLE001
             return {
                 "ok": False,

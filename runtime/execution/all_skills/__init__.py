@@ -315,6 +315,8 @@ _CATALOG: dict[str, dict[str, Any]] = {
     "bb_read": {"group": "blackboard", "atomic": True},
     "bb_write": {"group": "blackboard", "atomic": True},
     "bb_keys": {"group": "blackboard", "atomic": True},
+    # Bound to the durable group service during application startup.
+    "collaboration": {"group": "agent_meta", "atomic": True},
     # ── self-scheduling (mid-turn cron · same store as the UI) ──
     "schedule_task": {"group": "cron", "atomic": False},
     "list_scheduled_tasks": {"group": "cron", "atomic": False},

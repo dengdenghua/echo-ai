@@ -71,6 +71,9 @@ ATOMIC_SKILL_NAMES: frozenset[str] = frozenset(
         "bb_read",
         "bb_write",
         "bb_keys",
+        # Shared group protocol; server-side membership, mode and execution
+        # ceilings still govern every operation, including delegation.
+        "collaboration",
         # jobs · in-memory registry reads/writes, no I/O. ``job_output``
         # (wait may block) and ``call_agent_background`` (spawns a worker
         # thread) stay non-atomic.

@@ -51,6 +51,7 @@ class AsyncWorkRunner:
         competence: CompetenceStore | None = None,
         history_provider: HistoryProvider | None = None,
         completion_observer: CompletionObserver | None = None,
+        admission: Callable[[AsyncTask], bool] | None = None,
         recover_stale_seconds: float = 900.0,
         max_attempts: int = 3,
         max_concurrency: int = 4,
@@ -62,6 +63,7 @@ class AsyncWorkRunner:
         self._competence = competence
         self._history = history_provider or (lambda _tid: [])
         self._completion_observer = completion_observer
+        self._admission = admission
         self._recover_stale_seconds = max(0.0, float(recover_stale_seconds))
         self._max_attempts = max(1, int(max_attempts))
         self._max_concurrency = max(1, int(max_concurrency))
@@ -160,6 +162,14 @@ class AsyncWorkRunner:
 
     def run_one(self, task: AsyncTask) -> bool:
         """Claim → execute → complete (or fail) one task. False if not claimable."""
+        if self._admission is not None:
+            try:
+                if not self._admission(task):
+                    return False
+            except PermissionError:
+                # Membership/permission revocation cannot turn into delayed work.
+                self._store.cancel_batch([task.task_id], reason="group execution permission revoked")
+                return False
         if not self._store.claim(task.task_id):
             return False
         try:
