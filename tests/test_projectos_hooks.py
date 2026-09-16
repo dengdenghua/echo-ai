@@ -25,19 +25,25 @@ def test_extract_json_array_handles_fences_and_prose() -> None:
 
 
 def test_task_dependencies_resolve_model_ids_and_short_ids():
-    tasks = parse_tasks('[{"id":"draft","goal":"Write"},'
-                        '{"id":"review","goal":"Review","depends_on":["draft"]},'
-                        '{"goal":"Revise","depends_on":["T2"]}]', "MS")
+    tasks = parse_tasks(
+        '[{"id":"draft","goal":"Write"},'
+        '{"id":"review","goal":"Review","depends_on":["draft"]},'
+        '{"goal":"Revise","depends_on":["T2"]}]',
+        "MS",
+    )
     assert tasks[1].depends_on == ["MS-T1"]
     assert tasks[2].depends_on == ["MS-T2"]
 
 
-@pytest.mark.parametrize("reply", [
-    '[{"goal":"Review","depends_on":["missing"]}]',
-    '[{"goal":"Review","depends_on":["T1"]}]',
-    '[]',
-    'invalid JSON',
-])
+@pytest.mark.parametrize(
+    "reply",
+    [
+        '[{"goal":"Review","depends_on":["missing"]}]',
+        '[{"goal":"Review","depends_on":["T1"]}]',
+        "[]",
+        "invalid JSON",
+    ],
+)
 def test_invalid_decomposition_never_falls_back_to_executable_task(reply):
     from runtime.projectos.llm_hooks import llm_decompose_tasks
 
@@ -57,6 +63,35 @@ def test_parse_milestones_assigns_ids_and_resolves_deps() -> None:
     assert ms[1].dependencies == ["MS1"]  # "Scope" → MS1
     assert ms[2].dependencies == ["MS2"]  # "Build" → MS2; unknown "Ghost" dropped
     assert ms[0].success_criteria == ["approved"]
+
+
+def test_decomposition_repairs_bad_dependency_once():
+    from runtime.projectos.llm_hooks import llm_decompose_tasks
+
+    seen = []
+    responses = iter([
+        '[{"goal":"Draft"},{"goal":"Review","depends_on":["missing"]}]',
+        '[{"id":"T1","goal":"Draft"},{"id":"T2","goal":"Review","depends_on":["T1"]}]',
+    ])
+    def call(request):
+        seen.append(request)
+        return SimpleNamespace(text=next(responses))
+    tasks = llm_decompose_tasks(SimpleNamespace(call=call))(Milestone(id="M", name="M", goal="deliver"))
+    assert len(seen) == 2
+    assert tasks[1].depends_on == [tasks[0].id]
+    assert "failed validation" in seen[1].messages[0].content
+
+
+def test_decomposition_repair_is_bounded():
+    from runtime.projectos.llm_hooks import llm_decompose_tasks
+
+    seen = []
+    def call(request):
+        seen.append(request)
+        return SimpleNamespace(text='[{"id":"T1","goal":"Draft","depends_on":["T1"]}]')
+    with pytest.raises(ValueError, match="自动修正后仍无效"):
+        llm_decompose_tasks(SimpleNamespace(call=call))(Milestone(id="M", name="M", goal="deliver"))
+    assert len(seen) == 2
 
 
 def test_parse_milestones_empty_on_garbage() -> None:
@@ -93,12 +128,14 @@ def test_spec_qa_deterministic_without_router() -> None:
     assert qa(t_empty, ms)["approved"] is False
 
 
-@pytest.mark.parametrize("text", ['{"approved":"false"}', '{}', 'unavailable', '[]'])
+@pytest.mark.parametrize("text", ['{"approved":"false"}', "{}", "unavailable", "[]"])
 def test_qa_malformed_response_never_approves(text):
     qa = spec_qa(SimpleNamespace(call=lambda _: SimpleNamespace(text=text)))
     with pytest.raises(RuntimeError, match="质量检查未完成"):
-        qa(Task(id="T", milestone_id="M", type="analysis", goal="g", output="draft"),
-           Milestone(id="M", name="m", goal="g", success_criteria=["verified evidence"]))
+        qa(
+            Task(id="T", milestone_id="M", type="analysis", goal="g", output="draft"),
+            Milestone(id="M", name="m", goal="g", success_criteria=["verified evidence"]),
+        )
 
 
 def test_qa_provider_failure_never_approves():
@@ -107,8 +144,10 @@ def test_qa_provider_failure_never_approves():
 
     qa = spec_qa(SimpleNamespace(call=fail))
     with pytest.raises(RuntimeError, match="质量检查未完成"):
-        qa(Task(id="T", milestone_id="M", type="analysis", goal="g", output="draft"),
-           Milestone(id="M", name="m", goal="g", success_criteria=["verified evidence"]))
+        qa(
+            Task(id="T", milestone_id="M", type="analysis", goal="g", output="draft"),
+            Milestone(id="M", name="m", goal="g", success_criteria=["verified evidence"]),
+        )
 
 
 def test_subagent_execute_task_propagates_project_scope(monkeypatch) -> None:
@@ -169,3 +208,23 @@ def test_subagent_execute_task_propagates_project_scope(monkeypatch) -> None:
     assert host_task.tenant_id == "acme"
     assert host_task.goal == captured["prompt"]
     assert 0 < host_task.resources.remaining_seconds() <= 900
+
+
+def test_local_project_worker_keeps_absent_tenant_identity(monkeypatch):
+    from runtime.execution.host_boundary import create_host_execution_boundary
+    from runtime.platform.process.session import session_scope
+
+    boundary = create_host_execution_boundary(task_id="local-project", thread_id="local-thread", goal="verify", timeout_s=60)
+
+    def execute(_agent, _prompt, **kwargs):
+        session = kwargs["session"]
+        assert session.metadata["_execution_task"].tenant_id is None
+        assert session.metadata.get("tenant_id") is None
+        return {"success": True, "output": "verified"}
+
+    monkeypatch.setattr("runtime.execution.subagents.call_subagent", execute)
+    with session_scope(boundary.session):
+        assert subagent_execute_task(
+            Task(id="T", milestone_id="M", type="analysis", goal="verify"),
+            {"thread_id": "local-thread", "tenant_id": "", "owner_id": ""},
+        ) == "verified"

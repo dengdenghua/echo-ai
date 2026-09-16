@@ -1549,16 +1549,15 @@ def test_plan_generates_milestones(tmp_path) -> None:
     assert [m.id for m in eng.store.milestones_for(p.id)] == ["MS1", "MS2", "MS3"]
 
 
-def test_plan_falls_back_when_milestone_generation_fails(tmp_path) -> None:
+def test_plan_does_not_create_project_when_milestone_generation_fails(tmp_path) -> None:
     def broken_generate(goal: str) -> list[Milestone]:
         raise RuntimeError(f"planner unavailable for {goal}")
 
     eng = _engine(tmp_path, generate_milestones=broken_generate)
 
-    p = eng.plan("fallback", "ship despite planner outage")
-
-    assert p.status == "running"
-    assert [m.id for m in eng.store.milestones_for(p.id)] == ["MS1", "MS2", "MS3"]
+    with pytest.raises(RuntimeError, match="planner unavailable"):
+        eng.plan("fallback", "ship despite planner outage")
+    assert eng.store.list_projects() == []
 
 
 def test_consecutive_plans_resolve_global_milestone_ids_and_dependencies(tmp_path) -> None:
@@ -2603,8 +2602,11 @@ def test_review_outage_recovery_rechecks_saved_output_without_execution(tmp_path
     eng = _engine(
         tmp_path,
         generate_milestones=lambda _: [Milestone(id="M", name="Delivery", goal="deliver")],
-        decompose_tasks=lambda ms: [Task(id="T", milestone_id=ms.id, type="research", goal="deliver")],
-        execute_task=execute, qa_task=review,
+        decompose_tasks=lambda ms: [
+            Task(id="T", milestone_id=ms.id, type="research", goal="deliver")
+        ],
+        execute_task=execute,
+        qa_task=review,
     )
     project = eng.plan("review recovery", "deliver")
     assert eng.run(project.id)["final_status"] == "blocked"
