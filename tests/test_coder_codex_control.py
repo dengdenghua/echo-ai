@@ -1,8 +1,10 @@
 from __future__ import annotations
 
 import asyncio
+import base64
 import json
 import os
+import time
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from types import SimpleNamespace
@@ -689,6 +691,60 @@ async def test_reaper_never_closes_an_inflight_model_request(tmp_path: Path) -> 
     release.set()
     await task
     await service.close_all()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("expiry_offset,expected_refreshes", [(3600, 0), (120, 1), (-1, 1)])
+async def test_execution_only_refreshes_chatgpt_near_expiry(
+    tmp_path: Path, expiry_offset: int, expected_refreshes: int
+) -> None:
+    factory = _ControlFactory()
+    service = CodexAccountService(tmp_path / "state", command=_FAKE_COMMAND, client_factory=factory)
+    try:
+        await service.read_account(None)
+        client = factory.clients[0]
+        client.account = {"type": "chatgpt"}
+        payload = (
+            base64.urlsafe_b64encode(json.dumps({"exp": time.time() + expiry_offset}).encode())
+            .decode()
+            .rstrip("=")
+        )
+        auth = client.home / "auth.json"
+        original = json.dumps(
+            {"auth_mode": "chatgpt", "tokens": {"access_token": f"header.{payload}.signature"}}
+        )
+        auth.write_text(original, encoding="utf-8")
+        auth.chmod(0o600)
+
+        assert await service.refresh_for_execution(None) == client.home
+        assert client.refresh_reads == expected_refreshes
+        if not expected_refreshes:
+            assert auth.read_text(encoding="utf-8") == original
+            client.account = None
+            assert await service.refresh_for_execution(None) is None
+    finally:
+        await service.close_all()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("token", ["opaque", "header.!.signature", "header.bnVsbA.signature"])
+async def test_execution_refreshes_unknown_access_token_formats(tmp_path: Path, token: str) -> None:
+    factory = _ControlFactory()
+    service = CodexAccountService(tmp_path / "state", command=_FAKE_COMMAND, client_factory=factory)
+    try:
+        await service.read_account(None)
+        client = factory.clients[0]
+        client.account = {"type": "chatgpt"}
+        auth = client.home / "auth.json"
+        auth.write_text(
+            json.dumps({"auth_mode": "chatgpt", "tokens": {"access_token": token}}),
+            encoding="utf-8",
+        )
+        auth.chmod(0o600)
+        assert await service.refresh_for_execution(None) == client.home
+        assert client.refresh_reads == 1
+    finally:
+        await service.close_all()
 
 
 @pytest.mark.asyncio
