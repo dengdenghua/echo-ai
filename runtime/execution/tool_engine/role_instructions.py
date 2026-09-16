@@ -209,7 +209,9 @@ def compose_role_instructions(
     if registry is not None:
         from runtime.core.cerebrum.design_capabilities import design_instructions
 
-        design = design_instructions(goal, context=metadata, registry=registry, agent=agent)
+        design = design_instructions(
+            goal, context=metadata, registry=registry, agent=agent, goal_skills_loaded=True
+        )
         if design:
             sections.append(design)
         explicit = resolve_explicit_skill_instructions(

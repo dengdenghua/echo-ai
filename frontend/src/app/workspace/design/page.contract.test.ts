@@ -66,7 +66,9 @@ describe("Echo Design platform contract", () => {
     expect(pageSource).toContain("grid-cols-3");
     expect(pageSource).toContain("createLocalCreativeProject");
     expect(pageSource).toContain("uploadHomeFiles");
-    expect(pageSource).toContain("DESIGN_CAPABILITIES_KEY");
+    expect(pageSource).toContain("useState<DesignCapabilities>(AUTO_DESIGN_CAPABILITIES)");
+    expect(pageSource).toContain("<MediaModelSelectors value={capabilities}");
+    expect(pageSource).not.toContain("DESIGN_CAPABILITIES_KEY");
     expect(pageSource).toContain("useThreadSettings(threadId");
     expect(pageSource).toContain("resolveDesignCapabilities(text, capabilities, true)");
     expect(pageSource).not.toContain("可调用创作能力");
@@ -76,9 +78,8 @@ describe("Echo Design platform contract", () => {
   });
 
   it("binds real skills and plugins and compiles the graph for AI execution", () => {
-    expect(pageSource).toContain("<DesignCapabilityPicker");
-    expect(pageSource).toContain("onSkills={onOpenSkills}");
-    expect(pageSource).toContain('const href = "/workspace/agents?tab=skills"');
+    expect(pageSource).not.toContain("DesignCapabilityPicker");
+    expect(pageSource).toContain('onOpenWorkflow={() => setSection("comfyui")}');
     expect(pageSource).toContain('{ type: "echo.workbench.navigate", href }');
     expect(pageSource).toContain("workspaceHostOrigin()");
     expect(pageSource).toContain("setActiveDesignCapabilities(capabilities)");

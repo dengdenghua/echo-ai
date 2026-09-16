@@ -84,6 +84,9 @@ def design_preferences(value: Any) -> dict[str, Any]:
         "mode": "manual" if value.get("mode") == "manual" else "auto",
         "skills": _ids(value.get("skills")),
         "plugins": _ids(value.get("plugins")),
+        **{key: value[key] for key in ("image_model", "video_model")
+           if isinstance(value.get(key), str) and 0 < len(value[key]) <= 128
+           and not any(ord(char) < 32 for char in value[key])},
     }
 
 
@@ -146,6 +149,13 @@ def resolve_design_plan(
         if name not in selected and name not in explicit and prefs["mode"] == "auto"
     ]
     plugins = list(dict.fromkeys([*mentions.plugins, *prefs["plugins"]]))[:12]
+    from runtime.execution.suckers.media_gateway import model_catalog
+
+    catalog = model_catalog()
+    for kind in ("image", "video"):
+        chosen = prefs.get(f"{kind}_model")
+        if chosen and (chosen not in catalog[kind]["models"] or not catalog[kind]["available"]):
+            blockers.append(f"所选{ '图片' if kind == 'image' else '视频' }模型不可用，请重新选择或检查生成服务配置")
     advice_only = bool(
         re.search(r"^\s*(?:如何|怎么|为什么|介绍|解释|what\b|how\b|why\b)", goal, re.I)
     )
@@ -192,6 +202,15 @@ def resolve_design_plan(
                 configured = _bundled_media_configured() or (
                     generation == "generate_image" and bool(_openai_media_config()[1])
                 )
+                from runtime.execution.suckers import media_gateway
+
+                if media_gateway.selected():
+                    error = media_gateway.configuration_error(
+                        "image" if generation == "generate_image" else "video"
+                    )
+                    configured = not error
+                    if error:
+                        blockers.append(error)
                 if not configured and "comfyui_bridge" not in plugins:
                     blockers.append(
                         "生成服务尚未配置凭据，请先连接图片/视频服务，或选择本机 ComfyUI"
@@ -223,7 +242,10 @@ def design_priority(goal: str, context: Any, registry: Any) -> list[str]:
     return list(dict.fromkeys([*plan["skills"], *plan["tools"]]))
 
 
-def design_instructions(goal: str, *, context: Any, registry: Any, agent: Any = None) -> str:
+def design_instructions(
+    goal: str, *, context: Any, registry: Any, agent: Any = None,
+    goal_skills_loaded: bool = False,
+) -> str:
     if not is_design_context(context):
         return ""
     plan = resolve_design_plan(goal, context=context, registry=registry, agent=agent)
@@ -234,17 +256,32 @@ def design_instructions(goal: str, *, context: Any, registry: Any, agent: Any = 
         "本轮设计技能（按优先级）：" + ("、".join(plan["skills"]) or "基础设计规范"),
         "本轮绑定工具：" + ("、".join(plan["tools"]) or "按具体操作使用当前工具目录"),
     ]
+    for kind in ("image", "video"):
+        chosen = plan["preferences"].get(f"{kind}_model")
+        if chosen:
+            parts.append(f"用户指定 {kind} 生成模型：{chosen}；调用 generate_{kind} 时使用该 model，不得擅自替换。")
     if plan["warnings"]:
         parts.append("；".join(plan["warnings"]))
+    # Automatic matches advertise capabilities; their bodies are loaded through
+    # the skill tools when needed. An inferred keyword is not an explicit request.
+    if plan["skills"]:
+        parts.append("按当前操作需要调用上述技能获取专项说明，不要预读全部技能。")
     if agent is not None and plan["skills"]:
+        from runtime.core.cerebrum.input_mentions import parse_input_mentions
         from runtime.execution.tool_engine.role_instructions import (
             resolve_explicit_skill_instructions,
         )
 
-        # Resolve only current task skills from existing trusted roots, with the
-        # same allowlist as explicit skills; never load an entire skill catalog.
+        explicit = set(parse_input_mentions(goal).skills)
+        explicit.update(re.findall(r"(?<![\w-])\$([A-Za-z0-9][A-Za-z0-9_-]{0,127})", goal))
+        manual = set(plan["preferences"]["skills"]) if plan["mode"] == "manual" else set()
+        eager = [name for name in plan["skills"]
+                 if (name in manual or name in explicit)
+                 and not (goal_skills_loaded and name in explicit)]
+        # Explicit goal skills are assembled once by the role composer. Manual
+        # picker selections retain eager loading through the same trusted resolver.
         body = resolve_explicit_skill_instructions(
-            " ".join(f"@skill:{name}" for name in plan["skills"]),
+            " ".join(f"@skill:{name}" for name in eager),
             registry=registry,
             agent=agent,
         )

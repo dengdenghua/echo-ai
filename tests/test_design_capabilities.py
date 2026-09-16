@@ -116,8 +116,26 @@ def test_only_task_prompt_instructions_are_loaded_from_trusted_roots(monkeypatch
         agent, context=context(), goal="制作网页", registry=registry()
     )
     assert "<design-foundations>" in result
-    assert "Instructions for frontend-ui-engineering" in result
+    assert "frontend-ui-engineering" in result
+    assert "Instructions for frontend-ui-engineering" not in result
     assert "Instructions for presentations" not in result
+
+    explicit = compose_role_instructions(
+        agent, context=context(), goal="@skill:presentations 制作网页", registry=registry()
+    )
+    assert explicit.count("Instructions for presentations") == 1
+    assert "Instructions for frontend-ui-engineering" not in explicit
+
+    manual = compose_role_instructions(
+        agent, context=context(mode="manual", skills=["presentations"]),
+        goal="@skill:presentations 制作网页", registry=registry()
+    )
+    assert manual.count("Instructions for presentations") == 1
+    picker = compose_role_instructions(
+        agent, context=context(mode="manual", skills=["presentations"]),
+        goal="制作演示", registry=registry()
+    )
+    assert picker.count("Instructions for presentations") == 1
 
 
 def test_generation_without_execution_tool_is_blocked():

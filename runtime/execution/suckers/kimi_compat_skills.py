@@ -236,6 +236,10 @@ def _generate_image(
         return {"error": "missing prompt"}
     if not HTTPX_AVAILABLE:
         return {"error": "httpx not installed"}
+    from . import media_gateway
+
+    if media_gateway.selected():
+        return media_gateway.generate("image", prompt, model=model, size=size, n=n, image=image)
     base_url, api_key = _openai_media_config()
     if not api_key:
         if _bundled_media_configured():
@@ -326,6 +330,13 @@ def _generate_video(
 ) -> dict[str, Any]:
     if not prompt.strip() and not task_id.strip():
         return {"error": "missing prompt"}
+    from . import media_gateway
+
+    if media_gateway.selected():
+        return media_gateway.generate(
+            "video", prompt, model=model, task_id=task_id,
+            width=width, height=height, seconds=seconds, image=image,
+        )
     if not _bundled_media_configured():
         return _provider_missing(
             "generate_video",
@@ -901,7 +912,7 @@ def register_kimi_compat_skills(registry: SkillRegistry) -> int:
     specs: list[tuple[str, str, list[str], Any, list[SkillTestCase]]] = [
         (
             "generate_image",
-            "Directly generate an image with the trusted Agnes/Volcano media provider; use this executable tool for image creation instead of activating an image skill pack.",
+            "Generate images through the server-configured media service. Echo gateway takes priority when configured. Optional model must be enabled on the server; do not invent endpoints or credentials.",
             ["media", "image", "generate"],
             _generate_image,
             [
@@ -915,7 +926,7 @@ def register_kimi_compat_skills(registry: SkillRegistry) -> int:
         ),
         (
             "generate_video",
-            "Directly generate a video with the trusted Agnes/Volcano media provider; use this executable tool for video creation instead of activating a video skill pack.",
+            "Generate video through the server-configured media service. Echo gateway returns an asynchronous task_id: query it with this same tool instead of submitting again. Optional model must be enabled on the server. Report queued/failed states accurately.",
             ["media", "video", "generate"],
             _generate_video,
             [

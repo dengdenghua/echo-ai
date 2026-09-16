@@ -5,6 +5,8 @@ export interface DesignCapabilities {
   mode: "auto" | "manual";
   skills: string[];
   plugins: string[];
+  image_model?: string;
+  video_model?: string;
 }
 export const AUTO_DESIGN_CAPABILITIES: DesignCapabilities = {
   mode: "auto",
@@ -12,6 +14,7 @@ export const AUTO_DESIGN_CAPABILITIES: DesignCapabilities = {
   plugins: [],
 };
 export interface DesignCapabilityPlan {
+  media_models?: Record<"image" | "video", { default: string | null; models: string[]; available: boolean }>;
   mode: "auto" | "manual";
   preferences: DesignCapabilities;
   foundations: string;
@@ -46,6 +49,7 @@ export function parseDesignCapabilities(value: unknown): DesignCapabilities {
       mode: parsed.mode === "manual" ? "manual" : "auto",
       skills: ids(parsed.skills),
       plugins: ids(parsed.plugins),
+      ...Object.fromEntries(["image_model", "video_model"].filter(key => typeof parsed[key] === "string" && parsed[key].length > 0 && parsed[key].length <= 128 && !/[\u0000-\u001f]/.test(parsed[key])).map(key => [key, parsed[key]])),
     };
   } catch {
     return AUTO_DESIGN_CAPABILITIES;

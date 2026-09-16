@@ -1,17 +1,18 @@
 # Design capability routing
 
 Design uses one server-owned resolver, `runtime/core/cerebrum/design_capabilities.py`,
-for the capability picker, preflight, prompt instructions and tool priority.
+for submission preflight, prompt instructions and tool priority.
 
 ## Task lifecycle
 
-1. The home screen defaults to **设计能力 · 自动**. It does not load the full plugin
-   catalog, select all plugins or install anything on navigation. Opening the
-   picker requests a debounced, cancellable capability preview.
+1. The home screen has no capability picker or configuration dialog. New tasks
+   always select capabilities automatically and ignore old picker preferences.
+   Templates default to collapsed. No capability request runs on navigation;
+   only a blocked submission exposes a relevant setup shortcut.
 2. The resolver matches a bounded set of task packs: web/UI, slides, visual
    direction, storyboards, video editing, commerce images and ComfyUI workflows.
-   Manual overrides contain skill/plugin identifiers only. This is currently
-   deterministic keyword matching, not another model call.
+   Explicit skill mentions and legacy thread overrides contain identifiers only.
+   This is currently deterministic keyword matching, not another model call.
 3. Submission rechecks enabled registry entries and required generation tools.
    The built-in media adapter checks whether credentials are configured. A
    selected ComfyUI bridge gets a read-only local connectivity probe. A failed
@@ -41,6 +42,12 @@ for the capability picker, preflight, prompt instructions and tool priority.
   bridge. General design advice does not require a paid generation service.
 
 ## Verification and limits
+
+The simplified home supersedes the picker described in the original validation
+below. Its 24 related frontend tests, TypeScript and browser checks passed:
+automatic selection despite stale manual storage, no capability dialog or eager
+request, collapsed templates, failed-submission draft retention, setup navigation
+and mobile layout. The packaged preview was rebuilt and updated.
 
 2026-09-15 local validation:
 

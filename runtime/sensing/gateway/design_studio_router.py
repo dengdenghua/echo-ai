@@ -470,6 +470,9 @@ def create_design_studio_router(
                 item = plugins.setdefault(plugin_id, {"id": plugin_id, "available": False})
                 item["available"] = item["available"] or skill_registry.is_enabled(name)
             plan["available_plugins"] = list(plugins.values())
+            from runtime.execution.suckers.media_gateway import model_catalog
+
+            plan["media_models"] = model_catalog()
         plan["connection_checked"] = False
         if body.check_connection and "comfyui_bridge" in plan["plugins"] and plan["ready"]:
             status = await comfyui_status()

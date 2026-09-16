@@ -1,8 +1,8 @@
 "use client";
 import { ChatInputBox } from "@/components/workspace/chat-input-box";
 import { useThreadSettings } from "@/core/settings";
-import { DesignCapabilityPicker } from "./design-capability-picker";
-import { AUTO_DESIGN_CAPABILITIES, parseDesignCapabilities, resolveDesignCapabilities, type DesignCapabilities } from "@/core/design/capabilities";
+import { AUTO_DESIGN_CAPABILITIES, resolveDesignCapabilities, type DesignCapabilities } from "@/core/design/capabilities";
+import { MediaModelSelectors } from "./media-model-selectors";
 import { TemplateCover } from "./template-cover";
 import { normalizePermissionMode } from "@/core/permissions";
 import { useIsMobile } from "@/hooks/use-mobile";
@@ -38,7 +38,7 @@ import {
   GroupIcon,
   HandIcon,
   ImageIcon,
-  LayoutPanelLeftIcon,
+  EllipsisIcon,
   LibraryIcon,
   ListIcon,
   Loader2Icon,
@@ -47,7 +47,6 @@ import {
   MessageSquarePlusIcon,
   MinusIcon,
   MousePointer2Icon,
-  PanelLeftCloseIcon,
   PanelRightIcon,
   PencilIcon,
   PlusIcon,
@@ -68,7 +67,6 @@ import {
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
-import { MarkdownContent } from "@/components/workspace/messages/markdown-content";
 import {
   Dialog,
   DialogContent,
@@ -77,13 +75,17 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import {
+  DropdownMenu, DropdownMenuTrigger, DropdownMenuContent,
+  DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator,
+  DropdownMenuRadioGroup, DropdownMenuRadioItem,
+} from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { useActiveAgentId } from "@/core/agents/active";
 import { DEFAULT_PRIMARY_AGENT_ID } from "@/core/agents/persona-policy";
 import { authHeaders } from "@/core/auth/api";
 import { getBackendBaseURL } from "@/core/config";
-import { useStreamdownPlugins } from "@/core/streamdown";
 import {
   CREATIVE_PROJECTS_CHANGED_EVENT,
   createLocalCreativeProject,
@@ -147,26 +149,6 @@ import { PluginNodeFrame } from "./plugin-node-frame";
 
 type ToolMode = "select" | "hand";
 type EmbeddedSurface = "director" | "editor" | "comfyui" | null;
-
-const DESIGN_CAPABILITIES_KEY = "echo-design-capabilities-v2";
-const CREATIVE_SKILL_COVERS = [
-  "/community/game-guide(1).jpg",
-  "/community/weekly-highlights.jpg",
-  "/community/memory-video(1).jpg",
-  "/community/daily-album.jpg",
-  "/community/study-paper(1).jpg",
-  "/community/travel-plan(1).jpg",
-  "/community/food-delivery(1).jpg",
-  "/community/web-summary.jpg",
-  "/community/mock-interview.jpg",
-  "/community/gacha.jpg",
-  "/community/smart-home.jpg",
-  "/community/language-coach.jpg",
-  "/community/voice-reply.jpg",
-  "/community/weekend.jpg",
-  "/community/meeting-notes.jpg",
-  "/community/price-watch(1).jpg",
-] as const;
 
 const COMFY_WORKFLOW_COVERS = [
   "/images/browser-wallpapers/aurora-lab.png",
@@ -1228,13 +1210,13 @@ function DesignHomeView({
   onStart,
   threadId,
   onUseTemplate,
-  onOpenSkills,
+  onOpenWorkflow,
 }: {
   spaceSelector: React.ReactNode;
   threadId?: string;
   onStart: (prompt: string, capabilities: DesignCapabilities, files?: File[]) => void | Promise<void>;
   onUseTemplate: (templateId: "ai-drama-series") => void;
-  onOpenSkills: () => void;
+  onOpenWorkflow: () => void;
 }) {
   const navigate = useNavigate();
   const navigateWorkspace = (href: string) => {
@@ -1255,9 +1237,9 @@ function DesignHomeView({
   const [category, setCategory] = useState("全部");
   const [templatesVisible, setTemplatesVisible] = useState(() => {
     try {
-      return window.localStorage.getItem("echo:design:templates-visible") !== "false";
+      return window.localStorage.getItem("echo:design:templates-visible") === "true";
     } catch {
-      return true;
+      return false;
     }
   });
   const toggleTemplates = () => {
@@ -1271,16 +1253,10 @@ function DesignHomeView({
   };
   const [guide, setGuide] = useState<"design" | "models" | null>(null);
   const [previewTitle, setPreviewTitle] = useState<string | null>(null);
-  const [draftText, setDraftText] = useState("");
   const [capabilityError, setCapabilityError] = useState("");
-  const [capabilities, setCapabilities] = useState<DesignCapabilities>(() => {
-    try { return parseDesignCapabilities(localStorage.getItem(DESIGN_CAPABILITIES_KEY)); }
-    catch { return AUTO_DESIGN_CAPABILITIES; }
-  });
-  useEffect(() => {
-    try { localStorage.setItem(DESIGN_CAPABILITIES_KEY, JSON.stringify(capabilities)); }
-    catch { /* This selection still works without persistent storage. */ }
-  }, [capabilities]);
+  // New design tasks always infer capabilities; obsolete manual preferences
+  // from the former picker must not silently restrict a fresh task.
+  const [capabilities, setCapabilities] = useState<DesignCapabilities>(AUTO_DESIGN_CAPABILITIES);
   const showcases: Array<{
     category: string;
     title: string;
@@ -1420,7 +1396,6 @@ function DesignHomeView({
             disabled={submitting}
             defaultValue={prompt}
             draftStorageKey="echo:design-home"
-            onDraftChange={setDraftText}
             workspaceControl={spaceSelector}
             showModeSelector
             projectAgentMode="uxui"
@@ -1429,7 +1404,7 @@ function DesignHomeView({
               if (mode === "develop") navigateWorkspace("/workspace/realtime/new");
             }}
             contextActions={<>
-            <DesignCapabilityPicker goal={draftText} value={capabilities} onChange={setCapabilities} onManage={() => navigateWorkspace("/workspace/agents?tab=plugins")} onSkills={onOpenSkills} />
+            <MediaModelSelectors value={capabilities} onChange={setCapabilities} />
             <button type="button" onClick={toggleTemplates} aria-expanded={templatesVisible} aria-controls="design-home-templates" className="flex h-8 items-center gap-1.5 rounded-md px-2 hover:bg-muted/60 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
               {templatesVisible ? "收起模板" : "展开模板"}
               <span className="text-muted-foreground">{showcases.length}</span>
@@ -1460,7 +1435,12 @@ function DesignHomeView({
             }}
           />
           {submitting && <p role="status" className="mt-2 text-xs text-muted-foreground">正在检查设计能力…</p>}
-          {capabilityError && <p role="alert" className="mt-2 text-xs text-destructive">{capabilityError}。草稿已保留，可调整能力后重试。</p>}
+          {capabilityError && <p role="alert" className="mt-2 text-xs text-destructive">{capabilityError}。草稿已保留。
+            {/ComfyUI|凭据|生成服务|插件|技能/.test(capabilityError) && <button type="button" className="ml-2 underline" onClick={() => {
+              if (capabilityError.includes("ComfyUI")) onOpenWorkflow();
+              else navigateWorkspace(/凭据|生成服务/.test(capabilityError) ? "/workspace/settings?section=models" : `/workspace/agents?tab=${capabilityError.includes("技能") ? "skills" : "plugins"}`);
+            }}>去设置</button>}
+          </p>}
         </div>
 
         <div id="design-home-templates" hidden={!templatesVisible}>
@@ -4127,7 +4107,8 @@ export default function DesignPage({
       ? saved
       : "chat-left";
   });
-  const [layoutOpen, setLayoutOpen] = useState(false);
+  const [projectDetailsOpen, setProjectDetailsOpen] = useState(false);
+  const [stagePlanOpen, setStagePlanOpen] = useState(false);
   const isMobile = useIsMobile();
   const [mobileView, setMobileView] = useState<"chat" | "canvas">("canvas");
   const displayLayout = isMobile ? mobileView : layout;
@@ -5002,6 +4983,7 @@ export default function DesignPage({
     creativeProjectId,
     designThreadId,
     navigate,
+    personaId,
     projectId,
     searchParams,
     selectedId,
@@ -6007,13 +5989,14 @@ export default function DesignPage({
       {workflowStages.length > 0 ? (
         <div
           data-testid="design-stage-plan"
-          className="absolute left-3 top-3 z-20 w-[min(420px,calc(100%-24px))] rounded-[14px] border border-black/[0.08] bg-white/92 p-2.5 shadow-[0_8px_24px_-18px_rgba(0,0,0,.45)] backdrop-blur dark:border-white/10 dark:bg-[#181818]/92"
+          className={cn(stagePlanOpen ? "w-[min(420px,calc(100%-24px))]" : "w-auto", "absolute left-3 top-14 z-20 rounded-[14px] border border-black/[0.08] bg-white/92 p-2.5 shadow-[0_8px_24px_-18px_rgba(0,0,0,.45)] backdrop-blur dark:border-white/10 dark:bg-[#181818]/92")}
         >
-          <div className="flex items-center gap-2 px-1">
-            <span className="text-[10px] font-semibold">阶段计划</span>
+          <button type="button" onClick={() => setStagePlanOpen((open) => !open)} aria-expanded={stagePlanOpen} aria-controls="design-stage-list" className="flex w-full items-center gap-2 px-1">
+            <span className="text-[10px] font-semibold">进度</span>
             <span className="text-[9px] text-muted-foreground">
-              {completedWorkflowStages}/{workflowStages.length} 已完成
+              {completedWorkflowStages}/{workflowStages.length}
             </span>
+            <ChevronDownIcon className={cn("size-3 transition-transform", stagePlanOpen && "rotate-180")} />
             <span className="h-1 flex-1 overflow-hidden rounded-full bg-muted">
               <span
                 className="block h-full rounded-full bg-emerald-500 transition-all"
@@ -6022,8 +6005,8 @@ export default function DesignPage({
                 }}
               />
             </span>
-          </div>
-          <div className="mt-2 flex gap-1 overflow-x-auto pb-0.5">
+          </button>
+          <div id="design-stage-list" hidden={!stagePlanOpen} className={cn("mt-2 gap-1 overflow-x-auto pb-0.5", stagePlanOpen && "flex")}>
             {workflowStages.map((stage) => {
               const status = STAGE_STATUS_STYLE[stage.status];
               return (
@@ -6693,6 +6676,15 @@ export default function DesignPage({
       {canvasSettingsOpen ? (
         <div className="absolute right-3 top-14 z-40 w-64 max-w-[calc(100%-1.5rem)] max-h-[calc(100%-5rem)] overflow-y-auto rounded-[14px] border border-black/[0.08] bg-white/95 p-3 shadow-[0_16px_40px_-20px_rgba(0,0,0,.38)] backdrop-blur dark:border-white/10 dark:bg-[#181818]/95">
           <div className="text-[10px] font-semibold">画布设置</div>
+          <div className="mt-3 text-[9px] text-muted-foreground">画布模式</div>
+          <div className="mt-1.5 grid grid-cols-2 gap-1 rounded-lg bg-muted/60 p-1">
+            {([["freeform", "自由画布"], ["workflow", "工作流"]] as const).map(([id, label]) => (
+              <button key={id} type="button" aria-pressed={document.mode === id}
+                onClick={() => setDocument((current) => switchDesignCanvasMode(current, id))}
+                className={cn("h-8 rounded-md text-[11px]", document.mode === id ? "bg-background font-medium shadow-sm" : "text-muted-foreground hover:text-foreground")}
+              >{label}</button>
+            ))}
+          </div>
           <div className="mt-3 text-[9px] text-muted-foreground">背景样式</div>
           <div className="mt-1.5 grid grid-cols-3 gap-1 rounded-lg bg-muted/60 p-1">
             {(
@@ -7566,56 +7558,21 @@ export default function DesignPage({
 
   return (
     <div className="relative flex h-full min-h-0 w-full flex-col overflow-hidden bg-background">
-      <header className="flex min-h-11 shrink-0 flex-wrap items-center gap-y-1 border-b border-border-subtle bg-background px-2.5 py-1 md:h-11 md:flex-nowrap md:py-0">
-        <div className="ml-1 flex min-w-0 max-w-full items-center gap-2">
-          <button
-            type="button"
-            onClick={() => setSection("home")}
-            aria-current={activeDesignSection === "home" ? "page" : undefined}
-            className={cn(
-              "relative flex h-10 shrink-0 items-center gap-2 px-1.5 text-[13px] font-semibold transition-colors hover:text-foreground",
-              activeDesignSection === "home"
-                ? "text-foreground after:absolute after:bottom-0 after:left-1.5 after:right-1.5 after:h-0.5 after:rounded-full after:bg-foreground"
-                : "text-muted-foreground",
-            )}
-          >
-            <span className="grid size-7 place-items-center rounded-lg bg-violet-100 text-violet-600">
-              <WandSparklesIcon className="size-3.5" />
-            </span>
-            Echo Design
-          </button>
-          {activeDesignSection !== "home" && (
-            <>
-              {projectId ? (
-                <span className="flex h-8 max-w-44 items-center gap-1.5 px-2 text-[11px] font-medium">
-                  <FolderIcon className="size-3.5 shrink-0 text-muted-foreground" />
-                  <span className="truncate">{projectName || "当前项目"}</span>
-                </span>
-              ) : (
-                <CreativeProjectSelector
-                  personaId={personaId}
-                  projects={creativeProjects}
-                  currentProjectId={creativeProjectId}
-                  onSelect={handleCreativeProjectChange}
-                  className="w-28 md:w-44"
-                />
-              )}
-              <span className="text-muted-foreground/50">/</span>
-              <input
-                value={document.title}
-                onFocus={beginCanvasTransaction}
-                onBlur={endCanvasTransaction}
-                onChange={(event) =>
-                  setDocumentState((current) => ({
-                    ...current,
-                    title: event.target.value,
-                  }))
-                }
-                className="w-28 md:w-40 truncate bg-transparent text-[13px] font-semibold outline-none"
-                aria-label="画布名称"
-              />
-            </>
-          )}
+      <header data-testid="design-header" className="flex h-11 shrink-0 items-center gap-1 border-b border-border-subtle bg-background px-2.5">
+        <div className="flex min-w-0 flex-1 items-center gap-2">
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <button type="button" aria-label="作品菜单" className="flex h-9 min-w-0 max-w-72 items-center gap-1.5 rounded-md px-2 text-[13px] font-semibold hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
+                <span className="truncate">{activeDesignSection === "home" ? "创作空间" : document.title || "未命名作品"}</span>
+                <ChevronDownIcon className="size-3 shrink-0 text-muted-foreground" />
+              </button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="start" className="w-56">
+              <DropdownMenuLabel className="truncate text-xs text-muted-foreground">{canvasScopeName}</DropdownMenuLabel>
+              <DropdownMenuItem onSelect={() => setProjectDetailsOpen(true)}><PencilIcon />作品设置</DropdownMenuItem>
+              {!canvasOnly && <DropdownMenuItem onSelect={() => setSection("home")}><PlusIcon />返回创作首页</DropdownMenuItem>}
+            </DropdownMenuContent>
+          </DropdownMenu>
           {projectId ? (
             <span
               className={cn(
@@ -7682,110 +7639,51 @@ export default function DesignPage({
             </span>
           ) : null}
         </div>
-        {!canvasOnly && <nav
-          className={cn(
-            "order-last flex h-9 w-full shrink-0 items-center gap-1 overflow-x-auto whitespace-nowrap text-[13px] md:order-none md:ml-3 md:h-full md:w-auto",
-            projectId ? "md:hidden xl:flex" : "",
-          )}
-        >
-          {(
-            [
-              ["canvas", "创作画布"],
-              ["assets", "资产中心"],
-              ["comfyui", "高级工作流"],
-            ] as const
-          ).map(([id, label]) => (
-            <button
-              key={id}
+        {!canvasOnly && <nav aria-label="设计导航" className="flex h-full shrink-0 items-center gap-1 text-[13px]">
+          {([["canvas", "画布"], ["assets", "资产"]] as const).map(([id, label]) => (
+            <button key={id} type="button" aria-current={activeDesignSection === id ? "page" : undefined}
               onClick={() => { setSection(id); if (id === "canvas" && displayLayout === "chat") { setLayout("canvas"); setMobileView("canvas"); } }}
-              className={cn(
-                "relative h-full px-2.5 text-muted-foreground",
-                activeDesignSection === id &&
-                  "font-medium text-foreground after:absolute after:bottom-0 after:left-2 after:right-2 after:h-0.5 after:rounded-full after:bg-foreground",
-              )}
-            >
-              {label}
-            </button>
+              className={cn("relative h-full px-2.5 text-muted-foreground", activeDesignSection === id && "font-medium text-foreground after:absolute after:bottom-0 after:left-2 after:right-2 after:h-0.5 after:rounded-full after:bg-foreground")}
+            >{label}</button>
           ))}
         </nav>}
-        <span className="flex-1" />
-        {section === "canvas" ? (
-          <>
-            <div className="mr-1 flex rounded-lg bg-muted/70 p-0.5 text-[10px]">
-              <button
-                onClick={() =>
-                  setDocument((current) =>
-                    switchDesignCanvasMode(current, "freeform"),
-                  )
-                }
-                className={cn(
-                  "rounded-md px-2.5 py-1.5",
-                  document.mode === "freeform" &&
-                    "bg-background font-medium shadow-sm",
-                )}
-              >
-                自由画布
-              </button>
-              <button
-                onClick={() =>
-                  setDocument((current) =>
-                    switchDesignCanvasMode(current, "workflow"),
-                  )
-                }
-                className={cn(
-                  "rounded-md px-2.5 py-1.5",
-                  document.mode === "workflow" &&
-                    "bg-background font-medium shadow-sm",
-                )}
-              >
-                工作流
-              </button>
-            </div>
-            <div className="relative hidden md:block">
-              <Button
-                variant="ghost"
-                size="icon"
-                className="size-8"
-                onClick={() => setLayoutOpen((value) => !value)}
-                aria-label="工作区布局"
-              >
-                <LayoutPanelLeftIcon className="size-4" />
-              </Button>
-              {layoutOpen ? (
-                <div className="absolute right-0 top-10 z-50 w-52 rounded-xl border border-border-default bg-background p-2 shadow-xl">
-                  <div className="px-2 pb-2 pt-1 text-[10px] font-semibold text-muted-foreground">
-                    布局模式
-                  </div>
-                  {(
-                    [
-                      ["split", "画布 + 个人工作台", PanelRightIcon],
-                      ["chat-left", "工作台在左", PanelLeftCloseIcon],
-                      ["chat", "仅个人工作台", MessageSquareIcon],
-                      ["canvas", "仅画布", Maximize2Icon],
-                    ] as const
-                  ).map(([id, label, Icon]) => (
-                    <button
-                      key={id}
-                      onClick={() => {
-                        setLayout(id);
-                        setLayoutOpen(false);
-                      }}
-                      className="flex w-full items-center gap-2 rounded-lg px-2 py-2 text-[11px] hover:bg-muted"
-                    >
-                      <Icon className="size-3.5" />
-                      {label}
-                      <span className="flex-1" />
-                      {layout === id ? (
-                        <CheckIcon className="size-3.5" />
-                      ) : null}
-                    </button>
-                  ))}
-                </div>
-              ) : null}
-            </div>
-          </>
-        ) : null}
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button variant="ghost" size="icon" className="size-8 shrink-0" aria-label="更多设计选项"><EllipsisIcon className="size-4" /></Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end" className="w-52">
+            {!canvasOnly && <DropdownMenuItem onSelect={() => setSection("comfyui")}><WorkflowIcon />高级工作流</DropdownMenuItem>}
+            {section === "canvas" && <>
+              {!canvasOnly && <DropdownMenuSeparator />}
+              <DropdownMenuLabel>工作区布局</DropdownMenuLabel>
+              <DropdownMenuRadioGroup value={displayLayout} onValueChange={(value) => { setLayout(value as WorkspaceLayout); if (value === "canvas" || value === "chat") setMobileView(value); }}>
+                {([
+                  ["split", "画布 + 个人工作台"], ["chat-left", "工作台在左"],
+                  ["chat", "仅个人工作台"], ["canvas", "仅画布"],
+                ] as const).filter(([id]) => !isMobile || id === "chat" || id === "canvas").map(([id, label]) => (
+                  <DropdownMenuRadioItem key={id} value={id}>{label}</DropdownMenuRadioItem>
+                ))}
+              </DropdownMenuRadioGroup>
+            </>}
+          </DropdownMenuContent>
+        </DropdownMenu>
       </header>
+      <Dialog open={projectDetailsOpen} onOpenChange={setProjectDetailsOpen}>
+        <DialogContent className="sm:max-w-sm">
+          <DialogHeader><DialogTitle>作品设置</DialogTitle></DialogHeader>
+          <label className="space-y-2 text-sm">作品名称
+            <Input value={document.title} aria-label="画布名称" onFocus={beginCanvasTransaction} onBlur={endCanvasTransaction}
+              onChange={(event) => setDocumentState((current) => ({ ...current, title: event.target.value }))} />
+          </label>
+          <div className="space-y-1 text-sm">
+            <span>所属空间</span>
+            {projectId ? <p className="py-2 text-muted-foreground">{projectName || "当前项目"}</p> :
+              <CreativeProjectSelector personaId={personaId} projects={creativeProjects} currentProjectId={creativeProjectId}
+                onSelect={(id) => { setProjectDetailsOpen(false); handleCreativeProjectChange(id); }} />}
+          </div>
+          <DialogFooter><Button onClick={() => setProjectDetailsOpen(false)}>完成</Button></DialogFooter>
+        </DialogContent>
+      </Dialog>
       {section === "canvas" && isMobile && (
         <div
           className="flex shrink-0 gap-2 border-b bg-background p-2"
@@ -7836,17 +7734,7 @@ export default function DesignPage({
               if (layout === "canvas") setLayout("chat-left");
               toast.success("AI 漫剧工作流已创建，可从第一阶段开始");
             }}
-            onOpenSkills={() => {
-              const href = "/workspace/agents?tab=skills";
-              if (window.parent !== window) {
-                window.parent.postMessage(
-                  { type: "echo.workbench.navigate", href },
-                  workspaceHostOrigin(),
-                );
-              } else {
-                navigate(href);
-              }
-            }}
+            onOpenWorkflow={() => setSection("comfyui")}
           />
         ) : null}
         {section === "assets" ? (
