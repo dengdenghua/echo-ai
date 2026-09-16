@@ -70,13 +70,39 @@ def _ensure_sandbox(
     return Path(verdict.resolved) if verdict.resolved else Path(path), None
 
 
+def _split_windows_command(command: str) -> list[str]:
+    """Use Windows argument rules without retaining syntactic quote marks."""
+    import ctypes
+
+    shell32 = ctypes.WinDLL("shell32", use_last_error=True)
+    kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
+    split = shell32.CommandLineToArgvW
+    split.argtypes = [ctypes.c_wchar_p, ctypes.POINTER(ctypes.c_int)]
+    split.restype = ctypes.POINTER(ctypes.c_wchar_p)
+    free = kernel32.LocalFree
+    free.argtypes = [ctypes.c_void_p]
+    free.restype = ctypes.c_void_p
+    count = ctypes.c_int()
+    argv = split(command.lstrip(), ctypes.byref(count))
+    if not argv:
+        raise ctypes.WinError(ctypes.get_last_error())
+    try:
+        return [argv[index] for index in range(count.value)]
+    finally:
+        free(argv)
+
+
 def _parse_command(command: str | list[str]) -> tuple[list[str] | None, str | None]:
     if not command:
         return None, "missing command"
     if isinstance(command, str):
         try:
-            argv = shlex.split(command, posix=(sys.platform != "win32"))
-        except ValueError as e:
+            if not command.strip():
+                return None, "empty argv after parsing"
+            argv = (
+                _split_windows_command(command) if sys.platform == "win32" else shlex.split(command)
+            )
+        except (ValueError, OSError) as e:
             return None, f"shlex_split_failed: {e}"
     elif isinstance(command, list):
         argv = [str(x) for x in command]
