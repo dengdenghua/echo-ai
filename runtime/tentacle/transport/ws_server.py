@@ -214,9 +214,7 @@ class TentacleWebSocketServer:
         # for phones on the LAN), every connection is rejected — an
         # exposed port with no secret to check against is never safe.
         self.auth_token = (
-            auth_token
-            if auth_token is not None
-            else os.environ.get("ECHO_TENTACLE_TOKEN") or None
+            auth_token if auth_token is not None else os.environ.get("ECHO_TENTACLE_TOKEN") or None
         )
         self.on_device_hello = on_device_hello
         self.on_device_disconnect = on_device_disconnect

@@ -49,9 +49,7 @@ def test_deep_research_planner_builds_roles_sources_and_steps():
 def test_default_deep_research_store_prefers_echo_state(tmp_path, monkeypatch):
     monkeypatch.chdir(tmp_path)
 
-    assert (
-        _default_job_store_path() == tmp_path / ".echo" / "research" / "deep-research-jobs.jsonl"
-    )
+    assert _default_job_store_path() == tmp_path / ".echo" / "research" / "deep-research-jobs.jsonl"
 
     legacy = tmp_path / ".echo-research" / "deep-research-jobs.jsonl"
     legacy.parent.mkdir()

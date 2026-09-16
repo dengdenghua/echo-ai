@@ -307,11 +307,7 @@ def main(argv: list[str] | None = None) -> int:
             print(f"    - {name}")
 
     total = len(extra) + len(env_leaks)
-    print(
-        "\nTotal: {} extra entr{} at root.".format(
-            total, "y" if total == 1 else "ies"
-        )
-    )
+    print("\nTotal: {} extra entr{} at root.".format(total, "y" if total == 1 else "ies"))
 
     return 1 if args.strict else 0
 

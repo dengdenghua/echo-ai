@@ -105,12 +105,8 @@ def create_thread_state_router(
         share_store = ThreadShareStore(
             Path(logs_root).parent / "thread-shares",
             ttl_seconds=_positive_env_int("ECHO_THREAD_SHARE_TTL_SECONDS", 30 * 86400),
-            max_active_per_owner=_positive_env_int(
-                "ECHO_THREAD_SHARE_MAX_ACTIVE_PER_OWNER", 100
-            ),
-            max_snapshot_bytes=_positive_env_int(
-                "ECHO_THREAD_SHARE_MAX_SNAPSHOT_BYTES", 1_200_000
-            ),
+            max_active_per_owner=_positive_env_int("ECHO_THREAD_SHARE_MAX_ACTIVE_PER_OWNER", 100),
+            max_snapshot_bytes=_positive_env_int("ECHO_THREAD_SHARE_MAX_SNAPSHOT_BYTES", 1_200_000),
         )
     from .thread_share_relay import ThreadShareRelayClient
 

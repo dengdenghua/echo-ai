@@ -182,8 +182,7 @@ def maybe_start_storage(*, force: bool = False) -> str:
         cmd = resolve_storage_command()
         if cmd is None:
             _LOG.info(
-                "echo-storage not found; skipping autostart "
-                "(install it, or set ECHO_STORAGE_CMD)"
+                "echo-storage not found; skipping autostart (install it, or set ECHO_STORAGE_CMD)"
             )
             return "not_found"
         _launch(cmd)

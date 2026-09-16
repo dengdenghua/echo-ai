@@ -110,17 +110,14 @@ class RoomMessageStore:
                 )
             if "sender_driver" not in columns:
                 conn.execute(
-                    "ALTER TABLE room_messages "
-                    "ADD COLUMN sender_driver TEXT NOT NULL DEFAULT ''"
+                    "ALTER TABLE room_messages ADD COLUMN sender_driver TEXT NOT NULL DEFAULT ''"
                 )
             if "seal_prev" not in columns:
                 conn.execute(
                     "ALTER TABLE room_messages ADD COLUMN seal_prev TEXT NOT NULL DEFAULT ''"
                 )
             if "seal" not in columns:
-                conn.execute(
-                    "ALTER TABLE room_messages ADD COLUMN seal TEXT NOT NULL DEFAULT ''"
-                )
+                conn.execute("ALTER TABLE room_messages ADD COLUMN seal TEXT NOT NULL DEFAULT ''")
             conn.executescript(_SCHEMA)
 
     @property
@@ -191,8 +188,7 @@ class RoomMessageStore:
             # the write lock, fold it into this row. Concurrent appends are
             # serialized by ``self._lock``, so prev/seq can never interleave.
             last = conn.execute(
-                "SELECT seq, seal FROM room_messages "
-                "WHERE room_id = ? ORDER BY seq DESC LIMIT 1",
+                "SELECT seq, seal FROM room_messages WHERE room_id = ? ORDER BY seq DESC LIMIT 1",
                 (room_id,),
             ).fetchone()
             prev_seal = str(last[1]) if last and last[1] else GENESIS

@@ -56,9 +56,7 @@ CHECKS: tuple[ProductExperienceCheck, ...] = (
     ProductExperienceCheck(
         id="work_surface_design_first_canvas",
         title="Design workspace first canvas path",
-        paths=(
-            "frontend/src/app/workspace/design/page.tsx",
-        ),
+        paths=("frontend/src/app/workspace/design/page.tsx",),
         required_terms=(
             "新建本地项目",
             "创建项目",

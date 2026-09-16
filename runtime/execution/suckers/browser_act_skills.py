@@ -80,8 +80,7 @@ def _bridge_call(action: str, params: dict[str, Any]) -> dict[str, Any]:
         return {
             "ok": False,
             "error": (
-                "Echo desktop (Electron) 未在运行 · 请在桌面端启动 "
-                "Echo,本 skill 才能操作浏览器。"
+                "Echo desktop (Electron) 未在运行 · 请在桌面端启动 Echo,本 skill 才能操作浏览器。"
             ),
         }
     port = state.get("port")

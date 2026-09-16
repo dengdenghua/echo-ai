@@ -299,7 +299,9 @@ class ModelProviderPluginManager:
             "model_free_status": {
                 model: (model in (descriptor.get("free_models") or []) or model.endswith("-free"))
                 for model in selected
-            } if entry_id == "opencode-zen" else {},
+            }
+            if entry_id == "opencode-zen"
+            else {},
             "compat_profile": str(descriptor.get("compat_profile") or "openai_compat"),
             "responses_model_prefixes": list(descriptor.get("responses_model_prefixes") or []),
             "responses_models": model_provider_responses_models(descriptor, selected),
@@ -343,7 +345,9 @@ class ModelProviderPluginManager:
             removed = False
             for target_id in [entry_id, *(descriptor.get("channels") or {})]:
                 current = self._custom_models.get(target_id)
-                if not isinstance(current, dict) or current.get("managed_by_plugin") != item.get("id"):
+                if not isinstance(current, dict) or current.get("managed_by_plugin") != item.get(
+                    "id"
+                ):
                     continue
                 self._custom_models.pop(target_id, None)
                 self._unregister_entry(current, fallback_id=target_id)

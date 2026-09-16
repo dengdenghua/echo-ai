@@ -58,7 +58,9 @@ def test_cancelled_project_does_not_dispatch_next_task(tmp_path):
     engine = ProjectEngine(
         ProjectStore(tmp_path),
         generate_milestones=lambda _: [Milestone(id="M", name="M", goal="work")],
-        decompose_tasks=lambda ms: [Task(id=f"T{i}", milestone_id=ms.id, type="research", goal="work") for i in (1, 2)],
+        decompose_tasks=lambda ms: [
+            Task(id=f"T{i}", milestone_id=ms.id, type="research", goal="work") for i in (1, 2)
+        ],
         execute_task=execute,
         qa_task=lambda task, ms: reviewed.append(task.id) or {"approved": True},
     )

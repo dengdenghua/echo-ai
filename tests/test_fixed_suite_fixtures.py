@@ -50,9 +50,7 @@ def test_coding_fixture_provides_isolated_repeatable_test_command(tmp_path) -> N
             encoding="utf-8",
         )
         runner = (
-            first_workspace
-            / ".echo-eval"
-            / ("run-tests.cmd" if os.name == "nt" else "run-tests")
+            first_workspace / ".echo-eval" / ("run-tests.cmd" if os.name == "nt" else "run-tests")
         )
         provenance = python_test_runner_provenance()
         assert provenance["ownership"] == "evaluator"

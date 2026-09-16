@@ -23,7 +23,9 @@ async def accept_delivery(
         await emit("当前阶段尚未完成交付，请先完成任务后再申请验收。")
         return
     if any(not has_delivery_content(t.output) for t in tasks):
-        await emit("当前阶段有任务未提供交付内容，不能只凭完成状态验收。请先补充交付物后重新申请验收。")
+        await emit(
+            "当前阶段有任务未提供交付内容，不能只凭完成状态验收。请先补充交付物后重新申请验收。"
+        )
         return
     fingerprint = delivery_fingerprint(milestone, tasks)
     preview = "\n".join(
@@ -32,7 +34,10 @@ async def accept_delivery(
             "验收标准：",
             *milestone.success_criteria,
             "交付记录：",
-            *[f"{t.goal}\n任务验收标准：{'；'.join(t.acceptance_criteria) or '按阶段标准验收'}\n交付：{t.output}" for t in tasks],
+            *[
+                f"{t.goal}\n任务验收标准：{'；'.join(t.acceptance_criteria) or '按阶段标准验收'}\n交付：{t.output}"
+                for t in tasks
+            ],
         ]
     )
     await emit(preview)

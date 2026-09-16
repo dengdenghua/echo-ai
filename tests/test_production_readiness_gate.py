@@ -177,8 +177,7 @@ def test_static_only_gate_still_blocks_static_score_regressions(
     )
 
     assert any(
-        "agent scorecard echo evidence-adjusted overall is 94" in item
-        for item in result.failures
+        "agent scorecard echo evidence-adjusted overall is 94" in item for item in result.failures
     )
     assert result.to_dict()["gate_passed"] is False
 
@@ -491,8 +490,7 @@ def test_production_readiness_gate_blocks_scorecard_regression(
     result = gate.run_gate(min_score=95, review_queue_path=review_queue_path)
 
     assert any(
-        "agent scorecard echo evidence-adjusted overall is 94" in item
-        for item in result.failures
+        "agent scorecard echo evidence-adjusted overall is 94" in item for item in result.failures
     )
 
 
@@ -544,8 +542,7 @@ def test_production_readiness_gate_blocks_e2e_summary_drift(
     result = gate.run_gate(min_score=95, review_queue_path=review_queue_path)
 
     assert any(
-        "e2e summary mismatch: automation_echo=94, expected 96" in item
-        for item in result.failures
+        "e2e summary mismatch: automation_echo=94, expected 96" in item for item in result.failures
     )
 
 

@@ -123,8 +123,7 @@ def validate_permission_profile(
             ),
             str(context.scratch_root): "write",
             **{
-                str(context.workspace / subpath): "read"
-                for subpath in protected_workspace_subpaths
+                str(context.workspace / subpath): "read" for subpath in protected_workspace_subpaths
             },
             ":tmpdir": "deny",
             ":slash_tmp": "deny",

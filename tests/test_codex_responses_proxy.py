@@ -698,9 +698,7 @@ async def test_proxy_token_only_enters_app_server_environment(tmp_path: Path) ->
         assert launch_env["NO_PROXY"] == "127.0.0.1,localhost,::1"
         assert launch_env["no_proxy"] == "127.0.0.1,localhost,::1"
         assert "UPSTREAM_API_KEY" not in launch_env
-        assert parsed["model_providers"]["echo_proxy"]["env_key"] == (
-            "ECHO_CODEX_PROXY_TOKEN"
-        )
+        assert parsed["model_providers"]["echo_proxy"]["env_key"] == ("ECHO_CODEX_PROXY_TOKEN")
         assert "ECHO_CODEX_PROXY_TOKEN" not in parsed["shell_environment_policy"]["set"]
         assert token not in config_text
         assert token not in repr(profile)

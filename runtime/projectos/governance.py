@@ -65,14 +65,25 @@ def record_usage(store, project_id, result, *, task_id="", milestone_id=""):
             )
             # A fresh provider snapshot only resolves this execution. It must
             # never clear another member's receipt or uncorrelated legacy gaps.
-            conn.execute("DELETE FROM project_missing_usage WHERE project_id=? AND root_id=?", (project_id, root))
+            conn.execute(
+                "DELETE FROM project_missing_usage WHERE project_id=? AND root_id=?",
+                (project_id, root),
+            )
         else:
-            conn.execute("INSERT OR IGNORE INTO project_missing_usage VALUES (?,?,?)",
-                         (project_id, root or "__unreported__", task_id))
-    store.append_event(project_id, kind="project.usage_reported" if valid else "project.usage_missing",
-                       payload={"task_id": task_id, "milestone_id": milestone_id,
-                                "root_id": root or None,
-                                "cost_usd": float(value) if valid else None})
+            conn.execute(
+                "INSERT OR IGNORE INTO project_missing_usage VALUES (?,?,?)",
+                (project_id, root or "__unreported__", task_id),
+            )
+    store.append_event(
+        project_id,
+        kind="project.usage_reported" if valid else "project.usage_missing",
+        payload={
+            "task_id": task_id,
+            "milestone_id": milestone_id,
+            "root_id": root or None,
+            "cost_usd": float(value) if valid else None,
+        },
+    )
     return valid
 
 
@@ -116,24 +127,41 @@ def budget_status(store, project_id, ms):
         missing_exists = conn.execute(
             "SELECT 1 FROM sqlite_master WHERE name='project_missing_usage'"
         ).fetchone()
-        missing = conn.execute(
-            "SELECT task_id FROM project_missing_usage WHERE project_id=?", (project_id,)
-        ).fetchall() if missing_exists else []
+        missing = (
+            conn.execute(
+                "SELECT task_id FROM project_missing_usage WHERE project_id=?", (project_id,)
+            ).fetchall()
+            if missing_exists
+            else []
+        )
     unknown = legacy_unknown or missing
     reason = "usage_missing" if unknown else "limit_reached" if cost >= float(cap) else None
     missing_tasks = {row[0] for row in missing if row[0]}
     if legacy_unknown:
-        missing_tasks.update(e["payload"]["task_id"] for e in store.events_for_project(project_id, limit=500)
-                             if e["kind"] == "project.usage_missing" and e["payload"].get("task_id"))
+        missing_tasks.update(
+            e["payload"]["task_id"]
+            for e in store.events_for_project(project_id, limit=500)
+            if e["kind"] == "project.usage_missing" and e["payload"].get("task_id")
+        )
     missing_tasks = sorted(missing_tasks)
-    return {"paused": reason is not None, "reason": reason, "missing_task_ids": missing_tasks,
-            "reported_cost_usd": cost, "limit_usd": float(cap)}
+    return {
+        "paused": reason is not None,
+        "reason": reason,
+        "missing_task_ids": missing_tasks,
+        "reported_cost_usd": cost,
+        "limit_usd": float(cap),
+    }
 
 
 def budget_pause_message(status):
     if status.get("reason") == "usage_missing":
         tasks = status.get("missing_task_ids") or []
-        return "费用回报缺失，无法确认剩余额度；请核对执行记录与费用回报。提高预算不能解除此暂停。" + (
-            "待核对任务：" + "、".join(tasks) if tasks else "历史记录未关联具体任务，需核对本项目执行记录。"
+        return (
+            "费用回报缺失，无法确认剩余额度；请核对执行记录与费用回报。提高预算不能解除此暂停。"
+            + (
+                "待核对任务：" + "、".join(tasks)
+                if tasks
+                else "历史记录未关联具体任务，需核对本项目执行记录。"
+            )
         )
     return "已上报费用达到预算上限；可申请调整预算，经批准后继续。"

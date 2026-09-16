@@ -169,9 +169,7 @@ def _normalize_task(task: Task) -> Task:
         ),
         attempts=max(0, min(int(task.attempts or 0), 100)),
         review_mode=(
-            task.review_mode
-            if task.review_mode in ("", "ai_auto", "operator", "human_run")
-            else ""
+            task.review_mode if task.review_mode in ("", "ai_auto", "operator", "human_run") else ""
         ),
         reviewed_by=_text(task.reviewed_by, label="task reviewed_by", max_length=128),
     )

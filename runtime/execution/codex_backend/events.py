@@ -459,9 +459,15 @@ def _translate_notification(
     return []
 
 
-def translate_notification(notification: Notification, state: CodexEventState) -> list[dict[str, Any]]:
+def translate_notification(
+    notification: Notification, state: CodexEventState
+) -> list[dict[str, Any]]:
     from runtime.execution.engine_observations import observe_engine_event
-    return [observe_engine_event(event, "codex") for event in _translate_notification(notification, state)]
+
+    return [
+        observe_engine_event(event, "codex")
+        for event in _translate_notification(notification, state)
+    ]
 
 
 __all__ = ["CodexEventState", "translate_notification"]

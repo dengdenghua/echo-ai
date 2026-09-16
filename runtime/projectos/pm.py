@@ -186,7 +186,11 @@ def build_pm_report(
     total_tasks = sum(m["total"] for m in milestones_pm)
     # Count every planned phase, including phases not decomposed into tasks
     # yet. Otherwise finishing the first phase can incorrectly display 100%.
-    overall_progress = round(sum(m["progress"] for m in milestones_pm) / len(milestones_pm), 3) if milestones_pm else 0.0
+    overall_progress = (
+        round(sum(m["progress"] for m in milestones_pm) / len(milestones_pm), 3)
+        if milestones_pm
+        else 0.0
+    )
 
     all_tasks: list[Task] = []
     for ms in milestones:
@@ -244,23 +248,54 @@ def build_pm_report(
             from runtime.projectos.governance import phase_authorized
 
             if not phase_authorized(store, project_id, ms):
-                next_actions.append({"milestone": ms.name, "task_id": "", "task": "审批本阶段成员与执行范围：/project run",
-                                     "priority": "P0", "estimate": 0, "due_at": ms.due_at, "type": "phase_approval"})
+                next_actions.append(
+                    {
+                        "milestone": ms.name,
+                        "task_id": "",
+                        "task": "审批本阶段成员与执行范围：/project run",
+                        "priority": "P0",
+                        "estimate": 0,
+                        "due_at": ms.due_at,
+                        "type": "phase_approval",
+                    }
+                )
                 continue
             if m.get("block_reason") and m.get("budget", {}).get("paused"):
-                next_actions.append({"milestone": ms.name, "task_id": "", "task": m["block_reason"],
-                                     "priority": "P0", "estimate": 0, "due_at": ms.due_at, "type": "budget_review",
-                                     "budget": m["budget"]})
+                next_actions.append(
+                    {
+                        "milestone": ms.name,
+                        "task_id": "",
+                        "task": m["block_reason"],
+                        "priority": "P0",
+                        "estimate": 0,
+                        "due_at": ms.due_at,
+                        "type": "budget_review",
+                        "budget": m["budget"],
+                    }
+                )
                 continue
         phase_tasks = store.tasks_for_milestone(ms.id)
-        if ms.spec.get("requires_owner_acceptance") and ms.status != "done" and phase_tasks and all(t.status == "done" for t in phase_tasks):
+        if (
+            ms.spec.get("requires_owner_acceptance")
+            and ms.status != "done"
+            and phase_tasks
+            and all(t.status == "done" for t in phase_tasks)
+        ):
             from runtime.projectos.acceptance import delivery_accepted
 
             if not delivery_accepted(store, project_id, ms, phase_tasks):
-                next_actions.append({"milestone": m["name"], "milestone_id": ms.id,
-                                     "task_id": "", "task": f"等待用户验收：/project accept {ms.id}",
-                                     "priority": "P0", "estimate": 0, "due_at": ms.due_at,
-                                     "type": "owner_acceptance"})
+                next_actions.append(
+                    {
+                        "milestone": m["name"],
+                        "milestone_id": ms.id,
+                        "task_id": "",
+                        "task": f"等待用户验收：/project accept {ms.id}",
+                        "priority": "P0",
+                        "estimate": 0,
+                        "due_at": ms.due_at,
+                        "type": "owner_acceptance",
+                    }
+                )
         for t in store.tasks_for_milestone(ms.id):
             if _milestone_ready_task(t):
                 next_actions.append(

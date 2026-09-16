@@ -194,10 +194,7 @@ def _audit_target(target: Target, strict: bool) -> int:
         print(f"{prefix} {len(shrunk)} baseline file(s) shrunk below threshold:")
         for entry in sorted(shrunk):
             print(f"  SHRUNK  {entry}")
-        print(
-            "\nRemove them from "
-            f"{target.baseline} so the split-up gain is locked in."
-        )
+        print(f"\nRemove them from {target.baseline} so the split-up gain is locked in.")
 
     if escrow_breaches:
         print(

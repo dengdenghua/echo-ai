@@ -340,9 +340,7 @@ def stream_run(
             # Preserve the zero-argument seam used by embedders/tests when no
             # deployment override is configured.  Commercial/explicit modes
             # go through the mode-aware selector so they cannot downgrade.
-            if os.environ.get("ECHO_PROCESS_SANDBOX") or os.environ.get(
-                "ECHO_DEPLOYMENT_MODE"
-            ):
+            if os.environ.get("ECHO_PROCESS_SANDBOX") or os.environ.get("ECHO_DEPLOYMENT_MODE"):
                 choice = resolved_process_backend(effective_process_sandbox_mode())
             else:
                 choice = resolved_process_backend()

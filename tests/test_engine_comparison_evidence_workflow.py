@@ -214,8 +214,7 @@ def test_protected_runtime_inputs_are_rechecked_without_publishing_auth_identity
     assert "auth.json" not in provenance
     assert "protected-identities" not in upload
     assert (
-        "ECHO_PROTECTED_IDENTITY_BASELINE"
-        in _step("Stop the isolated Echo control plane")["run"]
+        "ECHO_PROTECTED_IDENTITY_BASELINE" in _step("Stop the isolated Echo control plane")["run"]
     )
 
 

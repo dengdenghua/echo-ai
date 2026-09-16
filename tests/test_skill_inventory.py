@@ -10,7 +10,11 @@ def write_skill(root: Path, folder: str, text: str) -> None:
 
 
 def test_inventory_deduplicates_names_and_overlapping_roots(tmp_path):
-    write_skill(tmp_path, "a", "---\nname: Writer\nmetadata:\n  author: Test Author\ndescription: |\n  A long\n  description\n---\nFirst")
+    write_skill(
+        tmp_path,
+        "a",
+        "---\nname: Writer\nmetadata:\n  author: Test Author\ndescription: |\n  A long\n  description\n---\nFirst",
+    )
     write_skill(tmp_path, "b/nested", "---\nname: writer\n---\nSecond")
     write_skill(tmp_path, "node_modules/ignored", "Ignored")
     result = scan_local_skills([(tmp_path, "builtin"), (tmp_path / "b", "local")])

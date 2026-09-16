@@ -14,7 +14,9 @@ from runtime.tentacle.llm.skill_manifest import SkillManifestLoader
 def ios_skills_root() -> Path:
     """Return manifests from the installed, enabled device plugin."""
     from runtime.tentacle.device_plugins import device_plugin_tools_root
+
     return device_plugin_tools_root("ios")
+
 
 def ios_capabilities() -> tuple[str, ...]:
     """Load all iOS capability names from the canonical SKILL.md set."""

@@ -21,9 +21,7 @@ from runtime.projectos.store import ProjectStore
 def _rows(n, start=1):
     rows, prev = [], GENESIS
     for i in range(start, start + n):
-        seal = seal_step(
-            prev, scope="s", seq=i, record_id=f"r{i}", payload=f"p{i}", ts=f"t{i}"
-        )
+        seal = seal_step(prev, scope="s", seq=i, record_id=f"r{i}", payload=f"p{i}", ts=f"t{i}")
         rows.append(
             {
                 "seq": i,
@@ -92,9 +90,7 @@ def test_project_event_chain_verifies_after_writes(tmp_path):
     store = ProjectStore(base_dir=tmp_path)
     project = _fresh_project(store)
     for i in range(3):
-        store.append_event(
-            project.id, kind="project.note", payload={"i": i, "note": f"第{i}条"}
-        )
+        store.append_event(project.id, kind="project.note", payload={"i": i, "note": f"第{i}条"})
     result = store.verify_event_chain(project.id)
     assert result["ok"] is True
     assert result["sealed_rows"] == 3
@@ -155,9 +151,7 @@ def test_room_message_chain_verifies_and_detects_edits(tmp_path):
     assert store.verify_chain("room-1")["ok"] is True
 
     with sqlite3.connect(str(tmp_path / "room_messages.db")) as conn:
-        conn.execute(
-            "UPDATE room_messages SET text = 'AI 冒充真人改写' WHERE seq = 1"
-        )
+        conn.execute("UPDATE room_messages SET text = 'AI 冒充真人改写' WHERE seq = 1")
     result = store.verify_chain("room-1")
     assert result["ok"] is False
     assert result["broken_seq"] == 1

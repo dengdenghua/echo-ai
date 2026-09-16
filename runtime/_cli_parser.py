@@ -611,18 +611,13 @@ def _build_parser() -> argparse.ArgumentParser:
         "-o",
         type=Path,
         default=None,
-        help=(
-            "output tar.gz path (default: backup-<timestamp>.tar.gz below the active Echo home)"
-        ),
+        help=("output tar.gz path (default: backup-<timestamp>.tar.gz below the active Echo home)"),
     )
     backupp.add_argument(
         "--base-dir",
         type=str,
         default=None,
-        help=(
-            "Echo data root (default: runtime environment; "
-            "ECHO_DATA_DIR/ECHO_HOME or ~/.echo)"
-        ),
+        help=("Echo data root (default: runtime environment; ECHO_DATA_DIR/ECHO_HOME or ~/.echo)"),
     )
     backupp.add_argument(
         "--components",
@@ -650,10 +645,7 @@ def _build_parser() -> argparse.ArgumentParser:
         "--base-dir",
         type=str,
         default=None,
-        help=(
-            "Echo data root (default: runtime environment; "
-            "ECHO_DATA_DIR/ECHO_HOME or ~/.echo)"
-        ),
+        help=("Echo data root (default: runtime environment; ECHO_DATA_DIR/ECHO_HOME or ~/.echo)"),
     )
     restorep.add_argument(
         "--components",
@@ -688,10 +680,7 @@ def _build_parser() -> argparse.ArgumentParser:
         "--base-dir",
         type=str,
         default=None,
-        help=(
-            "Echo data root (default: runtime environment; "
-            "ECHO_DATA_DIR/ECHO_HOME or ~/.echo)"
-        ),
+        help=("Echo data root (default: runtime environment; ECHO_DATA_DIR/ECHO_HOME or ~/.echo)"),
     )
     exportp.add_argument(
         "--components",

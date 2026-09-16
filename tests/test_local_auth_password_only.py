@@ -17,7 +17,9 @@ from runtime.adapters.integrations.local_auth.router import create_local_auth_ro
         ("development", "local", "127.0.0.1", "https://example.com", "test-pin", 403),
     ],
 )
-def test_password_only_login_boundaries(monkeypatch, environment, mode, host, origin, password, status):
+def test_password_only_login_boundaries(
+    monkeypatch, environment, mode, host, origin, password, status
+):
     monkeypatch.setenv("ECHO_ENV", environment)
     monkeypatch.setenv("ECHO_DEPLOYMENT_MODE", mode)
     config = LocalAuthConfig(

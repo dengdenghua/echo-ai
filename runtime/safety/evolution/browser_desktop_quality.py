@@ -13,9 +13,7 @@ RELAY_MANIFEST_PATH = "extensions/echo-browser-relay/manifest.json"
 RELAY_BACKGROUND_PATH = "extensions/echo-browser-relay/background.js"
 _LOOPBACK_HOSTS = ("127.0.0.1", "localhost")
 _LOOPBACK_BASE = re.compile(r"http://(?:127\.0\.0\.1|localhost)(?::\d+)?")
-_SOURCE_SCHEME = re.compile(
-    r"^(?P<scheme>wss?|https?)://(?P<host>[^/:*]+)(?::(?P<port>\*|\d+))?"
-)
+_SOURCE_SCHEME = re.compile(r"^(?P<scheme>wss?|https?)://(?P<host>[^/:*]+)(?::(?P<port>\*|\d+))?")
 
 
 @dataclass(frozen=True)
@@ -412,7 +410,9 @@ def _relay_manifest_findings(base: Path) -> list[str]:
         for source in _directive_sources(csp, "connect-src")
         if (parsed := _parse_source(source)) is not None
     ]
-    ws_loopback = [row for row in connect_src if row[0] in {"ws", "wss"} and row[1] in _LOOPBACK_HOSTS]
+    ws_loopback = [
+        row for row in connect_src if row[0] in {"ws", "wss"} and row[1] in _LOOPBACK_HOSTS
+    ]
     if not ws_loopback:
         findings.append("connect-src must allow a ws:// loopback origin for the relay push socket")
 

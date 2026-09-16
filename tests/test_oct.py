@@ -331,9 +331,7 @@ def test_account_returns_empty_state_when_no_link(tmp_path: Any) -> None:
 def test_model_router_calls_gateway_and_meters(tmp_path: Any) -> None:
     store = OctLinkStore(path=tmp_path / "l.json")
     store.put(
-        OctLink(
-            echo_user_id="oct:a@b.com", oct_user_id="u1", oct_token="gw-jwt", email="a@b.com"
-        )
+        OctLink(echo_user_id="oct:a@b.com", oct_user_id="u1", oct_token="gw-jwt", email="a@b.com")
     )
     chat = _Resp(
         {

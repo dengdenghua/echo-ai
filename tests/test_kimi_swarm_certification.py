@@ -32,9 +32,7 @@ def test_kimi_swarm_certification_is_evidence_backed(tmp_path) -> None:
     assert report["provider_load_test_next_stage"]["provider_id"] == "volcengine_ark"
     assert report["provider_load_test_next_stage"]["model"] == "kimi-k3"
     assert report["provider_load_test_next_stage"]["recommended_payload"]["real_provider"] is True
-    assert report["provider_load_test_resume_plan"]["schema"] == (
-        "echo.kimi_swarm_resume_plan.v1"
-    )
+    assert report["provider_load_test_resume_plan"]["schema"] == ("echo.kimi_swarm_resume_plan.v1")
     assert {
         "agent_scale",
         "operator_visibility",

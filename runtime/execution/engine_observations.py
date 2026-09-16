@@ -4,6 +4,7 @@ Configuration readiness is not a cloud health check. These observations are
 diagnostics, never authorization or a guarantee that the next request succeeds.
 No prompts, results, credentials or upstream error text are retained.
 """
+
 from __future__ import annotations
 
 import threading
@@ -24,12 +25,17 @@ def normalize_engine_event(event: dict[str, Any], engine: str) -> dict[str, Any]
     native = str(event.get("tool_name") or "")
     if native not in _ALIASES and native not in {"web_search", "web_fetch"}:
         return event
-    return {**event, "tool_name": _ALIASES.get(native, native), "execution_engine": engine,
-            "native_tool_name": native}
+    return {
+        **event,
+        "tool_name": _ALIASES.get(native, native),
+        "execution_engine": engine,
+        "native_tool_name": native,
+    }
 
 
 def observe_engine_event(event: dict[str, Any], engine: str, model: str = "") -> dict[str, Any]:
     from runtime.execution.request import current_execution_request
+
     normalized = normalize_engine_event(event, engine)
     request = current_execution_request()
     if request is None or request.task.execution_engine != engine:
@@ -43,8 +49,9 @@ def observe_engine_event(event: dict[str, Any], engine: str, model: str = "") ->
             return normalized
         capability = "web_search" if normalized.get("tool_name") == "web_search" else "tools"
         # Codex uses status, OpenCode additionally supplies a boolean.
-        success = (event.get("success") is True if "success" in event
-                   else event.get("status") == "success")
+        success = (
+            event.get("success") is True if "success" in event else event.get("status") == "success"
+        )
     if not capability:
         return normalized
     task = request.task
@@ -52,8 +59,12 @@ def observe_engine_event(event: dict[str, Any], engine: str, model: str = "") ->
     resolved_model = str(receipt.get("model") or model)[:160]
     key = (task.tenant_id or "local", task.actor_id or "local", engine, capability)
     with _lock:
-        _records[key] = {"state": "verified" if success else "failed", "model": resolved_model or None,
-                         "checked_at": time.time(), "expires": time.monotonic() + _TTL}
+        _records[key] = {
+            "state": "verified" if success else "failed",
+            "model": resolved_model or None,
+            "checked_at": time.time(),
+            "expires": time.monotonic() + _TTL,
+        }
         _records.move_to_end(key)
         while len(_records) > _MAX_ENTRIES:
             _records.popitem(last=False)
@@ -68,6 +79,13 @@ def engine_observations(scope: Any, engine: str) -> dict[str, Any]:
         result = {}
         for capability in ("chat", "web_search", "tools"):
             record = _records.get((tenant, actor, engine, capability))
-            result[capability] = ({k: v for k, v in record.items() if k != "expires"}
-                                  if record and record["expires"] > now else {"state": "untested"})
-    return {"capability_checks": result, "check_ttl_seconds": int(_TTL), "checks_are_authorization": False}
+            result[capability] = (
+                {k: v for k, v in record.items() if k != "expires"}
+                if record and record["expires"] > now
+                else {"state": "untested"}
+            )
+    return {
+        "capability_checks": result,
+        "check_ttl_seconds": int(_TTL),
+        "checks_are_authorization": False,
+    }

@@ -69,11 +69,16 @@ def mount_auth_routers(
     if ctx.identity_store is not None:
         from runtime.adapters.integrations.social_auth import create_social_auth_router
         from runtime.platform.process.paths import app_paths
-        app.include_router(create_social_auth_router(
-            identity_store=ctx.identity_store, jwt_secret=ctx.jwt_secret,
-            jwt_issuer=ctx.jwt_issuer, jwt_audience=ctx.jwt_audience,
-            data_dir=app_paths().data_dir,
-        ))
+
+        app.include_router(
+            create_social_auth_router(
+                identity_store=ctx.identity_store,
+                jwt_secret=ctx.jwt_secret,
+                jwt_issuer=ctx.jwt_issuer,
+                jwt_audience=ctx.jwt_audience,
+                data_dir=app_paths().data_dir,
+            )
+        )
 
     if oct_config is not None and getattr(oct_config, "enabled", False):
         # oct 账号网关（echo 自己的，echo.aurest.ai）。

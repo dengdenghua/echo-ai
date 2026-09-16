@@ -85,16 +85,22 @@ def test_credential_reference_resolves_without_persisting_secret() -> None:
 def test_one_opencode_plugin_owns_both_channels_and_removes_both():
     state = {}
     manager = ModelProviderPluginManager(
-        custom_models=state, lock=threading.RLock(), save=lambda *ids: None,
+        custom_models=state,
+        lock=threading.RLock(),
+        save=lambda *ids: None,
         unregister_entry=lambda *args, **kwargs: True,
         rebuild_routes=lambda: {key: {"ok": True} for key in state},
         credential_store=_Credentials(),
     )
     item = _item()
-    item["model_provider"]["channels"] = {"opencode-go": {
-        "entry_id": "opencode-go", "display_name": "OpenCode Go",
-        "base_url": "https://opencode.ai/zen/go/v1", "models_are_free": False,
-    }}
+    item["model_provider"]["channels"] = {
+        "opencode-go": {
+            "entry_id": "opencode-go",
+            "display_name": "OpenCode Go",
+            "base_url": "https://opencode.ai/zen/go/v1",
+            "models_are_free": False,
+        }
+    }
     manager.configure(item, models=["big-pickle"], channels={"opencode-go": ["glm-5.3"]})
     assert set(state) == {"opencode-zen", "opencode-go"}
     assert state["opencode-go"]["managed_by_plugin"] == "opencode-zen"
@@ -488,17 +494,28 @@ def test_zen_discovers_paid_models_after_free_and_preserves_per_model_pricing(mo
     class Response:
         def raise_for_status(self):
             pass
+
         def json(self):
             return {"data": [{"id": "paid-model"}, {"id": "big-pickle"}, {"id": "new-free"}]}
+
     monkeypatch.setattr(httpx, "get", lambda *args, **kwargs: Response())
     item = _item()
     item["model_provider"].update(discover_all_models=True, models_are_free=False)
     state = {}
-    manager = ModelProviderPluginManager(custom_models=state, lock=threading.RLock(),
-        save=lambda *args: None, unregister_entry=lambda *args, **kwargs: False,
-        rebuild_routes=lambda: {"opencode-zen": {"ok": True}}, credential_store=_Credentials())
+    manager = ModelProviderPluginManager(
+        custom_models=state,
+        lock=threading.RLock(),
+        save=lambda *args: None,
+        unregister_entry=lambda *args, **kwargs: False,
+        rebuild_routes=lambda: {"opencode-zen": {"ok": True}},
+        credential_store=_Credentials(),
+    )
     discovered = manager.validate(item, tokens={"api_key": "zen-secret"})
     assert discovered["models"] == ["big-pickle", "new-free", "paid-model"]
     manager.configure(item, models=discovered["models"])
-    assert state["opencode-zen"]["model_free_status"] == {"big-pickle": True, "new-free": True, "paid-model": False}
+    assert state["opencode-zen"]["model_free_status"] == {
+        "big-pickle": True,
+        "new-free": True,
+        "paid-model": False,
+    }
     assert state["opencode-zen"]["is_free"] is False

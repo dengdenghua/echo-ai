@@ -157,7 +157,9 @@ def team_execute_for_group(
             {
                 "source": "projectos_team_task",
                 "task_id": task_id,
-            "projectos": {key: value for key, value in project_context.items() if not callable(value)},
+                "projectos": {
+                    key: value for key, value in project_context.items() if not callable(value)
+                },
                 "runtime_session_metadata": runtime_session_metadata,
             }
         )
@@ -166,9 +168,11 @@ def team_execute_for_group(
         usage_received = []
         report_usage = project_context.get("record_project_usage")
         if callable(report_usage):
+
             def record_member_usage(result):
                 report_usage(result)
                 usage_received.append(True)
+
             dispatch_context["record_project_usage"] = record_member_usage
         if thread_id:
             dispatch_context["thread_id"] = thread_id
@@ -382,6 +386,7 @@ def engine_for_group(
     kwargs.pop("prepare_initiation", None)
     kwargs.setdefault("generate_milestones", stub_generate_milestones)
     kwargs.setdefault("decompose_tasks", stub_decompose_tasks)
+
     def phase_roster(task):
         ms = project_store.get_milestone(task.milestone_id)
         allowed = ms.spec.get("phase_agents") if ms else None
@@ -392,7 +397,8 @@ def engine_for_group(
     # team_mode 的任务节点跑成蜂群/集群，而不是一律单 agent。
     if roster:
         kwargs["run_task_team"] = lambda task, context: team_execute_for_group(
-            phase_roster(task), subagent_runner=subagent_runner,
+            phase_roster(task),
+            subagent_runner=subagent_runner,
         )(task, context)
     return ProjectEngine(
         project_store,

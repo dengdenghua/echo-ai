@@ -212,8 +212,7 @@ def _build_warnings(
                 )
         except ValueError:
             warnings.append(
-                f"ECHO_CHECKPOINT_EVERY_N={n_raw!r} is not an int — "
-                "auto-checkpoint will be off.",
+                f"ECHO_CHECKPOINT_EVERY_N={n_raw!r} is not an int — auto-checkpoint will be off.",
             )
     return warnings
 

@@ -126,9 +126,7 @@ def normalize_driver_kind(value: object) -> DriverKind | None:
     return value if value in ("ai", "human") else None
 
 
-def sender_identity(
-    state: GroupState | None, member_id: str
-) -> tuple[SenderKind, SenderDriver]:
+def sender_identity(state: GroupState | None, member_id: str) -> tuple[SenderKind, SenderDriver]:
     """What a message written by ``member_id`` records about its sender.
 
     Read off the *roster* at write time, never off the message — a sender must
@@ -441,10 +439,7 @@ def responders(state: GroupState, addressed: list[str] | None = None) -> list[st
     agents = [
         m
         for m in state.roster
-        if m.kind != "human"
-        and m.role == "participant"
-        and not m.muted
-        and m.driver != "human"
+        if m.kind != "human" and m.role == "participant" and not m.muted and m.driver != "human"
     ]
     if addressed:
         targeted = [m.id for m in agents if m.id in set(addressed)]

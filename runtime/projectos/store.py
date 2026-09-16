@@ -100,18 +100,14 @@ def _migrate_project_event_seal_columns(conn: sqlite3.Connection) -> None:
     re-seal consistently. Sealed rows keep their original seq; legacy unsealed
     rows (seq=0) are left alone and verified as a gap-free prefix failure.
     """
-    columns = {
-        str(row[1]) for row in conn.execute("PRAGMA table_info(project_events)").fetchall()
-    }
+    columns = {str(row[1]) for row in conn.execute("PRAGMA table_info(project_events)").fetchall()}
     if "seq" not in columns:
         conn.execute("ALTER TABLE project_events ADD COLUMN seq INTEGER NOT NULL DEFAULT 0")
         # Legacy rows get their insertion order (rowid is monotonic on this
         # append-only table); new rows take MAX(seq)+1 per project from here on.
         conn.execute("UPDATE project_events SET seq = rowid WHERE seq = 0")
     if "seal_prev" not in columns:
-        conn.execute(
-            "ALTER TABLE project_events ADD COLUMN seal_prev TEXT NOT NULL DEFAULT ''"
-        )
+        conn.execute("ALTER TABLE project_events ADD COLUMN seal_prev TEXT NOT NULL DEFAULT ''")
     if "seal" not in columns:
         conn.execute("ALTER TABLE project_events ADD COLUMN seal TEXT NOT NULL DEFAULT ''")
 
@@ -479,8 +475,7 @@ class ProjectStore(
             if self._project_doc_for_scope(conn, project, scope) is None:
                 raise PermissionError("project belongs to another tenant or does not exist")
             last = conn.execute(
-                "SELECT seq, seal FROM project_events "
-                "WHERE project_id=? ORDER BY seq DESC LIMIT 1",
+                "SELECT seq, seal FROM project_events WHERE project_id=? ORDER BY seq DESC LIMIT 1",
                 (project,),
             ).fetchone()
             seq = (int(last[0]) + 1) if last else 1

@@ -178,9 +178,7 @@ def create_local_auth_router(
         if not development_login_enabled(config):
             raise HTTPException(
                 status_code=503,
-                detail=(
-                    "本地登录仅用于开发环境，当前未启用。"
-                ),
+                detail=("本地登录仅用于开发环境，当前未启用。"),
             )
 
     def _check_username(username: str) -> None:
@@ -286,7 +284,11 @@ def create_local_auth_router(
             except ValueError:
                 local_client = False
             origin = request.headers.get("origin")
-            local_origin = not origin or urlsplit(origin).hostname in {"localhost", "127.0.0.1", "::1"}
+            local_origin = not origin or urlsplit(origin).hostname in {
+                "localhost",
+                "127.0.0.1",
+                "::1",
+            }
             if not local_client or not local_origin:
                 raise HTTPException(status_code=403, detail="开发登录仅限本机")
         _check_credentials(body.username, body.password, request)

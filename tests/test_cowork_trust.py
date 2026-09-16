@@ -122,9 +122,7 @@ def test_rework_penalty_applies_and_caps():
     member = _member("bot-a")
     tasks = [_task(assigned_agent="bot-a", attempts=1)]
     base = member_trust(member, tasks)["score"]
-    reworked = member_trust(
-        member, [_task(assigned_agent="bot-a", attempts=9)]
-    )["score"]
+    reworked = member_trust(member, [_task(assigned_agent="bot-a", attempts=9)])["score"]
     assert reworked == base - 15  # 封顶 -15
 
 

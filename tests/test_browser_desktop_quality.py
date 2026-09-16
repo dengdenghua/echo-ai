@@ -275,9 +275,7 @@ def test_automation_radar_reports_browser_desktop_advantage() -> None:
     assert report["policy_rule_drafts"]["schema"] == ("echo.automation_policy_rule_drafts.v1")
     assert report["policy_rule_drafts"]["ready"] is True
     assert report["policy_rule_drafts"]["verified"] == report["policy_rule_drafts"]["total"]
-    assert report["policy_rule_coverage"]["schema"] == (
-        "echo.automation_policy_rule_coverage.v1"
-    )
+    assert report["policy_rule_coverage"]["schema"] == ("echo.automation_policy_rule_coverage.v1")
     assert report["policy_rule_coverage"]["ready"] is True
     session_control = next(
         row for row in report["dimensions"] if row["id"] == "browser_session_control"

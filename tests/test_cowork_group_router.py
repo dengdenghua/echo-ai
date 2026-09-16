@@ -2486,9 +2486,7 @@ def test_trust_endpoint_reports_scores_without_project(tmp_path) -> None:
     )
     project_store = ProjectStore(base_dir=tmp_path / "projects")
     app = FastAPI()
-    app.include_router(
-        create_cowork_group_router(store=group_store, project_store=project_store)
-    )
+    app.include_router(create_cowork_group_router(store=group_store, project_store=project_store))
 
     response = TestClient(app).get("/api/cowork/thread-trust/trust")
 

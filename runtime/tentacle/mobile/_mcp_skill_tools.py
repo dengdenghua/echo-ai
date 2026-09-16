@@ -22,13 +22,18 @@ logger = logging.getLogger(__name__)
 def _find_skills_roots() -> list[Path]:
     """Only expose tool manifests from enabled Android/iOS plugins."""
     from runtime.tentacle.device_plugins import device_plugin_tools_root
-    return [root for platform in ("android", "ios")
-            if (root := device_plugin_tools_root(platform)).is_dir()]
+
+    return [
+        root
+        for platform in ("android", "ios")
+        if (root := device_plugin_tools_root(platform)).is_dir()
+    ]
 
 
 def _find_skills_root() -> Path:
     """Return the active Android manifest path for legacy callers."""
     from runtime.tentacle.device_plugins import device_plugin_tools_root
+
     roots = _find_skills_roots()
     return roots[0] if roots else device_plugin_tools_root("android")
 

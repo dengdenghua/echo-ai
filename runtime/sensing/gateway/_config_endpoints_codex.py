@@ -361,6 +361,7 @@ def _register_coder_codex(router: Any, ctx: _ConfigCtx) -> None:
 
 def _resolved_profile(ctx: _ConfigCtx, preference: CodexModelPreference, scope: Any = None):
     from runtime.execution.engine_observations import engine_observations
+
     router = getattr(getattr(ctx.stack, "planner", None), "router", None)
     profile = resolve_codex_execution_profile(
         preference=preference,
