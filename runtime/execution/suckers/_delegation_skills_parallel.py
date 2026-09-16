@@ -386,6 +386,7 @@ def _call_agent_parallel(
         # into one card in live/replay observability.
         call_context["requested_agent_id"] = str(original_id)
         call_context["resolved_agent_id"] = str(spec["agent_id"])
+        call_context["_require_installed_market_role"] = True
 
         # Hierarchical delegation: propagate depth and budget to sub-agents
         parent_depth = context.get("delegation_depth", 0) if context else 0

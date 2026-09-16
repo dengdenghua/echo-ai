@@ -251,7 +251,7 @@ AGENT_META_SKILL_NAMES = [
 
 
 def _query_skill_for_registry(registry: SkillRegistry):
-    def _query_skill(name: str = "", **_: Any) -> dict[str, Any]:
+    def _query_skill(name: str = "", role_id: str = "", **_: Any) -> dict[str, Any]:
         skill_name = str(name or "").strip()
         if not skill_name:
             return {"ok": False, "error": "skill name is required"}
@@ -263,15 +263,37 @@ def _query_skill_for_registry(registry: SkillRegistry):
             enabled = bool(registry.is_enabled(skill_name))
         except (AttributeError, TypeError, ValueError):
             enabled = True
+        role_catalog = {}
+        description = skill.description
+        if skill_name in {"call_agent", "call_agent_parallel"}:
+            from runtime.execution.subagents.market_bridge import runnable_market_roles
+
+            roles = runnable_market_roles()
+            selected_id = str(role_id or "").strip()
+            role_catalog["installed_roles"] = [
+                identity.to_dict()
+                for key, identity in roles.items()
+                if not selected_id or key == selected_id
+            ]
+            role_catalog["installed_role_count"] = len(roles)
+            description = description.split("Installed HUB roles:\n", 1)[0]
         return {
             "ok": True,
             "name": skill.name,
             "summary": skill.effective_summary,
-            "description": skill.description,
+            "description": description,
             "affinity": list(skill.affinity),
             "cost_profile": skill.cost_profile,
             "trusted_source": skill.trusted_source,
             "enabled": enabled,
+            **role_catalog,
+            "guidance": (
+                "This is a registered skill, not a plugin capability ID. "
+                "Invoke its advertised tool directly with the documented arguments. "
+                "Registry presence does not override the current turn's tool catalog or permissions. "
+                "If it is absent from that catalog, report that specific limitation; "
+                "do not route side-effecting skills through execute_skill."
+            ),
         }
 
     return _query_skill
@@ -594,7 +616,7 @@ def register_agent_meta_skills(registry: SkillRegistry) -> int:
             description=(
                 "用途: 当 catalog 里的简短 summary 不够用时，按名字拉一个已注册 skill 的完整元数据 (description / 参数契约 / affinity / 是否启用)；调不熟的工具前先查一查。\n"
                 "何时不用: 列出全部 skill 不要用本工具 (走 catalog / registry.list)；要执行 skill 直接调用对应工具名，不要先 query 再调 (浪费 token)；skill 不存在会返回 ok=false。\n"
-                "关键参数: name (必填, 已注册的 skill 名)。\n"
+                "关键参数: name (必填, 已注册的 skill 名)。查询 call_agent 时可传 role_id 精确查询已安装 HUB 角色，避免读取整个目录。\n"
                 '示例: query_skill({"name": "edit_file"})'
             ),
             affinity=["meta", "skill", "catalog"],
