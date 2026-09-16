@@ -6,6 +6,7 @@ import json
 import threading
 import time
 from pathlib import Path
+from types import SimpleNamespace
 from typing import Any
 
 import httpx
@@ -134,7 +135,7 @@ def test_code_ui_regression_excludes_desktop_bridge_from_activation() -> None:
 
 class _FakeConnectorRegistry:
     def __init__(self) -> None:
-        self.connector = object()
+        self.connector = SimpleNamespace(cli={"auth": "example login"}, mcp_servers={})
 
     def list(self) -> list[dict[str, Any]]:
         return [
@@ -688,9 +689,11 @@ def test_local_plugin_install_failure_returns_bounded_json_error() -> None:
 
     response = TestClient(app).post("/api/capabilities/plugin-one/install")
 
-    assert response.status_code == 502
+    assert response.status_code == 500
     assert response.headers["content-type"].startswith("application/json")
-    assert response.json() == {"detail": "插件包下载或安装失败，请稍后重试"}
+    assert response.json()["detail"]["code"] == "INSTALL_FAILED"
+    assert response.json()["detail"]["retryable"] is False
+    assert "internal limit" not in response.text
 
 
 def test_local_plugin_install_keeps_event_loop_responsive() -> None:
