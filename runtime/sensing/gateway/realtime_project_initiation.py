@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+from copy import deepcopy
 from typing import Any
 from uuid import uuid4
 
@@ -24,6 +25,8 @@ async def initiate_project(
     leader: Any,
     prepare: Any,
     review_id: str = "",
+    refine_id: str = "",
+    feedback: str = "",
 ) -> ProjectProposal | None:
     async def emit(message: str) -> None:
         await runtime._emit_agent_message(turn, log, emitter, message)
@@ -35,7 +38,9 @@ async def initiate_project(
 
         logging.getLogger(__name__).warning(
             "Project initiation unavailable: thread=%s planner=%s leader=%s",
-            bool(thread), callable(prepare), leader is not None,
+            bool(thread),
+            callable(prepare),
+            leader is not None,
         )
         await emit(
             "我会先作为产品经理梳理立项方案。当前立项服务尚未就绪，"
@@ -43,10 +48,24 @@ async def initiate_project(
         )
         return None
     previous = (thread.get("metadata") or {}).get("project_initiation") or {}
+    if refine_id:
+        if (previous.get("id") != refine_id
+                or previous.get("leader_id") != leader.agent_id
+                or previous.get("status") not in {
+                    "needs_input", "needs_review", "approval_expired", "needs_revision",
+                    "needs_roles", "pending_approval", "model_unavailable", "review_failed", "refining",
+                }
+                or not feedback.strip()):
+            await emit("草案已更新，请在最新草案上补充需求；本次未修改或启动项目。")
+            return None
+        goal = previous.get("goal") or goal
     if review_id:
-        if (previous.get("id") != review_id or previous.get("status") not in
-                {"approval_expired", "needs_revision", "needs_roles"} or
-                previous.get("leader_id") != leader.agent_id or not previous.get("proposal", {}).get("name")):
+        if (
+            previous.get("id") != review_id
+            or previous.get("status") not in {"approval_expired", "needs_revision", "needs_roles", "needs_review"}
+            or previous.get("leader_id") != leader.agent_id
+            or not previous.get("proposal", {}).get("name")
+        ):
             await emit("这份方案已更新或暂不可重新审批。请查看最新方案；未添加成员或启动项目。")
             return None
         goal = previous.get("goal") or goal
@@ -55,54 +74,108 @@ async def initiate_project(
     by_id = {a.agent_id: a for a in agents}
     by_id[leader.agent_id] = leader
     candidates = [
-        {"agent_id": a.agent_id, "name": a.display_name, "description": a.description[:300], "source": "existing"}
+        {
+            "agent_id": a.agent_id,
+            "name": a.display_name,
+            "description": a.description[:300],
+            "source": "existing",
+        }
         for a in by_id.values()
     ]
     names = {a.agent_id: a.display_name for a in by_id.values()}
     from runtime.projectos.recruitment import hub_candidates, provisioning_requests
 
-    await emit("正在核对已有角色并检索 HUB 候选，整理岗位职责和参与阶段；匹配结果会随立项方案交由你审批。")
+    await emit(
+        "正在核对已有角色并检索 HUB 候选，整理岗位职责和参与阶段；匹配结果会随立项方案交由你审批。"
+    )
     try:
         hub_rows = await asyncio.to_thread(hub_candidates, goal)
     except (OSError, ValueError, RuntimeError):
         hub_rows = []
         await emit("HUB 候选检索暂时不可用，本次先核对已有角色；缺少的岗位会在方案中说明。")
     else:
-        await emit(f"已核对 {len(by_id)} 个已有角色，检索到 {len(hub_rows)} 个 HUB 候选。产品经理将按职责匹配，不会全部加入项目。")
+        await emit(
+            f"已核对 {len(by_id)} 个已有角色，检索到 {len(hub_rows)} 个 HUB 候选。产品经理将按职责匹配，不会全部加入项目。"
+        )
     hub_names = {item["agent_id"]: item["name"] for item in hub_rows}
     candidates.extend(hub_rows)
     names.update(hub_names)
     proposal_id = uuid4().hex
 
     saved_version = previous
+    feedback_history = deepcopy(previous.get("user_feedback") or [])
+    if refine_id:
+        feedback_history.append(feedback.strip())
+    elif not review_id and previous and goal != previous.get("goal"):
+        feedback_history.append(goal)
+    revisions = deepcopy(previous.get("revisions") or [])
+    if previous.get("proposal", {}).get("name"):
+        revisions.append({key: deepcopy(previous.get(key)) for key in (
+            "id", "status", "goal", "proposal", "revision", "changes",
+        )})
+    changes: list[str] = []
+    open_questions = list(previous.get("open_questions") or [])
 
     def save(status: str, proposal: dict[str, Any]) -> bool:
         nonlocal saved_version
         next_version = {
-                    "id": proposal_id,
-                    "status": status,
-                    "goal": goal,
-                    "leader_id": leader.agent_id,
-                    "proposal": proposal,
+            "id": proposal_id,
+            "status": status,
+            "goal": goal,
+            "original_goal": previous.get("original_goal") or previous.get("goal") or goal,
+            "leader_id": leader.agent_id,
+            "proposal": proposal,
+            "user_feedback": feedback_history,
+            "revisions": revisions,
+            "revision": int(previous.get("revision") or 0) + 1,
+            "changes": changes,
+            "open_questions": open_questions,
         }
         # Thread messages can advance unrelated state while the model or an
         # approval is pending. Retry those updates, but never replace a newer
         # proposal, even when an older request times out later.
         for _ in range(4):
             latest_thread = store.get(thread_id)
-            if not latest_thread or ((latest_thread.get("metadata") or {}).get("project_initiation") or {}) != saved_version:
+            if (
+                not latest_thread
+                or ((latest_thread.get("metadata") or {}).get("project_initiation") or {})
+                != saved_version
+            ):
                 return False
-            if store.update_state_if_unchanged(thread_id, latest_thread, metadata={"project_initiation": next_version}) is not None:
-                saved_version = next_version
+            if (
+                store.update_state_if_unchanged(
+                    thread_id, latest_thread, metadata={"project_initiation": next_version}
+                )
+                is not None
+            ):
+                saved_version = deepcopy(next_version)
                 return True
         return False
 
-    await emit("正在重新提交已保留的立项方案，核对候选角色后由你审批。" if review_id else
-               f"{leader.display_name} 将先担任产品经理，分析目标、预算和人员需求，准备立项方案。")
+    if not review_id and not save("refining", previous.get("proposal") or {}):
+        await emit("草案已被更新，本次旧请求停止。请继续最新版本。")
+        return None
+    await emit(
+        "正在重新提交已保留的立项方案，核对候选角色后由你审批。"
+        if review_id
+        else f"{leader.display_name} 将先担任产品经理，分析目标、预算和人员需求，准备立项方案。"
+    )
     try:
-        raw = previous["proposal"] if review_id else await asyncio.to_thread(
-            prepare, goal=goal, leader=leader.agent_id, candidates=candidates, previous=previous,
-            **({"model": turn.params.model} if getattr(turn, "params", None) and turn.params.model else {}),
+        raw = (
+            previous["proposal"]
+            if review_id
+            else await asyncio.to_thread(
+                prepare,
+                goal=goal,
+                leader=leader.agent_id,
+                candidates=candidates,
+                previous={**previous, "user_feedback": feedback_history},
+                **(
+                    {"model": turn.params.model}
+                    if getattr(turn, "params", None) and turn.params.model
+                    else {}
+                ),
+            )
         )
         proposal = ProjectProposal.model_validate(raw)
         provisions = provisioning_requests(proposal, thread_id, hub_names)
@@ -114,26 +187,45 @@ async def initiate_project(
             raise ValueError("invalid staffing phase")
     except ModelProviderHTTPError as exc:
         status, message = exc.public_failure()
-        save("model_unavailable", {"error": type(exc).__name__, "status_code": status})
+        save("model_unavailable", previous.get("proposal") or {"error": type(exc).__name__, "status_code": status})
         await emit(f"立项规划暂未完成：{message}尚未添加成员或启动项目执行。")
         return None
     except (ValueError, TypeError) as exc:
-        save("needs_revision", previous["proposal"] if review_id else {"error": type(exc).__name__})
-        await emit("立项方案的人员配置不完整，尚未提交审批或添加成员。请重试立项。")
+        save("review_failed", previous.get("proposal") or {"error": type(exc).__name__})
+        await emit("需求评审或方案校验尚未完成，已有草案和补充意见已保留；尚未提交审批或添加成员。")
         return None
     if proposal.sizing == "task":
         save("suggested_task", proposal.model_dump())
         await emit(proposal.render(names))
-        await emit("这项工作建议作为普通任务处理，无需组队立项。退出里程碑模式后即可继续；未创建项目或添加成员。")
+        await emit(
+            "这项工作建议作为普通任务处理，可按需邀请助手协作。未创建项目或添加成员；可以继续当前任务。"
+        )
         return None
-    if any(need.kind == "ai" and not need.agent_id for need in proposal.staffing) and not proposal.questions:
+    if (
+        any(need.kind == "ai" and not need.agent_id for need in proposal.staffing)
+        and not proposal.questions
+    ):
         proposal.questions.append("尚有岗位未匹配，请确认由谁承担，或调整本期范围。")
-    if not save("needs_input" if proposal.questions else "pending_approval", proposal.model_dump()):
+    for key, label in (("scope", "本期范围"), ("deliverables", "交付物"),
+                       ("acceptance_criteria", "验收标准"), ("assumptions", "暂定假设"),
+                       ("milestones", "阶段安排"), ("staffing", "人员安排"),
+                       ("budget", "预算说明"), ("deadline", "目标期限")):
+        if previous.get("proposal") and previous["proposal"].get(key) != proposal.model_dump().get(key):
+            changes.append(label)
+    questions = proposal.clarification_questions()
+    open_questions = questions
+    status = "needs_input" if questions else "needs_review" if refine_id else "pending_approval"
+    if not save(status, proposal.model_dump()):
         await emit("立项方案已更新，本次旧方案不再提交审批。请查看最新方案。")
         return None
+    if changes:
+        await emit("本轮草案已更新：" + "、".join(changes) + "。旧稿和补充意见已保留。")
+    if questions:
+        await emit(proposal.render_discovery())
+        return None
     await emit(proposal.render(names))
-    if proposal.questions:
-        await emit("请补充以上信息，我会修订方案后再提交审批。当前仍处于立项阶段。")
+    if refine_id:
+        await emit("本轮需求评审未发现阻塞问题。请审阅新版草案，也可以继续修改；提交立项审批后才会请求授权。")
         return None
     await emit("审批通过后将添加上述 AI 成员并建立项目计划；此步骤不会启动任务执行或支付预算。")
     try:
@@ -148,10 +240,15 @@ async def initiate_project(
                 "detail": "批准立项、添加所列 AI 成员并建立项目计划。预算仅为估算，不授权支付；不启动任务。",
                 "roleProvisions": provisions,
                 "staffingReview": [
-                    {"role": need.role, "name": names.get(need.agent_id, need.role),
-                     "source": ("hub" if need.agent_id.startswith("hub:") else need.source)
-                     if need.kind == "ai" else need.kind,
-                     "responsibilities": need.responsibilities, "phases": need.phases}
+                    {
+                        "role": need.role,
+                        "name": names.get(need.agent_id, need.role),
+                        "source": ("hub" if need.agent_id.startswith("hub:") else need.source)
+                        if need.kind == "ai"
+                        else need.kind,
+                        "responsibilities": need.responsibilities,
+                        "phases": need.phases,
+                    }
                     for need in proposal.staffing
                 ],
                 "timeoutMs": 600000,
@@ -182,9 +279,13 @@ async def initiate_project(
             save("needs_roles", proposal.model_dump())
             await emit("部分角色尚未准备完成，方案已保留；未把不可用角色加入项目。")
             return None
-        if item["source"] == "hub" and not registry.matches_hub_source(item["expert_id"], actual_id):
+        if item["source"] == "hub" and not registry.matches_hub_source(
+            item["expert_id"], actual_id
+        ):
             save("needs_roles", proposal.model_dump())
-            await emit("准备的角色与审批中的 HUB 候选不一致或已变更，尚未添加成员。请重新准备并审批。")
+            await emit(
+                "准备的角色与审批中的 HUB 候选不一致或已变更，尚未添加成员。请重新准备并审批。"
+            )
             return None
         if item["source"] == "new" and actual_id != item["agent_id"]:
             raise ValueError("created role does not match approved specification")
@@ -218,15 +319,27 @@ async def initiate_project(
         for member in roster
         if member.kind == "agent" and member.role == "participant" and not member.muted
     }
-    initial_ids = {n.agent_id for n in proposal.staffing if n.kind == "ai" and 1 in n.phases and n.agent_id}
+    initial_ids = {
+        n.agent_id for n in proposal.staffing if n.kind == "ai" and 1 in n.phases and n.agent_id
+    }
     initial_ids.add(leader.agent_id)
     for agent_id in sorted(initial_ids - present):
         runtime._cowork_group_store.append(
             thread_id,
             MemberEvent(action="invite", actor=owner_id or "project-os", target_id=agent_id),
         )
-    await emit("立项审批已通过，首阶段成员已就位：" + "、".join(
-        names.get(agent_id, next((item["name"] for item in provisions if prepared.get(item["key"]) == agent_id), agent_id))
-        for agent_id in sorted(initial_ids)
-    ) + "。后续阶段成员按批准的阶段安排加入；开始执行仍需阶段审批。")
+    await emit(
+        "立项审批已通过，首阶段成员已就位："
+        + "、".join(
+            names.get(
+                agent_id,
+                next(
+                    (item["name"] for item in provisions if prepared.get(item["key"]) == agent_id),
+                    agent_id,
+                ),
+            )
+            for agent_id in sorted(initial_ids)
+        )
+        + "。后续阶段成员按批准的阶段安排加入；开始执行仍需阶段审批。"
+    )
     return proposal

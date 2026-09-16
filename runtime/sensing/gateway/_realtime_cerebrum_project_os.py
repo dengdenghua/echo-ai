@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import re
 import shlex
 from typing import TYPE_CHECKING, Any
 
@@ -32,6 +33,7 @@ _PROJECT_OS_HELP = """Project OS 控制命令（在工作群中显式调用）�
 
 - /project run <目标>（或 /project start <目标>）—— 显式创建或继续推进项目
 - /project review <方案编号> —— 重新提交保留的立项方案，由用户审批，不启动执行
+- /project refine <方案编号> <补充意见> —— 多轮修订需求草案，不批准或启动项目
 - /project tick —— 审批当前阶段后只推进一个周期
 - /project report（或 /project pm）—— PM 驾驶舱：里程碑健康度 / 风险 / 下一步动作 / 指派
 - /project retro —— 项目复盘：交付、失败、重试、耗时、建议
@@ -78,9 +80,13 @@ def _format_project_os_result(state: dict[str, Any]) -> str:
     if control:
         headline = "Project OS 已执行控制命令。"
     else:
-        headline = ("立项已通过，项目计划已建立，等待启动。" if state.get("initiated_only")
-                    else "Project OS 已继续推进项目。" if reused
-                    else "Project OS 已接管并运行项目。")
+        headline = (
+            "立项已通过，项目计划已建立，等待启动。"
+            if state.get("initiated_only")
+            else "Project OS 已继续推进项目。"
+            if reused
+            else "Project OS 已接管并运行项目。"
+        )
     lines = [
         headline,
         "",
@@ -169,19 +175,44 @@ def _format_project_os_result(state: dict[str, Any]) -> str:
             )
             for rec in (retro.get("recommendations") or [])[:3]:
                 lines.append(f"  - 💡 {rec}")
-    waiting = [event.split(":", 1)[1] for tick in result.get("history", [])
-               for event in tick.get("events", []) if event.startswith("awaiting_owner_acceptance:")]
-    phase_wait = [event.split(":", 1)[1] for tick in result.get("history", [])
-                  for event in tick.get("events", []) if event.startswith("awaiting_phase_authorization:")]
-    budget_wait = any(event.startswith("project_budget_paused:") for tick in result.get("history", []) for event in tick.get("events", []))
+    waiting = [
+        event.split(":", 1)[1]
+        for tick in result.get("history", [])
+        for event in tick.get("events", [])
+        if event.startswith("awaiting_owner_acceptance:")
+    ]
+    phase_wait = [
+        event.split(":", 1)[1]
+        for tick in result.get("history", [])
+        for event in tick.get("events", [])
+        if event.startswith("awaiting_phase_authorization:")
+    ]
+    budget_wait = any(
+        event.startswith("project_budget_paused:")
+        for tick in result.get("history", [])
+        for event in tick.get("events", [])
+    )
     if budget_wait:
-        explanation = next((a.get("task") for a in (pm or {}).get("next_actions", [])
-                            if a.get("type") == "budget_review"), None)
+        explanation = next(
+            (
+                a.get("task")
+                for a in (pm or {}).get("next_actions", [])
+                if a.get("type") == "budget_review"
+            ),
+            None,
+        )
         lines.extend(["", explanation or "预算检查未通过，后续任务已暂停，请检查费用回报与上限。"])
     elif phase_wait:
-        lines.extend(["", "下一阶段尚未授权。发送 /project run 审阅该阶段成员与预算，通过审批后才启动。"])
+        lines.extend(
+            ["", "下一阶段尚未授权。发送 /project run 审阅该阶段成员与预算，通过审批后才启动。"]
+        )
     elif waiting:
-        lines.extend(["", f"本阶段交付已准备好，等待你的验收。输入 /project accept {waiting[-1]} 审阅成果；验收前不进入下一阶段。"])
+        lines.extend(
+            [
+                "",
+                f"本阶段交付已准备好，等待你的验收。输入 /project accept {waiting[-1]} 审阅成果；验收前不进入下一阶段。",
+            ]
+        )
     elif status == "blocked":
         lines.append("")
         lines.append("项目已阻塞；请处理失败任务、验收条件或依赖后再继续推进。")
@@ -248,6 +279,9 @@ def _parse_project_os_control(text: str) -> dict[str, Any] | None:
     raw = str(text or "").strip()
     if not _is_project_os_command(raw):
         return None
+    refine = re.match(r"^/project\s+refine\s+([a-zA-Z0-9_-]+)\s+([\s\S]+)$", raw)
+    if refine:
+        return {"type": "refine", "proposal_id": refine[1], "feedback": refine[2].strip()}
     try:
         parts = shlex.split(raw)
     except ValueError:
@@ -264,7 +298,9 @@ def _parse_project_os_control(text: str) -> dict[str, Any] | None:
         return {"type": "review", "proposal_id": rest[0]} if len(rest) == 1 else {"type": "help"}
 
     if command in {"run", "start"}:
-        while len(rest) >= 2 and rest[0].lower() == "/project" and rest[1].lower() in {"run", "start"}:
+        while (
+            len(rest) >= 2 and rest[0].lower() == "/project" and rest[1].lower() in {"run", "start"}
+        ):
             rest = rest[2:]
         return {"type": "run", "goal": " ".join(rest).strip()}
 
@@ -376,7 +412,10 @@ async def _drive_project_os(
 
     project_store = runtime._project_store
     project_hooks = dict(runtime._project_os_hooks)
-    if getattr(getattr(turn, "execution", None), "engine", None) == "opencode" and leader is not None:
+    if (
+        getattr(getattr(turn, "execution", None), "engine", None) == "opencode"
+        and leader is not None
+    ):
         from functools import partial
 
         from runtime.projectos.execution_router import OpenCodePlanningRouter
@@ -384,15 +423,19 @@ async def _drive_project_os(
         from runtime.projectos.llm_hooks import create_llm_hooks
 
         router = OpenCodePlanningRouter(
-            runtime._stack, leader, lambda: emitter.is_turn_interrupted(turn.id),
+            runtime._stack,
+            leader,
+            lambda: emitter.is_turn_interrupted(turn.id),
         )
-        selected_model = turn.params.model or "big-pickle"
+        selected_model = (turn.params.model if turn.params else None) or "big-pickle"
         selected_hooks = create_llm_hooks(router, model=selected_model)
         # Preserve the existing task runner; these calls only plan and review.
         for key in ("generate_milestones", "decompose_tasks", "qa_task"):
             project_hooks[key] = selected_hooks[key]
         project_hooks["prepare_initiation"] = partial(
-            prepare_proposal, router, model=selected_model,
+            prepare_proposal,
+            router,
+            model=selected_model,
         )
     if authenticated_project:
         from runtime.safety.auth.scope import TenantScope
@@ -452,11 +495,19 @@ async def _drive_project_os(
 
     control = _parse_project_os_control(text)
     review_id = ""
-    if control is not None and control.get("type") == "review":
+    refine_id = ""
+    feedback = ""
+    if control is not None and control.get("type") in {"review", "refine"}:
         if project_store.project_for_thread(thread_id) is not None:
-            await runtime._emit_agent_message(turn, log, emitter, "项目已经建立，无需重复立项。请在项目面板查看当前阶段。")
+            await runtime._emit_agent_message(
+                turn, log, emitter, "项目已经建立，无需重复立项。请在项目面板查看当前阶段。"
+            )
             return
-        review_id = control["proposal_id"]
+        if control["type"] == "refine":
+            refine_id = control["proposal_id"]
+            feedback = control["feedback"]
+        else:
+            review_id = control["proposal_id"]
         control = None
     if control is not None and control.get("type") == "run":
         if control.get("max_ticks") == 1:
@@ -475,10 +526,19 @@ async def _drive_project_os(
         from runtime.sensing.gateway.realtime_project_initiation import initiate_project
 
         proposal = await initiate_project(
-            runtime, turn, log, emitter, thread_id=thread_id, goal=goal,
-            owner_id=owner_id, tenant_id=tenant_id, leader=leader,
+            runtime,
+            turn,
+            log,
+            emitter,
+            thread_id=thread_id,
+            goal=goal,
+            owner_id=owner_id,
+            tenant_id=tenant_id,
+            leader=leader,
             prepare=project_hooks.get("prepare_initiation"),
             review_id=review_id,
+            refine_id=refine_id,
+            feedback=feedback,
         )
         if proposal is None:
             return
@@ -497,17 +557,29 @@ async def _drive_project_os(
         def approved_milestones(_goal: str) -> list[Milestone]:
             milestones: list[Milestone] = []
             for phase_number, description in enumerate(proposal.milestones, 1):
-                milestones.append(Milestone(
-                    id=f"MS-{uuid4().hex[:12]}", name=description, goal=description,
-                    spec={"requires_owner_acceptance": True,
-                          "approved_brief": proposal.render(names),
-                          "max_tasks": proposal.max_tasks_per_phase,
-                          "phase_agents": sorted({leader.agent_id} | {
-                              n.agent_id for n in proposal.staffing if n.kind == "ai" and n.agent_id and phase_number in n.phases}),
-                          "ai_budget_usd": proposal.ai_budget_usd},
-                    success_criteria=[description],
-                    dependencies=[milestones[-1].id] if milestones else [],
-                ))
+                milestones.append(
+                    Milestone(
+                        id=f"MS-{uuid4().hex[:12]}",
+                        name=description,
+                        goal=description,
+                        spec={
+                            "requires_owner_acceptance": True,
+                            "approved_brief": proposal.render(names),
+                            "max_tasks": proposal.max_tasks_per_phase,
+                            "phase_agents": sorted(
+                                {leader.agent_id}
+                                | {
+                                    n.agent_id
+                                    for n in proposal.staffing
+                                    if n.kind == "ai" and n.agent_id and phase_number in n.phases
+                                }
+                            ),
+                            "ai_budget_usd": proposal.ai_budget_usd,
+                        },
+                        success_criteria=[description],
+                        dependencies=[milestones[-1].id] if milestones else [],
+                    )
+                )
             return milestones
 
         project_hooks["generate_milestones"] = approved_milestones
@@ -515,24 +587,48 @@ async def _drive_project_os(
     if control is not None and control.get("type") == "accept":
         from runtime.sensing.gateway.realtime_project_acceptance import accept_delivery
 
-        await accept_delivery(runtime, turn, log, emitter, project_store=project_store,
-                              thread_id=thread_id, milestone_id=control.get("milestone_id", ""),
-                              owner_id=owner_id, tenant_id=tenant_id)
+        await accept_delivery(
+            runtime,
+            turn,
+            log,
+            emitter,
+            project_store=project_store,
+            thread_id=thread_id,
+            milestone_id=control.get("milestone_id", ""),
+            owner_id=owner_id,
+            tenant_id=tenant_id,
+        )
         return
 
     existing_project = project_store.project_for_thread(thread_id)
     if control is not None and control.get("type") == "budget":
         from runtime.sensing.gateway.realtime_project_phase import adjust_budget
 
-        await adjust_budget(runtime, turn, log, emitter, store=project_store,
-                            project=existing_project, value=control.get("value"),
-                            owner_id=owner_id, tenant_id=tenant_id)
+        await adjust_budget(
+            runtime,
+            turn,
+            log,
+            emitter,
+            store=project_store,
+            project=existing_project,
+            value=control.get("value"),
+            owner_id=owner_id,
+            tenant_id=tenant_id,
+        )
         return
     if existing_project is not None and (control is None or control.get("run")):
         from runtime.sensing.gateway.realtime_project_phase import authorize_phase
 
-        if not await authorize_phase(runtime, turn, log, emitter, store=project_store,
-                                     project=existing_project, owner_id=owner_id, tenant_id=tenant_id):
+        if not await authorize_phase(
+            runtime,
+            turn,
+            log,
+            emitter,
+            store=project_store,
+            project=existing_project,
+            owner_id=owner_id,
+            tenant_id=tenant_id,
+        ):
             return
 
     def _run() -> dict[str, Any]:
@@ -659,6 +755,11 @@ async def _drive_project_os(
     from runtime.projectos.worker import run_project_worker
     from runtime.safety.approval.cancellation import OperationCancelled
 
+    if control and control.get("type") == "recover" and control.get("run"):
+        await runtime._emit_agent_message(
+            turn, log, emitter,
+            "正在恢复项目并继续推进。我会检查待办、执行任务并核对验收结果；完成或遇到阻塞时会在这里说明。",
+        )
     try:
         state = await run_project_worker(_run, lambda: emitter.is_turn_interrupted(turn.id))
     except OperationCancelled as exc:
@@ -726,7 +827,11 @@ async def _drive_project_os(
         turn,
         log,
         emitter,
-        ("立项已通过，团队和项目计划已建立，尚未执行任务。可在项目管理中审阅计划，"
-         "准备好后再发送 /project run 启动执行。\n\n" if newly_initiated else "")
+        (
+            "立项已通过，团队和项目计划已建立，尚未执行任务。可在项目管理中审阅计划，"
+            "准备好后再发送 /project run 启动执行。\n\n"
+            if newly_initiated
+            else ""
+        )
         + _format_project_os_result(state),
     )

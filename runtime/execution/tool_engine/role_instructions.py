@@ -168,7 +168,9 @@ def compose_role_instructions(
     nested = ctx.get("metadata")
     metadata = dict(nested) if isinstance(nested, Mapping) else {}
     metadata.update(ctx)
-    sections: list[str] = []
+    from runtime.projectos.sizing_policy import PROJECT_SIZING_POLICY
+
+    sections: list[str] = [PROJECT_SIZING_POLICY]
     try:
         from runtime.execution.agents.loader import compose_runtime_soul
 

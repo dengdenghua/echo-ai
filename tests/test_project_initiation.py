@@ -29,7 +29,10 @@ class Threads:
 
 
 def test_review_command_requires_one_proposal_id():
-    assert _parse_project_os_control("/project review draft1") == {"type": "review", "proposal_id": "draft1"}
+    assert _parse_project_os_control("/project review draft1") == {
+        "type": "review",
+        "proposal_id": "draft1",
+    }
     assert _parse_project_os_control("/project review") == {"type": "help"}
     assert _parse_project_os_control("/project review draft1 changed-scope") == {"type": "help"}
 
@@ -61,11 +64,16 @@ def test_proposal_displays_actual_cumulative_cap_not_model_budget_text(tmp_path,
 def test_expired_proposal_reopens_without_model_rewrite_or_auto_approval(tmp_path):
     runtime, emitter, kwargs, proposal = setup(tmp_path, action="decline")
     runtime._thread_store.thread["metadata"]["project_initiation"] = {
-        "id": "saved", "status": "approval_expired", "leader_id": "general",
-        "goal": "original goal", "proposal": deepcopy(proposal),
+        "id": "saved",
+        "status": "approval_expired",
+        "leader_id": "general",
+        "goal": "original goal",
+        "proposal": deepcopy(proposal),
     }
     kwargs.update(review_id="saved", prepare=None)
-    result = asyncio.run(initiate_project(runtime, Turn(threadId="thread"), None, emitter, **kwargs))
+    result = asyncio.run(
+        initiate_project(runtime, Turn(threadId="thread"), None, emitter, **kwargs)
+    )
     assert result is None
     emitter.request_approval.assert_awaited_once()
     assert runtime._cowork_group_store.state("thread").roster == []
@@ -78,11 +86,19 @@ def test_expired_proposal_reopens_without_model_rewrite_or_auto_approval(tmp_pat
 @pytest.mark.parametrize("change", ["id", "leader_id", "status"])
 def test_stale_review_does_not_open_approval_or_replace_saved_proposal(tmp_path, change):
     runtime, emitter, kwargs, proposal = setup(tmp_path)
-    saved = {"id": "saved", "status": "approval_expired", "leader_id": "general", "proposal": proposal}
+    saved = {
+        "id": "saved",
+        "status": "approval_expired",
+        "leader_id": "general",
+        "proposal": proposal,
+    }
     saved[change] = "changed"
     runtime._thread_store.thread["metadata"]["project_initiation"] = deepcopy(saved)
     kwargs.update(review_id="saved", prepare=None)
-    assert asyncio.run(initiate_project(runtime, Turn(threadId="thread"), None, emitter, **kwargs)) is None
+    assert (
+        asyncio.run(initiate_project(runtime, Turn(threadId="thread"), None, emitter, **kwargs))
+        is None
+    )
     emitter.request_approval.assert_not_awaited()
     assert runtime._thread_store.thread["metadata"]["project_initiation"] == saved
 
@@ -96,14 +112,18 @@ def test_old_initiation_cannot_overwrite_newer_proposal(tmp_path, stage):
         runtime._thread_store.update_state("thread", metadata={"project_initiation": newer})
 
     if stage == "planning":
+
         def prepare(**_):
             replace()
             return proposal
+
         kwargs["prepare"] = prepare
     elif stage == "timeout":
+
         async def timeout(*_, **__):
             replace()
             raise TimeoutError()
+
         emitter.request_approval.side_effect = timeout
     else:
         original = runtime._thread_store.update_state_if_unchanged
@@ -112,8 +132,12 @@ def test_old_initiation_cannot_overwrite_newer_proposal(tmp_path, stage):
             if metadata["project_initiation"]["status"] == "approved":
                 replace()
             return original(thread_id, expected, metadata=metadata)
+
         runtime._thread_store.update_state_if_unchanged = race
-    assert asyncio.run(initiate_project(runtime, Turn(threadId="thread"), None, emitter, **kwargs)) is None
+    assert (
+        asyncio.run(initiate_project(runtime, Turn(threadId="thread"), None, emitter, **kwargs))
+        is None
+    )
     assert runtime._thread_store.thread["metadata"]["project_initiation"] == newer
     assert not runtime._cowork_group_store.state("thread").roster
     if stage == "planning":
@@ -147,6 +171,9 @@ def setup(tmp_path, action="accept", questions=None):
             {"role": "开发与测试", "count": 1, "responsibilities": "开发测试", "agent_id": "coder"},
         ],
         "questions": questions or [],
+        "deliverables": ["新品发布方案与可运行原型"],
+        "acceptance_criteria": ["原型完成指定发布流程并提交测试结果"],
+        "requirements_review": {"ready": True, "understanding": ["先明确发布方案，再验证原型"], "reason": "目标和验收依据明确"},
     }
 
     async def approve(*args, **kwargs):
@@ -285,10 +312,15 @@ def test_proposal_uses_selected_turn_model(tmp_path):
         return proposal
 
     kwargs["prepare"] = prepare
-    asyncio.run(initiate_project(
-        runtime, Turn(threadId="thread", params=TurnParams(threadId="thread", model="chosen-model")),
-        None, emitter, **kwargs,
-    ))
+    asyncio.run(
+        initiate_project(
+            runtime,
+            Turn(threadId="thread", params=TurnParams(threadId="thread", model="chosen-model")),
+            None,
+            emitter,
+            **kwargs,
+        )
+    )
     assert seen["model"] == "chosen-model"
 
 
@@ -301,9 +333,14 @@ def test_provider_failure_is_not_reported_as_bad_staffing(tmp_path):
         raise ModelProviderHTTPError("private provider diagnostic", status_code=401)
 
     kwargs["prepare"] = prepare
-    result = asyncio.run(initiate_project(runtime, Turn(threadId="thread"), None, emitter, **kwargs))
+    result = asyncio.run(
+        initiate_project(runtime, Turn(threadId="thread"), None, emitter, **kwargs)
+    )
     assert result is None
-    assert runtime._thread_store.thread["metadata"]["project_initiation"]["status"] == "model_unavailable"
+    assert (
+        runtime._thread_store.thread["metadata"]["project_initiation"]["status"]
+        == "model_unavailable"
+    )
     assert runtime._cowork_group_store.state("thread").roster == []
     emitter.request_approval.assert_not_called()
     message = runtime._emit_agent_message.call_args.args[-1]

@@ -187,6 +187,9 @@ def _fix_authorization_present(state: _AssemblyState) -> bool:
 
 def _assemble_core_guidance(state: _AssemblyState) -> None:
     """Approval gate + workspace / project / code-mode / cadence sections."""
+    from runtime.projectos.sizing_policy import PROJECT_SIZING_POLICY
+
+    state.system_parts.append(PROJECT_SIZING_POLICY)
     if state.approval_provider is not None:
         # Approval-gate etiquette only means anything when a gate exists to
         # be tripped. Keeping it out of REACT_SYSTEM_PROMPT_BASE stops every
