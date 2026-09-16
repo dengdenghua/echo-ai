@@ -169,7 +169,8 @@ def _register_agents_crud(router: Any, ctx: _AgentsCtx, auth: _AuthActions) -> N
             "id": agent_id,
             "templateId": agent_id,
             "templateVersion": "1.0.0",
-            "name": (body.display_name or "").strip() or agent_id.replace("-", " ").replace("_", " ").title(),
+            "name": (body.display_name or "").strip()
+            or agent_id.replace("-", " ").replace("_", " ").title(),
             "icon": "🤖",
             "did": identity_code,  # backward-compatible alias
             "identity_code": identity_code,
@@ -617,6 +618,7 @@ When making changes, first read the surrounding code.
         # plain slug, not something that could climb out of ``root``.
         if "/" in agent_id or "\\" in agent_id or agent_id in ("", ".", ".."):
             raise HTTPException(400, "invalid agent_id")
+        agent_id = _require_safe_agent_id(agent_id)
         agent_dir = root / agent_id
         profile_path = agent_dir / "profile.jsonc"
         if profile_path.is_file():

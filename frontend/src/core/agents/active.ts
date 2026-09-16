@@ -1,3 +1,4 @@
+import { canonicalAgentId } from "./aliases";
 /**
  * `useActiveAgentId` — subscribes to the footer-picked agent.
  *
@@ -83,7 +84,7 @@ function normalizeAgentId(value: string | null | undefined): string | null {
   // when returning from the HUD.
   if (raw.startsWith("DID-")) return null;
   if (!/^[A-Za-z0-9][A-Za-z0-9_.-]{0,127}$/.test(raw)) return null;
-  return raw;
+  return canonicalAgentId(raw);
 }
 
 function readActive(): string | null {

@@ -1,8 +1,11 @@
 const BUILTIN_PERSONA_NAMES: Readonly<Record<string, string>> = {
+  eve: "Eve", kane: "Kane", raven: "Raven", luna: "Luna",
+  shion: "Shion", noah: "Noah", leon: "Leon",
   general: "Eve",
   coder: "Kane",
   desktop_operator: "Raven",
   aoi: "Zero",
+  zero: "Zero",
   vibe_selling: "Luna",
 };
 

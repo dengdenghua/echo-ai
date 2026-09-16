@@ -1,6 +1,8 @@
 import { useState } from "react";
 import type { Agent } from "@/core/agents/types";
 import { withAgentAvatarVersion } from "@/core/agents/avatar";
+import { canonicalAgentId } from "@/core/agents/aliases";
+import { builtinPersonaDisplayName } from "@/core/agents/persona-display";
 import { getBackendBaseURL } from "@/core/config";
 import { cn } from "@/lib/utils";
 
@@ -35,7 +37,8 @@ export function AgentAvatar({
     | undefined;
   className?: string;
 }) {
-  const avatar = resolveAvatarUrl(agent?.avatar_url);
+  const personaId = canonicalAgentId(agent?.name ?? "");
+  const avatar = resolveAvatarUrl(agent?.avatar_url || (builtinPersonaDisplayName(personaId) ? `/api/agents/${personaId}/avatar` : null));
   const [failedAvatar, setFailedAvatar] = useState<string | null>(null);
   const showAvatar = Boolean(avatar && failedAvatar !== avatar);
   const emoji = agent?.icon?.trim() || "";

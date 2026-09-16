@@ -161,7 +161,9 @@ def build_turn_metadata(
         for key in ("agent", "agent_name"):
             value = config_meta.get(key) or ctx.get(key)
             if isinstance(value, str) and value.strip():
-                metadata[key] = value.strip()
+                from runtime.execution.agents.aliases import canonical_agent_id
+
+                metadata[key] = canonical_agent_id(value.strip())
 
     if authoritative_workspace is not None:
         metadata["workspace_path"] = str(authoritative_workspace)

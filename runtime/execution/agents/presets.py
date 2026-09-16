@@ -27,6 +27,9 @@ from .loader import default_agents_root, load_agent, load_all_agents
 
 
 def _load_one(agent_id: str, runtime: GraphRuntime) -> Agent:
+    from .aliases import canonical_agent_id
+
+    agent_id = canonical_agent_id(agent_id)
     root = default_agents_root()
     return load_agent(root / agent_id, runtime, root / "_shared")
 
@@ -78,5 +81,5 @@ def make_all_agent_presets(runtime: GraphRuntime) -> list[Agent]:
     ``desktop_operator`` IS part of the roster (first-class CUA persona).
     """
     return [
-        agent for agent in load_all_agents(runtime) if getattr(agent, "agent_id", None) != "admin"
+        agent for agent in load_all_agents(runtime) if getattr(agent, "agent_id", None) not in {"admin", "leon"}
     ]

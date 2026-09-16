@@ -560,6 +560,10 @@ def parse_template(agent_dir: Path, shared_dir: Path) -> AgentTemplate:
     composes the static soul. No ``GraphRuntime`` needed — arm instances
     are built later by ``instantiate``.
     """
+    if not (agent_dir / "profile.jsonc").exists():
+        from .aliases import canonical_agent_id
+
+        agent_dir = agent_dir.with_name(canonical_agent_id(agent_dir.name))
     profile_path = agent_dir / "profile.jsonc"
     if not profile_path.exists():
         raise FileNotFoundError(f"missing {profile_path}")

@@ -126,7 +126,7 @@ class TestCoderThreeArms:
     def test_coder_has_expected_arms(self):
         agent = make_coder_agent(_fake_runtime())
         arm_ids = [str(a.arm_id) for a in agent.arms]
-        # The coder agent gained a fifth arm (``coder_private_arm``)
+        # The coding role has a fifth arm (``kane_private_arm``)
         # for agent-private skill whitelisting; the four canonical
         # arms below are still required.
         assert len(arm_ids) == 5
@@ -134,7 +134,7 @@ class TestCoderThreeArms:
         assert "fs_writer_arm" in arm_ids
         assert "git_arm" in arm_ids
         assert "shell_arm" in arm_ids
-        assert "coder_private_arm" in arm_ids
+        assert "kane_private_arm" in arm_ids
 
     def test_coder_can_use_all_three_domains(self):
         agent = make_coder_agent(_fake_runtime())
@@ -319,7 +319,7 @@ class TestRegistryRouting:
         )
         a = reg.pick_for_intent(intent)
         assert a is not None
-        assert a.agent_id == "coder"
+        assert a.agent_id == "kane"
 
     def test_storefront_intent_picks_growth_agent(self):
         reg = self._reg()
@@ -330,7 +330,7 @@ class TestRegistryRouting:
         )
         a = reg.pick_for_intent(intent)
         assert a is not None
-        assert a.agent_id in {"vibe_selling", "ecommerce_mind"}
+        assert a.agent_id in {"luna", "shion"}
 
     def test_unrelated_intent_none_or_weak(self):
         reg = self._reg()

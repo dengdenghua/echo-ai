@@ -146,6 +146,11 @@ class AgentRegistry:
         return count
 
     def remove(self, agent_id: str) -> bool:
+        from .aliases import canonical_agent_id
+
+        canonical = canonical_agent_id(agent_id)
+        if canonical in self._by_id:
+            agent_id = canonical
         with self._lock:
             existed = self._by_id.pop(agent_id, None) is not None
             if existed:
@@ -189,12 +194,22 @@ class AgentRegistry:
         return prev
 
     def get(self, agent_id: str) -> Agent:
+        from .aliases import canonical_agent_id
+
+        canonical = canonical_agent_id(agent_id)
+        if canonical in self._by_id:
+            agent_id = canonical
         try:
             return self._by_id[agent_id]
         except KeyError as e:
             raise AgentNotFound(f"no agent named {agent_id!r}") from e
 
     def has(self, agent_id: str) -> bool:
+        from .aliases import canonical_agent_id
+
+        canonical = canonical_agent_id(agent_id)
+        if canonical in self._by_id:
+            agent_id = canonical
         return agent_id in self._by_id
 
     def all_ids(self) -> list[str]:

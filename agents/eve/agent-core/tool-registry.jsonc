@@ -1,0 +1,42 @@
+{
+  "arms": [
+    "web_read",
+    "browser_read",
+    "browser_interact",
+    "fs_writer",
+    "git",
+    "shell",
+    "desktop_operator"
+  ],
+  "extra_affinity": [
+    "assistant",
+    "general",
+    "help",
+    "question",
+    "summary",
+    "desktop",
+    "screenshot",
+    "click",
+    "keyboard",
+    "research",
+    "report",
+    "document",
+    "docx",
+    "market"
+  ],
+  "private_skills": [
+    "call_agent",
+    "documents",
+    "pdf",
+    "presentations",
+    "spreadsheets",
+    "email-manager",
+    "work-report-expert",
+    "okr-planner",
+    "general-writer",
+    "project-initiation",
+    "project-delivery-review",
+    "project-retrospective",
+    "agent-generator"
+  ]
+}

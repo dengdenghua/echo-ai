@@ -41,7 +41,8 @@ _PERSONA_RE = re.compile(
 )
 
 _BUILTIN_AGENT_IDS = frozenset(
-    {"general", "coder", "vibe_selling", "ecommerce_mind", "admin", "desktop_operator"}
+    {"general", "coder", "vibe_selling", "ecommerce_mind", "admin", "desktop_operator",
+     "eve", "kane", "luna", "shion", "leon", "raven", "noah", "zero"}
 )
 _SAFE_AGENT_ID_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_-]{0,127}$")
 
@@ -53,7 +54,17 @@ def _require_safe_agent_id(agent_id: str) -> str:
             400,
             "invalid agent_id: only alphanumeric characters, hyphens, and underscores are allowed",
         )
-    return value
+    from runtime.execution.agents.aliases import canonical_agent_id
+    from runtime.execution.agents.loader import default_agents_root
+
+    canonical = canonical_agent_id(value)
+    if canonical != value:
+        root = default_agents_root()
+        # Existing installations may still store their role under the old ID.
+        # Prefer the migrated role, but do not strand an unmigrated profile.
+        if (root / value / "profile.jsonc").is_file() and not (root / canonical / "profile.jsonc").is_file():
+            return value
+    return canonical
 
 
 def _agent_dir_for(root: Path, agent_id: str) -> Path:
@@ -122,6 +133,7 @@ def _avatar_url_for(agent_id: str) -> str | None:
     runtime the next list call reflects it · no caching.
     """
     from runtime.execution.agents.loader import default_agents_root
+    agent_id = _require_safe_agent_id(agent_id)
 
     try:
         root = default_agents_root()

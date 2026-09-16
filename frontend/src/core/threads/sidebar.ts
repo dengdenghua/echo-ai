@@ -1,3 +1,4 @@
+import { canonicalAgentId } from "@/core/agents/aliases";
 /**
  * Thread-derivation logic backing the workspace sidebar: how raw
  * ``AgentThread`` records become sidebar summaries (display titles,
@@ -299,7 +300,7 @@ export function deriveThreadAgents(thread: {
           : null,
       )
       .filter((x): x is string => !!x);
-    if (ids.length > 0) return ids;
+    if (ids.length > 0) return ids.map(id => canonicalAgentId(id));
   }
   // 2. team_members (legacy field name · same shape)
   const members = meta["team_members"] ?? values["team_members"];
@@ -315,7 +316,7 @@ export function deriveThreadAgents(thread: {
             : null,
       )
       .filter((x): x is string => !!x);
-    if (ids.length > 0) return ids;
+    if (ids.length > 0) return ids.map(id => canonicalAgentId(id));
   }
   // 3. solo agent · the ``agent`` field is set on every chat/code
   //    thread by the compat router (cf. metadata.agent='coder')
@@ -328,7 +329,7 @@ export function deriveThreadAgents(thread: {
     values["current_speaker"],
     values["agent_name"],
   );
-  if (single) return [single];
+  if (single) return [canonicalAgentId(single)];
   return [];
 }
 

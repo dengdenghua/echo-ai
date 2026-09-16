@@ -10,14 +10,14 @@ import {
 describe("primary persona policy", () => {
   test("keeps the operational White Ghost squad as fixed identities", () => {
     expect(WHITE_GHOST_AGENT_ORDER).toEqual([
-      "general",
-      "coder",
-      "desktop_operator",
-      "vibe_selling",
-      "ecommerce_mind",
-      "market_researcher",
-      "aoi",
-      "admin",
+      "eve",
+      "kane",
+      "raven",
+      "luna",
+      "shion",
+      "noah",
+      "zero",
+      "leon",
     ]);
     expect(isPrimaryPersonaAgentId("coder")).toBe(true);
     expect(isPrimaryPersonaAgentId("desktop_operator")).toBe(true);
@@ -26,11 +26,12 @@ describe("primary persona policy", () => {
   test("treats installed experts as on-demand", () => {
     expect(isPrimaryPersonaAgentId("twin_ai_engineer")).toBe(false);
     expect(isPrimaryPersonaAgentId("installed_code_reviewer")).toBe(false);
-    expect(isPrimaryPersonaAgentId("echo_kane")).toBe(false);
+    expect(isPrimaryPersonaAgentId("echo_kane")).toBe(true);
   });
 
   test("migrates a stale expert identity to the default squad member", () => {
-    expect(primaryPersonaAgentIdOrDefault(" coder ")).toBe("coder");
+    expect(primaryPersonaAgentIdOrDefault("aoi")).toBe("zero");
+    expect(primaryPersonaAgentIdOrDefault(" coder ")).toBe("kane");
     expect(primaryPersonaAgentIdOrDefault("workbuddy-expert")).toBe(
       DEFAULT_PRIMARY_AGENT_ID,
     );
