@@ -1,5 +1,7 @@
 import { agentCreationRoute } from "@/core/agents/creation-route";
 import { EmployeeBlueprints } from "./employee-blueprints";
+import { LocalAgentList } from "./local-agent-list";
+import { UnifiedRoleCatalog } from "./unified-role-catalog";
 import { PixelAgentAvatar } from "./pixel-agent-avatar";
 import { DIGITAL_EMPLOYEE_GROUPS, selectDigitalEmployees } from "./digital-employee-catalog";
 import { taskWorkspaceRoute } from "@/core/router/task-workspace-route";
@@ -234,12 +236,12 @@ export function WorkBuddyCloudStorePanel({
   const { confirm, confirmDialog } = useConfirmDialog();
   const [experts, setExperts] = useState<CloudExpertAgent[]>([]);
   const [categories, setCategories] = useState<CloudStoreCategory[]>([]);
-  const [metaCount, setMetaCount] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [query, setQuery] = useState("");
   const [activeCategory, setActiveCategory] = useState("all");
   const [installedOnly, setInstalledOnly] = useState(false);
+  const [localView, setLocalView] = useState(false);
   const [typeFilter, setTypeFilter] = useState<"all" | "agent" | "team">("all");
   const [installing, setInstalling] = useState<Record<string, boolean>>({});
   const [installed, setInstalled] = useState<Record<string, boolean>>({});
@@ -261,9 +263,6 @@ export function WorkBuddyCloudStorePanel({
         ]);
         setExperts(storeRes.agents);
         setCategories(digitalEmployeesOnly ? DIGITAL_EMPLOYEE_GROUPS.filter(g => g.id !== "workplace").map(({ id, name }) => ({ id, name })) : catRes.categories);
-        setMetaCount(
-          (catRes.meta?.count as number | undefined) ?? storeRes.total,
-        );
         // 标注已安装
         const done: Record<string, boolean> = {};
         for (const e of storeRes.agents) if (e.is_installed) done[e.id] = true;
@@ -310,7 +309,7 @@ export function WorkBuddyCloudStorePanel({
   const localQuery = query.trim().toLowerCase();
   const filtered = useMemo(() => {
     return catalogExperts.filter((e) => {
-      if (installedOnly && !installed[e.id]) return false;
+      if (installedOnly && !(installed[e.id] ?? e.is_installed)) return false;
       if (activeCategory !== "all" && (e.category_id || "") !== activeCategory)
         return false;
       if (
@@ -402,6 +401,17 @@ export function WorkBuddyCloudStorePanel({
     window.location.hash = agentCreationRoute({ cloudExpertId: expert.id });
   };
 
+  if (digitalEmployeesOnly) return <>
+    <UnifiedRoleCatalog experts={experts} searchQuery={searchQuery} loading={loading} error={error}
+      retry={() => void load(true)} onDetail={setDetailTarget}
+      onAdd={expert => { window.location.hash = agentCreationRoute({ cloudExpertId: expert.id }); }} />
+    {detailTarget && <ExpertDetailDialog expert={detailTarget} open
+      onOpenChange={open => { if (!open) setDetailTarget(null); }}
+      onInstall={onInstall} onUninstall={expert => void onUninstall(expert)}
+      onStartChat={expert => void onStartChat(expert)} installing={!!installing[detailTarget.id]} />}
+    {confirmDialog}
+  </>;
+
 
 
   return (
@@ -428,19 +438,19 @@ export function WorkBuddyCloudStorePanel({
             type="button"
             size="sm"
             aria-pressed={
-              !installedOnly &&
+              !localView && !installedOnly &&
               activeCategory === "all" &&
               (!showTeamFilter || typeFilter !== "team")
             }
             variant={
               embedded
                 ? "ghost"
-                : activeCategory === "all" && !installedOnly
+                : activeCategory === "all" && !localView && !installedOnly
                   ? "secondary"
                   : "outline"
             }
             onClick={() => {
-              setInstalledOnly(false);
+              setLocalView(false); setInstalledOnly(false);
               setActiveCategory("all");
               if (showTeamFilter) setTypeFilter("all");
             }}
@@ -449,7 +459,7 @@ export function WorkBuddyCloudStorePanel({
               embedded &&
                 "rounded-md font-normal text-muted-foreground shadow-none",
               embedded &&
-                !installedOnly &&
+                !localView && !installedOnly &&
                 activeCategory === "all" &&
                 (!showTeamFilter || typeFilter !== "team") &&
                 "bg-muted font-medium text-foreground",
@@ -465,14 +475,15 @@ export function WorkBuddyCloudStorePanel({
           <Button
             type="button"
             size="sm"
-            variant={installedOnly ? "secondary" : "ghost"}
-            aria-pressed={installedOnly}
-            onClick={() => { setInstalledOnly(true); setActiveCategory("all"); setTypeFilter("all"); }}
+            variant={!localView && installedOnly ? "secondary" : "ghost"}
+            aria-pressed={!localView && installedOnly}
+            onClick={() => { setLocalView(false); setInstalledOnly(true); setActiveCategory("all"); setTypeFilter("all"); }}
             className="h-8 px-2.5 text-ui-caption"
           >
             {t.store.detailInstalled}
           </Button>
-          {digitalEmployeesOnly && <Button size="sm" variant={activeCategory === "employees" ? "secondary" : "ghost"} aria-pressed={activeCategory === "employees"} onClick={() => { setActiveCategory("employees"); setInstalledOnly(false); setTypeFilter("all"); }}>数字员工</Button>}
+          <Button size="sm" variant={localView ? "secondary" : "ghost"} aria-pressed={localView} onClick={() => { setInstalledOnly(false); setLocalView(true); setActiveCategory("all"); setTypeFilter("all"); }}>本机角色</Button>
+          {digitalEmployeesOnly && <Button size="sm" variant={activeCategory === "employees" ? "secondary" : "ghost"} aria-pressed={activeCategory === "employees"} onClick={() => { setActiveCategory("employees"); setLocalView(false); setInstalledOnly(false); setTypeFilter("all"); }}>数字员工</Button>}
           {!kind && !showTypeFilter && showTeamFilter ? (
             <Button
               type="button"
@@ -480,7 +491,7 @@ export function WorkBuddyCloudStorePanel({
               variant="ghost"
               aria-pressed={typeFilter === "team"}
               onClick={() => {
-                setInstalledOnly(false);
+                setLocalView(false); setInstalledOnly(false);
                 setActiveCategory("all");
                 setTypeFilter("team");
               }}
@@ -510,7 +521,7 @@ export function WorkBuddyCloudStorePanel({
                         : "outline"
                   }
                   onClick={() => {
-                    setInstalledOnly(false);
+                    setLocalView(false); setInstalledOnly(false);
                     setActiveCategory(c.id);
                     if (showTeamFilter) setTypeFilter("all");
                   }}
@@ -588,8 +599,10 @@ export function WorkBuddyCloudStorePanel({
         </div>
       </div>
 
-      {digitalEmployeesOnly && !installedOnly && effectiveTypeFilter === "all" && (activeCategory === "all" || activeCategory === "employees") && <EmployeeBlueprints searchQuery={searchQuery || query} showCategories={activeCategory === "employees"} />}
-      {activeCategory !== "employees" && <>
+      {digitalEmployeesOnly && !localView && !installedOnly && effectiveTypeFilter === "all" && (activeCategory === "all" || activeCategory === "employees") && <EmployeeBlueprints searchQuery={searchQuery || query} showCategories={activeCategory === "employees"} />}
+      {!localView && installedOnly && <p className="text-xs text-muted-foreground">这里显示从专家目录添加的角色。内置、手动导入和自建角色可在「本机角色」查看。</p>}
+      {localView && <LocalAgentList queries={[searchQuery, query]} />}
+      {!localView && activeCategory !== "employees" && <>
       {error ? (
         <div className="flex items-center justify-between gap-2 rounded-md bg-destructive/10 px-3 py-2 text-ui-caption text-destructive">
           <span className="line-clamp-2">{error}</span>
@@ -680,7 +693,7 @@ export function WorkBuddyCloudStorePanel({
       {!loading && !error && filtered.length === 0 ? (
         <div className="py-10 text-center text-sm text-muted-foreground">
           <p>{externalQuery || localQuery ? "没有匹配的智能体，请调整搜索词。" : installedOnly ? "暂无已添加的智能体" : effectiveTypeFilter === "team" ? "暂无可展示的专家团" : "该分类暂无智能体"}</p>
-          <Button variant="ghost" size="sm" className="mt-2" onClick={() => { setInstalledOnly(false); setActiveCategory("all"); setTypeFilter("all"); setQuery(""); }}>查看全部</Button>
+          <Button variant="ghost" size="sm" className="mt-2" onClick={() => { setLocalView(false); setInstalledOnly(false); setActiveCategory("all"); setTypeFilter("all"); setQuery(""); }}>查看全部</Button>
         </div>
       ) : null}
 

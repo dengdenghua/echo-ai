@@ -2,6 +2,8 @@ import { useEffect, useState } from "react";
 import { listAgents } from "./api";
 import type { Agent } from "./types";
 import presets from "./profession-blueprints.json";
+import { getBackendBaseURL } from "@/core/config";
+import { authHeaders } from "@/core/auth/api";
 
 export const blueprints = presets;
 export type Profession = {
@@ -50,8 +52,11 @@ export function useProfessionCatalog() {
   useEffect(() => {
     const controller = new AbortController();
     setLoading(true); setError(false);
-    listAgents({ signal: controller.signal }).then(agents => {
-      if (!controller.signal.aborted) setRoles(mergeProfessions(agents));
+    Promise.all([
+      listAgents({ signal: controller.signal }),
+      fetch(`${getBackendBaseURL()}/api/agent-market/echo/catalog`, { signal: controller.signal, headers: authHeaders() }).then(r => r.ok ? r.json() as Promise<{ agents?: Agent[] }> : { agents: [] }).catch(() => ({ agents: [] })),
+    ]).then(([agents, catalog]) => {
+      if (!controller.signal.aborted) setRoles(mergeProfessions([...agents, ...(catalog.agents ?? [])]));
     }).catch(() => { if (!controller.signal.aborted) setError(true); })
       .finally(() => { if (!controller.signal.aborted) setLoading(false); });
     return () => controller.abort();
