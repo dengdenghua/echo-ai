@@ -22,6 +22,12 @@ from contextlib import suppress
 from typing import Any
 from uuid import uuid4
 
+from runtime.projectos._default_plan import (
+    stub_decompose_tasks as stub_decompose_tasks,
+)
+from runtime.projectos._default_plan import (
+    stub_generate_milestones as stub_generate_milestones,
+)
 from runtime.projectos.model import (
     ROLE_FOR_TASK,
     TEAM_MODES_AI,
@@ -63,65 +69,6 @@ def normalize_run_ticks(value: int | None) -> int:
 
 def _error_text(exc: BaseException) -> str:
     return f"{type(exc).__name__}: {exc}"
-
-
-def stub_generate_milestones(goal: str) -> list[Milestone]:
-    """No-LLM fallback: a generic Plan → Build → Verify phasing that fits almost
-    any project, so the engine/CLI runs deterministically without a model router
-    (production injects LLM hooks for goal-specific milestones)."""
-    return [
-        Milestone(
-            id="MS1",
-            name="plan",
-            goal=f"Scope and plan: {goal}",
-            success_criteria=["plan approved"],
-        ),
-        Milestone(
-            id="MS2",
-            name="build",
-            goal=f"Build: {goal}",
-            success_criteria=["implementation complete"],
-            dependencies=["MS1"],
-        ),
-        Milestone(
-            id="MS3",
-            name="verify",
-            goal=f"Verify and deliver: {goal}",
-            success_criteria=["verified against goal"],
-            dependencies=["MS2"],
-        ),
-    ]
-
-
-def stub_decompose_tasks(ms: Milestone) -> list[Task]:
-    """No-LLM fallback: a research → execution pair (a 2-node DAG).
-
-    The research node defaults to ``team_mode="swarm"`` so a roster-aware
-    engine (cowork_bridge injects ``run_task_team``) brainstorms it across the
-    group; the execution node stays ``single`` unless a caller opts it into
-    cluster."""
-    return [
-        Task(
-            id=f"{ms.id}-T1",
-            milestone_id=ms.id,
-            type="research",
-            goal=f"{ms.goal} — assess",
-            team_mode="swarm",
-            priority="P1",
-            estimate=1.0,
-            due_at=ms.due_at or "",
-            acceptance_criteria=list(ms.success_criteria),
-        ),
-        Task(
-            id=f"{ms.id}-T2",
-            milestone_id=ms.id,
-            type="code",
-            goal=f"{ms.goal} — do",
-            priority="P2",
-            estimate=2.0,
-            depends_on=[f"{ms.id}-T1"],
-        ),
-    ]
 
 
 def _default_execute(task: Task, context: dict[str, Any]) -> str:
@@ -199,12 +146,9 @@ class ProjectEngine:
     def plan(self, name: str, goal: str, *, project_id: str | None = None) -> Project:
         """Turn a one-line goal into a project with generated milestones."""
         pid = project_id or f"P-{uuid4().hex[:8]}"
-        try:
-            milestones = self._generate(goal)
-        except Exception:  # noqa: BLE001 — planning hooks are external intelligence adapters
-            milestones = stub_generate_milestones(goal)
+        milestones = self._generate(goal)
         if not milestones:
-            milestones = stub_generate_milestones(goal)
+            raise ValueError("项目规划为空，未创建项目。")
         from datetime import UTC, datetime
 
         project = Project(
@@ -281,13 +225,23 @@ class ProjectEngine:
         from runtime.projectos.governance import budget_reached, phase_authorized
 
         if not phase_authorized(self.store, project.id, active):
-            return {"events": [f"awaiting_phase_authorization:{active.id}"],
-                    "project_status": project.status, "current_ms": active.id}
-        phase_tasks = self.store.tasks_for_milestone(active.id) if active.spec.get("ai_budget_usd") is not None else []
+            return {
+                "events": [f"awaiting_phase_authorization:{active.id}"],
+                "project_status": project.status,
+                "current_ms": active.id,
+            }
+        phase_tasks = (
+            self.store.tasks_for_milestone(active.id)
+            if active.spec.get("ai_budget_usd") is not None
+            else []
+        )
         needs_execution = not phase_tasks or any(task.status != "done" for task in phase_tasks)
         if needs_execution and budget_reached(self.store, project.id, active):
-            return {"events": [f"project_budget_paused:{active.id}"],
-                    "project_status": project.status, "current_ms": active.id}
+            return {
+                "events": [f"project_budget_paused:{active.id}"],
+                "project_status": project.status,
+                "current_ms": active.id,
+            }
         self._ensure_tasks(project_id, active, events)
         self._run_frontier(project, active, events)
         self._gate_milestone(project, active, events)
@@ -314,7 +268,10 @@ class ProjectEngine:
                 break  # blocked — nothing to advance
             if any(e.startswith("awaiting_owner_acceptance:") for e in r["events"]):
                 break
-            if any(e.startswith(("awaiting_phase_authorization:", "project_budget_paused:")) for e in r["events"]):
+            if any(
+                e.startswith(("awaiting_phase_authorization:", "project_budget_paused:"))
+                for e in r["events"]
+            ):
                 break
         final = self.store.get_project(project_id)
         result = {
@@ -354,7 +311,11 @@ class ProjectEngine:
             return {"events": ["project_not_found"], "project_status": "failed"}
         project = self.store.assert_no_active_claims(project.id)
         if project.status != "blocked":
-            raise ValueError("only a blocked project can be recovered")
+            raise ValueError(
+                "项目当前未阻塞，无需恢复；如需继续推进，请使用 /project run"
+                if project.status == "running"
+                else "项目当前未阻塞，无需恢复；请先查看项目报告"
+            )
 
         events: list[str] = []
         selected = {str(task_id) for task_id in (task_ids or []) if str(task_id).strip()}
@@ -695,7 +656,9 @@ class ProjectEngine:
         try:
             new_tasks = self._decompose(claimed_ms)
             limit = claimed_ms.spec.get("max_tasks")
-            if limit is not None and (type(limit) is not int or limit < 1 or len(new_tasks) > limit):
+            if limit is not None and (
+                type(limit) is not int or limit < 1 or len(new_tasks) > limit
+            ):
                 raise ValueError(f"任务拆解超过已审批数量上限：{limit}；未启动执行")
         except Exception as exc:  # noqa: BLE001 — decompose hook failure should block, not crash tick
             events.append(f"tasks_decompose_failed:{ms.id}")
@@ -812,7 +775,11 @@ class ProjectEngine:
             try:
                 allowed = ms.spec.get("phase_agents")
                 if task.team_mode not in TEAM_MODES_HUMAN:
-                    if allowed is not None and task.assigned_agent and task.assigned_agent not in allowed:
+                    if (
+                        allowed is not None
+                        and task.assigned_agent
+                        and task.assigned_agent not in allowed
+                    ):
                         raise ValueError("assigned agent is not authorized for this phase")
                     task.assigned_agent = task.assigned_agent or self._assign(task)
                     if allowed is not None and task.assigned_agent not in allowed:
@@ -862,7 +829,11 @@ class ProjectEngine:
                     if ms.spec.get("ai_budget_usd") is not None and not context.get("_usage_seen"):
                         context["record_project_usage"]({})
             except Exception as exc:  # noqa: BLE001 — one task failing must not kill the loop
-                if execution_started and ms.spec.get("ai_budget_usd") is not None and not context.get("_usage_seen"):
+                if (
+                    execution_started
+                    and ms.spec.get("ai_budget_usd") is not None
+                    and not context.get("_usage_seen")
+                ):
                     from runtime.projectos.governance import record_usage
 
                     record_usage(self.store, project.id, {}, task_id=task.id, milestone_id=ms.id)
@@ -881,8 +852,11 @@ class ProjectEngine:
                 continue
             if current_cancellation_token().is_cancelled:
                 task.status = "pending"
-                task.qa_verdict = {"approved": False, "review_error": True,
-                                   "reason": "执行已停止，原产物待质量检查"}
+                task.qa_verdict = {
+                    "approved": False,
+                    "review_error": True,
+                    "reason": "执行已停止，原产物待质量检查",
+                }
                 self._commit_task_claim(task, claim_id, f"task_interrupted:{task.id}", events)
                 current_cancellation_token().throw_if_cancelled()
             try:
@@ -903,8 +877,11 @@ class ProjectEngine:
                 continue
             if current_cancellation_token().is_cancelled:
                 task.status = "pending"
-                task.qa_verdict = {"approved": False, "review_error": True,
-                                   "reason": "质量检查期间已停止，待重新检查"}
+                task.qa_verdict = {
+                    "approved": False,
+                    "review_error": True,
+                    "reason": "质量检查期间已停止，待重新检查",
+                }
                 self._commit_task_claim(task, claim_id, f"task_interrupted:{task.id}", events)
                 current_cancellation_token().throw_if_cancelled()
             task.qa_verdict = verdict
@@ -973,11 +950,14 @@ class ProjectEngine:
                     events.append(f"milestone_stale_block_ignored:{ms.id}")
                     return
                 events.append(
-                    f"milestone_blocked_human:{ms.id}" if awaiting_human
+                    f"milestone_blocked_human:{ms.id}"
+                    if awaiting_human
                     else f"milestone_blocked_dag:{ms.id}"
                 )
                 self._block_project(
-                    project, ms.id, events,
+                    project,
+                    ms.id,
+                    events,
                     reason="awaiting_human" if awaiting_human else "task_dag_blocked",
                 )
             return
@@ -1093,18 +1073,29 @@ class ProjectEngine:
             "success_criteria": ms.success_criteria,
             "done_outputs": {t.id: t.output for t in tasks if t.status == "done"},
             "prerequisite_outputs": {
-                dependency: {t.id: t.output for t in self.store.tasks_for_milestone(dependency)
-                             if t.status == "done"}
+                dependency: {
+                    t.id: t.output
+                    for t in self.store.tasks_for_milestone(dependency)
+                    if t.status == "done"
+                }
                 for dependency in ms.dependencies
             },
         }
         from runtime.projectos.governance import record_usage
 
         context["_usage_seen"] = []
+
         def observe_usage(result):
-            context["_usage_seen"].append(record_usage(
-                self.store, project.id, result, task_id=context.get("task_id", ""), milestone_id=ms.id,
-            ))
+            context["_usage_seen"].append(
+                record_usage(
+                    self.store,
+                    project.id,
+                    result,
+                    task_id=context.get("task_id", ""),
+                    milestone_id=ms.id,
+                )
+            )
+
         context["record_project_usage"] = observe_usage
         if self._resolve_thread_context is not None:
             resolved = self._resolve_thread_context(thread_id)
