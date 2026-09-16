@@ -2,7 +2,7 @@
 
 Pins 3 operator-facing improvements:
   1. Timeout raised from 300s → 900s (gives ~15 rounds instead of 5)
-  2. Custom agent_id fallback (sleep_researcher_eight → researcher)
+  2. Unknown agent IDs are rejected without substituting another role
   3. Retry-once on transient failures (timeout / connection errors)
 
 These tests mock call_subagent so they run fast without spawning real
@@ -118,123 +118,26 @@ def test_call_agent_passes_explicit_continuation_session(mock_subagent, mock_bui
 # ── Custom agent_id fallback ──────────────────────────────
 
 
-def test_custom_agent_id_resolves_to_researcher(mock_subagent, mock_builtins):
-    """sleep_researcher_eight → researcher (research-shaped name)."""
+@pytest.mark.parametrize("name", ["sleep_researcher_eight", "kyc_debugger_v2", "streaming-auditor", "custom_task_alpha"])
+def test_unknown_role_never_substitutes_builtin(mock_subagent, mock_builtins, name):
     from runtime.execution.suckers.delegation_skills import _call_agent
 
-    mock_subagent.return_value = {
-        "agent_id": "researcher",
-        "output": "done",
-        "success": True,
-    }
-
-    result = _call_agent(
-        agent_id="sleep_researcher_eight",
-        prompt="Investigate sleep patterns",
-    )
-
-    assert result["success"] is True
-    # Response should show the ORIGINAL custom name to the operator
-    assert result["agent_id"] == "sleep_researcher_eight"
-    assert result["resolved_to"] == "researcher"
-    assert result["custom_role"] == "sleep_researcher_eight"
-    # call_subagent was invoked with the RESOLVED builtin
-    call_args = mock_subagent.call_args
-    assert call_args[1]["agent_id"] == "researcher"
-    # Prompt was wrapped with role label
-    prompt = call_args[1]["prompt"]
-    assert "sleep_researcher_eight" in prompt
-    assert "Role:" in prompt
+    result = _call_agent(agent_id=name, prompt="Test delegation")
+    assert result["success"] is False
+    assert "not installed" in result["error"]
+    mock_subagent.assert_not_called()
 
 
-def test_custom_agent_id_debugger_shape(mock_subagent, mock_builtins):
-    """kyc_debugger_v2 → debugger (debug-shaped name)."""
-    from runtime.execution.suckers.delegation_skills import _call_agent
-
-    mock_subagent.return_value = {
-        "agent_id": "debugger",
-        "output": "fixed",
-        "success": True,
-    }
-
-    result = _call_agent(agent_id="kyc_debugger_v2", prompt="Fix KYC bug")
-
-    assert result["success"] is True
-    assert result["agent_id"] == "kyc_debugger_v2"
-    assert result["resolved_to"] == "debugger"
-    assert mock_subagent.call_args[1]["agent_id"] == "debugger"
-
-
-def test_custom_agent_id_audit_shape(mock_subagent, mock_builtins):
-    """streaming-auditor / typography-auditor → explorer (file-audit persona,
-    deadline-bounded) instead of the web-focused researcher."""
-    from runtime.execution.suckers.delegation_skills import _call_agent
-
-    mock_subagent.return_value = {
-        "agent_id": "explorer",
-        "output": "audit findings",
-        "success": True,
-    }
-
-    result = _call_agent(
-        agent_id="streaming-auditor",
-        prompt="Audit the frontend streaming UX",
-    )
-
-    assert result["success"] is True
-    assert result["agent_id"] == "streaming-auditor"
-    assert result["resolved_to"] == "explorer"
-    assert mock_subagent.call_args[1]["agent_id"] == "explorer"
-
-
-def test_custom_agent_id_generic_fallback(mock_subagent, mock_builtins):
-    """unknown_shape_foo → explorer/researcher/general (first available)."""
-    from runtime.execution.suckers.delegation_skills import _call_agent
-
-    mock_subagent.return_value = {
-        "agent_id": "explorer",
-        "output": "done",
-        "success": True,
-    }
-
-    result = _call_agent(agent_id="custom_task_alpha", prompt="Do thing")
-
-    assert result["success"] is True
-    # Fallback order: explorer, researcher, general
-    resolved = result.get("resolved_to")
-    assert resolved in {"explorer", "researcher", "general"}
-
-
-def test_custom_agent_id_parallel(mock_subagent, mock_builtins):
-    """Custom names work in _call_agent_parallel too."""
+def test_unknown_roles_parallel_do_not_spawn(mock_subagent, mock_builtins):
     from runtime.execution.suckers.delegation_skills import _call_agent_parallel
 
-    mock_subagent.return_value = {
-        "agent_id": "researcher",
-        "output": "result",
-        "success": True,
-    }
-
-    result = _call_agent_parallel(
-        specs=[
-            {"agent_id": "sleep_researcher_one", "prompt": "Task A"},
-            {"agent_id": "sleep_researcher_two", "prompt": "Task B"},
-        ],
-    )
-
-    assert result["ok"] is True
-    assert result["success_count"] == 2
-    # Both should have been resolved to researcher
-    assert mock_subagent.call_count == 2
-    requested_ids = {
-        call.kwargs["context"]["requested_agent_id"] for call in mock_subagent.call_args_list
-    }
-    assert requested_ids == {"sleep_researcher_one", "sleep_researcher_two"}
-    resolved_ids = {
-        call.kwargs["context"]["resolved_agent_id"] for call in mock_subagent.call_args_list
-    }
-    assert resolved_ids
-    assert resolved_ids <= {"explorer", "researcher", "general"}
+    result = _call_agent_parallel(specs=[
+        {"agent_id": "sleep_researcher_one", "prompt": "Task A"},
+        {"agent_id": "sleep_researcher_two", "prompt": "Task B"},
+    ])
+    assert result["ok"] is False
+    assert result["success_count"] == 0
+    mock_subagent.assert_not_called()
 
 
 def test_builtin_agent_id_not_wrapped(mock_subagent, mock_builtins):
@@ -432,7 +335,7 @@ def test_unknown_custom_name_no_fallback_available(mock_subagent):
     assert result["success"] is False
     # Either "no fallback" or "unknown subagent" depending on path
     err = result["error"].lower()
-    assert "unknown" in err or "no fallback" in err
+    assert "not installed" in err and "no substitute" in err
 
 
 def test_budget_exhausted_no_retry(mock_subagent, mock_builtins):

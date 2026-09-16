@@ -113,10 +113,9 @@ def _call_agent(
             "output": "",
             "success": False,
             "error": (
-                f"unknown subagent {target_raw!r} and no fallback builtin "
-                f"available. Available: {sorted(allowed)}. "
-                "If you really need delegation, pick one of these; "
-                "otherwise just do the work yourself."
+                f"HUB role {target_raw!r} is not installed or not runnable. "
+                f"Choose an installed role ID: {sorted(allowed)}. "
+                "No substitute role was spawned. Install a suitable role in HUB if needed."
             ),
         }
 
@@ -186,6 +185,7 @@ def _call_agent(
         },
         context,
     )
+    subagent_context = {**(subagent_context or {}), "_require_installed_market_role": True}
     if orch_budget is not None and not orch_budget.try_charge():
         return {
             "agent_id": target_raw,

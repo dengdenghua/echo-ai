@@ -7,6 +7,20 @@ orchestration guidance in their system prompts.
 
 from __future__ import annotations
 
+import pytest
+
+
+@pytest.fixture(autouse=True)
+def installed_guidance_roles(monkeypatch):
+    """Guidance tests operate on installed roles, not implicit builtin fallbacks."""
+    from runtime.execution.subagents import market_bridge
+
+    roles = {
+        name: market_bridge.MarketIdentity(name, name, "", "Guidance test role")
+        for name in ("reviewer", "architect", "researcher")
+    }
+    monkeypatch.setattr(market_bridge, "runnable_market_roles", lambda runner=None: roles)
+
 
 def test_delegation_guidance_injected_for_reviewer(monkeypatch):
     """Security reviewer gets delegation guidance when subdelegation enabled."""

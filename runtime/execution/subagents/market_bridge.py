@@ -30,6 +30,9 @@ def _normalize_name(value: str) -> str:
 
 
 def _avatar_url_for(agent_id: str, agent_dir: Path) -> str:
+    profile = _read_profile(agent_dir) or {}
+    if "avatar" in profile and profile["avatar"] in (None, False):
+        return ""
     for ext in _AVATAR_EXTS:
         path = agent_dir / f"avatar.{ext}"
         if path.is_file():
@@ -46,12 +49,14 @@ class MarketIdentity:
     avatar_url: str
     description: str
     soul_path: str = ""
+    icon: str = ""
 
     def to_dict(self) -> dict[str, Any]:
         return {
             "agent_id": self.agent_id,
             "display_name": self.display_name,
             "avatar_url": self.avatar_url,
+            "icon": self.icon,
             "description": self.description,
             "identity_source": "agent-market",
         }
@@ -63,9 +68,7 @@ def _read_profile(agent_dir: Path) -> dict[str, Any] | None:
         return None
     text = profile_path.read_text(encoding="utf-8")
     # profile.jsonc 允许 // 注释：解析前剥掉行注释（与 gateway 的 jsonc 读取一致）。
-    stripped = "\n".join(
-        line for line in text.splitlines() if not line.lstrip().startswith("//")
-    )
+    stripped = "\n".join(line for line in text.splitlines() if not line.lstrip().startswith("//"))
     try:
         data = json.loads(stripped)
     except (json.JSONDecodeError, ValueError):
@@ -108,6 +111,7 @@ def market_identity_index(
             avatar_url=_avatar_url_for(agent_id, agent_dir),
             description=str(profile.get("description") or ""),
             soul_path=str(soul_path) if soul_path.is_file() else "",
+            icon=str(profile.get("icon") or ""),
         )
         for key in {
             _normalize_name(agent_id),
@@ -118,15 +122,29 @@ def market_identity_index(
     return index
 
 
-def resolve_market_identity(
-    name: str, agents_root: Path | None = None
-) -> MarketIdentity | None:
+def resolve_market_identity(name: str, agents_root: Path | None = None) -> MarketIdentity | None:
     """子 agent 名字 → 市场角色身份（职位+头像）。未命中返回 None。"""
 
     key = _normalize_name(name)
     if not key:
         return None
     return market_identity_index(agents_root).get(key)
+
+
+def runnable_market_roles(runner: Any = None) -> dict[str, MarketIdentity]:
+    """Only installed roles with a loaded, executable role/tool policy."""
+    if runner is None:
+        from runtime.execution.subagents import get_sub_agent_runner
+
+        runner = get_sub_agent_runner()
+    registry = getattr(runner, "agent_registry", None)
+    if registry is None:
+        return {}
+    return {
+        identity.agent_id: identity
+        for identity in market_identity_index().values()
+        if registry.has(identity.agent_id)
+    }
 
 
 def market_definitions(
@@ -283,9 +301,7 @@ def auto_promote_if_unpositioned(
         from runtime.execution.agents.loader import default_agents_root
 
         agents_root = default_agents_root()
-    display_name = " ".join(
-        part.capitalize() for part in re.split(r"[-_]+", candidate) if part
-    )
+    display_name = " ".join(part.capitalize() for part in re.split(r"[-_]+", candidate) if part)
     preview = mission_preview.strip()
     charter = (
         f"You are {display_name} ({candidate}).\n\n"

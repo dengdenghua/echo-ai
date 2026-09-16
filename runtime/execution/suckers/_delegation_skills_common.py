@@ -85,23 +85,9 @@ def _emit_workflow_settlement(payload: dict[str, Any]) -> None:
         callback(payload)
 
 
-# ── Role visibility policy ────────────────────────────────
-# ``arbiter`` is internal (used by team-vote dispatcher).
-# ``researcher`` / ``debugger`` / ``explorer`` / ``reviewer`` exist in
-# BUILTIN_ROLES but are deliberately NOT advertised so the lead agent
-# does that work itself. They remain CALLABLE if the model knows
-# their name — that's a deliberate escape hatch, not a contradiction.
+# Internal review lenses remain available to host-owned workflows, not the
+# public role catalog. Public delegation is sourced from installed HUB roles.
 _INTERNAL_AGENTS: frozenset[str] = frozenset({"arbiter"})
-_ADVERTISED_BUILTINS: frozenset[str] = frozenset(
-    {
-        "architect",
-        "debugger",
-        "explorer",
-        "researcher",
-        "reviewer",
-        "security-review",
-    }
-)
 
 
 # ── Cheap-model routing policy ────────────────────────────
@@ -499,31 +485,27 @@ def _delegation_budget_exhausted_message(
 # ── Catalog rendering ─────────────────────────────────────
 
 
-def _format_role_catalog() -> str:
-    """Render the advertised specialist list.
+def _format_role_catalog(*, query: str = "", limit: int | None = None) -> str:
+    """Advertise the same installed HUB roles that public delegation accepts."""
+    from runtime.execution.subagents.market_bridge import runnable_market_roles
 
-    Delegation is still constrained by the prompt policy and per-turn
-    budget; the catalog itself should be honest about the roles that can
-    actually be called so swarm mode can split research/write/review work
-    without guessing hidden role names.
-    """
-    rows: list[tuple[str, str]] = []
-    try:
-        from .ephemeral_agents import BUILTIN_ROLES
-
-        for name in sorted(_ADVERTISED_BUILTINS):
-            role = BUILTIN_ROLES.get(name)
-            if role is None:
-                continue
-            desc = (role.description or "").strip().split("\n", 1)[0]
-            if len(desc) > 160:
-                desc = desc[:157] + "..."
-            rows.append((name, desc))
-    except Exception:  # noqa: BLE001
-        pass
-    if not rows:
-        return "  (no advertised subagents)"
-    return "\n".join(f"  - {name}: {desc}" for name, desc in rows)
+    roles = runnable_market_roles()
+    if not roles:
+        return "  (no runnable HUB roles installed; install a role in HUB first)"
+    query_lower = query.casefold()
+    ranked = sorted(
+        roles.items(),
+        key=lambda item: (
+            -(100 if item[0].casefold() in query_lower else 0)
+            -(50 if item[1].display_name.casefold() in query_lower else 0),
+            item[0],
+        ),
+    )
+    return "\n".join(
+        f"  - {name} ({identity.display_name}): {identity.description[:120]}"
+        for name, identity in ranked[:limit]
+        if name not in _INTERNAL_AGENTS
+    )
 
 
 def _display_name_for_agent_id(agent_id: str) -> str | None:
@@ -551,113 +533,17 @@ def _display_name_for_agent_id(agent_id: str) -> str | None:
 
 
 def _allowed_agent_ids() -> set[str]:
-    """Names of every subagent this skill is allowed to spawn — INCLUDES
-    the un-advertised builtins (researcher / debugger / explorer /
-    reviewer) as escape hatches, plus any user-defined ``.claude/agents/``
-    entries. We just don't advertise them."""
-    out: set[str] = set()
-    try:
-        from .ephemeral_agents import BUILTIN_ROLES
+    """Public delegation is restricted to runnable, installed HUB roles."""
+    from runtime.execution.subagents.market_bridge import runnable_market_roles
 
-        out.update(set(BUILTIN_ROLES.keys()) - _INTERNAL_AGENTS)
-    except Exception:  # noqa: BLE001
-        pass
-    try:
-        from runtime.execution.subagents import get_subagent_registry
-
-        reg = get_subagent_registry()
-        if reg is not None:
-            out.update(set(reg.all_names()) - _INTERNAL_AGENTS)
-    except Exception:  # noqa: BLE001
-        pass
-    try:
-        from runtime.execution.subagents import get_sub_agent_runner
-
-        runner = get_sub_agent_runner()
-        registry = getattr(runner, "agent_registry", None)
-        if registry is not None:
-            all_ids = getattr(registry, "all_ids", None)
-            if callable(all_ids):
-                out.update(set(all_ids()) - _INTERNAL_AGENTS)
-    except Exception:  # noqa: BLE001
-        pass
-    return out
-
-
-# ── Custom role-name resolution ──────────────────────────
-# Operators frequently want to name a delegation target after the
-# task ("sleep_researcher_eight" / "kyc_screener_alpha") rather than
-# pick one of the 6 advertised generic builtins. Forcing them to map
-# to "researcher" loses the task-shape signal in logs/UI and breaks
-# parallel runs that need distinct labels.
-#
-# Strategy: any unknown agent_id falls back to a generic builtin
-# (default ``researcher`` for research-shaped names, ``general`` for
-# everything else) AND injects the original name as a role label
-# into the subagent prompt — the LLM still understands the task
-# framing, the bridge logs preserve the custom name in metadata,
-# and the parent gets exactly the structured failures it requested.
-
-# Names that look research-y route to the cheap researcher builtin.
-_RESEARCH_NAME_HINTS: tuple[str, ...] = (
-    "research",
-    "researcher",
-    "explore",
-    "explorer",
-    "investigate",
-    "study",
-    "analyst",
-    "analyzer",
-    "fact_check",
-    "fact-check",
-    "scout",
-    "probe",
-    "screen",
-    "screener",
-    "audit",
-    "auditor",
-    "monitor",
-    "watcher",
-    "intel",
-)
+    return set(runnable_market_roles()) - _INTERNAL_AGENTS
 
 
 def _resolve_custom_agent_id(
     requested: str,
     allowed: set[str],
 ) -> tuple[str, str | None]:
-    """Resolve a possibly-custom ``requested`` name to a runnable
-    builtin agent_id. Returns ``(actual_id, role_label)`` where
-    ``role_label`` is the original name when fallback was used (None
-    when the requested name was already a real agent).
-
-    The role_label is later injected into the subagent prompt so the
-    LLM still sees the task-shaped framing the operator intended.
-    """
-    if requested in allowed:
-        return requested, None
-    lower = requested.lower()
-    # Audit-shaped → explorer (file traversal + grep + read, deadline-bounded).
-    # A local code audit is a read-only file review, not web research, so it
-    # must not collapse into the web-focused researcher persona.
-    if any(hint in lower for hint in ("audit", "审计")) and "explorer" in allowed:
-        return "explorer", requested
-    # Research-shaped → researcher (cheap model, broad search tools)
-    if any(hint in lower for hint in _RESEARCH_NAME_HINTS) and "researcher" in allowed:
-        return "researcher", requested
-    # Code-shaped → debugger or explorer
-    if (
-        any(hint in lower for hint in ("debug", "fix", "trace", "diagnose"))
-        and "debugger" in allowed
-    ):
-        return "debugger", requested
-    if any(hint in lower for hint in ("review", "critic", "audit_code")) and "reviewer" in allowed:
-        return "reviewer", requested
-    # Unknown shape → general/explorer fallback
-    for fallback in ("explorer", "researcher", "general"):
-        if fallback in allowed:
-            return fallback, requested
-    # No builtins at all — return as-is, caller will reject
+    """Keep the requested identity exact; callers reject unknown role IDs."""
     return requested, None
 
 

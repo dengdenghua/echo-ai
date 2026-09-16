@@ -590,46 +590,22 @@ def call_subagent(
             _role_display_name, _role_description = _role_display
     except Exception:  # noqa: BLE001 — identity enrichment is best-effort
         pass
-    # ── Market identity (职位 + 头像来自角色市场"我的安装") ──
-    # Precedence: an installed market role is the most specific intent —
-    # it overrides the builtin catalog's display name and supplies a real
-    # avatar URL. When the requested lane id matches nothing (no registry
-    # definition, no builtin role, no market role) this is a brand-new
-    # position invented mid-flight: auto-promote it into the market
-    # ("我的安装") so the next dispatch starts from a first-class role.
+    # Installed HUB identity supplies the visible name and avatar. Unknown
+    # names must never create a new market installation as a dispatch side effect.
     _market_avatar_url = ""
     _identity_source = ""
     try:
-        from runtime.execution.subagents.market_bridge import (
-            auto_promote_if_unpositioned,
-            resolve_market_identity,
-        )
+        from runtime.execution.subagents.market_bridge import resolve_market_identity
 
         _market = resolve_market_identity(_requested_agent_id or _role_label)
-        if _market is None:
-            _market = resolve_market_identity(_role_label)
         if _market is not None:
-            if _market.display_name:
-                _role_display_name = _market.display_name
+            _role_display_name = _market.display_name
+            _role_description = _market.description
             _market_avatar_url = _market.avatar_url
+            _avatar = _market.icon
             _identity_source = "agent-market"
-        else:
-            _promoted = auto_promote_if_unpositioned(
-                name=_requested_agent_id or _role_label,
-                has_registry_definition=bool(
-                    _REGISTRY is not None and _REGISTRY.has(_requested_agent_id)
-                ),
-                has_builtin_display=bool(_role_display_name),
-                mission_preview=(
-                    prompt[:600] if isinstance(prompt, str) else ""
-                ),
-            )
-            if _promoted is not None:
-                _role_display_name = _promoted["display_name"]
-                _market_avatar_url = _promoted["avatar_url"]
-                _identity_source = "agent-market-auto"
-    except Exception:  # noqa: BLE001 — market identity is best-effort
-        pass
+    except (OSError, ValueError):
+        _log.debug("could not resolve installed role identity", exc_info=True)
     _spawn_started_at = time.time()
 
     # ── Thread-scoped memory key ──
@@ -1848,6 +1824,7 @@ def _dispatch(
         len(prompt),
         timeout_s,
     )
+    from runtime.execution.subagents.market_bridge import runnable_market_roles
     from runtime.execution.suckers.ephemeral_agents import (
         EphemeralRoleDef,
         get_ephemeral_role_runner,
@@ -1856,8 +1833,15 @@ def _dispatch(
         run_ephemeral_role,
     )
 
+    selected_runner = runner if runner is not None else _RUNNER
+    market_role = runnable_market_roles(selected_runner).get(agent_id)
+    if (context or {}).get("_require_installed_market_role") and market_role is None:
+        return {
+            "agent_id": agent_id, "output": "", "success": False,
+            "error": "HUB role is no longer installed or runnable; no substitute was spawned.",
+        }
     registry = _REGISTRY
-    if registry is not None and registry.has(agent_id):
+    if market_role is None and registry is not None and registry.has(agent_id):
         definition = registry.get(agent_id)
         merged_context: dict[str, Any] = {
             **(context or {}),
@@ -1899,7 +1883,7 @@ def _dispatch(
             timeout_s=timeout_s,
         )
 
-    if is_ephemeral_role(agent_id):
+    if market_role is None and is_ephemeral_role(agent_id):
         merged_eph: dict[str, Any] = dict(context or {})
         if (
             use_cheap_model
@@ -1931,6 +1915,11 @@ def _dispatch(
         }
 
     merged_ctx: dict[str, Any] = dict(context or {})
+    if market_role is not None:
+        # Execute the full loaded role, never a prompt-only temporary copy or
+        # a same-named .claude definition with a different tool policy.
+        merged_ctx["subagent_scope"] = "market"
+        merged_ctx["subagent_source_path"] = market_role.soul_path
     merged_ctx["timeout_s"] = timeout_s
     resolve_backend = getattr(selected_runner, "execution_backend_for", None)
     try:
@@ -1984,6 +1973,11 @@ def _dispatch(
         "output": str(output) if output is not None else "",
         "success": True,
         "error": None,
+        **({"identity_source": "agent-market", "market_agent_id": agent_id,
+            "display_name": market_role.display_name,
+            "avatar_url": market_role.avatar_url,
+            "avatar": market_role.icon,
+            "role_source_path": market_role.soul_path} if market_role else {}),
     }
 
 
