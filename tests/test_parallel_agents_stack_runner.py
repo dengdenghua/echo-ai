@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import threading
 import time
+from contextlib import nullcontext
 from types import SimpleNamespace
 
 import pytest
@@ -30,6 +31,37 @@ from runtime.safety.auth import TrustEngine
 # ═══════════════════════════════════════════════════════════════
 # fixtures
 # ═══════════════════════════════════════════════════════════════
+
+
+@pytest.mark.parametrize("with_parent", [False, True])
+def test_native_role_session_keeps_role_and_parent_turn(with_parent, tmp_path):
+    from runtime.core.cerebrum.planner import PlannerError
+    from runtime.platform.process.session import Session, session_scope
+
+    registry = _build_registry()
+    role = registry.get("scout")
+    captured = {}
+
+    class Planner:
+        def plan(self, intent, **kwargs):
+            session = current_session()
+            captured.update(agent=session.agent, turn_id=session.turn_id)
+            raise PlannerError("stop after inspecting the execution session")
+
+    runner = make_stack_subagent_runner(
+        stack=SimpleNamespace(planner=Planner(), runtime=object()),
+        agent_registry=registry,
+    )
+    parent = Session(actor="tester", turn_id="parent-turn") if with_parent else None
+    with session_scope(parent) if parent is not None else nullcontext():
+        previous = current_session()
+        with pytest.raises(RuntimeError, match="planner error"):
+            runner("inspect session", subagent_name="scout", context={
+                "runtime_session_metadata": {"workspace_path": str(tmp_path)},
+            })
+        assert current_session() is previous
+    assert captured["agent"] is role
+    assert captured["turn_id"] == "parent-turn" if with_parent else bool(captured["turn_id"])
 
 
 def _build_stack():

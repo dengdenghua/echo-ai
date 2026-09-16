@@ -391,8 +391,10 @@ def make_stack_subagent_runner(
         with session_scope(
             Session(
                 actor=actor,
+                agent=agent,
                 thread_id=thread_id,
                 metadata=runtime_metadata,
+                **({"turn_id": parent.turn_id} if parent is not None else {}),
             )
         ):
             # A delegated task without an explicitly selected project is
