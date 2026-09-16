@@ -206,6 +206,15 @@ def create_plugin_hub_router(
 
     # ── Single plugin detail ───────────────────────────────────
 
+    @router.get("/plugins/{name}/diagnostics", dependencies=[Depends(_operator_dep)])
+    def get_automation_diagnostics(name: str):
+        from runtime.platform.plugins.automation_diagnostics import automation_diagnostics
+
+        try:
+            return automation_diagnostics(hub, name)
+        except KeyError as exc:
+            raise HTTPException(404, "Automation plugin not found") from exc
+
     @router.get("/plugins/{name}")
     def get_plugin_detail(name: str):
         """Return full metadata for a single plugin."""

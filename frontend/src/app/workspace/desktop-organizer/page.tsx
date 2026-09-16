@@ -20,7 +20,11 @@ import { useI18n } from "@/core/i18n/hooks";
 
 const DESKTOP_ORGANIZER_ENABLED_KEY = "echo:desktop-organizer-enabled";
 
-export default function DesktopOrganizerPage() {
+export default function DesktopOrganizerPage({
+  embedded = false,
+}: {
+  embedded?: boolean;
+}) {
   const { t } = useI18n();
   const { confirm, confirmDialog } = useConfirmDialog();
   const [enabled, setEnabled] = useState(false);
@@ -81,8 +85,8 @@ export default function DesktopOrganizerPage() {
   };
 
   return (
-    <WorkspaceContainer>
-      <WorkspaceBody>
+    <WorkspaceContainer className={embedded ? "!h-auto !p-0" : undefined}>
+      <WorkspaceBody className={embedded ? "overflow-visible pt-0" : undefined}>
         <div className="mx-auto flex w-full max-w-5xl flex-col gap-4 py-2">
           <section className="workspace-panel flex flex-col gap-5 p-4 md:p-6">
             <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
@@ -188,11 +192,13 @@ export default function DesktopOrganizerPage() {
               ) : (
                 <Button disabled>{t.desktopOrganizerPage.openAssistant}</Button>
               )}
-              <Button variant="outline" asChild>
-                <Link to="/workspace/realtime/new">
-                  {t.desktopOrganizerPage.backToWorkspace}
-                </Link>
-              </Button>
+              {!embedded && (
+                <Button variant="outline" asChild>
+                  <Link to="/workspace/realtime/new">
+                    {t.desktopOrganizerPage.backToWorkspace}
+                  </Link>
+                </Button>
+              )}
             </div>
           </section>
         </div>

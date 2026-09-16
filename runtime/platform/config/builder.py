@@ -74,9 +74,8 @@ class BuiltStack:
     runtime: GraphRuntime
     planner: Planner
     mcp_clients: list[Any] = field(default_factory=list)
-    # Host-owned PluginHub instance. The web composition layer binds this
-    # after constructing the hub so turn orchestration activates plugins in
-    # the same registry exposed by the operator API.
+    # Host-owned PluginHub, prepared before automation tool registration.
+    # Web composition attaches services to this same owner.
     plugin_hub: Any | None = None
     # Independent host service. External engines must not require a native
     # planner merely to review an escalated tool action.
@@ -133,6 +132,9 @@ class BuiltStack:
 
     def close_mcp_clients(self) -> None:
         """graceful shutdown · 逐个 close 长连 MCP client。"""
+        if self.plugin_hub is not None:
+            self.plugin_hub.stop_all()
+            self.plugin_hub.unload_all()
         for c in self.mcp_clients:
             with contextlib.suppress(Exception):
                 c.close()
@@ -158,6 +160,9 @@ def build_from_config(config: AgentConfig) -> BuiltStack:
     #    ``enable_web_skills`` controls external-web capability only; it must
     #    not silently remove filesystem writes, shell, git or test tools.
     registry = SkillRegistry()
+    from runtime.platform.plugins.automation import prepare_automation_plugins
+
+    plugin_hub = prepare_automation_plugins(registry, enable_web=config.enable_web_skills)
     from runtime.execution.all_skills import register_all, register_local
 
     if config.enable_web_skills:
@@ -310,6 +315,7 @@ def build_from_config(config: AgentConfig) -> BuiltStack:
         runtime=runtime,
         planner=planner,
         mcp_clients=mcp_clients,
+        plugin_hub=plugin_hub,
         approval_router=getattr(planner, "router", None),
     )
 

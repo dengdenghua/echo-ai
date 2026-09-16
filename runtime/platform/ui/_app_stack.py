@@ -229,13 +229,13 @@ def wire_stack(
                     try:
                         from runtime.execution.suckers.computer_use_loop import (
                             ModelRouterVisionPlanner,
-                            register_computer_use_loop,
                         )
                         from runtime.execution.suckers.desktop_grounding import (
                             combined_grounding,
                         )
+                        from runtime.platform.plugins.automation import configure_computer_vision
 
-                        register_computer_use_loop(
+                        configure_computer_vision(
                             stack.executor.registry,
                             ModelRouterVisionPlanner(
                                 router=router,

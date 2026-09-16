@@ -490,6 +490,37 @@ class PluginHub:
                 "; ".join(parts),
             )
 
+    def bind_host_services(self, **services: Any) -> None:
+        """Attach web host services to a hub already owning startup skills.
+
+        Existing service identities cannot be replaced. Loaded contexts see
+        the same services as plugins loaded later by the web composition.
+        """
+        allowed = {
+            "channel_manager",
+            "fastapi_app",
+            "event_bus",
+            "service_bus",
+            "tool_registry",
+            "prompt_registry",
+            "hook_registry",
+            "jobs_registry",
+        }
+        unknown = services.keys() - allowed
+        if unknown:
+            raise ValueError(f"unknown plugin host services: {sorted(unknown)}")
+        with self._lock_internal:
+            for name, value in services.items():
+                current = getattr(self, f"_{name}")
+                if current is not None and value is not None and current is not value:
+                    raise ValueError(f"plugin host service already bound: {name}")
+            for name, value in services.items():
+                if value is None:
+                    continue
+                setattr(self, f"_{name}", value)
+                for ctx in self._contexts.values():
+                    setattr(ctx, name, value)
+
     def load_all(self) -> list[str]:
         """Discover and load startup plugins in the plugin directory.
 

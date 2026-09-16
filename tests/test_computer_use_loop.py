@@ -17,6 +17,82 @@ from runtime.execution.suckers.computer_use_loop import (
     register_computer_use_loop,
 )
 
+
+@pytest.mark.parametrize("stage", ["before", "capture", "planning", "action", "wait"])
+def test_cancellation_prevents_following_actions(stage, monkeypatch, tmp_path):
+    from runtime.execution.suckers import computer_use_loop as loop
+
+    cancelled = stage == "before"
+    calls = []
+
+    def capture(**kwargs):
+        nonlocal cancelled
+        calls.append("capture")
+        Path(kwargs["path"]).write_bytes(b"test image")
+        cancelled = stage == "capture"
+        return {"path": kwargs["path"]}
+
+    class Planner:
+        def next_action(self, **kwargs):
+            nonlocal cancelled
+            calls.append("planning")
+            cancelled = stage == "planning"
+            return (
+                {"action": "wait", "ms": 60_000}
+                if stage == "wait"
+                else {"action": "click", "x": 1, "y": 1}
+            )
+
+    def dispatch(action):
+        nonlocal cancelled
+        calls.append("action")
+        cancelled = True
+        return {}
+
+    def sleep(_seconds):
+        nonlocal cancelled
+        cancelled = True
+
+    monkeypatch.setattr(loop, "_dispatch_action", dispatch)
+    monkeypatch.setattr(loop.time, "sleep", sleep)
+    result = _run_computer_use_loop(
+        "test",
+        Planner(),
+        screenshot_dir=str(tmp_path),
+        sandbox_dir=None,
+        max_iterations=3,
+        wait_between_ms=0,
+        stop_on_error=False,
+        capture_screen=capture,
+        cancellation_check=lambda: cancelled,
+    )
+    assert result["status"] == "cancelled"
+    assert calls.count("capture") <= 1
+    assert calls.count("action") == (1 if stage == "action" else 0)
+    if stage == "before":
+        assert calls == []
+    if stage == "capture":
+        assert "planning" not in calls
+
+
+def test_broken_cancellation_check_stops_before_screenshot(tmp_path):
+    def broken():
+        raise RuntimeError("lost host")
+
+    result = _run_computer_use_loop(
+        "test",
+        MockVisionPlanner(),
+        screenshot_dir=str(tmp_path),
+        sandbox_dir=None,
+        max_iterations=1,
+        wait_between_ms=0,
+        stop_on_error=False,
+        cancellation_check=broken,
+    )
+    assert result["status"] == "cancelled"
+    assert result["screenshots"] == []
+
+
 # ═══════════════════════════════════════════════════════════
 # Implementation note.
 # ═══════════════════════════════════════════════════════════

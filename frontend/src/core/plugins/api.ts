@@ -194,6 +194,54 @@ export async function getPluginRuntime(
 
 const HUB_BASE = `${getBackendBaseURL()}/api/plugin-hub`;
 
+export type HubLifecycleAction = "install" | "enable" | "disable" | "uninstall";
+
+export interface AutomationDiagnostics {
+  plugin_id: string;
+  lifecycle_active: boolean;
+  execution_status: "blocked" | "unverified";
+  checks: { id: string; status: string }[];
+  verification: "dependencies_and_connections_only";
+}
+
+export async function hubAutomationDiagnostics(
+  name: string,
+): Promise<AutomationDiagnostics> {
+  const res = await fetch(
+    `${HUB_BASE}/plugins/${encodeURIComponent(name)}/diagnostics`,
+    {
+      headers: authHeaders(),
+    },
+  );
+  if (!res.ok) throw new Error(`Diagnostics unavailable (${res.status})`);
+  return res.json() as Promise<AutomationDiagnostics>;
+}
+
+/** Persist lifecycle changes; factory uninstall keeps user data by default. */
+export async function hubChangeLifecycle(
+  name: string,
+  action: HubLifecycleAction,
+): Promise<void> {
+  const res = await fetch(
+    `${HUB_BASE}/plugins/${encodeURIComponent(name)}/${action}`,
+    {
+      method: "POST",
+      headers: jsonAuthHeaders(),
+      body: JSON.stringify({}),
+    },
+  );
+  if (!res.ok) {
+    const body = (await res.json().catch(() => null)) as {
+      detail?: unknown;
+    } | null;
+    throw new Error(
+      typeof body?.detail === "string"
+        ? body.detail
+        : `Plugin update failed (${res.status})`,
+    );
+  }
+}
+
 /** List all loaded plugins via PluginHub. */
 export async function hubListPlugins(): Promise<HubPluginInfo[]> {
   const res = await fetch(`${HUB_BASE}/plugins`, {

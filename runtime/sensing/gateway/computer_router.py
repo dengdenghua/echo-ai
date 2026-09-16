@@ -104,6 +104,9 @@ def create_computer_router(
                 jwt_issuer=jwt_issuer,
                 jwt_audience=jwt_audience,
             )
+        from runtime.platform.plugins.automation import require_automation_plugin
+
+        require_automation_plugin(request, "computer_control")
         return principal.actor_id if principal is not None else None
 
     router = APIRouter(

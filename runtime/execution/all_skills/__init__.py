@@ -528,6 +528,10 @@ def _register_groups(registry: SkillRegistry, groups: set[str] | frozenset[str])
             )
             continue
         try:
+            from runtime.platform.plugins.automation import register_managed_group
+
+            if register_managed_group(registry, name):
+                continue
             fn(registry)
         except Exception as exc:  # noqa: BLE001
             _log.warning(
@@ -610,6 +614,10 @@ def register_subset(
     for g in needed_groups:
         fn = _GROUP_REGISTRARS[g]
         try:
+            from runtime.platform.plugins.automation import register_managed_group
+
+            if register_managed_group(registry, g):
+                continue
             fn(registry)
         except Exception as exc:  # noqa: BLE001
             _log.warning(
@@ -644,7 +652,10 @@ def register_group(
     with contextlib.suppress(Exception):
         before = set(registry.all_names())
     try:
-        fn(registry)
+        from runtime.platform.plugins.automation import register_managed_group
+
+        if not register_managed_group(registry, group):
+            fn(registry)
     except Exception as exc:  # noqa: BLE001
         _log.warning(
             "register_group: group %r failed (%s: %s)",

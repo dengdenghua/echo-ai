@@ -637,14 +637,21 @@ def mount_routers_b(
         app.state.service_bus = _service_bus
 
         plugin_dir, bundled_plugin_dir = _plugin_hub_roots()
-        _hub = PluginHub(
-            # CloudCatalog always installs workbenches below the active app
-            # data root. PluginHub must use that same root in source checkouts
-            # as well as packaged deployments or newly installed runtime
-            # plugins cannot be discovered and activated.
-            plugin_dir=plugin_dir,
-            bundled_plugin_dir=bundled_plugin_dir,
-            skill_registry=state.registry,
+        _automation_runtime = getattr(state.registry, "automation_runtime", None)
+        _hub = (
+            getattr(stack, "plugin_hub", None)
+            or getattr(_automation_runtime, "hub", None)
+            or PluginHub(
+                # CloudCatalog always installs workbenches below the active app
+                # data root. PluginHub must use that same root in source checkouts
+                # as well as packaged deployments or newly installed runtime
+                # plugins cannot be discovered and activated.
+                plugin_dir=plugin_dir,
+                bundled_plugin_dir=bundled_plugin_dir,
+                skill_registry=state.registry,
+            )
+        )
+        _hub.bind_host_services(
             channel_manager=ctx.channel_manager,
             fastapi_app=app,
             service_bus=_service_bus,

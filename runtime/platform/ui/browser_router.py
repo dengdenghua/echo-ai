@@ -23,9 +23,9 @@ from fastapi import (
     Request,
     WebSocket,
     WebSocketDisconnect,
+    WebSocketException,
 )
 from fastapi.responses import FileResponse, Response
-from runtime.platform.ui._browser_thread_route import BrowserThreadRoute
 from starlette.requests import HTTPConnection
 
 from runtime.platform.process.paths import app_paths
@@ -39,6 +39,7 @@ from runtime.platform.ui._browser_router_helpers import (
     mark_session_closed,
     secure_profile_dir,
 )
+from runtime.platform.ui._browser_thread_route import BrowserThreadRoute
 from runtime.safety.auth.principal import require_operator, resolve_principal
 from runtime.safety.auth.websocket import accepted_auth_subprotocol
 from runtime.safety.replay.browser_desktop_replay import browser_session_replay_identity
@@ -87,6 +88,9 @@ def create_browser_router(
             jwt_issuer=jwt_issuer,
             jwt_audience=jwt_audience,
         )
+        from runtime.platform.plugins.automation import require_automation_plugin
+
+        require_automation_plugin(request, "browser_control")
 
     router = APIRouter(
         tags=["browser"], dependencies=[Depends(_auth_dep)], route_class=BrowserThreadRoute
@@ -877,6 +881,9 @@ def create_browser_router(
 
     @router.websocket("/api/browser/relay/ws")
     async def api_browser_relay_ws(websocket: WebSocket) -> None:
+        from runtime.platform.plugins.automation import automation_cancellation_check
+
+        cancelled = automation_cancellation_check(websocket, "browser_control")
         try:
             _require_relay_owner(websocket)
         except HTTPException as exc:
@@ -892,6 +899,16 @@ def create_browser_router(
         last_keepalive = time.monotonic()
         try:
             while True:
+                if cancelled():
+                    await websocket.close(code=4403, reason="browser plugin activation revoked")
+                    return
+                from runtime.platform.plugins.automation import require_automation_plugin
+
+                try:
+                    require_automation_plugin(websocket, "browser_control")
+                except WebSocketException as exc:
+                    await websocket.close(code=exc.code, reason=exc.reason)
+                    return
                 message: Any = None
                 with contextlib.suppress(TimeoutError):
                     message = await asyncio.wait_for(
@@ -957,6 +974,9 @@ def create_browser_router(
 
     @router.post("/api/browser/relay/command")
     def api_browser_relay_command(request: Request, body: dict[str, Any]) -> dict[str, Any]:
+        from runtime.platform.plugins.automation import automation_cancellation_check
+
+        cancelled = automation_cancellation_check(request, "browser_control")
         _require_relay_owner(request)
         last_seen = int(backend.browser_relay_state.get("last_seen") or 0)
         if not last_seen or (backend._now_ts() - last_seen) > 15:
@@ -1022,6 +1042,8 @@ def create_browser_router(
 
         results = backend.browser_relay_state.setdefault("command_results", {})
         while time.time() < deadline:
+            if cancelled():
+                break
             result = results.pop(command_id, None)
             if result is not None:
                 if (backend.browser_relay_state.get("control_lease") or {}).get(
@@ -1043,6 +1065,8 @@ def create_browser_router(
             ]
         if (backend.browser_relay_state.get("control_lease") or {}).get("command_id") == command_id:
             backend.browser_relay_state["control_lease"] = None
+        if cancelled():
+            raise HTTPException(503, "browser relay command cancelled: plugin activation revoked")
         raise HTTPException(504, "browser relay command timed out")
 
     @router.post("/api/browser/relay/result")

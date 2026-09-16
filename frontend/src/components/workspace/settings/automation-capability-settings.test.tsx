@@ -38,6 +38,12 @@ vi.mock("@/core/browser/api", () => ({
   updateBrowserConfig: api.updateBrowserConfig,
 }));
 
+vi.mock("@/core/plugins/api", () => ({
+  hubAutomationDiagnostics: async () => ({ execution_status: "unverified", checks: [] }),
+  hubListPlugins: async () => [],
+  hubChangeLifecycle: vi.fn(),
+}));
+
 describe("automation capability settings", () => {
   beforeEach(() => {
     vi.clearAllMocks();

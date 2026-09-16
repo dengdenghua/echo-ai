@@ -22,6 +22,8 @@ from runtime.platform.process.paths import app_paths
 
 ACTIVATION_SCHEMA = "echo.workbench_activation.v1"
 FACTORY_WORKBENCHES: dict[str, dict[str, str]] = {
+    "computer_control": {"version": "0.1.0", "data_dir_name": "computer-control"},
+    "browser_control": {"version": "0.1.0", "data_dir_name": "browser-control"},
     "narrative_studio": {
         "version": "0.2.0",
         "data_dir_name": "narrative-studio",

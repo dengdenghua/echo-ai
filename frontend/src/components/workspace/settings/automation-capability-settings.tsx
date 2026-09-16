@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import DesktopOrganizerPage from "@/app/workspace/desktop-organizer/page";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   CheckCircle2Icon,
@@ -41,6 +42,10 @@ import {
   saveCapabilities,
 } from "@/core/settings/capabilities-api";
 import { cn } from "@/lib/utils";
+import {
+  AutomationPluginCard,
+  AUTOMATION_PLUGINS_QUERY_KEY,
+} from "./automation-plugin-card";
 
 const CAPABILITIES_QUERY_KEY = ["automation-capabilities"] as const;
 const RELAY_QUERY_KEY = ["browser-relay-status"] as const;
@@ -71,6 +76,9 @@ function useCapabilitySettings() {
     mutationFn: (capabilities: Capabilities) => saveCapabilities(capabilities),
     onSuccess: (result) => {
       queryClient.setQueryData(CAPABILITIES_QUERY_KEY, result.capabilities);
+      void queryClient.invalidateQueries({
+        queryKey: AUTOMATION_PLUGINS_QUERY_KEY,
+      });
     },
   });
   const setCapability = async (key: keyof Capabilities, enabled: boolean) => {
@@ -296,6 +304,7 @@ export function BrowserAutomationSettingsPage() {
             : "Let Echo inspect, click, and type in browser tabs you authorize. Manage access and connection status here."
         }
       />
+      <AutomationPluginCard pluginId="browser_control" />
       <CapabilitySwitchCard
         title={zh ? "允许浏览器操作" : "Allow browser actions"}
         description={
@@ -565,6 +574,7 @@ export function DesktopAutomationSettingsPage() {
             : "Let Echo read the screen and operate local apps. The connected desktop executor performs native permission checks."
         }
       />
+      <AutomationPluginCard pluginId="computer_control" />
       <CapabilitySwitchCard
         title={zh ? "允许桌面操作" : "Allow desktop actions"}
         description={
@@ -650,6 +660,7 @@ export function DesktopAutomationSettingsPage() {
             : "System permissions and the Echo capability switch are separate gates; both must be ready."}
         </span>
       </div>
+      <DesktopOrganizerPage embedded />
     </div>
   );
 }
