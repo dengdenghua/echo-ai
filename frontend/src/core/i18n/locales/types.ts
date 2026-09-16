@@ -2939,6 +2939,10 @@ export interface Translations {
     approved: string;
     rejected: string;
     tools: {
+      project_initiation: string;
+      project_acceptance: string;
+      project_phase: string;
+      project_budget: string;
       bash: string;
       write_file: string;
       str_replace: string;
@@ -7267,6 +7271,16 @@ export interface Translations {
     installSuccess: (name: string) => string;
     installFailed: (name: string, reason: string) => string;
     detailTitle: (name: string) => string;
+    addExpert: string;
+    addingExpert: string;
+    startExpertChat: string;
+    manageExpert: string;
+    removeExpert: string;
+    removeExpertTitle: (name: string) => string;
+    removeExpertDescription: string;
+    removeExpertSuccess: (name: string) => string;
+    removeExpertFailed: string;
+    localExpertNotFound: string;
     detailProfession: string;
     detailQuickPrompts: string;
     detailTags: string;

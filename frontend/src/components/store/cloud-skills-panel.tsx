@@ -96,7 +96,6 @@ function sourceLabel(source?: string) {
     imported: "本地导入",
     echo: "echo",
     "echo-repository": "echo",
-    echo: "echo",
     openai: "OpenAI 官方",
     anthropic: "Anthropic 官方",
     vercel: "Vercel 官方",
@@ -375,7 +374,7 @@ export function CloudSkillsPanel({
     return [{ ...group, entry: matches.find(isInstalled) ?? matches[0]! }];
   });
 
-  const useSkill = (entry: SkillEntry) => {
+  const handleUseSkill = (entry: SkillEntry) => {
     const id =
       entry.local?.name ||
       [entry.name, ...(entry.cloud?.aliases ?? [])].find((name) =>
@@ -679,7 +678,7 @@ export function CloudSkillsPanel({
                           onClick={() =>
                             stateFor(entry)?.enabled === false
                               ? void manage(entry, "enable")
-                              : useSkill(entry)
+                              : handleUseSkill(entry)
                           }
                           aria-label={`${stateFor(entry)?.enabled === false ? "启用" : "使用"} ${displayName(entry)}`}
                         >
@@ -1070,7 +1069,7 @@ export function CloudSkillsPanel({
               {!detail.cloud?.catalog_only &&
                 isInstalled(detail) &&
                 stateFor(detail)?.enabled !== false && (
-                  <Button onClick={() => useSkill(detail)}>使用技能</Button>
+                  <Button onClick={() => handleUseSkill(detail)}>使用技能</Button>
                 )}
               {!isInstalled(detail) &&
                 detail.cloud &&

@@ -1,3 +1,4 @@
+import { SEARCH_ENGINES, type SearchEngine } from "./search-engines";
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 import {
   useEffect,
@@ -85,7 +86,8 @@ type DesktopPanelId =
   | "games"
   | "add"
   | "settings";
-type DesktopAppCategory = "workspace" | "ai" | "video" | "dev" | "knowledge";
+type DesktopAppCategory = "workspace" | "ai" | "video" | "dev" | "knowledge" | "tool";
+type DesktopAppGroupId = Exclude<DesktopAppCategory, "tool">;
 
 interface BrowserDesktopApp {
   name: string;
@@ -400,7 +402,7 @@ const AI_DESKTOP_APPS: BrowserDesktopApp[] = [
 ];
 
 const DESKTOP_APP_GROUPS: Array<{
-  id: DesktopAppCategory;
+  id: DesktopAppGroupId;
   appUrls: string[];
 }> = [
   {
@@ -447,39 +449,6 @@ const DESKTOP_SIDE_NAV: Array<{
   { id: "wallpaper", icon: ImageIcon },
   { id: "games", icon: Gamepad2Icon },
 ];
-
-const SEARCH_ENGINES = [
-  {
-    name: "Baidu",
-    url: "https://www.baidu.com/s?wd=",
-    icon: "Bai",
-    logoUrl: "https://www.baidu.com/favicon.ico",
-    accent: "bg-[#2f6bff] text-white",
-  },
-  {
-    name: "Google",
-    url: "https://www.google.com/search?q=",
-    icon: "G",
-    logoUrl: "https://www.google.com/favicon.ico",
-    accent: "bg-white text-[#4285f4]",
-  },
-  {
-    name: "Bing",
-    url: "https://www.bing.com/search?q=",
-    icon: "B",
-    logoUrl: "https://www.bing.com/favicon.ico",
-    accent: "bg-[#008373] text-white",
-  },
-  {
-    name: "GitHub",
-    url: "https://github.com/search?q=",
-    icon: "GH",
-    logoUrl: "https://github.githubassets.com/favicons/favicon.svg",
-    accent: "bg-[#24292f] text-white",
-  },
-];
-
-type SearchEngine = (typeof SEARCH_ENGINES)[number];
 
 function DesktopAppLogo({
   app,
@@ -1085,7 +1054,7 @@ export function BrowserHome({
   }, [selectedEngine]);
   const [enginePickerOpen, setEnginePickerOpen] = useState(false);
   const [openAppGroupId, setOpenAppGroupId] =
-    useState<DesktopAppCategory | null>(null);
+    useState<DesktopAppGroupId | null>(null);
   const [activePanel, setActivePanel] = useState<DesktopPanelId>("home");
   const [editMode, setEditMode] = useState(false);
   useEffect(() => {
@@ -1272,7 +1241,7 @@ export function BrowserHome({
   );
   const desktopAppGroups = useMemo(() => {
     const titles: Record<
-      DesktopAppCategory,
+      DesktopAppGroupId,
       { title: string; subtitle: string }
     > = {
       workspace: { title: "Echo 工作台", subtitle: "原生能力，一键直达" },
