@@ -486,6 +486,22 @@ def create_agent_world_router(
             return _template_to_agent_dict(template, installed=_read_install_state())
         raise HTTPException(404, f"agent not found: {agent_id}")
 
+    @router.get("/api/agent-market/store/{agent_id}/readiness")
+    def api_agent_market_readiness(agent_id: str) -> dict[str, Any]:
+        from runtime.execution.agents.readiness import inspect_role_registration
+
+        try:
+            agent_id = _require_safe_agent_id(agent_id)
+        except ValueError as exc:
+            raise HTTPException(400, str(exc)) from exc
+        if registry is None:
+            raise HTTPException(503, "role registry is unavailable")
+        try:
+            agent = registry.get(agent_id)
+        except KeyError as exc:
+            raise HTTPException(404, "role is not loaded") from exc
+        return inspect_role_registration(agent, skill_registry)
+
     @router.post(
         "/api/agent-market/store/{agent_id}/install",
         dependencies=[Depends(_admin_dep)],

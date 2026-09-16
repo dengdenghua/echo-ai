@@ -30,7 +30,7 @@ import json
 import os
 import re
 from collections.abc import Callable
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
@@ -551,6 +551,7 @@ class AgentTemplate:
     private_skills: list[str]
     capabilities: dict[str, Any]
     budget: dict[str, Any]
+    dependencies: dict[str, list[str]] = field(default_factory=dict)
 
 
 def parse_template(agent_dir: Path, shared_dir: Path) -> AgentTemplate:
@@ -585,6 +586,7 @@ def parse_template(agent_dir: Path, shared_dir: Path) -> AgentTemplate:
     caps_raw = profile.get("capabilities") or {}
     # ``budget: { max_tokens: 100000, max_usd: 1.0, max_iterations: 30 }``,
     budget_raw = profile.get("budget") or {}
+    from .dependencies import normalize_role_dependencies
 
     return AgentTemplate(
         agent_id=agent_id,
@@ -598,6 +600,7 @@ def parse_template(agent_dir: Path, shared_dir: Path) -> AgentTemplate:
         private_skills=list(tool_registry.get("private_skills") or []),
         capabilities=caps_raw if isinstance(caps_raw, dict) else {},
         budget=budget_raw if isinstance(budget_raw, dict) else {},
+        dependencies=normalize_role_dependencies(profile.get("dependencies")),
     )
 
 
@@ -625,6 +628,7 @@ def instantiate(template: AgentTemplate, runtime: GraphRuntime) -> Agent:
         extra_skills=template.private_skills,
         capabilities=template.capabilities,
         budget=template.budget,
+        dependencies=template.dependencies,
     )
 
 

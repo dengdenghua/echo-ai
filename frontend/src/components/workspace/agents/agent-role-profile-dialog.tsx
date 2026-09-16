@@ -63,6 +63,7 @@ import type { Translations } from "@/core/i18n/locales/types";
 import { cn } from "@/lib/utils";
 
 import { AgentArmsDialog } from "./agent-arms-dialog";
+import { RoleReadiness } from "./role-readiness";
 
 interface AgentRoleProfileDialogProps {
   agent: AgentWorldAgent | null;
@@ -229,31 +230,31 @@ function buildRoleProfileNotes(
   t: Translations,
 ): RoleProfileNotes {
   const key = `${agent.name} ${agent.display_name}`.toLowerCase();
-  if (key.includes("coder")) {
+  if (key.includes("coder") || agent.name === "kane") {
     return {
       bestFor: t.agentRoleProfile.coderBestFor,
       boundaries: t.agentRoleProfile.coderBoundaries,
     };
   }
-  if (key.includes("market_researcher") || key.includes("research")) {
+  if (agent.name === "noah" || key.includes("market_researcher") || key.includes("research")) {
     return {
       bestFor: t.agentRoleProfile.researcherBestFor,
       boundaries: t.agentRoleProfile.researcherBoundaries,
     };
   }
-  if (key.includes("vibe") || key.includes("growth")) {
+  if (agent.name === "luna" || key.includes("vibe") || key.includes("growth")) {
     return {
       bestFor: t.agentRoleProfile.growthBestFor,
       boundaries: t.agentRoleProfile.growthBoundaries,
     };
   }
-  if (key.includes("ecommerce") || key.includes("commerce")) {
+  if (agent.name === "shion" || key.includes("ecommerce") || key.includes("commerce")) {
     return {
       bestFor: t.agentRoleProfile.ecommerceBestFor,
       boundaries: t.agentRoleProfile.ecommerceBoundaries,
     };
   }
-  if (key.includes("aoi")) {
+  if (key.includes("aoi") || agent.name === "zero") {
     return {
       bestFor: t.agentRoleProfile.aoiBestFor,
       boundaries: t.agentRoleProfile.aoiBoundaries,
@@ -1585,11 +1586,6 @@ export function AgentRoleProfileDialog({
                         </div>
                       </div>
 
-                      <div className="flex items-center gap-2 text-ui-caption tracking-normal text-muted-foreground">
-                        <span className="h-1.5 w-1.5 rounded-full bg-primary" />
-                        {t.agentConfig.characterProfileReady}
-                      </div>
-
                       {canAssembleCapabilityPack ? (
                         <div className="rounded-lg border border-primary/20 bg-primary/10 p-2.5">
                           <div className="mb-2 text-ui-caption tracking-normal text-primary">
@@ -1613,6 +1609,15 @@ export function AgentRoleProfileDialog({
                     </div>
                   </div>
                 </div>
+
+                {open && agent.is_installed && (
+                  <div className="mt-2 shrink-0">
+                    <RoleReadiness
+                      agentId={agent.name}
+                      onConfigure={() => openArmsConfig("skills")}
+                    />
+                  </div>
+                )}
 
                 {/* Bottom Tabs Section */}
                 <div className="mt-3 shrink-0 space-y-2">

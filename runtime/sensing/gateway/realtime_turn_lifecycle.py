@@ -50,6 +50,7 @@ __all__ = [
     "_consume_paused_task_resume_intent",
     "_record_pending_resume_intent",
 ]
+from runtime.execution.agents.preparation import RolePreparationError
 from runtime.execution.engines import EngineSelectionError, ExecutionPhase
 from runtime.sensing.gateway._realtime_react_stream_helpers import (
     _should_use_direct_text_path,
@@ -1227,8 +1228,15 @@ async def _start_turn(
             )
             await execution.execute(TurnExecutionRequest(intent, text, validated.model))
         except Exception as exc:
-            _logger.exception("CerebrumRuntime: turn driver crashed: %s", turn_driver)
-            if isinstance(exc, EngineSelectionError):
+            if isinstance(exc, (EngineSelectionError, RolePreparationError)):
+                _logger.info("CerebrumRuntime: preparation requires attention: %s", type(exc).__name__)
+            else:
+                _logger.exception("CerebrumRuntime: turn driver crashed: %s", turn_driver)
+            if isinstance(exc, RolePreparationError):
+                selection_error = True
+                turn.error = {**exc.info, "message": str(exc)}
+                turn_driver = "role_preparation"
+            elif isinstance(exc, EngineSelectionError):
                 selection_error = True
                 turn.error = {
                     "code": "execution_unavailable",
@@ -1271,6 +1279,12 @@ async def _start_turn(
                     "failure_kind": "backpressure" if event_backpressure else "",
                     "cowork_mode": context.get("cowork_mode"),
                     "topology_id": topology_id or "",
+                    **({
+                        "engine": exc.engine.value,
+                        "reason": exc.reason,
+                        "disposition": "blocked_on_user",
+                    } if isinstance(exc, EngineSelectionError) else {}),
+                    **(exc.info if isinstance(exc, RolePreparationError) else {}),
                 },
             )
             turn.items.append(err)

@@ -23,6 +23,7 @@ class Agent:
         extra_skills: list[str] | None = None,
         capabilities: dict[str, Any] | None = None,
         budget: dict[str, Any] | None = None,
+        dependencies: dict[str, Any] | None = None,
     ) -> None:
         if not agent_id:
             raise ValueError("agent_id must be non-empty")
@@ -47,6 +48,9 @@ class Agent:
         # skills & permissions system.)
         self.capabilities: dict[str, Any] = dict(capabilities or {})
         self.budget: dict[str, Any] = dict(budget or {})
+        from .dependencies import normalize_role_dependencies
+
+        self.dependencies = normalize_role_dependencies(dependencies)
 
     def affinity(self) -> list[str]:
         agg: set[str] = set(self.extra_affinity)

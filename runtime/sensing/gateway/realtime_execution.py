@@ -118,6 +118,9 @@ async def select_turn_execution(
     reflection_fast_path: bool,
     coordinated: bool = False,
 ) -> ExecutionRoute:
+    from runtime.sensing.gateway.realtime_preparation import require_role_connections
+
+    await require_role_connections(turn, agent)
     context = intent.user_context or {}
     if context.get("cowork_group") and any(
         str(member).startswith("a2a_") for member in context.get("cowork_responders", [])
