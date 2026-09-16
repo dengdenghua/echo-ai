@@ -278,6 +278,10 @@ def run_role_sync(
     on_event: Callable[[dict[str, Any]], None] | None = None,
 ) -> str:
     """Run a delegated role inside the existing authenticated task ceiling."""
+    if on_event is None:
+        from runtime.execution.subagents.opencode_progress import progress_emitter
+
+        on_event = progress_emitter(agent.agent_id, context)
     try:
         asyncio.get_running_loop()
     except RuntimeError:

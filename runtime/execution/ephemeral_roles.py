@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import json
 from types import SimpleNamespace
 from typing import Any
 
@@ -57,56 +56,9 @@ def make_host_ephemeral_runner(stack: Any):
             capabilities={"execution_backend": "opencode_server"},
         )
         cancellation = current_cancellation_token()
-        tool_inputs: dict[str, dict[str, Any]] = {}
+        from runtime.execution.subagents.opencode_progress import progress_emitter
 
-        def emit(event):
-            from runtime.execution.suckers._ephemeral_events import (
-                _emit_sub_text_delta,
-                _emit_sub_tool_event,
-                _safe_ctx_emit,
-            )
-
-            emitter = context.get("event_emitter")
-            if event.get("type") == "text_delta":
-                _emit_sub_text_delta(
-                    call.role.id, 0, str(event.get("delta") or ""), emitter=emitter
-                )
-            elif event.get("type") in {"tool_start", "tool_end"}:
-                kind = "sub_tool_start" if event["type"] == "tool_start" else "sub_tool_end"
-                try:
-                    preview = event.get("input_preview")
-                    args = preview if isinstance(preview, dict) else json.loads(preview or "{}")
-                except (ValueError, TypeError):
-                    args = {}
-                if not isinstance(args, dict):
-                    args = {}
-                call_id = str(event.get("tool_call_id") or "")
-                if event["type"] == "tool_start":
-                    tool_inputs[call_id] = args
-                else:
-                    args = tool_inputs.pop(call_id, args)
-                _safe_ctx_emit(
-                    emitter,
-                    {
-                        "type": kind,
-                        "skill": event.get("tool_name"),
-                        "args": args,
-                        "status": "started"
-                        if kind == "sub_tool_start"
-                        else ("success" if event.get("success") else "error"),
-                        "execution_engine": "opencode",
-                    },
-                )
-                _emit_sub_tool_event(
-                    kind,
-                    role_id=call.role.id,
-                    iteration=0,
-                    tool_call=SimpleNamespace(
-                        id=event.get("tool_call_id"), name=event.get("tool_name"), input=args
-                    ),
-                    output=event.get("output_preview"),
-                    is_error=event.get("success") is False,
-                )
+        emit = progress_emitter(call.role.id, context)
 
         return run_role_sync(
             stack,
