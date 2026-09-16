@@ -33,6 +33,7 @@ PRIORITY_SKILLS: frozenset[str] = frozenset(
         "query_capability",
         "use_capability",
         "execute_skill",
+        "call_agent",
         "call_agent_parallel",
         "bb_keys",
         "bb_read",

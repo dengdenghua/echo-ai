@@ -129,10 +129,30 @@ def _has_explicit_non_tool_directive(text: str) -> bool:
     return bool(_NO_TOOL_DIRECTIVE_RE.search(text or ""))
 
 
+def _requests_role_tool(text: str) -> bool:
+    """A delegated child's reply/search constraints do not disable its parent tools."""
+    for clause in re.split(r"[。！？!?；;，,\n]", text):
+        match = re.search(
+            r"(?:调用|使用|执行|查询|用).{0,24}(?:call_agent|query_skill)|"
+            r"(?:派生|委派|派发|委托|\bspawn\b|\bdelegate\b).{0,30}"
+            r"(?:角色|子代理|子任务|成员|sub.?agent)|"
+            r"(?:echo_)?call_agent(?:_parallel)?\s*\(",
+            clause, re.IGNORECASE,
+        )
+        if match and not re.search(
+            r"不要|不用|无需|别|不需要|\b(?:do not|don't|never)\b",
+            clause[:match.start()], re.IGNORECASE,
+        ):
+            return True
+    return False
+
+
 def looks_like_plain_chat(goal: str) -> bool:
     """Return true for turns that are safe to answer without tools."""
     g = (goal or "").strip()
     if not g:
+        return False
+    if _requests_role_tool(g):
         return False
     if _has_explicit_non_tool_directive(g):
         return True
@@ -148,6 +168,8 @@ def looks_like_tool_intent(goal: str) -> bool:
     g = (goal or "").strip()
     if not g:
         return False
+    if _requests_role_tool(g):
+        return True
     if looks_like_plain_chat(g):
         return False
     if _RUNTIME_SURFACE_RE.search(g):

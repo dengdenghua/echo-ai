@@ -443,7 +443,7 @@ def _query_capability_for_registry(registry: SkillRegistry):
             return {"ok": False, "error": "capability_id is required"}
         entry = _find_capability(registry, cap_id, kind=kind)
         if entry is None:
-            return {"ok": False, "error": f"capability not found: {cap_id}"}
+            return _missing_capability(registry, cap_id)
         return {
             "ok": True,
             **_compact_entry(entry),
@@ -458,6 +458,19 @@ def _query_capability_for_registry(registry: SkillRegistry):
         }
 
     return _query_capability
+
+
+def _missing_capability(registry: SkillRegistry, cap_id: str) -> dict[str, Any]:
+    result: dict[str, Any] = {"ok": False, "error": f"capability not found: {cap_id}"}
+    if registry.has(cap_id):
+        result["registered_skill"] = cap_id
+        result["guidance"] = (
+            "This name identifies a registered skill, not a plugin or skill-pack capability. "
+            "Use query_skill for its arguments, then invoke its advertised tool directly. "
+            "If that tool is absent from the current turn's catalog, report the catalog limitation. "
+            "Do not retry it through use_capability or execute_skill."
+        )
+    return result
 
 
 def _coerce_args(args: Any) -> dict[str, Any]:
@@ -524,7 +537,7 @@ def _use_capability_for_registry(registry: SkillRegistry):
             return {"ok": False, "error": "capability_id is required"}
         entry = _find_capability(registry, cap_id)
         if entry is None:
-            return {"ok": False, "error": f"capability not found: {cap_id}"}
+            return _missing_capability(registry, cap_id)
         resolved = _resolve_action(registry, entry, _as_text(action))
         if not resolved:
             return {
