@@ -44,6 +44,43 @@ journal adapter.
 - A provider failure after a side effect is terminal until the effect ledger
   proves an idempotent continuation; it must not silently switch engines.
 
+## Capability admission (2026-09-13)
+
+Routing picks an engine; admission checks the picked engine can structurally
+serve the turn. `runtime/execution/engines.py` declares `EngineCapabilities`
+per engine (tools, vision, team orchestration, free tier, tool budget,
+credential scope), and `verify_engine_admission` rejects an impossible binding
+before the engine performs any effect.
+
+Requirements are derived from host-established facts only, never from reading
+the prompt. `select_turn_execution` builds them in `turn_capability_request`:
+
+| Requirement | Derived from | Why not the prompt |
+| --- | --- | --- |
+| vision | image attachment metadata, or `ParsedIntent.modalities` | "看这张图" with no attachment is not a vision task |
+
+`vision` is input-side: can a user-attached image reach the model. It says
+nothing about images coming back through tool results — the screenshot tools
+already return `ImageContent` over the OpenCode MCP, while the OpenCode turn
+driver still sends a text-only prompt.
+
+Team orchestration is deliberately **not** derived from `coordinated`,
+`topology_id` or `group_fanout`: those dispatch host schedulers, so the host —
+not the engine — runs that orchestration. Deriving it would reject the tested
+OpenCode coordinator path.
+
+Behaviour differs by who chose the engine:
+
+- explicit choice → fails closed with `EngineSelectionError(unmet=…,
+  alternatives=…)`, so the user learns why their pick cannot run;
+- `auto` → rebinds to a capable host path with reason
+  `capability_unmet:<requirement>`, because the user never pinned an engine.
+
+Both happen before any effect, so neither is recovery from a failed engine.
+
+> The "Routing policy" section above predates the three-engine host;
+> `select_execution_route` is the current authority for ordering.
+
 ## Removal gates
 
 The full Native loop can only be reduced after both providers produce complete

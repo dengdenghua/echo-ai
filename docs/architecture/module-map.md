@@ -54,24 +54,31 @@ Retired biomimetic names with no current dedicated package: `eyes`, `skin`,
 
 ## Runtime Path
 
-The default workspace turn enters through the realtime gateway, uses a fast
-reflex layer first, then a ReAct loop for tool-using work. `deep` mode opts into
-the older deliberative path:
+Workspace turns enter through the realtime gateway and bind one execution
+engine through `select_turn_execution` and `ExecutionSupervisor`. Local
+deployments default to OpenCode; non-local deployments default to Echo unless
+configured otherwise. Explicit task choices and role bindings affect selection.
 
 ```text
 request
   -> sensing/gateway/realtime_gateway
-  -> core/nerves/reflex
-  -> ReAct loop (default workspace slow path)
-  -> execution/tool_engine/ToolExecutor
+  -> sensing/gateway/realtime_turn_lifecycle
+  -> select_turn_execution + ExecutionSupervisor
+  -> OpenCode process / Codex App Server / Echo ReAct
+  -> host tools, permissions, budgets and verification
   -> journal + item protocol events
 
-deep mode:
+explicit project/team orchestration:
 request
-  -> core/cerebrum planner
-  -> core/graph_runtime TaskGraph runtime
-  -> synthesized answer
+  -> host project_os / group_fanout / swarm_mesh scheduler
+  -> member execution engines
+  -> shared evidence and task results
 ```
+
+`chat`, `react` and `deep` alone stay on the single-agent path; a `deep` label
+does not select DAG execution. Native reflex/ReAct and GraphRuntime remain
+available within their configured paths. Engine capability fallback before
+execution preserves any host project/team scheduler.
 
 ## Practical Navigation Guide
 

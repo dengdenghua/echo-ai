@@ -1,0 +1,1487 @@
+[
+  {
+    "id": "linear-mcp",
+    "name": "Linear",
+    "source": "connector",
+    "author": "WorkBuddy",
+    "installed": false,
+    "ownership_state": "echo_managed",
+    "ownership_label": "Echo 管理连接 · 授权后仍需验证"
+  },
+  {
+    "id": "canva-ai",
+    "name": "Canva可画",
+    "source": "connector",
+    "author": "WorkBuddy",
+    "installed": false,
+    "ownership_state": "echo_managed",
+    "ownership_label": "Echo 管理连接 · 授权后仍需验证"
+  },
+  {
+    "id": "tdx-connector",
+    "name": "通达信",
+    "source": "connector",
+    "author": "WorkBuddy",
+    "installed": false,
+    "ownership_state": "echo_managed",
+    "ownership_label": "Echo 管理连接 · 授权后仍需验证"
+  },
+  {
+    "id": "westock-mcp",
+    "name": "腾讯自选股",
+    "source": "connector",
+    "author": "WorkBuddy",
+    "installed": false,
+    "ownership_state": "echo_managed",
+    "ownership_label": "Echo 管理连接 · 授权后仍需验证"
+  },
+  {
+    "id": "qq-mail",
+    "name": "QQ邮箱",
+    "source": "connector",
+    "author": "WorkBuddy",
+    "installed": false,
+    "ownership_state": "echo_managed",
+    "ownership_label": "Echo 管理连接 · 授权后仍需验证"
+  },
+  {
+    "id": "ima-mcp",
+    "name": "ima知识库",
+    "source": "connector",
+    "author": "WorkBuddy",
+    "installed": false,
+    "ownership_state": "echo_managed",
+    "ownership_label": "Echo 管理连接 · 授权后仍需验证"
+  },
+  {
+    "id": "lexiang",
+    "name": "乐享知识库",
+    "source": "connector",
+    "author": "WorkBuddy",
+    "installed": false,
+    "ownership_state": "echo_managed",
+    "ownership_label": "Echo 管理连接 · 授权后仍需验证"
+  },
+  {
+    "id": "tencent-docs",
+    "name": "腾讯文档",
+    "source": "connector",
+    "author": "WorkBuddy",
+    "installed": false,
+    "ownership_state": "echo_managed",
+    "ownership_label": "Echo 管理连接 · 授权后仍需验证"
+  },
+  {
+    "id": "tencent-docs-oa",
+    "name": "腾讯文档企业版",
+    "source": "connector",
+    "author": "WorkBuddy",
+    "installed": false,
+    "ownership_state": "echo_managed",
+    "ownership_label": "Echo 管理连接 · 授权后仍需验证"
+  },
+  {
+    "id": "tmeet",
+    "name": "腾讯会议",
+    "source": "connector",
+    "author": "WorkBuddy",
+    "installed": false,
+    "ownership_state": "cli_unverified",
+    "ownership_label": "Echo 调用官方 CLI · 登录隔离待验证"
+  },
+  {
+    "id": "wecom",
+    "name": "企业微信",
+    "source": "connector",
+    "author": "WorkBuddy",
+    "installed": false,
+    "ownership_state": "cli_unverified",
+    "ownership_label": "Echo 调用官方 CLI · 登录隔离待验证"
+  },
+  {
+    "id": "feishu",
+    "name": "飞书",
+    "source": "connector",
+    "author": "WorkBuddy",
+    "installed": false,
+    "ownership_state": "cli_unverified",
+    "ownership_label": "Echo 调用官方 CLI · 登录隔离待验证"
+  },
+  {
+    "id": "dingtalk",
+    "name": "钉钉",
+    "source": "connector",
+    "author": "WorkBuddy",
+    "installed": false,
+    "ownership_state": "cli_unverified",
+    "ownership_label": "Echo 调用官方 CLI · 登录隔离待验证"
+  },
+  {
+    "id": "tencent-survey",
+    "name": "腾讯问卷",
+    "source": "connector",
+    "author": "WorkBuddy",
+    "installed": false,
+    "ownership_state": "echo_managed",
+    "ownership_label": "Echo 管理连接 · 授权后仍需验证"
+  },
+  {
+    "id": "tapd",
+    "name": "TAPD",
+    "source": "connector",
+    "author": "WorkBuddy",
+    "installed": false,
+    "ownership_state": "echo_managed",
+    "ownership_label": "Echo 管理连接 · 授权后仍需验证"
+  },
+  {
+    "id": "cnb-api",
+    "name": "CNB",
+    "source": "connector",
+    "author": "WorkBuddy",
+    "installed": false,
+    "ownership_state": "cli_unverified",
+    "ownership_label": "Echo 调用官方 CLI · 登录隔离待验证"
+  },
+  {
+    "id": "tencent-weiyun",
+    "name": "微云",
+    "source": "connector",
+    "author": "WorkBuddy",
+    "installed": false,
+    "ownership_state": "echo_managed",
+    "ownership_label": "Echo 管理连接 · 授权后仍需验证"
+  },
+  {
+    "id": "fbs-connector",
+    "name": "福帮手",
+    "source": "connector",
+    "author": "WorkBuddy",
+    "installed": false,
+    "ownership_state": "needs_adapter",
+    "ownership_label": "待 Echo 适配：存在第三方宿主专用配置"
+  },
+  {
+    "id": "kdocs",
+    "name": "金山文档",
+    "source": "connector",
+    "author": "WorkBuddy",
+    "installed": false,
+    "ownership_state": "needs_adapter",
+    "ownership_label": "待 Echo 适配：存在第三方宿主专用配置"
+  },
+  {
+    "id": "pkulaw",
+    "name": "北大法宝·法律智能检索",
+    "source": "connector",
+    "author": "WorkBuddy",
+    "installed": false,
+    "ownership_state": "echo_managed",
+    "ownership_label": "Echo 管理连接 · 授权后仍需验证"
+  },
+  {
+    "id": "qcc-company",
+    "name": "企查查",
+    "source": "connector",
+    "author": "WorkBuddy",
+    "installed": false,
+    "ownership_state": "echo_managed",
+    "ownership_label": "Echo 管理连接 · 授权后仍需验证"
+  },
+  {
+    "id": "tyc-mcp",
+    "name": "天眼查",
+    "source": "connector",
+    "author": "WorkBuddy",
+    "installed": false,
+    "ownership_state": "echo_managed",
+    "ownership_label": "Echo 管理连接 · 授权后仍需验证"
+  },
+  {
+    "id": "ctrip-wendao",
+    "name": "携程问道",
+    "source": "connector",
+    "author": "WorkBuddy",
+    "installed": false,
+    "ownership_state": "echo_managed",
+    "ownership_label": "Echo 管理连接 · 授权后仍需验证"
+  },
+  {
+    "id": "netease-mail",
+    "name": "网易邮箱",
+    "source": "connector",
+    "author": "WorkBuddy",
+    "installed": false,
+    "ownership_state": "echo_managed",
+    "ownership_label": "Echo 管理连接 · 授权后仍需验证"
+  },
+  {
+    "id": "baidu-netdisk",
+    "name": "百度网盘",
+    "source": "connector",
+    "author": "WorkBuddy",
+    "installed": false,
+    "ownership_state": "echo_managed",
+    "ownership_label": "Echo 管理连接 · 授权后仍需验证"
+  },
+  {
+    "id": "github",
+    "name": "GitHub",
+    "source": "connector",
+    "author": "WorkBuddy",
+    "installed": false,
+    "ownership_state": "echo_managed",
+    "ownership_label": "Echo 管理连接 · 授权后仍需验证"
+  },
+  {
+    "id": "notion",
+    "name": "Notion",
+    "source": "connector",
+    "author": "WorkBuddy",
+    "installed": false,
+    "ownership_state": "echo_managed",
+    "ownership_label": "Echo 管理连接 · 授权后仍需验证"
+  },
+  {
+    "id": "tencent-qidian-cs",
+    "name": "腾讯企点客服",
+    "source": "connector",
+    "author": "WorkBuddy",
+    "installed": false,
+    "ownership_state": "echo_managed",
+    "ownership_label": "Echo 管理连接 · 授权后仍需验证"
+  },
+  {
+    "id": "edgeone-pages",
+    "name": "EdgeOne Makers",
+    "source": "connector",
+    "author": "WorkBuddy",
+    "installed": false,
+    "ownership_state": "echo_managed",
+    "ownership_label": "Echo 管理连接 · 授权后仍需验证"
+  },
+  {
+    "id": "cloudbase",
+    "name": "腾讯云 CloudBase",
+    "source": "connector",
+    "author": "WorkBuddy",
+    "installed": false,
+    "ownership_state": "needs_adapter",
+    "ownership_label": "待 Echo 适配：存在第三方宿主专用配置"
+  },
+  {
+    "id": "bugly-token",
+    "name": "Bugly 质量概览",
+    "source": "connector",
+    "author": "WorkBuddy",
+    "installed": false,
+    "ownership_state": "echo_managed",
+    "ownership_label": "Echo 管理连接 · 授权后仍需验证"
+  },
+  {
+    "id": "neo-crm",
+    "name": "销售易CRM",
+    "source": "connector",
+    "author": "WorkBuddy",
+    "installed": false,
+    "ownership_state": "echo_managed",
+    "ownership_label": "Echo 管理连接 · 授权后仍需验证"
+  },
+  {
+    "id": "xiaoe-cloud-cli",
+    "name": "小鹅通",
+    "source": "connector",
+    "author": "WorkBuddy",
+    "installed": false,
+    "ownership_state": "echo_managed",
+    "ownership_label": "Echo 管理连接 · 授权后仍需验证"
+  },
+  {
+    "id": "yuandian-mcp",
+    "name": "华宇元典法律数据",
+    "source": "connector",
+    "author": "WorkBuddy",
+    "installed": false,
+    "ownership_state": "echo_managed",
+    "ownership_label": "Echo 管理连接 · 授权后仍需验证"
+  },
+  {
+    "id": "weisheng-scrm",
+    "name": "微盛企微管家SCRM",
+    "source": "connector",
+    "author": "WorkBuddy",
+    "installed": false,
+    "ownership_state": "echo_managed",
+    "ownership_label": "Echo 管理连接 · 授权后仍需验证"
+  },
+  {
+    "id": "zfs-fssc-ai",
+    "name": "中兴新云AI智报",
+    "source": "connector",
+    "author": "WorkBuddy",
+    "installed": false,
+    "ownership_state": "echo_managed",
+    "ownership_label": "Echo 管理连接 · 授权后仍需验证"
+  },
+  {
+    "id": "tencentads",
+    "name": "腾讯营销投放",
+    "source": "connector",
+    "author": "WorkBuddy",
+    "installed": false,
+    "ownership_state": "cli_unverified",
+    "ownership_label": "Echo 调用官方 CLI · 登录隔离待验证"
+  },
+  {
+    "id": "gildata",
+    "name": "恒生聚源 MCP",
+    "source": "connector",
+    "author": "WorkBuddy",
+    "installed": false,
+    "ownership_state": "echo_managed",
+    "ownership_label": "Echo 管理连接 · 授权后仍需验证"
+  },
+  {
+    "id": "tencent-map",
+    "name": "腾讯地图",
+    "source": "connector",
+    "author": "WorkBuddy",
+    "installed": false,
+    "ownership_state": "echo_managed",
+    "ownership_label": "Echo 管理连接 · 授权后仍需验证"
+  },
+  {
+    "id": "qixinhuiyan-mcp",
+    "name": "启信慧眼",
+    "source": "connector",
+    "author": "WorkBuddy",
+    "installed": false,
+    "ownership_state": "echo_managed",
+    "ownership_label": "Echo 管理连接 · 授权后仍需验证"
+  },
+  {
+    "id": "patsnap-search",
+    "name": "智慧芽专利&文献融合检索",
+    "source": "connector",
+    "author": "WorkBuddy",
+    "installed": false,
+    "ownership_state": "echo_managed",
+    "ownership_label": "Echo 管理连接 · 授权后仍需验证"
+  },
+  {
+    "id": "mastergo-vibe-mcp",
+    "name": "MasterGo 莫高设计",
+    "source": "connector",
+    "author": "WorkBuddy",
+    "installed": false,
+    "ownership_state": "echo_managed",
+    "ownership_label": "Echo 管理连接 · 授权后仍需验证"
+  },
+  {
+    "id": "tc-chengxin",
+    "name": "同程程心",
+    "source": "connector",
+    "author": "WorkBuddy",
+    "installed": false,
+    "ownership_state": "needs_adapter",
+    "ownership_label": "待 Echo 适配：存在第三方宿主专用配置"
+  },
+  {
+    "id": "agentkey",
+    "name": "AgentKey",
+    "source": "connector",
+    "author": "WorkBuddy",
+    "installed": false,
+    "ownership_state": "needs_adapter",
+    "ownership_label": "待 Echo 适配：存在第三方宿主专用配置"
+  },
+  {
+    "id": "zsxq",
+    "name": "知识星球",
+    "source": "connector",
+    "author": "WorkBuddy",
+    "installed": false,
+    "ownership_state": "cli_unverified",
+    "ownership_label": "Echo 调用官方 CLI · 登录隔离待验证"
+  },
+  {
+    "id": "tencent-health-nges",
+    "name": "腾讯健康NGES",
+    "source": "connector",
+    "author": "WorkBuddy",
+    "installed": false,
+    "ownership_state": "echo_managed",
+    "ownership_label": "Echo 管理连接 · 授权后仍需验证"
+  },
+  {
+    "id": "awesun",
+    "name": "向日葵远程控制",
+    "source": "connector",
+    "author": "WorkBuddy",
+    "installed": false,
+    "ownership_state": "cli_unverified",
+    "ownership_label": "Echo 调用官方 CLI · 登录隔离待验证"
+  },
+  {
+    "id": "canva",
+    "name": "Canva可画",
+    "source": "connector",
+    "author": "WorkBuddy",
+    "installed": false,
+    "ownership_state": "echo_managed",
+    "ownership_label": "Echo 管理连接 · 授权后仍需验证"
+  },
+  {
+    "id": "qingflow",
+    "name": "轻流",
+    "source": "connector",
+    "author": "WorkBuddy",
+    "installed": false,
+    "ownership_state": "echo_managed",
+    "ownership_label": "Echo 管理连接 · 授权后仍需验证"
+  },
+  {
+    "id": "wk-workbuddy",
+    "name": "威科先行",
+    "source": "connector",
+    "author": "WorkBuddy",
+    "installed": false,
+    "ownership_state": "echo_managed",
+    "ownership_label": "Echo 管理连接 · 授权后仍需验证"
+  },
+  {
+    "id": "fyopen-lawsearch",
+    "name": "法研·法律法规检索",
+    "source": "connector",
+    "author": "WorkBuddy",
+    "installed": false,
+    "ownership_state": "echo_managed",
+    "ownership_label": "Echo 管理连接 · 授权后仍需验证"
+  },
+  {
+    "id": "yzf-invoice-mcp-server",
+    "name": "云帐房AI开票",
+    "source": "connector",
+    "author": "WorkBuddy",
+    "installed": false,
+    "ownership_state": "echo_managed",
+    "ownership_label": "Echo 管理连接 · 授权后仍需验证"
+  },
+  {
+    "id": "tongzhou-fin-research",
+    "name": "同舟金融研究",
+    "source": "connector",
+    "author": "WorkBuddy",
+    "installed": false,
+    "ownership_state": "echo_managed",
+    "ownership_label": "Echo 管理连接 · 授权后仍需验证"
+  },
+  {
+    "id": "tec-do",
+    "name": "Tec-Do 2.0 广告与增长情报",
+    "source": "connector",
+    "author": "WorkBuddy",
+    "installed": false,
+    "ownership_state": "echo_managed",
+    "ownership_label": "Echo 管理连接 · 授权后仍需验证"
+  },
+  {
+    "id": "yingmi-mcp",
+    "name": "盈米MCP",
+    "source": "connector",
+    "author": "WorkBuddy",
+    "installed": false,
+    "ownership_state": "echo_managed",
+    "ownership_label": "Echo 管理连接 · 授权后仍需验证"
+  },
+  {
+    "id": "jinshuju",
+    "name": "金数据",
+    "source": "connector",
+    "author": "WorkBuddy",
+    "installed": false,
+    "ownership_state": "echo_managed",
+    "ownership_label": "Echo 管理连接 · 授权后仍需验证"
+  },
+  {
+    "id": "lovrabet-cli",
+    "name": "Lovrabet CLI",
+    "source": "connector",
+    "author": "WorkBuddy",
+    "installed": false,
+    "ownership_state": "needs_adapter",
+    "ownership_label": "待 Echo 适配：存在第三方宿主专用配置"
+  },
+  {
+    "id": "moka",
+    "name": "Moka HR 智能体",
+    "source": "connector",
+    "author": "WorkBuddy",
+    "installed": false,
+    "ownership_state": "echo_managed",
+    "ownership_label": "Echo 管理连接 · 授权后仍需验证"
+  },
+  {
+    "id": "infimind-ecommerce-image",
+    "name": "极睿电商生图",
+    "source": "connector",
+    "author": "WorkBuddy",
+    "installed": false,
+    "ownership_state": "echo_managed",
+    "ownership_label": "Echo 管理连接 · 授权后仍需验证"
+  },
+  {
+    "id": "infimind-video",
+    "name": "极睿视频",
+    "source": "connector",
+    "author": "WorkBuddy",
+    "installed": false,
+    "ownership_state": "echo_managed",
+    "ownership_label": "Echo 管理连接 · 授权后仍需验证"
+  },
+  {
+    "id": "linkfox-product-selection",
+    "name": "Linkfox 选品",
+    "source": "connector",
+    "author": "WorkBuddy",
+    "installed": false,
+    "ownership_state": "echo_managed",
+    "ownership_label": "Echo 管理连接 · 授权后仍需验证"
+  },
+  {
+    "id": "archive-hospital-mcp",
+    "name": "腾讯健康全周期管理平台",
+    "source": "connector",
+    "author": "WorkBuddy",
+    "installed": false,
+    "ownership_state": "echo_managed",
+    "ownership_label": "Echo 管理连接 · 授权后仍需验证"
+  },
+  {
+    "id": "lemonclaw",
+    "name": "LemonClaw",
+    "source": "connector",
+    "author": "WorkBuddy",
+    "installed": false,
+    "ownership_state": "cli_unverified",
+    "ownership_label": "Echo 调用官方 CLI · 登录隔离待验证"
+  },
+  {
+    "id": "emr-query",
+    "name": "弹性MapReduce",
+    "source": "connector",
+    "author": "WorkBuddy",
+    "installed": false,
+    "ownership_state": "cli_unverified",
+    "ownership_label": "Echo 调用官方 CLI · 登录隔离待验证"
+  },
+  {
+    "id": "wind-finance",
+    "name": "Wind 金融数据",
+    "source": "connector",
+    "author": "WorkBuddy",
+    "installed": false,
+    "ownership_state": "needs_adapter",
+    "ownership_label": "待 Echo 适配：存在第三方宿主专用配置"
+  },
+  {
+    "id": "textin-xparse",
+    "name": "TextIn xParse·智能文档解析",
+    "source": "connector",
+    "author": "WorkBuddy",
+    "installed": false,
+    "ownership_state": "needs_adapter",
+    "ownership_label": "待 Echo 适配：存在第三方宿主专用配置"
+  },
+  {
+    "id": "qcc-legal",
+    "name": "企查查·法律数据",
+    "source": "connector",
+    "author": "WorkBuddy",
+    "installed": false,
+    "ownership_state": "echo_managed",
+    "ownership_label": "Echo 管理连接 · 授权后仍需验证"
+  },
+  {
+    "id": "salesnail-instructor",
+    "name": "SalesNail 讲师",
+    "source": "connector",
+    "author": "WorkBuddy",
+    "installed": false,
+    "ownership_state": "echo_managed",
+    "ownership_label": "Echo 管理连接 · 授权后仍需验证"
+  },
+  {
+    "id": "mx-ds-mcp",
+    "name": "东方财富妙想MCP",
+    "source": "connector",
+    "author": "WorkBuddy",
+    "installed": false,
+    "ownership_state": "echo_managed",
+    "ownership_label": "Echo 管理连接 · 授权后仍需验证"
+  },
+  {
+    "id": "wps-knowledgebase",
+    "name": "WPS知识库",
+    "source": "connector",
+    "author": "WorkBuddy",
+    "installed": false,
+    "ownership_state": "needs_adapter",
+    "ownership_label": "待 Echo 适配：存在第三方宿主专用配置"
+  },
+  {
+    "id": "cisp-mcp",
+    "name": "水滴征信",
+    "source": "connector",
+    "author": "WorkBuddy",
+    "installed": false,
+    "ownership_state": "echo_managed",
+    "ownership_label": "Echo 管理连接 · 授权后仍需验证"
+  },
+  {
+    "id": "ai-hive",
+    "name": "AI-HIVE",
+    "source": "connector",
+    "author": "WorkBuddy",
+    "installed": false,
+    "ownership_state": "cli_unverified",
+    "ownership_label": "Echo 调用官方 CLI · 登录隔离待验证"
+  },
+  {
+    "id": "finenter",
+    "name": "进门投研",
+    "source": "connector",
+    "author": "WorkBuddy",
+    "installed": false,
+    "ownership_state": "echo_managed",
+    "ownership_label": "Echo 管理连接 · 授权后仍需验证"
+  },
+  {
+    "id": "77ircloud",
+    "name": "铱云AI供应链",
+    "source": "connector",
+    "author": "WorkBuddy",
+    "installed": false,
+    "ownership_state": "needs_adapter",
+    "ownership_label": "待 Echo 适配：存在第三方宿主专用配置"
+  },
+  {
+    "id": "chuhaijiang",
+    "name": "出海匠",
+    "source": "connector",
+    "author": "WorkBuddy",
+    "installed": false,
+    "ownership_state": "echo_managed",
+    "ownership_label": "Echo 管理连接 · 授权后仍需验证"
+  },
+  {
+    "id": "kuaicha-search",
+    "name": "同花顺快查企业数据",
+    "source": "connector",
+    "author": "WorkBuddy",
+    "installed": false,
+    "ownership_state": "needs_adapter",
+    "ownership_label": "待 Echo 适配：存在第三方宿主专用配置"
+  },
+  {
+    "id": "youshu-bd-mate",
+    "name": "有数智客 · 对公(To B)营销助手",
+    "source": "connector",
+    "author": "WorkBuddy",
+    "installed": false,
+    "ownership_state": "echo_managed",
+    "ownership_label": "Echo 管理连接 · 授权后仍需验证"
+  },
+  {
+    "id": "shanglv-mcp-gateway",
+    "name": "用友智能服务（AI BaaS）",
+    "source": "connector",
+    "author": "WorkBuddy",
+    "installed": false,
+    "ownership_state": "echo_managed",
+    "ownership_label": "Echo 管理连接 · 授权后仍需验证"
+  },
+  {
+    "id": "xingtu-claw-risk",
+    "name": "天创信用星图MCP",
+    "source": "connector",
+    "author": "WorkBuddy",
+    "installed": false,
+    "ownership_state": "echo_managed",
+    "ownership_label": "Echo 管理连接 · 授权后仍需验证"
+  },
+  {
+    "id": "mzl-trademark",
+    "name": "摩知轮商标查询",
+    "source": "connector",
+    "author": "WorkBuddy",
+    "installed": false,
+    "ownership_state": "echo_managed",
+    "ownership_label": "Echo 管理连接 · 授权后仍需验证"
+  },
+  {
+    "id": "picset-commerce-images",
+    "name": "Picset AI 电商图片",
+    "source": "connector",
+    "author": "WorkBuddy",
+    "installed": false,
+    "ownership_state": "echo_managed",
+    "ownership_label": "Echo 管理连接 · 授权后仍需验证"
+  },
+  {
+    "id": "picset-video-generation",
+    "name": "Picset AI 视频生成",
+    "source": "connector",
+    "author": "WorkBuddy",
+    "installed": false,
+    "ownership_state": "echo_managed",
+    "ownership_label": "Echo 管理连接 · 授权后仍需验证"
+  },
+  {
+    "id": "opendata",
+    "name": "及刻智能·时空数据MCP",
+    "source": "connector",
+    "author": "WorkBuddy",
+    "installed": false,
+    "ownership_state": "echo_managed",
+    "ownership_label": "Echo 管理连接 · 授权后仍需验证"
+  },
+  {
+    "id": "bazhuayu",
+    "name": "八爪鱼",
+    "source": "connector",
+    "author": "WorkBuddy",
+    "installed": false,
+    "ownership_state": "echo_managed",
+    "ownership_label": "Echo 管理连接 · 授权后仍需验证"
+  },
+  {
+    "id": "miaoda",
+    "name": "秒哒应用搭建",
+    "source": "connector",
+    "author": "WorkBuddy",
+    "installed": false,
+    "ownership_state": "needs_adapter",
+    "ownership_label": "待 Echo 适配：存在第三方宿主专用配置"
+  },
+  {
+    "id": "ezjoin-meeting",
+    "name": "EzyJoin智慧会议",
+    "source": "connector",
+    "author": "WorkBuddy",
+    "installed": false,
+    "ownership_state": "echo_managed",
+    "ownership_label": "Echo 管理连接 · 授权后仍需验证"
+  },
+  {
+    "id": "gangtise-mcp",
+    "name": "Gangtise投研",
+    "source": "connector",
+    "author": "WorkBuddy",
+    "installed": false,
+    "ownership_state": "echo_managed",
+    "ownership_label": "Echo 管理连接 · 授权后仍需验证"
+  },
+  {
+    "id": "jiushuyun",
+    "name": "九数云BI",
+    "source": "connector",
+    "author": "WorkBuddy",
+    "installed": false,
+    "ownership_state": "echo_managed",
+    "ownership_label": "Echo 管理连接 · 授权后仍需验证"
+  },
+  {
+    "id": "pandadata",
+    "name": "PandaData 金融数据",
+    "source": "connector",
+    "author": "WorkBuddy",
+    "installed": false,
+    "ownership_state": "echo_managed",
+    "ownership_label": "Echo 管理连接 · 授权后仍需验证"
+  },
+  {
+    "id": "kling-ai-plugin",
+    "name": "Kling AI",
+    "source": "connector",
+    "author": "WorkBuddy",
+    "installed": false,
+    "ownership_state": "echo_managed",
+    "ownership_label": "Echo 管理连接 · 授权后仍需验证"
+  },
+  {
+    "id": "seeyon-office-marketing-suite",
+    "name": "致远互联协同办公服务",
+    "source": "connector",
+    "author": "WorkBuddy",
+    "installed": false,
+    "ownership_state": "needs_adapter",
+    "ownership_label": "待 Echo 适配：存在第三方宿主专用配置"
+  },
+  {
+    "id": "woscli",
+    "name": "微盟 WOS CLI",
+    "source": "connector",
+    "author": "WorkBuddy",
+    "installed": false,
+    "ownership_state": "cli_unverified",
+    "ownership_label": "Echo 调用官方 CLI · 登录隔离待验证"
+  },
+  {
+    "id": "gongyi-open-mcp",
+    "name": "腾讯公益机构服务平台",
+    "source": "connector",
+    "author": "WorkBuddy",
+    "installed": false,
+    "ownership_state": "echo_managed",
+    "ownership_label": "Echo 管理连接 · 授权后仍需验证"
+  },
+  {
+    "id": "sharecrm",
+    "name": "纷享销客CRM",
+    "source": "connector",
+    "author": "WorkBuddy",
+    "installed": false,
+    "ownership_state": "needs_adapter",
+    "ownership_label": "待 Echo 适配：存在第三方宿主专用配置"
+  },
+  {
+    "id": "lingxing-mcp",
+    "name": "领星ERP",
+    "source": "connector",
+    "author": "WorkBuddy",
+    "installed": false,
+    "ownership_state": "echo_managed",
+    "ownership_label": "Echo 管理连接 · 授权后仍需验证"
+  },
+  {
+    "id": "salestouch",
+    "name": "SalesTouch 经营执行",
+    "source": "connector",
+    "author": "WorkBuddy",
+    "installed": false,
+    "ownership_state": "echo_managed",
+    "ownership_label": "Echo 管理连接 · 授权后仍需验证"
+  },
+  {
+    "id": "beisen-cli",
+    "name": "北森AI · HR专家",
+    "source": "connector",
+    "author": "WorkBuddy",
+    "installed": false,
+    "ownership_state": "cli_unverified",
+    "ownership_label": "Echo 调用官方 CLI · 登录隔离待验证"
+  },
+  {
+    "id": "dknowc-mcp",
+    "name": "深知可信工作台",
+    "source": "connector",
+    "author": "WorkBuddy",
+    "installed": false,
+    "ownership_state": "echo_managed",
+    "ownership_label": "Echo 管理连接 · 授权后仍需验证"
+  },
+  {
+    "id": "mglc",
+    "name": "芒果灵创 CLI",
+    "source": "connector",
+    "author": "WorkBuddy",
+    "installed": false,
+    "ownership_state": "needs_adapter",
+    "ownership_label": "待 Echo 适配：存在第三方宿主专用配置"
+  },
+  {
+    "id": "morningstar",
+    "name": "晨星 Morningstar",
+    "source": "connector",
+    "author": "WorkBuddy",
+    "installed": false,
+    "ownership_state": "echo_managed",
+    "ownership_label": "Echo 管理连接 · 授权后仍需验证"
+  },
+  {
+    "id": "sq-company-dynamic",
+    "name": "上奇产业通-企业动态追踪",
+    "source": "connector",
+    "author": "WorkBuddy",
+    "installed": false,
+    "ownership_state": "echo_managed",
+    "ownership_label": "Echo 管理连接 · 授权后仍需验证"
+  },
+  {
+    "id": "fazhi-law",
+    "name": "同花顺法律AI助手",
+    "source": "connector",
+    "author": "WorkBuddy",
+    "installed": false,
+    "ownership_state": "needs_adapter",
+    "ownership_label": "待 Echo 适配：存在第三方宿主专用配置"
+  },
+  {
+    "id": "tencent-tchouse-c",
+    "name": "腾讯云数据仓库 TCHouse-C",
+    "source": "connector",
+    "author": "WorkBuddy",
+    "installed": false,
+    "ownership_state": "echo_managed",
+    "ownership_label": "Echo 管理连接 · 授权后仍需验证"
+  },
+  {
+    "id": "ioa",
+    "name": "零信任安全 iOA",
+    "source": "connector",
+    "author": "WorkBuddy",
+    "installed": false,
+    "ownership_state": "cli_unverified",
+    "ownership_label": "Echo 调用官方 CLI · 登录隔离待验证"
+  },
+  {
+    "id": "teacher-assistant",
+    "name": "企鹅教师助手",
+    "source": "connector",
+    "author": "WorkBuddy",
+    "installed": false,
+    "ownership_state": "echo_managed",
+    "ownership_label": "Echo 管理连接 · 授权后仍需验证"
+  },
+  {
+    "id": "fanruan-growth-advisor",
+    "name": "帆软增长谋士",
+    "source": "connector",
+    "author": "WorkBuddy",
+    "installed": false,
+    "ownership_state": "echo_managed",
+    "ownership_label": "Echo 管理连接 · 授权后仍需验证"
+  },
+  {
+    "id": "flova",
+    "name": "Flova",
+    "source": "connector",
+    "author": "WorkBuddy",
+    "installed": false,
+    "ownership_state": "echo_managed",
+    "ownership_label": "Echo 管理连接 · 授权后仍需验证"
+  },
+  {
+    "id": "dcs-cloud",
+    "name": "DCS Cloud",
+    "source": "connector",
+    "author": "WorkBuddy",
+    "installed": false,
+    "ownership_state": "echo_managed",
+    "ownership_label": "Echo 管理连接 · 授权后仍需验证"
+  },
+  {
+    "id": "freebuff-cli",
+    "name": "Freebuff CLI",
+    "source": "connector",
+    "author": "WorkBuddy",
+    "installed": false,
+    "ownership_state": "cli_unverified",
+    "ownership_label": "Echo 调用官方 CLI · 登录隔离待验证"
+  },
+  {
+    "id": "opencode-zen",
+    "name": "OpenCode",
+    "source": "connector",
+    "author": "WorkBuddy",
+    "installed": true,
+    "ownership_state": "echo_managed",
+    "ownership_label": "Echo 管理连接 · 授权后仍需验证"
+  },
+  {
+    "id": "freebuff2api-community",
+    "name": "Freebuff2API Community Adapter",
+    "source": "connector",
+    "author": "WorkBuddy",
+    "installed": false,
+    "ownership_state": "echo_managed",
+    "ownership_label": "Echo 管理连接 · 授权后仍需验证"
+  },
+  {
+    "id": "documents",
+    "name": "Documents",
+    "source": "codex_plugin",
+    "author": "OpenAI",
+    "installed": true,
+    "ownership_state": "local_package_unverified",
+    "ownership_label": "Echo local package; provider authorization not verified"
+  },
+  {
+    "id": "pdf",
+    "name": "PDF",
+    "source": "codex_plugin",
+    "author": "OpenAI",
+    "installed": false,
+    "ownership_state": "local_package_unverified",
+    "ownership_label": "Echo local package; provider authorization not verified"
+  },
+  {
+    "id": "presentations",
+    "name": "Presentations",
+    "source": "codex_plugin",
+    "author": "OpenAI",
+    "installed": false,
+    "ownership_state": "local_package_unverified",
+    "ownership_label": "Echo local package; provider authorization not verified"
+  },
+  {
+    "id": "spreadsheets",
+    "name": "Spreadsheets",
+    "source": "codex_plugin",
+    "author": "OpenAI",
+    "installed": false,
+    "ownership_state": "local_package_unverified",
+    "ownership_label": "Echo local package; provider authorization not verified"
+  },
+  {
+    "id": "template-creator",
+    "name": "Template Creator",
+    "source": "codex_plugin",
+    "author": "OpenAI",
+    "installed": false,
+    "ownership_state": "local_package_unverified",
+    "ownership_label": "Echo local package; provider authorization not verified"
+  },
+  {
+    "id": "browser",
+    "name": "Browser",
+    "source": "codex_plugin",
+    "author": "OpenAI",
+    "installed": false,
+    "ownership_state": "local_package_unverified",
+    "ownership_label": "Echo local package; provider authorization not verified"
+  },
+  {
+    "id": "chrome",
+    "name": "Chrome",
+    "source": "codex_plugin",
+    "author": "OpenAI",
+    "installed": false,
+    "ownership_state": "local_package_unverified",
+    "ownership_label": "Echo local package; provider authorization not verified"
+  },
+  {
+    "id": "computer-use",
+    "name": "Computer Use",
+    "source": "codex_plugin",
+    "author": "OpenAI",
+    "installed": false,
+    "ownership_state": "local_package_unverified",
+    "ownership_label": "Echo local package; provider authorization not verified"
+  },
+  {
+    "id": "unified-computer-use",
+    "name": "unified-computer-use",
+    "source": "codex_plugin",
+    "author": "",
+    "installed": false,
+    "ownership_state": "local_package_unverified",
+    "ownership_label": "Echo local package; provider authorization not verified"
+  },
+  {
+    "id": "visualize",
+    "name": "Visualize",
+    "source": "codex_plugin",
+    "author": "OpenAI",
+    "installed": false,
+    "ownership_state": "local_package_unverified",
+    "ownership_label": "Echo local package; provider authorization not verified"
+  },
+  {
+    "id": "deep-research-work",
+    "name": "Deep Research",
+    "source": "codex_plugin",
+    "author": "OpenAI",
+    "installed": false,
+    "ownership_state": "local_package_unverified",
+    "ownership_label": "Echo local package; provider authorization not verified"
+  },
+  {
+    "id": "github",
+    "name": "GitHub",
+    "source": "codex_plugin",
+    "author": "OpenAI",
+    "installed": false,
+    "ownership_state": "local_package_unverified",
+    "ownership_label": "Echo local package; provider authorization not verified"
+  },
+  {
+    "id": "codex-app-tools",
+    "name": "codex-app-tools",
+    "source": "codex_plugin",
+    "author": "OpenAI",
+    "installed": false,
+    "ownership_state": "local_package_unverified",
+    "ownership_label": "Echo local package; provider authorization not verified"
+  },
+  {
+    "id": "solidworks-control",
+    "name": "SolidWorks 本地控制",
+    "source": "codex_plugin",
+    "author": "Local developer",
+    "installed": false,
+    "ownership_state": "local_package_unverified",
+    "ownership_label": "Echo local package; provider authorization not verified"
+  },
+  {
+    "id": "blender-control",
+    "name": "Blender 本地控制",
+    "source": "codex_plugin",
+    "author": "Local developer",
+    "installed": false,
+    "ownership_state": "local_package_unverified",
+    "ownership_label": "Echo local package; provider authorization not verified"
+  },
+  {
+    "id": "kicad-control",
+    "name": "KiCad 电路设计控制",
+    "source": "codex_plugin",
+    "author": "Local developer",
+    "installed": false,
+    "ownership_state": "local_package_unverified",
+    "ownership_label": "Echo local package; provider authorization not verified"
+  },
+  {
+    "id": "plugin-management",
+    "name": "Plugin Management",
+    "source": "codex_plugin",
+    "author": "OpenAI",
+    "installed": false,
+    "ownership_state": "local_package_unverified",
+    "ownership_label": "Echo local package; provider authorization not verified"
+  },
+  {
+    "id": "zemax-control",
+    "name": "Zemax Control",
+    "source": "codex_plugin",
+    "author": "Local developer",
+    "installed": false,
+    "ownership_state": "local_package_unverified",
+    "ownership_label": "Echo local package; provider authorization not verified"
+  },
+  {
+    "id": "echo-recorder",
+    "name": "Echo Recorder",
+    "source": "codex_plugin",
+    "author": "Echo",
+    "installed": false,
+    "ownership_state": "local_package_unverified",
+    "ownership_label": "Echo local package; provider authorization not verified"
+  },
+  {
+    "id": "airtable",
+    "name": "Airtable",
+    "source": "codex_plugin",
+    "author": "Airtable",
+    "installed": false,
+    "ownership_state": "local_package_unverified",
+    "ownership_label": "Echo local package; provider authorization not verified"
+  },
+  {
+    "id": "canva",
+    "name": "Canva",
+    "source": "codex_plugin",
+    "author": "Canva",
+    "installed": false,
+    "ownership_state": "local_package_unverified",
+    "ownership_label": "Echo local package; provider authorization not verified"
+  },
+  {
+    "id": "circleci",
+    "name": "CircleCI",
+    "source": "codex_plugin",
+    "author": "CircleCI",
+    "installed": false,
+    "ownership_state": "local_package_unverified",
+    "ownership_label": "Echo local package; provider authorization not verified"
+  },
+  {
+    "id": "coderabbit",
+    "name": "CodeRabbit",
+    "source": "codex_plugin",
+    "author": "CodeRabbit AI",
+    "installed": false,
+    "ownership_state": "local_package_unverified",
+    "ownership_label": "Echo local package; provider authorization not verified"
+  },
+  {
+    "id": "deepnote",
+    "name": "Deepnote",
+    "source": "codex_plugin",
+    "author": "Deepnote",
+    "installed": false,
+    "ownership_state": "local_package_unverified",
+    "ownership_label": "Echo local package; provider authorization not verified"
+  },
+  {
+    "id": "expo",
+    "name": "Expo",
+    "source": "codex_plugin",
+    "author": "Expo Team",
+    "installed": false,
+    "ownership_state": "local_package_unverified",
+    "ownership_label": "Echo local package; provider authorization not verified"
+  },
+  {
+    "id": "figma",
+    "name": "Figma",
+    "source": "codex_plugin",
+    "author": "Figma",
+    "installed": false,
+    "ownership_state": "local_package_unverified",
+    "ownership_label": "Echo local package; provider authorization not verified"
+  },
+  {
+    "id": "gmail",
+    "name": "Gmail",
+    "source": "codex_plugin",
+    "author": "OpenAI",
+    "installed": false,
+    "ownership_state": "local_package_unverified",
+    "ownership_label": "Echo local package; provider authorization not verified"
+  },
+  {
+    "id": "google-calendar",
+    "name": "Google Calendar",
+    "source": "codex_plugin",
+    "author": "OpenAI",
+    "installed": false,
+    "ownership_state": "local_package_unverified",
+    "ownership_label": "Echo local package; provider authorization not verified"
+  },
+  {
+    "id": "google-drive",
+    "name": "Google Drive",
+    "source": "codex_plugin",
+    "author": "OpenAI",
+    "installed": false,
+    "ownership_state": "local_package_unverified",
+    "ownership_label": "Echo local package; provider authorization not verified"
+  },
+  {
+    "id": "hex",
+    "name": "Hex",
+    "source": "codex_plugin",
+    "author": "OpenAI",
+    "installed": false,
+    "ownership_state": "local_package_unverified",
+    "ownership_label": "Echo local package; provider authorization not verified"
+  },
+  {
+    "id": "hubspot",
+    "name": "HubSpot",
+    "source": "codex_plugin",
+    "author": "HubSpot",
+    "installed": false,
+    "ownership_state": "local_package_unverified",
+    "ownership_label": "Echo local package; provider authorization not verified"
+  },
+  {
+    "id": "hugging-face",
+    "name": "Hugging Face",
+    "source": "codex_plugin",
+    "author": "Hugging Face",
+    "installed": false,
+    "ownership_state": "local_package_unverified",
+    "ownership_label": "Echo local package; provider authorization not verified"
+  },
+  {
+    "id": "linear",
+    "name": "Linear",
+    "source": "codex_plugin",
+    "author": "OpenAI",
+    "installed": false,
+    "ownership_state": "local_package_unverified",
+    "ownership_label": "Echo local package; provider authorization not verified"
+  },
+  {
+    "id": "neon-postgres",
+    "name": "Neon Postgres",
+    "source": "codex_plugin",
+    "author": "Neon",
+    "installed": false,
+    "ownership_state": "local_package_unverified",
+    "ownership_label": "Echo local package; provider authorization not verified"
+  },
+  {
+    "id": "netlify",
+    "name": "Netlify",
+    "source": "codex_plugin",
+    "author": "Netlify",
+    "installed": false,
+    "ownership_state": "local_package_unverified",
+    "ownership_label": "Echo local package; provider authorization not verified"
+  },
+  {
+    "id": "notion",
+    "name": "Notion",
+    "source": "codex_plugin",
+    "author": "OpenAI",
+    "installed": false,
+    "ownership_state": "local_package_unverified",
+    "ownership_label": "Echo local package; provider authorization not verified"
+  },
+  {
+    "id": "outlook-calendar",
+    "name": "Outlook Calendar",
+    "source": "codex_plugin",
+    "author": "OpenAI",
+    "installed": false,
+    "ownership_state": "local_package_unverified",
+    "ownership_label": "Echo local package; provider authorization not verified"
+  },
+  {
+    "id": "outlook-email",
+    "name": "Outlook Email",
+    "source": "codex_plugin",
+    "author": "OpenAI",
+    "installed": false,
+    "ownership_state": "local_package_unverified",
+    "ownership_label": "Echo local package; provider authorization not verified"
+  },
+  {
+    "id": "posthog",
+    "name": "PostHog",
+    "source": "codex_plugin",
+    "author": "PostHog",
+    "installed": false,
+    "ownership_state": "local_package_unverified",
+    "ownership_label": "Echo local package; provider authorization not verified"
+  },
+  {
+    "id": "product-design",
+    "name": "Product Design",
+    "source": "codex_plugin",
+    "author": "OpenAI",
+    "installed": false,
+    "ownership_state": "local_package_unverified",
+    "ownership_label": "Echo local package; provider authorization not verified"
+  },
+  {
+    "id": "remotion",
+    "name": "Remotion",
+    "source": "codex_plugin",
+    "author": "Remotion",
+    "installed": false,
+    "ownership_state": "local_package_unverified",
+    "ownership_label": "Echo local package; provider authorization not verified"
+  },
+  {
+    "id": "render",
+    "name": "Render",
+    "source": "codex_plugin",
+    "author": "Render",
+    "installed": false,
+    "ownership_state": "local_package_unverified",
+    "ownership_label": "Echo local package; provider authorization not verified"
+  },
+  {
+    "id": "sentry",
+    "name": "Sentry",
+    "source": "codex_plugin",
+    "author": "OpenAI",
+    "installed": false,
+    "ownership_state": "local_package_unverified",
+    "ownership_label": "Echo local package; provider authorization not verified"
+  },
+  {
+    "id": "sharepoint",
+    "name": "SharePoint",
+    "source": "codex_plugin",
+    "author": "OpenAI",
+    "installed": false,
+    "ownership_state": "local_package_unverified",
+    "ownership_label": "Echo local package; provider authorization not verified"
+  },
+  {
+    "id": "shopify",
+    "name": "Shopify",
+    "source": "codex_plugin",
+    "author": "Shopify",
+    "installed": false,
+    "ownership_state": "local_package_unverified",
+    "ownership_label": "Echo local package; provider authorization not verified"
+  },
+  {
+    "id": "slack",
+    "name": "Slack",
+    "source": "codex_plugin",
+    "author": "OpenAI",
+    "installed": false,
+    "ownership_state": "local_package_unverified",
+    "ownership_label": "Echo local package; provider authorization not verified"
+  },
+  {
+    "id": "stripe",
+    "name": "Stripe",
+    "source": "codex_plugin",
+    "author": "Stripe",
+    "installed": false,
+    "ownership_state": "local_package_unverified",
+    "ownership_label": "Echo local package; provider authorization not verified"
+  },
+  {
+    "id": "supabase",
+    "name": "Supabase",
+    "source": "codex_plugin",
+    "author": "Supabase",
+    "installed": false,
+    "ownership_state": "local_package_unverified",
+    "ownership_label": "Echo local package; provider authorization not verified"
+  },
+  {
+    "id": "teams",
+    "name": "Teams",
+    "source": "codex_plugin",
+    "author": "OpenAI",
+    "installed": false,
+    "ownership_state": "local_package_unverified",
+    "ownership_label": "Echo local package; provider authorization not verified"
+  },
+  {
+    "id": "temporal",
+    "name": "Temporal",
+    "source": "codex_plugin",
+    "author": "Temporal",
+    "installed": false,
+    "ownership_state": "local_package_unverified",
+    "ownership_label": "Echo local package; provider authorization not verified"
+  },
+  {
+    "id": "vercel",
+    "name": "Vercel",
+    "source": "codex_plugin",
+    "author": "Vercel Labs",
+    "installed": false,
+    "ownership_state": "local_package_unverified",
+    "ownership_label": "Echo local package; provider authorization not verified"
+  },
+  {
+    "id": "zotero",
+    "name": "Zotero",
+    "source": "codex_plugin",
+    "author": "OpenAI",
+    "installed": false,
+    "ownership_state": "local_package_unverified",
+    "ownership_label": "Echo local package; provider authorization not verified"
+  },
+  {
+    "id": "echo-android",
+    "name": "Android Automation",
+    "source": "codex_plugin",
+    "author": "EchoAI",
+    "installed": false,
+    "ownership_state": "local_package_unverified",
+    "ownership_label": "Echo local package; provider authorization not verified"
+  },
+  {
+    "id": "echo-ios",
+    "name": "iOS Automation",
+    "source": "codex_plugin",
+    "author": "EchoAI",
+    "installed": false,
+    "ownership_state": "local_package_unverified",
+    "ownership_label": "Echo local package; provider authorization not verified"
+  }
+]
