@@ -513,8 +513,10 @@ const OPTIONAL_GROUPS = {
   browser: ["playwright>=1.48"],
   desktop: [
     "pyautogui>=0.9.54",
-    "pillow>=10.0",
+    "pillow>=11.2",
     "uiautomation>=2.0; platform_system == 'Windows'",
+    "pywin32>=308; platform_system == 'Windows'",
+    "windows-capture>=2.0.1,<3; platform_system == 'Windows'",
   ],
   "code-intel": [
     "tree-sitter>=0.23",

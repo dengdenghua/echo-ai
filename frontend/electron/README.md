@@ -14,14 +14,18 @@
 ## 运行
 
 ```bash
-pnpm electron:dev    # 启动 Vite(:3000)并在就绪后拉起 Electron
+pnpm electron:dev    # 启动 Vite(:3310)并在就绪后拉起 Electron
 pnpm electron        # 仅拉起 Electron(假定 dev server 已在运行)
 ```
 
 后端默认 `http://127.0.0.1:8000`,可用 `ECHO_BACKEND_URL` 覆盖;
 桌面壳只接受无凭据、无额外路径的 loopback HTTP(S) origin(`127.0.0.1`、
 `localhost`、`::1`),远端或伪装 host 会在创建窗口前 fail-closed。
-前端地址可用 `ELECTRON_START_URL` 覆盖(默认 `http://127.0.0.1:3000`)。
+前端地址可用 `ELECTRON_START_URL` 覆盖(默认 `http://127.0.0.1:3310`)。
+
+浏览器自动化 HTTP 桥随主进程启动，通过 `data/bridge.json` 向后端发现。
+打开桌面端浏览器标签页后才会显示为可操作；Codex 内部预览页不是 Echo Electron 标签页。
+数据目录、目标限制及真实集成测试见 [自动化插件架构](../../docs/architecture/automation-plugins.md)。
 
 ## 打包渲染源
 

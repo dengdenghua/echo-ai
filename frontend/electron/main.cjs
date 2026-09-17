@@ -30,8 +30,12 @@ const {
 } = require("./backend-runtime.cjs");
 const petSidecar = require("./pet-sidecar.cjs");
 const desktopCore = require("./desktop-shell-core.cjs");
+const { selectPreviewSource } = require("./automation-preview.cjs");
 const desktopProtocol = require("./desktop-protocol.cjs");
 const mcpOAuthDeepLink = require("./mcp-oauth-deep-link.cjs");
+const { startBrowserControlBridge } = require("./browser-control-bridge.cjs");
+let browserControlBridge = null;
+let activeBrowserTabId = null;
 const {
   ensureDesktopConfigFile,
   ensureDesktopResources,
@@ -51,67 +55,21 @@ const SMOKE_TEST = process.argv.includes("--smoke-test");
 const SMOKE_TEST_BACKEND = process.argv.includes("--smoke-test-backend");
 const BUILT_RENDERER_SMOKE = SMOKE_TEST || SMOKE_TEST_BACKEND;
 
-function normalizePreviewMatchText(value) {
-  return String(value || "")
-    .trim()
-    .toLocaleLowerCase()
-    .replace(/[\s\u2013\u2014|:_-]+/g, " ");
-}
-
-function previewSourceScore(source, request) {
-  const sourceId = normalizePreviewMatchText(source?.id);
-  const sourceName = normalizePreviewMatchText(source?.name);
-  const targetId = normalizePreviewMatchText(request?.id);
-  const targetTitle = normalizePreviewMatchText(request?.title);
-  const appName = normalizePreviewMatchText(
-    request?.appName || request?.app_name || request?.appId || request?.app_id,
-  );
-  let score = source?.id?.startsWith("window:") ? 8 : 0;
-
-  if (targetId && sourceId.includes(targetId)) score += 180;
-  if (targetTitle) {
-    if (sourceName === targetTitle) score += 160;
-    else if (
-      sourceName.includes(targetTitle) ||
-      targetTitle.includes(sourceName)
-    ) {
-      score += 110;
-    }
-  }
-  if (appName && sourceName.includes(appName)) score += 70;
-  if (
-    request?.kind === "browser_tab" &&
-    /chrome|edge|chromium|brave|firefox|opera/.test(sourceName)
-  ) {
-    score += 20;
-  }
-  return score;
-}
-
 async function captureAutomationPreview(request = {}) {
   const width = Math.max(320, Math.min(1280, Number(request.width) || 800));
   const height = Math.max(180, Math.min(720, Number(request.height) || 450));
   try {
     const sources = await desktopCapturer.getSources({
-      types: ["window", "screen"],
+      types: ["window"],
       thumbnailSize: { width, height },
-      fetchWindowIcons: false,
+      fetchWindowIcons: true,
     });
     const usable = sources.filter(
       (source) => source?.thumbnail && !source.thumbnail.isEmpty(),
     );
-    const ranked = usable
-      .map((source) => ({
-        source,
-        score: previewSourceScore(source, request),
-      }))
-      .sort((left, right) => right.score - left.score);
-    const matched = ranked[0]?.score > 8;
-    const selected = matched
-      ? ranked[0]?.source
-      : usable.find((source) => source.id.startsWith("screen:")) || usable[0];
+    const selected = selectPreviewSource(usable, request);
     if (!selected) {
-      return { ok: false, error: "no capturable window or screen" };
+      return { ok: false, error: "Selected window is unavailable; select the window again" };
     }
     const size = selected.thumbnail.getSize();
     return {
@@ -121,7 +79,8 @@ async function captureAutomationPreview(request = {}) {
       height: size.height,
       sourceId: selected.id,
       sourceName: selected.name,
-      matched,
+      matched: true,
+      iconUrl: selected.appIcon?.toDataURL(),
     };
   } catch (err) {
     return { ok: false, error: err?.message || String(err) };
@@ -430,6 +389,68 @@ const js = {
   })()`,
 };
 
+function activeBrowserTarget() {
+  if (activeBrowserTabId == null || !mainWindow || mainWindow.isDestroyed())
+    return null;
+  try {
+    const target = wc(activeBrowserTabId);
+    return target.hostWebContents?.id === mainWindow.webContents.id
+      ? target
+      : null;
+  } catch {
+    return null;
+  }
+}
+
+async function runBrowserControlAction(target, action, data) {
+  if (action === "current-url") {
+    return { ok: true, url: target.getURL(), title: target.getTitle() };
+  }
+  if (action === "execute-js") {
+    return {
+      ok: true,
+      result: await target.executeJavaScript(String(data.code || ""), true),
+    };
+  }
+  if (action === "navigate") {
+    const url = new URL(String(data.url || ""));
+    if (!["http:", "https:"].includes(url.protocol))
+      throw new Error("unsupported URL");
+    await target.loadURL(url.href);
+    return { ok: true, url: target.getURL(), title: target.getTitle() };
+  }
+  if (action === "screenshot") {
+    const capture = await target.capturePage();
+    return { ok: true, dataUrl: capture.toDataURL(), ...capture.getSize() };
+  }
+  const scripts = {
+    click: () => js.click(String(data.selector || "")),
+    type: () =>
+      js.type(String(data.selector || ""), String(data.text || ""), data.clear),
+    scroll: () => js.scroll(data),
+    wait: () =>
+      js.waitFor(
+        String(data.selector || ""),
+        Math.max(1, Math.min(30000, Number(data.timeout) || 10000)),
+      ),
+    extract: () => js.extractText,
+    // Do not return input values: password and other filled fields can contain secrets.
+    state: () => `(() => {
+      const limit = ${Math.max(1, Math.min(100, Number(data.max_items) || 30))};
+      const items = [...document.querySelectorAll('a,button,input,textarea,select,[role="button"]')]
+        .filter(el => el.getClientRects().length).slice(0, limit).map(el => ({
+          tag: el.tagName.toLowerCase(), role: el.getAttribute('role'),
+          name: el.getAttribute('aria-label') || el.labels?.[0]?.innerText || el.innerText || '',
+          selector: el.id ? '#' + CSS.escape(el.id) : null,
+          type: el.getAttribute('type'), disabled: !!el.disabled
+        }));
+      return { ok: true, url: location.href, title: document.title, items };
+    })()`,
+  };
+  const result = await target.executeJavaScript(scripts[action](), true);
+  return { ok: true, ...result };
+}
+
 const DEVICE_PRESETS = {
   mobile: {
     width: 390,
@@ -513,10 +534,7 @@ function readPasswordVault() {
     return Array.isArray(entries) ? entries : [];
   } catch (error) {
     if (error?.code !== "ENOENT") {
-      console.warn(
-        "[echo] password vault could not be read:",
-        error.message,
-      );
+      console.warn("[echo] password vault could not be read:", error.message);
     }
     return [];
   }
@@ -555,10 +573,7 @@ function readSitePermissions() {
     return Array.isArray(entries) ? entries : [];
   } catch (error) {
     if (error?.code !== "ENOENT") {
-      console.warn(
-        "[echo] site permissions could not be read:",
-        error.message,
-      );
+      console.warn("[echo] site permissions could not be read:", error.message);
     }
     return [];
   }
@@ -765,10 +780,7 @@ async function loadEnabledExtensions() {
     try {
       await session.defaultSession.loadExtension(ext.path);
     } catch (err) {
-      console.warn(
-        `[echo] extension ${ext.name} failed to load:`,
-        err.message,
-      );
+      console.warn(`[echo] extension ${ext.name} failed to load:`, err.message);
     }
   }
 }
@@ -813,7 +825,7 @@ function registerIpc() {
       return { ok: false, reason: err.message };
     }
   });
-  handle("backend:ensureOptionalDeps", async (_e, group) => {
+  handle("backend:ensureOptionalDeps", async (group) => {
     if (!app.isPackaged) {
       return {
         ok: false,
@@ -877,7 +889,7 @@ function registerIpc() {
     ok: true,
     running: petSidecar.isPetRunning(),
   }));
-  handle("pet:sendEvent", (_e, state) => {
+  handle("pet:sendEvent", (state) => {
     if (!petEnabled()) return { ok: false, reason: "pet disabled" };
     const event = petSidecar.petEventForAgentState(state);
     if (!event) return { ok: false, reason: `unknown agent state: ${state}` };
@@ -886,7 +898,7 @@ function registerIpc() {
     });
     return { ok: sent, running: petSidecar.isPetRunning() };
   });
-  handle("pet:sendRaw", (_e, type, extra) => {
+  handle("pet:sendRaw", (type, extra) => {
     if (!petEnabled()) return { ok: false, reason: "pet disabled" };
     const sent = petSidecar.sendPetEvent(type, extra);
     return { ok: sent, running: petSidecar.isPetRunning() };
@@ -1030,10 +1042,7 @@ function registerIpc() {
       const exe = process.execPath; // path to the packaged Echo.exe
       const entries = [
         ["HKCU\\Software\\Classes\\*\\shell\\Echo", "Open with Echo"],
-        [
-          "HKCU\\Software\\Classes\\Directory\\shell\\Echo",
-          "Open with Echo",
-        ],
+        ["HKCU\\Software\\Classes\\Directory\\shell\\Echo", "Open with Echo"],
       ];
       for (const [key, label] of entries) {
         spawnSync("reg", ["add", key, "/d", label, "/f"], { stdio: "ignore" });
@@ -1427,8 +1436,25 @@ function registerIpc() {
   });
 
   // active-tab bridge (fire-and-forget from renderer)
-  ipcMain.on("bridge:setActiveTab", () => {
-    /* reserved for tab-aware main-process features */
+  ipcMain.on("bridge:setActiveTab", (event, id) => {
+    if (
+      !mainWindow ||
+      event.sender !== mainWindow.webContents ||
+      event.senderFrame !== event.sender.mainFrame
+    )
+      return;
+    if (id == null) {
+      activeBrowserTabId = null;
+      return;
+    }
+    activeBrowserTabId = null;
+    try {
+      const target = wc(id);
+      if (target.hostWebContents?.id === event.sender.id)
+        activeBrowserTabId = id;
+    } catch {
+      /* invalid or destroyed tab */
+    }
   });
 }
 
@@ -1562,7 +1588,9 @@ function createMainWindow() {
     },
   });
 
-  win.once("ready-to-show", () => win.show());
+  win.once("ready-to-show", () => {
+    if (!process.argv.includes("--hidden")) win.show();
+  });
   win.on("enter-full-screen", () => {
     win.webContents.send("window:fullscreen-changed", { fullScreen: true });
   });
@@ -1694,6 +1722,20 @@ if (!app.requestSingleInstanceLock()) {
     trackDownloads(session.defaultSession);
     trackDownloads(browserProfileSession());
     mainWindow = createMainWindow();
+    try {
+      const bridgeDataDir =
+        process.env.ECHO_DATA_DIR ||
+        (app.isPackaged || SMOKE_TEST_BACKEND
+          ? path.join(app.getPath("userData"), "data")
+          : path.resolve(__dirname, "../../data"));
+      browserControlBridge = await startBrowserControlBridge({
+        statePath: path.join(bridgeDataDir, "bridge.json"),
+        getTarget: activeBrowserTarget,
+        runAction: runBrowserControlAction,
+      });
+    } catch {
+      console.warn("[echo] browser control bridge could not start");
+    }
     // Create the window before starting the bundled backend so the renderer
     // can show a bounded startup state while /readyz becomes available.
     if (app.isPackaged || SMOKE_TEST_BACKEND) {
@@ -1739,9 +1781,7 @@ if (!app.requestSingleInstanceLock()) {
           .then((visible) => {
             if (visible) maybeStartPet();
             else
-              console.log(
-                "[echo] pet suppressed by settings (visible=false)",
-              );
+              console.log("[echo] pet suppressed by settings (visible=false)");
           })
           .catch(() => maybeStartPet());
       });
@@ -1771,6 +1811,7 @@ if (!app.requestSingleInstanceLock()) {
   // Clean up the packaged backend child process on quit (also covers
   // window-all-closed → app.quit() on non-macOS).
   app.on("before-quit", () => {
+    browserControlBridge?.close();
     killBackend();
     petSidecar.shutdown();
   });
