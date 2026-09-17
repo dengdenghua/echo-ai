@@ -6437,6 +6437,27 @@ export interface Translations {
     emptyHint: string;
   };
 
+  workspaceNote: {
+    title: string;
+    collapse: string;
+    refresh: string;
+    environmentSection: string;
+    changesLabel: string;
+    clean: string;
+    filesCount: (count: string) => string;
+    branchLabel: string;
+    detachedHead: string;
+    aheadBehind: (ahead: string, behind: string) => string;
+    pullRequestLabel: string;
+    pullRequestUnavailable: string;
+    pullRequestHint: string;
+    trackedOnly: string;
+    unavailable: string;
+    processSection: string;
+    processProgress: (current: number, total: number) => string;
+    processEmpty: string;
+  };
+
   codeWelcome: {
     title: string;
     fixBug: string;

@@ -7261,6 +7261,28 @@ export const koKR: Translations = {
     emptyHint: "에이전트가 파일을 수정하면 변경 사항이 여기에 표시됩니다",
   },
 
+  workspaceNote: {
+    title: "워크스페이스 메모",
+    collapse: "메모 접기",
+    refresh: "새로 고침",
+    environmentSection: "환경 정보",
+    changesLabel: "변경",
+    clean: "커밋되지 않은 변경 없음",
+    filesCount: (count) => `파일 ${count}개`,
+    branchLabel: "브랜치",
+    detachedHead: "분리된 HEAD",
+    aheadBehind: (ahead, behind) => `앞섬 ${ahead} / 뒤짐 ${behind}`,
+    pullRequestLabel: "풀 리퀘스트 상태",
+    pullRequestUnavailable: "풀 리퀘스트 상태를 가져올 수 없습니다",
+    pullRequestHint:
+      "echo 는 아직 풀 리퀘스트 데이터 소스를 연결하지 않았습니다. gh 또는 호스팅 API 를 연결하면 채워집니다.",
+    trackedOnly: "줄 수는 추적 중인 파일만 집계합니다.",
+    unavailable: "워크스페이스 상태를 읽지 못했습니다. 마지막 결과를 표시합니다.",
+    processSection: "진행",
+    processProgress: (current, total) => `${current}/${total}`,
+    processEmpty: "이번 실행에는 아직 단계 목록이 없습니다.",
+  },
+
   codeWelcome: {
     title: "무엇을 만들고 싶나요?",
     fixBug: "버그 수정",

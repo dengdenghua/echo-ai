@@ -7360,6 +7360,28 @@ export const jaJP: Translations = {
     emptyHint: "Agent がファイルを変更すると、ここに変更が表示されます",
   },
 
+  workspaceNote: {
+    title: "ワークスペースメモ",
+    collapse: "メモを折りたたむ",
+    refresh: "更新",
+    environmentSection: "環境情報",
+    changesLabel: "変更",
+    clean: "未コミットの変更はありません",
+    filesCount: (count) => `${count} ファイル`,
+    branchLabel: "ブランチ",
+    detachedHead: "デタッチド HEAD",
+    aheadBehind: (ahead, behind) => `先行 ${ahead} / 遅れ ${behind}`,
+    pullRequestLabel: "プルリクエストの状態",
+    pullRequestUnavailable: "プルリクエストの状態を取得できません",
+    pullRequestHint:
+      "echo はまだプルリクエストの取得元を接続していません。gh かホスト側 API を接続すると表示できます。",
+    trackedOnly: "行数は追跡済みファイルのみを集計します。",
+    unavailable: "ワークスペースの状態を取得できません。前回の内容を表示しています。",
+    processSection: "進捗",
+    processProgress: (current, total) => `${current}/${total}`,
+    processEmpty: "この実行のステップ一覧はまだありません。",
+  },
+
   codeWelcome: {
     title: "何を構築しますか？",
     fixBug: "バグを修正",
