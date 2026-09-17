@@ -7280,6 +7280,7 @@ export const koKR: Translations = {
     pullRequestHint:
       "echo 는 아직 풀 리퀘스트 데이터 소스를 연결하지 않았습니다. gh 또는 호스팅 API 를 연결하면 채워집니다.",
     trackedOnly: "줄 수는 추적 중인 파일만 집계합니다.",
+    diffUnavailable: "차이를 가져오지 못해 줄 수를 집계할 수 없습니다.",
     unavailable: "워크스페이스 상태를 읽지 못했습니다. 마지막 결과를 표시합니다.",
     processSection: "진행",
     processProgress: (current, total) => `${current}/${total}`,

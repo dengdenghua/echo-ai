@@ -93,6 +93,7 @@ def _empty_git_summary(error: str) -> dict[str, Any]:
         "ahead": 0,
         "behind": 0,
         "changed_files": 0,
+        "untracked_files": 0,
         "added": 0,
         "removed": 0,
         "error": error,
@@ -799,9 +800,12 @@ def register_endpoints(router: Any, ctx: _FsContext) -> None:
         badge that polls it stays cheap: branch, dirty-file count, ahead /
         behind against upstream, and added / removed line totals versus HEAD.
 
-        Untracked files are counted as files but can never contribute line
-        totals — ``git diff`` does not see them. That degradation is reported
-        through ``diff_error`` instead of silently reporting zero.
+        Untracked files are counted in ``changed_files`` but can never
+        contribute line totals — ``git diff`` does not see them. They are
+        therefore reported separately as ``untracked_files``, which is what
+        lets a caller tell "nothing changed" apart from "nothing *tracked*
+        changed, but N new files appeared" instead of reading a bare zero.
+        ``diff_error`` is reserved for ``git diff`` failing outright.
         """
         candidate = (
             Path(workspace_path).expanduser()
@@ -854,12 +858,16 @@ def register_endpoints(router: Any, ctx: _FsContext) -> None:
         ahead = 0
         behind = 0
         changed_files = 0
+        untracked_files = 0
         for line in status_proc.stdout.splitlines():
             if line.startswith("## "):
                 branch, upstream, ahead, behind = _parse_git_branch_line(line[3:])
                 continue
-            if len(line) >= 4:
-                changed_files += 1
+            if len(line) < 4:
+                continue
+            changed_files += 1
+            if line.startswith("??"):
+                untracked_files += 1
 
         added = 0
         removed = 0
@@ -895,6 +903,7 @@ def register_endpoints(router: Any, ctx: _FsContext) -> None:
             "ahead": ahead,
             "behind": behind,
             "changed_files": changed_files,
+            "untracked_files": untracked_files,
             "added": added,
             "removed": removed,
             "error": None,

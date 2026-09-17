@@ -6454,6 +6454,7 @@ export interface Translations {
     pullRequestUnavailable: string;
     pullRequestHint: string;
     trackedOnly: string;
+    diffUnavailable: string;
     unavailable: string;
     processSection: string;
     processProgress: (current: number, total: number) => string;

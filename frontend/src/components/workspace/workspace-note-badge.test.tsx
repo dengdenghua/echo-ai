@@ -11,6 +11,7 @@ interface SummaryPayload {
   ahead?: number;
   behind?: number;
   changed_files: number;
+  untracked_files?: number;
   added: number;
   removed: number;
   error?: string | null;
@@ -150,9 +151,31 @@ describe("<WorkspaceNoteBadge />", () => {
   });
 
   test("flags that line totals skip untracked files", async () => {
+    // The shape the endpoint actually returns for a brand-new untracked file:
+    // git diff succeeds, prints nothing, and the file count is non-zero.
     stubSummary({
       branch: "main",
       changed_files: 1,
+      untracked_files: 1,
+      added: 0,
+      removed: 0,
+    });
+
+    renderWithProviders(
+      <WorkspaceNoteBadge workDir="D:/echo-ai" events={[]} />,
+      { locale: "zh-CN" },
+    );
+
+    fireEvent.click(await screen.findByRole("button", { name: "概要便签" }));
+
+    expect(await screen.findByText("行数只统计已跟踪文件。")).toBeVisible();
+  });
+
+  test("blames the diff, not untracked files, when diffing itself fails", async () => {
+    stubSummary({
+      branch: "main",
+      changed_files: 2,
+      untracked_files: 0,
       added: 0,
       removed: 0,
       diff_error: "git diff failed",
@@ -165,7 +188,8 @@ describe("<WorkspaceNoteBadge />", () => {
 
     fireEvent.click(await screen.findByRole("button", { name: "概要便签" }));
 
-    expect(await screen.findByText("行数只统计已跟踪文件。")).toBeVisible();
+    expect(await screen.findByText("差异比对失败，无法统计行数。")).toBeVisible();
+    expect(screen.queryByText("行数只统计已跟踪文件。")).toBeNull();
   });
 
   test("escapes back to the one-line badge", async () => {

@@ -7379,6 +7379,7 @@ export const jaJP: Translations = {
     pullRequestHint:
       "echo はまだプルリクエストの取得元を接続していません。gh かホスト側 API を接続すると表示できます。",
     trackedOnly: "行数は追跡済みファイルのみを集計します。",
+    diffUnavailable: "差分の取得に失敗し、行数を集計できません。",
     unavailable: "ワークスペースの状態を取得できません。前回の内容を表示しています。",
     processSection: "進捗",
     processProgress: (current, total) => `${current}/${total}`,
