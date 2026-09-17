@@ -736,28 +736,45 @@ export function MessageGroup({
         message.type === "ai" &&
         message.additional_kwargs?.response_state === "interrupted",
     );
-  const clarificationContent = useMemo(
-    () =>
-      steps
-        .map((step) =>
-          step.type === "toolCall" &&
-          (step.name === "ask_clarification" ||
-            step.name === "ask_user_question")
-            ? typeof step.args.output === "string" && step.args.output.trim()
-              ? step.args.output
-              : typeof step.result === "string" && step.result.trim()
-                ? step.result
-                : null
-            : step.type === "reasoning"
-              ? step.reasoning
-              : step.type === "actionCallback"
-                ? step.actionText
-                : null,
-        )
-        .filter((value): value is string => Boolean(value?.trim()))
-        .join("\n\n"),
-    [steps],
-  );
+  const clarificationContent = useMemo(() => {
+    // A real ask_clarification / ask_user_question result is the canonical
+    // card source: use it on its own so surrounding reasoning text cannot
+    // break the structured-payload extraction.
+    const toolOutputs = steps
+      .map((step) => {
+        if (
+          step.type !== "toolCall" ||
+          (step.name !== "ask_clarification" &&
+            step.name !== "ask_user_question")
+        ) {
+          return null;
+        }
+        if (typeof step.args.output === "string" && step.args.output.trim()) {
+          return step.args.output;
+        }
+        if (typeof step.result === "string" && step.result.trim()) {
+          return step.result;
+        }
+        // Tool results are JSON-parsed when they arrive as a tool message;
+        // re-encode objects so the card can extract the payload.
+        if (step.result && typeof step.result === "object") {
+          return JSON.stringify(step.result);
+        }
+        return null;
+      })
+      .filter((value): value is string => Boolean(value?.trim()));
+    if (toolOutputs.length > 0) return toolOutputs.join("\n\n");
+    return steps
+      .map((step) =>
+        step.type === "reasoning"
+          ? step.reasoning
+          : step.type === "actionCallback"
+            ? step.actionText
+            : null,
+      )
+      .filter((value): value is string => Boolean(value?.trim()))
+      .join("\n\n");
+  }, [steps]);
   const effectiveClarificationContent =
     clarificationContent || externalClarificationContent || "";
   const timelineItems = useMemo(

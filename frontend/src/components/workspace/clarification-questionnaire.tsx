@@ -195,7 +195,60 @@ function collectCandidates(content: string): QuestionnaireCandidate[] {
     candidates.push({ block: content, json: trimmed });
   }
 
+  // Raw tool results can arrive embedded in surrounding prose (e.g. the
+  // ask_user_question result joined with reasoning text). Scan for a
+  // balanced JSON object containing the questionnaire marker.
+  if (candidates.length === 0 && content.includes(QUESTIONNAIRE_TYPE)) {
+    const embedded = extractBalancedJsonObject(content, QUESTIONNAIRE_TYPE);
+    if (embedded) candidates.push({ block: embedded, json: embedded });
+  }
+
   return candidates;
+}
+
+/**
+ * Find the smallest balanced `{...}` span that contains ``marker`` and
+ * parses as JSON. String-aware so braces inside option text don't break
+ * the scan. Returns null when no valid object is found.
+ */
+function extractBalancedJsonObject(
+  content: string,
+  marker: string,
+): string | null {
+  const markerIndex = content.indexOf(marker);
+  if (markerIndex < 0) return null;
+  for (let start = content.lastIndexOf("{", markerIndex); start >= 0; start = content.lastIndexOf("{", start - 1)) {
+    let depth = 0;
+    let inString = false;
+    let escaped = false;
+    for (let index = start; index < content.length; index += 1) {
+      const char = content[index]!;
+      if (inString) {
+        if (escaped) escaped = false;
+        else if (char === "\\") escaped = true;
+        else if (char === '"') inString = false;
+        continue;
+      }
+      if (char === '"') inString = true;
+      else if (char === "{") depth += 1;
+      else if (char === "}") {
+        depth -= 1;
+        if (depth === 0) {
+          const slice = content.slice(start, index + 1);
+          if (slice.includes(marker)) {
+            try {
+              JSON.parse(slice);
+              return slice;
+            } catch {
+              break;
+            }
+          }
+          break;
+        }
+      }
+    }
+  }
+  return null;
 }
 
 function historicalOptions(title: string): ClarificationQuestionnaireOption[] {
