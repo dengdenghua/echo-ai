@@ -9,6 +9,7 @@
  * （见 docs/architecture/blocks.md §2）。
  */
 import { CheckIcon, PlusIcon } from "lucide-react";
+import { WebShortcutEditor } from "./web-shortcut-editor";
 
 import {
   Dialog,
@@ -67,6 +68,7 @@ export function ModuleEditorDialog({
         </DialogHeader>
 
         <div className="max-h-[calc(80vh-4.5rem)] overflow-y-auto px-5 py-4">
+          <WebShortcutEditor />
           {MODULE_GROUP_ORDER.map((group) => (
             <ModuleGroupSection
               key={group}

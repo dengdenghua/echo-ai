@@ -18,6 +18,7 @@ import {
   useSyncExternalStore,
   type MutableRefObject,
   type RefObject,
+  type ReactNode,
 } from "react";
 
 import { ChainOfThought } from "@/components/ai-elements/chain-of-thought";
@@ -71,6 +72,11 @@ import {
   type FactSummary,
 } from "./fact-summary";
 import { GroundingChip } from "./grounding-chip";
+import { ToolResourceReferences } from "./tool-resource-references";
+import {
+  automationTargetFrom,
+  toolResources,
+} from "@/core/automation/references";
 import { MarkdownContent } from "./markdown-content";
 import { stripTraceLabelPrefixes } from "./trace-labels";
 import {
@@ -90,6 +96,7 @@ import {
   isExecutionTimelineItem,
 } from "./timeline-pipeline";
 import { projectToolNarrative } from "./narrative-block";
+import { formatProcessReplayLabel } from "./process-replay-label";
 
 const HIDDEN_TIMELINE_TOOL_NAMES = new Set([
   "task",
@@ -613,14 +620,18 @@ function LiveExecWindow({ text }: { text: string }) {
 
 export function MessageGroup({
   className,
+  externalClarificationContent,
   enableClarificationActions = false,
   messages,
   isLoading = false,
   keepOpen = false,
   codeMode = false,
   suppressSubagentRows = false,
+  collapseCompletedProcess = false,
+  delegationContent,
 }: {
   className?: string;
+  externalClarificationContent?: string | null;
   enableClarificationActions?: boolean;
   messages: Message[];
   isLoading?: boolean;
@@ -630,6 +641,10 @@ export function MessageGroup({
   codeMode?: boolean;
   /** A turn-level Agent cluster card already owns delegation lifecycle UI. */
   suppressSubagentRows?: boolean;
+  /** Main transcript folds completed process; detail views remain expanded. */
+  collapseCompletedProcess?: boolean;
+  /** Cards keyed by the real delegation call, in execution order. */
+  delegationContent?: ReadonlyMap<string, ReactNode>;
 }) {
   const { t } = useI18n();
   const { receiptsByCallId } = useToolEffects();
@@ -641,9 +656,31 @@ export function MessageGroup({
   // a replay disclosure so streaming never becomes a long historical pile.
   const isLiveTimeline = isLoading || keepOpen;
   const steps = useMemo(() => convertToSteps(messages), [messages]);
+  const replayDurationMs = useMemo(() => {
+    for (const message of messages) {
+      if (message.type !== "ai") continue;
+      const duration = message.additional_kwargs?.turn_duration_ms;
+      if (
+        typeof duration === "number" &&
+        Number.isFinite(duration) &&
+        duration >= 0
+      ) {
+        return duration;
+      }
+    }
+    return null;
+  }, [messages]);
   const shouldAutoCollapseProcess =
     detailConfig.autoCollapseToolCalls &&
-    steps.length > AUTO_COLLAPSE_PROCESS_STEP_COUNT;
+    ((collapseCompletedProcess &&
+      steps.some((step) => step.type === "toolCall")) ||
+      steps.length > AUTO_COLLAPSE_PROCESS_STEP_COUNT) &&
+    !messages.some(
+      (message) =>
+        message.type === "ai" &&
+        message.additional_kwargs?.response_state === "interrupted",
+    ) &&
+    !steps.some((step) => stepHasError(step) || stepIsWaiting(step));
   const [processReplayOpen, setProcessReplayOpen] = useState(
     isLiveTimeline || !shouldAutoCollapseProcess,
   );
@@ -703,16 +740,26 @@ export function MessageGroup({
     () =>
       steps
         .map((step) =>
-          step.type === "reasoning"
-            ? step.reasoning
-            : step.type === "actionCallback"
-              ? step.actionText
-              : null,
+          step.type === "toolCall" &&
+          (step.name === "ask_clarification" ||
+            step.name === "ask_user_question")
+            ? typeof step.args.output === "string" && step.args.output.trim()
+              ? step.args.output
+              : typeof step.result === "string" && step.result.trim()
+                ? step.result
+                : null
+            : step.type === "reasoning"
+              ? step.reasoning
+              : step.type === "actionCallback"
+                ? step.actionText
+                : null,
         )
         .filter((value): value is string => Boolean(value?.trim()))
         .join("\n\n"),
     [steps],
   );
+  const effectiveClarificationContent =
+    clarificationContent || externalClarificationContent || "";
   const timelineItems = useMemo(
     () => groupConsecutiveReasoningSteps(steps),
     [steps],
@@ -752,10 +799,31 @@ export function MessageGroup({
   // Keep process events on the same chronological lane as the answer while
   // letting the answer retain visual priority. The main transcript shows only
   // compact public summaries; complete event payloads live in the workbench.
-  const compactTimelineItems = useMemo(
-    () => buildCompactTimelineItems(timelineItems, receiptsByCallId),
-    [timelineItems, receiptsByCallId],
-  );
+  const compactTimelineItems = useMemo(() => {
+    if (!delegationContent?.size)
+      return buildCompactTimelineItems(timelineItems, receiptsByCallId);
+    // A delegation is a causal boundary. Compact each surrounding stretch
+    // independently so sampling cannot drop a card or move it across prose.
+    const compact: TimelineItem[] = [];
+    let stretch: TimelineItem[] = [];
+    for (const item of timelineItems) {
+      if (
+        item.type === "toolCall" &&
+        item.step.id &&
+        delegationContent.has(item.step.id)
+      ) {
+        compact.push(
+          ...buildCompactTimelineItems(stretch, receiptsByCallId),
+          item,
+        );
+        stretch = [];
+      } else stretch.push(item);
+    }
+    return [
+      ...compact,
+      ...buildCompactTimelineItems(stretch, receiptsByCallId),
+    ];
+  }, [timelineItems, receiptsByCallId, delegationContent]);
   const compactExecutionCoverage = useMemo(
     () => executionCoverageByVisibleItem(timelineItems, compactTimelineItems),
     [timelineItems, compactTimelineItems],
@@ -944,6 +1012,17 @@ export function MessageGroup({
     const delegationSummaryById = buildDelegationSummary(items);
 
     return items.map((item) => {
+      const delegation = delegationForItem(item);
+      if (delegation.length)
+        return (
+          <div
+            key={`${keyPrefix}-${item.id}`}
+            data-testid="delegation-timeline-slot"
+            className="my-2"
+          >
+            {delegation}
+          </div>
+        );
       // Conversation detail level "low": hide intermediate activity rows
       // (thinking / tool execution / process narration) so the transcript
       // reads like a plain chat with only the final answers.
@@ -1427,36 +1506,82 @@ export function MessageGroup({
       const rowKey = isAggregatedGroup
         ? `${keyPrefix}-agg-${item.items[0]?.id ?? item.aggregateKind}`
         : `${keyPrefix}-${item.id}`;
+      const resourceInput =
+        item.type === "toolCall" ? item.step.args : undefined;
+      const resourceOutput =
+        item.type === "toolCall" && automationTargetFrom(item.step.result)
+          ? item.step.result
+          : undefined;
+      const hasResources = toolResources(resourceInput, resourceOutput).some(
+        (resource) =>
+          resource.kind !== "file" ||
+          isPublicCompactEvidenceTarget(resource.path),
+      );
       return (
         <div key={rowKey} className="min-w-0">
-          <div className="group/process-row flex min-w-0 items-center gap-0.5">
+          <div
+            className="group/process-row flex min-w-0 items-center gap-0.5"
+            onClick={(event) => {
+              if (
+                event.target !== event.currentTarget &&
+                (event.target as HTMLElement).closest("button")?.dataset
+                  .processAction !== "true"
+              )
+                return;
+              // Always activate timeline and open workbench for full context
+              activateTimelineItem(timelineItemLinkageId(item), "chat");
+              emitOpenAgentWorkbench({
+                tab: actionWorkbenchTab,
+                eventId: workbenchOpenEventId,
+                eventKind: isThinking ? "thinking" : "execution",
+                view: isThinking ? "summary" : "trace",
+                processEvent: {
+                  kind: isThinking ? "thinking" : "execution",
+                  summary: processEventSummary,
+                  detail: processEventDetail || processEventSummary,
+                  status: state,
+                  count,
+                  phaseId: step.phaseId,
+                  parentItemId: step.parentItemId,
+                  timelineSequence: step.timelineSequence,
+                },
+                effectKey: needsEffectReview
+                  ? "effect_key" in effectReceipt
+                    ? effectReceipt.effect_key
+                    : effectReceipt.effectKey
+                  : undefined,
+              });
+            }}
+            data-process-event-id={workbenchEventId}
+            data-timeline-item-id={timelineItemLinkageId(item)}
+            data-timeline-lane="chat"
+            data-process-event-kind={isThinking ? "thinking" : "execution"}
+            data-process-event-status={state}
+            data-effect-receipt-state={effectReceipt?.state}
+            data-phase-id={step.phaseId}
+            data-parent-item-id={step.parentItemId}
+            data-timeline-sequence={step.timelineSequence}
+            data-testid={
+              hasResources ? "process-timeline-event-execution" : undefined
+            }
+          >
             <button
               type="button"
-              onClick={() => {
-                // Always activate timeline and open workbench for full context
-                activateTimelineItem(timelineItemLinkageId(item), "chat");
-                emitOpenAgentWorkbench({
-                  tab: actionWorkbenchTab,
-                  eventId: workbenchOpenEventId,
-                  eventKind: isThinking ? "thinking" : "execution",
-                  view: isThinking ? "summary" : "trace",
-                  processEvent: {
-                    kind: isThinking ? "thinking" : "execution",
-                    summary: processEventSummary,
-                    detail: processEventDetail || processEventSummary,
-                    status: state,
-                    count,
-                    phaseId: step.phaseId,
-                    parentItemId: step.parentItemId,
-                    timelineSequence: step.timelineSequence,
-                  },
-                  effectKey: needsEffectReview
-                    ? "effect_key" in effectReceipt
-                      ? effectReceipt.effect_key
-                      : effectReceipt.effectKey
-                    : undefined,
-                });
-              }}
+              data-process-action="true"
+              data-testid={
+                !hasResources
+                  ? `process-timeline-event-${isThinking ? "thinking" : "execution"}`
+                  : undefined
+              }
+              data-process-event-id={workbenchEventId}
+              data-timeline-item-id={timelineItemLinkageId(item)}
+              data-timeline-lane="chat"
+              data-process-event-kind={isThinking ? "thinking" : "execution"}
+              data-process-event-status={state}
+              data-effect-receipt-state={effectReceipt?.state}
+              data-phase-id={step.phaseId}
+              data-parent-item-id={step.parentItemId}
+              data-timeline-sequence={step.timelineSequence}
               className={cn(
                 "flex min-w-0 flex-1 text-left transition-colors",
                 isThinking
@@ -1470,16 +1595,6 @@ export function MessageGroup({
                     ? "text-muted-foreground hover:text-foreground"
                     : "text-muted-foreground/75 hover:text-muted-foreground",
               )}
-              data-process-event-id={workbenchEventId}
-              data-timeline-item-id={timelineItemLinkageId(item)}
-              data-timeline-lane="chat"
-              data-process-event-kind={isThinking ? "thinking" : "execution"}
-              data-process-event-status={state}
-              data-effect-receipt-state={effectReceipt?.state}
-              data-phase-id={step.phaseId}
-              data-parent-item-id={step.parentItemId}
-              data-timeline-sequence={step.timelineSequence}
-              data-testid={`process-timeline-event-${isThinking ? "thinking" : "execution"}`}
             >
               {isThinking ? (
                 <span className="flex shrink-0 items-center gap-1">
@@ -1543,6 +1658,8 @@ export function MessageGroup({
                     liveThinkingStreamActive ? null : (
                       thinkingDisclosureLabel
                     )
+                  ) : hasResources ? (
+                    <span>{actionVerb || processEventSummary || summary}</span>
                   ) : actionObject ? (
                     <>
                       <span className="font-medium text-muted-foreground/90">
@@ -1605,6 +1722,13 @@ export function MessageGroup({
                 <span className="sr-only" data-testid="live-process-strip" />
               )}
             </button>
+            {hasResources && (
+              <ToolResourceReferences
+                input={resourceInput}
+                output={resourceOutput}
+                compact
+              />
+            )}
             {hasThinkingDetail && (
               <button
                 type="button"
@@ -1735,6 +1859,33 @@ export function MessageGroup({
     });
   }
 
+  function delegationForItem(item: TimelineItem): ReactNode[] {
+    const calls =
+      item.type === "toolCall"
+        ? [item]
+        : item.type === "aggregatedToolGroup"
+          ? item.items
+          : [];
+    return calls.flatMap((call) => {
+      const card = call.step.id
+        ? delegationContent?.get(call.step.id)
+        : undefined;
+      return card ? [<div key={call.id}>{card}</div>] : [];
+    });
+  }
+
+  // Public narration and delegation are milestones, not hidden tool logs.
+  // Keep their original relative order even when completed execution folds.
+  const visibleItems = (items: TimelineItem[]) =>
+    processReplayExpanded
+      ? items
+      : items.filter(
+          (item) =>
+            item.type === "commentary" || delegationForItem(item).length > 0,
+        );
+  const visibleBeforeAnswer = visibleItems(compactItemsBeforeAnswer);
+  const visibleAfterAnswer = visibleItems(compactItemsAfterAnswer);
+
   return (
     <ChainOfThought
       className={cn("w-full gap-0", className)}
@@ -1758,21 +1909,27 @@ export function MessageGroup({
           <span>
             {processReplayExpanded
               ? t.messageGrouping.hideProcessReplay
-              : t.messageGrouping.replayNSteps(steps.length)}
+              : formatProcessReplayLabel({
+                  title: t.messageGrouping.processReplay,
+                  itemCount: t.messageGrouping.countItems(steps.length),
+                  durationMs: replayDurationMs,
+                })}
           </span>
         </button>
       )}
-      {processReplayExpanded && (
+      {(processReplayExpanded ||
+        visibleBeforeAnswer.length > 0 ||
+        visibleAfterAnswer.length > 0) && (
         <div data-testid="process-replay-content">
-          {compactItemsBeforeAnswer.length > 0 && (
+          {visibleBeforeAnswer.length > 0 && (
             <div
               className="narrative-process-flow"
               data-testid="interleaved-process-timeline"
             >
-              {renderCompactTimelineItems(compactItemsBeforeAnswer, "before")}
+              {renderCompactTimelineItems(visibleBeforeAnswer, "before")}
             </div>
           )}
-          {streamingAnswerText && (
+          {processReplayExpanded && streamingAnswerText && (
             <MarkdownContent
               content={streamingAnswerText}
               isLoading={isLoading}
@@ -1780,12 +1937,12 @@ export function MessageGroup({
               className="kimi-streaming-tail"
             />
           )}
-          {compactItemsAfterAnswer.length > 0 && (
+          {visibleAfterAnswer.length > 0 && (
             <div
               className="narrative-process-flow mt-1"
               data-testid="interleaved-process-timeline"
             >
-              {renderCompactTimelineItems(compactItemsAfterAnswer, "after")}
+              {renderCompactTimelineItems(visibleAfterAnswer, "after")}
             </div>
           )}
           {showFinalAnswerBoundary && (
@@ -1799,11 +1956,11 @@ export function MessageGroup({
           )}
         </div>
       )}
-      {clarificationContent && (
+      {effectiveClarificationContent && (
         <ClarificationChoiceCard
           active={enableClarificationActions && !isLoading}
           className="mt-4"
-          content={clarificationContent}
+          content={effectiveClarificationContent}
           messageId={messages[messages.length - 1]?.id}
         />
       )}
@@ -2760,8 +2917,7 @@ function extractLegacyReasoningSummary(message: Message): string | null {
 
   const echo = additional?.echo;
   if (typeof echo === "object" && echo !== null) {
-    const nested = (echo as Record<string, unknown>)
-      .public_reasoning_summary;
+    const nested = (echo as Record<string, unknown>).public_reasoning_summary;
     if (typeof nested === "string" && nested.trim()) return nested.trim();
   }
 

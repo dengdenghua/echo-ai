@@ -353,11 +353,9 @@ export function useWorkbenchCacheCleanup(intervalMs = 60_000) {
 
   useEffect(() => {
     const timer = setInterval(() => {
-      cache.current.clearExpired().then((count) => {
-        if (count > 0) {
-          console.log(`[WorkbenchCache] Cleared ${count} expired snapshots`);
-        }
-      });
+      // clearExpired never rejects — it catches and warns internally — so the
+      // count is only of interest to a debugger, not to the running app.
+      void cache.current.clearExpired();
     }, intervalMs);
 
     return () => clearInterval(timer);

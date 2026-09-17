@@ -1,3 +1,4 @@
+import { canonicalAgentId } from "@/core/agents/aliases";
 /**
  * Persona-driven workspace presets.
  *
@@ -50,7 +51,7 @@ const BASE_PRESET: WorkspacePreset = {
   id: "general",
   direction: "通用协作",
   themeId: "eve",
-  defaultHiddenModuleIds: ["paper.trading"],
+  defaultHiddenModuleIds: [],
   defaultWorkbenchTab: "agent",
   workbenchLabel: "协作工作台",
   workbenchSummary: "围绕当前对话组织任务、材料与交付。",
@@ -61,7 +62,7 @@ const BASE_PRESET: WorkspacePreset = {
 export const PERSONA_WORKSPACE_PRESETS: Readonly<
   Record<string, WorkspacePreset>
 > = {
-  general: {
+  eve: {
     ...BASE_PRESET,
     id: "office-coordination",
     direction: "办公与项目协调",
@@ -71,7 +72,7 @@ export const PERSONA_WORKSPACE_PRESETS: Readonly<
     primaryAction: { label: "查看全部项目", to: "/workspace/projects" },
     workbench: "office",
   },
-  coder: {
+  kane: {
     ...BASE_PRESET,
     id: "software-development",
     direction: "软件研发",
@@ -82,7 +83,7 @@ export const PERSONA_WORKSPACE_PRESETS: Readonly<
     workbenchLanes: ["终端", "变更", "预览"],
     workbench: "development",
   },
-  desktop_operator: {
+  raven: {
     ...BASE_PRESET,
     id: "browser-desktop-automation",
     direction: "浏览器与桌面自动化",
@@ -93,7 +94,7 @@ export const PERSONA_WORKSPACE_PRESETS: Readonly<
     workbenchLanes: ["浏览器", "操作", "回执"],
     workbench: "automation",
   },
-  vibe_selling: {
+  luna: {
     ...BASE_PRESET,
     id: "growth-creative",
     direction: "增长与品牌内容",
@@ -104,11 +105,11 @@ export const PERSONA_WORKSPACE_PRESETS: Readonly<
     workbenchLanes: ["洞察", "内容", "复盘"],
     primaryAction: {
       label: "创建增长任务",
-      to: "/workspace/realtime/new?agent=vibe_selling",
+      to: "/workspace/realtime/new?agent=luna",
     },
     workbench: "growth",
   },
-  ecommerce_mind: {
+  shion: {
     ...BASE_PRESET,
     id: "ecommerce-operations",
     direction: "电商与供应链",
@@ -119,28 +120,27 @@ export const PERSONA_WORKSPACE_PRESETS: Readonly<
     workbenchLanes: ["商品", "渠道", "履约"],
     primaryAction: {
       label: "创建经营分析任务",
-      to: "/workspace/realtime/new?agent=ecommerce_mind",
+      to: "/workspace/realtime/new?agent=shion",
     },
     workbench: "commerce",
   },
-  market_researcher: {
+  noah: {
     ...BASE_PRESET,
     id: "market-trading",
     direction: "交易与市场研究",
     themeId: "noah",
     defaultHiddenModuleIds: [],
-    defaultVisibleModuleIds: ["paper.trading"],
     defaultWorkbenchTab: "workspace",
     workbenchLabel: "交易研究台",
-    workbenchSummary: "把市场研究、标的跟踪和模拟交易放在同一条决策链上。",
-    workbenchLanes: ["研究", "盯盘", "模拟交易"],
+    workbenchSummary: "围绕市场研究、标的跟踪和研究报告组织任务。",
+    workbenchLanes: ["研究", "跟踪", "报告"],
     primaryAction: {
-      label: "打开模拟交易",
-      to: "/workspace/paper-trading",
+      label: "开始市场研究",
+      to: "/workspace/realtime/new?agent=noah",
     },
     workbench: "trading",
   },
-  aoi: {
+  zero: {
     ...BASE_PRESET,
     id: "media-production",
     direction: "AI 影视与创意制作",
@@ -160,7 +160,7 @@ export const PERSONA_WORKSPACE_PRESETS: Readonly<
 export function workspacePresetForAgent(
   agentId: string | null | undefined,
 ): WorkspacePreset {
-  return PERSONA_WORKSPACE_PRESETS[agentId?.trim() ?? ""] ?? BASE_PRESET;
+  return PERSONA_WORKSPACE_PRESETS[canonicalAgentId(agentId?.trim() ?? "")] ?? BASE_PRESET;
 }
 
 export function defaultModuleIdsForAgent(

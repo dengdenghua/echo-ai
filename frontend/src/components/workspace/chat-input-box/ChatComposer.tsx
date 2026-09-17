@@ -1,4 +1,5 @@
 import { getLocalSettings } from "@/core/settings/local";
+import { queueFollowup } from "@/core/threads/task-interaction";
 import {
   BookOpenIcon,
   ExternalLinkIcon,
@@ -20,6 +21,7 @@ import {
   PlusIcon,
   SlidersHorizontalIcon,
   SquareIcon,
+  PlayIcon,
   XIcon,
 } from "lucide-react";
 import {
@@ -81,6 +83,7 @@ import {
   type ComposerCapabilityRef,
   type ComposerCommandMode,
 } from "@/core/threads/composer-capability-refs";
+import { detectProjectIntent } from "@/core/threads/project-intent";
 
 import type { ChatInputBoxProps } from "../chat-input-box";
 import {
@@ -152,6 +155,7 @@ export function ChatComposer({
   onSubmit,
   onDraftChange,
   onStop,
+  onResume,
   isStopping = false,
   isUploading = false,
   className,
@@ -316,6 +320,14 @@ export function ChatComposer({
       : undefined;
   const composerRefs = parsedComposerDraft.refs;
   const visibleDraft = parsedComposerDraft.body;
+  const projectIntent = useMemo(() => detectProjectIntent(draft), [draft]);
+  const [dismissedProjectIntent, setDismissedProjectIntent] = useState<
+    string | null
+  >(null);
+  const showProjectIntentSuggestion =
+    activeComposerMode !== "project" &&
+    projectIntent !== null &&
+    projectIntent !== dismissedProjectIntent;
   const setVisibleDraft = useCallback((body: string) => {
     setDraft((current) => {
       const parsed = parseComposerDraft(current);
@@ -437,10 +449,26 @@ export function ChatComposer({
     attachmentUploads.isUploading ||
     attachmentUploads.hasFailed;
   const submissionBlocked = !readyForMutations;
+  const [connectionWaitVisible, setConnectionWaitVisible] = useState(false);
+  useEffect(() => {
+    setConnectionWaitVisible(false);
+    if (!submissionBlocked) return;
+    const timer = setTimeout(() => setConnectionWaitVisible(true), 600);
+    return () => clearTimeout(timer);
+  }, [submissionBlocked, draftStorageKey]);
+  const showConnectionStatus = submissionBlocked && (
+    connectionWaitVisible ||
+    connectionPhase === "reconnecting" ||
+    connectionPhase === "recovery_error"
+  );
   const connectionBlockedLabel =
     connectionPhase === "recovery_error"
       ? t.chatInputBox.connectionRecoveryFailed
-      : t.chatInputBox.restoringConnection;
+      : connectionPhase === "reconnecting"
+        ? t.chatInputBox.restoringConnection
+        : connectionPhase === "resuming"
+          ? t.chatInputBox.syncingConversation
+          : t.chatInputBox.connectingConversation;
   const sendLabel = t.chatInputBox.send;
   const stopLabel = t.chatInputBox.stop;
   const activeStopLabel = isStopping ? t.chatInputBox.stopping : stopLabel;
@@ -893,6 +921,16 @@ export function ChatComposer({
     window.setTimeout(() => textareaRef.current?.focus(), 0);
   }, []);
 
+  const acceptProjectIntent = useCallback(() => {
+    setDismissedProjectIntent(projectIntent);
+    setDraft((current) => setComposerDraftMode(current, "project"));
+    window.setTimeout(() => textareaRef.current?.focus(), 0);
+  }, [projectIntent]);
+
+  const dismissProjectIntent = useCallback(() => {
+    setDismissedProjectIntent(projectIntent);
+  }, [projectIntent]);
+
   const clearLongTaskMode = useCallback(() => {
     setDraft((current) => setComposerDraftMode(current, undefined));
     window.setTimeout(() => textareaRef.current?.focus(), 0);
@@ -1311,7 +1349,40 @@ export function ChatComposer({
   );
 
   return (
-    <div
+    <>
+      {showProjectIntentSuggestion ? (
+        <div
+          data-testid="project-intent-suggestion"
+          className="flex items-center gap-2 px-1 pb-1 text-xs text-muted-foreground/75"
+        >
+          <FlagIcon
+            className="size-3.5 shrink-0 text-rose-600 dark:text-rose-400"
+            aria-hidden="true"
+          />
+          <span className="truncate">
+            {t.modeIntent.suggestSwitch("Project OS")}
+          </span>
+          <span className="ml-auto flex shrink-0 items-center gap-2">
+            <button
+              type="button"
+              data-testid="project-intent-accept"
+              onClick={acceptProjectIntent}
+              className="rounded-md px-2 py-0.5 font-medium text-primary transition-colors hover:bg-primary/10"
+            >
+              {t.modeIntent.switch}
+            </button>
+            <button
+              type="button"
+              data-testid="project-intent-ignore"
+              onClick={dismissProjectIntent}
+              className="rounded-md px-2 py-0.5 text-muted-foreground/70 transition-colors hover:bg-muted hover:text-foreground"
+            >
+              {t.modeIntent.ignore}
+            </button>
+          </span>
+        </div>
+      ) : null}
+      <div
       data-testid="chat-composer"
       className={cn(
         "group relative",
@@ -1322,7 +1393,7 @@ export function ChatComposer({
         className,
       )}
     >
-      {submissionBlocked ? (
+      {showConnectionStatus ? (
         <div
           data-testid="chat-connection-status"
           role="status"
@@ -2056,12 +2127,24 @@ export function ChatComposer({
             <>
               <button
                 type="button"
+                title="当前回复结束后执行；附件请在任务结束后发送"
+                disabled={isBusy || submissionBlocked || pendingImages.length > 0 || pendingFiles.length > 0}
+                className="shrink-0 rounded-md px-2 py-1 text-xs text-muted-foreground hover:bg-muted disabled:opacity-50"
+                onClick={() => {
+                  const parsed = parseComposerDraft(draft.trim());
+                  const quoted = quoteText.split(/\r?\n/).map(line => `> ${line}`).join("\n");
+                  const text = serializeComposerDraft({ ...parsed, body: quoteText ? `${parsed.body}\n\n${quoted}` : parsed.body });
+                  if (queueFollowup(threadId, text)) { setVisibleDraft(""); setQuoteText(""); }
+                }}
+              >稍后执行</button>
+              <button
+                type="button"
                 onClick={handleSubmit}
                 data-testid="chat-steer-button"
                 disabled={isBusy || submissionBlocked}
                 className="flex size-[42px] items-center justify-center rounded-lg bg-foreground text-background transition-all duration-base hover:bg-foreground/90 active:scale-95 disabled:cursor-wait disabled:opacity-70 sm:size-8"
-                title={submissionBlocked ? connectionBlockedLabel : sendLabel}
-                aria-label={sendLabel}
+                title={submissionBlocked ? connectionBlockedLabel : "现在补充，不中断当前操作"}
+                aria-label="现在补充"
               >
                 <SendHorizontalIcon className="size-3.5" />
               </button>
@@ -2111,6 +2194,16 @@ export function ChatComposer({
                 />
               )}
             </button>
+          ) : onResume && !sendableDraftText && pendingImages.length === 0 && pendingFiles.length === 0 ? (
+            <button
+              type="button"
+              data-testid="chat-resume-button"
+              onClick={onResume}
+              disabled={isBusy || submissionBlocked || isStopping}
+              className="flex size-[42px] items-center justify-center rounded-lg bg-foreground text-background disabled:opacity-50 sm:size-8"
+              aria-label="继续执行"
+              title="继续当前任务，保留已有上下文；不会恢复已结束的终端进程"
+            ><PlayIcon className="size-3.5" /></button>
           ) : (
             <button
               type="button"
@@ -2152,5 +2245,6 @@ export function ChatComposer({
         </div>
       </div>
     </div>
+    </>
   );
 }

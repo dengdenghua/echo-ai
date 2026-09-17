@@ -1,9 +1,7 @@
 import {
   ExternalLinkIcon,
-  Globe2Icon,
   GripHorizontalIcon,
   Loader2Icon,
-  MonitorIcon,
   RefreshCwIcon,
   XIcon,
 } from "lucide-react";
@@ -18,12 +16,14 @@ import { createPortal } from "react-dom";
 
 import { captureBrowserRelayPreview } from "@/core/browser/api";
 import {
-  captureComputerScreen,
+  captureComputerWindowPreview,
   type AutomationTarget,
 } from "@/core/computer/api";
 import { useI18n } from "@/core/i18n/hooks";
 import { BROWSER_WORKSPACE_ROUTE } from "@/core/workspace/sidebar-routing";
 import { cn } from "@/lib/utils";
+import { AutomationTargetIcon } from "@/components/ui/automation-target-icon";
+import { openTarget } from "@/core/navigation/open-target";
 
 type AutomationPictureInPictureProps = {
   threadId: string;
@@ -38,6 +38,7 @@ type AutomationPictureInPictureProps = {
 
 type PreviewFrame = {
   dataUrl: string;
+  iconUrl?: string;
   sourceName?: string;
   matched?: boolean;
 };
@@ -116,8 +117,14 @@ async function capturePreviewFrame(
   target: AutomationTarget,
   relayConnected: boolean,
 ): Promise<PreviewFrame> {
+  // A browser tab ID is not a native window ID. Always capture the exact
+  // relay tab, even in Electron, instead of another tab in its parent window.
+  if (target.kind === "browser_tab") {
+    if (!relayConnected) throw new Error("Browser relay is offline");
+    return captureBrowserRelayPreview(target);
+  }
   const nativeCapture = window.echo?.desktop.captureAutomationPreview;
-  if (nativeCapture) {
+  if (nativeCapture && !target.id.startsWith("win32:")) {
     const result = await nativeCapture({
       kind: target.kind,
       id: target.id,
@@ -133,22 +140,20 @@ async function capturePreviewFrame(
     return {
       dataUrl: result.dataUrl,
       sourceName: result.sourceName,
+      iconUrl: result.iconUrl,
       matched: result.matched,
     };
   }
 
-  if (target.kind === "browser_tab") {
-    if (!relayConnected) throw new Error("Browser relay is offline");
-    return captureBrowserRelayPreview(target);
-  }
-
-  const result = await captureComputerScreen({
-    controlSessionId: `thread:${threadId || "new"}`,
-  });
+  const result = await captureComputerWindowPreview(target);
   if (!result.ok || !result.data_url) {
     throw new Error(result.error || "Unable to capture the desktop");
   }
-  return { dataUrl: result.data_url, matched: true };
+  return {
+    dataUrl: result.data_url,
+    sourceName: result.target?.title,
+    matched: true,
+  };
 }
 
 export function AutomationPictureInPicture({
@@ -161,7 +166,7 @@ export function AutomationPictureInPicture({
   stateLabel,
   onOpenChange,
 }: AutomationPictureInPictureProps) {
-  const { t } = useI18n();
+  const { t, locale } = useI18n();
   const [placement, setPlacement] = useState<Placement>(() =>
     readPlacement(threadId),
   );
@@ -169,7 +174,8 @@ export function AutomationPictureInPicture({
   const [error, setError] = useState<string | null>(null);
   const [refreshing, setRefreshing] = useState(false);
   const surfaceRef = useRef<HTMLDivElement | null>(null);
-  const inFlightRef = useRef(false);
+  const captureGeneration = useRef(0);
+  const [capturedAt, setCapturedAt] = useState<number>();
   const dragRef = useRef<{ offsetX: number; offsetY: number } | null>(null);
 
   const persistPlacement = useCallback(
@@ -192,42 +198,62 @@ export function AutomationPictureInPicture({
     setError(null);
   }, [target.id, threadId]);
 
-  const refresh = useCallback(async () => {
-    if (!open || inFlightRef.current || document.hidden) return;
-    inFlightRef.current = true;
-    setRefreshing(true);
-    try {
-      const next = await capturePreviewFrame(threadId, target, relayConnected);
-      setFrame(next);
-      setError(null);
-    } catch (captureError) {
-      setError(
-        captureError instanceof Error
-          ? captureError.message
-          : String(captureError),
-      );
-    } finally {
-      setRefreshing(false);
-      inFlightRef.current = false;
-    }
-  }, [open, relayConnected, target, threadId]);
+  const refreshRequest = useRef<(() => void) | null>(null);
 
   useEffect(() => {
+    const generation = ++captureGeneration.current;
+    let inFlight = false;
+    setFrame(null);
+    setCapturedAt(undefined);
+    setError(null);
+    setRefreshing(false);
     if (!open) return;
+    const refresh = async () => {
+      if (inFlight || document.hidden) return;
+      inFlight = true;
+      setRefreshing(true);
+      try {
+        const next = await capturePreviewFrame(
+          threadId,
+          target,
+          relayConnected,
+        );
+        if (captureGeneration.current !== generation) return;
+        setFrame(next);
+        setCapturedAt(Date.now());
+        setError(null);
+      } catch (captureError) {
+        if (captureGeneration.current !== generation) return;
+        setError(
+          captureError instanceof Error
+            ? captureError.message
+            : String(captureError),
+        );
+      } finally {
+        if (captureGeneration.current === generation) setRefreshing(false);
+        inFlight = false;
+      }
+    };
+    refreshRequest.current = () => void refresh();
     void refresh();
-    const interval = window.setInterval(
-      () => void refresh(),
-      window.echo?.isElectron ? 1200 : 2200,
-    );
+    const interval =
+      active && !paused
+        ? window.setInterval(
+            () => void refresh(),
+            window.echo?.isElectron ? 1200 : 2200,
+          )
+        : undefined;
     const handleVisibility = () => {
       if (!document.hidden) void refresh();
     };
     document.addEventListener("visibilitychange", handleVisibility);
     return () => {
       window.clearInterval(interval);
+      captureGeneration.current = generation + 1;
+      refreshRequest.current = null;
       document.removeEventListener("visibilitychange", handleVisibility);
     };
-  }, [open, refresh]);
+  }, [open, active, paused, relayConnected, target, threadId]);
 
   useEffect(() => {
     if (!open) return;
@@ -248,8 +274,12 @@ export function AutomationPictureInPicture({
     if (!surface) return;
     const observer = new ResizeObserver(([entry]) => {
       if (!entry) return;
-      const width = Math.round(entry.contentRect.width);
-      const height = Math.round(entry.contentRect.height);
+      // CSS width/height include the border. Reading contentRect here would
+      // subtract the border on every observation and shrink the PiP in a loop.
+      const box = entry.borderBoxSize?.[0];
+      const rect = surface.getBoundingClientRect();
+      const width = Math.round(box?.inlineSize ?? rect.width);
+      const height = Math.round(box?.blockSize ?? rect.height);
       setPlacement((current) => {
         if (current.width === width && current.height === height)
           return current;
@@ -313,10 +343,26 @@ export function AutomationPictureInPicture({
   };
 
   const openFullView = () => {
-    window.location.hash =
-      target.kind === "browser_tab"
-        ? BROWSER_WORKSPACE_ROUTE
-        : "/workspace/computer";
+    if (target.kind === "browser_tab" && target.url) {
+      void openTarget(target.url, { source: "automation-preview" });
+      return;
+    }
+    if (target.kind === "browser_tab") {
+      window.location.hash = BROWSER_WORKSPACE_ROUTE;
+      return;
+    }
+    setPlacement((current) =>
+      clampPlacement(
+        current.width > 500
+          ? defaultPlacement()
+          : {
+              x: 80,
+              y: 66,
+              width: Math.min(960, window.innerWidth - 160),
+              height: Math.min(620, window.innerHeight - 110),
+            },
+      ),
+    );
   };
 
   if (!open || typeof document === "undefined") return null;
@@ -341,11 +387,10 @@ export function AutomationPictureInPicture({
         onPointerCancel={handlePointerUp}
       >
         <GripHorizontalIcon className="size-3.5 shrink-0 text-muted-foreground/60" />
-        {target.kind === "browser_tab" ? (
-          <Globe2Icon className="size-3.5 shrink-0 text-muted-foreground" />
-        ) : (
-          <MonitorIcon className="size-3.5 shrink-0 text-muted-foreground" />
-        )}
+        <AutomationTargetIcon
+          target={{ ...target, icon_url: frame?.iconUrl || target.icon_url }}
+          className="size-3.5 text-muted-foreground"
+        />
         <div className="min-w-0 flex-1">
           <div className="truncate text-xs font-medium">{target.title}</div>
           <div className="flex items-center gap-1.5 text-[10px] text-muted-foreground">
@@ -366,7 +411,7 @@ export function AutomationPictureInPicture({
         </div>
         <button
           type="button"
-          onClick={() => void refresh()}
+          onClick={() => refreshRequest.current?.()}
           className="grid size-7 place-items-center rounded-lg text-muted-foreground hover:bg-muted hover:text-foreground"
           aria-label={t.common.preview}
         >
@@ -378,7 +423,17 @@ export function AutomationPictureInPicture({
           type="button"
           onClick={openFullView}
           className="grid size-7 place-items-center rounded-lg text-muted-foreground hover:bg-muted hover:text-foreground"
-          aria-label={t.common.openInNewWindow}
+          aria-label={
+            target.kind === "browser_tab"
+              ? t.common.openInNewWindow
+              : locale === "zh-CN"
+                ? placement.width > 500
+                  ? "缩小画面"
+                  : "放大画面"
+                : placement.width > 500
+                  ? "Shrink preview"
+                  : "Expand preview"
+          }
         >
           <ExternalLinkIcon className="size-3.5" />
         </button>
@@ -392,12 +447,7 @@ export function AutomationPictureInPicture({
         </button>
       </div>
 
-      <button
-        type="button"
-        onClick={openFullView}
-        className="group relative min-h-0 flex-1 overflow-hidden bg-black/90 text-left"
-        aria-label={t.common.openInNewWindow}
-      >
+      <div className="group relative min-h-0 flex-1 overflow-hidden bg-black/90 text-left">
         {frame ? (
           <img
             src={frame.dataUrl}
@@ -407,7 +457,11 @@ export function AutomationPictureInPicture({
           />
         ) : (
           <div className="grid size-full place-items-center text-xs text-white/60">
-            <Loader2Icon className="size-5 animate-spin" />
+            {error ? (
+              <span>{t.common.preview}</span>
+            ) : (
+              <Loader2Icon className="size-5 animate-spin" />
+            )}
           </div>
         )}
         {frame?.matched === false ? (
@@ -420,7 +474,12 @@ export function AutomationPictureInPicture({
             {error}
           </div>
         ) : null}
-      </button>
+        {capturedAt && !error ? (
+          <span className="absolute bottom-2 left-2 rounded bg-black/60 px-1.5 py-0.5 text-[10px] text-white/80">
+            {new Date(capturedAt).toLocaleTimeString()}
+          </span>
+        ) : null}
+      </div>
     </div>,
     document.body,
   );

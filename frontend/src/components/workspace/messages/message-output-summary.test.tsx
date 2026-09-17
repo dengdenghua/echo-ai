@@ -278,6 +278,26 @@ describe("MessageOutputSummary", () => {
     unsubscribe();
   });
 
+  it("offers model configuration for a structured preflight block and retains same-task retry", () => {
+    const resume = vi.fn();
+    const settings = vi.fn();
+    const unsubscribe = eventBus.on("ui:open-settings", settings);
+    try {
+      renderWithProviders(<MessageOutputSummary messages={[
+        { id: "request", type: "human", content: "继续审计项目" },
+        { id: "blocked", type: "ai", content: "", additional_kwargs: { error: { info: {
+          code: "execution_unavailable", engine: "codex", reason: "account_required", disposition: "blocked_on_user",
+        } } } },
+      ]} failure={{ kind: "blocked", message: "账户未配置", detail: "account_required" }} onRetryTask={resume} />,
+      { locale: "zh-CN" });
+      fireEvent.click(screen.getByRole("button", { name: "打开模型设置" }));
+      expect(settings).toHaveBeenCalledExactlyOnceWith({ tab: "models" });
+      expect(resume).not.toHaveBeenCalled();
+      fireEvent.click(screen.getByRole("button", { name: "重试", exact: true }));
+      expect(resume).toHaveBeenCalledExactlyOnceWith("继续审计项目");
+    } finally { unsubscribe(); }
+  });
+
   it("offers both model switching and retry for a rate limit", () => {
     const onRetryTask = vi.fn();
     const openSettings = vi.fn();

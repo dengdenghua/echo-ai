@@ -138,7 +138,10 @@ describe("ModelSettingsPage · everyday model selection", () => {
       await screen.findByText("官方模型", { selector: "summary *" }),
     );
     expect(await screen.findByText("极速")).toBeVisible();
-    expect(screen.getByText("qwen")).toBeVisible();
+    // The row shows the catalog's display name and multiplier; the raw route
+    // id ("qwen") is deliberately not surfaced here, matching the composer's
+    // picker, which also renders `display_name || name`.
+    expect(screen.getByText("1x")).toBeVisible();
     expect(
       fetchMock.mock.calls.filter(([url]) =>
         String(url).includes("/api/oct/openai/v1/models"),

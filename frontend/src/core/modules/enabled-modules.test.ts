@@ -94,8 +94,8 @@ describe("enabled modules", () => {
     }
   });
 
-  it("shows paper trading by default only for the market persona", () => {
-    expect(enabledModuleIds("market_researcher")).toContain("paper.trading");
+  it("keeps the removed trading module out of all personas", () => {
+    expect(enabledModuleIds("market_researcher")).not.toContain("paper.trading");
     expect(enabledModuleIds("general")).not.toContain("paper.trading");
     expect(enabledModuleIds("coder")).not.toContain("paper.trading");
   });
@@ -104,12 +104,12 @@ describe("enabled modules", () => {
     const provider = memoryProvider();
     setModuleStateProvider(provider);
 
-    setModuleEnabled("paper.trading", true, "general");
+    setModuleEnabled("community", false, "general");
 
-    expect(enabledModuleIds("general")).toContain("paper.trading");
-    expect(enabledModuleIds("coder")).not.toContain("paper.trading");
+    expect(enabledModuleIds("general")).not.toContain("community");
+    expect(enabledModuleIds("coder")).toContain("community");
     expect(provider.currentOverrides()).toEqual({
-      general: { "paper.trading": true },
+      general: { "community": false },
     });
   });
 

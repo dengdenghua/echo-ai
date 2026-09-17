@@ -6,7 +6,7 @@ import { describe, expect, it } from "vitest";
 const pageSource = readFileSync(
   join(process.cwd(), "src/app/workspace/realtime/[thread_id]/page.tsx"),
   "utf8",
-);
+).replace(/\r\n/g, "\n");
 
 function sourceBetween(start: string, end: string): string {
   const startIndex = pageSource.indexOf(start);

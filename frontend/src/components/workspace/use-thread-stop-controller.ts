@@ -137,6 +137,7 @@ export function useThreadStopController({
   }, [isRunning, onFailure, stopState, terminalWaitMs, threadId]);
 
   const stop = useCallback((): Promise<void> => {
+    window.dispatchEvent(new CustomEvent("echo:pause-followups", { detail: { threadId } }));
     const current = operationRef.current;
     if (current?.threadId === threadId) return current.promise;
 

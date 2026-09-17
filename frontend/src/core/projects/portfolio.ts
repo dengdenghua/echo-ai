@@ -149,14 +149,6 @@ export interface PortfolioEntry {
   risks: PortfolioRisk[];
 }
 
-const EMPTY_COUNTS: PortfolioCounts = {
-  milestones: 0,
-  risks: 0,
-  blockers: 0,
-  overdue: 0,
-  next_actions: 0,
-};
-
 function num(value: unknown, fallback = 0): number {
   return typeof value === "number" && Number.isFinite(value) ? value : fallback;
 }
@@ -744,7 +736,7 @@ export function ganttLayout(
     return { ...EMPTY_GANTT, unscheduled };
   }
 
-  let rangeStart = startOfDay(
+  const rangeStart = startOfDay(
     Math.min(...scheduled.map((item) => item.startMs), nowMs),
   );
   let rangeEnd = Math.max(

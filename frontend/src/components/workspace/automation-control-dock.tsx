@@ -26,11 +26,18 @@ import {
 import { useI18n } from "@/core/i18n/hooks";
 import { cn } from "@/lib/utils";
 import { AutomationPictureInPicture } from "@/components/workspace/automation-picture-in-picture";
+import { AutomationTargetIcon } from "@/components/ui/automation-target-icon";
+import {
+  OPEN_AUTOMATION_PREVIEW,
+  CLOSE_AUTOMATION_INSPECTION,
+} from "@/core/automation/references";
 
 type AutomationControlDockProps = {
   threadId: string;
   target: AutomationTarget;
   className?: string;
+  previewRequest?: number;
+  executing?: boolean;
 };
 
 function timeLabel(at?: number): string {
@@ -46,6 +53,8 @@ export function AutomationControlDock({
   threadId,
   target,
   className,
+  previewRequest = 0,
+  executing = false,
 }: AutomationControlDockProps) {
   const { t } = useI18n();
   const sessionId = `thread:${threadId || "new"}`;
@@ -55,27 +64,43 @@ export function AutomationControlDock({
   const [previewOpen, setPreviewOpen] = useState(false);
   const [changingState, setChangingState] = useState(false);
   const wasActiveRef = useRef(false);
+  const currentSessionRef = useRef(sessionId);
+  currentSessionRef.current = sessionId;
+  const inFlightRef = useRef<string | null>(null);
 
   const refresh = useCallback(async () => {
+    if (document.hidden || inFlightRef.current === sessionId) return;
+    inFlightRef.current = sessionId;
     const [relayResult, replayResult] = await Promise.allSettled([
-      getRelayStatus(),
+      target.kind === "browser_tab" ? getRelayStatus() : Promise.resolve(null),
       getControlSessionReplay(sessionId),
     ]);
+    if (inFlightRef.current === sessionId) inFlightRef.current = null;
+    if (currentSessionRef.current !== sessionId) return;
     if (relayResult.status === "fulfilled") setRelay(relayResult.value);
     if (replayResult.status === "fulfilled") setReplay(replayResult.value);
-  }, [sessionId]);
+  }, [sessionId, target.kind]);
 
   useEffect(() => {
     setReplay(null);
     void refresh();
     const timer = window.setInterval(() => void refresh(), 2500);
-    return () => window.clearInterval(timer);
+    const onVisible = () => {
+      if (!document.hidden) void refresh();
+    };
+    document.addEventListener("visibilitychange", onVisible);
+    return () => {
+      window.clearInterval(timer);
+      document.removeEventListener("visibilitychange", onVisible);
+    };
   }, [refresh]);
 
   const sessionStatus = replay?.session.status || "idle";
   const paused = replay?.session.paused || sessionStatus === "paused";
   const active =
-    sessionStatus === "running" || sessionStatus === "awaiting_confirmation";
+    executing ||
+    sessionStatus === "running" ||
+    sessionStatus === "awaiting_confirmation";
   const connectionLabel =
     target.kind === "browser_tab"
       ? relay?.connection_state === "reconnecting"
@@ -96,9 +121,31 @@ export function AutomationControlDock({
   const latest = timeline[0];
 
   useEffect(() => {
-    if (active && !wasActiveRef.current) setPreviewOpen(true);
+    const inspect = (event: Event) => {
+      if ((event as CustomEvent).detail?.threadId === threadId)
+        setPreviewOpen(false);
+    };
+    window.addEventListener(OPEN_AUTOMATION_PREVIEW, inspect);
+    return () => window.removeEventListener(OPEN_AUTOMATION_PREVIEW, inspect);
+  }, [threadId]);
+
+  useEffect(() => {
+    setPreviewOpen(false);
+    wasActiveRef.current = false;
+  }, [threadId]);
+  useEffect(() => {
+    if (previewRequest) setPreviewOpen(true);
+  }, [previewRequest]);
+
+  useEffect(() => {
+    if (active && !wasActiveRef.current) {
+      window.dispatchEvent(
+        new CustomEvent(CLOSE_AUTOMATION_INSPECTION, { detail: { threadId } }),
+      );
+      setPreviewOpen(true);
+    }
     wasActiveRef.current = active;
-  }, [active]);
+  }, [active, threadId]);
 
   const changeState = useCallback(
     async (action: "pause" | "resume" | "takeover") => {
@@ -152,6 +199,7 @@ export function AutomationControlDock({
           )}
           aria-hidden="true"
         />
+        <AutomationTargetIcon target={target} />
         <div className="min-w-0 flex-1">
           <div className="truncate text-xs font-medium text-foreground">
             {target.title}
@@ -202,7 +250,14 @@ export function AutomationControlDock({
         ) : null}
         <button
           type="button"
-          onClick={() => setPreviewOpen((value) => !value)}
+          onClick={() => {
+            window.dispatchEvent(
+              new CustomEvent(CLOSE_AUTOMATION_INSPECTION, {
+                detail: { threadId },
+              }),
+            );
+            setPreviewOpen((value) => !value);
+          }}
           className={cn(
             "inline-flex size-7 items-center justify-center rounded-md text-muted-foreground hover:bg-background/80 hover:text-foreground",
             previewOpen && "bg-background/80 text-foreground",

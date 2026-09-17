@@ -12,6 +12,7 @@ const mocks = vi.hoisted(() => ({
 }));
 
 vi.mock("@/core/auth/api", () => ({
+  ACCOUNT_FREE_TOKEN: "__account_free__",
   getAuthStatus: mocks.getAuthStatus,
   getMe: mocks.getMe,
   getToken: mocks.getToken,

@@ -59,6 +59,7 @@ export function ProjectProposalNotice({
   const draft = raw as {
     id?: unknown;
     status?: unknown;
+    goal?: unknown;
     revision?: unknown;
     changes?: unknown;
     open_questions?: unknown;
@@ -71,6 +72,10 @@ export function ProjectProposalNotice({
           (item): item is string => typeof item === "string" && !!item.trim(),
         )
       : [];
+  const openQuestions = strings(draft.open_questions);
+  const displayQuestions = ["?", "？"].includes(String(draft.goal ?? "").trim())
+    ? ["请补充：要解决什么问题、服务谁、第一期交付什么？"]
+    : openQuestions;
   const status = String(draft.status);
   if (
     typeof draft.id !== "string" ||
@@ -95,7 +100,7 @@ export function ProjectProposalNotice({
       "approval_expired",
       "needs_revision",
       "needs_roles",
-    ].includes(status) && strings(draft.open_questions).length === 0;
+    ].includes(status) && openQuestions.length === 0;
   function send(command: string) {
     if (submittedId === id) return;
     setSubmittedId(id);
@@ -104,7 +109,7 @@ export function ProjectProposalNotice({
     onReview(command);
   }
   return (
-    <div className="mx-auto my-3 flex max-w-3xl items-start gap-3 rounded-lg border bg-muted/30 p-3">
+    <div className="mx-auto my-3 flex w-full max-w-3xl items-start gap-3 rounded-lg border bg-muted/30 p-3">
       <ClipboardCheckIcon className="mt-0.5 size-4 shrink-0 text-muted-foreground" />
       <div className="min-w-0 flex-1 text-sm">
         <p className="font-medium">
@@ -128,15 +133,13 @@ export function ProjectProposalNotice({
             本轮评审未完成，原草案和补充意见已保留。可补充后再次更新草案。
           </p>
         )}
-        {strings(draft.open_questions).length > 0 && (
+        {displayQuestions.length > 0 && (
           <div className="mt-3">
             <p className="font-medium">先确认这几个问题</p>
             <ol className="mt-1 list-decimal space-y-1 pl-5">
-              {strings(draft.open_questions)
-                .slice(0, 3)
-                .map((item, index) => (
-                  <li key={index}>{item}</li>
-                ))}
+              {displayQuestions.slice(0, 3).map((item, index) => (
+                <li key={index}>{item}</li>
+              ))}
             </ol>
           </div>
         )}
@@ -164,7 +167,7 @@ export function ProjectProposalNotice({
               ))}
             </>
           )}
-          {strings(draft.open_questions).length > 3 && (
+          {openQuestions.length > 3 && (
             <p className="mt-2">
               其他待确认：{strings(draft.open_questions).slice(3).join("；")}
             </p>

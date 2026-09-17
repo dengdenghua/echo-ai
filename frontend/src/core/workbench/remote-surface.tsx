@@ -10,7 +10,7 @@ import { useLocation, useNavigate } from "react-router-dom";
 
 import { Button } from "@/components/ui/button";
 import {
-  fetchCloudInstalled,
+  fetchWorkbenchInstalled,
   fetchRuntimePluginStatus,
   setCloudPluginEnabled,
   setRuntimePluginEnabled,
@@ -270,13 +270,14 @@ export function RemoteWorkbenchSurface({
     void (async () => {
       // These reads are independent. Wait for all checks before mounting, but
       // don't add their network latencies together on every mode switch.
-      const [installedResult, runtimeResult, manifestResult] = await Promise.allSettled([
-        fetchCloudInstalled(),
-        app.runtimePlugin
-          ? fetchRuntimePluginStatus(app.runtimePlugin)
-          : Promise.resolve(null),
-        fetchRemoteWorkbenchManifest(packageId, controller.signal),
-      ]);
+      const [installedResult, runtimeResult, manifestResult] =
+        await Promise.allSettled([
+          fetchWorkbenchInstalled(packageId),
+          app.runtimePlugin
+            ? fetchRuntimePluginStatus(app.runtimePlugin)
+            : Promise.resolve(null),
+          fetchRemoteWorkbenchManifest(packageId, controller.signal),
+        ]);
       if (controller.signal.aborted) return;
       try {
         if (installedResult.status === "rejected") throw installedResult.reason;
@@ -423,16 +424,17 @@ export function RemoteWorkbenchSurface({
     return () => window.removeEventListener("message", receive);
   }, [navigate]);
 
+  const entryHostPath = initialHostPathRef.current;
   const src = useMemo(() => {
     if (!manifest) return "";
     const entry = new URL(
       manifest.entry_url,
       getBackendBaseURL() || window.location.origin,
     );
-    entry.searchParams.set("echo_host_path", initialHostPathRef.current);
+    entry.searchParams.set("echo_host_path", entryHostPath);
     entry.searchParams.set("echo_host_origin", window.location.origin);
     return entry.toString();
-  }, [manifest, freshTask]);
+  }, [manifest, entryHostPath]);
 
   const sendContext = useCallback(() => {
     iframeRef.current?.contentWindow?.postMessage(

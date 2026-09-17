@@ -140,3 +140,8 @@ export function useArtifacts() {
   }
   return context;
 }
+
+/** Receipt cards also render outside the full workspace in previews/tests. */
+export function useOptionalArtifacts() {
+  return useContext(ArtifactsContext);
+}

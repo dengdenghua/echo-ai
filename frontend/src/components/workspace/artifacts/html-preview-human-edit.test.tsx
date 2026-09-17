@@ -40,6 +40,7 @@ vi.mock("./use-install-skill", () => ({
 }));
 vi.mock("@/core/i18n/hooks", () => ({
   useI18n: () => ({
+    locale: "zh-CN",
     t: {
       common: {
         cancel: "取消",
@@ -91,6 +92,7 @@ vi.mock("../messages/context", () => ({
 }));
 
 import { ArtifactFileDetail, HtmlPreview } from "./artifact-file-detail";
+import { dispatchQuickReply } from "@/core/messages/quick-reply";
 
 function bridgeTokenOf(iframe: HTMLIFrameElement): string {
   const match = iframe.srcdoc.match(/const BRIDGE_TOKEN = ("[^"]+");/);
@@ -109,6 +111,7 @@ describe("HtmlPreview human editing", () => {
           new Response(
             JSON.stringify({
               success: true,
+              proposals: [],
               path: "/site.html",
               bytes: 32,
               sha256: "saved",
@@ -119,6 +122,39 @@ describe("HtmlPreview human editing", () => {
         ),
       ),
     );
+  });
+
+  it.each([true, false])("prepares an AI working copy before queueing, accepted=%s", async (queued) => {
+    vi.mocked(dispatchQuickReply).mockReset().mockReturnValue(queued);
+    const candidate = "D:/test/task/.artifact-proposals/file/123-abababababab/candidate.html";
+    const proposal = { proposal_id: "123-abababababab", status: "pending", candidate_path: candidate, created_at: 1700000000, base_sha256: "base" };
+    const fetchMock = vi.fn().mockImplementation((_url: string, options: RequestInit) => {
+      const body = options.body ? JSON.parse(String(options.body)) : {};
+      return Promise.resolve(new Response(JSON.stringify(options.method === "GET" ? { proposals: [] } : { ...proposal, status: body.action === "reject" ? "rejected" : "pending" }), { status: 200, headers: { "Content-Type": "application/json" } }));
+    });
+    vi.stubGlobal("fetch", fetchMock);
+    const onSaved = vi.fn();
+    render(<HtmlPreview artifactRef="workspace-output:final:site.html" content="<h1>Old</h1>" filepath="site.html" threadId="thread-1" onSaved={onSaved} />);
+    const frame = screen.getByTitle("Artifact preview") as HTMLIFrameElement;
+    fireEvent(window, new MessageEvent("message", { source: frame.contentWindow!, data: { type: "echo:inspect:select", echoBridgeToken: bridgeTokenOf(frame), payload: { selector: "h1", tagName: "h1", textContent: "Old", outerHTML: "<h1>Old</h1>", rect: { x: 0, y: 0, w: 100, h: 20 } } } }));
+    await userEvent.type(await screen.findByPlaceholderText("修改要求"), "改成蓝色");
+    await userEvent.click(screen.getByRole("button", { name: "发送修改" }));
+    await waitFor(() => expect(dispatchQuickReply).toHaveBeenCalledTimes(1));
+    const message = vi.mocked(dispatchQuickReply).mock.calls[0]?.[0];
+    expect(message?.threadId).toBe("thread-1");
+    expect(message?.text).toContain(candidate);
+    expect(message?.text).toContain("不要自行接受提案");
+    const mutations = fetchMock.mock.calls.filter((call) => call[1]?.method === "POST").map((call) => JSON.parse(String(call[1]?.body)));
+    expect(mutations[0]).toEqual(expect.objectContaining({ action: "create", expected_sha256: expect.stringMatching(/^[a-f0-9]{64}$/) }));
+    if (!queued) {
+      await waitFor(() => expect(fetchMock.mock.calls.some((call) => String(call[1]?.body).includes('"action":"reject"'))).toBe(true));
+      expect(screen.getByPlaceholderText("修改要求")).toHaveValue("改成蓝色");
+    } else {
+      await waitFor(() => expect(screen.queryByPlaceholderText("修改要求")).not.toBeInTheDocument());
+    }
+    expect(fetchMock.mock.calls.some((call) => call[1]?.method === "PUT")).toBe(false);
+    expect(onSaved).not.toHaveBeenCalled();
+    expect(frame.srcdoc).toContain("<h1>Old</h1>");
   });
 
   it("edits the rendered body and saves it back to the scoped artifact", async () => {
@@ -227,7 +263,7 @@ describe("HtmlPreview human editing", () => {
     ).not.toBeInTheDocument();
   });
 
-  it("ignores forged save messages from scripts inside the artifact", () => {
+  it("ignores forged save messages from scripts inside the artifact", async () => {
     render(
       <HtmlPreview
         artifactRef="workspace-output:final:site.html"
@@ -249,7 +285,11 @@ describe("HtmlPreview human editing", () => {
       }),
     );
 
-    expect(fetch).not.toHaveBeenCalled();
+    await waitFor(() => expect(fetch).toHaveBeenCalledTimes(1));
+    expect(fetch).toHaveBeenCalledWith(
+      expect.stringContaining("/output-proposals/"),
+      expect.objectContaining({ method: "GET" }),
+    );
   });
 
   it("keeps the editing session open when the artifact changed concurrently", async () => {

@@ -246,9 +246,6 @@ function AgentWorkbenchPanelImpl({
         const turnId = `turn_${lastEvent.startedAt}`;
         const cached = await snapshotCacheRef.current?.load(threadId, turnId);
         if (cached) {
-          console.log(
-            `[WorkbenchCache] Restored snapshot from cache (${cached.events.length} events)`,
-          );
           setCachedSnapshot(cached.snapshot);
         }
       } catch (error) {
@@ -275,7 +272,6 @@ function AgentWorkbenchPanelImpl({
       cachedSnapshot &&
       cachedSnapshot.fingerprint === workbenchSnapshot.fingerprint
     ) {
-      console.log("[WorkbenchCache] Using cached snapshot");
       return cachedSnapshot;
     }
     return workbenchSnapshot;
@@ -297,9 +293,6 @@ function AgentWorkbenchPanelImpl({
           turnId,
           workbenchSnapshot,
           events,
-        );
-        console.log(
-          `[WorkbenchCache] Saved snapshot to cache (v${workbenchSnapshot.version})`,
         );
       } catch (error) {
         console.warn("[WorkbenchCache] Failed to save to cache:", error);
@@ -841,9 +834,9 @@ function AgentWorkbenchPanelImpl({
         onTabClick={handleOpenTab}
         onTabClose={handleCloseTab}
         onClose={onClose}
-        workspaceLabel={workspaceLabel}
+        workspaceLabel={selectedAgent ? (selectedAgent.codename ?? selectedAgent.name) : workspaceLabel}
         showWorkspaceLabel
-        mainRunStatusLabel={mainRunStatus.label}
+        mainRunStatusLabel={selectedAgent ? (selectedAgent.status === "running" ? t.agentWorkbenchPanel.agentStatusRunning : selectedAgent.status === "error" ? t.agentWorkbenchPanel.agentStatusError : selectedAgent.status) : mainRunStatus.label}
       />
 
       {threadId &&

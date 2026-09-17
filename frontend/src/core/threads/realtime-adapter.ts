@@ -921,6 +921,18 @@ function turnToMessages(turn: Turn): Message[] {
       }
     }
   }
+  const startedAt = Date.parse(turn.startedAt);
+  const completedAt = turn.completedAt ? Date.parse(turn.completedAt) : NaN;
+  if (Number.isFinite(startedAt) && Number.isFinite(completedAt)) {
+    const turnDurationMs = Math.max(0, completedAt - startedAt);
+    for (const message of out) {
+      if (message.type !== "ai") continue;
+      message.additional_kwargs = {
+        ...message.additional_kwargs,
+        turn_duration_ms: turnDurationMs,
+      };
+    }
+  }
   return out;
 }
 

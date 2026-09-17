@@ -45,6 +45,21 @@ const agents: Agent[] = [
 ];
 
 describe("TaskCollaboratorControl", () => {
+  it("discards staged selections on cancel and preserves existing members", async () => {
+    const user = userEvent.setup();
+    const save = vi.fn();
+    const mode = vi.fn();
+    renderWithProviders(<TaskCollaboratorControl agents={agents} selectedAgents={[agents[1]!]} selectedAgentIds={["general"]} currentAgentName="coder" teamMode="cluster" onSelectedAgentIdsChange={save} onTeamModeChange={mode} roster={[]} />, { locale: "zh-CN" });
+    await user.click(screen.getByRole("button", { name: /成员|协作/ }));
+    await user.click(screen.getByRole("button", { name: /研究顾问/ }));
+    expect(screen.getByText("已选 2 位成员")).toBeVisible();
+    await user.click(screen.getByRole("button", { name: "取消" }));
+    expect(save).not.toHaveBeenCalled();
+    await user.click(screen.getByRole("button", { name: /成员|协作/ }));
+    expect(screen.getByText("已选 1 位成员")).toBeVisible();
+    expect(screen.getByRole("button", { name: "确认成员" })).toBeDisabled();
+    expect(mode).not.toHaveBeenCalled();
+  });
   it("separates fixed personas from on-demand capabilities", async () => {
     const user = userEvent.setup();
     const onSelectedAgentIdsChange = vi.fn();
@@ -89,7 +104,14 @@ describe("TaskCollaboratorControl", () => {
 
     await user.click(screen.getByRole("button", { name: /研究顾问/ }));
 
+    expect(onTeamModeChange).not.toHaveBeenCalled();
+    expect(onSelectedAgentIdsChange).not.toHaveBeenCalled();
+    expect(screen.queryByRole("dialog")).toBeNull();
+    await user.click(screen.getByRole("button", { name: /Eve/ }));
+    expect(screen.getByText("已选 2 位成员")).toBeVisible();
+    expect(onSelectedAgentIdsChange).not.toHaveBeenCalled();
+    await user.click(screen.getByRole("button", { name: "创建群聊" }));
     expect(onTeamModeChange).toHaveBeenCalledWith("cluster");
-    expect(onSelectedAgentIdsChange).toHaveBeenCalledWith(["research-advisor"]);
+    expect(onSelectedAgentIdsChange).toHaveBeenCalledWith(["research-advisor", "general"]);
   });
 });

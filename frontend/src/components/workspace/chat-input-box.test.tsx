@@ -20,6 +20,19 @@ import type { GroupTaskStrategy } from "./group-task-strategy";
 import type { AgentModeName } from "./mode-selector";
 
 const uploadFilesMock = vi.fn();
+it("resumes an interrupted task directly from the empty composer", () => {
+  const resume = vi.fn();
+  const submit = vi.fn();
+  renderWithProviders(<ChatInputBox mode="react" threadId="resume-test" onResume={resume} onSubmit={submit} />);
+  fireEvent.click(screen.getByTestId("chat-resume-button"));
+  expect(resume).toHaveBeenCalledOnce();
+  expect(submit).not.toHaveBeenCalled();
+});
+it("keeps normal draft submission when a resumable task has typed input", () => {
+  renderWithProviders(<ChatInputBox mode="react" threadId="resume-draft" defaultValue="new direction" onResume={vi.fn()} />);
+  expect(screen.queryByTestId("chat-resume-button")).toBeNull();
+  expect(screen.getByTestId("chat-send-button")).toBeInTheDocument();
+});
 const uploadWithProgressMock = vi.fn();
 const captureComputerAppshotMock = vi.hoisted(() => vi.fn());
 const modelCatalog = vi.hoisted(() => ({
@@ -820,6 +833,37 @@ describe("<ChatInputBox /> cowork materials", () => {
     expect(screen.queryByTestId("composer-command-prefix")).toBeNull();
   });
 
+  it("suggests Project OS for project-creation drafts", async () => {
+    const user = userEvent.setup();
+    const onSubmit = vi.fn();
+    renderWithProviders(
+      <ChatInputBox
+        mode="react"
+        threadId="thread-project-intent"
+        onSubmit={onSubmit}
+      />,
+    );
+
+    fireEvent.change(textarea(), {
+      target: { value: "开一个智能床笠项目" },
+    });
+    expect(screen.getByTestId("project-intent-suggestion")).toBeInTheDocument();
+
+    await user.click(screen.getByTestId("project-intent-accept"));
+    expect(screen.queryByTestId("project-intent-suggestion")).toBeNull();
+    expect(textarea()).toHaveValue("开一个智能床笠项目");
+    expect(screen.getByTestId("composer-command-prefix")).toHaveTextContent(
+      "Milestone",
+    );
+
+    fireEvent.click(screen.getByTitle("Send"));
+    await waitFor(() =>
+      expect(onSubmit).toHaveBeenCalledWith({
+        text: "/project run\n开一个智能床笠项目",
+      }),
+    );
+  });
+
   it("lazily exposes plugins and skills as removable colored references", async () => {
     const user = userEvent.setup();
     const onSubmit = vi.fn();
@@ -1583,7 +1627,27 @@ describe("<ChatInputBox /> connection recovery", () => {
     expect(screen.queryByTestId("composer-quote")).toBeNull();
   });
 
-  it("keeps the draft editable and unsent until the thread is ready", () => {
+  it("shows an actual reconnect immediately while preserving editing", () => {
+    renderWithProviders(
+      <ChatInputBox
+        mode="react"
+        threadId="thread-disconnected"
+        readyForMutations={false}
+        connectionPhase="reconnecting"
+      />,
+    );
+
+    expect(screen.getByTestId("chat-connection-status")).toHaveTextContent(
+      "Restoring connection… Your draft is safe.",
+    );
+    const input = screen.getByTestId("chat-composer-input");
+    fireEvent.change(input, { target: { value: "edit while reconnecting" } });
+    expect(input).toHaveValue("edit while reconnecting");
+    expect(input).not.toBeDisabled();
+    expect(screen.getByTestId("chat-send-button")).toBeDisabled();
+  });
+
+  it("keeps the draft editable and unsent until the thread is ready", async () => {
     const onSubmit = vi.fn();
     const { rerender } = renderWithProviders(
       <ChatInputBox
@@ -1599,8 +1663,9 @@ describe("<ChatInputBox /> connection recovery", () => {
     fireEvent.change(input, { target: { value: "keep this draft" } });
 
     expect(input).not.toBeDisabled();
-    expect(screen.getByTestId("chat-connection-status")).toHaveTextContent(
-      "Restoring connection… Your draft is safe.",
+    expect(screen.queryByTestId("chat-connection-status")).toBeNull();
+    expect(await screen.findByTestId("chat-connection-status")).toHaveTextContent(
+      "Syncing conversation… You can keep editing.",
     );
     expect(screen.getByTestId("chat-send-button")).toBeDisabled();
     fireEvent.keyDown(input, { key: "Enter", code: "Enter" });

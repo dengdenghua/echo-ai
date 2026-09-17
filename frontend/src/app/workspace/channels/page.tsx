@@ -199,7 +199,11 @@ const PLATFORM_CATEGORY_MAP: Record<string, string> = {
 
 const CATEGORY_ORDER = ["im", "china", "email_sms", "smart_home", "dev_tools"];
 
-export default function ChannelsPage() {
+export default function ChannelsPage({
+  embedded = false,
+}: {
+  embedded?: boolean;
+}) {
   const { t } = useI18n();
   const { confirm, confirmDialog } = useConfirmDialog();
   const [rows, setRows] = useState<ChannelRow[]>([]);
@@ -459,7 +463,11 @@ export default function ChannelsPage() {
   }, [filteredRows, t.channels.categoryOther]);
 
   return (
-    <WorkspaceContainer mobileNavigation>
+    <WorkspaceContainer
+      mobileNavigation={!embedded}
+      className={embedded ? "h-full min-h-0 !px-0 !pb-0" : undefined}
+      style={embedded ? { height: "100%" } : undefined}
+    >
       <WorkspaceBody className="px-4 pb-4">
         <div className="ui-density-stack mx-auto flex w-full max-w-6xl flex-col">
           {confirmDialog}

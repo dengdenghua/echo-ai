@@ -1371,6 +1371,14 @@ describe("<AgentOperatorPanel />", () => {
   it("renders task runs, timeline and pending review queue", async () => {
     renderWithProviders(<AgentOperatorPanel />);
 
+    // The loading placeholder reuses the same heading text, so wait for the
+    // ready surface before querying it or we grab the node that is about to
+    // be unmounted.
+    await waitFor(() =>
+      expect(
+        document.querySelector('[data-operator-state="ready"]'),
+      ).not.toBeNull(),
+    );
     expect(
       await screen.findByText("Agent evolution queue"),
     ).toBeInTheDocument();
@@ -1962,6 +1970,14 @@ describe("<AgentOperatorPanel />", () => {
 
     renderWithProviders(<AgentOperatorPanel />);
 
+    // The loading placeholder reuses the same heading text, so wait for the
+    // ready surface before querying it or we grab the node that is about to
+    // be unmounted.
+    await waitFor(() =>
+      expect(
+        document.querySelector('[data-operator-state="ready"]'),
+      ).not.toBeNull(),
+    );
     expect(
       await screen.findByText("Agent evolution queue"),
     ).toBeInTheDocument();

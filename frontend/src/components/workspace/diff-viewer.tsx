@@ -16,10 +16,12 @@ export function DiffViewer({
   className,
   oldValue,
   newValue,
+  readOnly = false,
 }: {
   className?: string;
   oldValue: string;
   newValue: string;
+  readOnly?: boolean;
 }) {
   const { resolvedTheme } = useTheme();
   const [languageExtensions, setLanguageExtensions] = useState<Extension[]>([]);
@@ -41,12 +43,12 @@ export function DiffViewer({
       ...languageExtensions,
       unifiedMergeView({
         original: oldValue,
-        mergeControls: true,
+        mergeControls: !readOnly,
         highlightChanges: true,
         gutter: true,
       }),
     ];
-  }, [languageExtensions, oldValue]);
+  }, [languageExtensions, oldValue, readOnly]);
 
   return (
     <div
@@ -76,6 +78,8 @@ export function DiffViewer({
             lineNumbers: true,
           }}
           value={newValue}
+          editable={!readOnly}
+          readOnly={readOnly}
         />
       </Suspense>
     </div>

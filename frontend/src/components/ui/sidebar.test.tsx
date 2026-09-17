@@ -31,12 +31,12 @@ describe("mobile sidebar", () => {
     );
 
     const trigger = screen.getByRole("button", { name: "打开侧栏菜单" });
-    expect(trigger).toHaveTextContent("展开侧栏 (⌘B)");
+    expect(trigger).toHaveTextContent("展开侧栏 (Ctrl/⌘+B)");
 
     await user.click(trigger);
 
     expect(await screen.findByRole("dialog", { name: "导航" })).toBeVisible();
     expect(screen.getByText("打开侧栏菜单")).toBeInTheDocument();
-    expect(trigger).toHaveTextContent("收起侧栏 (⌘B)");
+    expect(trigger).toHaveTextContent("收起侧栏 (Ctrl/⌘+B)");
   });
 });

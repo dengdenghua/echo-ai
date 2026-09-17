@@ -172,13 +172,25 @@ function AgentKanbanViewImpl({
         <span className="ml-auto font-mono text-xs text-muted-foreground">
           {selectedRosterSeat
             ? selectedRosterSeat.name
-            : (selectedAgent?.label ??
+            : (selectedAgent?.codename ??
+              selectedAgent?.name ??
               mainAgentName ??
               t.agentWorkbenchPanel.mainComputer)}
         </span>
       </div>
 
-      {effectiveActivityView === "summary" ? (
+      {effectiveActivityView === "summary" &&
+      selectedAgent &&
+      (selectedAgent.status === "done" || selectedAgent.status === "error") ? (
+        <SubagentProcessView
+          agent={selectedAgent}
+          blocks={screenBlocks}
+          currentBlockId={currentScreenBlockId}
+          onOpenMain={openMainProcess}
+          onSelectBlock={setSelectedBlockId}
+          summaryOnly
+        />
+      ) : effectiveActivityView === "summary" ? (
         <AgentSummaryPage
           phases={phases}
           diffEntries={visibleDiffEntries}

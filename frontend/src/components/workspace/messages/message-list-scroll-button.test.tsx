@@ -322,7 +322,14 @@ describe("MessageList scroll-to-latest affordance", () => {
     expect(turns[0]).toHaveClass("message-turn-history");
     expect(turns[1]).toHaveAttribute("data-turn-rendering", "active");
     expect(turns[1]).not.toHaveClass("message-turn-history");
-    expect(turns[1]).toContainElement(screen.getByText("streaming answer"));
+    // The streamed tail is wrapped in a per-word fade-in <span>, so the answer
+    // spans several nodes. Assert on the paragraph's combined text instead of
+    // an exact single-node match.
+    const streamingParagraph = screen
+      .getAllByText(/streaming/)
+      .find((node) => node.textContent?.trim() === "streaming answer");
+    expect(streamingParagraph).toBeDefined();
+    expect(turns[1]).toContainElement(streamingParagraph!);
   });
 
   test("partitions leading activity and human turns without dropping groups", () => {

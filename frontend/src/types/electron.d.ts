@@ -287,6 +287,7 @@ export interface EchoElectronAPI {
       height?: number;
       sourceId?: string;
       sourceName?: string;
+      iconUrl?: string;
       matched?: boolean;
       error?: string;
     }>;

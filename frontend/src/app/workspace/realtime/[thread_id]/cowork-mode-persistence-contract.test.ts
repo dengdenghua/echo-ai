@@ -6,7 +6,7 @@ import { describe, expect, test } from "vitest";
 const pageSource = readFileSync(
   join(process.cwd(), "src/app/workspace/realtime/[thread_id]/page.tsx"),
   "utf8",
-);
+).replace(/\r\n/g, "\n");
 
 describe("realtime cowork response-mode persistence contract", () => {
   test("syncs the user's current mode intent instead of the stale saved mode", () => {

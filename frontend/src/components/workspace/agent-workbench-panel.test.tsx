@@ -1972,6 +1972,39 @@ describe("<AgentWorkbenchPanel />", () => {
     ).not.toBeInTheDocument();
   });
 
+  test("opens a completed child's result from its conversation receipt", async () => {
+    renderWorkbench(
+      <AgentWorkbenchPanel
+        activeTab="agent"
+        focusedAgentId="twin-health"
+        focusedAgentView="summary"
+        focusedAgentNonce={1}
+        focusedAgentSnapshot={{
+          id: "twin-health",
+          name: "医疗健康协作分身",
+          status: "done",
+          task: "计算 19 × 23",
+          summary: "HUB_FINAL_437",
+        }}
+        events={[
+          event({
+            id: "health-done",
+            name: "subagent",
+            lifecycle: "finished",
+            agentId: "twin-health",
+            status: "done",
+          }),
+        ]}
+      />,
+    );
+    await waitFor(() =>
+      expect(screen.getByText("HUB_FINAL_437")).toBeInTheDocument(),
+    );
+    expect(screen.queryByText("计算 19 × 23")).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "执行画面" }));
+    expect(screen.getByText("HUB_FINAL_437")).toBeInTheDocument();
+  });
+
   test("shows only the focused sub-agent complete stream in the right workbench", async () => {
     renderWorkbench(
       <AgentWorkbenchPanel

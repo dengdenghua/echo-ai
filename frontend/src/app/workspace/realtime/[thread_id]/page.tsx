@@ -1,3 +1,6 @@
+import { canonicalAgentId } from "@/core/agents/aliases";
+import { TeamWelcomeCard } from "@/components/workspace/team-welcome-card";
+import { executionRoster } from "@/components/workspace/realtime/execution-roster";
 import { useHistoryDraft } from "@/core/threads/use-history-draft";
 import { parseDesignCapabilities } from "@/core/design/capabilities";
 import { useRemoteGroupAgents } from "@/core/agents/remote-agents";
@@ -24,6 +27,10 @@ import { ChatHeaderRecButton } from "@/components/workspace/realtime/chat-header
 import { ChatHeaderAgentBadge } from "@/components/workspace/realtime/chat-header-agent-badge";
 import { ConversationEmptyState } from "@/components/workspace/realtime/conversation-empty-state";
 import { ProjectGroupHeaderBadge } from "@/components/workspace/realtime/project-group-header-badge";
+import { CollaborationCoordination } from "@/components/workspace/collaboration-coordination";
+import { TaskFollowups } from "@/components/workspace/task-followups";
+import { TaskDeliveryReview } from "@/components/workspace/task-delivery-review";
+import { TaskSideQuestion } from "@/components/workspace/task-side-question";
 import { RealtimeGroupHeaderLayout } from "@/components/workspace/realtime/realtime-group-header-layout";
 import {
   RealtimeChatHeaderActions,
@@ -133,6 +140,9 @@ import { convertToSteps } from "@/components/workspace/messages/message-group";
 import { extractResultUrl } from "@/components/workspace/messages/message-output-summary";
 import { LoadOlderTurnsBanner } from "@/components/workspace/messages/load-older-turns-banner";
 import { ThreadProviders } from "@/components/workspace/messages/context";
+import { FileReferenceScope } from "@/core/navigation/file-reference";
+import { automationTargetFrom } from "@/core/automation/references";
+import { AutomationPreviewHost } from "@/components/workspace/automation-preview-host";
 import { liveEventIsReportLike } from "@/core/threads/report-deliverable";
 import { ThreadTitle } from "@/components/workspace/thread-title";
 import {
@@ -162,6 +172,8 @@ import {
 import { PlanPanel } from "@/components/workspace/plan-panel";
 import { AutomationSubscriptionPanel } from "@/components/workspace/automation/automation-subscription-panel";
 import { AssistantSettingsMenu } from "@/components/workspace/assistant-settings-menu";
+import { AssistantChannels } from "@/components/workspace/assistant-channels";
+import { SidebarTrigger } from "@/components/ui/sidebar";
 import { StreamingDebugger } from "@/components/workspace/streaming-debugger";
 import { ContextCompressionIndicator } from "@/components/workspace/context-compression-indicator";
 import { Welcome } from "@/components/workspace/welcome";
@@ -296,259 +308,26 @@ import {
 import { isAbsolutePath, joinPath } from "@/lib/path-utils";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
-
-function normalizeReasoningEffortForUi(
-  effort: ReasoningEffort | undefined,
-): ReasoningEffort | undefined {
-  return effort === "max" ? "xhigh" : effort;
-}
-
-// Collect the most recent human message texts (newest first, capped at 5) for
-// intent-based mode auto-switching. Index 0 is the latest message so the
-// intent classifier's time weights apply correctly.
-function recentHumanMessageTexts(messages: Message[]): string[] {
-  const texts: string[] = [];
-  for (let i = messages.length - 1; i >= 0 && texts.length < 5; i -= 1) {
-    const message = messages[i];
-    if (!message || !isHumanMessage(message)) continue;
-    const text = extractTextFromMessage(message).trim();
-    if (text) texts.push(text);
-  }
-  return texts;
-}
-
-function modeLabelFor(
-  mode: AgentModeName,
-  t: ReturnType<typeof useI18n>["t"],
-): string {
-  if (mode === "audit") return t.modes.audit;
-  if (mode === "uxui") return t.modes.uxui;
-  return t.modes.develop;
-}
-
-const CHAT_WORKDIR_KEY = "chat:workdir:lastUsed";
-const CODE_WORKDIR_KEY = "code:workdir:lastUsed";
-const RECENT_WORKDIRS_KEY = "echo:recentWorkdirs";
-const AGENT_WORKBENCH_OPEN_KEY = "echo:agent-workbench-open";
-const GROUP_PERSPECTIVE_KEY_PREFIX = "echo:group-perspective:";
-const MAX_RECENT_WORKDIRS = 6;
-
-type ThreadRouteState = {
-  threadOwnerAgentId?: string;
-  workspacePath?: string;
-  /** Navigation from a project entry requests the contextual project tab,
-   * while ordinary thread navigation keeps the user's workbench preference. */
-  openProjectWorkbench?: boolean;
-  /** A project was just created with the explicit "invite people next"
-   * choice. The destination consumes this once after its canonical room is
-   * ready, then removes it from history state. */
-  openHumanInviteAfterCreate?: boolean;
-};
-
-function normalizeWorkDirKey(path: string): string {
-  return path.trim().replace(/\\/g, "/").replace(/\/+$/, "").toLowerCase();
-}
-
-function readGroupPerspective(threadId: string): string | null {
-  if (typeof window === "undefined" || !threadId || threadId === "new") {
-    return null;
-  }
-  try {
-    return (
-      window.localStorage
-        .getItem(`${GROUP_PERSPECTIVE_KEY_PREFIX}${threadId}`)
-        ?.trim() || null
-    );
-  } catch (error) {
-    swallow(error, "read-group-perspective");
-    return null;
-  }
-}
-
-function rememberGroupPerspective(threadId: string, agentId: string | null) {
-  if (typeof window === "undefined" || !threadId || threadId === "new") {
-    return;
-  }
-  try {
-    const key = `${GROUP_PERSPECTIVE_KEY_PREFIX}${threadId}`;
-    if (agentId) window.localStorage.setItem(key, agentId);
-    else window.localStorage.removeItem(key);
-  } catch (error) {
-    swallow(error, "remember-group-perspective");
-  }
-}
-
-/** Keep role folders readable while preventing display names from escaping the root. */
-function personalRoleFolderName(
-  agent: { name?: string; display_name?: string | null } | null,
-  fallback: string,
-): string {
-  const raw =
-    agent?.display_name?.trim() ||
-    agent?.name?.trim() ||
-    fallback.trim() ||
-    "角色";
-  const safe = raw
-    .replace(/[<>:"/\\|?*\u0000-\u001f]/g, "-")
-    .replace(/[. ]+$/g, "")
-    .trim();
-  return safe || "角色";
-}
-
-function rememberChatWorkDir(dir: string) {
-  if (typeof window === "undefined") return;
-  try {
-    if (!dir || !isAbsolutePath(dir)) {
-      window.localStorage.removeItem(CHAT_WORKDIR_KEY);
-      return;
-    }
-    window.localStorage.setItem(CHAT_WORKDIR_KEY, dir);
-    window.localStorage.setItem(CODE_WORKDIR_KEY, dir);
-
-    const raw = window.localStorage.getItem(RECENT_WORKDIRS_KEY);
-    const parsed = raw ? JSON.parse(raw) : [];
-    const current = Array.isArray(parsed)
-      ? parsed.filter((item): item is string => typeof item === "string")
-      : [];
-    const next = [
-      dir,
-      ...current.filter(
-        (item) => normalizeWorkDirKey(item) !== normalizeWorkDirKey(dir),
-      ),
-    ].slice(0, MAX_RECENT_WORKDIRS);
-    window.localStorage.setItem(RECENT_WORKDIRS_KEY, JSON.stringify(next));
-  } catch (e) {
-    swallow(e, "storage");
-  }
-}
-
-function readRememberedChatWorkDir(): string {
-  if (typeof window === "undefined") return "";
-  try {
-    const remembered =
-      window.localStorage.getItem(CHAT_WORKDIR_KEY)?.trim() ?? "";
-    return isAbsolutePath(remembered) ? remembered : "";
-  } catch (e) {
-    swallow(e, "storage");
-    return "";
-  }
-}
-
-function readAgentWorkbenchOpenPreference(): boolean {
-  if (typeof window === "undefined") return false;
-  try {
-    return window.localStorage.getItem(AGENT_WORKBENCH_OPEN_KEY) === "1";
-  } catch (e) {
-    swallow(e, "storage");
-    return false;
-  }
-}
-
-type CompactResult = {
-  compacted: boolean;
-  reason?: string;
-  turnCount?: number;
-  keepRecent?: number;
-};
-
-type CompactableThread = {
-  compact?: () => Promise<CompactResult>;
-};
-
-const URL_PATTERN = /https?:\/\/[^\s，,]+/gi;
-
-function extractResearchUrls(text: string): { topic: string; urls: string[] } {
-  const urls = Array.from(new Set(text.match(URL_PATTERN) ?? []));
-  const topic = text.replace(URL_PATTERN, " ").replace(/\s+/g, " ").trim();
-  return { topic: topic || text.trim(), urls };
-}
-
-function latestModelContextTokens(messages: Message[]): number | null {
-  for (let i = messages.length - 1; i >= 0; i--) {
-    const message = messages[i];
-    if (!message || !isAIMessage(message)) continue;
-    const usage = message.usage_metadata;
-    if (!usage) continue;
-    const input = Number.isFinite(usage.input_tokens) ? usage.input_tokens : 0;
-    const output = Number.isFinite(usage.output_tokens)
-      ? usage.output_tokens
-      : 0;
-    const total = Number.isFinite(usage.total_tokens)
-      ? usage.total_tokens
-      : input + output;
-    return Math.max(0, total);
-  }
-  return null;
-}
-
-// Text extraction is the expensive part of the estimate and the realtime
-// adapter keeps Message identity stable for unchanged items, so cache the
-// per-message text length by reference: during streaming only the message
-// objects a delta actually rebuilt get re-extracted.
-const messageTextLengthCache = new WeakMap<Message, number>();
-
-function retainedMessageTextLength(message: Message): number {
-  const cached = messageTextLengthCache.get(message);
-  if (cached !== undefined) return cached;
-  const length = extractTextFromMessage(message).length;
-  messageTextLengthCache.set(message, length);
-  return length;
-}
-
-function estimateRetainedContextTokens(messages: Message[]): number {
-  const chars = messages.reduce(
-    (total, message) => total + retainedMessageTextLength(message),
-    0,
-  );
-  return Math.ceil(chars / 4);
-}
-
-function estimateCurrentContextTokens(messages: Message[]): number {
-  const latestUsage = latestModelContextTokens(messages);
-  const retainedEstimate = estimateRetainedContextTokens(messages);
-  return Math.max(latestUsage ?? 0, retainedEstimate);
-}
-
-function recordFromUnknown(value: unknown): Record<string, unknown> | null {
-  if (!value || typeof value !== "object" || Array.isArray(value)) return null;
-  return value as Record<string, unknown>;
-}
-
-function firstString(...values: unknown[]): string {
-  for (const value of values) {
-    if (typeof value === "string" && value.trim()) return value.trim();
-  }
-  return "";
-}
-
-function threadOwnerAgentFromMetadata(
-  metadata?: Record<string, unknown> | null,
-  values?: Record<string, unknown> | null,
-): string {
-  return firstString(
-    metadata?.agent,
-    metadata?.agent_name,
-    metadata?.agent_id,
-    metadata?.lead_agent_name,
-    metadata?.current_agent,
-    values?.current_speaker,
-    values?.agent_name,
-  );
-}
-
-function latestArtifactFocusPathFromEvents(
-  events: Array<{ input?: unknown }>,
-): string | null {
-  for (let index = events.length - 1; index >= 0; index -= 1) {
-    const input = recordFromUnknown(events[index]?.input);
-    const focus = recordFromUnknown(input?.workspaceFocus);
-    const view = focus?.view;
-    if (view !== "artifact" && view !== "image") continue;
-    const path = input?.path;
-    if (typeof path === "string" && path.trim().length > 0) return path;
-  }
-  return null;
-}
+import {
+  normalizeReasoningEffortForUi,
+  recentHumanMessageTexts,
+  modeLabelFor,
+  normalizeWorkDirKey,
+  readGroupPerspective,
+  rememberGroupPerspective,
+  personalRoleFolderName,
+  rememberChatWorkDir,
+  readRememberedChatWorkDir,
+  extractResearchUrls,
+  estimateCurrentContextTokens,
+  firstString,
+  threadOwnerAgentFromMetadata,
+  latestArtifactFocusPathFromEvents,
+  emptyThreadResearchViewState,
+  type ThreadRouteState,
+  type CompactableThread,
+  type ThreadResearchViewState,
+} from "./page-utils";
 
 /**
  * Plain chat workspace. Mirrors the team / code page architecture
@@ -564,26 +343,6 @@ export default function RealtimePage() {
       <RealtimePageContent chatState={chatState} />
     </ArtifactsProvider>
   );
-}
-
-interface ThreadResearchViewState {
-  threadId: string;
-  job: ResearchJob | null;
-  loading: boolean;
-  error: string | null;
-  visible: boolean;
-}
-
-function emptyThreadResearchViewState(
-  threadId: string,
-): ThreadResearchViewState {
-  return {
-    threadId,
-    job: null,
-    loading: false,
-    error: null,
-    visible: false,
-  };
 }
 
 function RealtimePageContent({
@@ -669,7 +428,7 @@ function RealtimePageContent({
     useState(false);
   const [agentWorkbenchDismissed, setAgentWorkbenchDismissed] = useState(false);
   const [agentWorkbenchManuallyOpened, setAgentWorkbenchManuallyOpened] =
-    useState(() => (isNewThread ? false : readAgentWorkbenchOpenPreference()));
+    useState(false);
   const [focusedWorkbenchAgentId, setFocusedWorkbenchAgentId] = useState<
     string | null
   >(null);
@@ -937,16 +696,7 @@ function RealtimePageContent({
     setMounted(true);
   }, []);
 
-  useEffect(() => {
-    try {
-      window.localStorage.setItem(
-        AGENT_WORKBENCH_OPEN_KEY,
-        agentWorkbenchManuallyOpened ? "1" : "0",
-      );
-    } catch (e) {
-      swallow(e, "storage");
-    }
-  }, [agentWorkbenchManuallyOpened]);
+
 
   useEffect(() => {
     collaboratorSelectionTouchedRef.current = false;
@@ -962,6 +712,7 @@ function RealtimePageContent({
   }, [threadId]);
 
   useEffect(() => {
+    setAgentWorkbenchManuallyOpened(false);
     setAgentWorkbenchTabTouched(false);
     setFocusedWorkbenchAgentId(null);
     setFocusedWorkbenchAgentView(null);
@@ -998,10 +749,7 @@ function RealtimePageContent({
     threadIdentityQuery.data?.values?.["project_home"],
   );
   useEffect(() => {
-    const shouldOpen =
-      routeState?.openProjectWorkbench ||
-      isProjectHomeThread ||
-      Boolean(boundProjectQuery.data);
+    const shouldOpen = routeState?.openProjectWorkbench;
     if (
       isNewThread ||
       !shouldOpen ||
@@ -1091,7 +839,8 @@ function RealtimePageContent({
   const initialPrompt = useMemo(() => {
     return searchParams.get("prompt") ?? "";
   }, [searchParams]);
-  const queryAgentName = (searchParams.get("agent") ?? "").trim();
+  const requestedAgentName = (searchParams.get("agent") ?? "").trim();
+  const queryAgentName = canonicalAgentId(requestedAgentName);
   const routeAgentName = useMemo(() => {
     const raw = params.agentName?.trim();
     if (!raw) return "";
@@ -1310,6 +1059,12 @@ function RealtimePageContent({
     },
     [currentTaskAgentName],
   );
+  const welcomeRosterLoadedRef = useRef<string | null>(null);
+  const handleWelcomeTeamLoaded = useCallback((team: import("@/core/teams/api").Team) => {
+    if (!isNewThread || welcomeRosterLoadedRef.current === team.id) return;
+    welcomeRosterLoadedRef.current = team.id;
+    applyTaskCollaboratorPreset({ leaderId: team.leaderId, collaboratorIds: team.members.map(member => member.name), mode: "cluster" });
+  }, [isNewThread, applyTaskCollaboratorPreset]);
   useEffect(() => {
     const storedPreset = consumeTaskCollaboratorPreset();
     if (storedPreset) {
@@ -1424,6 +1179,12 @@ function RealtimePageContent({
       },
       {
         onSuccess: () => {
+          const joined = selectedCollaboratorIds.filter(id => !persistedCollaboratorIds.includes(id));
+          if (joined.length) {
+            const names = joined.map(id => allTaskCollaboratorAgents.find(agent => agent.name === id)?.display_name || id);
+            setMembershipNotice(`${names.join("、")} 已加入群聊。欢迎！你想和团队一起做什么？`);
+          }
+
           collaboratorSelectionTouchedRef.current = false;
           responseModeIntentTouchedRef.current = false;
           pendingRosterModeRef.current = null;
@@ -1447,6 +1208,7 @@ function RealtimePageContent({
       },
     );
   }, [
+    allTaskCollaboratorAgents,
     collabSessionQuery.data,
     collabSessionQuery.isPending,
     coworkGroupQuery.data?.state,
@@ -1464,6 +1226,8 @@ function RealtimePageContent({
     teamModeIntent,
     threadId,
   ]);
+  const [membershipNotice, setMembershipNotice] = useState("");
+  useEffect(() => setMembershipNotice(""), [threadId]);
   const handleSelectedCollaboratorIdsChange = useCallback(
     (ids: string[]) => {
       const leader = currentTaskAgentName.trim();
@@ -3157,6 +2921,13 @@ function RealtimePageContent({
     effectiveMode === "react" ||
     effectiveMode === "code";
   const tasks = useTasks("all");
+  const latestAutomationEvent = [...lastTurnToolEvents].reverse().find(event =>
+    /^(?:computer_|browser_|screen_|mouse_|keyboard_)/.test(event.name));
+  const observedAutomationTarget = useMemo(() => automationTargetFrom(latestAutomationEvent?.output) || automationTargetFrom(latestAutomationEvent?.input), [latestAutomationEvent?.output, latestAutomationEvent?.input]);
+  useEffect(() => {
+    if (observedAutomationTarget && !embeddedDesignChat && thread.isLoading) setAutomationTarget(observedAutomationTarget);
+  }, [observedAutomationTarget, embeddedDesignChat, thread.isLoading]);
+
   const hasRunningAgentEvents = lastTurnToolEvents.some(
     (event) =>
       event.status === "running" || event.status === "waiting_approval",
@@ -3454,9 +3225,6 @@ function RealtimePageContent({
   const showAgentWorkbench =
     canOpenAgentWorkbench &&
     (agentWorkbenchManuallyOpened ||
-      (durableCollaborationEnabled &&
-        !agentWorkbenchDismissed &&
-        (!isNewThread || thread.isLoading || hasRenderableAgentWorkbench)) ||
       (!agentWorkbenchDismissed &&
         hasRenderableAgentWorkbench &&
         showAgentPlan)) &&
@@ -3603,38 +3371,7 @@ function RealtimePageContent({
     thread.isLoading,
   ]);
 
-  useEffect(() => {
-    if (
-      // Mirrors the isNewThread auto-expand path: on mobile the panel takes
-      // over the whole chat column, so never auto-open it there.
-      isMobile ||
-      (!previewBlocks && !resultPreviewUrl) ||
-      agentWorkbenchDismissed ||
-      agentWorkbenchTabTouched ||
-      thread.isLoading ||
-      !hasCompletedAgentOutput
-    ) {
-      return;
-    }
-    setAgentWorkbenchTab("browser");
-    setAgentWorkbenchDismissed(false);
-    setAgentWorkbenchManuallyOpened(true);
-    setArtifactsOpen(false);
-    setShowAgentPlan(false);
-    setShowResearchHistory(false);
-    setShowResearch(false);
-    setShowPreview(false);
-  }, [
-    isMobile,
-    previewBlocks,
-    resultPreviewUrl,
-    agentWorkbenchDismissed,
-    agentWorkbenchTabTouched,
-    thread.isLoading,
-    hasCompletedAgentOutput,
-    setArtifactsOpen,
-    setShowResearch,
-  ]);
+
 
   useEffect(() => {
     const handleAgentFocus = (event: Event) => {
@@ -4580,6 +4317,11 @@ function RealtimePageContent({
         (count, member) => count + (member.online ? 1 : 0),
         0,
       ) ?? 0);
+  const displayedExecutionRoster = executionRoster(
+    visibleCollaborationRoster,
+    embeddedDesignChat ? [] : lastTurnToolEvents,
+    coworkCollaborationProfiles,
+  );
   const headerMemberControl =
     !isEchoAssistant && canManageHumanInvites ? (
       <TaskCollaboratorControl
@@ -4592,9 +4334,10 @@ function RealtimePageContent({
         onOpenChange={setCollaboratorPickerOpen}
         onSelectedAgentIdsChange={handleSelectedCollaboratorIdsChange}
         onTeamModeChange={handleTeamModeIntentChange}
-        roster={visibleCollaborationRoster}
+        roster={displayedExecutionRoster.members}
         onlineCount={onlineCollaboratorCount}
         humanInviteAction={headerHumanInvite}
+        onOpenCoordination={!isNewThread ? () => window.dispatchEvent(new CustomEvent("echo:open-coordination", { detail: { threadId } })) : undefined}
         labelPrefix="AI"
         disabled={replaceCoworkRosterMutation.isPending}
       />
@@ -4686,6 +4429,8 @@ function RealtimePageContent({
         />
       )}
       <ThreadProviders thread={thread} isMock={false}>
+        <FileReferenceScope.Provider value={{ threadId: isNewThread ? undefined : threadId, basePath: effectiveWorkDir || personalWorkspacePath }}>
+        {!embeddedDesignChat && <AutomationPreviewHost threadId={threadId} />}
         <ToolEffectsProvider
           enabled={
             !isNewThread && canAccessGlobalControlPlane(authStatus, user)
@@ -4754,6 +4499,7 @@ function RealtimePageContent({
                       />
                     ) : (
                       <>
+                        <SidebarTrigger className="size-9 shrink-0 md:hidden" />
                         {headerAgentIdentity}
                         <div className="flex min-w-0 flex-1 items-center gap-2">
                           {connectedChannels.length > 0 && (
@@ -4772,6 +4518,7 @@ function RealtimePageContent({
                         <div className="ml-auto flex shrink-0 items-center gap-1">
                           {/* 助理是单聊：不提供加人/协作，也不录制，头部保持极简 */}
                           {headerEchoShare}
+                          <AssistantChannels />
                           <Button
                             type="button"
                             aria-label="自动化与订阅"
@@ -4832,7 +4579,7 @@ function RealtimePageContent({
                         : null
                     }
                     header={
-                      realtimeApprovals.hasMoreTurns ? (
+                      searchParams.get("welcome_team") && !isNewThread ? <TeamWelcomeCard teamId={searchParams.get("welcome_team")!} onLoaded={handleWelcomeTeamLoaded} /> : realtimeApprovals.hasMoreTurns ? (
                         <LoadOlderTurnsBanner
                           onLoad={realtimeApprovals.loadOlderTurns}
                         />
@@ -4879,6 +4626,7 @@ function RealtimePageContent({
                     timelineEntries={conversationTimelineEntries}
                     footer={
                       <>
+                        <TaskDeliveryReview events={lastTurnToolEvents} running={thread.isLoading} />
                         <ProjectProposalNotice threadId={threadId} busy={thread.isLoading || !thread.readyForMutations} onReview={handleSendFollowUp} />
                         {hasCompletedAgentOutput &&
                         hasFinalArtifact &&
@@ -4901,18 +4649,20 @@ function RealtimePageContent({
                       isNewThread && "workspace-start-composer",
                       isNewThread
                         ? "max-w-3xl"
-                        : "max-w-(--container-width-md)",
+                        : "max-w-(--conversation-column)",
                     )}
                   >
                     {mounted ? (
                       <div className={cn("flex flex-col", isNewThread ? "gap-0" : "gap-2")}>
+                        {membershipNotice ? <div role="status" className="mb-2 flex items-center gap-2 rounded-lg border p-3 text-xs text-muted-foreground"><span className="flex-1">{membershipNotice}</span><button aria-label="关闭入群提示" onClick={() => setMembershipNotice("")}>×</button></div> : null}
+                        {isNewThread && selectedCollaborators.length > 0 && !searchParams.get("welcome_team") ? <div className="mb-3 rounded-lg border p-3 text-sm"><p>团队已就绪 · {selectedCollaborators.map(agent => agent.display_name || agent.name).join("、")}</p><p className="mt-1 text-xs text-muted-foreground">发送第一条消息后保存群聊。你想和团队一起做什么？</p></div> : null}
                         {isNewThread ? (
                           <div data-composer-welcome="true">
-                            <Welcome
+                            {searchParams.get("welcome_team") ? <TeamWelcomeCard teamId={searchParams.get("welcome_team")!} onLoaded={handleWelcomeTeamLoaded} /> : <Welcome
                               className="workspace-start-heading"
                               agent={perspectiveDisplayAgent}
                               agentName={mainPerspectiveAgentId}
-                            />
+                            />}
                           </div>
                         ) : null}
                         {!isNewThread ? (
@@ -4931,11 +4681,20 @@ function RealtimePageContent({
                           resolveApproval={realtimeApprovals.resolveApproval}
                           className="-mb-1"
                         />
+                        {!isNewThread && hasPersistedCollaboration && (
+                          <CollaborationCoordination
+                            threadId={threadId}
+                            members={(collabSessionQuery.data?.roster ?? [])
+                              .filter((member) => member.kind !== "human" && member.driver !== "human" && !member.muted && member.role !== "observer")
+                              .map((member) => ({ id: member.id, name: allTaskCollaboratorAgents.find((agent) => agent.name === member.id)?.display_name ?? member.id, owner: member.accountable_owner }))}
+                          />
+                        )}
                         <div className={isNewThread ? "pt-0" : "pt-3"}>
                           {automationTarget ? (
                             <AutomationControlDock
                               threadId={threadId}
                               target={automationTarget}
+                              executing={thread.isLoading && Boolean(latestAutomationEvent)}
                             />
                           ) : null}
                           {replyTarget ? (
@@ -4954,6 +4713,8 @@ function RealtimePageContent({
                               </button>
                             </div>
                           ) : null}
+                          <TaskSideQuestion threadId={threadId} model={settings.context.model_name} engine={selectedExecutionEngine} />
+                          <TaskFollowups threadId={threadId} running={thread.isLoading} ready={thread.readyForMutations} failed={Boolean(thread.error) || isStopping || thread.lastTurnStatus === "interrupted" || thread.lastTurnStatus === "failed"} onSend={handleSubmit} />
                           <ChatInputBox
                             key={composerSeed || "empty-composer"}
                             status={
@@ -4999,7 +4760,7 @@ function RealtimePageContent({
                             mode={effectiveMode}
                             reasoningEffort={effectiveReasoningEffort}
                             threadId={threadId}
-                            draftStorageKey={isNewThread ? "__new__" : threadId}
+                            draftStorageKey={isNewThread ? (searchParams.get("welcome_team") ? `team:${searchParams.get("welcome_team")}` : "__new__") : threadId}
                             mentionMembers={collaborationMentionMembers}
                             isGroupConversation={isGroupConversation}
                             groupTaskStrategy={groupTaskStrategy}
@@ -5116,6 +4877,7 @@ function RealtimePageContent({
                             onDeepResearch={handleDeepResearch}
                             allowAgentModes={!embeddedDesignChat}
                             onStop={handleStop}
+                            onResume={!thread.isLoading && !isStopping && (thread.lastTurnStatus === "interrupted" || thread.lastTurnStatus === "failed") ? () => handleRetryTask("继续当前任务：保留此前完成的工作，先检查中断位置和现有结果，从未完成部分继续，不要重复已成功的操作。") : undefined}
                             isStopping={isStopping}
                             isUploading={isUploading}
                             autoFocus={isNewThread}
@@ -5341,6 +5103,7 @@ function RealtimePageContent({
           contextTokens={contextTokens}
           maxContextTokens={maxContextTokens}
         />
+        </FileReferenceScope.Provider>
       </ThreadProviders>
     </SubtasksProvider>
   );

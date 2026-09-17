@@ -66,8 +66,10 @@ const admin = "/api/team-gateway/admin/";
 
 export function TeamGatewaySettings({
   onConnected,
+  embedded = false,
 }: {
   onConnected: () => void;
+  embedded?: boolean;
 }) {
   const [status, setStatus] = useState<Status | null>(null);
   const [draft, setDraft] = useState(emptyModel);
@@ -80,9 +82,11 @@ export function TeamGatewaySettings({
   const [concurrency, setConcurrency] = useState(2);
   const [allowed, setAllowed] = useState<string[]>([]);
   const [invite, setInvite] = useState("");
-  const [baseUrl, setBaseUrl] = useState("http://127.0.0.1:18333/v1");
+  const [baseUrl, setBaseUrl] = useState("");
   const [code, setCode] = useState("");
   const [connections, setConnections] = useState<Joined[]>([]);
+  const [connectionsLoaded, setConnectionsLoaded] = useState(false);
+  const [loadError, setLoadError] = useState("");
   const onConnectedRef = useRef(onConnected);
   useEffect(() => {
     onConnectedRef.current = onConnected;
@@ -100,10 +104,15 @@ export function TeamGatewaySettings({
           result.connections.map((c) => [c.id, c.models, c.error]),
         );
         setConnections(result.connections);
+        setConnectionsLoaded(true);
+        setLoadError("");
         if (previous && previous !== current) onConnectedRef.current();
         previous = current;
       } catch {
-        /* Authentication and connection failures appear on explicit operations. */
+        if (alive)
+          setLoadError(
+            "暂时无法读取团队连接。请检查后端连接，返回此窗口会自动重试。",
+          );
       }
     };
     void load();
@@ -133,14 +142,156 @@ export function TeamGatewaySettings({
   return (
     <section
       aria-label="Echo 团队网关"
-      className="space-y-4 rounded-lg border p-4"
+      className={embedded ? "space-y-4" : "space-y-4 rounded-lg border p-4"}
     >
-      <div>
-        <h3 className="font-medium">Echo 团队网关</h3>
-        <p className="text-sm text-muted-foreground">
-          统一发布团队模型，成员独立授权。工具在使用者自己的 Echo 中执行。
+      {!embedded && (
+        <div>
+          <h3 className="font-medium">团队模型</h3>
+          <p className="text-sm text-muted-foreground">
+            统一发布团队模型，成员独立授权。工具在使用者自己的 Echo 中执行。
+          </p>
+        </div>
+      )}
+      <details className="rounded-lg border p-4">
+        <summary className="cursor-pointer text-sm font-medium">
+          加入团队
+        </summary>
+        <fieldset disabled={busy} className="mt-4 space-y-3">
+          <legend className="sr-only">接入团队</legend>
+          <label className="block text-sm">
+            团队网关地址
+            <input
+              className={inputClass}
+              type="url"
+              placeholder="https://团队网关地址/v1"
+              value={baseUrl}
+              onChange={(e) => setBaseUrl(e.target.value)}
+            />
+          </label>
+          <label className="block text-sm">
+            团队邀请兑换码
+            <input
+              className={inputClass}
+              type="password"
+              autoComplete="off"
+              value={code}
+              onChange={(e) => setCode(e.target.value)}
+            />
+          </label>
+          <p className="text-xs text-muted-foreground">
+            填写管理员提供的地址与一次性兑换码。本机地址仅用于已建立的隧道。
+          </p>
+          <button
+            type="button"
+            className={buttonClass}
+            disabled={!code.trim() || !baseUrl.trim()}
+            onClick={() =>
+              void run(async () => {
+                const result = await api<Joined>(
+                  "/api/team-gateway/join",
+                  "POST",
+                  { base_url: baseUrl, code },
+                );
+                setConnections((previous) => [
+                  ...previous.filter((c) => c.id !== result.id),
+                  result,
+                ]);
+                setCode("");
+                onConnected();
+                if (result.error)
+                  throw new Error(
+                    result.error + " 接入记录已保存，可直接重试同步。",
+                  );
+                setMessage(
+                  "团队凭证已保存在本机，模型已添加；关闭页面后仍可使用。",
+                );
+              })
+            }
+          >
+            兑换并接入团队
+          </button>
+          <p className="text-xs text-muted-foreground">
+            授权模型会自动加入列表，后台每分钟同步发布、暂停和授权状态。
+          </p>
+        </fieldset>
+      </details>
+      {loadError && (
+        <p role="alert" className="text-sm text-destructive">
+          {loadError}
         </p>
-      </div>
+      )}
+      {connectionsLoaded && !loadError && connections.length === 0 && (
+        <p className="text-sm text-muted-foreground">
+          尚未加入团队。加入后，授权模型会自动显示在模型选择器中。
+        </p>
+      )}
+      {connections.map((connection) => (
+        <div
+          key={connection.id}
+          className="space-y-2 rounded border p-3 text-sm"
+        >
+          <p>
+            {connection.base_url} ·{" "}
+            {connection.error
+              ? "同步异常"
+              : connection.connected
+                ? "已连接"
+                : "待恢复兑换"}{" "}
+            · {connection.models.length} 个模型
+          </p>
+          {connection.error && (
+            <p role="alert" className="text-destructive">
+              {connection.error}
+            </p>
+          )}
+          <p>
+            {connection.models.length
+              ? connection.models.map((m) => m.display_name).join("、")
+              : "暂无可用团队模型"}
+          </p>
+          <button
+            type="button"
+            className={buttonClass}
+            disabled={busy}
+            onClick={() =>
+              void run(async () => {
+                const result = await api<Joined>(
+                  `/api/team-gateway/connections/${connection.id}/sync`,
+                  "POST",
+                  {},
+                );
+                setConnections((previous) =>
+                  previous.map((c) => (c.id === result.id ? result : c)),
+                );
+                onConnected();
+                if (result.error) throw new Error(result.error);
+                setMessage("团队模型目录已同步。");
+              })
+            }
+          >
+            立即同步
+          </button>
+          <button
+            type="button"
+            className={buttonClass}
+            disabled={busy}
+            onClick={() =>
+              void run(async () => {
+                await api(
+                  `/api/team-gateway/connections/${connection.id}`,
+                  "DELETE",
+                );
+                setConnections((previous) =>
+                  previous.filter((c) => c.id !== connection.id),
+                );
+                onConnected();
+              })
+            }
+          >
+            断开团队连接
+          </button>
+        </div>
+      ))}
       <details>
         <summary className="cursor-pointer">管理本机团队网关</summary>
         <div className="mt-3 space-y-4">
@@ -431,123 +582,6 @@ export function TeamGatewaySettings({
           )}
         </div>
       </details>
-      <fieldset disabled={busy} className="space-y-3 rounded border p-3">
-        <legend>接入团队</legend>
-        <label className="block text-sm">
-          团队网关地址
-          <input
-            className={inputClass}
-            value={baseUrl}
-            onChange={(e) => setBaseUrl(e.target.value)}
-          />
-        </label>
-        <label className="block text-sm">
-          团队邀请兑换码
-          <input
-            className={inputClass}
-            type="password"
-            autoComplete="off"
-            value={code}
-            onChange={(e) => setCode(e.target.value)}
-          />
-        </label>
-        <p className="text-xs text-muted-foreground">
-          使用团队提供的 HTTPS 地址，或先在接入方电脑建立 SSH 隧道：ssh -N -L
-          18333:127.0.0.1:8333 用户@团队主机
-        </p>
-        <button
-          type="button"
-          className={buttonClass}
-          disabled={!code || !baseUrl}
-          onClick={() =>
-            void run(async () => {
-              const result = await api<Joined>(
-                "/api/team-gateway/join",
-                "POST",
-                { base_url: baseUrl, code },
-              );
-              setConnections((previous) => [
-                ...previous.filter((c) => c.id !== result.id),
-                result,
-              ]);
-              setCode("");
-              onConnected();
-              if (result.error)
-                throw new Error(
-                  result.error + " 接入记录已保存，可直接重试同步。",
-                );
-              setMessage(
-                "团队凭证已保存在本机，模型已添加；关闭页面后仍可使用。",
-              );
-            })
-          }
-        >
-          兑换并接入团队
-        </button>
-        <p className="text-xs text-muted-foreground">
-          授权模型会自动加入列表，后台每分钟同步发布、暂停和授权状态。
-        </p>
-        {connections.map((connection) => (
-          <div
-            key={connection.id}
-            className="space-y-2 rounded border p-3 text-sm"
-          >
-            <p>
-              {connection.base_url} ·{" "}
-              {connection.connected ? "已保存连接" : "待恢复兑换"}
-            </p>
-            {connection.error && (
-              <p role="alert" className="text-destructive">
-                {connection.error}
-              </p>
-            )}
-            <p>
-              {connection.models.length
-                ? connection.models.map((m) => m.display_name).join("、")
-                : "暂无可用团队模型"}
-            </p>
-            <button
-              type="button"
-              className={buttonClass}
-              onClick={() =>
-                void run(async () => {
-                  const result = await api<Joined>(
-                    `/api/team-gateway/connections/${connection.id}/sync`,
-                    "POST",
-                    {},
-                  );
-                  setConnections((previous) =>
-                    previous.map((c) => (c.id === result.id ? result : c)),
-                  );
-                  onConnected();
-                  if (result.error) throw new Error(result.error);
-                  setMessage("团队模型目录已同步。");
-                })
-              }
-            >
-              立即同步
-            </button>
-            <button
-              type="button"
-              className={buttonClass}
-              onClick={() =>
-                void run(async () => {
-                  await api(
-                    `/api/team-gateway/connections/${connection.id}`,
-                    "DELETE",
-                  );
-                  setConnections((previous) =>
-                    previous.filter((c) => c.id !== connection.id),
-                  );
-                  onConnected();
-                })
-              }
-            >
-              断开团队连接
-            </button>
-          </div>
-        ))}
-      </fieldset>
       {message && (
         <p role="status" className="text-sm">
           {message}

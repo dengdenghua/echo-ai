@@ -62,6 +62,9 @@ const DiffViewer = lazy(() =>
   })),
 );
 import { useArtifactContent, useArtifactDiff } from "@/core/artifacts/hooks";
+import { ArtifactRevisionHistory } from "./artifact-revision-history";
+import { ArtifactProposalReview } from "./artifact-proposal-review";
+import { createArtifactProposal, decideArtifactProposal } from "@/core/artifacts/proposals";
 import {
   ArtifactSaveError,
   canSaveWorkspaceOutput,
@@ -886,6 +889,9 @@ export function HtmlPreview({
     restoredContent: string;
   } | null>(null);
   const humanSavingRef = useRef(false);
+  const proposalRequestRef = useRef<AbortController | null>(null);
+  const [proposalRefresh, setProposalRefresh] = useState(0);
+  useEffect(() => () => proposalRequestRef.current?.abort(), [filepath, threadId]);
   const humanEditActiveRef = useRef(false);
   humanEditActiveRef.current = humanEditing || pendingHumanEdit;
   const { t } = useI18n();
@@ -1112,7 +1118,7 @@ export function HtmlPreview({
   }, [artifactRef, onSaved, t, threadId, undoRevision]);
 
   const requestAiEdit = useCallback(
-    (
+    async (
       selection: {
         selector: string;
         tagName: string;
@@ -1121,17 +1127,36 @@ export function HtmlPreview({
       },
       instruction: string,
     ) => {
-      const prompt = buildArtifactEditPrompt(filepath, selection, instruction);
-      const accepted = dispatchQuickReply({ text: prompt, threadId });
-      if (accepted) {
-        toast.success(t.livePreview.aiEditQueued);
-      } else {
-        toast.error(t.livePreview.aiEditUnavailable);
+      if (!artifactRef || !threadId || humanSavingRef.current) return false;
+      const controller = new AbortController();
+      proposalRequestRef.current = controller;
+      humanSavingRef.current = true;
+      setHumanSaving(true);
+      try {
+        const proposal = await createArtifactProposal({ filepath: artifactRef, threadId, expectedContent: effectiveContent ?? "", signal: controller.signal });
+        if (controller.signal.aborted) return false;
+        setProposalRefresh((value) => value + 1);
+        if (!proposal.candidate_path) throw new Error("工作副本创建失败。");
+        const prompt = buildArtifactEditPrompt(proposal.candidate_path, selection, instruction, { proposalId: proposal.proposal_id });
+        const accepted = dispatchQuickReply({ text: prompt, threadId });
+        if (accepted) {
+          toast.success(t.livePreview.aiEditQueued);
+        } else {
+          await decideArtifactProposal({ filepath: artifactRef, threadId, proposalId: proposal.proposal_id, action: "reject" });
+          toast.error(t.livePreview.aiEditUnavailable);
+        }
+        return accepted;
+      } catch (error) {
+        if (!controller.signal.aborted) toast.error(error instanceof Error ? error.message : t.livePreview.aiEditUnavailable);
+        return false;
+      } finally {
+        humanSavingRef.current = false;
+        setHumanSaving(false);
       }
-      return accepted;
     },
     [
-      filepath,
+      artifactRef,
+      effectiveContent,
       t.livePreview.aiEditQueued,
       t.livePreview.aiEditUnavailable,
       threadId,
@@ -1149,7 +1174,7 @@ export function HtmlPreview({
         onPrepareInspect={
           url && !inspectionMode ? () => setInspectionMode(true) : undefined
         }
-        onRequestAiEdit={requestAiEdit}
+        onRequestAiEdit={canHumanEdit ? requestAiEdit : undefined}
       >
         <iframe
           key={`${inspectionMode ? "inspect" : "live"}-${bridgeRevision}`}
@@ -1252,6 +1277,47 @@ export function HtmlPreview({
                   )}
                   {t.livePreview.humanUndo}
                 </Button>
+              )}
+              {artifactRef && threadId && (
+                <ArtifactProposalReview
+                  key={`proposals:${threadId}:${artifactRef}`}
+                  filepath={artifactRef}
+                  threadId={threadId}
+                  running={isLoading}
+                  refreshKey={proposalRefresh}
+                  onReload={onReload}
+                  disabled={humanSaving || pendingHumanEdit}
+                  onBusyChange={(busy) => { humanSavingRef.current = busy; setHumanSaving(busy); }}
+                  onApplied={(applied) => {
+                    setLocalContent(applied);
+                    setUndoRevision(null);
+                    setBridgeReady(false);
+                    setBridgeRevision((value) => value + 1);
+                    onSaved?.(applied);
+                    toast.success(t.livePreview.humanSaved);
+                  }}
+                />
+              )}
+              {artifactRef && threadId && (
+                <ArtifactRevisionHistory
+                  key={`${threadId}:${artifactRef}`}
+                  filepath={artifactRef}
+                  threadId={threadId}
+                  currentContent={effectiveContent ?? ""}
+                  disabled={isLoading || humanSaving || pendingHumanEdit}
+                  onBusyChange={(busy) => {
+                    humanSavingRef.current = busy;
+                    setHumanSaving(busy);
+                  }}
+                  onRestored={(restored) => {
+                    setLocalContent(restored);
+                    setUndoRevision(null);
+                    setBridgeReady(false);
+                    setBridgeRevision((value) => value + 1);
+                    onSaved?.(restored);
+                    toast.success(t.livePreview.humanRestored);
+                  }}
+                />
               )}
             </>
           )}

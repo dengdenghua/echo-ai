@@ -23,6 +23,7 @@ import {
   requireGlobalControlPlaneResponse,
 } from "@/core/observability/api";
 import { KnowledgeGraphView } from "./knowledge-graph-view";
+import { serviceErrorMessage } from "@/core/utils/service-error";
 
 interface KGEntity {
   id: string;
@@ -86,9 +87,7 @@ export function KnowledgeGraphPanel() {
       const message =
         err instanceof GlobalControlPlaneAccessError
           ? t.observabilityPage.crossTenantAdminRequired
-          : err instanceof Error
-            ? err.message
-            : t.knowledgeGraph.loadFailed;
+          : serviceErrorMessage(err);
       setLoadError(message);
       // A permission gate is expected for ordinary tenant operators. Keep it
       // as stable panel state instead of producing a toast/error loop.

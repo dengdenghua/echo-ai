@@ -74,9 +74,11 @@ describe("AgentCard", () => {
       screen.getByRole("button", { name: "将 自定义角色 按需加入对话" }),
     );
 
+    // The stored identity is untouched (the point of this test), while the
+    // preset normalizes the leader to its canonical persona: `coder` → `kane`.
     expect(window.localStorage.getItem(ACTIVE_AGENT_KEY)).toBe("coder");
     expect(consumeTaskCollaboratorPreset()).toEqual({
-      leaderId: "coder",
+      leaderId: "kane",
       collaboratorIds: ["custom-role"],
       mode: "cluster",
       label: "自定义角色",

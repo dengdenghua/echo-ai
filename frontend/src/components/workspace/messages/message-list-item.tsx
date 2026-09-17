@@ -93,6 +93,7 @@ import {
 import { normalizeExecutionPlan } from "../execution-plan-utils";
 
 import { MarkdownContent } from "./markdown-content";
+import { ProjectResultContent } from "./project-result-content";
 import { ProjectCommandContent } from "./project-command-content";
 import { useThreadValues } from "./context";
 import {
@@ -714,6 +715,12 @@ export const MessageListItem = memo(function MessageListItem({
             }));
           },
         },
+        ...(allowThreadFork && threadIdForFeedback && threadIdForFeedback !== "new" ? [{
+          id: "side-question",
+          label: "在旁路追问",
+          icon: <MessageSquareQuoteIcon />,
+          onSelect: () => window.dispatchEvent(new CustomEvent("echo:side-question", { detail: { threadId: threadIdForFeedback, text: window.getSelection()?.toString().trim() || clipboardText } })),
+        }] : []),
         {
           id: "copy",
           label: t.clipboard.copyToClipboard,
@@ -1282,8 +1289,9 @@ function MessageContent_({
       {segmentedReasoningPanel}
       {visibleContentToDisplay.trim() && (
         <div className="relative">
+          <ProjectResultContent content={renderedBody} isLoading={isLoading} renderBody={(body) => (
           <MarkdownContent
-            content={renderedBody}
+            content={body}
             isLoading={isLoading}
             rehypePlugins={allRehypePlugins}
             className={cn(
@@ -1293,6 +1301,7 @@ function MessageContent_({
             components={components}
             chatFontSize={chatFontSize}
           />
+          )} />
         </div>
       )}
       <ClarificationChoiceCard

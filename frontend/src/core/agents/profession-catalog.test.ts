@@ -4,8 +4,9 @@ import type { Agent } from "./types";
 import { mergeProfessions } from "./profession-catalog";
 describe("shared profession catalog", () => {
   it("merges overlapping local roles but retains specialized engineering", () => {
-    const agents = readdirSync("../agents").filter(id => id.startsWith("twin_")).map(id => {
-      const profile = JSON.parse(readFileSync(`../agents/${id}/profile.jsonc`, "utf8"));
+    const catalogRoot = "../extensions/echo-agent-catalog/agents";
+    const agents = readdirSync(catalogRoot).filter(id => id.startsWith("twin_")).map(id => {
+      const profile = JSON.parse(readFileSync(`${catalogRoot}/${id}/profile.jsonc`, "utf8"));
       return { name: id, display_name: profile.name, description: profile.description } as Agent;
     });
     const merged = mergeProfessions([...agents, ...agents]);

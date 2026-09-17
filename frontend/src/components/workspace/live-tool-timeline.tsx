@@ -2,6 +2,7 @@
 
 import {
   CheckCircle2Icon,
+  CircleStopIcon,
   ChevronDownIcon,
   XCircleIcon,
   Loader2Icon,
@@ -29,6 +30,7 @@ import {
   agentRunStatusLightPulseClass,
 } from "./agent-run-status";
 import { stripToolEnvelope } from "./messages/trace-labels";
+import { ToolResourceReferences } from "./messages/tool-resource-references";
 import { getProcessTraceEvents } from "./process-trace-events";
 import { SwarmRunOverview } from "./swarm-run-overview";
 import { isSkillToolName } from "./tool-action-kind";
@@ -158,7 +160,7 @@ function sanitizePublicDetailValue(value: unknown, depth = 0): unknown {
 export interface LiveToolEvent {
   id: string;
   name: string;
-  status: "running" | "done" | "error" | "waiting_approval";
+  status: "running" | "done" | "error" | "waiting_approval" | "interrupted";
   /** Durable owning turn coordinates. `iteration` is an event-local
    * execution/ordering coordinate and must not be used to infer chat turns. */
   turnId?: string;
@@ -393,12 +395,15 @@ function DelegationSummaryRow({
 }) {
   const running = events.some((event) => event.status === "running");
   const error = events.some((event) => event.status === "error");
+  const interrupted = events.some((event) => event.status === "interrupted");
   return (
     <div className="flex items-center gap-2 py-1.5 pl-2 text-xs text-muted-foreground">
       {running ? (
         <Loader2Icon className="size-3.5 shrink-0 animate-spin text-success" />
       ) : error ? (
         <XCircleIcon className="size-3.5 shrink-0 text-destructive" />
+      ) : interrupted ? (
+        <CircleStopIcon aria-label={t.liveToolTimeline.statusInterrupted} className="size-3.5 shrink-0 text-muted-foreground" />
       ) : (
         <CheckCircle2Icon className="size-3.5 shrink-0 text-success" />
       )}
@@ -1182,6 +1187,8 @@ function statusText(event: LiveToolEvent, t: TimelineT): string {
       return t.liveToolTimeline.statusRunning;
     case "done":
       return t.liveToolTimeline.statusDone;
+    case "interrupted":
+      return t.liveToolTimeline.statusInterrupted;
     case "error":
       return t.liveToolTimeline.statusFailed;
     case "waiting_approval":
@@ -1337,6 +1344,8 @@ function ToolEventRow({
           <ShieldAlertIcon className="size-3.5 text-warning shrink-0 animate-pulse" />
         ) : event.status === "error" ? (
           <XCircleIcon className="size-3.5 text-destructive shrink-0" />
+        ) : event.status === "interrupted" ? (
+          <CircleStopIcon className="size-3.5 text-muted-foreground shrink-0" />
         ) : (
           <CheckCircle2Icon className="size-3.5 text-success shrink-0" />
         )}
@@ -1354,7 +1363,7 @@ function ToolEventRow({
 
         {researchLog?.sources && researchLog.sources.length > 0 && (
           <span className="flex min-w-0 items-center gap-1">
-            {researchLog.sources.slice(0, 3).map((source) => (
+            {Array.from(new Set(researchLog.sources)).slice(0, 3).map((source) => (
               <span
                 key={source}
                 className="max-w-20 truncate rounded-full border border-border-default bg-background/80 px-1.5 py-0.5 text-xs text-muted-foreground"
@@ -1414,6 +1423,7 @@ function ToolEventRow({
         </span>
       </div>
 
+      {!researchLog && <ToolResourceReferences input={event.input} output={event.output} />}
       {researchLog?.detail && (
         <div className="mt-2 ml-5 border-l border-border-default pl-3 text-sm leading-6 text-foreground/80">
           {researchLog.detail}

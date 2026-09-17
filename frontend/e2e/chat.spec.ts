@@ -40,7 +40,7 @@ test.describe("Chat golden path", () => {
     await page.waitForLoadState("domcontentloaded");
 
     await expect(page).toHaveURL(/#\/workspace\/realtime\/new/);
-    await expect(page.getByRole("link", { name: "Assistant" })).toBeVisible({
+    await expect(page.getByRole("link", { name: "Assistant", exact: true })).toBeVisible({
       timeout: 15_000,
     });
     await expect(page.locator("textarea").first()).toBeVisible();

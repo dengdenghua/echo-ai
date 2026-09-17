@@ -88,6 +88,37 @@ describe("retained project proposal", () => {
     expect(review).toHaveBeenCalledTimes(1);
     expect(review).toHaveBeenCalledWith(`/project refine draft-2 ${feedback}`);
   });
+
+  it("collapses legacy vague-goal questions into one combined prompt", async () => {
+    mocks.get.mockResolvedValue({
+      metadata: {
+        project_initiation: {
+          id: "draft-3",
+          status: "needs_input",
+          goal: "?",
+          open_questions: [
+            "请说明您的具体目标、服务对象和期望交付物是什么？",
+            "您的具体目标是什么，想解决什么问题？",
+            "服务对象是谁，为谁做？",
+          ],
+          proposal: { name: "待明确目标的任务澄清" },
+        },
+      },
+    });
+    renderWithProviders(
+      <ProjectProposalNotice
+        threadId="legacy"
+        busy={false}
+        onReview={vi.fn()}
+      />,
+    );
+    expect(
+      await screen.findByText(
+        "请补充：要解决什么问题、服务谁、第一期交付什么？",
+      ),
+    ).toBeVisible();
+    expect(screen.queryByText("服务对象是谁，为谁做？")).toBeNull();
+  });
   it("does not approve a ready draft while unsent changes are present", async () => {
     mocks.get.mockResolvedValue({
       metadata: {

@@ -556,6 +556,19 @@
   --container-width-sm: calc(var(--spacing) * 144);
   --container-width-md: calc(var(--spacing) * 204);
   --container-width-lg: calc(var(--spacing) * 256);
+
+  /* Reading measure for the conversation column (message list + composer +
+     loading skeleton, which must stay the same width or the composer visibly
+     steps out of the text axis).
+     720px - 32px (px-4, border-box) - 44px (ml-11, the avatar gutter:
+     size-8 + gap-3) = 644px of assistant body text, i.e. ~40 CJK characters
+     or ~80 Latin characters per line. Typography's comfortable measure tops
+     out around 40 CJK / 75-80 Latin; the previous --container-width-md (816px)
+     put this at ~46 CJK / ~92 Latin, past the point where the eye starts
+     losing its place on the return sweep.
+     Deliberately NOT widened on large viewports: a longer line is worse to
+     read, not better. Wide screens should spend their space on side panels. */
+  --conversation-column: calc(var(--spacing) * 180);
 }
 
 /* Classic blue accent on neutral surfaces. */

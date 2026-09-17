@@ -1,3 +1,4 @@
+import { DEVICE_STAGE } from "@/core/browser/device-stage";
 /* Implementation note. */
 
 import { swallow } from "@/core/utils/log";
@@ -78,28 +79,6 @@ const isBrowserDevice = (
 ): value is BrowserOpenUrlRequest["device"] =>
   value === "desktop" || value === "tablet" || value === "mobile";
 
-/* Implementation note. */
-const DEVICE_STAGE = {
-  desktop: {
-    width: 0,
-    height: 0,
-    label: "Desktop",
-    description: "Fluid viewport",
-  },
-  tablet: {
-    width: 768,
-    height: 1024,
-    label: "iPad",
-    description: "768 x 1024",
-  },
-  mobile: {
-    width: 390,
-    height: 844,
-    label: "iPhone",
-    description: "390 x 844",
-  },
-} as const;
-
 function BrowserShell() {
   const navigate = useNavigate();
   const { t } = useI18n();
@@ -128,7 +107,12 @@ function BrowserShell() {
   const [stageSize, setStageSize] = useState({ width: 0, height: 0 });
   const stageRef = useRef<HTMLDivElement>(null);
   const sidePanelCloseTimerRef = useRef<number | null>(null);
-  const { titleBarInset } = useElectronTitleBar();
+  const {
+    titleBarHeight,
+    controlsSafeInset,
+    controlsSide,
+    macTrafficLightsWidth,
+  } = useElectronTitleBar();
   const activeTabId = activeTab?.id ?? null;
   const activeTabUrl = activeTab?.url ?? "";
   const activeTabTitle = activeTab?.title ?? "";
@@ -248,10 +232,7 @@ function BrowserShell() {
   // Implementation note.
   useEffect(() => {
     if (!activeTabUrl || activeTabLoading) return;
-    if (
-      activeTabUrl.startsWith("about:") ||
-      activeTabUrl.startsWith("echo:")
-    ) {
+    if (activeTabUrl.startsWith("about:") || activeTabUrl.startsWith("echo:")) {
       return;
     }
     const t = setTimeout(() => {
@@ -394,30 +375,27 @@ function BrowserShell() {
     // Implementation note.
     // Implementation note.
     // Implementation note.
-    const offIpc = window.echo?.on(
-      "browser:keyboard-shortcut",
-      (...args) => {
-        const p = args[0] as
-          | {
-              key: string;
-              shift: boolean;
-              alt: boolean;
-              meta: boolean;
-              control: boolean;
-            }
-          | undefined;
-        if (!p) return;
-        onKey(
-          new KeyboardEvent("keydown", {
-            key: p.key,
-            shiftKey: p.shift,
-            altKey: p.alt,
-            metaKey: p.meta,
-            ctrlKey: p.control,
-          }),
-        );
-      },
-    );
+    const offIpc = window.echo?.on("browser:keyboard-shortcut", (...args) => {
+      const p = args[0] as
+        | {
+            key: string;
+            shift: boolean;
+            alt: boolean;
+            meta: boolean;
+            control: boolean;
+          }
+        | undefined;
+      if (!p) return;
+      onKey(
+        new KeyboardEvent("keydown", {
+          key: p.key,
+          shiftKey: p.shift,
+          altKey: p.alt,
+          metaKey: p.meta,
+          ctrlKey: p.control,
+        }),
+      );
+    });
 
     return () => {
       window.removeEventListener("keydown", onKey);
@@ -457,7 +435,6 @@ function BrowserShell() {
     <div
       data-persona-theme={personaThemeId}
       className="persona-shell browser-shell relative flex h-screen overflow-hidden bg-[linear-gradient(135deg,var(--muted)_0%,var(--background)_42%,var(--muted)_100%)] text-foreground"
-      style={{ paddingTop: titleBarInset }}
     >
       <BrowserSidePanel
         open={sidePanelOpen}
@@ -469,11 +446,18 @@ function BrowserShell() {
       <div className="relative z-[1] flex min-w-0 flex-1 flex-col overflow-hidden">
         <div className="relative z-[80] shrink-0">
           <div
-            className="flex h-10 shrink-0 items-center gap-0.5 rounded-none border-x-0 border-t-0 border-b border-border-subtle px-1.5"
+            className="flex h-9 shrink-0 items-center gap-0.5 rounded-none border-x-0 border-t-0 border-b border-border-subtle px-1.5"
             style={
               {
-                paddingLeft: 10,
-                paddingRight: 6,
+                paddingLeft:
+                  10 +
+                  (titleBarHeight && controlsSide === "left"
+                    ? macTrafficLightsWidth
+                    : 0),
+                paddingRight:
+                  titleBarHeight && controlsSafeInset !== "0px"
+                    ? controlsSafeInset
+                    : 6,
                 WebkitAppRegion: "drag",
               } as React.CSSProperties
             }

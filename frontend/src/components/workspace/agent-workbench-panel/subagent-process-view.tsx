@@ -209,12 +209,14 @@ export function SubagentProcessView({
   agent,
   blocks,
   onOpenMain,
+  summaryOnly = false,
 }: {
   agent: AgentTile;
   blocks: WorkBlock[];
   currentBlockId: string | null;
   onOpenMain: () => void;
   onSelectBlock: (blockId: string) => void;
+  summaryOnly?: boolean;
 }) {
   const { t } = useI18n();
   const messages = useMemo(
@@ -277,7 +279,8 @@ export function SubagentProcessView({
     ...STREAMING_TYPE_PRESETS.burstDrain,
   });
   const hasConversation = Boolean(
-    messages.task || messages.process.length > 0 || messages.answer,
+    messages.answer ||
+    (!summaryOnly && (messages.task || messages.process.length > 0)),
   );
 
   return (
@@ -300,19 +303,24 @@ export function SubagentProcessView({
               className="space-y-3 px-5 py-4"
               data-testid="subagent-main-conversation"
             >
-              {messages.task ? (
+              {!summaryOnly && messages.task ? (
                 <MessageListItem
                   message={messages.task}
                   isLastMessage={false}
                 />
               ) : null}
-              {messages.process.length > 0 ? (
+              {!summaryOnly && messages.process.length > 0 ? (
                 <MessageGroup
                   messages={messages.process}
                   isLoading={isRunning}
                   keepOpen={isRunning}
                   codeMode
                 />
+              ) : null}
+              {isRunning && messages.process.length === 0 && !messages.answer ? (
+                <p role="status" className="text-xs text-muted-foreground">
+                  正在运行，等待子任务返回进展…
+                </p>
               ) : null}
               {messages.answer ? (
                 <MessageListItem

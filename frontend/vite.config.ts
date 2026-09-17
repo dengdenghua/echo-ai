@@ -198,6 +198,9 @@ export default defineConfig({
       : []),
   ],
   resolve: {
+    // CodeMirror facets depend on singleton state/view identities. Transitive
+    // language packages may resolve newer copies and break deletion rendering.
+    dedupe: ["@codemirror/state", "@codemirror/view"],
     alias: [
       {
         find: "@",
@@ -317,6 +320,10 @@ export default defineConfig({
   },
   test: {
     environment: "jsdom",
+    // Streamdown imports KaTeX CSS. Keep it in Vite's transform pipeline
+    // instead of asking Node's ESM loader to execute the stylesheet.
+    // CodeMirror must also use Vite's singleton resolution in component tests.
+    server: { deps: { inline: ["streamdown", /codemirror/] } },
     globals: true,
     setupFiles: ["./src/test/setup.ts"],
     include: ["src/**/*.{test,spec}.{ts,tsx}", "vite.config.test.ts"],

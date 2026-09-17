@@ -2967,7 +2967,7 @@ function SourcesView({
             </div>
             <div className="mt-2 max-w-md text-sm leading-6 text-muted-foreground">
               {manifest
-                ? "本地数据库会在本机解析文件、OCR 图片并生成向量索引。原文件不上传；只有你确认引用的片段会进入任务上下文。"
+                ? "资料库会在本机解析文件、OCR 图片并生成向量索引。原文件不上传；只有你确认引用的片段会进入任务上下文。"
                 : "离线时可以浏览常用位置，但无法扫描新目录。重新连接后再添加文件夹，索引会在本机生成。"}
             </div>
             <div className="mt-5 flex flex-wrap items-center justify-center gap-2">

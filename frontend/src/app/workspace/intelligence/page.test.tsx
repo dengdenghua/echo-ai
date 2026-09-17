@@ -56,7 +56,8 @@ describe("IntelligencePage", () => {
     // The reference workspace panel renders through PanelHost — the
     // "register-and-render" contract in a real page.
     expect(screen.getByTestId("panel-workbench.system-status")).toBeTruthy();
-    // Both the host header and the panel's own title carry the name.
-    expect(screen.getAllByText("System Status").length).toBeGreaterThan(0);
+    // Both the host header and the panel's own title carry the name, which
+    // ships localized as "运行诊断".
+    expect(screen.getAllByText("运行诊断").length).toBeGreaterThan(0);
   });
 });

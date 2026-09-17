@@ -26,7 +26,6 @@ interface ParsedClarification {
   defaultChoice: ClarificationChoice;
 }
 
-const AUTO_SUBMIT_SECONDS = 20;
 const CIRCLED_DIGITS = "①②③④⑤⑥⑦⑧⑨";
 
 function cleanOptionText(text: string) {
@@ -121,31 +120,14 @@ export function ClarificationChoiceCard({
     () => (questionnaire ? null : parseClarificationChoices(content)),
     [content, questionnaire],
   );
-  const [secondsLeft, setSecondsLeft] = useState(AUTO_SUBMIT_SECONDS);
+
   const [submitted, setSubmitted] = useState(false);
   const [otherText, setOtherText] = useState("");
 
   useEffect(() => {
-    setSecondsLeft(AUTO_SUBMIT_SECONDS);
     setSubmitted(false);
     setOtherText("");
   }, [messageId, content]);
-
-  useEffect(() => {
-    if (!active || !parsed || submitted) return;
-    const timer = window.setInterval(() => {
-      setSecondsLeft((current) => {
-        if (current <= 1) {
-          window.clearInterval(timer);
-          setSubmitted(true);
-          submitQuickReply(parsed.defaultChoice.text, messageId);
-          return 0;
-        }
-        return current - 1;
-      });
-    }, 1000);
-    return () => window.clearInterval(timer);
-  }, [active, messageId, parsed, submitted]);
 
   if (!active) return null;
 
@@ -180,7 +162,7 @@ export function ClarificationChoiceCard({
         <span>{t.conversation.clarificationChoose}</span>
         <span className="inline-flex items-center gap-1">
           <Clock3Icon className="size-3.5" />
-          {t.conversation.clarificationAutoSubmit(secondsLeft)}
+          请选择后提交，不会自动代答
         </span>
       </div>
       <div className="grid gap-2 sm:grid-cols-2">

@@ -96,6 +96,7 @@ export type AutomationTarget = {
   url?: string;
   app_id?: string;
   app_name?: string;
+  icon_url?: string;
 };
 
 export type ComputerAutomationTarget = AutomationTarget & {
@@ -290,6 +291,21 @@ export async function listComputerTargets(): Promise<ComputerTargetsResponse> {
     throw new Error(`Failed to list automation targets: ${res.statusText}`);
   }
   return (await res.json()) as ComputerTargetsResponse;
+}
+
+export async function captureComputerWindowPreview(target: AutomationTarget) {
+  const res = await fetch(`${BASE()}/preview`, {
+    method: "POST",
+    headers: jsonAuthHeaders(),
+    body: JSON.stringify({ target }),
+  });
+  if (!res.ok) throw new Error(`Window preview failed (${res.status})`);
+  return (await res.json()) as {
+    ok: boolean;
+    data_url?: string;
+    target?: AutomationTarget;
+    error?: string;
+  };
 }
 
 export async function previewAppshotElement(

@@ -1828,10 +1828,7 @@ export const WebviewTab = forwardRef<WebviewTabHandle, Props>(
         // Every tab remains mounted while hidden. Publish a stable logical
         // lease and current native id so the desktop host can move the same
         // live webContents between surfaces without navigating it again.
-        wv.setAttribute(
-          "data-echo-webcontents-adoption-lease",
-          adoptionLease,
-        );
+        wv.setAttribute("data-echo-webcontents-adoption-lease", adoptionLease);
         try {
           wv.setAttribute(
             "data-echo-adopted-web-contents-id",
@@ -1958,7 +1955,24 @@ export const WebviewTab = forwardRef<WebviewTabHandle, Props>(
     }, [tab.device]);
 
     // Implementation note.
-    // Implementation note.
+    useEffect(() => {
+      const wv = ref.current;
+      if (!active || !wv) return;
+      const select = () => {
+        try {
+          window.echo?.bridge.setActiveTab(wv.getWebContentsId());
+        } catch {
+          /* webview is not attached yet */
+        }
+      };
+      if (readyRef.current) select();
+      wv.addEventListener("dom-ready", select);
+      return () => {
+        wv.removeEventListener("dom-ready", select);
+        window.echo?.bridge.setActiveTab(null);
+      };
+    }, [active, reloadSeed]);
+
     const style: CSSProperties = active
       ? { display: "inline-flex", width: "100%", height: "100%" }
       : {

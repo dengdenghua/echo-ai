@@ -34,6 +34,7 @@ export interface User {
   created_at?: string;
   last_login?: string;
   is_guest?: boolean;
+  is_account_free?: boolean;
   actor_id?: string;
   mobile?: string;
   provider?: string;

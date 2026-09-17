@@ -251,6 +251,8 @@ export const enUS: Translations = {
     newUpdates: () => "New content",
     timeoutWarning: (seconds: number) =>
       `No progress for ${seconds}s; it may be stuck`,
+    stallHint: (seconds: number) =>
+      `Still working — no new output for ${seconds}s`,
     thinkingPlan: "Thinking plan",
     thinkingPlanSourceCheck: "source check",
     thinkingPlanCoworkFit: "cowork fit",
@@ -486,6 +488,8 @@ export const enUS: Translations = {
     stop: "Stop",
     stopping: "Stopping…",
     restoringConnection: "Restoring connection… Your draft is safe.",
+    connectingConversation: "Connecting… You can keep editing.",
+    syncingConversation: "Syncing conversation… You can keep editing.",
     connectionRecoveryFailed: "Couldn't restore the connection.",
     retryConnection: "Retry",
     projectModeLabel: "Project attached",
@@ -2033,7 +2037,6 @@ export const enUS: Translations = {
     navNarrative: "Narrative Studio",
     navPlugins: "Plugins",
     navHR: "Agents",
-    navComputer: "Local Assistant",
     navDesktopOrganizer: "Desktop Organizer",
     navArchitecture: "Architecture",
     groupTools: "Tools",
@@ -3697,7 +3700,7 @@ export const enUS: Translations = {
         "When ON, screen_capture / screen_info / mouse_click / mouse_move / keyboard_type / keyboard_press register, letting agents take real screenshots and drive mouse/keyboard. OFF removes them for every agent.",
       localToolsTitle: "Local tools",
       localToolsDesc:
-        "Lower-frequency local connection, desktop cleanup, and device-level tools live here so the main sidebar stays focused on core workflows.",
+        "Open Desktop Organizer to organize your desktop files.",
       groupLabel: "group:",
       reset: "Reset",
       save: "Save",
@@ -3711,11 +3714,10 @@ export const enUS: Translations = {
       nextStepSaveHint:
         "Save, then restart when prompted so the new browser/desktop automation toggles take effect.",
       nextStepVerifyHint:
-        "Toggles are in sync. Open the computer automation page to watch the screen, generate a plan, and confirm local capabilities run.",
+        "Settings are in sync. Start a new chat and describe the app and task you want to automate.",
       nextStepDisabledTitle: "Browser and desktop control are off",
       nextStepDisabledHint:
         "Turn on at least one capability and save before using local automation.",
-      openComputerTool: "Open computer automation",
       loading: "Loading automation capabilities...",
       loadFailed: "Load failed",
       restartConfirmTitle: "Restart backend to apply",
@@ -6646,6 +6648,7 @@ Strategy:
   },
 
   liveToolTimeline: {
+    statusInterrupted: "Stopped",
     searchingWeb: "Searching the web",
     searchingQuery: (query) => `Searching: ${query}`,
     searchedPages: (count) => `Found ${count ?? "several"} web pages`,

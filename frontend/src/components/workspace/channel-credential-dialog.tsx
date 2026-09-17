@@ -8,6 +8,7 @@ import { getBackendBaseURL } from "@/core/config";
 import { authHeaders, jsonAuthHeaders } from "@/core/auth/api";
 import { useI18n } from "@/core/i18n/hooks";
 import type { Translations } from "@/core/i18n/locales/types";
+import { serviceErrorMessage } from "@/core/utils/service-error";
 
 import { Button } from "@/components/ui/button";
 import { RoutedWebLink } from "@/components/ui/routed-web-link";
@@ -923,7 +924,9 @@ function WeChatQRForm({
     } catch (e) {
       swallow(e);
       setErrMsg(
-        e instanceof Error ? e.message : t.channelCredential.qrCodeFailed,
+        e instanceof Error
+          ? serviceErrorMessage(e)
+          : t.channelCredential.qrCodeFailed,
       );
       setStatus("error");
     } finally {

@@ -15,6 +15,7 @@ import {
   conversationToAgentThreadState,
 } from "@/core/threads/realtime-adapter";
 import { swallow } from "@/core/utils/log";
+import { STEER_RECEIPT_EVENT } from "./task-interaction";
 import { toast } from "sonner";
 import { useI18n } from "@/core/i18n/hooks";
 import {
@@ -90,6 +91,7 @@ type ExposedRealtimeThread = Omit<BaseStream<AgentThreadState>, "stop"> & {
   stop: () => Promise<void>;
   connectionPhase: ThreadConnectionPhase;
   readyForMutations: boolean;
+  lastTurnStatus?: Turn["status"];
 };
 
 type SendMessageFn = (
@@ -218,7 +220,8 @@ function toOptionalMillis(
 
 function liveStatus(status: Item["status"]): LiveToolEvent["status"] {
   if (status === "inProgress") return "running";
-  if (status === "completed" || status === "interrupted") return "done";
+  if (status === "completed") return "done";
+  if (status === "interrupted") return "interrupted";
   return "error";
 }
 
@@ -1585,6 +1588,7 @@ export function useThreadStreamRealtime(
   const stop = useCallback(() => stopRef.current(), []);
 
   const refresh = useCallback(() => resume(), [resume]);
+  const lastTurnStatus = state.turns.at(-1)?.status;
 
   const exposedThread = useMemo(
     () =>
@@ -1610,6 +1614,7 @@ export function useThreadStreamRealtime(
         vitals,
         connectionPhase,
         readyForMutations,
+        lastTurnStatus,
       }) as ExposedRealtimeThread & {
         compact: typeof compact;
         vitals: typeof vitals;
@@ -1628,6 +1633,7 @@ export function useThreadStreamRealtime(
       compact,
       connectionPhase,
       readyForMutations,
+      lastTurnStatus,
     ],
   );
 
@@ -1660,6 +1666,9 @@ export function useThreadStreamRealtime(
           if (!isCurrentThreadEpoch(deliveryEpoch)) return;
           await steer({ input: text, itemId: outbound.clientMessageId });
           if (!isCurrentThreadEpoch(deliveryEpoch)) return;
+          window.dispatchEvent(new CustomEvent(STEER_RECEIPT_EVENT, {
+            detail: { threadId: outbound.threadId, clientMessageId: outbound.clientMessageId },
+          }));
           return;
         }
         if (isLoading) {

@@ -6,6 +6,12 @@ import { renderWithProviders } from "@/test/harness";
 
 import { groupMessages } from "@/core/messages/utils";
 
+function renderedText(text: string) {
+  return (_content: string, element: Element | null) =>
+    element?.textContent === text &&
+    !Array.from(element.children).some((child) => child.textContent === text);
+}
+
 import { AGENT_WORKBENCH_OPEN_EVENT } from "../agent-workbench-events";
 import {
   hasVisibleMessageGroupContent,
@@ -507,7 +513,7 @@ describe("MessageGroup reasoning grouping", () => {
       locale: "zh-CN",
     });
 
-    expect(screen.getAllByText(checkpoint)).toHaveLength(1);
+    expect(screen.getAllByText(renderedText(checkpoint))).toHaveLength(1);
     expect(screen.getAllByTestId("public-progress-event")).toHaveLength(1);
     expect(
       screen.queryByTestId("process-timeline-event-thinking"),
@@ -605,10 +611,14 @@ describe("MessageGroup reasoning grouping", () => {
     expect(screen.queryByText("定向")).not.toBeInTheDocument();
     expect(screen.queryByText("验证")).not.toBeInTheDocument();
     expect(
-      screen.getByText("已确认流事件按消息、思考和执行三条通道归一化。"),
+      screen.getByText(
+        renderedText("已确认流事件按消息、思考和执行三条通道归一化。"),
+      ),
     ).toBeInTheDocument();
     expect(
-      screen.getByText("进一步确认执行完成后才会开启下一轮公开结论。"),
+      screen.getByText(
+        renderedText("进一步确认执行完成后才会开启下一轮公开结论。"),
+      ),
     ).toBeInTheDocument();
     expect(
       screen.getByTestId("process-timeline-event-execution"),
@@ -647,10 +657,10 @@ describe("MessageGroup reasoning grouping", () => {
     });
 
     expect(screen.getAllByTestId("public-progress-event")).toHaveLength(4);
-    expect(screen.getByText(updates[0]!)).toBeInTheDocument();
-    expect(screen.getByText(updates[1]!)).toBeInTheDocument();
-    expect(screen.getByText(updates[4]!)).toBeInTheDocument();
-    expect(screen.getByText(updates[6]!)).toBeInTheDocument();
+    expect(screen.getByText(renderedText(updates[0]!))).toBeInTheDocument();
+    expect(screen.getByText(renderedText(updates[1]!))).toBeInTheDocument();
+    expect(screen.getByText(renderedText(updates[4]!))).toBeInTheDocument();
+    expect(screen.getByText(renderedText(updates[6]!))).toBeInTheDocument();
     expect(screen.queryByText(updates[2]!)).not.toBeInTheDocument();
     expect(screen.queryByText(updates[3]!)).not.toBeInTheDocument();
     expect(screen.queryByText(updates[5]!)).not.toBeInTheDocument();
@@ -1371,6 +1381,43 @@ describe("MessageGroup reasoning grouping", () => {
     expect(screen.queryByText("实时进程")).not.toBeInTheDocument();
   });
 
+  it("renders ask_user_question tool results as a questionnaire", () => {
+    const result = {
+      ok: true,
+      type: "clarification_questionnaire",
+      title: "完善需求",
+      questions: [
+        {
+          id: "question_1",
+          title: "核心功能是什么？",
+          options: ["睡眠监测", "温控"],
+          multiple: false,
+        },
+      ],
+    };
+    const messages: AIMessage[] = [
+      {
+        id: "ai-1",
+        type: "ai",
+        content: "",
+        tool_calls: [
+          {
+            id: "ask-user-1",
+            name: "ask_user_question",
+            args: { output: JSON.stringify(result) },
+          },
+        ],
+      },
+    ];
+
+    renderWithProviders(
+      <MessageGroup enableClarificationActions messages={messages as never} />,
+      { locale: "zh-CN" },
+    );
+
+    expect(screen.getByLabelText(/补充回答：核心功能是什么？/)).toBeInTheDocument();
+  });
+
   it("keeps only the current frame visible when latest trace is kept open", () => {
     const messages: AIMessage[] = [
       {
@@ -2079,7 +2126,9 @@ describe("MessageGroup streaming lifecycle", () => {
     );
 
     const thinking = screen.getByTestId("process-timeline-event-thinking");
-    const answer = screen.getByText("我先给你一个方向，同时继续检查实现。");
+    const answer = screen.getByText(
+      renderedText("我先给你一个方向，同时继续检查实现。"),
+    );
     const execution = screen.getByTestId("process-timeline-event-execution");
 
     expect(
@@ -2155,7 +2204,7 @@ describe("MessageGroup streaming lifecycle", () => {
       { locale: "zh-CN" },
     );
 
-    const answer = screen.getByText("方向是这样，我继续核对。");
+    const answer = screen.getByText(renderedText("方向是这样，我继续核对。"));
     const first = screen.getByText(/先看现有实现/);
     const later = screen.getByText(/再核对一处调用点/);
 
@@ -2622,8 +2671,8 @@ describe("MessageGroup 紧凑模式叙事保真", () => {
       locale: "zh-CN",
     });
 
-    // Long settled runs stay out of the DOM until the reader asks for replay.
-    expect(screen.queryByTestId("public-progress-event")).toBeNull();
+    // Public checkpoints remain readable; only execution details fold.
+    expect(screen.getAllByTestId("public-progress-event")).toHaveLength(6);
     expect(screen.getByTestId("process-replay-toggle")).toHaveAttribute(
       "aria-expanded",
       "false",

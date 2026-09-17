@@ -29,9 +29,14 @@ describe("ChatsDrawer", () => {
     });
 
     expect(useThreadsMock).toHaveBeenCalledWith(
-      expect.objectContaining({ limit: 50 }),
+      expect.objectContaining({
+        limit: 50,
+        sortBy: "updated_at",
+        sortOrder: "desc",
+        select: ["thread_id", "updated_at", "values", "metadata"],
+      }),
       undefined,
-      "general",
+      "eve",
     );
   });
 
@@ -80,12 +85,12 @@ describe("ChatsDrawer", () => {
       "href",
       "/workspace/evolution?surface=chat",
     );
-    expect(screen.getByRole("link", { name: "本地数据库" })).toHaveAttribute(
+    expect(screen.getByRole("link", { name: "资料库" })).toHaveAttribute(
       "href",
       "/workspace/storage?surface=company&library=docs",
     );
 
-    await user.click(screen.getByRole("link", { name: "本地数据库" }));
+    await user.click(screen.getByRole("link", { name: "资料库" }));
     expect(onOpenChange).toHaveBeenCalledWith(false);
   });
 });

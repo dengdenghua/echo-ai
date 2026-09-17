@@ -34,7 +34,6 @@ import {
   TrendingUpIcon,
   Trash2Icon,
   PowerIcon,
-  ArrowRightIcon,
   RefreshCwIcon,
   RotateCcwIcon,
   SparklesIcon,
@@ -333,15 +332,15 @@ export function AgentsTab({
           title: "白幽灵行动组",
           description: "完整主角团协同，适合复杂任务、跨工具执行与现场决策。",
           memberIds: [
-            "general",
-            "coder",
-            "desktop_operator",
-            "vibe_selling",
-            "ecommerce_mind",
-            "market_researcher",
-            "aoi",
+            "eve",
+            "kane",
+            "raven",
+            "luna",
+            "shion",
+            "noah",
+            "zero",
           ],
-          domains: ["general", "automation"],
+          domains: ["eve", "automation"],
           accent:
             "from-violet-100/90 via-fuchsia-50/70 to-background dark:from-violet-950/55 dark:via-fuchsia-950/20",
         },
@@ -349,7 +348,7 @@ export function AgentsTab({
           id: "product-lab",
           title: "产品研发冲刺",
           description: "从需求拆解、架构实现到桌面验收，组成一支小型交付团队。",
-          memberIds: ["coder", "desktop_operator", "general"],
+          memberIds: ["kane", "raven", "eve"],
           domains: ["coding", "automation"],
           accent:
             "from-sky-100/90 via-cyan-50/70 to-background dark:from-sky-950/55 dark:via-cyan-950/20",
@@ -359,7 +358,7 @@ export function AgentsTab({
           title: "投研决策室",
           description:
             "聚合市场研究、信息验证与商业判断，形成可执行的投资结论。",
-          memberIds: ["market_researcher", "general", "ecommerce_mind"],
+          memberIds: ["noah", "eve", "shion"],
           domains: ["research", "finance"],
           accent:
             "from-emerald-100/90 via-teal-50/70 to-background dark:from-emerald-950/55 dark:via-teal-950/20",
@@ -368,7 +367,7 @@ export function AgentsTab({
           id: "growth-studio",
           title: "品牌增长工作室",
           description: "把用户洞察、内容创意与商业转化串成一条完整增长链路。",
-          memberIds: ["vibe_selling", "general", "ecommerce_mind"],
+          memberIds: ["luna", "eve", "shion"],
           domains: ["creative", "ecommerce"],
           accent:
             "from-amber-100/90 via-orange-50/70 to-background dark:from-amber-950/55 dark:via-orange-950/20",
@@ -377,7 +376,7 @@ export function AgentsTab({
           id: "automation-cell",
           title: "自动化执行中枢",
           description: "代码、桌面和流程三线并行，适合批量操作与长链路任务。",
-          memberIds: ["desktop_operator", "coder", "aoi"],
+          memberIds: ["raven", "kane", "zero"],
           domains: ["automation", "coding"],
           accent:
             "from-slate-200/90 via-blue-50/60 to-background dark:from-slate-800/80 dark:via-blue-950/20",
@@ -399,19 +398,6 @@ export function AgentsTab({
         .filter((scenario) => scenario.members.length > 0),
     [activeCategory, agents],
   );
-
-  const launchScenario = (scenario: (typeof featuredScenarios)[number]) => {
-    const [leader, ...collaborators] = scenario.members;
-    if (!leader) return;
-    writeTaskCollaboratorPreset({
-      leaderId: leader.name,
-      collaboratorIds: collaborators.map((agent) => agent.name),
-      mode: "cluster",
-      label: scenario.title,
-      openPicker: false,
-    });
-    navigate(taskCollaboratorRouteForLeader(leader.name));
-  };
 
   useEffect(() => {
     setConfirmInstallAll(false);
@@ -690,7 +676,6 @@ export function AgentsTab({
         roles: scenario.members.map(member => [member.name, member.display_name]),
         flow: scenario.description,
         output: "",
-        onLaunch: () => launchScenario(scenario),
       }))} />
 
       {!sceneOnly ? (

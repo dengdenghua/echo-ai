@@ -7,7 +7,8 @@ import {
   Settings2Icon,
   ShieldCheckIcon,
 } from "lucide-react";
-import { lazy, Suspense, useState } from "react";
+import { lazy, Suspense } from "react";
+import { useSearchParams } from "react-router-dom";
 
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -44,7 +45,19 @@ function GovernancePanelLoading() {
 
 export function EvolutionGovernancePanel() {
   const queryClient = useQueryClient();
-  const [detailSection, setDetailSection] = useState("summary");
+  const [searchParams, setSearchParams] = useSearchParams();
+  const detail = searchParams.get("detail");
+  const detailSection =
+    detail && ["control", "reflex", "runtime"].includes(detail)
+      ? detail
+      : "summary";
+  const setDetailSection = (value: string) =>
+    setSearchParams((current) => {
+      const params = new URLSearchParams(current);
+      if (value === "summary") params.delete("detail");
+      else params.set("detail", value);
+      return params;
+    }, { replace: true });
   const shadow = useQuery({
     queryKey: shadowQueryKey,
     queryFn: getDualHelixShadowStatus,

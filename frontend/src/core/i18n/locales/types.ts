@@ -184,6 +184,7 @@ export interface Translations {
     latest: string;
     newUpdates: (n: number) => string;
     timeoutWarning: (seconds: number) => string;
+    stallHint: (seconds: number) => string;
     thinkingPlan: string;
     thinkingPlanSourceCheck: string;
     thinkingPlanCoworkFit: string;
@@ -399,6 +400,8 @@ export interface Translations {
     stop: string;
     stopping: string;
     restoringConnection: string;
+    connectingConversation: string;
+    syncingConversation: string;
     connectionRecoveryFailed: string;
     retryConnection: string;
     projectModeLabel: string;
@@ -1771,7 +1774,6 @@ export interface Translations {
     navNarrative: string;
     navPlugins: string;
     navHR: string;
-    navComputer: string;
     navDesktopOrganizer: string;
     navArchitecture: string;
     groupTools: string;
@@ -3029,7 +3031,6 @@ export interface Translations {
       nextStepVerifyHint: string;
       nextStepDisabledTitle: string;
       nextStepDisabledHint: string;
-      openComputerTool: string;
       loading: string;
       loadFailed: string;
       restartConfirmTitle: string;
@@ -5740,6 +5741,7 @@ export interface Translations {
 
   // Live Tool Timeline detail labels
   liveToolTimeline: {
+    statusInterrupted: string;
     searchingWeb: string;
     searchingQuery: (query: string) => string;
     searchedPages: (count?: number) => string;

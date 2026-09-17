@@ -1710,7 +1710,7 @@ export function AgentSummaryPage({
         )}
 
         {/* 上下文（只展示本轮事件流里可确认的内容） */}
-        {!isCompletelyEmpty && (
+        {totalReferenceItems > 0 && (
           <section className="py-4">
             <div className="flex items-center gap-2">
               <button

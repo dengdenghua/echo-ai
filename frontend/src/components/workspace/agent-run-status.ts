@@ -24,6 +24,7 @@ export function agentRunStateFromStatus(
     return "waiting";
   }
   if (status === "warning") return "done";
+  if (status === "interrupted") return "pending";
   if (status === "completed") return "done";
   return status;
 }

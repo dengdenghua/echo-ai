@@ -31,24 +31,31 @@ it("connects and registers a Responses source in Echo without requiring a Codex 
   vi.stubGlobal("fetch", fetchMock);
   renderWithProviders(<EchoModelHotspotSettings onConnected={onConnected} />);
   expect(fetchMock).not.toHaveBeenCalled();
-  fireEvent.change(screen.getByLabelText("热点邀请凭证"), {
+  fireEvent.click(screen.getByText("连接共享模型"));
+  expect(screen.getByLabelText("模型地址")).toHaveValue("");
+  fireEvent.change(screen.getByLabelText("模型地址"), {
+    target: { value: "http://localhost:18322/v1" },
+  });
+  fireEvent.change(screen.getByLabelText("邀请凭证"), {
     target: { value: "invitation" },
   });
-  fireEvent.click(screen.getByRole("button", { name: "连接并读取模型" }));
+  fireEvent.click(screen.getByRole("button", { name: "验证并读取模型" }));
   expect(await screen.findByLabelText("热点模型")).toHaveValue(
     "upstream-model",
   );
   fireEvent.click(screen.getByRole("button", { name: "添加到 Echo 模型列表" }));
   await waitFor(() => expect(onConnected).toHaveBeenCalledTimes(1));
-  expect(screen.getByLabelText("热点邀请凭证")).toHaveValue("");
+  expect(screen.getByLabelText("邀请凭证")).toHaveValue("");
   expect(screen.getByRole("status")).toHaveTextContent("聊天的模型选择器");
-  fireEvent.change(screen.getByLabelText("热点邀请凭证"), {
+  fireEvent.change(screen.getByLabelText("邀请凭证"), {
     target: { value: "invitation" },
   });
-  fireEvent.click(screen.getByRole("button", { name: "连接并读取模型" }));
+  fireEvent.click(screen.getByRole("button", { name: "验证并读取模型" }));
   await screen.findByLabelText("热点模型");
   fireEvent.click(screen.getByRole("button", { name: "添加到 Echo 模型列表" }));
   await waitFor(() => expect(onConnected).toHaveBeenCalledTimes(2));
-  const saved = fetchMock.mock.calls.filter(([, init]) => init?.method === "PUT");
+  const saved = fetchMock.mock.calls.filter(
+    ([, init]) => init?.method === "PUT",
+  );
   expect(saved[0]?.[0]).not.toBe(saved[1]?.[0]);
 });

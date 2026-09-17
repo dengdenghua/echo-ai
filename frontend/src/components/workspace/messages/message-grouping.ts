@@ -740,3 +740,26 @@ export function groupActivities(
 
   return merged;
 }
+
+export function latestClarificationToolContent(
+  messages: Message[],
+): string | null {
+  for (let index = messages.length - 1; index >= 0; index -= 1) {
+    const message = messages[index];
+    if (message?.type !== "ai") continue;
+    const toolCalls = (message as AIMessage).tool_calls ?? [];
+    for (let callIndex = toolCalls.length - 1; callIndex >= 0; callIndex -= 1) {
+      const toolCall = toolCalls[callIndex];
+      if (
+        toolCall?.name !== "ask_clarification" &&
+        toolCall?.name !== "ask_user_question"
+      ) {
+        continue;
+      }
+      const output = (toolCall.args as { output?: unknown } | undefined)
+        ?.output;
+      if (typeof output === "string" && output.trim()) return output;
+    }
+  }
+  return null;
+}

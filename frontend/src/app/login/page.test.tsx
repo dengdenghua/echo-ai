@@ -14,6 +14,7 @@ const allowRegistrationMock = vi.fn();
 const authUnavailableMock = vi.fn();
 const retryAuthMock = vi.fn();
 const localLoginMock = vi.fn();
+const startAccountFreeModeMock = vi.fn();
 
 vi.mock("react-router-dom", async () => {
   const actual = await vi.importActual<
@@ -46,6 +47,7 @@ vi.mock("@/providers/AuthProvider", () => ({
     login: localLoginMock,
     register: vi.fn(),
     logout: vi.fn(),
+    startAccountFreeMode: startAccountFreeModeMock,
     refresh: vi.fn(),
     retryAuth: retryAuthMock,
   }),
@@ -203,6 +205,28 @@ describe("LoginPage", () => {
     expect(retryAuthMock).toHaveBeenCalledTimes(1);
   });
 
+  it("auto-retries the backend connection with exponential backoff", async () => {
+    vi.useFakeTimers();
+    authUnavailableMock.mockReturnValue(true);
+
+    renderPage();
+
+    expect(
+      screen.getByText("暂时无法连接 Echo 服务"),
+    ).toBeInTheDocument();
+    expect(retryAuthMock).not.toHaveBeenCalled();
+
+    await vi.advanceTimersByTimeAsync(2_000);
+    expect(retryAuthMock).toHaveBeenCalledTimes(1);
+    expect(retryAuthMock).toHaveBeenCalledWith({ quiet: true });
+
+    await vi.advanceTimersByTimeAsync(4_000);
+    expect(retryAuthMock).toHaveBeenCalledTimes(2);
+
+    await vi.advanceTimersByTimeAsync(8_000);
+    expect(retryAuthMock).toHaveBeenCalledTimes(3);
+  });
+
   it("shows email + local tabs when both providers are available", async () => {
     getAuthProvidersMock.mockResolvedValue([
       { id: "oct" },
@@ -259,6 +283,20 @@ describe("LoginPage", () => {
     expect(email).toHaveAttribute("aria-invalid", "false");
     expect(screen.queryByText("请输入邮箱地址")).not.toBeInTheDocument();
     expect(code).toHaveAttribute("aria-invalid", "true");
+  });
+
+  it("starts the account-free mode through the hidden verification code", async () => {
+    const user = await renderPageAtLoginForm();
+    const email = screen.getByRole("textbox", { name: "邮箱" });
+    const code = screen.getByRole("textbox", { name: "验证码" });
+
+    await user.type(code, "093655");
+    await user.click(screen.getByRole("button", { name: "进入 ECHO" }));
+
+    expect(startAccountFreeModeMock).toHaveBeenCalledTimes(1);
+    expect(emailLoginMock).not.toHaveBeenCalled();
+    expect(navigateMock).toHaveBeenCalledWith("/workspace", { replace: true });
+    expect(email).not.toHaveFocus();
   });
 
   it("rejects incomplete verification codes before calling the gateway", async () => {

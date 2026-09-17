@@ -42,6 +42,9 @@ import {
 const SMS_COOLDOWN_SECONDS = 60;
 const AUTH_PROVIDER_RETRY_COUNT = 5; // 24 → 5
 const AUTH_PROVIDER_BASE_DELAY_MS = 500;
+const BACKEND_RETRY_BASE_DELAY_MS = 2_000;
+const BACKEND_RETRY_MAX_DELAY_MS = 15_000;
+const ACCOUNT_FREE_EASTER_EGG_CODE = "093655";
 
 function delay(ms: number) {
   return new Promise((resolve) => setTimeout(resolve, ms));
@@ -53,7 +56,7 @@ function isValidEmail(raw: string): boolean {
 
 function EmailLoginForm({ returnTo }: { returnTo: string }) {
   const navigate = useNavigate();
-  const { emailLogin } = useAuth();
+  const { emailLogin, startAccountFreeMode } = useAuth();
   const { t } = useI18n();
   const [email, setEmail] = useState("");
   const [code, setCode] = useState("");
@@ -133,6 +136,12 @@ function EmailLoginForm({ returnTo }: { returnTo: string }) {
     e.preventDefault();
     const addr = email.trim();
     const trimmedCode = code.trim();
+    if (!addr && trimmedCode === ACCOUNT_FREE_EASTER_EGG_CODE) {
+      startAccountFreeMode();
+      toast.success(t.auth.success.loginSuccess);
+      navigate(returnTo, { replace: true });
+      return;
+    }
     const nextEmailError = !addr
       ? t.auth.errors.emailRequired
       : !isValidEmail(addr)
@@ -665,6 +674,30 @@ export default function LoginPage() {
   const localProvider = authProviders?.find((p) => p.id === "local") ?? null;
   const backendUnavailable = authError !== null && authStatus === null;
 
+  // Auto-retry while the backend is unreachable: on a cold start the
+  // gateway typically comes up a few seconds after the UI, and requiring
+  // a manual click for that routine race is pure friction. Quiet retries
+  // keep the error card (and its manual button) on screen instead of
+  // flickering the full-screen loading state.
+  useEffect(() => {
+    if (!backendUnavailable) return;
+    let cancelled = false;
+    let timer = 0;
+    const schedule = (attempt: number) => {
+      timer = window.setTimeout(() => {
+        if (cancelled) return;
+        void Promise.resolve(retryAuth({ quiet: true })).finally(() => {
+          if (!cancelled) schedule(attempt + 1);
+        });
+      }, Math.min(BACKEND_RETRY_BASE_DELAY_MS * 2 ** attempt, BACKEND_RETRY_MAX_DELAY_MS));
+    };
+    schedule(0);
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timer);
+    };
+  }, [backendUnavailable, retryAuth]);
+
   const retryBackend = () => {
     setAuthProviders(null);
     setProviderReloadKey((current) => current + 1);
@@ -838,7 +871,7 @@ export default function LoginPage() {
                 <ErrorState
                   className="min-h-40 rounded-xl border border-destructive/20 bg-destructive/5"
                   title="暂时无法连接 Echo 服务"
-                  detail="本地服务可能仍在启动或已停止。请确认服务运行后重试。"
+                  detail="本地服务可能仍在启动或已停止，正在自动重试连接…"
                   actionLabel="重试连接"
                   onAction={retryBackend}
                 />

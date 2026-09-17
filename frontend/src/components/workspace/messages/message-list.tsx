@@ -1,3 +1,4 @@
+import { builtinPersonaDisplayName } from "@/core/agents/persona-display";
 import type { AIMessage, Message, ToolCall } from "@/core/api/types";
 import type { BaseStream } from "@/core/api/use-stream-types";
 import type { ComponentProps, ReactNode } from "react";
@@ -80,6 +81,7 @@ import { ClarificationChoiceCard } from "./clarification-choice-card";
 import { MarkdownContent } from "./markdown-content";
 import { extractClarificationQuestionnaire } from "../clarification-questionnaire";
 import { hasVisibleMessageGroupContent, MessageGroup } from "./message-group";
+import { latestClarificationToolContent } from "./message-grouping";
 import {
   MessageListItem,
   messageClipboardText,
@@ -106,6 +108,7 @@ import {
 export const MESSAGE_LIST_DEFAULT_PADDING_BOTTOM = 160;
 export const MESSAGE_LIST_FOLLOWUPS_EXTRA_PADDING_BOTTOM = 80;
 export const MESSAGE_LIST_TIMEOUT_WARNING_MS = 300_000;
+export const MESSAGE_LIST_STALL_HINT_MS = 60_000;
 type SubtaskUpdate = Partial<Subtask> & { id: string };
 
 /**
@@ -987,6 +990,7 @@ const MemoizedGroup = memo(
     isLatestGroup: _isLatestGroup,
     groupHasStreamingMessage: _groupHasStreamingMessage,
     keepGroupOpen,
+    externalClarificationContent,
     enableClarificationActions,
     deferGroupOutputs,
     groupAuditNotice,
@@ -1008,6 +1012,7 @@ const MemoizedGroup = memo(
     isLatestGroup: boolean;
     groupHasStreamingMessage: boolean;
     keepGroupOpen: boolean;
+    externalClarificationContent: string | null;
     enableClarificationActions: boolean;
     deferGroupOutputs: boolean;
     groupAuditNotice: string | null;
@@ -1032,13 +1037,78 @@ const MemoizedGroup = memo(
       auditNotice?: string | null,
       failure?: FailurePresentation | null,
       showAssistantAvatar?: boolean,
-      beforeProcessingContent?: ReactNode,
+      delegationContent?: ReadonlyMap<string, ReactNode>,
       suppressSubagentRows?: boolean,
       turnRenderInfo?: GroupTurnRenderInfo,
+      externalClarification?: string | null,
     ) => ReactNode;
     groupTurnRenderInfo: GroupTurnRenderInfo;
   }) {
     const hasPairedBindings = Boolean(subagentBindings?.size);
+    const delegationSlots = new Map<string, ReactNode>();
+    const anchoredAgentIds = new Set<string>();
+    if (!hasPairedBindings && showSubagentCluster) {
+      for (const message of group.messages) {
+        if (message.type !== "ai") continue;
+        let batchIds: string[] = [];
+        let batchAgents: InlineSubagentInfo[] = [];
+        const flushBatch = () => {
+          if (!batchIds.length) return;
+          delegationSlots.set(
+            batchIds[0]!,
+            <InlineSubagentCards
+              agents={batchAgents}
+              events={subagentEvents?.filter((event) =>
+                Boolean(
+                  event.parentToolUseId &&
+                  batchIds.includes(event.parentToolUseId),
+                ),
+              )}
+              mission={subagentMission}
+              settled={subagentSettled}
+              turnIndex={subagentTurnIndex}
+            />,
+          );
+          for (const id of batchIds.slice(1)) delegationSlots.set(id, null);
+          batchIds = [];
+          batchAgents = [];
+        };
+        for (const call of message.tool_calls ?? []) {
+          if (!call.id || delegationSlots.has(call.id)) continue;
+          const callAgents = deriveSubagentsFromMessages([
+            { ...message, tool_calls: [call] },
+            ...group.messages.filter((candidate) => candidate.type === "tool"),
+          ]);
+          if (!callAgents.length) {
+            flushBatch();
+            continue;
+          }
+          const agents = callAgents.map((agent) => {
+            anchoredAgentIds.add(agent.id);
+            const identity = subagentAgents?.find(
+              (entry) => entry.id === agent.id,
+            );
+            return {
+              ...agent,
+              name: identity?.name ?? agent.name,
+              avatar: identity?.avatar ?? agent.avatar,
+              avatarUrl: identity?.avatarUrl ?? agent.avatarUrl,
+            };
+          });
+          batchIds.push(call.id);
+          batchAgents.push(...agents);
+        }
+        flushBatch();
+      }
+    }
+    const unanchoredAgents = subagentAgents?.filter(
+      (agent) => !anchoredAgentIds.has(agent.id),
+    );
+    const showUnanchoredCluster =
+      showSubagentCluster &&
+      !hasPairedBindings &&
+      (Boolean(unanchoredAgents?.length) ||
+        (!subagentAgents?.length && !delegationSlots.size));
     const pairedStatusControl = hasPairedBindings
       ? (messageId?: string) => {
           if (!messageId) return undefined;
@@ -1064,9 +1134,10 @@ const MemoizedGroup = memo(
       groupAuditNotice,
       groupFailure,
       showAssistantAvatar,
-      undefined,
+      delegationSlots,
       Boolean(subagentAgents?.length || subagentEvents?.length),
       groupTurnRenderInfo,
+      externalClarificationContent,
     );
     return (
       <div
@@ -1084,17 +1155,29 @@ const MemoizedGroup = memo(
           renderedGroup
         ) : (
           <>
-            {showSubagentCluster ? (
+            {renderedGroup}
+            {showUnanchoredCluster ? (
               <InlineSubagentCards
-                agents={subagentAgents}
-                events={subagentEvents}
+                agents={unanchoredAgents}
+                events={
+                  unanchoredAgents?.length
+                    ? subagentEvents?.filter((event) =>
+                        unanchoredAgents.some((agent) =>
+                          [
+                            event.agentId,
+                            event.agentName,
+                            event.subagentCodename,
+                          ].some((id) => id === agent.id || id === agent.name),
+                        ),
+                      )
+                    : subagentEvents
+                }
                 mission={subagentMission}
                 settled={subagentSettled}
                 turnIndex={subagentTurnIndex}
                 className="mb-1 ml-11"
               />
             ) : null}
-            {renderedGroup}
           </>
         )}
       </div>
@@ -1217,7 +1300,13 @@ export function MessageList({
 }) {
   const { t } = useI18n();
   const [settings] = useLocalSettings();
-  const rehypePlugins = useRehypeSplitWordsIntoSpans(thread.isLoading);
+  // Settled group lanes (clarification / present-files) never token-stream:
+  // their content arrives complete with the tool result. Keying this stack on
+  // the thread-level loading flag flipped plugin identity on every stream
+  // start/stop, defeating MarkdownContent's memo and re-parsing those blocks
+  // (KaTeX/sanitize) across the history; it also re-armed the word-split
+  // streaming animation on already-settled text.
+  const settledRehypePlugins = useRehypeSplitWordsIntoSpans(false);
   const updateSubtask = useUpdateSubtask();
   const loadingProgressAtRef = useRef<number | null>(null);
   const [loadingAgeMs, setLoadingAgeMs] = useState(0);
@@ -1244,6 +1333,7 @@ export function MessageList({
     combinedAgentRoster.length === 1 ? combinedAgentRoster[0] : undefined;
 
   const messages = thread.messages;
+  const latestClarificationContent = latestClarificationToolContent(messages);
   const showConversationActivity = thread.isLoading && !thread.error;
   // Message objects are immutable and reference-stable for untouched realtime
   // items. Build the positional lookup once per projected messages array so
@@ -1318,11 +1408,17 @@ export function MessageList({
       | Record<string, unknown>
       | undefined;
     const metadataEngine = metadata?.execution_engine;
-    if (metadataEngine === "opencode" || (!metadataEngine && currentAgent?.execution_engine === "opencode")) return undefined;
+    if (
+      metadataEngine === "opencode" ||
+      (!metadataEngine && currentAgent?.execution_engine === "opencode")
+    )
+      return undefined;
     const primaryEngine =
       metadataEngine === "codex" || metadataEngine === "echo"
         ? metadataEngine
-        : currentAgent?.execution_engine === "codex" ? "codex" : "echo";
+        : currentAgent?.execution_engine === "codex"
+          ? "codex"
+          : "echo";
     return {
       goal,
       primaryEngine,
@@ -1516,6 +1612,15 @@ export function MessageList({
     thread.isLoading &&
     loadingAgeMs >= MESSAGE_LIST_TIMEOUT_WARNING_MS &&
     !hasActiveTool;
+  // Early, neutral "still working" hint for long silences: 5 minutes is far
+  // too late for a user watching a dead-quiet stream. The watermark resets on
+  // every content delta, so this only fires when the model is truly silent
+  // (and no tool is visibly running).
+  const showStallHint =
+    thread.isLoading &&
+    !showTimeoutWarning &&
+    loadingAgeMs >= MESSAGE_LIST_STALL_HINT_MS &&
+    !hasActiveTool;
   // The realtime hook wraps send failures in Error now, but other BaseStream
   // implementations may still surface raw strings — keep accepting both
   // shapes when extracting the message text.
@@ -1591,9 +1696,12 @@ export function MessageList({
       return {
         ...failure,
         kind,
-        message: /refusing to clean (?:outside sidecar state_root|unsafe sidecar path|sidecar tree with invalid marker)/i.test(failure.detail)
-          ? t.streaming.sidecarCleanupBlocked
-          : publicExecutionErrorMessage(message),
+        message:
+          /refusing to clean (?:outside sidecar state_root|unsafe sidecar path|sidecar tree with invalid marker)/i.test(
+            failure.detail,
+          )
+            ? t.streaming.sidecarCleanupBlocked
+            : publicExecutionErrorMessage(message),
       };
     },
     [
@@ -2072,7 +2180,7 @@ export function MessageList({
     headerMeta?: ReactNode;
     children: ReactNode;
   }) => {
-    const displayName = agentName || t.message.assistant;
+    const displayName = builtinPersonaDisplayName(agentName) || agentName || t.message.assistant;
     const capabilitySummary = summarizeAgentCapabilities(agentToolGroups);
     // In a team room, label each agent's message with its name (and 队长
     // badge) so the thread reads like a group chat — you can see who's
@@ -2241,8 +2349,9 @@ export function MessageList({
     enableClarificationActions = false,
     keepOpen = false,
     showAssistantAvatar = true,
-    beforeProcessingContent?: ReactNode,
+    delegationContent?: ReadonlyMap<string, ReactNode>,
     suppressSubagentRows = false,
+    externalClarification: string | null = null,
   ) => {
     if (!hasVisibleMessageGroupContent(group.messages, t)) return null;
     const aiMessage = group.messages.find(
@@ -2259,9 +2368,11 @@ export function MessageList({
     } = resolveAgentIdentity(aiMessage);
     const content = (
       <>
-        {beforeProcessingContent}
         <MessageGroup
+          delegationContent={delegationContent}
+          collapseCompletedProcess
           enableClarificationActions={enableClarificationActions}
+          externalClarificationContent={externalClarification}
           messages={group.messages}
           keepOpen={keepOpen}
           codeMode={mode === "code"}
@@ -2307,9 +2418,13 @@ export function MessageList({
     auditNotice: string | null = null,
     failure: FailurePresentation | null = null,
     showAssistantAvatar = true,
-    beforeProcessingContent?: ReactNode,
+    delegationContent?: ReadonlyMap<string, ReactNode>,
     suppressSubagentRows = false,
     turnRenderInfo?: GroupTurnRenderInfo,
+    // Clarification text sourced from the turn's tool output rather than from
+    // this group's own messages. MemoizedGroup forwards it for the latest
+    // group only; MessageGroup falls back to its own content when absent.
+    externalClarification: string | null = null,
   ) => {
     if (group.type === "human" || group.type === "assistant") {
       const groupIndex = turnRenderInfo ? -1 : groupedMessages.indexOf(group);
@@ -2418,8 +2533,8 @@ export function MessageList({
             {visibleContent.trim() && (
               <MarkdownContent
                 content={visibleContent}
-                isLoading={thread.isLoading}
-                rehypePlugins={rehypePlugins}
+                isLoading={false}
+                rehypePlugins={settledRehypePlugins}
               />
             )}
             <ClarificationChoiceCard
@@ -2447,8 +2562,8 @@ export function MessageList({
           {group.messages[0] && hasContent(group.messages[0]) && (
             <MarkdownContent
               content={extractContentFromMessage(group.messages[0])}
-              isLoading={thread.isLoading}
-              rehypePlugins={rehypePlugins}
+              isLoading={false}
+              rehypePlugins={settledRehypePlugins}
               className="mb-4"
             />
           )}
@@ -2475,6 +2590,7 @@ export function MessageList({
         if (hasReasoning(message)) {
           results.push(
             <MessageGroup
+              collapseCompletedProcess
               key={"thinking-group-" + message.id}
               messages={[message]}
               keepOpen={keepOpen}
@@ -2536,8 +2652,9 @@ export function MessageList({
       enableClarificationActions,
       keepOpen,
       showAssistantAvatar,
-      beforeProcessingContent,
+      delegationContent,
       suppressSubagentRows,
+      externalClarification,
     );
   };
 
@@ -2772,9 +2889,39 @@ export function MessageList({
       const unmatchedAgents = agents.filter(
         (agent) => !claimedAgentIds.has(agent.id),
       );
-      if (firstProcessingIndex >= 0 && unmatchedAgents.length > 0) {
-        agentsByGroupIndex.set(firstProcessingIndex, unmatchedAgents);
-        eventsByGroupIndex.set(firstProcessingIndex, events);
+      const processingIndexes = turn.groupIndexes.filter(
+        (index) => groupedMessages[index]?.type === "assistant:processing",
+      );
+      const placedAgentIds = new Set<string>();
+      for (const index of processingIndexes) {
+        const ids = new Set(
+          deriveSubagentsFromMessages(groupedMessages[index]!.messages).map(
+            (agent) => agent.id,
+          ),
+        );
+        const groupAgents = unmatchedAgents.filter((agent) =>
+          ids.has(agent.id),
+        );
+        if (!groupAgents.length) continue;
+        groupAgents.forEach((agent) => placedAgentIds.add(agent.id));
+        agentsByGroupIndex.set(index, groupAgents);
+        eventsByGroupIndex.set(index, events);
+      }
+      // Legacy event-only receipts have no call anchor. Keep them after the
+      // last process group, never ahead of the main agent's explanation.
+      const fallbackIndex = processingIndexes.at(-1);
+      const unplacedAgents = unmatchedAgents.filter(
+        (agent) => !placedAgentIds.has(agent.id),
+      );
+      if (
+        fallbackIndex !== undefined &&
+        (unplacedAgents.length || (!agents.length && events.length))
+      ) {
+        agentsByGroupIndex.set(fallbackIndex, [
+          ...(agentsByGroupIndex.get(fallbackIndex) ?? []),
+          ...unplacedAgents,
+        ]);
+        eventsByGroupIndex.set(fallbackIndex, events);
       }
       info.set(turn.key, {
         agents,
@@ -2837,13 +2984,17 @@ export function MessageList({
       />
       <ConversationContent
         scrollClassName={TURN_SCROLL_VIEWPORT_CLASS}
-        data-density={showSenderName ? "compact" : "comfortable"}
+        // "relaxed" and "compact" are the two density tokens globals.css
+        // actually defines; the previous "comfortable" matched no rule at all.
+        // Nothing in this subtree consumes --density-* today, so this is a
+        // forward-looking correctness fix, not a visual change.
+        data-density={showSenderName ? "compact" : "relaxed"}
         role="log"
         aria-label={t.conversation.messageLog}
         aria-busy={showConversationActivity}
         aria-relevant="additions"
         className={cn(
-          "mx-auto w-full max-w-(--container-width-md) px-4 pt-2 pb-0",
+          "mx-auto w-full max-w-(--conversation-column) px-4 pt-2 pb-0",
           // A work-group timeline contains sender labels, short human turns,
           // and compact project events.  The private-chat rhythm is too airy
           // here and makes the room read like a report rather than a live
@@ -3086,6 +3237,9 @@ export function MessageList({
                       isLatestGroup={isLatestGroup}
                       groupHasStreamingMessage={groupHasStreamingMessage}
                       keepGroupOpen={keepGroupOpen}
+                      externalClarificationContent={
+                        isLatestGroup ? latestClarificationContent : null
+                      }
                       enableClarificationActions={
                         enableGroupClarificationActions
                       }
@@ -3364,6 +3518,17 @@ export function MessageList({
       >
         {t.message.latest}
       </ConversationScrollButton>
+
+      {showStallHint && !thread.error && (
+        <div
+          role="status"
+          aria-live="polite"
+          className="absolute top-4 left-[50%] z-10 -translate-x-1/2 flex items-center gap-2 rounded-lg border border-border-default bg-muted/80 px-3 py-1.5 text-xs text-muted-foreground shadow-[var(--shadow-xs)]"
+        >
+          <Loader2Icon className="size-3.5 shrink-0 animate-spin" />
+          <span>{t.message.stallHint(Math.floor(loadingAgeMs / 1000))}</span>
+        </div>
+      )}
 
       {showTimeoutWarning && !thread.error && (
         <div

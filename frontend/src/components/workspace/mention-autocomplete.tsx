@@ -204,8 +204,8 @@ async function fetchSessionCandidates(
 
 const LOCAL_FILE_AGENT_MENTION: MentionItem = {
   type: "agent",
-  label: "本地数据库",
-  value: "本地数据库",
+  label: "资料库",
+  value: "资料库",
   description: "只在本机索引和检索授权资料，确认后再带入任务上下文",
   icon: "database",
 };
@@ -217,7 +217,7 @@ function withLocalFileAgentMention(
   const normalized = query.trim().toLowerCase();
   const shouldShow =
     normalized === "" ||
-    "本地数据库".includes(normalized) ||
+    "资料库".includes(normalized) ||
     "私域资料库".includes(normalized) ||
     "本地资料官".includes(normalized) ||
     "local database".includes(normalized) ||
@@ -226,7 +226,7 @@ function withLocalFileAgentMention(
     "nas".includes(normalized) ||
     "storage".includes(normalized) ||
     normalized === "agent:" ||
-    normalized.startsWith("agent:本地数据库") ||
+    normalized.startsWith("agent:资料库") ||
     normalized.startsWith("agent:私域") ||
     normalized.startsWith("agent:本地") ||
     normalized.startsWith("agent:local");

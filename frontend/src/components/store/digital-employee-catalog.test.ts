@@ -26,7 +26,7 @@ describe("digital employee catalog", () => {
     expect(renamed.display_name).toBe("高级开发工程师");
     expect(renamed).toMatchObject({ id: original.id, name: original.name, author: original.author, source: original.source, is_installed: true });
     expect(original.display_name).toBe("吴八哥");
-    expect(CURATED_ROLE_NAMES["wb_believe-in-light"]).toBe("光通信产业研究团队");
+    expect(CURATED_ROLE_NAMES["wb_believe-in-light"]).toBe("产业研究团队");
   });
   it("retains 58 reviewed jobs and 20 teams including finance", () => {
     expect(DIGITAL_EMPLOYEE_IDS.size).toBe(58);

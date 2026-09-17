@@ -314,29 +314,6 @@ function portfolioEntry(overrides: Record<string, unknown> = {}) {
   };
 }
 
-function portfolioMilestone(
-  id: string,
-  name: string,
-  overrides: Record<string, unknown> = {},
-) {
-  return {
-    id,
-    name,
-    status: "running",
-    health: "on_track",
-    priority: "P2",
-    planned_start: isoDaysFromNow(-5),
-    due_at: isoDaysFromNow(5),
-    done: 0,
-    total: 2,
-    failed: 0,
-    progress: 0.25,
-    remaining_estimate: 4,
-    overdue_count: 0,
-    ...overrides,
-  };
-}
-
 function detailPayload(
   milestones: Array<Record<string, unknown>>,
   project: Record<string, unknown> = {},

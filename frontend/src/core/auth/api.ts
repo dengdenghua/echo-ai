@@ -13,6 +13,7 @@ const TOKEN_KEY = "echo_auth_token";
 const USER_KEY = "echo_user";
 const TOKEN_TIMESTAMP_KEY = "echo_auth_ts";
 const SESSION_TIMEOUT_MS = 7 * 24 * 60 * 60 * 1000;
+export const ACCOUNT_FREE_TOKEN = "__account_free__";
 
 function canUseBrowserStorage(): boolean {
   return typeof window !== "undefined" && import.meta.env.MODE !== "test";
@@ -84,7 +85,7 @@ export function _clearTokens(): void {
 
 export function authHeaders(): Record<string, string> {
   const token = _readToken();
-  if (!token) return {};
+  if (!token || token === ACCOUNT_FREE_TOKEN) return {};
   return { Authorization: `Bearer ${token}` };
 }
 

@@ -65,8 +65,10 @@ describe("ModuleEditorDialog", () => {
 
     await userEvent.click(toggles[0]);
     expect(provider.current()).toEqual([]);
+    // Overrides are keyed by the canonical persona id, so the default identity
+    // is stored under `eve` rather than the legacy `general`.
     expect(provider.currentOverrides()).toEqual({
-      general: expect.any(Object),
+      eve: expect.any(Object),
     });
   });
 

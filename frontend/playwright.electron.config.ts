@@ -14,7 +14,7 @@ import { defineConfig } from "@playwright/test";
  */
 export default defineConfig({
   testDir: "./e2e/electron",
-  testMatch: "desktop-smoke.spec.ts",
+  testMatch: "desktop-*.spec.ts",
   fullyParallel: false,
   workers: 1,
   timeout: 60_000,
@@ -25,7 +25,7 @@ export default defineConfig({
   projects: [
     {
       name: "electron",
-      testMatch: /desktop-smoke\.spec\.ts/,
+      testMatch: /desktop-.*\.spec\.ts/,
     },
   ],
 });

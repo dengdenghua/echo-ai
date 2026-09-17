@@ -105,9 +105,9 @@ export default function AutomationSettingsPage() {
   const canRestartBackend =
     typeof window !== "undefined" && Boolean(window.echo?.isElectron);
 
-  const openComputerTool = () => {
+  const openAutomationChat = () => {
     window.dispatchEvent(new Event("echo:close-settings"));
-    navigate("/workspace/computer");
+    navigate("/workspace/realtime/new");
   };
 
   async function onSave() {
@@ -219,7 +219,7 @@ export default function AutomationSettingsPage() {
           <Button
             type="button"
             className="h-10 shrink-0 rounded-md px-3"
-            onClick={dirty ? onSave : openComputerTool}
+            onClick={dirty ? onSave : openAutomationChat}
             disabled={dirty ? save.isPending : false}
           >
             {dirty ? (
@@ -233,7 +233,7 @@ export default function AutomationSettingsPage() {
             )}
             {dirty
               ? t.settings.automation.save
-              : t.settings.automation.openComputerTool}
+              : t.sidebar.newChat}
           </Button>
         ) : null}
       </div>
@@ -366,17 +366,7 @@ function LocalToolsSection() {
           {t.settings.automation.localToolsDesc}
         </p>
       </div>
-      <div className="grid gap-2 sm:grid-cols-2">
-        <Button
-          type="button"
-          variant="outline"
-          className="justify-start gap-2"
-          onClick={() => openTool("/workspace/computer")}
-        >
-          <MonitorIcon className="h-4 w-4" />
-          {t.sidebar.navComputer}
-          <ExternalLinkIcon className="ml-auto h-3.5 w-3.5 opacity-60" />
-        </Button>
+      <div className="grid gap-2">
         <Button
           type="button"
           variant="outline"

@@ -41,8 +41,10 @@ beforeEach(() => localStorage.setItem(ACTIVE_AGENT_KEY, "desktop_operator"));
 it("uses the shared roster order and real avatar for browser roles", async () => {
   renderWithProviders(<Picker />, { locale: "zh-CN" });
   const trigger = screen.getByRole("button", { name: "切换智能体 · Raven" });
+  // `withAgentAvatarVersion()` rewrites the id in the URL to the canonical
+  // persona, so the legacy `desktop_operator` resolves to `raven`.
   expect(trigger.querySelector("img")?.getAttribute("src")).toContain(
-    "/api/agents/desktop_operator/avatar",
+    "/api/agents/raven/avatar",
   );
   await userEvent.click(trigger);
   const menu = screen.getByRole("menu");
@@ -63,8 +65,10 @@ it("synchronizes browser selections and external role changes via the shared sta
     screen.getByRole("button", { name: "切换智能体 · Raven" }),
   );
   await userEvent.click(screen.getByRole("menuitem", { name: /Kane/ }));
+  // The roster entry is persisted verbatim, while `useActiveAgentId()` reports
+  // the canonical persona — the two intentionally differ here.
   expect(localStorage.getItem(ACTIVE_AGENT_KEY)).toBe("coder");
-  expect(screen.getByTestId("active-id")).toHaveTextContent("coder");
+  expect(screen.getByTestId("active-id")).toHaveTextContent("kane");
   expect(
     screen.getByRole("button", { name: "切换智能体 · Kane" }),
   ).toBeVisible();

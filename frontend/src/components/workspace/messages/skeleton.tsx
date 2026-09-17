@@ -20,7 +20,7 @@ export function MessageListSkeleton() {
   return (
     <div
       aria-label="Loading conversation"
-      className="mx-auto flex w-full max-w-(--container-width-md) flex-col gap-8 px-5 pb-8 pt-10 sm:gap-12 sm:p-8 sm:pt-16"
+      className="mx-auto flex w-full max-w-(--conversation-column) flex-col gap-8 px-5 pb-8 pt-10 sm:gap-12 sm:p-8 sm:pt-16"
     >
       <div
         role="human-message"

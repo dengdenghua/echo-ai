@@ -152,6 +152,8 @@ export interface ChatInputBoxProps {
   /** Observe draft edits/restoration without owning or clearing the draft. */
   onDraftChange?: (text: string) => void;
   onStop?: () => void | Promise<void>;
+  /** Continue an interrupted/failed task without replacing the user's draft. */
+  onResume?: () => void;
   /** Prevent repeated stop requests while the server acknowledges one. */
   isStopping?: boolean;
   /** True while attachments are being uploaded to the backend. Surfaces

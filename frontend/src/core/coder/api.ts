@@ -1,4 +1,5 @@
 import { authHeaders, jsonAuthHeaders } from "@/core/auth/api";
+import type { EngineCapabilityChecks } from "@/core/agents/engine-capability-checks";
 import type { components } from "@/core/api/openapi-types";
 import { getBackendBaseURL } from "@/core/config";
 
@@ -112,7 +113,7 @@ export interface CoderModelProfile {
   provider: string | null;
   proxy_required: boolean;
   execution_available?: boolean;
-  capability_checks?: import("@/core/agents/engine-capability-checks").EngineCapabilityChecks;
+  capability_checks?: EngineCapabilityChecks;
   execution_unavailable_reason?: string | null;
 }
 
@@ -432,7 +433,8 @@ function normalizeModelProfile(payload: unknown): CoderModelProfile {
     provider: typeof row.provider === "string" ? row.provider : null,
     proxy_required: row.proxy_required === true,
     execution_available: row.execution_available === true,
-    capability_checks: row.capability_checks as CoderModelProfile["capability_checks"],
+    capability_checks:
+      row.capability_checks as CoderModelProfile["capability_checks"],
     execution_unavailable_reason:
       typeof row.execution_unavailable_reason === "string"
         ? row.execution_unavailable_reason

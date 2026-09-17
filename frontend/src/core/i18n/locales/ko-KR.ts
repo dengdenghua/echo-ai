@@ -247,6 +247,8 @@ export const koKR: Translations = {
     newUpdates: () => "새 콘텐츠",
     timeoutWarning: (seconds: number) =>
       `${seconds}초 동안 진행이 없습니다. 멈춘 것 같습니다`,
+    stallHint: (seconds: number) =>
+      `실행 중입니다. ${seconds}초 동안 새 출력이 없습니다`,
     thinkingPlan: "생각 계획",
     thinkingPlanSourceCheck: "소스 확인",
     thinkingPlanCoworkFit: "협업 적합성",
@@ -475,6 +477,8 @@ export const koKR: Translations = {
     stop: "중지",
     stopping: "중지 중…",
     restoringConnection: "연결을 복구 중… 초안은 안전하게 보관됩니다.",
+    connectingConversation: "연결 중… 계속 편집할 수 있습니다.",
+    syncingConversation: "대화 동기화 중… 계속 편집할 수 있습니다.",
     connectionRecoveryFailed: "연결을 복구하지 못했습니다.",
     retryConnection: "다시 시도",
     projectModeLabel: "프로젝트 연결됨",
@@ -1994,7 +1998,6 @@ export const koKR: Translations = {
     navNarrative: "스토리 공방",
     navPlugins: "플러그인",
     navHR: "인재",
-    navComputer: "로컬 어시스턴트",
     navDesktopOrganizer: "데스크톱 정리",
     navArchitecture: "아키텍처",
     groupTools: "도구",
@@ -3622,7 +3625,7 @@ export const koKR: Translations = {
         "켜면 화면 캡처, 마우스와 키보드 제어를 모든 에이전트에 허용합니다.",
       localToolsTitle: "로컬 도구",
       localToolsDesc:
-        "기기 연결, 데스크톱 정리와 장치 작업을 위한 보조 도구입니다.",
+        "데스크톱 정리를 열어 데스크톱 파일을 정리하세요.",
       groupLabel: "그룹:",
       reset: "되돌리기",
       save: "저장",
@@ -3635,11 +3638,10 @@ export const koKR: Translations = {
       nextStepSaveHint:
         "저장한 뒤 안내에 따라 재시작하면 새 설정이 적용됩니다.",
       nextStepVerifyHint:
-        "설정이 동기화되었습니다. 컴퓨터 자동화를 열어 실제 실행 여부를 확인하세요.",
+        "설정이 동기화되었습니다. 새 채팅에서 자동화할 앱과 작업을 설명하세요.",
       nextStepDisabledTitle: "브라우저와 데스크톱 제어가 꺼져 있습니다",
       nextStepDisabledHint:
         "로컬 자동화를 사용하려면 하나 이상의 기능을 켜고 저장하세요.",
-      openComputerTool: "컴퓨터 자동화 열기",
       loading: "실행 기능 설정을 불러오는 중…",
       loadFailed: "실행 기능 설정을 불러오지 못했습니다",
       restartConfirmTitle: "백엔드를 재시작해 적용",
@@ -6518,6 +6520,7 @@ export const koKR: Translations = {
   },
 
   liveToolTimeline: {
+    statusInterrupted: "중지됨",
     searchingWeb: "웹 검색 중",
     searchingQuery: (query) => `검색 중: ${query}`,
     searchedPages: (count) => `${count ?? "몇"}개의 웹 페이지를 찾았습니다`,

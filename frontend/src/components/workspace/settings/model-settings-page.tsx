@@ -66,8 +66,7 @@ import { ModelPicker } from "@/components/workspace/model-picker";
 import { ModelCookbook } from "@/components/workspace/model-cookbook";
 import { CoderEngineSettings } from "@/components/workspace/coder-engine-control";
 import { OpenCodeConnections } from "./opencode-connections";
-import { EchoModelHotspotSettings } from "./echo-model-hotspot";
-import { TeamGatewaySettings } from "./team-gateway-settings";
+import { ModelSharingSettings } from "./model-sharing-settings";
 
 import { MixSettingsSection } from "./mix-settings-section";
 import { SettingsSection } from "./settings-section";
@@ -1998,8 +1997,7 @@ export default function ModelSettingsPage() {
         <LocalModelsSection onImported={fetchModels} />
       </div>
 
-      <EchoModelHotspotSettings onConnected={fetchModels} />
-      <TeamGatewaySettings onConnected={fetchModels} />
+      <ModelSharingSettings onConnected={fetchModels} />
 
       <AdvancedDisclosure
         id="model-settings-opencode"

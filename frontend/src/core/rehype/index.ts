@@ -6,6 +6,7 @@ import rehypeSanitize from "rehype-sanitize";
 import { visit } from "unist-util-visit";
 import type { BuildVisitor } from "unist-util-visit";
 import type { StreamdownProps } from "streamdown";
+import { parseFileReference } from "@/core/navigation/file-reference";
 
 const CJK_TEXT_RE =
   /[\p{Script=Han}\p{Script=Hiragana}\p{Script=Katakana}\p{Script=Hangul}]/gu;
@@ -146,7 +147,6 @@ export function rehypeSplitWordsIntoSpans({
  * touches inline <code> nodes (not code fences), and only when the text
  * has a filename-ish extension followed by `:lineRange`.
  */
-const FILE_REF_RE = /^([\w./\\-]+\.[a-zA-Z0-9]+):(\d+(?:-\d+)?)$/;
 
 export function rehypeFileReferences() {
   return (tree: Root) => {
@@ -154,15 +154,15 @@ export function rehypeFileReferences() {
       if (
         node.tagName !== "code" ||
         !parent ||
-        (parent as Element).tagName === "pre"
+        ["pre", "a"].includes((parent as Element).tagName)
       ) {
         return;
       }
       const first = node.children[0];
       if (!first || first.type !== "text") return;
-      const m = first.value.match(FILE_REF_RE);
-      if (!m) return;
-      const [, path, lines] = m;
+      const reference = parseFileReference(first.value);
+      if (!reference) return;
+      const { path, lines } = reference;
       const replacement: Element = {
         type: "element",
         tagName: "file-ref",

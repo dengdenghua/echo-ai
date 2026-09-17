@@ -1,5 +1,6 @@
 import { ChevronDownIcon } from "lucide-react";
 import type { Agent } from "@/core/agents/types";
+import { canonicalAgentId } from "@/core/agents/aliases";
 import { isPrimaryPersonaAgentId } from "@/core/agents/persona-policy";
 import { emitAgentChanged } from "@/core/events";
 import { useI18n } from "@/core/i18n/hooks";
@@ -23,8 +24,19 @@ export function BrowserAgentPicker({
   activeAgentId: string;
 }) {
   const { t } = useI18n();
+  // Callers match the active agent by raw id, which misses when the id has been
+  // normalized (`desktop_operator` → `raven`) but the roster still carries the
+  // legacy name. Without this fallback the trigger degrades to the bare id, so
+  // both the label and the avatar lose the persona.
+  const resolvedAgent =
+    activeAgent ??
+    agents.find(
+      (item) =>
+        canonicalAgentId(item.name) === canonicalAgentId(activeAgentId),
+    ) ??
+    null;
   const display =
-    activeAgent?.display_name || activeAgent?.name || activeAgentId;
+    resolvedAgent?.display_name || resolvedAgent?.name || activeAgentId;
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
@@ -33,7 +45,7 @@ export function BrowserAgentPicker({
           aria-label={`${t.sidebar.switchAgent} · ${display}`}
           className="flex min-h-8 shrink-0 items-center gap-1.5 rounded-md px-1.5 py-1 text-sm font-medium hover:bg-muted/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
         >
-          <AgentAvatar agent={activeAgent ?? undefined} className="size-6" />
+          <AgentAvatar agent={resolvedAgent ?? undefined} className="size-6" />
           <span className="max-w-32 truncate">{display}</span>
           <ChevronDownIcon className="size-3 text-muted-foreground" />
         </button>
@@ -52,7 +64,10 @@ export function BrowserAgentPicker({
           </div>
         ) : (
           agents.map((agent) => {
-            const active = agent.name === activeAgentId;
+            // Compare canonically for the same reason as the trigger above: the
+            // active id and the roster entry may use different aliases.
+            const active =
+              canonicalAgentId(agent.name) === canonicalAgentId(activeAgentId);
             return (
               <DropdownMenuItem
                 key={agent.name}

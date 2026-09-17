@@ -34,15 +34,6 @@ export const MODULE_CATALOG: ModuleDescriptor[] = [
     removable: true,
   },
   {
-    // 模拟炒股插件页:内嵌平台原版网页(iframe),复刻版已拆到 paper_trading_replica(插件中心)
-    id: "paper.trading",
-    to: "/workspace/paper-trading",
-    labelKey: "navPaperTrading",
-    group: "workspace",
-    section: "chatCapability",
-    removable: true,
-  },
-  {
     // 项目管理(Project OS)驾驶舱:里程碑健康度/风险/下一步/复盘 —— 真实 PM 视角
     id: "projects",
     to: "/workspace/projects",

@@ -35,7 +35,6 @@ const PROJECTS_APP = remoteWorkbenchApp("projects");
 const INTELLIGENCE_APP = remoteWorkbenchApp("intelligence");
 const DESIGN_APP = remoteWorkbenchApp("design");
 const NARRATIVE_APP = remoteWorkbenchApp("narrative");
-const PAPER_TRADING_APP = remoteWorkbenchApp("paper-trading");
 const EVOLUTION_APP = remoteWorkbenchApp("evolution");
 function StorageRedirect() {
   const search = window.location.hash.includes("?")
@@ -75,7 +74,8 @@ function SettingsRoute() {
 }
 
 const LEGACY_REDIRECTS = {
-  mobile: "/workspace/computer",
+  computer: "/workspace/settings?section=desktopAutomation",
+  mobile: "/workspace/settings?section=desktopAutomation",
   store: "/workspace/agents?surface=chat",
   replay: "/workspace/observability",
   workflows: "/workspace/agents?surface=chat&tab=skills",
@@ -96,13 +96,8 @@ const ChatPage = lazy(
   () => import("./app/workspace/realtime/[thread_id]/page"),
 );
 const TeamJoinPage = lazy(() => import("./app/workspace/team/join/page"));
-const ComputerPage = lazy(() => import("./app/workspace/computer/page"));
-const DesktopOrganizerPage = lazy(
-  () => import("./app/workspace/desktop-organizer/page"),
-);
 const AgentsPage = lazy(loadAgentsPage);
 const AgentsNewPage = lazy(() => import("./app/workspace/agents/new/page"));
-const ChannelsPage = lazy(() => import("./app/workspace/channels/page"));
 // Workspace-scoped observability surface: focused tabs for swarm
 // sub-agent tracing, blackboard snapshot, journal stream, 6-producer
 // regeneration summary, hemolymph compose-budget meter, and per-task
@@ -118,7 +113,6 @@ const KnowledgePage = lazy(() => import("./app/workspace/knowledge/page"));
 const StoragePage = lazy(() => import("./app/workspace/storage/page"));
 const WorkspaceWebAppPage = lazy(() => import("./app/workspace/web-app/page"));
 // Reflex monitor + YAML editor. See app/workspace/reflex/page.tsx.
-const ReflexMonitorPage = lazy(() => import("./app/workspace/reflex/page"));
 const ReflexEditorPage = lazy(() => import("./app/workspace/reflex/edit/page"));
 const SLOW_PAGE_LOADING_MS = 8_000;
 
@@ -230,10 +224,15 @@ export function AppRouter() {
                   path="browser"
                   element={<Navigate to="/browser" replace />}
                 />
-                <Route path="computer" element={<ComputerPage />} />
+                <Route
+                  path="computer"
+                  element={<Navigate to={LEGACY_REDIRECTS.computer} replace />}
+                />
                 <Route
                   path="desktop-organizer"
-                  element={<DesktopOrganizerPage />}
+                  element={
+                    <Navigate to="/workspace/settings?section=desktopAutomation" replace />
+                  }
                 />
                 <Route
                   path="mobile"
@@ -264,7 +263,15 @@ export function AppRouter() {
                   path="store"
                   element={<Navigate to={LEGACY_REDIRECTS.store} replace />}
                 />
-                <Route path="channels" element={<ChannelsPage />} />
+                <Route
+                  path="channels"
+                  element={
+                    <Navigate
+                      to="/workspace/realtime/echo-assistant?agent=echo&assistantPanel=channels"
+                      replace
+                    />
+                  }
+                />
                 <Route path="architecture" element={<Navigate to="/workspace/realtime/new" replace />} />
                 <Route path="observability" element={<ObservabilityPage />} />
                 <Route
@@ -293,7 +300,7 @@ export function AppRouter() {
                 />
                 <Route
                   path="paper-trading"
-                  element={<RemoteWorkbenchSurface app={PAPER_TRADING_APP} />}
+                  element={<Navigate to="/workspace/agents" replace />}
                 />
                 <Route path="web-app" element={<WorkspaceWebAppPage />} />
                 <Route
@@ -304,11 +311,16 @@ export function AppRouter() {
                   path="workflows"
                   element={<Navigate to={LEGACY_REDIRECTS.workflows} replace />}
                 />
-                <Route path="reflex" element={<ReflexMonitorPage />} />
+                <Route
+                  path="reflex"
+                  element={
+                    <Navigate to="/workspace/evolution?surface=chat&section=governance&detail=reflex" replace />
+                  }
+                />
                 <Route path="reflex/edit" element={<ReflexEditorPage />} />
                 <Route
                   path="diagnostics"
-                  element={<ObservabilityPage initialTab="diagnostics" />}
+                  element={<Navigate to="/workspace/observability?tab=system" replace />}
                 />
               </Route>
             </Route>

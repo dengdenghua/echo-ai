@@ -8,11 +8,12 @@ import {
   Loader2Icon,
   XCircleIcon,
 } from "lucide-react";
-import { useId, useMemo, useState } from "react";
+import { useEffect, useId, useMemo, useState } from "react";
 import type { LiveToolEvent } from "@/components/workspace/live-tool-timeline";
 import type { AIMessage, Message, ToolMessage } from "@/core/api/types";
 import { isTeammateToolName } from "@/components/workspace/messages/action-display";
 import { useI18n } from "@/core/i18n/hooks";
+import { useAgents } from "@/core/agents/hooks";
 import { cn } from "@/lib/utils";
 import { emitAgentWorkbenchFocus } from "@/components/workspace/agent-workbench-events";
 import {
@@ -296,6 +297,7 @@ export function deriveInlineSubagents(
     byId.set(key, {
       id: key,
       name:
+        event.subagentRoleDisplayName ||
         inputName ||
         event.subagentCodename ||
         existing?.name ||
@@ -416,13 +418,21 @@ export function deriveSubagentsFromMessages(
         continue;
       }
       const toolResult = tc.id ? toolResults.get(tc.id) : undefined;
-      const result = toolResult?.data;
+      let result = toolResult?.data;
       // Realtime history folds command execution back into
       // ``tool_call.args.output`` instead of always retaining a separate tool
       // message. Treat that envelope as a settled result too; otherwise an
       // invalid pre-spawn call remains "running" and is later promoted to a
       // fake completed Agent card when the turn settles.
       const embeddedOutput = firstString(args, ["output"]);
+      if (result === undefined && embeddedOutput) {
+        try {
+          result = JSON.parse(embeddedOutput);
+        } catch {
+          // Older previews may contain plain text or truncated JSON.
+          result = embeddedOutput;
+        }
+      }
       const embeddedToolErrored =
         /^\s*\((?:工具失败|tool failed)\)/i.test(embeddedOutput) ||
         /\berror=structured_error\b/i.test(embeddedOutput);
@@ -588,6 +598,10 @@ export function deriveSubagentsFromMessages(
             name,
             role: role !== name ? role : undefined,
             avatar: resultAvatar ?? specAvatar ?? roleEmoji(role ?? name),
+            avatarUrl:
+              firstString(matched, ["avatar_url"]) ||
+              firstString(spec, ["avatar_url"]) ||
+              undefined,
             status,
             task,
             summary: summary || undefined,
@@ -615,13 +629,17 @@ export function deriveSubagentsFromMessages(
         const role =
           typeof args.role === "string" ? (args.role as string) : undefined;
         const name =
-          typeof args.name === "string"
+          firstString(resultObj ?? undefined, [
+            "display_name",
+            "role_display_name",
+          ]) ||
+          (typeof args.name === "string"
             ? (args.name as string)
             : typeof args.display_name === "string"
               ? (args.display_name as string)
               : typeof args.codename === "string"
                 ? (args.codename as string)
-                : (role ?? agentId);
+                : (role ?? agentId));
         const task = compactSubagentTask(
           firstString(args, [
             "prompt_preview",
@@ -668,7 +686,12 @@ export function deriveSubagentsFromMessages(
         }
 
         if (resultObj) {
-          if (resultObj.ok === false || toolErrored) status = "error";
+          if (
+            resultObj.ok === false ||
+            resultObj.success === false ||
+            toolErrored
+          )
+            status = "error";
           else if (hasToolResult) status = "done";
           summary =
             firstString(resultObj, [
@@ -714,6 +737,10 @@ export function deriveSubagentsFromMessages(
           name,
           role: role !== name ? role : undefined,
           avatar: resultAvatar ?? specAvatar ?? roleEmoji(role ?? name),
+          avatarUrl:
+            firstString(resultObj ?? undefined, ["avatar_url"]) ||
+            firstString(args, ["avatar_url"]) ||
+            undefined,
           status,
           task,
           summary: summary || undefined,
@@ -753,6 +780,7 @@ export function deriveSubagentsFromMessages(
       name: candidate.name || existing.name,
       role: candidate.role ?? existing.role,
       avatar: candidate.avatar ?? existing.avatar,
+      avatarUrl: candidate.avatarUrl ?? existing.avatarUrl,
       status,
       task: candidate.task || existing.task,
       summary: candidate.summary ?? existing.summary,
@@ -912,18 +940,6 @@ function AgentIndexBadge({ index, done }: { index: number; done?: boolean }) {
 }
 
 // Subtle L-shaped tree connector like Kimi's — small, faint, minimal
-function LConnector() {
-  return (
-    <span className="relative mr-1.5 mt-0.5 shrink-0 self-start">
-      <span
-        className="block w-px border-l border-muted-foreground/15"
-        style={{ height: "8px" }}
-      />
-      <span className="absolute left-0 top-[8px] block h-px w-1 border-t border-muted-foreground/15" />
-    </span>
-  );
-}
-
 function isImageAvatar(avatar: string): boolean {
   return (
     avatar.startsWith("/") ||
@@ -942,26 +958,35 @@ function AgentAvatar({
   large?: boolean;
 }) {
   const className = large ? "size-8" : "size-4";
-  const marketAvatarSrc = subagentAvatarSrc(agent.avatarUrl);
-  if (marketAvatarSrc) {
+  const [failedAvatarSrc, setFailedAvatarSrc] = useState<string | null>(null);
+  // The cached installed roster also repairs older receipts that omitted
+  // visuals. Match the exact role ID, never an unrelated same-name persona.
+  const { agents: installedAgents } = useAgents();
+  const installed = installedAgents.find((role) => role.name === agent.id);
+  const marketAvatarSrc = subagentAvatarSrc(
+    installed ? (installed.avatar_url ?? undefined) : agent.avatarUrl,
+  );
+  const avatar = installed ? (installed.icon ?? undefined) : agent.avatar;
+  if (marketAvatarSrc && failedAvatarSrc !== marketAvatarSrc) {
     return (
       <img
         alt=""
         src={marketAvatarSrc}
+        onError={() => setFailedAvatarSrc(marketAvatarSrc)}
         className={cn(className, "rounded-md object-cover")}
       />
     );
   }
-  if (agent.avatar && isImageAvatar(agent.avatar)) {
+  if (avatar && isImageAvatar(avatar)) {
     return (
       <img
         alt=""
-        src={agent.avatar}
+        src={avatar}
         className={cn(className, "rounded-md object-cover")}
       />
     );
   }
-  if (agent.avatar) {
+  if (avatar) {
     return (
       <span
         aria-hidden="true"
@@ -971,7 +996,7 @@ function AgentAvatar({
           large ? "text-xl" : "text-sm",
         )}
       >
-        {agent.avatar}
+        {avatar}
       </span>
     );
   }
@@ -1001,9 +1026,11 @@ function KimiStyleSubagentCard({
   const { t } = useI18n();
   const detailId = `${useId()}-agent-preview`;
   const [previewSuppressed, setPreviewSuppressed] = useState(false);
-  const [reportOpen, setReportOpen] = useState(false);
+  const [reportOpen, setReportOpen] = useState(agent.status === "error");
+  useEffect(() => {
+    if (agent.status === "error") setReportOpen(true);
+  }, [agent.status]);
   const hasReport = Boolean(agent.summary || agent.error);
-  const isRunning = agent.status === "running" || agent.status === "waiting";
   const isDone = agent.status === "done";
   const statusLabel =
     agent.status === "done"
@@ -1036,7 +1063,10 @@ function KimiStyleSubagentCard({
       },
       turnIndex,
       tab: "agent",
-      view: "screen",
+      view:
+        !paired && (agent.status === "done" || agent.status === "error")
+          ? "summary"
+          : "screen",
     });
   };
 
@@ -1070,7 +1100,7 @@ function KimiStyleSubagentCard({
 
   return (
     <div
-      className="group/agent-card relative mb-1 last:mb-0"
+      className="group/agent-card relative mb-1 flex flex-wrap items-center gap-x-1 last:mb-0"
       onMouseLeave={() => setPreviewSuppressed(false)}
     >
       <button
@@ -1079,95 +1109,40 @@ function KimiStyleSubagentCard({
         aria-label={`${agent.name} · ${agent.role ?? t.message.agent} · ${agent.task || t.message.noTaskDescription} · ${statusLabel}`}
         aria-describedby={detailId}
         className={cn(
-          "group/agent-row flex w-full items-start gap-0 rounded-md bg-background/55 px-2.5 py-1.5 text-left transition-colors",
+          "group/agent-row flex min-w-0 flex-1 items-center gap-2 rounded-md px-2.5 py-2 text-left transition-colors",
           "hover:bg-background/80 focus-visible:bg-background/80 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring/50 dark:bg-background/25 dark:hover:bg-background/40",
         )}
       >
-        {/* Avatar - compact, matches Kimi's small avatar style */}
-        <span className="mr-1.5 mt-px shrink-0">
-          <AgentAvatar agent={agent} />
+        <AgentAvatar agent={agent} />
+        <span className="min-w-0 flex-1 truncate text-sm font-medium text-foreground">
+          {agent.name}
         </span>
-
-        {/* Content area - two rows */}
-        <div className="min-w-0 flex-1">
-          {/* Row 1: Name + index */}
-          <div className="flex items-center gap-2">
-            <span
-              className={cn(
-                "truncate text-sm leading-tight",
-                isRunning
-                  ? "text-foreground"
-                  : isDone
-                    ? "text-foreground/70"
-                    : "text-foreground/80",
-              )}
-            >
-              {agent.name}
-            </span>
-
-            <span className="flex-1" />
-
-            {!agent.task && (
-              <span className="mr-1.5 shrink-0">
-                <StatusIndicator
-                  status={agent.status}
-                  progress={agent.progress}
-                />
-              </span>
-            )}
-
-            <AgentIndexBadge index={agent.index ?? 0} done={isDone} />
-          </div>
-
-          {/* Row 2: L-connector + task text + status indicator */}
-          {agent.task && (
-            <div className="mt-px flex items-center gap-0">
-              <LConnector />
-              <span
-                className={cn(
-                  "min-w-0 flex-1 truncate text-xs leading-snug",
-                  isDone
-                    ? "text-muted-foreground/60"
-                    : "text-muted-foreground/70",
-                )}
-              >
-                {agent.task}
-              </span>
-              {(agent.iterationCount !== undefined ||
-                agent.filesTouchedCount > 0) && (
-                <span
-                  data-testid={`agent-card-stats-${agent.index ?? 0}`}
-                  className="ml-2 flex shrink-0 items-center gap-1 text-micro tabular-nums text-muted-foreground/65"
-                >
-                  {agent.iterationCount !== undefined && (
-                    <span>
-                      {agent.iterationCount} {t.subagents.iterations}
-                    </span>
-                  )}
-                  {agent.iterationCount !== undefined &&
-                    agent.filesTouchedCount > 0 && (
-                      <span aria-hidden="true">·</span>
-                    )}
-                  {agent.filesTouchedCount > 0 && (
-                    <span>
-                      {agent.filesTouchedCount} {t.subagents.filesModified}
-                    </span>
-                  )}
-                </span>
-              )}
-              <span className="ml-1.5 shrink-0 self-center">
-                <StatusIndicator
-                  status={agent.status}
-                  progress={agent.progress}
-                />
-              </span>
-            </div>
+        <span
+          className={cn(
+            "inline-flex shrink-0 items-center gap-1 text-xs",
+            agent.status === "error"
+              ? "text-destructive"
+              : agent.status === "waiting"
+                ? "text-warning"
+                : "text-muted-foreground",
           )}
-        </div>
+        >
+          {agent.status === "done" ? (
+            <CheckIcon className="size-3.5 text-success" aria-hidden />
+          ) : agent.status === "error" ? (
+            <XCircleIcon className="size-3.5" aria-hidden />
+          ) : (
+            <Loader2Icon
+              className="size-3.5 animate-spin motion-reduce:animate-none"
+              aria-hidden
+            />
+          )}
+          {statusLabel}
+        </span>
       </button>
 
       {hasReport && (
-        <div className="pl-8 pr-1">
+        <div className="contents">
           <button
             type="button"
             onClick={(event) => {
@@ -1178,10 +1153,10 @@ function KimiStyleSubagentCard({
             }}
             aria-expanded={reportOpen}
             className={cn(
-              "mt-0.5 inline-flex items-center gap-1 rounded px-1 py-0.5 text-micro font-medium transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring/50",
+              "mr-2 inline-flex min-h-8 shrink-0 items-center gap-1 rounded px-2 py-1 text-xs font-medium transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring/50",
               reportOpen
                 ? "text-foreground/75 hover:bg-background/60"
-                : "text-muted-foreground/70 hover:bg-background/60 hover:text-foreground",
+                : "text-muted-foreground hover:bg-background/60 hover:text-foreground",
             )}
           >
             {reportOpen ? (
@@ -1202,7 +1177,7 @@ function KimiStyleSubagentCard({
           {reportOpen && (
             <div
               data-testid={`agent-report-${agent.index ?? 0}`}
-              className="mt-1 max-h-72 overflow-y-auto whitespace-pre-wrap rounded-md border border-border/50 bg-background/40 px-2.5 py-2 text-xs leading-relaxed text-muted-foreground"
+              className="mx-2 mt-1 max-h-72 basis-full overflow-y-auto whitespace-pre-wrap rounded-md border border-border/50 bg-background/40 px-2.5 py-2 text-xs leading-relaxed text-muted-foreground"
             >
               {agent.error ? (
                 <span className="text-destructive/80">{agent.error}</span>
@@ -1380,6 +1355,7 @@ export function InlineSubagentCards({
       else progress = src.progress ?? dst.progress;
       return {
         ...dst,
+        avatarUrl: dst.avatarUrl ?? src.avatarUrl,
         status,
         progress,
         task: dst.task || src.task,
@@ -1558,23 +1534,25 @@ export function InlineSubagentCards({
       {/* Kimi-style container: header + agents in one light card */}
       <div className="rounded-md bg-muted/30 dark:bg-muted/15 px-1 py-1">
         {/* Header inside the card */}
-        <div className="flex items-center gap-1.5 px-2 py-0.5">
-          <UsersIcon className="size-[13px] text-muted-foreground/60" />
-          <span className="text-xs text-muted-foreground/70">
-            {t.message.agentCluster}
-          </span>
-          <span className="text-xs text-muted-foreground/40">|</span>
-          <span className="text-xs text-muted-foreground/60">
-            {t.message.agentProgressSummary(
-              agents.length,
-              doneCount,
-              errorCount,
-            )}
-            {runningCount > 0
-              ? ` · ${runningCount} ${t.subagents.running}`
-              : ""}
-          </span>
-        </div>
+        {agents.length > 1 && (
+          <div className="flex items-center gap-1.5 px-2 py-0.5">
+            <UsersIcon className="size-[13px] text-muted-foreground/60" />
+            <span className="text-xs text-muted-foreground/70">
+              {t.message.agentCluster}
+            </span>
+            <span className="text-xs text-muted-foreground/40">|</span>
+            <span className="text-xs text-muted-foreground/60">
+              {t.message.agentProgressSummary(
+                agents.length,
+                doneCount,
+                errorCount,
+              )}
+              {runningCount > 0
+                ? ` · ${runningCount} ${t.subagents.running}`
+                : ""}
+            </span>
+          </div>
+        )}
 
         {/* Agent rows */}
         <div

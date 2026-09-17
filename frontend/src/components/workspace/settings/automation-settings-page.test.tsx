@@ -112,7 +112,7 @@ describe("AutomationSettingsPage", () => {
       await screen.findByText("浏览器和桌面操作均已关闭"),
     ).toBeInTheDocument();
     expect(
-      screen.queryByRole("button", { name: "打开电脑自动化" }),
+      screen.queryByRole("button", { name: "新对话" }),
     ).not.toBeInTheDocument();
   });
 

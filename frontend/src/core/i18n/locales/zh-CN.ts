@@ -242,6 +242,8 @@ export const zhCN: Translations = {
     newUpdates: () => "有新内容",
     timeoutWarning: (seconds: number) =>
       `已 ${seconds} 秒没有新进展，可能卡住了`,
+    stallHint: (seconds: number) =>
+      `仍在执行，已 ${seconds} 秒没有新输出`,
     thinkingPlan: "思考计划",
     thinkingPlanSourceCheck: "资料检查",
     thinkingPlanCoworkFit: "团队协作",
@@ -464,6 +466,8 @@ export const zhCN: Translations = {
     stop: "停止",
     stopping: "正在停止…",
     restoringConnection: "正在恢复连接…草稿已保留。",
+    connectingConversation: "正在连接…可继续编辑。",
+    syncingConversation: "正在同步会话…可继续编辑。",
     connectionRecoveryFailed: "连接恢复失败。",
     retryConnection: "重试",
     projectModeLabel: "项目已绑定",
@@ -1921,7 +1925,7 @@ export const zhCN: Translations = {
     navSwarm: "协作",
     navCompany: "工作",
     navTeam: "协作",
-    navDatabase: "本地数据库",
+    navDatabase: "资料库",
     navKnowledgeGraph: "知识库",
     navReflex: "反射规则",
     navIntelligence: "订阅",
@@ -1937,7 +1941,6 @@ export const zhCN: Translations = {
     navNarrative: "叙事工坊",
     navPlugins: "插件",
     navHR: "HUB",
-    navComputer: "本机助手",
     navDesktopOrganizer: "桌面助手",
     navArchitecture: "架构",
     groupTools: "工具",
@@ -2030,8 +2033,8 @@ export const zhCN: Translations = {
     taskStatusFailed: "异常待处理",
     taskStatusPending: "待启动",
     // Aria labels
-    ariaCollapseLocalDatabase: "收起本地数据库",
-    ariaExpandLocalDatabase: "展开本地数据库",
+    ariaCollapseLocalDatabase: "收起资料库",
+    ariaExpandLocalDatabase: "展开资料库",
     ariaResizeSidebar: "拖拽调整宽度",
     ariaResizeWorkbench: "调整 Agent 工作台宽度",
     ariaChatWorkspace: "对话工作区",
@@ -3437,7 +3440,7 @@ export const zhCN: Translations = {
         "启用后 screen_capture / screen_info / mouse_click / mouse_move / keyboard_type / keyboard_press 等 skill 会注册 · agent 能真实截屏 + 操控鼠标键盘。关闭后这些 skill 对所有 agent 不可用。",
       localToolsTitle: "本地工具",
       localToolsDesc:
-        "低频的本机连接、桌面整理和设备级操作收在这里，主侧栏只保留核心工作流入口。",
+        "打开桌面助手，整理桌面文件。",
       groupLabel: "群组：",
       reset: "重置",
       save: "保存",
@@ -3450,10 +3453,9 @@ export const zhCN: Translations = {
       nextStepSaveHint:
         "保存后按提示重启，让新的浏览器/电脑自动化开关在下一轮生效。",
       nextStepVerifyHint:
-        "开关已同步。进入电脑自动化页观察屏幕、生成计划，确认本机能力可执行。",
+        "开关已同步。新建对话，描述需要操作的应用和任务，即可使用自动化能力。",
       nextStepDisabledTitle: "浏览器和桌面操作均已关闭",
       nextStepDisabledHint: "如需使用本机自动化，请先开启至少一项能力并保存。",
-      openComputerTool: "打开电脑自动化",
       loading: "加载自动化能力配置...",
       loadFailed: "加载失败",
       restartConfirmTitle: "重启后端以生效",
@@ -6274,6 +6276,7 @@ export const zhCN: Translations = {
   },
 
   liveToolTimeline: {
+    statusInterrupted: "已停止",
     searchingWeb: "正在搜索网页",
     searchingQuery: (query) => `检索：${query}`,
     searchedPages: (count) => `已搜索到 ${count ?? "若干"} 个网页`,
@@ -6537,9 +6540,9 @@ export const zhCN: Translations = {
     assigneeHint: "选择本次任务先由谁执行，后续仍可加人",
     assigneeMenuTitle: "本次任务先交给谁",
     clearAssignee: "清空选择，交给全员判断",
-    localFileAgent: "本地数据库",
+    localFileAgent: "资料库",
     localFileAgentHint:
-      "召唤本地数据库：只检索本机授权资料，确认后再带入任务上下文",
+      "召唤资料库：只检索本机授权资料，确认后再带入任务上下文",
   },
 
   // Mobile
@@ -9211,7 +9214,7 @@ export const zhCN: Translations = {
     defaultQuery: "找我上周写的嵌入式技术笔记",
     libraries: {
       overviewLabel: "全部",
-      overviewDetail: "本地数据库",
+      overviewDetail: "资料库",
       appsLabel: "应用",
       appsDetail: "软件与动作",
       docsLabel: "文档",
@@ -9259,7 +9262,7 @@ export const zhCN: Translations = {
       indexingTitle: "索引持续构建中",
       indexingDesc: "新增文件会自动进入主题、来源和全文搜索。",
       aggregateDesc: "聚合文档、图片、应用和本机目录，本地索引优先。",
-      localDatabaseBadge: "本地数据库",
+      localDatabaseBadge: "资料库",
       previewTitle: "本地小脑索引",
       previewSubtitle:
         "文件解析、OCR、向量化在本机执行；问答可按隐私策略切换。",
@@ -9365,9 +9368,9 @@ export const zhCN: Translations = {
       colType: "类型",
       colItems: "项目",
       footerOnline:
-        "常用位置与 Echo NAS 已接入。本地数据库只保存路径、缩略图、OCR 文本和向量索引。",
+        "常用位置与 Echo NAS 已接入。资料库只保存路径、缩略图、OCR 文本和向量索引。",
       footerOffline:
-        "常用位置可直接浏览；Echo NAS 正等待连接。本地数据库只保存路径、缩略图、OCR 文本和向量索引。",
+        "常用位置可直接浏览；Echo NAS 正等待连接。资料库只保存路径、缩略图、OCR 文本和向量索引。",
       folderType: "文件夹",
     },
     sources: {
@@ -9390,7 +9393,7 @@ export const zhCN: Translations = {
       emptyTitleOnline: "选择一个本机文件夹开始建索引",
       emptyTitleOffline: "先恢复本地服务，再添加文件夹",
       emptyDescOnline:
-        "本地数据库会在本机解析文件、OCR 图片并生成向量索引。原文件不上传；只有你确认引用的片段会进入任务上下文。",
+        "资料库会在本机解析文件、OCR 图片并生成向量索引。原文件不上传；只有你确认引用的片段会进入任务上下文。",
       emptyDescOffline:
         "离线时可以浏览常用位置，但无法扫描新目录。重新连接后再添加文件夹，索引会在本机生成。",
       addFolder: "添加文件夹",

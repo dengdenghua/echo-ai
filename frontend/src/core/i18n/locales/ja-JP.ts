@@ -247,6 +247,8 @@ export const jaJP: Translations = {
     newUpdates: () => "新着コンテンツ",
     timeoutWarning: (seconds: number) =>
       `${seconds} 秒間進捗がありません。停滞している可能性があります`,
+    stallHint: (seconds: number) =>
+      `実行中です。${seconds} 秒間新しい出力がありません`,
     thinkingPlan: "思考プラン",
     thinkingPlanSourceCheck: "ソース確認",
     thinkingPlanCoworkFit: "共同作業適性",
@@ -478,6 +480,8 @@ export const jaJP: Translations = {
     stop: "停止",
     stopping: "停止中…",
     restoringConnection: "接続を復旧中… 下書きは保存されています。",
+    connectingConversation: "接続中… 編集を続けられます。",
+    syncingConversation: "会話を同期中… 編集を続けられます。",
     connectionRecoveryFailed: "接続を復旧できませんでした。",
     retryConnection: "再試行",
     projectModeLabel: "プロジェクトがバインド済み",
@@ -2011,7 +2015,6 @@ export const jaJP: Translations = {
     navNarrative: "物語工房",
     navPlugins: "プラグイン",
     navHR: "人材",
-    navComputer: "ローカルアシスタント",
     navDesktopOrganizer: "デスクトップ整理",
     navArchitecture: "アーキテクチャ",
     groupTools: "ツール",
@@ -3676,7 +3679,7 @@ export const jaJP: Translations = {
         "オンにすると、画面取得、マウス、キーボード操作をすべてのエージェントに許可します。",
       localToolsTitle: "ローカルツール",
       localToolsDesc:
-        "端末接続、デスクトップ整理、デバイス操作などの補助ツールです。",
+        "デスクトップ整理を開いて、デスクトップ上のファイルを整理します。",
       groupLabel: "グループ：",
       reset: "元に戻す",
       save: "保存",
@@ -3690,11 +3693,10 @@ export const jaJP: Translations = {
       nextStepSaveHint:
         "保存後、案内に従って再起動すると新しい設定が反映されます。",
       nextStepVerifyHint:
-        "設定は同期済みです。コンピューター自動操作を開いて実行できることを確認してください。",
+        "設定は同期済みです。新しいチャットで、操作したいアプリとタスクを伝えてください。",
       nextStepDisabledTitle: "ブラウザとデスクトップ操作はオフです",
       nextStepDisabledHint:
         "ローカル自動化を使うには、少なくとも 1 つの機能をオンにして保存してください。",
-      openComputerTool: "コンピューター自動操作を開く",
       loading: "実行機能の設定を読み込み中…",
       loadFailed: "実行機能の設定を読み込めませんでした",
       restartConfirmTitle: "バックエンドを再起動して反映",
@@ -6612,6 +6614,7 @@ export const jaJP: Translations = {
   },
 
   liveToolTimeline: {
+    statusInterrupted: "停止済み",
     searchingWeb: "Web を検索中",
     searchingQuery: (query) => `検索中：${query}`,
     searchedPages: (count) => `${count ?? "複数"} 個の Web ページを発見`,

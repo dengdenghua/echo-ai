@@ -126,12 +126,25 @@ export function useWorkbenchSelection({
     };
   }, [focusedAgentSnapshot]);
   const selectableAgentTiles = useMemo(() => {
-    if (
-      !focusedFallbackAgent ||
-      findAgentTileByFocusId(focusedFallbackAgent.id, agentTiles)
-    ) {
-      return agentTiles;
-    }
+    if (!focusedFallbackAgent) return agentTiles;
+    const existing = findAgentTileByFocusId(
+      focusedFallbackAgent.id,
+      agentTiles,
+    );
+    if (existing)
+      return agentTiles.map((agent) =>
+        agent.id === existing.id
+          ? {
+              ...agent,
+              name: focusedFallbackAgent.name || agent.name,
+              codename: focusedFallbackAgent.codename ?? agent.codename,
+              avatar: focusedFallbackAgent.avatar ?? agent.avatar,
+              resultSummary:
+                agent.resultSummary || focusedFallbackAgent.resultSummary,
+              error: agent.error || focusedFallbackAgent.error,
+            }
+          : agent,
+      );
     return [focusedFallbackAgent, ...agentTiles];
   }, [agentTiles, focusedFallbackAgent]);
   const selectableAgentIds = useMemo(

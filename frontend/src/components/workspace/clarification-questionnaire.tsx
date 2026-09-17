@@ -1,13 +1,17 @@
-import { MessageSquareTextIcon, SendIcon, SparklesIcon } from "lucide-react";
-import { useEffect, useState } from "react";
+import { MessageSquareTextIcon } from "lucide-react";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { useEffect, useId, useState } from "react";
 
 import { Button } from "@/components/ui/button";
 import { useI18n } from "@/core/i18n/hooks";
 import { cn } from "@/lib/utils";
 
 const QUESTIONNAIRE_TYPE = "clarification_questionnaire";
-const OPTION_LETTERS = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
-const AUTO_SUBMIT_SECONDS = 20;
 
 export interface ClarificationQuestionnaireOption {
   description?: string;
@@ -17,6 +21,7 @@ export interface ClarificationQuestionnaireOption {
 
 export interface ClarificationQuestionnaireQuestion {
   id: string;
+  multiple?: boolean;
   options: ClarificationQuestionnaireOption[];
   title: string;
 }
@@ -88,11 +93,12 @@ function questionFromUnknown(
       Boolean(option),
     )
     .slice(0, 8);
-  if (options.length < 2) return null;
+  if (options.length === 1) return null;
 
   return {
     id: stringValue(value.id) ?? `question_${index + 1}`,
     title,
+    multiple: value.multiple === true,
     options,
   };
 }
@@ -192,6 +198,34 @@ function collectCandidates(content: string): QuestionnaireCandidate[] {
   return candidates;
 }
 
+function historicalOptions(title: string): ClarificationQuestionnaireOption[] {
+  // Only promote alternatives already written in the reply; never infer new ones.
+  const examples = title.match(/(?:比如|例如)[:：]\s*(.+)/)?.[1];
+  const tail = examples ?? title.split(/[?？]/).slice(1).join("？");
+  if (!tail || !/[、，,]|还是/.test(tail)) return [];
+  const parts: string[] = [];
+  let depth = 0,
+    part = "";
+  for (const char of tail.replace(/[?？。]+$/, "")) {
+    if ("（(".includes(char)) depth++;
+    if ("）)".includes(char)) depth = Math.max(0, depth - 1);
+    if (depth === 0 && "、，,".includes(char)) {
+      parts.push(part);
+      part = "";
+    } else part += char;
+  }
+  parts.push(part);
+  const labels = parts
+    .flatMap((p) => p.split("还是"))
+    .map((p) => p.trim())
+    .filter(Boolean);
+  if (labels.length < 2 || labels.length > 6) return [];
+  return labels.map((label, index) => ({
+    value: `historical_${index}`,
+    label,
+  }));
+}
+
 export function extractClarificationQuestionnaire(
   content: string,
 ): ExtractedClarificationQuestionnaire | null {
@@ -203,15 +237,25 @@ export function extractClarificationQuestionnaire(
       visibleContent: content.replace(candidate.block, "").trim(),
     };
   }
+  // Historical replies can expose a form without inventing choices or submitting anything.
+  if (/需要.*(?:了解|确认)|关键(?:问题|点)|请.*(?:回答|补充)/.test(content)) {
+    const lines = [...content.matchAll(/^\s*\d+[.)、]\s+(.+[?？].*)$/gm)];
+    if (lines.length >= 2 && lines.length <= 6) {
+      return {
+        visibleContent: content,
+        payload: {
+          title: "完善需求",
+          questions: lines.map((line, index) => ({
+            id: `question_${index + 1}`,
+            title: line[1]!.replace(/\*\*/g, ""),
+            options: historicalOptions(line[1]!.replace(/\*\*/g, "")),
+            multiple: !/还是|单选|选一个|二选一/.test(line[1]!) && /多选|哪些|功能.*(?:比如|例如)/.test(line[1]!),
+          })),
+        },
+      };
+    }
+  }
   return null;
-}
-
-function findOption(
-  question: ClarificationQuestionnaireQuestion,
-  value: string | undefined,
-): ClarificationQuestionnaireOption | undefined {
-  if (!value) return undefined;
-  return question.options.find((option) => option.value === value);
 }
 
 function submitQuickReply(text: string, sourceMessageId?: string) {
@@ -220,10 +264,6 @@ function submitQuickReply(text: string, sourceMessageId?: string) {
       detail: { text, sourceMessageId },
     }),
   );
-}
-
-function optionLetter(index: number) {
-  return OPTION_LETTERS[index] ?? String(index + 1);
 }
 
 export function ClarificationQuestionnaire({
@@ -240,267 +280,268 @@ export function ClarificationQuestionnaire({
   sourceMessageId?: string;
 }) {
   const { t } = useI18n();
+  const formId = useId();
+  const [answers, setAnswers] = useState<Record<string, string[]>>({});
+  const [notes, setNotes] = useState<Record<string, string>>({});
+  const [expanded, setExpanded] = useState(payload.questions.length <= 3);
+  const [modal, setModal] = useState(false);
   const [step, setStep] = useState(0);
-  const [answers, setAnswers] = useState<Record<string, string>>({});
-  const [dismissed, setDismissed] = useState(false);
-  const [secondsLeft, setSecondsLeft] = useState(AUTO_SUBMIT_SECONDS);
-  const [otherText, setOtherText] = useState("");
-  const current = payload.questions[step] ?? payload.questions[0];
-  const selected = current ? answers[current.id] : undefined;
-  const isLast = step >= payload.questions.length - 1;
-  const isSingleQuestion = payload.questions.length === 1;
-  const submitLabel =
-    payload.submitLabel ?? t.clarificationQuestionnaire.continueLabel;
-
+  const [review, setReview] = useState(false);
+  const [showAll, setShowAll] = useState(false);
+  const paged = payload.questions.length > 3;
+  const [submitted, setSubmitted] = useState(false);
   useEffect(() => {
-    if (!active) return;
-    setStep(0);
     setAnswers({});
-    setDismissed(false);
-    setSecondsLeft(AUTO_SUBMIT_SECONDS);
-    setOtherText("");
-  }, [active, payload]);
-
-  // A single-decision question auto-answers with the recommended (first)
-  // option after a short pause, mirroring the plain-text choice card. A
-  // multi-question research form keeps waiting for explicit input.
-  useEffect(() => {
-    if (!active || !isSingleQuestion || dismissed || !current || selected) {
-      return;
-    }
-    const timer = window.setInterval(() => {
-      setSecondsLeft((value) => Math.max(0, value - 1));
-    }, 1000);
-    return () => window.clearInterval(timer);
-  }, [active, isSingleQuestion, dismissed, current, selected]);
-
-  useEffect(() => {
-    if (!active || !isSingleQuestion || dismissed || !current || selected) {
-      return;
-    }
-    if (secondsLeft !== 0) return;
-    const fallback = current.options[0];
-    if (!fallback) return;
-    setAnswers({ [current.id]: fallback.value });
-    setDismissed(true);
-    const reply = [
-      t.clarificationQuestionnaire.completedHeader,
-      `- ${current.title.replace(/[?？]$/, "")}: ${fallback.label}`,
-      "",
-      t.clarificationQuestionnaire.continuePrompt,
-    ]
-      .filter(Boolean)
-      .join("\n");
-    if (onSubmitText) {
-      onSubmitText(reply);
-    } else {
-      submitQuickReply(reply, sourceMessageId);
-    }
-  }, [
-    secondsLeft,
-    active,
-    isSingleQuestion,
-    dismissed,
-    current,
-    selected,
-    t,
-    onSubmitText,
-    sourceMessageId,
-  ]);
-
-  if (!active || dismissed || !current) return null;
-
-  const buildClarificationReply = () => {
-    const lines = payload.questions
-      .map((question) => {
-        const option = findOption(question, answers[question.id]);
-        if (!option) return null;
-        return `- ${question.title.replace(/[?？]$/, "")}: ${option.label}`;
-      })
-      .filter((line): line is string => Boolean(line));
-
-    return [
-      t.clarificationQuestionnaire.completedHeader,
-      ...lines,
-      "",
-      t.clarificationQuestionnaire.continuePrompt,
-    ]
-      .filter(Boolean)
-      .join("\n");
+    setNotes({});
+    setSubmitted(false);
+    setStep(0);
+    setReview(false);
+    setShowAll(false);
+  }, [payload, sourceMessageId]);
+  if (!active) return null;
+  const hasAnswer = payload.questions.some(
+    (q) => answers[q.id]?.length || notes[q.id]?.trim(),
+  );
+  const answerLabel = (q: ClarificationQuestionnaireQuestion) => {
+    const labels = q.options
+      .filter((o) => answers[q.id]?.includes(o.value))
+      .map((o) => o.label);
+    if (answers[q.id]?.includes("__undecided"))
+      labels.push("还没想好，请给我建议");
+    if (notes[q.id]?.trim()) labels.push(notes[q.id]!.trim());
+    return labels.join("；") || "暂未回答";
   };
-
-  const sendText = (text: string) => {
-    if (onSubmitText) {
-      onSubmitText(text);
-    } else {
-      submitQuickReply(text, sourceMessageId);
-    }
-    setDismissed(true);
-  };
-
   const submit = () => {
-    if (!selected) return;
-    sendText(buildClarificationReply());
+    if (!hasAnswer || submitted) return;
+    const text = [
+      t.clarificationQuestionnaire.completedHeader,
+      ...payload.questions.map((q) => `- ${q.title}: ${answerLabel(q)}`),
+    ].join("\n");
+    if (onSubmitText) onSubmitText(text);
+    else submitQuickReply(text, sourceMessageId);
+    setSubmitted(true);
+    setModal(false);
   };
-
-  const submitOther = () => {
-    const text = otherText.trim();
-    if (!text) return;
-    sendText(text);
-  };
-
-  const continueOrSubmit = () => {
-    if (!selected) return;
-    if (isLast) {
-      submit();
-      return;
-    }
-    setStep((value) => Math.min(payload.questions.length - 1, value + 1));
-  };
-
-  return (
-    <div
-      aria-label={t.clarificationQuestionnaire.title}
-      role="region"
-      className={cn(
-        "mt-4 flex min-h-[var(--panel-height-lg)] w-full flex-col rounded-lg border border-border-default bg-background px-4 py-4 shadow-[0_10px_34px_rgba(15,23,42,0.08)] sm:min-h-[var(--panel-height-lg)] sm:px-6 sm:py-5",
-        className,
+  const form = (
+    <div className="space-y-5">
+      {payload.prompt && (
+        <p className="text-sm text-muted-foreground">{payload.prompt}</p>
       )}
-    >
-      <div className="flex items-center justify-between gap-3">
-        <div className="flex min-w-0 items-center gap-3">
-          <MessageSquareTextIcon className="size-5 shrink-0 text-muted-foreground" />
-          <h3 className="truncate text-base font-medium tracking-normal text-foreground">
-            {t.clarificationQuestionnaire.title}
-          </h3>
-        </div>
-        {payload.questions.length > 1 && (
-          <span className="rounded-md bg-muted px-2 py-1 text-xs text-muted-foreground">
-            {step + 1} / {payload.questions.length}
-          </span>
-        )}
-      </div>
-
-      <div className="mt-6 flex items-baseline gap-4">
-        <span className="w-7 shrink-0 text-base font-semibold text-foreground">
-          {step + 1}.
-        </span>
-        <h4 className="text-base font-semibold leading-7 tracking-normal text-foreground sm:text-lg">
-          {current.title}
-        </h4>
-      </div>
-
-      <div className="mt-5 grid gap-3 sm:pl-11">
-        {current.options.map((option, index) => {
-          const checked = selected === option.value;
-          return (
-            <button
-              key={`${option.value}-${index}`}
-              type="button"
-              aria-pressed={checked}
-              onClick={() =>
-                setAnswers((value) => ({
-                  ...value,
-                  [current.id]: option.value,
-                }))
-              }
-              className={cn(
-                "group flex min-h-11 w-full items-start gap-3 rounded-md border px-1.5 py-1.5 text-left transition-colors sm:px-2",
-                checked
-                  ? "border-primary/40 bg-primary/5"
-                  : "border-transparent hover:bg-muted/45",
-              )}
-            >
-              <span
-                className={cn(
-                  "mt-0.5 flex size-8 shrink-0 items-center justify-center rounded-md border bg-background text-sm font-semibold text-muted-foreground transition-colors",
-                  checked
-                    ? "border-primary bg-primary text-primary-foreground"
-                    : "border-border group-hover:border-foreground/20",
-                )}
-              >
-                {optionLetter(index)}
-              </span>
-              <span className="min-w-0 flex-1 py-0.5">
-                <span className="block text-base font-medium leading-7 text-foreground sm:text-base">
-                  {option.label}
-                </span>
-                {option.description && (
-                  <span className="mt-0.5 block text-sm leading-6 text-muted-foreground">
-                    {option.description}
-                  </span>
-                )}
-              </span>
-            </button>
-          );
-        })}
-      </div>
-
-      {isSingleQuestion && (
-        <div className="mt-4 flex items-center gap-2 sm:pl-11">
-          <input
-            type="text"
-            value={otherText}
-            onChange={(event) => setOtherText(event.target.value)}
-            onKeyDown={(event) => {
-              if (event.key === "Enter") submitOther();
-            }}
-            placeholder={t.conversation.clarificationOtherPlaceholder}
-            className="h-9 w-full rounded-md border border-border bg-background px-3 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary"
-          />
+      {paged && (
+        <div className="flex items-center justify-between gap-2">
+          <p role="status" className="text-sm text-muted-foreground">
+            {review
+              ? "确认回答"
+              : showAll
+                ? "查看全部问题"
+                : `第 ${step + 1} / ${payload.questions.length} 题`}
+          </p>
           <Button
             type="button"
             size="sm"
-            disabled={!otherText.trim()}
-            onClick={submitOther}
-            className="size-9 shrink-0 p-0"
+            variant="ghost"
+            onClick={() => {
+              setReview(false);
+              setShowAll(!showAll);
+            }}
           >
-            <SendIcon className="size-4" />
+            {showAll ? "逐题填写" : "查看全部"}
           </Button>
         </div>
       )}
-
-      <div className="mt-auto flex flex-col gap-3 pt-8 sm:flex-row sm:items-center sm:justify-between">
-        <div className="inline-flex items-center gap-2 text-sm text-muted-foreground">
-          <SparklesIcon className="size-4 text-foreground" />
-          {isSingleQuestion ? (
-            <span>{t.conversation.clarificationAutoSubmit(secondsLeft)}</span>
-          ) : (
-            <span>{t.clarificationQuestionnaire.recommended}</span>
-          )}
+      {review ? (
+        <div className="space-y-3">
+          {payload.questions.map((q, index) => (
+            <div key={q.id} className="rounded-lg border p-3 text-sm">
+              <div className="flex items-start justify-between gap-2">
+                <span className="font-medium">
+                  {index + 1}. {q.title}
+                </span>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="ghost"
+                  aria-label={`修改第 ${index + 1} 题`}
+                  onClick={() => {
+                    setStep(index);
+                    setReview(false);
+                    setShowAll(false);
+                  }}
+                >
+                  修改
+                </Button>
+              </div>
+              <p className="mt-2 whitespace-pre-wrap text-muted-foreground">
+                {answerLabel(q)}
+              </p>
+            </div>
+          ))}
         </div>
-        <div className="flex items-center justify-end gap-2">
-          {step > 0 && (
+      ) : (
+        payload.questions.map(
+          (q, index) =>
+            (!paged || showAll || step === index) && (
+              <fieldset key={q.id} className="space-y-2">
+                <legend className="mb-2 text-sm font-medium leading-6">
+                  {index + 1}. {q.title}
+                  {q.options.length > 0 ? (q.multiple ? "（可多选）" : "（单选）") : "（填写）"}
+                </legend>
+                <div className="flex flex-wrap gap-2">
+                  {[
+                    ...q.options,
+                    { value: "__undecided", label: "还没想好，让 AI 建议" },
+                  ].map((o) => (
+                    <label
+                      key={o.value}
+                      className={cn(
+                        "flex cursor-pointer items-start gap-2 rounded-lg border px-3 py-2 text-left text-sm hover:bg-muted/50 has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-ring",
+                        answers[q.id]?.includes(o.value) && "border-primary bg-primary/5",
+                      )}
+                    >
+                      <input
+                        type={q.multiple || q.options.length === 0 ? "checkbox" : "radio"}
+                        name={`${formId}-${q.id}`}
+                        checked={answers[q.id]?.includes(o.value) ?? false}
+                        onChange={() => setAnswers((old) => ({
+                          ...old,
+                          [q.id]: old[q.id]?.includes(o.value) && (q.multiple || q.options.length === 0)
+                            ? old[q.id]!.filter((v) => v !== o.value)
+                            : q.multiple && o.value !== "__undecided"
+                              ? [...(old[q.id] ?? []).filter((v) => v !== "__undecided"), o.value]
+                              : [o.value],
+                        }))}
+                        className="mt-0.5 size-4 shrink-0 accent-primary"
+                      />
+                      <span>
+                        {o.label}
+                        {o.description && (
+                          <span className="mt-1 block text-xs text-muted-foreground">
+                            {o.description}
+                          </span>
+                        )}
+                      </span>
+                    </label>
+                  ))}
+                </div>
+                <textarea
+                  aria-label={`补充回答：${q.title}`}
+                  placeholder={t.conversation.clarificationOtherPlaceholder}
+                  rows={2}
+                  value={notes[q.id] ?? ""}
+                  onChange={(e) =>
+                    setNotes((old) => ({ ...old, [q.id]: e.target.value }))
+                  }
+                  className="w-full resize-y rounded-md border bg-background p-2 text-sm"
+                />
+              </fieldset>
+            ),
+        )
+      )}
+      <div className="flex flex-wrap items-center justify-between gap-3 border-t pt-3">
+        <p className="text-xs text-muted-foreground">
+          可先回答一部分，也可直接在对话中补充。不会自动提交或立项。
+        </p>
+        <div className="flex flex-wrap gap-2">
+          {paged && !showAll && (step > 0 || review) && (
             <Button
               type="button"
               variant="ghost"
-              size="sm"
-              className="px-2 text-sm text-muted-foreground"
-              onClick={() => setStep((value) => Math.max(0, value - 1))}
+              onClick={() => {
+                if (review) setReview(false);
+                else setStep(step - 1);
+              }}
             >
-              {t.clarificationQuestionnaire.previous}
+              上一步
             </Button>
           )}
-          <Button
-            type="button"
-            variant="ghost"
-            size="sm"
-            className="px-2 text-sm text-muted-foreground hover:text-foreground"
-            onClick={() => setDismissed(true)}
-          >
-            {t.clarificationQuestionnaire.cancel}
-          </Button>
-          <Button
-            type="button"
-            size="sm"
-            disabled={!selected}
-            className="h-8 rounded-md px-3 text-sm"
-            onClick={continueOrSubmit}
-          >
-            {isLast ? submitLabel : t.clarificationQuestionnaire.continueLabel}
-          </Button>
+          {paged && !review ? (
+            <>
+              {!showAll && (
+                <Button
+                  type="button"
+                  variant="ghost"
+                  onClick={() => {
+                    const q = payload.questions[step]!;
+                    setAnswers((old) => ({ ...old, [q.id]: ["__undecided"] }));
+                    if (step === payload.questions.length - 1) setReview(true);
+                    else setStep(step + 1);
+                  }}
+                >
+                  暂不确定
+                </Button>
+              )}
+              <Button
+                type="button"
+                onClick={() => {
+                  if (showAll || step === payload.questions.length - 1)
+                    setReview(true);
+                  else setStep(step + 1);
+                }}
+              >
+                {showAll || step === payload.questions.length - 1
+                  ? "预览回答"
+                  : "下一步"}
+              </Button>
+            </>
+          ) : (
+            <Button type="button" disabled={!hasAnswer} onClick={submit}>
+              提交回答
+            </Button>
+          )}
         </div>
       </div>
     </div>
+  );
+  return (
+    <section
+      aria-label={t.clarificationQuestionnaire.title}
+      className={cn(
+        "mt-4 space-y-4 rounded-lg border bg-background p-4",
+        className,
+      )}
+    >
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <h3 className="flex items-center gap-2 text-sm font-medium">
+          <MessageSquareTextIcon className="size-4" />
+          {payload.title ?? "完善需求"}
+        </h3>
+        {!submitted && (
+          <div className="flex gap-2">
+            <Button size="sm" variant="ghost" onClick={() => setModal(true)}>
+              {paged ? "开始 / 继续填写" : "放大填写"}
+            </Button>
+            {!paged && (
+              <Button
+                size="sm"
+                variant="ghost"
+                onClick={() => setExpanded(!expanded)}
+              >
+                {expanded ? "收起" : "继续填写"}
+              </Button>
+            )}
+          </div>
+        )}
+      </div>
+      {submitted ? (
+        <p role="status" className="text-sm text-muted-foreground">
+          回答已提交
+        </p>
+      ) : paged ? (
+        <p className="text-sm text-muted-foreground">
+          共 {payload.questions.length} 题 ·
+          逐题填写，最后统一确认。关闭后保留草稿。
+        </p>
+      ) : (
+        expanded && !modal && form
+      )}
+      <Dialog open={modal} onOpenChange={setModal}>
+        <DialogContent className="max-h-[85vh] overflow-y-auto sm:max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>{payload.title ?? "完善需求"}</DialogTitle>
+          </DialogHeader>
+          {form}
+        </DialogContent>
+      </Dialog>
+    </section>
   );
 }

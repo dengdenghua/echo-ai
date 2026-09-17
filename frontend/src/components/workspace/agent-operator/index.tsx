@@ -785,11 +785,17 @@ export function AgentOperatorPanel() {
     }
   };
 
-  if ((!hasLoaded && loading) || error) {
+  // Only the *first* load may take over the whole panel. Once data has
+  // landed, an action failure must keep the operator queue usable and
+  // surface itself through the inline banner (plus the replay-evidence
+  // drill-down card) further down — those are unreachable if we bail out
+  // to the skeleton on every `error`.
+  if (!hasLoaded && (loading || error)) {
     return (
       <section
         className="workspace-panel space-y-3 px-5 py-4"
         aria-busy={loading}
+        data-operator-state="placeholder"
       >
         <h2 className="text-base font-semibold">
           {to("Agent evolution queue")}
@@ -814,7 +820,7 @@ export function AgentOperatorPanel() {
     );
   }
   return (
-    <section className="workspace-panel px-5 py-4">
+    <section className="workspace-panel px-5 py-4" data-operator-state="ready">
       <div className="mb-4 flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
         <div>
           <div className="text-xs font-semibold uppercase tracking-eyebrow text-muted-foreground">

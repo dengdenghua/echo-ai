@@ -291,6 +291,19 @@ export async function fetchCloudInstalled(): Promise<CloudInstalledStatus> {
   return res.json() as Promise<CloudInstalledStatus>;
 }
 
+/** Workbench navigation needs only this package's current lifecycle checks. */
+export async function fetchWorkbenchInstalled(
+  packageId: string,
+): Promise<Pick<CloudInstalledStatus, "plugins" | "plugin_states">> {
+  const res = await fetch(
+    `${getBackendBaseURL()}${AGENT_MARKET_API}/cloud/installed?package_id=${encodeURIComponent(packageId)}`,
+    { headers: authHeaders() },
+  );
+  if (!res.ok)
+    throw new Error(`Workbench installed status failed: HTTP ${res.status}`);
+  return res.json();
+}
+
 export interface CloudSkillInstallResult {
   installed: boolean;
   already_exists?: boolean;
@@ -874,6 +887,10 @@ export interface MCPEndpoint {
 }
 
 export interface CapabilityInfo {
+  execution_owner?: "echo" | "codex";
+  ownership_state?: string;
+  ownership_label?: string;
+  native_verified?: boolean;
   id: string;
   name: string;
   name_zh: string;

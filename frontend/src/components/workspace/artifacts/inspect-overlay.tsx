@@ -52,7 +52,7 @@ export function InspectOverlay({
   onRequestAiEdit?: (
     selection: SelectedElement,
     instruction: string,
-  ) => boolean | void;
+  ) => boolean | void | Promise<boolean | void>;
   onPrepareInspect?: () => void;
   busy?: boolean;
   className?: string;
@@ -64,6 +64,9 @@ export function InspectOverlay({
   const [selected, setSelected] = useState<SelectedElement | null>(null);
   const [instruction, setInstruction] = useState("");
   const [pendingActivation, setPendingActivation] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+  const submittingRef = useRef(false);
+  const [submitFailed, setSubmitFailed] = useState(false);
   const filepathRef = useRef(filepath);
   filepathRef.current = filepath;
 
@@ -122,11 +125,23 @@ export function InspectOverlay({
     setInstruction("");
   }, []);
 
-  const submitEdit = useCallback(() => {
+  const submitEdit = useCallback(async () => {
     const nextInstruction = instruction.trim();
-    if (!selected || !nextInstruction || busy) return;
-    const accepted = onRequestAiEdit?.(selected, nextInstruction);
-    if (accepted !== false) dismissSelection();
+    if (!selected || !nextInstruction || busy || submittingRef.current) return;
+    const submittedFile = filepathRef.current;
+    submittingRef.current = true;
+    setSubmitting(true);
+    setSubmitFailed(false);
+    try {
+      const accepted = await onRequestAiEdit?.(selected, nextInstruction);
+      if (accepted !== false && filepathRef.current === submittedFile)
+        dismissSelection();
+    } catch {
+      setSubmitFailed(true);
+    } finally {
+      submittingRef.current = false;
+      setSubmitting(false);
+    }
   }, [busy, dismissSelection, instruction, onRequestAiEdit, selected]);
 
   if (!enabled) {
@@ -224,6 +239,7 @@ export function InspectOverlay({
               <Button
                 aria-label={t.livePreview.aiEditCancel}
                 className="size-6 shrink-0"
+                disabled={submitting}
                 onClick={dismissSelection}
                 size="icon-sm"
                 type="button"
@@ -235,7 +251,7 @@ export function InspectOverlay({
             <div className="flex gap-2">
               <Input
                 autoFocus
-                disabled={busy}
+                disabled={busy || submitting}
                 onChange={(event) => setInstruction(event.target.value)}
                 onKeyDown={(event) => {
                   if (event.key === "Enter" && !event.nativeEvent.isComposing) {
@@ -249,7 +265,9 @@ export function InspectOverlay({
               />
               <Button
                 className="shrink-0 gap-1.5"
-                disabled={!instruction.trim() || busy || !onRequestAiEdit}
+                disabled={
+                  !instruction.trim() || busy || submitting || !onRequestAiEdit
+                }
                 onClick={submitEdit}
                 size="sm"
                 type="button"
@@ -258,6 +276,11 @@ export function InspectOverlay({
                 {t.livePreview.aiEditSend}
               </Button>
             </div>
+            {submitFailed && (
+              <p role="alert" className="text-xs text-destructive">
+                {t.livePreview.aiEditUnavailable}
+              </p>
+            )}
           </div>
         </div>
       )}

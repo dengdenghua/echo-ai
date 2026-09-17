@@ -46,6 +46,7 @@ import { useArtifacts } from "../artifacts";
 import { emitOpenAgentWorkbench } from "../agent-workbench-events";
 import { isInternalWorkingFilePath } from "../agent-workbench-utils";
 import { RoutedWebLink } from "@/components/ui/routed-web-link";
+import { TaskConnectionRecovery, taskConnectionIssue } from "./task-connection-recovery";
 
 type OutputArtifact = {
   path: string;
@@ -540,6 +541,14 @@ export function MessageOutputSummary({
   const { t } = useI18n();
   const { select, setOpen } = useArtifacts();
   const scanMessages = turnMessages ?? messages;
+  const connectionIssue = useMemo(() => taskConnectionIssue(scanMessages), [scanMessages]);
+  const modelPreparationIssue = useMemo(() => scanMessages.some((message) => {
+    const info = asRecord(asRecord(message.additional_kwargs?.error)?.info);
+    return info?.code === "execution_unavailable" &&
+      (info.engine === "codex" || info.engine === "opencode") &&
+      ["account_required", "account_unavailable", "model_incompatible",
+        "configuration_unavailable", "executable_unavailable", "disabled", "unavailable"].includes(String(info.reason));
+  }), [scanMessages]);
   const summary = useMemo(() => summarizeOutputs(scanMessages), [scanMessages]);
   // Error details frequently contain failed proxy endpoints. They are
   // diagnostics, not user-facing results, so a failed turn must never expose
@@ -762,7 +771,7 @@ export function MessageOutputSummary({
           )}
           {isFailure &&
             !isResolvedFailure &&
-            (failure?.kind === "auth" || failure?.kind === "rate-limit") && (
+            (failure?.kind === "auth" || failure?.kind === "rate-limit" || modelPreparationIssue) && (
               <button
                 type="button"
                 onClick={() => emitOpenSettings("models")}
@@ -816,6 +825,7 @@ export function MessageOutputSummary({
           {isFailure &&
             !isResolvedFailure &&
             failure?.kind !== "auth" &&
+            !connectionIssue &&
             (failure?.kind !== "environment" || !onAuthorizeNetwork) &&
             originalPrompt && (
               <button
@@ -839,6 +849,11 @@ export function MessageOutputSummary({
                 {isRetrying ? t.message.retryingTask : t.message.retryTask}
               </button>
             )}
+          {isFailure && !isResolvedFailure && connectionIssue && (
+            <TaskConnectionRecovery key={`${threadId}:${JSON.stringify(connectionIssue)}`}
+              issue={connectionIssue} busy={isRetrying}
+              onContinue={originalPrompt && onRetryTask ? handleMakeSimilar : undefined} />
+          )}
         </div>
       )}
       {visibleArtifacts.length > 0 && (

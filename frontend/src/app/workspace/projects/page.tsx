@@ -23,7 +23,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { useNavigate } from "react-router-dom";
+import { useSearchParams, useNavigate } from "react-router-dom";
 import {
   ActivityIcon,
   AlertTriangleIcon,
@@ -385,7 +385,12 @@ export default function ProjectsPage() {
   const { t } = useI18n();
   const navigate = useNavigate();
   const ensureProjectHome = useEnsureProjectHome();
-  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [searchParams] = useSearchParams();
+  const [selectedId, setSelectedId] = useState<string | null>(searchParams.get("project"));
+  useEffect(() => {
+    const id = searchParams.get("project");
+    if (id) setSelectedId(id);
+  }, [searchParams]);
   const [createOpen, setCreateOpen] = useState(false);
   const [query, setQuery] = useState("");
   const [filter, setFilter] = useState<ProjectStatusFilter>("all");

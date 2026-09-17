@@ -1,3 +1,14 @@
+import {
+  westock,
+  cliCapability,
+  freebuffCapability,
+  activeDeviceFlow,
+  browserPlugin,
+  documentsPlugin,
+  sheetsPlugin,
+  openCodeZen,
+  freebuff2apiCommunity,
+} from "./capability-market-fixtures";
 import { act, fireEvent, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { QueryClient } from "@tanstack/react-query";
@@ -8,6 +19,13 @@ import { CAPABILITY_SURFACE_QUERY_KEY } from "@/core/plugins/use-capability-surf
 
 import { CapabilityMarketPanel } from "./capability-market-panel";
 import { OpenCodeConnections } from "../workspace/settings/opencode-connections";
+
+async function chooseManagementAction(name: string) {
+  await userEvent.click(await screen.findByRole("button", { name: /^管理 / }));
+  await userEvent.click(
+    await screen.findByRole("menuitem", { name, exact: true }),
+  );
+}
 
 function deferred<T>() {
   let resolve!: (value: T) => void;
@@ -57,138 +75,18 @@ vi.mock("@/core/mcp/api", () => ({
   saveOAuthApp: vi.fn(),
 }));
 
-const westock = {
-  id: "westock-mcp",
-  name: "westock-mcp",
-  name_zh: "腾讯股票",
-  description: "腾讯股票行情",
-  description_zh: "腾讯股票行情",
-  type: "mcp" as const,
-  auth_mode: "token",
-  source: "connector" as const,
-  provider_id: "",
-  mcp_servers: ["westock-mcp"],
-  skill_count: 3,
-  examples_zh: [],
-  installed: true,
-  enabled: false,
-  version: "1.0.0",
-};
-
-const cliCapability = {
-  ...westock,
-  id: "cli-one",
-  name: "CLI One",
-  name_zh: "CLI One",
-  description: "CLI device flow",
-  description_zh: "CLI 设备流",
-  type: "cli" as const,
-  has_cli_auth: true,
-  mcp_servers: [],
-};
-
-const freebuffCapability = {
-  ...cliCapability,
-  id: "freebuff-cli",
-  name: "Freebuff CLI",
-  name_zh: "Freebuff 本地 Agent",
-  description: "Official Freebuff CLI",
-  description_zh: "官方 Freebuff CLI",
-};
-
-const activeDeviceFlow = {
-  flow_id: "flow-a",
-  connector_id: "cli-one",
-  verification_uri: "https://example.test/device",
-  user_code: "ABCD-EFGH",
-  expires_in: 240,
-  code_embedded_in_uri: false,
-  message: "请在浏览器完成授权",
-};
-
-const browserPlugin = {
-  id: "browser",
-  name: "Browser",
-  name_zh: "Browser",
-  description: "Control the in-app browser",
-  description_zh: "控制 in-app 浏览器",
-  type: "plugin" as const,
-  auth_mode: "none",
-  source: "codex_plugin" as const,
-  author: "OpenAI",
-  mcp_servers: [],
-  skill_count: 1,
-  installed: false,
-  enabled: false,
-  version: "26.810.52044",
-};
-
-const documentsPlugin = {
-  ...browserPlugin,
-  id: "documents",
-  name: "Documents",
-  name_zh: "文档",
-  description: "Create and edit documents",
-  description_zh: "创建和编辑文档",
-};
-
-const sheetsPlugin = {
-  ...browserPlugin,
-  id: "spreadsheets",
-  name: "Spreadsheets",
-  name_zh: "表格",
-  description: "Create spreadsheets",
-  description_zh: "创建电子表格",
-};
-
-const openCodeZen = {
-  ...westock,
-  id: "opencode-zen",
-  name: "OpenCode Zen Models",
-  name_zh: "OpenCode Zen 模型适配器",
-  description: "Direct Zen model API",
-  description_zh: "直连 Zen 模型 API",
-  type: "plugin" as const,
-  mcp_servers: [],
-  model_provider: {
-    entry_id: "opencode-zen",
-    protocol: "openai-compatible",
-    base_url: "https://opencode.ai/zen/v1",
-    dashboard_url: "https://opencode.ai/zen",
-    api_key_label_zh: "OpenCode Zen API Key",
-    login_cta_zh: "登录 OpenCode Zen 并获取 API Key",
-    connection_note_zh: "直连模型 API，不安装或检测 OpenCode CLI",
-    model_list_label_zh: "当前免费模型",
-    free_models: ["big-pickle", "mimo-v2.5-free"],
-    privacy_notices_zh: ["免费模型可能记录请求，不要发送机密数据。"],
-  },
-};
-
-const freebuff2apiCommunity = {
-  ...openCodeZen,
-  id: "freebuff2api-community",
-  name: "Freebuff2API Community Adapter",
-  name_zh: "Freebuff2API 社区适配器",
-  description_zh: "社区适配器，非 Freebuff 官方服务或官方插件。",
-  model_provider: {
-    entry_id: "freebuff2api-community",
-    display_name_zh: "Freebuff2API 社区适配器",
-    protocol: "openai-compatible",
-    base_url: "https://open.freebuff.app/v1",
-    dashboard_url: "https://open.freebuff.app",
-    configurable_base_url: true,
-    api_key_label_zh: "Freebuff2API API Key",
-    login_cta_zh: "打开社区服务并获取 API Key",
-    connection_note_zh: "第三方社区模型网关，不安装 Freebuff CLI",
-    model_list_label_zh: "模型将在连接时动态读取",
-    free_models: [],
-    privacy_notices_zh: [
-      "这是第三方社区适配器，不是 Freebuff 官方服务或官方插件。",
-    ],
-  },
-};
-
 describe("CapabilityMarketPanel", () => {
+  it("shows only the exact role dependency including manual connectors", async () => {
+    mocks.listCapabilities.mockResolvedValue({
+      capabilities: [westock, { ...westock, id: "westock-mcp-extra", name_zh: "Similar connector" }],
+      total: 2,
+    });
+    renderWithProviders(<CapabilityMarketPanel searchQuery="westock-mcp" source="connector" requiredCapabilityIds={["westock-mcp"]} showToolbar={false} />, { locale: "zh-CN" });
+    expect(await screen.findByText("腾讯股票")).toBeVisible();
+    expect(screen.queryByText("Similar connector")).not.toBeInTheDocument();
+    expect(mocks.listCapabilities).toHaveBeenCalledWith(expect.objectContaining({ includeManual: true, source: "connector" }));
+  });
+
   it("routes OpenCode configuration to model settings without connecting", async () => {
     mocks.listCapabilities.mockResolvedValue({
       capabilities: [openCodeZen],
@@ -198,7 +96,7 @@ describe("CapabilityMarketPanel", () => {
     window.addEventListener("echo:open-settings", opened);
     try {
       renderWithProviders(<CapabilityMarketPanel />, { locale: "zh-CN" });
-      fireEvent.click(await screen.findByRole("button", { name: "配置模型" }));
+      await chooseManagementAction("配置模型");
       expect(opened).toHaveBeenCalledOnce();
       expect((opened.mock.calls[0]![0] as CustomEvent).detail).toEqual({
         tab: "models",
@@ -237,7 +135,7 @@ describe("CapabilityMarketPanel", () => {
     });
     renderWithProviders(<CapabilityMarketPanel compact />, { locale: "zh-CN" });
     expect(
-      await screen.findByRole("button", { name: "不可安装" }),
+      await screen.findByRole("button", { name: "安装 Browser" }),
     ).toBeDisabled();
     expect(screen.getByText(/请联系此部署的管理员检查插件权限/)).toBeVisible();
     expect(mocks.getCapabilityInstallPlan).not.toHaveBeenCalled();
@@ -335,7 +233,7 @@ describe("CapabilityMarketPanel", () => {
 
     renderWithProviders(<CapabilityMarketPanel />, { locale: "zh-CN" });
     await waitFor(() => expect(screen.getByText("通达信")).toBeInTheDocument());
-    fireEvent.click(screen.getByRole("button", { name: "连接" }));
+    await chooseManagementAction("连接");
 
     await waitFor(() =>
       expect(
@@ -365,9 +263,11 @@ describe("CapabilityMarketPanel", () => {
     expect(screen.queryByText(/连接器/)).not.toBeInTheDocument();
     expect(screen.getByText("技能 ×3")).toBeInTheDocument();
     // 已安装插件(连接器) → 连接 / 已禁用 按钮
-    expect(screen.getByRole("button", { name: "连接" })).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "管理 腾讯股票" }),
+    ).toBeInTheDocument();
     // 未安装插件 → 安装 按钮
-    expect(screen.getByRole("button", { name: "安装" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /^安装 / })).toBeInTheDocument();
     expect(mocks.listCapabilities).toHaveBeenCalledTimes(1);
     expect(mocks.listCapabilities).toHaveBeenCalledWith(
       expect.objectContaining({ limit: 60, offset: 0 }),
@@ -386,7 +286,7 @@ describe("CapabilityMarketPanel", () => {
     });
 
     renderWithProviders(<CapabilityMarketPanel />, { locale: "zh-CN" });
-    fireEvent.click(await screen.findByRole("button", { name: "连接" }));
+    await chooseManagementAction("连接");
 
     expect(
       await screen.findByText("官方 Freebuff CLI · 交互式本地 Agent"),
@@ -413,7 +313,7 @@ describe("CapabilityMarketPanel", () => {
       await screen.findByText("Browser");
       invalidate.mockClear();
 
-      fireEvent.click(screen.getByRole("button", { name: "安装" }));
+      fireEvent.click(screen.getByRole("button", { name: /^安装 / }));
 
       expect(
         await screen.findByRole("heading", {
@@ -472,13 +372,24 @@ describe("CapabilityMarketPanel", () => {
     renderWithProviders(<CapabilityMarketPanel />, { locale: "zh-CN" });
 
     await waitFor(() =>
-      expect(screen.getByRole("button", { name: "安装" })).toBeInTheDocument(),
+      expect(
+        screen.getByRole("button", { name: /^安装 / }),
+      ).toBeInTheDocument(),
     );
   });
 
   it("connects OpenCode Zen from model settings without CLI fields", async () => {
     mocks.listCapabilities.mockResolvedValue({
-      capabilities: [openCodeZen],
+      capabilities: [
+        {
+          ...openCodeZen,
+          installed: false,
+          enabled: false,
+          permissions: ["account.credentials", "network.remote"],
+          permissions_granted: [],
+          permission_review_required: true,
+        },
+      ],
       total: 1,
     });
     mocks.connectCapability.mockResolvedValue({
@@ -496,6 +407,11 @@ describe("CapabilityMarketPanel", () => {
     expect(screen.getByText(/不安装或检测 OpenCode CLI/)).toBeInTheDocument();
     expect(screen.getByText("big-pickle")).toBeInTheDocument();
     expect(screen.getByText(/不要发送机密数据/)).toBeInTheDocument();
+    expect(screen.getByText("连接时将确认以下权限")).toBeInTheDocument();
+    expect(screen.getByText(/访问外部网络服务/)).toBeInTheDocument();
+    expect(
+      screen.getByText(/使用本机加密保存的账号凭据/),
+    ).toBeInTheDocument();
     expect(
       screen.queryByPlaceholderText("粘贴 access_token"),
     ).not.toBeInTheDocument();
@@ -505,12 +421,14 @@ describe("CapabilityMarketPanel", () => {
     });
     fireEvent.click(screen.getByRole("button", { name: "验证并接入免费模型" }));
 
-    await waitFor(() =>
+    await waitFor(() => {
+      expect(mocks.installCapability).toHaveBeenCalledWith("opencode-zen");
       expect(mocks.connectCapability).toHaveBeenCalledWith("opencode-zen", {
         tokens: { api_key: "zen-test-key" },
         run_cli: false,
-      }),
-    );
+        grant_permissions: ["account.credentials", "network.remote"],
+      });
+    });
   });
 
   it("asks for the model key after permission review before enabling", async () => {
@@ -525,7 +443,7 @@ describe("CapabilityMarketPanel", () => {
     });
     mocks.connectCapability.mockResolvedValue({ connected: true });
     renderWithProviders(<CapabilityMarketPanel />, { locale: "zh-CN" });
-    fireEvent.click(await screen.findByRole("button", { name: "确认权限" }));
+    await chooseManagementAction("确认权限");
     fireEvent.click(
       await screen.findByRole("button", { name: "确认权限并启用" }),
     );
@@ -554,7 +472,7 @@ describe("CapabilityMarketPanel", () => {
     mocks.connectCapability.mockResolvedValue({ connected: true });
     renderWithProviders(<CapabilityMarketPanel />, { locale: "zh-CN" });
 
-    fireEvent.click(await screen.findByRole("button", { name: "配置模型" }));
+    await chooseManagementAction("配置模型");
 
     expect(screen.getByText(/第三方社区模型网关/)).toBeInTheDocument();
     expect(screen.getByText(/不是 Freebuff 官方服务/)).toBeInTheDocument();
@@ -774,7 +692,7 @@ describe("CapabilityMarketPanel", () => {
 
     renderWithProviders(<CapabilityMarketPanel />, { locale: "zh-CN" });
 
-    fireEvent.click(await screen.findByRole("button", { name: "连接" }));
+    await chooseManagementAction("连接");
     expect(await screen.findByText("ABCD-EFGH")).toBeInTheDocument();
     await waitFor(() =>
       expect(mocks.getCapabilityStatus.mock.calls.length).toBeGreaterThan(1),
@@ -812,7 +730,7 @@ describe("CapabilityMarketPanel", () => {
     const rendered = renderWithProviders(<CapabilityMarketPanel />, {
       locale: "zh-CN",
     });
-    fireEvent.click(await screen.findByRole("button", { name: "连接" }));
+    await chooseManagementAction("连接");
     expect(await screen.findByText("ABCD-EFGH")).toBeInTheDocument();
     await waitFor(() =>
       expect(mocks.getCapabilityStatus.mock.calls.length).toBeGreaterThan(1),
@@ -847,7 +765,7 @@ describe("CapabilityMarketPanel", () => {
     mocks.getCapabilityDeviceFlow.mockReturnValue(recovery.promise);
 
     renderWithProviders(<CapabilityMarketPanel />, { locale: "zh-CN" });
-    fireEvent.click(await screen.findByRole("button", { name: "连接" }));
+    await chooseManagementAction("连接");
     await waitFor(() =>
       expect(mocks.getCapabilityDeviceFlow).toHaveBeenCalledWith("cli-one"),
     );
@@ -891,7 +809,7 @@ describe("CapabilityMarketPanel", () => {
     const rendered = renderWithProviders(<CapabilityMarketPanel />, {
       locale: "zh-CN",
     });
-    fireEvent.click(await screen.findByRole("button", { name: "连接" }));
+    await chooseManagementAction("连接");
     await waitFor(() =>
       expect(mocks.getCapabilityDeviceFlow).toHaveBeenCalledWith("cli-one"),
     );
@@ -933,7 +851,7 @@ describe("CapabilityMarketPanel", () => {
       return null;
     });
 
-    fireEvent.click(await screen.findByRole("button", { name: "连接" }));
+    await chooseManagementAction("连接");
     const submit = await screen.findByRole("button", {
       name: "执行 CLI 登录",
     });
@@ -974,7 +892,7 @@ describe("CapabilityMarketPanel", () => {
     });
 
     renderWithProviders(<CapabilityMarketPanel />, { locale: "zh-CN" });
-    fireEvent.click(await screen.findByRole("button", { name: "连接" }));
+    await chooseManagementAction("连接");
     const submit = await screen.findByRole("button", {
       name: "执行 CLI 登录",
     });
@@ -1016,7 +934,7 @@ describe("CapabilityMarketPanel", () => {
 
     renderWithProviders(<CapabilityMarketPanel />, { locale: "zh-CN" });
 
-    fireEvent.click(await screen.findByRole("button", { name: "连接" }));
+    await chooseManagementAction("连接");
     const submit = await screen.findByRole("button", {
       name: "执行 CLI 登录",
     });
@@ -1066,7 +984,7 @@ describe("CapabilityMarketPanel", () => {
       statusCallsBeforeLateResponse,
     );
 
-    fireEvent.click(screen.getByRole("button", { name: "连接" }));
+    await chooseManagementAction("连接");
     await waitFor(() =>
       expect(
         screen.getByRole("button", { name: "执行 CLI 登录" }),
@@ -1091,7 +1009,7 @@ describe("CapabilityMarketPanel", () => {
 
     renderWithProviders(<CapabilityMarketPanel />, { locale: "zh-CN" });
 
-    fireEvent.click(await screen.findByRole("button", { name: "连接" }));
+    await chooseManagementAction("连接");
     const submit = await screen.findByRole("button", {
       name: "执行 CLI 登录",
     });
@@ -1170,7 +1088,7 @@ describe("CapabilityMarketPanel", () => {
 
     renderWithProviders(<CapabilityMarketPanel />, { locale: "zh-CN" });
 
-    fireEvent.click(await screen.findByRole("button", { name: "连接" }));
+    await chooseManagementAction("连接");
     const submit = await screen.findByRole("button", {
       name: "执行 CLI 登录",
     });
@@ -1221,7 +1139,7 @@ describe("CapabilityMarketPanel", () => {
 
     renderWithProviders(<CapabilityMarketPanel />, { locale: "zh-CN" });
 
-    fireEvent.click(await screen.findByRole("button", { name: "连接" }));
+    await chooseManagementAction("连接");
     expect(await screen.findByText("ABCD-EFGH")).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "关闭" }));
 

@@ -250,43 +250,6 @@ const COMMUNITY_ROUTES: NavRoute[] = moduleNavRoutes("community");
 
 const STORAGE_LIBRARY_ROUTES: NavRoute[] = moduleNavRoutes("storageLibrary");
 
-// These workbench routes are intentionally kept out of the primary module
-// catalog: they are operational surfaces rather than everyday destinations.
-// They still need a stable entry point so deep links do not become orphaned
-// pages for users who did not already know the URL.
-const WORKSPACE_TOOL_ROUTES: NavRoute[] = [
-  {
-    to: "/workspace/computer",
-    labelKey: "navComputer",
-    icon: AppWindowIcon,
-  },
-  {
-    to: "/workspace/desktop-organizer",
-    labelKey: "navDesktopOrganizer",
-    icon: FolderIcon,
-  },
-  {
-    to: "/workspace/channels",
-    labelKey: "channels",
-    icon: RssIcon,
-  },
-  {
-    to: "/workspace/observability",
-    labelKey: "observability",
-    icon: RssIcon,
-  },
-  {
-    to: "/workspace/diagnostics",
-    labelKey: "diagnostics",
-    icon: ListTodoIcon,
-  },
-  {
-    to: "/workspace/reflex",
-    labelKey: "navReflex",
-    icon: DnaIcon,
-  },
-];
-
 type SidebarFileExplorerTarget = {
   project: string;
   title: string;
@@ -570,11 +533,6 @@ export function WorkspaceSidebar(props: React.ComponentProps<typeof Sidebar>) {
     () => resolveRoutes(STORAGE_LIBRARY_ROUTES),
     [resolveRoutes],
   );
-  const workspaceToolItems = useMemo(
-    () => resolveRoutes(WORKSPACE_TOOL_ROUTES),
-    [resolveRoutes],
-  );
-
   // Settings dialog state
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [settingsHostActivated, setSettingsHostActivated] = useState(false);
@@ -1179,8 +1137,7 @@ export function WorkspaceSidebar(props: React.ComponentProps<typeof Sidebar>) {
               workspacePath={activeTaskWorkspacePath}
             />
           </SidebarGroup>
-          {/* Unified sidebar — no more surface branching. All navigation
-            items are always visible regardless of the current route. */}
+          {/* Primary destinations stay visible; operational tools live in More. */}
           <NavSection
             items={workbenchCapabilityItems}
             pathname={pathname}
@@ -1192,11 +1149,6 @@ export function WorkspaceSidebar(props: React.ComponentProps<typeof Sidebar>) {
             items={nasLibraryItems}
             pathname={pathname}
             search={search}
-          />
-          <NavSection
-            items={workspaceToolItems}
-            pathname={pathname}
-            label={resolveLabel("groupTools")}
           />
           <EditModulesButton onOpen={() => setModuleEditorOpen(true)} />
           {fileExplorerTarget ? (
@@ -1294,7 +1246,6 @@ function NavSection({
   );
 }
 
-/** 侧栏模块编辑入口：弱化为横向省略号，避免抢占主导航的视觉层级。 */
 function EditModulesButton({ onOpen }: { onOpen: () => void }) {
   const { t } = useI18n();
   return (
@@ -1314,6 +1265,7 @@ function EditModulesButton({ onOpen }: { onOpen: () => void }) {
             <span className="flex size-6 shrink-0 items-center justify-center">
               <MoreHorizontalIcon className="size-[16px]" />
             </span>
+            <span className="group-data-[collapsible=icon]:hidden">{t.sidebar.editModules}</span>
           </SidebarMenuButton>
         </SidebarMenuItem>
       </SidebarMenu>
@@ -1559,7 +1511,6 @@ function ProjectFileExplorerView({
 
 export const __testing = {
   SIDEBAR_THREAD_QUERY_PARAMS,
-  WORKSPACE_TOOL_ROUTES,
   buildThreadRunStatusByHref,
   isProjectThreadMode,
   isNavRouteActive,

@@ -12,7 +12,7 @@ import { WORKBENCH_BUILTIN_APPS } from "./apps";
 import { RemoteWorkbenchSurface } from "./remote-surface";
 
 const apiMocks = vi.hoisted(() => ({
-  fetchCloudInstalled: vi.fn(),
+  fetchWorkbenchInstalled: vi.fn(),
   fetchRuntimePluginStatus: vi.fn(),
   setCloudPluginEnabled: vi.fn(),
   setRuntimePluginEnabled: vi.fn(),
@@ -74,7 +74,10 @@ function manifestResponse() {
 
 describe("RemoteWorkbenchSurface", () => {
   beforeEach(() => {
-    vi.stubGlobal("fetch", vi.fn().mockImplementation(async () => manifestResponse()));
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockImplementation(async () => manifestResponse()),
+    );
     apiMocks.fetchRuntimePluginStatus.mockReset().mockResolvedValue({
       installed: true,
       enabled: true,
@@ -85,7 +88,7 @@ describe("RemoteWorkbenchSurface", () => {
       enabled: true,
       lifecycle_state: "enabled",
     });
-    apiMocks.fetchCloudInstalled.mockReset().mockResolvedValue({
+    apiMocks.fetchWorkbenchInstalled.mockReset().mockResolvedValue({
       plugins: ["narrative_studio"],
       skills: [],
       plugin_states: {
@@ -131,6 +134,47 @@ describe("RemoteWorkbenchSurface", () => {
     expect(iframe.getAttribute("src")).toContain(
       "echo_host_path=%2Fworkspace%2Fnarrative%3Fchapter%3D1",
     );
+  });
+
+  it("preserves the frame during navigation and resets it for a new task", async () => {
+    const surface = (hostPath: string) => (
+      <MemoryRouter>
+        <RemoteWorkbenchSurface app={APP} hostPath={hostPath} />
+      </MemoryRouter>
+    );
+    const view = render(surface("/workspace/narrative?chapter=1"));
+    const original = (await screen.findByTitle(
+      "Narrative Studio",
+    )) as HTMLIFrameElement;
+    const originalSrc = original.getAttribute("src");
+    const postMessage = vi.spyOn(original.contentWindow!, "postMessage");
+
+    view.rerender(surface("/workspace/narrative?chapter=2"));
+    expect(screen.getByTitle("Narrative Studio")).toBe(original);
+    expect(original).toHaveAttribute("src", originalSrc);
+    expect(postMessage).toHaveBeenCalledWith(
+      expect.objectContaining({
+        type: "echo.host.context",
+        route: "/workspace/narrative?chapter=2",
+      }),
+      "http://localhost:8000",
+    );
+
+    const freshPath = "/workspace/narrative?new_task=task-2";
+    view.rerender(surface(freshPath));
+    const fresh = screen.getByTitle("Narrative Studio");
+    expect(fresh).not.toBe(original);
+    expect(
+      new URL(fresh.getAttribute("src")!).searchParams.get("echo_host_path"),
+    ).toBe(freshPath);
+
+    // The app can consume the new-task parameter without loading the frame again.
+    view.rerender(surface("/workspace/narrative?chapter=3"));
+    expect(screen.getByTitle("Narrative Studio")).toBe(fresh);
+    expect(
+      new URL(fresh.getAttribute("src")!).searchParams.get("echo_host_path"),
+    ).toBe(freshPath);
+    expect(fetch).toHaveBeenCalledTimes(1);
   });
 
   it("accepts navigation only from the mounted frame and trusted backend origin", async () => {
@@ -203,19 +247,32 @@ describe("RemoteWorkbenchSurface", () => {
 
   it("starts independent reads together but waits for lifecycle checks before mounting", async () => {
     let finishInstalled!: (value: unknown) => void;
-    apiMocks.fetchCloudInstalled.mockImplementationOnce(() => new Promise((resolve) => {
-      finishInstalled = resolve;
-    }));
+    apiMocks.fetchWorkbenchInstalled.mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          finishInstalled = resolve;
+        }),
+    );
     renderSurface();
     expect(apiMocks.fetchRuntimePluginStatus).toHaveBeenCalled();
+    expect(apiMocks.fetchWorkbenchInstalled).toHaveBeenCalledWith("narrative_studio");
     expect(fetch).toHaveBeenCalled();
     expect(screen.queryByTitle("Narrative Studio")).not.toBeInTheDocument();
     await act(async () => {
-      finishInstalled({ plugins: ["narrative_studio"], plugin_states: {
-        narrative_studio: { installed: true, enabled: false, lifecycle_state: "disabled" },
-      } });
+      finishInstalled({
+        plugins: ["narrative_studio"],
+        plugin_states: {
+          narrative_studio: {
+            installed: true,
+            enabled: false,
+            lifecycle_state: "disabled",
+          },
+        },
+      });
     });
-    expect(await screen.findByRole("heading", { name: "叙事工坊已停用" })).toBeInTheDocument();
+    expect(
+      await screen.findByRole("heading", { name: "叙事工坊已停用" }),
+    ).toBeInTheDocument();
     expect(screen.queryByTitle("Narrative Studio")).not.toBeInTheDocument();
   });
 

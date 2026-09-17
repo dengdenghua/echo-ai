@@ -9,6 +9,7 @@ import {
 } from "react";
 
 import {
+  ACCOUNT_FREE_TOKEN,
   getAuthStatus,
   getMe,
   getToken,
@@ -34,6 +35,7 @@ import { useI18n } from "@/core/i18n/hooks";
 
 const GUEST_USER_ID = "__guest__";
 const ANONYMOUS_USER_ID = "__anonymous__";
+const ACCOUNT_FREE_USER_ID = "__account_free__";
 
 function isPlaceholderUsername(username?: string | null): boolean {
   const value = username?.trim().toLowerCase();
@@ -127,8 +129,15 @@ interface AuthContextType {
   guestLogin: () => Promise<void>;
   register: (request: RegisterRequest) => Promise<void>;
   logout: () => Promise<void>;
+  startAccountFreeMode: () => void;
   refresh: () => Promise<void>;
-  retryAuth: () => Promise<void>;
+  /**
+   * Re-run the auth bootstrap. `quiet` retries (e.g. the login page's
+   * automatic backend-availability polling) skip the global loading
+   * flip and keep the current error visible until the retry settles,
+   * so the UI does not flicker between spinner and error card.
+   */
+  retryAuth: (options?: { quiet?: boolean }) => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -144,14 +153,33 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const isAuthenticated =
     !!user && !isPlaceholderUserId(user.user_id) && !user.is_guest;
 
-  const initAuth = useCallback(async () => {
-    setIsLoading(true);
-    setAuthError(null);
+  const initAuth = useCallback(async (options?: { quiet?: boolean }) => {
+    const quiet = options?.quiet === true;
+    if (!quiet) {
+      setIsLoading(true);
+      setAuthError(null);
+    }
     const token = getToken();
     const storedUser = getStoredUser();
     const tokenUser = userFromJwt(token);
     const localUser = storedUser || tokenUser;
     try {
+      if (
+        token === ACCOUNT_FREE_TOKEN &&
+        storedUser &&
+        !storedUser.is_guest &&
+        storedUser.is_account_free
+      ) {
+        setUser(normalizeUserIdentity(storedUser as User));
+        setAuthStatus({
+          enabled: false,
+          jwt_available: false,
+          allow_registration: false,
+          exempt_paths: [],
+        });
+        setAuthError(null);
+        return;
+      }
       if (token === GUEST_USER_ID || storedUser?.is_guest) {
         _clearTokens();
         setUser(null);
@@ -164,6 +192,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       try {
         status = await getAuthStatus();
         setAuthStatus(status);
+        // Clear a stale unavailability error after a successful quiet
+        // retry (the non-quiet path already reset it on entry).
+        setAuthError(null);
       } catch (error) {
         const unavailable =
           error instanceof Error
@@ -209,6 +240,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     const expire = () => {
+      if (getToken() === ACCOUNT_FREE_TOKEN) return;
       _clearTokens();
       setUser(null);
       // HttpOnly cookies cannot be cleared from JavaScript.  The logout route
@@ -251,6 +283,25 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     throw new Error(t.auth.notLoggedIn);
   }, [t.auth.notLoggedIn]);
 
+  const startAccountFreeMode = useCallback(() => {
+    const accountFreeUser: User = {
+      user_id: ACCOUNT_FREE_USER_ID,
+      username: "免账号",
+      provider: "account_free",
+      is_account_free: true,
+      is_active: true,
+    };
+    _writeToken(ACCOUNT_FREE_TOKEN, accountFreeUser);
+    setAuthStatus({
+      enabled: false,
+      jwt_available: false,
+      allow_registration: false,
+      exempt_paths: [],
+    });
+    setAuthError(null);
+    setUser(accountFreeUser);
+  }, []);
+
   const register = useCallback(async (request: RegisterRequest) => {
     const newUser = await registerApi(request);
     setUser(newUser);
@@ -286,6 +337,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       guestLogin,
       register,
       logout,
+      startAccountFreeMode,
       refresh,
       retryAuth: initAuth,
     }),
@@ -300,6 +352,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       guestLogin,
       register,
       logout,
+      startAccountFreeMode,
       refresh,
       initAuth,
     ],

@@ -5,6 +5,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { renderWithProviders } from "@/test/harness";
 
 import { AutomationPictureInPicture } from "./automation-picture-in-picture";
+import { captureComputerWindowPreview } from "@/core/computer/api";
+import { captureBrowserRelayPreview } from "@/core/browser/api";
 
 const captureAutomationPreview = vi.fn();
 
@@ -13,7 +15,7 @@ vi.mock("@/core/browser/api", () => ({
 }));
 
 vi.mock("@/core/computer/api", () => ({
-  captureComputerScreen: vi.fn(),
+  captureComputerWindowPreview: vi.fn(),
 }));
 
 describe("<AutomationPictureInPicture />", () => {
@@ -48,9 +50,9 @@ describe("<AutomationPictureInPicture />", () => {
       <AutomationPictureInPicture
         threadId="thread-1"
         target={{
-          kind: "browser_tab",
-          source: "browser_relay",
-          id: "42",
+          kind: "desktop_window",
+          source: "computer",
+          id: "window:42:0",
           title: "Release dashboard",
           url: "https://example.com/releases",
         }}
@@ -73,8 +75,8 @@ describe("<AutomationPictureInPicture />", () => {
     await waitFor(() =>
       expect(captureAutomationPreview).toHaveBeenCalledWith(
         expect.objectContaining({
-          kind: "browser_tab",
-          id: "42",
+          kind: "desktop_window",
+          id: "window:42:0",
           title: "Release dashboard",
         }),
       ),
@@ -82,5 +84,87 @@ describe("<AutomationPictureInPicture />", () => {
 
     await user.click(screen.getByRole("button", { name: "Close" }));
     expect(onOpenChange).toHaveBeenCalledWith(false);
+  });
+
+  it("uses the exact browser tab instead of a native browser window", async () => {
+    vi.mocked(captureBrowserRelayPreview).mockResolvedValue({
+      dataUrl: "data:image/png;base64,dGFi",
+    });
+    renderWithProviders(
+      <AutomationPictureInPicture
+        threadId="t"
+        target={{
+          kind: "browser_tab",
+          source: "browser_relay",
+          id: "42",
+          title: "Exact tab",
+        }}
+        open
+        active
+        paused={false}
+        relayConnected
+        stateLabel="Running"
+        onOpenChange={vi.fn()}
+      />,
+    );
+    await waitFor(() =>
+      expect(screen.getByAltText("Exact tab")).toHaveAttribute(
+        "src",
+        "data:image/png;base64,dGFi",
+      ),
+    );
+    expect(captureAutomationPreview).not.toHaveBeenCalled();
+  });
+
+  it("discards stale capture when targets change and captures nothing when closed", async () => {
+    window.echo = undefined;
+    let finishOld!: (value: { ok: boolean; data_url: string }) => void;
+    vi.mocked(captureComputerWindowPreview)
+      .mockImplementationOnce(
+        () =>
+          new Promise((resolve) => {
+            finishOld = resolve;
+          }),
+      )
+      .mockResolvedValue({ ok: true, data_url: "data:image/png;base64,bmV3" });
+    const props = {
+      threadId: "t",
+      open: true,
+      active: true,
+      paused: false,
+      relayConnected: false,
+      stateLabel: "Running",
+      onOpenChange: vi.fn(),
+    };
+    const first = {
+      kind: "desktop_window" as const,
+      source: "computer",
+      id: "win32:1:1",
+      title: "Old",
+    };
+    const next = { ...first, id: "win32:2:2", title: "New" };
+    const view = renderWithProviders(
+      <AutomationPictureInPicture {...props} target={first} />,
+    );
+    view.rerender(<AutomationPictureInPicture {...props} target={next} />);
+    await waitFor(() =>
+      expect(screen.getByAltText("New")).toHaveAttribute(
+        "src",
+        "data:image/png;base64,bmV3",
+      ),
+    );
+    finishOld({ ok: true, data_url: "data:image/png;base64,b2xk" });
+    await waitFor(() =>
+      expect(screen.getByAltText("New")).toHaveAttribute(
+        "src",
+        "data:image/png;base64,bmV3",
+      ),
+    );
+    const count = vi.mocked(captureComputerWindowPreview).mock.calls.length;
+    view.rerender(
+      <AutomationPictureInPicture {...props} target={next} open={false} />,
+    );
+    expect(screen.queryByTestId("automation-picture-in-picture")).toBeNull();
+    expect(captureComputerWindowPreview).toHaveBeenCalledTimes(count);
   });
 });
