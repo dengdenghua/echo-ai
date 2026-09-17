@@ -18,7 +18,9 @@
     "mimo-v2.5-free",
     "hy3-free",
     "nemotron-3-ultra-free",
-    "nemotron-3.5-lightning-free"
+    "nemotron-3.5-lightning-free",
+    "union-alpha",
+    "grok-code"
   ],
   "excluded_models": [],
   "responses_models": [
