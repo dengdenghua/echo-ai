@@ -284,7 +284,12 @@ def test_child_environment_isolates_credentials_and_denies_local_tools(tmp_path,
     assert env["OPENCODE_API_KEY"] == "zen-test-key"
     config = json.loads(env["OPENCODE_CONFIG_CONTENT"])
     assert "zen-test-key" not in env["OPENCODE_CONFIG_CONTENT"]
-    assert config["permission"]["*"] == "deny"
+    assert config["permission"]["bash"] == "deny"
+    assert config["permission"]["edit"] == "deny"
+    assert config["permission"]["write"] == "deny"
+    # Zen's free tier rejects wildcard-deny configs, so the "*" key must stay
+    # out of the injected permission map.
+    assert "*" not in config["permission"]
     assert config["small_model"] == config["model"]
     assert config["share"] == "disabled"
 
@@ -317,7 +322,12 @@ def test_host_mcp_is_explicit_and_credentials_stay_out_of_config(tmp_path, monke
     assert "turn-token" not in env["OPENCODE_CONFIG_CONTENT"]
     assert "turn-token" not in repr(connection)
     assert env["ECHO_HOST_MCP_TOKEN"] == "turn-token"
-    assert config["permission"] == {"*": "deny", "echo_*": "allow"}
+    assert config["permission"] == {
+        "bash": "deny",
+        "edit": "deny",
+        "write": "deny",
+        "echo_*": "allow",
+    }
 
 
 def test_host_tool_events_use_the_native_skill_identity():

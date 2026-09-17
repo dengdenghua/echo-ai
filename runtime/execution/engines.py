@@ -71,11 +71,12 @@ class EngineCapabilities:
 #              in the composer picker (frontend hardcodes auto/opencode/codex) and
 #              kept only so stored preferences and history badges stay truthful.
 #   codex    · App Server protocol over a vendored binary.
-#   opencode · vendored official binary with `permission: {"*": "deny"}`; host
-#              tools arrive over a per-turn MCP. Team orchestration is not wired
-#              (see docs/audits/shared-engine-tools-2026-09-08.md). The turn
-#              driver sends a text-only prompt, so user-attached images never
-#              reach the model — hence vision=False.
+#   opencode · vendored official binary with targeted tool denies (bash/edit/
+#              write; a wildcard "*" deny would trip Zen's free-tier gate) and
+#              host tools arriving over a per-turn MCP. Team orchestration is
+#              not wired (see docs/audits/shared-engine-tools-2026-09-08.md).
+#              The turn driver sends a text-only prompt, so user-attached
+#              images never reach the model — hence vision=False.
 #
 # max_tools mirrors tool_engine.host_tool_broker._MAX_DYNAMIC_TOOLS, which both
 # external engines share — Codex through dynamic_tools and OpenCode through
