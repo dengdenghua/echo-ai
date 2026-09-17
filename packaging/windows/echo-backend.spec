@@ -46,6 +46,31 @@ reflex_rules = repo_root / "data" / "reflex_rules.yaml"
 if reflex_rules.exists():
     datas.append((str(reflex_rules), "data"))
 
+# Connector marketplace fork.
+#
+# ConnectorRegistry resolves its marketplace root as
+# ``Path(connector_registry.__file__).resolve().parents[3] / "extensions" /
+# "workbuddy-connectors"``.  In the frozen one-file build ``parents[3]`` is the
+# per-launch ``_MEIxxxxx`` extraction directory, so the fork MUST be bundled as
+# data — otherwise the registry loads zero connectors and the desktop settings
+# page has no OpenCode model provider to configure.
+#
+# ``connectors/<id>/vendor/`` holds ~100 MB of CLI distribution tarballs
+# (dingtalk/tmeet/emr-query/cloudbase).  They are only needed when *installing*
+# those CLI connectors, which the desktop cannot do offline anyway; drop them
+# and the whole fork costs ~1.4 MB.  Delete the ``vendor`` guard below to ship
+# the full offline-capable fork instead.
+connector_root = repo_root / "extensions" / "workbuddy-connectors"
+if connector_root.exists():
+    for path in sorted(connector_root.rglob("*")):
+        if path.is_dir():
+            continue
+        parts = path.relative_to(connector_root).parts
+        if "vendor" in parts:
+            continue
+        dest = "/".join(("extensions", "workbuddy-connectors") + parts[:-1])
+        datas.append((str(path), dest))
+
 a = Analysis(
     [str(entry)],
     pathex=[str(repo_root)],

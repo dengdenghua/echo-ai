@@ -60,3 +60,9 @@ local_auth:
   jwt_issuer: echo-ai
   actor_prefix: "local:"
   default_roles: [user, local]
+  # Desktop installs are single-user and local login is the only working auth
+  # path (the hosted email login needs a gateway the desktop cannot reach).
+  # Without admin the owner cannot install/enable connectors, and model
+  # provider config is admin-gated too (config_router._require_admin), so the
+  # whole connector marketplace would be read-only. "*" = every local account.
+  admin_usernames: ["*"]
