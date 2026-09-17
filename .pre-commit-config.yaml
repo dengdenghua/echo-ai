@@ -16,7 +16,7 @@ repos:
 
   # Ruff (lint + format)
   - repo: https://github.com/astral-sh/ruff-pre-commit
-    rev: v0.5.7
+    rev: v0.15.12
     hooks:
       - id: ruff
         args: [--fix]
@@ -142,4 +142,4 @@ repos:
         # docs/openapi-snapshot.json. Run when any router file
         # changes so a new endpoint can't ship without snapshot
         # regeneration.
-        files: ^(runtime/sensing/siphon/|runtime/platform/ui/|docs/openapi-snapshot\.json$)
+        files: ^(runtime/sensing/gateway/|runtime/platform/ui/|docs/openapi-snapshot\.json$)
