@@ -64,12 +64,22 @@ evolve:
 #   10–900，默认 120。超时仅由本 config 控制，无环境变量覆盖。
 # convergence_max_tokens: 普通模式强制收敛的 max_tokens 上限，默认 2000；
 #   research/swarm 模式收敛固定为 5000。
+# approval_timeout_s: 工具审批等待决策的墙钟上限（秒），10–3600，默认 600。
+#   超时未决按“审批人不可达”处理：转检查点暂停，而非拒绝。
+# parallel_batch_timeout_s: 单个并行工具批次的墙钟上限（秒），10–3600，
+#   默认 600（audit T-07）。到点后已完成 lane 保留结果。
 budget:
   max_tokens: 100000
   max_usd: 1.00
   max_latency_ms: 600000
   model_iteration_timeout_s: 120
   convergence_max_tokens: 2000
+  # 工具审批请求等待人工/自动审阅决策的墙钟上限（秒）。超时未决按
+  # “审批人不可达”处理：转检查点暂停等待授权，而非直接拒绝。
+  approval_timeout_s: 600
+  # 单个并行工具批次（audit T-07）的墙钟上限（秒）。到点后已完成
+  # lane 保留结果，仍在跑的 lane 标记超时。
+  parallel_batch_timeout_s: 600
   # 默认只把累计 token 作为用量统计；它不是当前上下文窗口占用。
   # 如需用累计 token 作为严格停机线，需同时开启下面两个开关。
   budget_auto_pause: false
