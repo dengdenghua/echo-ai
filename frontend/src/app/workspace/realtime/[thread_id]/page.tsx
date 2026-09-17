@@ -120,6 +120,7 @@ import {
   saveAutomationTarget,
 } from "@/core/automation/target";
 import { ChatPageLayout } from "@/components/workspace/chat-page-layout";
+import { WorkspaceNoteBadge } from "@/components/workspace/workspace-note-badge";
 import { AutomationControlDock } from "@/components/workspace/automation-control-dock";
 import { TeachRepeatPanel } from "@/components/workspace/teach-repeat-panel";
 import { RunDurationBadge } from "@/components/workspace/run-duration-badge";
@@ -274,7 +275,7 @@ import { currentActorId } from "@/core/auth/api";
 import { canAccessGlobalControlPlane } from "@/core/auth/control-plane-access";
 import { useAuth } from "@/providers/AuthProvider";
 import { usePauseTask, useTasks } from "@/core/tasks/hooks";
-import { isAIMessage, isHumanMessage, type Message } from "@/core/api/types";
+import { isAIMessage, isHumanMessage } from "@/core/api/types";
 import {
   type FileInMessage,
   parseUploadedFiles,
@@ -4906,6 +4907,18 @@ function RealtimePageContent({
                       />
                     )}
                   </div>
+                }
+                cornerNote={
+                  isNewThread ? null : (
+                    <WorkspaceNoteBadge
+                      workDir={effectiveWorkDir}
+                      events={agentDisplayEvents}
+                      hasAnswer={hasCompletedAgentOutput}
+                      runSettled={agentRunSettled}
+                      runFailed={agentRunFailed}
+                      paused={hasPausedOrPendingBackgroundTask}
+                    />
+                  )
                 }
                 secondaryPanel={
                   recorderPluginEnabled && showTeachRepeatPanel ? (

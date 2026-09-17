@@ -85,6 +85,47 @@ def _assert_expected_content(current: bytes, expected_sha256: object) -> None:
         )
 
 
+def _empty_git_summary(error: str) -> dict[str, Any]:
+    """Zeroed summary used when git itself is unavailable or timed out."""
+    return {
+        "branch": "",
+        "upstream": None,
+        "ahead": 0,
+        "behind": 0,
+        "changed_files": 0,
+        "added": 0,
+        "removed": 0,
+        "error": error,
+        "diff_error": None,
+    }
+
+
+def _parse_git_branch_line(raw: str) -> tuple[str, str | None, int, int]:
+    """Parse the ``## ...`` header of ``git status --porcelain=v1 --branch``.
+
+    Shapes seen in the wild::
+
+        main...origin/main [ahead 9, behind 2]
+        main...origin/main
+        feature/x                   (no upstream configured)
+        No commits yet on main
+        HEAD (no branch)            (detached)
+    """
+    head, _, tracking = raw.partition(" [")
+    for prefix in ("No commits yet on ", "Initial commit on "):
+        if head.startswith(prefix):
+            return head[len(prefix) :].strip(), None, 0, 0
+    branch_part, separator, upstream_part = head.partition("...")
+    ahead_match = re.search(r"ahead (\d+)", tracking)
+    behind_match = re.search(r"behind (\d+)", tracking)
+    return (
+        branch_part.strip(),
+        upstream_part.strip() if separator else None,
+        int(ahead_match.group(1)) if ahead_match else 0,
+        int(behind_match.group(1)) if behind_match else 0,
+    )
+
+
 def register_endpoints(router: Any, ctx: _FsContext) -> None:
     @router.get("/api/fs/roots", response_model=FsRootsResponse)
     def api_fs_roots(
@@ -743,3 +784,119 @@ def register_endpoints(router: Any, ctx: _FsContext) -> None:
                 status = "R"
             files.append({"path": file_path, "status": status})
         return {"branch": branch, "files": files}
+
+    @router.get("/api/git/summary")
+    def api_git_summary(
+        request: Request,
+        path: str = Query(default="."),
+        thread_id: str | None = Query(default=None),
+        workspace_path: str | None = Query(default=None),
+    ) -> dict[str, Any]:
+        """Aggregate the numbers an always-visible workspace note needs.
+
+        ``/api/git/status`` answers "which files moved?"; this answers "how
+        much moved, and where does the branch stand?" in one round-trip, so a
+        badge that polls it stays cheap: branch, dirty-file count, ahead /
+        behind against upstream, and added / removed line totals versus HEAD.
+
+        Untracked files are counted as files but can never contribute line
+        totals — ``git diff`` does not see them. That degradation is reported
+        through ``diff_error`` instead of silently reporting zero.
+        """
+        candidate = (
+            Path(workspace_path).expanduser()
+            if path in {"", "."} and workspace_path
+            else Path(path).expanduser()
+        )
+        if ctx.require_auth:
+            _assert_local_request_scope(
+                ctx,
+                request,
+                thread_id=thread_id,
+                workspace_path=workspace_path,
+            )
+            root = _assert_in_scope(
+                ctx,
+                candidate,
+                thread_id=thread_id,
+                workspace_path=workspace_path,
+            )
+        else:
+            root = _assert_within_allowed_roots(candidate)
+        if not root.is_dir():
+            raise HTTPException(404, f"directory not found: {root}")
+
+        def run_git(
+            args: list[str],
+            timeout: float,
+        ) -> subprocess.CompletedProcess[str]:
+            return subprocess.run(
+                ["git", *args],
+                capture_output=True,
+                text=True,
+                cwd=str(root),
+                timeout=timeout,
+                check=False,
+                shell=False,
+            )
+
+        try:
+            status_proc = run_git(["status", "--porcelain=v1", "--branch"], 10.0)
+        except FileNotFoundError:
+            return _empty_git_summary("git not found")
+        except subprocess.TimeoutExpired:
+            return _empty_git_summary("git status timed out")
+        if status_proc.returncode != 0:
+            return _empty_git_summary(status_proc.stderr.strip() or "git status failed")
+
+        branch = ""
+        upstream: str | None = None
+        ahead = 0
+        behind = 0
+        changed_files = 0
+        for line in status_proc.stdout.splitlines():
+            if line.startswith("## "):
+                branch, upstream, ahead, behind = _parse_git_branch_line(line[3:])
+                continue
+            if len(line) >= 4:
+                changed_files += 1
+
+        added = 0
+        removed = 0
+        diff_error: str | None = None
+        for diff_args in (["diff", "--numstat", "HEAD"], ["diff", "--numstat"]):
+            try:
+                diff_proc = run_git(diff_args, 15.0)
+            except FileNotFoundError:
+                diff_error = "git not found"
+                break
+            except subprocess.TimeoutExpired:
+                diff_error = "git diff timed out"
+                break
+            if diff_proc.returncode != 0:
+                # Unborn HEAD (no commits yet) — retry against the index.
+                diff_error = diff_proc.stderr.strip() or "git diff failed"
+                continue
+            diff_error = None
+            for line in diff_proc.stdout.splitlines():
+                columns = line.split("\t")
+                if len(columns) < 3:
+                    continue
+                # Binary files report ``-`` where a line count would go.
+                if columns[0].isdigit():
+                    added += int(columns[0])
+                if columns[1].isdigit():
+                    removed += int(columns[1])
+            break
+
+        return {
+            "branch": branch,
+            "upstream": upstream,
+            "ahead": ahead,
+            "behind": behind,
+            "changed_files": changed_files,
+            "added": added,
+            "removed": removed,
+            "error": None,
+            "diff_error": diff_error,
+        }

@@ -6988,6 +6988,28 @@ export const zhCN: Translations = {
     emptyHint: "Agent 修改文件后变更会显示在这里",
   },
 
+  workspaceNote: {
+    title: "概要便签",
+    collapse: "收起便签",
+    refresh: "刷新",
+    environmentSection: "环境信息",
+    changesLabel: "变更",
+    clean: "无未提交变更",
+    filesCount: (count) => `${count} 个文件`,
+    branchLabel: "分支",
+    detachedHead: "游离 HEAD",
+    aheadBehind: (ahead, behind) => `领先 ${ahead} / 落后 ${behind}`,
+    pullRequestLabel: "Pull Request 状态",
+    pullRequestUnavailable: "无法获取 Pull Request 状态",
+    pullRequestHint:
+      "echo 还没接入 Pull Request 数据源；接上 gh 或托管平台 API 后这里会显示真实状态。",
+    trackedOnly: "行数只统计已跟踪文件。",
+    unavailable: "读取工作区状态失败，显示的是上次结果。",
+    processSection: "进程",
+    processProgress: (current, total) => `${current}/${total}`,
+    processEmpty: "本轮还没有步骤清单。",
+  },
+
   codeWelcome: {
     title: "你想做什么？",
     fixBug: "修复 Bug",

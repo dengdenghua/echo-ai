@@ -57,6 +57,12 @@ interface ChatPageLayoutProps {
   inputArea: ReactNode;
   sidebar?: ReactNode;
   secondaryPanel?: ReactNode;
+  /**
+   * Corner overlay rendered against the layout root — used by the workspace
+   * note badge so a one-line reading of branch / changes / progress survives
+   * closing the sidebar. Hidden while the sidebar owns the full width.
+   */
+  cornerNote?: ReactNode;
   isNewThread?: boolean;
   pageTitle?: string;
   messageListClassName?: string;
@@ -77,6 +83,7 @@ export function ChatPageLayout({
   inputArea,
   sidebar,
   secondaryPanel,
+  cornerNote,
   isNewThread = false,
   pageTitle,
   messageListClassName,
@@ -504,6 +511,14 @@ export function ChatPageLayout({
           </span>
         </div>
       )}
+      {cornerNote && !fullWorkbench ? (
+        <div
+          data-chat-page-corner-note="true"
+          className="pointer-events-none absolute right-3 top-14 z-[70]"
+        >
+          {cornerNote}
+        </div>
+      ) : null}
       <div
         data-chat-page-main-column="true"
         aria-hidden={secondaryModalOpen ? true : undefined}

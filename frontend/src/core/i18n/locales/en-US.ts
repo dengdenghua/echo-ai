@@ -7395,6 +7395,28 @@ Strategy:
     emptyHint: "Changes will appear here as the agent modifies files",
   },
 
+  workspaceNote: {
+    title: "Workspace note",
+    collapse: "Collapse the note",
+    refresh: "Refresh",
+    environmentSection: "Environment",
+    changesLabel: "Changes",
+    clean: "Nothing uncommitted",
+    filesCount: (count) => `${count} files`,
+    branchLabel: "Branch",
+    detachedHead: "detached HEAD",
+    aheadBehind: (ahead, behind) => `${ahead} ahead / ${behind} behind`,
+    pullRequestLabel: "Pull request",
+    pullRequestUnavailable: "Can't read pull request status",
+    pullRequestHint:
+      "echo has no pull request source wired up yet; connect gh or a host API to fill this in.",
+    trackedOnly: "Line totals cover tracked files only.",
+    unavailable: "Couldn't read workspace status — showing the last reading.",
+    processSection: "Progress",
+    processProgress: (current, total) => `${current}/${total}`,
+    processEmpty: "No step checklist for this run yet.",
+  },
+
   codeWelcome: {
     title: "What do you want to build?",
     fixBug: "Fix a bug",
