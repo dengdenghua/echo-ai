@@ -91,6 +91,7 @@ def _empty_git_summary(error: str) -> dict[str, Any]:
         "upstream": None,
         "ahead": 0,
         "behind": 0,
+        "detached": False,
         "changed_files": 0,
         "untracked_files": 0,
         "added": 0,
@@ -100,8 +101,14 @@ def _empty_git_summary(error: str) -> dict[str, Any]:
     }
 
 
-def _parse_git_branch_line(raw: str) -> tuple[str, str | None, int, int]:
+def _parse_git_branch_line(raw: str) -> tuple[str, str | None, int, int, bool]:
     """Parse the ``## ...`` header of ``git status --porcelain=v1 --branch``.
+
+    Returns ``(branch, upstream, ahead, behind, detached)``. A detached HEAD
+    has no branch name — git prints ``HEAD (no branch)`` — so that case is
+    reported as an empty ``branch`` plus ``detached=True``, letting callers
+    render their own wording instead of echoing git's English back at a user
+    who is reading the UI in another language.
 
     Shapes seen in the wild::
 
@@ -114,15 +121,18 @@ def _parse_git_branch_line(raw: str) -> tuple[str, str | None, int, int]:
     head, _, tracking = raw.partition(" [")
     for prefix in ("No commits yet on ", "Initial commit on "):
         if head.startswith(prefix):
-            return head[len(prefix) :].strip(), None, 0, 0
+            return head[len(prefix) :].strip(), None, 0, 0, False
     branch_part, separator, upstream_part = head.partition("...")
+    branch = branch_part.strip()
+    detached = branch == "HEAD (no branch)"
     ahead_match = re.search(r"ahead (\d+)", tracking)
     behind_match = re.search(r"behind (\d+)", tracking)
     return (
-        branch_part.strip(),
+        "" if detached else branch,
         upstream_part.strip() if separator else None,
         int(ahead_match.group(1)) if ahead_match else 0,
         int(behind_match.group(1)) if behind_match else 0,
+        detached,
     )
 
 
@@ -823,11 +833,12 @@ def register_endpoints(router: Any, ctx: _FsContext) -> None:
         upstream: str | None = None
         ahead = 0
         behind = 0
+        detached = False
         changed_files = 0
         untracked_files = 0
         for line in status_proc.stdout.splitlines():
             if line.startswith("## "):
-                branch, upstream, ahead, behind = _parse_git_branch_line(line[3:])
+                branch, upstream, ahead, behind, detached = _parse_git_branch_line(line[3:])
                 continue
             if len(line) < 4:
                 continue
@@ -868,6 +879,7 @@ def register_endpoints(router: Any, ctx: _FsContext) -> None:
             "upstream": upstream,
             "ahead": ahead,
             "behind": behind,
+            "detached": detached,
             "changed_files": changed_files,
             "untracked_files": untracked_files,
             "added": added,
