@@ -38,6 +38,14 @@ class BudgetConfig(BaseModel):
     # Forced-convergence max_tokens cap for normal (non research/swarm) mode.
     # Default 2000; research/swarm convergence stays fixed at 5000.
     convergence_max_tokens: int = Field(default=2000, gt=0)
+    # Wall-clock ceiling (seconds) a tool-approval request waits for a decision
+    # before the gate resolves. 10..3600, default 600. An unreachable reviewer
+    # within this window is handled as a checkpointed pause, not a denial.
+    approval_timeout_s: float = Field(default=600.0, ge=10.0, le=3600.0)
+    # Wall-clock ceiling (seconds) for one parallel tool batch (audit T-07).
+    # 10..3600, default 600. Completed lanes keep their results when the
+    # ceiling hits; still-running lanes are marked timed out.
+    parallel_batch_timeout_s: float = Field(default=600.0, ge=10.0, le=3600.0)
     # Elastic budget: pause on the hard USD spend ceiling when the threshold is
     # reached. Cumulative tokens are accounting telemetry by default because a
     # multi-step task resends prompt tokens on every model call; treating that
@@ -354,6 +362,7 @@ class OctConfig(BaseModel):
     jwt_secret: str | None = Field(default=None, min_length=32)
     jwt_expire_seconds: int = Field(default=2_592_000, gt=0)
     jwt_issuer: str = "echo-ai"
+    admin_emails: list[str] = Field(default_factory=list)
 
     @model_validator(mode="after")
     def _require_secret_when_enabled(self) -> OctConfig:
