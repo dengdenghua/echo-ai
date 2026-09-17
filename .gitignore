@@ -89,6 +89,7 @@ config.local*.yaml
 *.tmp
 .tmp_*
 .tmp-tailwind-postcss/
+frontend/.tmp-*
 /tmp/
 scratch/
 
