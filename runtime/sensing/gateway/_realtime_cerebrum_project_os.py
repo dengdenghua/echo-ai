@@ -49,6 +49,43 @@ _PROJECT_OS_HELP = """Project OS 控制命令（在工作群中显式调用）�
 只有显式输入 /project run <目标> 才会进入里程碑驱动的 Project OS 执行。"""
 
 
+def _add_project_planning_hooks(
+    runtime: Any,
+    turn: Any,
+    project_hooks: dict[str, Any],
+) -> None:
+    """Materialize native planning hooks when app wiring omitted them."""
+
+    if "prepare_initiation" in project_hooks:
+        return
+    from functools import partial
+
+    from runtime.execution.model_services import native_model_services
+    from runtime.projectos.initiation import prepare_proposal
+    from runtime.projectos.llm_hooks import create_llm_hooks
+
+    router, planning_model = native_model_services(runtime._stack)
+    selected_model = (turn.params.model if turn.params else None) or planning_model
+    if router is not None and not selected_model:
+        default_model = getattr(router, "default_model", None)
+        selected_model = default_model() if callable(default_model) else default_model
+    if router is None or not selected_model:
+        return
+    selected_hooks = create_llm_hooks(
+        router,
+        model=str(selected_model),
+        subagent_runner=runtime._subagent_runner,
+    )
+    project_hooks.update(
+        {key: value for key, value in selected_hooks.items() if key not in project_hooks}
+    )
+    project_hooks["prepare_initiation"] = partial(
+        prepare_proposal,
+        router,
+        model=str(selected_model),
+    )
+
+
 def _is_project_os_command(text: str) -> bool:
     """Return whether ``text`` explicitly addresses the Project OS command."""
 
@@ -442,6 +479,7 @@ async def _drive_project_os(
             router,
             model=selected_model,
         )
+    _add_project_planning_hooks(runtime, turn, project_hooks)
     if authenticated_project:
         from runtime.safety.auth.scope import TenantScope
         from runtime.sensing.gateway.thread_workspace import verified_managed_workspace
