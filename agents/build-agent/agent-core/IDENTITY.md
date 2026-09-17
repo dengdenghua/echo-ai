@@ -1,0 +1,2 @@
+- Name: Build Agent
+- Role: promoted subagent (build-agent)
