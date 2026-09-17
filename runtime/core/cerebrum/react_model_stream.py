@@ -293,9 +293,9 @@ def _phase_6b_model_stream(
     _model_failovers = state.iteration.model_failovers
     _zero_action_rounds = state.iteration.zero_action_rounds
     resp = state.parse.resp = None
-    state.parse.raw_text = ""
+    state.parse.raw_text = _raw_text = ""
     _request_has_tool_evidence = state.parse.request_has_tool_evidence = False
-    state.parse.iteration_soft_timed_out = False
+    state.parse.iteration_soft_timed_out = _iteration_soft_timed_out = False
     try:
         try:
             _iteration_recovery_mode = _force_convergence_next
@@ -378,7 +378,7 @@ def _phase_6b_model_stream(
             # turns show signs of life long before the terminal answer.
             _thought_stream_cursor = 0
             _thought_stream_open = False
-            state.parse.iteration_soft_timed_out = False
+            state.parse.iteration_soft_timed_out = _iteration_soft_timed_out = False
             _base_iteration_timeout = _model_iteration_timeout_s(model_iteration_timeout_s_config)
             _has_tool_evidence = _request_has_tool_evidence
             _reasoning_watchdog_s = _reasoning_only_watchdog_s(
@@ -432,7 +432,7 @@ def _phase_6b_model_stream(
                 any_activity_counts=_evidence_convergence_active is None,
             ):
                 if evt is _MODEL_STREAM_DEADLINE:
-                    state.parse.iteration_soft_timed_out = True
+                    state.parse.iteration_soft_timed_out = _iteration_soft_timed_out = True
                     _logger.warning(
                         "react_loop iter %d model stream exceeded %.1fs before "
                         "a visible final answer; switching to convergence mode",
@@ -513,9 +513,13 @@ def _phase_6b_model_stream(
                                     "iteration": i + 1,
                                 }
                                 state.emit.final_delta_emitted_this_iteration = True
-                                _streamed_final_chars = state.iteration.streamed_final_chars = safe_end
+                                _streamed_final_chars = state.iteration.streamed_final_chars = (
+                                    safe_end
+                                )
                                 _visible_stream_state["chars"] = safe_end
-                                _throughput_chars = state.iteration.throughput_chars = _throughput_chars + len(delta_out)
+                                _throughput_chars = state.iteration.throughput_chars = (
+                                    _throughput_chars + len(delta_out)
+                                )
                                 _tp = _maybe_emit_throughput(_throughput_chars)
                                 if _tp is not None:
                                     yield _tp
@@ -572,7 +576,9 @@ def _phase_6b_model_stream(
                                     "delta": _thought_delta,
                                     "iteration": i + 1,
                                 }
-                                _throughput_chars = state.iteration.throughput_chars = _throughput_chars + len(_thought_delta)
+                                _throughput_chars = state.iteration.throughput_chars = (
+                                    _throughput_chars + len(_thought_delta)
+                                )
                                 _tp = _maybe_emit_throughput(_throughput_chars)
                                 if _tp is not None:
                                     yield _tp
@@ -629,8 +635,12 @@ def _phase_6b_model_stream(
                                         "iteration": i + 1,
                                     }
                                     state.emit.final_delta_emitted_this_iteration = True
-                                    _streamed_final_chars = state.iteration.streamed_final_chars = safe_end
-                                    _throughput_chars = state.iteration.throughput_chars = _throughput_chars + len(delta_out)
+                                    _streamed_final_chars = state.iteration.streamed_final_chars = (
+                                        safe_end
+                                    )
+                                    _throughput_chars = state.iteration.throughput_chars = (
+                                        _throughput_chars + len(delta_out)
+                                    )
                                     _tp = _maybe_emit_throughput(_throughput_chars)
                                     if _tp is not None:
                                         yield _tp
@@ -697,8 +707,12 @@ def _phase_6b_model_stream(
                                     "iteration": i + 1,
                                 }
                                 state.emit.final_delta_emitted_this_iteration = True
-                                _streamed_final_chars = state.iteration.streamed_final_chars = safe_end
-                                _throughput_chars = state.iteration.throughput_chars = _throughput_chars + len(delta_out)
+                                _streamed_final_chars = state.iteration.streamed_final_chars = (
+                                    safe_end
+                                )
+                                _throughput_chars = state.iteration.throughput_chars = (
+                                    _throughput_chars + len(delta_out)
+                                )
                                 _tp = _maybe_emit_throughput(_throughput_chars)
                                 if _tp is not None:
                                     yield _tp
@@ -709,7 +723,7 @@ def _phase_6b_model_stream(
                         _reasoning_watchdog_s is not None
                         and time.monotonic() - _reasoning_started_at >= _reasoning_watchdog_s
                     ):
-                        state.parse.iteration_soft_timed_out = True
+                        state.parse.iteration_soft_timed_out = _iteration_soft_timed_out = True
                         _logger.warning(
                             "react_loop iter %d stalled in private reasoning for %.1fs; "
                             "switching to convergence",
@@ -730,7 +744,9 @@ def _phase_6b_model_stream(
                         "delta": evt.delta,
                         "iteration": i + 1,
                     }
-                    _throughput_chars = state.iteration.throughput_chars = _throughput_chars + len(evt.delta or "")
+                    _throughput_chars = state.iteration.throughput_chars = _throughput_chars + len(
+                        evt.delta or ""
+                    )
                     _tp = _maybe_emit_throughput(_throughput_chars)
                     if _tp is not None:
                         yield _tp
@@ -769,9 +785,13 @@ def _phase_6b_model_stream(
                                 "iteration": i + 1,
                             }
                             state.emit.final_delta_emitted_this_iteration = True
-                            _streamed_final_chars = state.iteration.streamed_final_chars = len(answer_so_far)
+                            _streamed_final_chars = state.iteration.streamed_final_chars = len(
+                                answer_so_far
+                            )
                             _visible_stream_state["chars"] = _streamed_final_chars
-                            _throughput_chars = state.iteration.throughput_chars = _throughput_chars + len(delta_out)
+                            _throughput_chars = state.iteration.throughput_chars = (
+                                _throughput_chars + len(delta_out)
+                            )
                             _tp = _maybe_emit_throughput(_throughput_chars)
                             if _tp is not None:
                                 yield _tp
@@ -847,7 +867,9 @@ def _phase_6b_model_stream(
                     is_code_mode=_is_code_mode,
                 )
                 messages[:] = _compacted
-                consecutive_llm_errors = state.iteration.consecutive_llm_errors = consecutive_llm_errors + 1
+                consecutive_llm_errors = state.iteration.consecutive_llm_errors = (
+                    consecutive_llm_errors + 1
+                )
                 messages.append(
                     Message(
                         role="user",
@@ -932,7 +954,9 @@ def _phase_6b_model_stream(
                 )
             )
             if not _error_text_was_exposed and not _auth_failure and consecutive_llm_errors < 2:
-                consecutive_llm_errors = state.iteration.consecutive_llm_errors = consecutive_llm_errors + 1
+                consecutive_llm_errors = state.iteration.consecutive_llm_errors = (
+                    consecutive_llm_errors + 1
+                )
                 messages.append(
                     Message(
                         role="user",
@@ -958,7 +982,7 @@ def _phase_6b_model_stream(
             return _LoopControl.BREAK
 
         state.iteration.consecutive_llm_errors = 0
-        state.parse.raw_text = "".join(text_parts)
+        state.parse.raw_text = _raw_text = "".join(text_parts)
         try:
             _in_tok = int(getattr(resp, "input_tokens", 0) or 0)
             _out_tok = int(getattr(resp, "output_tokens", 0) or 0)
@@ -1120,10 +1144,12 @@ def _phase_6b_model_stream(
     finally:
         # Wave B: writes already land on state at their assignment sites, so
         # the old bulk push-back is reduced to the mirrors this body actually
-        # keeps dual-written. Fields this body only ever wrote straight to
-        # state (last_public_update_key / terminated_reason / raw_text /
-        # iteration_soft_timed_out / final_delta_emitted_this_iteration) are
-        # not pushed back here.
+        # keeps dual-written. The 6c handoff fields (resp / raw_text /
+        # request_has_tool_evidence / iteration_soft_timed_out) are restated
+        # from their mirrors so every exit path leaves state authoritative;
+        # fields no phase reads back (last_public_update_key /
+        # terminated_reason / final_delta_emitted_this_iteration) are not
+        # pushed back here.
         state.iteration.force_convergence_next = _force_convergence_next
         state.iteration.throughput_chars = _throughput_chars
         state.iteration.final_stream_started = _final_stream_started
@@ -1132,3 +1158,5 @@ def _phase_6b_model_stream(
         state.iteration.model_failovers = _model_failovers
         state.parse.resp = resp
         state.parse.request_has_tool_evidence = _request_has_tool_evidence
+        state.parse.raw_text = _raw_text
+        state.parse.iteration_soft_timed_out = _iteration_soft_timed_out

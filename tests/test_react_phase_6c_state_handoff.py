@@ -37,8 +37,30 @@ def _parse_field_names() -> frozenset[str]:
     return frozenset(f.name for f in dataclasses.fields(_ParseState))
 
 
+def _parse_state_field(node: ast.expr) -> str | None:
+    """Field name for a ``state.parse.<field>`` expression, else ``None``.
+
+    ``_LoopState`` groups its fields, so parse fields are written and read
+    through the ``state.parse`` group rather than flat ``state.<field>``.
+    """
+
+    parts: list[str] = []
+    cursor: ast.expr = node
+    while isinstance(cursor, ast.Attribute):
+        parts.append(cursor.attr)
+        cursor = cursor.value
+    if (
+        isinstance(cursor, ast.Name)
+        and cursor.id == "state"
+        and len(parts) == 2
+        and parts[1] == "parse"
+    ):
+        return parts[0]
+    return None
+
+
 def _state_attrs_written_in_finally(func: ast.FunctionDef) -> frozenset[str]:
-    """``state.<attr> = ...`` assignments inside any ``finally`` of ``func``."""
+    """``state.parse.<field> = ...`` assignments inside any ``finally``."""
     written: set[str] = set()
     for node in ast.walk(func):
         if not isinstance(node, ast.Try):
@@ -48,26 +70,21 @@ def _state_attrs_written_in_finally(func: ast.FunctionDef) -> frozenset[str]:
                 if not isinstance(inner, ast.Assign):
                     continue
                 for target in inner.targets:
-                    if (
-                        isinstance(target, ast.Attribute)
-                        and isinstance(target.value, ast.Name)
-                        and target.value.id == "state"
-                    ):
-                        written.add(target.attr)
+                    if isinstance(target, ast.Attribute):
+                        field = _parse_state_field(target)
+                        if field:
+                            written.add(field)
     return frozenset(written)
 
 
 def _state_attrs_read(func: ast.FunctionDef) -> frozenset[str]:
-    """``... = state.<attr>`` reads anywhere in ``func``."""
+    """``... = state.parse.<field>`` reads anywhere in ``func``."""
     read: set[str] = set()
     for node in ast.walk(func):
-        if (
-            isinstance(node, ast.Attribute)
-            and isinstance(node.value, ast.Name)
-            and node.value.id == "state"
-            and isinstance(node.ctx, ast.Load)
-        ):
-            read.add(node.attr)
+        if isinstance(node, ast.Attribute) and isinstance(node.ctx, ast.Load):
+            field = _parse_state_field(node)
+            if field:
+                read.add(field)
     return frozenset(read)
 
 
