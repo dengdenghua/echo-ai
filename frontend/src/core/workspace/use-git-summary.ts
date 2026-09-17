@@ -15,6 +15,12 @@ import { swallow } from "@/core/utils/log";
  */
 export interface GitSummary {
   branch: string;
+  /**
+   * ``branch`` is empty *and* this is true when HEAD is detached — git prints
+   * ``HEAD (no branch)`` there, which is not a name worth showing. Render your
+   * own localized wording from ``detachedHead`` instead.
+   */
+  detached: boolean;
   upstream: string | null;
   ahead: number;
   behind: number;
@@ -31,6 +37,7 @@ export interface GitSummary {
 
 interface GitSummaryPayload {
   branch?: unknown;
+  detached?: unknown;
   upstream?: unknown;
   ahead?: unknown;
   behind?: unknown;
@@ -60,6 +67,7 @@ export function normalizeGitSummary(
   if (!payload) return null;
   return {
     branch: typeof payload.branch === "string" ? payload.branch : "",
+    detached: payload.detached === true,
     upstream: typeof payload.upstream === "string" ? payload.upstream : null,
     ahead: toCount(payload.ahead),
     behind: toCount(payload.behind),

@@ -2,10 +2,10 @@
 
 The endpoint exists so the workspace note badge can answer "how much changed,
 and where does the branch stand?" in a single cheap poll instead of shelling
-out three times. These tests pin the payload shape (branch / upstream / ahead /
-behind / changed_files / untracked_files / added / removed) and the two graceful
-degradations that matter in practice: a directory that is not a git repository,
-and a repository whose ``HEAD`` does not exist yet.
+out three times. These tests pin the payload shape (branch / detached / upstream
+/ ahead / behind / changed_files / untracked_files / added / removed) and the two
+graceful degradations that matter in practice: a directory that is not a git
+repository, and a repository whose ``HEAD`` does not exist yet.
 """
 
 from __future__ import annotations
@@ -76,6 +76,7 @@ class TestGitSummary:
         payload = _summary(client, repo)
 
         assert payload["branch"] == branch
+        assert payload["detached"] is False
         assert payload["changed_files"] == 0
         assert payload["untracked_files"] == 0
         assert payload["added"] == 0
@@ -175,6 +176,8 @@ class TestGitSummary:
         payload = _summary(client, plain)
 
         assert payload["branch"] == ""
+        # Not a branchless repository — a directory that is not one at all.
+        assert payload["detached"] is False
         assert payload["changed_files"] == 0
         assert isinstance(payload["error"], str)
         assert payload["error"]
@@ -191,23 +194,40 @@ class TestGitSummaryBranchLineParsing:
     @pytest.mark.parametrize(
         ("raw", "expected"),
         [
-            ("main...origin/main [ahead 9, behind 2]", ("main", "origin/main", 9, 2)),
-            ("main...origin/main", ("main", "origin/main", 0, 0)),
-            ("feature/x", ("feature/x", None, 0, 0)),
-            ("No commits yet on main", ("main", None, 0, 0)),
-            ("HEAD (no branch) [ahead 1]", ("HEAD (no branch)", None, 1, 0)),
+            ("main...origin/main [ahead 9, behind 2]", ("main", "origin/main", 9, 2, False)),
+            ("main...origin/main", ("main", "origin/main", 0, 0, False)),
+            ("feature/x", ("feature/x", None, 0, 0, False)),
+            ("No commits yet on main", ("main", None, 0, 0, False)),
+            # Detached HEAD: git prints a sentence, not a name. It must come
+            # back as "no branch" plus a flag, never as a branch literally
+            # called "HEAD (no branch)".
+            ("HEAD (no branch)", ("", None, 0, 0, True)),
+            ("HEAD (no branch) [ahead 1]", ("", None, 1, 0, True)),
         ],
     )
     def test_parses(
         self,
         raw: str,
-        expected: tuple[str, str | None, int, int],
+        expected: tuple[str, str | None, int, int, bool],
     ) -> None:
         from runtime.sensing.gateway._fs_router_endpoints import (
             _parse_git_branch_line,
         )
 
         assert _parse_git_branch_line(raw) == expected
+
+    def test_detached_head_reports_no_branch_and_a_flag(
+        self, client: TestClient, tmp_path: Path
+    ) -> None:
+        repo = tmp_path / "detached"
+        _init_repo(repo)
+        _git(repo, "checkout", "--detach", "HEAD")
+
+        payload = _summary(client, repo)
+
+        assert payload["branch"] == ""
+        assert payload["detached"] is True
+        assert payload["error"] is None
 
     def test_git_failure_shape_is_zeroed(self) -> None:
         from runtime.sensing.gateway._fs_router_endpoints import _empty_git_summary
@@ -216,4 +236,6 @@ class TestGitSummaryBranchLineParsing:
 
         assert payload["error"] == "git not found"
         assert payload["changed_files"] == 0
+        assert payload["untracked_files"] == 0
+        assert payload["detached"] is False
         assert payload["upstream"] is None

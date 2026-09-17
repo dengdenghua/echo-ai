@@ -78,6 +78,14 @@ export function WorkspaceNoteBadge({
   const changedFiles = summary?.changedFiles ?? 0;
   const lineDelta = (summary?.added ?? 0) + (summary?.removed ?? 0);
   const hasProcess = phases.length > 0;
+  // A detached HEAD arrives as an empty branch plus a flag, because git's own
+  // wording for it ("HEAD (no branch)") is not something to show a reader who
+  // is using the UI in another language.
+  const branchLabel = summary?.branch
+    ? summary.branch
+    : summary?.detached
+      ? t.workspaceNote.detachedHead
+      : "";
 
   useEffect(() => {
     if (!expanded) return;
@@ -97,7 +105,7 @@ export function WorkspaceNoteBadge({
   }, [expanded]);
 
   // Nothing worth a permanent pixel: no repository, no changes, no run yet.
-  if (!summary?.branch && changedFiles === 0 && !hasProcess && !error) {
+  if (!branchLabel && changedFiles === 0 && !hasProcess && !error) {
     return null;
   }
 
@@ -121,17 +129,18 @@ export function WorkspaceNoteBadge({
         )}
       >
         <StickyNoteIcon className="size-3.5 shrink-0 text-primary" />
-        {summary?.branch ? (
+        {branchLabel ? (
           <span
-            data-note-branch={summary.branch}
+            data-note-branch={summary?.branch || ""}
+            data-note-detached={summary?.detached ? "true" : undefined}
             className="flex min-w-0 items-center gap-1"
           >
             <GitBranchIcon className="size-3 shrink-0 text-muted-foreground" />
             <span
               className="min-w-0 truncate font-medium text-foreground/85"
-              title={summary.branch}
+              title={branchLabel}
             >
-              {summary.branch}
+              {branchLabel}
             </span>
           </span>
         ) : null}
@@ -250,10 +259,11 @@ export function WorkspaceNoteBadge({
             >
               <span className="flex min-w-0 items-center gap-1.5">
                 <span
-                  className="min-w-0 truncate font-mono"
+                  data-note-branch-label={branchLabel || "none"}
+                  className={cn("min-w-0 truncate", summary?.branch && "font-mono")}
                   title={summary?.branch || undefined}
                 >
-                  {summary?.branch || t.workspaceNote.detachedHead}
+                  {branchLabel || "—"}
                 </span>
                 {summary && (summary.ahead > 0 || summary.behind > 0) ? (
                   <span className="shrink-0 text-muted-foreground/70">

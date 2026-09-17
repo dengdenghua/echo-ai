@@ -7,6 +7,7 @@ import { renderWithProviders } from "@/test/harness";
 
 interface SummaryPayload {
   branch: string;
+  detached?: boolean;
   upstream?: string | null;
   ahead?: number;
   behind?: number;
@@ -98,6 +99,74 @@ describe("<WorkspaceNoteBadge />", () => {
 
     // Collapsed means collapsed: no sidebar detail leaks onto the page.
     expect(screen.queryByText("环境信息")).not.toBeInTheDocument();
+  });
+
+  test("shows a localized detached head instead of git's own wording", async () => {
+    stubSummary({
+      branch: "",
+      detached: true,
+      changed_files: 1,
+      added: 3,
+      removed: 0,
+    });
+
+    renderWithProviders(
+      <WorkspaceNoteBadge workDir="D:/echo-ai" events={[]} />,
+      { locale: "zh-CN" },
+    );
+
+    // git says "HEAD (no branch)"; the UI must say "游离 HEAD".
+    expect(await screen.findByText("游离 HEAD")).toBeVisible();
+    expect(screen.queryByText("HEAD (no branch)")).toBeNull();
+  });
+
+  test("stays out of the way for a directory that is not a repository", async () => {
+    stubSummary({
+      branch: "",
+      detached: false,
+      changed_files: 0,
+      added: 0,
+      removed: 0,
+      error: "not a git repository",
+    });
+
+    const { container } = renderWithProviders(
+      <WorkspaceNoteBadge workDir="D:/echo-ai" events={[]} />,
+      { locale: "zh-CN" },
+    );
+
+    await waitFor(() => expect(container).toBeEmptyDOMElement());
+  });
+
+  test("does not claim a detached head for a directory that is not a repo", async () => {
+    stubSummary({
+      branch: "",
+      detached: false,
+      changed_files: 0,
+      added: 0,
+      removed: 0,
+      error: "not a git repository",
+    });
+
+    renderWithProviders(
+      // A live run keeps the badge on screen even without a repository, which
+      // is the only way the branch row gets a chance to lie about why it is
+      // empty.
+      <WorkspaceNoteBadge
+        workDir="D:/echo-ai"
+        events={planEvents()}
+        runSettled={false}
+      />,
+      { locale: "zh-CN" },
+    );
+
+    fireEvent.click(await screen.findByRole("button", { name: "概要便签" }));
+
+    // No branch to report is not the same as a detached HEAD.
+    await waitFor(() =>
+      expect(document.querySelector('[data-note-branch-label="none"]')).toBeTruthy(),
+    );
+    expect(screen.queryByText("游离 HEAD")).toBeNull();
   });
 
   test("expands into environment and process sections", async () => {
