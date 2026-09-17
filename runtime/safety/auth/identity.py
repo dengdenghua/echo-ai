@@ -5,6 +5,7 @@ import binascii
 import hashlib
 import hmac
 import json
+import logging
 import os
 import threading
 import time
@@ -179,6 +180,114 @@ class IdentityStore:
                 api_key_hash=item.get("api_key_hash"),
             )
         return store
+
+
+class DurableIdentityStore(IdentityStore):
+    """IdentityStore that survives process restarts.
+
+    Authenticated actors used to live only in memory, so every backend
+    restart silently invalidated every outstanding JWT: ``verify_jwt`` (and
+    the realtime WebSocket handshake) requires the token's subject to be
+    registered in this store, and the login that registered it was gone.
+    The result was a client stuck in an endless reconnect loop showing
+    "restoring connection". This subclass mirrors every mutation to a JSON
+    file and reloads it on startup, so pre-restart tokens keep resolving
+    until they expire. Only hashes are persisted (PBKDF2 api_key hashes),
+    never plaintext secrets.
+    """
+
+    _VERSION = 1
+
+    def __init__(self, path: str | Path) -> None:
+        super().__init__()
+        self._path = Path(path)
+        self._log = logging.getLogger(__name__)
+        self._load()
+
+    # ── disk mirror ────────────────────────────────────────────
+
+    def _load(self) -> None:
+        try:
+            raw = json.loads(self._path.read_text(encoding="utf-8"))
+        except FileNotFoundError:
+            return
+        except (OSError, json.JSONDecodeError, UnicodeDecodeError) as exc:
+            self._log.warning("identity store %s unreadable (%s); starting empty", self._path, exc)
+            return
+        items = raw.get("identities") if isinstance(raw, dict) else None
+        if not isinstance(items, list):
+            return
+        for item in items:
+            if not isinstance(item, dict) or not str(item.get("actor_id") or "").strip():
+                continue
+            try:
+                super().add(
+                    Identity(
+                        actor_id=str(item["actor_id"]),
+                        roles=tuple(str(r) for r in (item.get("roles") or ())),
+                        metadata=dict(item.get("metadata") or {}),
+                    ),
+                    api_key_hash=item.get("api_key_hash"),
+                )
+            except ValueError:
+                # Duplicate or corrupt row — skip it, keep the rest.
+                continue
+
+    def _save(self) -> None:
+        with self._lock:
+            hash_by_actor = {}
+            for stored_hash, identity in self._by_hash.items():
+                hash_by_actor.setdefault(identity.actor_id, stored_hash)
+            rows = [
+                {
+                    "actor_id": actor_id,
+                    "roles": list(identity.roles),
+                    "metadata": identity.metadata,
+                    "api_key_hash": hash_by_actor.get(actor_id),
+                }
+                for actor_id, identity in self._by_actor.items()
+            ]
+        payload = {"version": self._VERSION, "identities": rows}
+        try:
+            self._path.parent.mkdir(parents=True, exist_ok=True)
+            tmp = self._path.with_suffix(self._path.suffix + ".tmp")
+            tmp.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
+            os.replace(tmp, self._path)
+        except OSError as exc:
+            # Persisting is an optimization for token continuity; failing to
+            # write must never take down the auth path itself.
+            self._log.warning("identity store save to %s failed: %s", self._path, exc)
+
+    # ── mutators (mirror to disk) ──────────────────────────────
+
+    def add(
+        self,
+        identity: Identity,
+        *,
+        api_key_hash: str | None = None,
+        api_key_plaintext: str | None = None,
+    ) -> None:
+        with self._lock:
+            super().add(
+                identity,
+                api_key_hash=api_key_hash,
+                api_key_plaintext=api_key_plaintext,
+            )
+            self._save()
+
+    def remove(self, actor_id: str) -> bool:
+        with self._lock:
+            removed = super().remove(actor_id)
+            if removed:
+                self._save()
+            return removed
+
+    def set_roles(self, actor_id: str, roles: tuple[str, ...]) -> bool:
+        with self._lock:
+            updated = super().set_roles(actor_id, roles)
+            if updated:
+                self._save()
+            return updated
 
 
 # ═══════════════════════════════════════════════════════════

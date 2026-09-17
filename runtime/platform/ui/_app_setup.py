@@ -179,9 +179,15 @@ def setup_app(
         except AttributeError:
             local_auth_runtime_config = local_auth_config
     if cocoloop_identity_store is None and auth_enabled:
-        from runtime.safety.auth.identity import IdentityStore
+        # Durable on purpose: an in-memory store made every backend restart
+        # invalidate all outstanding JWTs (verify_jwt requires the subject to
+        # be registered), leaving open clients stuck in an endless realtime
+        # reconnect loop. The durable mirror keeps pre-restart tokens valid
+        # until they actually expire.
+        from runtime.platform.process.paths import app_paths
+        from runtime.safety.auth.identity import DurableIdentityStore
 
-        cocoloop_identity_store = IdentityStore()
+        cocoloop_identity_store = DurableIdentityStore(app_paths().identity_store_path)
     if (
         local_auth_config is not None
         and getattr(local_auth_config, "enabled", False)

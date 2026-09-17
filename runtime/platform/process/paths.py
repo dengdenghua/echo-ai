@@ -40,6 +40,12 @@ class AppPaths:
         return self.data_dir / "custom_models.json"
 
     @property
+    def identity_store_path(self) -> Path:
+        """Durable registry of authenticated actors (survives restarts)."""
+
+        return self.data_dir / "identities.json"
+
+    @property
     def user_memory_path(self) -> Path:
         return self.data_dir / "user_memory.json"
 
@@ -275,6 +281,27 @@ def resources_root() -> Path:
     return project_root()
 
 
+def extensions_root() -> Path:
+    """Root that holds the bundled ``extensions/`` tree.
+
+    WorkBuddy connectors live under ``<root>/extensions/workbuddy-connectors``.
+    ``resources_root()`` already follows ``ECHO_RESOURCES_DIR`` — the desktop
+    build seeds that directory, while a PyInstaller bundle resolves this
+    module's ``parents[3]`` to a temporary extraction directory that carries
+    no ``extensions/`` tree at all. Prefer the resources root when it really
+    has the tree, then the source-tree root next to this package, then the
+    resources root unchanged (so callers see the same miss as before instead
+    of silently resolving into an unrelated directory).
+    """
+    root = resources_root()
+    if (root / "extensions" / "workbuddy-connectors").is_dir():
+        return root
+    pkg_root = Path(__file__).resolve().parents[3]
+    if (pkg_root / "extensions" / "workbuddy-connectors").is_dir():
+        return pkg_root
+    return root
+
+
 def bundled_market_skills_dir() -> Path:
     """Return the prompt-skill fallback bundled inside the Python package.
 
@@ -293,6 +320,7 @@ __all__ = [
     "AppPaths",
     "app_paths",
     "bundled_market_skills_dir",
+    "extensions_root",
     "project_root",
     "resources_root",
 ]
