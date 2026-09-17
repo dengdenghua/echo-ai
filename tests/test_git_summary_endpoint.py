@@ -3,9 +3,9 @@
 The endpoint exists so the workspace note badge can answer "how much changed,
 and where does the branch stand?" in a single cheap poll instead of shelling
 out three times. These tests pin the payload shape (branch / upstream / ahead /
-behind / changed_files / added / removed) and the two graceful degradations
-that matter in practice: a directory that is not a git repository, and a
-repository whose ``HEAD`` does not exist yet.
+behind / changed_files / untracked_files / added / removed) and the two graceful
+degradations that matter in practice: a directory that is not a git repository,
+and a repository whose ``HEAD`` does not exist yet.
 """
 
 from __future__ import annotations
@@ -77,6 +77,7 @@ class TestGitSummary:
 
         assert payload["branch"] == branch
         assert payload["changed_files"] == 0
+        assert payload["untracked_files"] == 0
         assert payload["added"] == 0
         assert payload["removed"] == 0
         assert payload["error"] is None
@@ -89,16 +90,43 @@ class TestGitSummary:
         # Tracked edit: one line removed, three lines added.
         (repo / "a.txt").write_text("one\nthree\nfour\nfive\n", encoding="utf-8")
         # Untracked file: counts as a file, but ``git diff`` cannot see its
-        # lines — that is exactly the asymmetry ``diff_error`` documents.
+        # lines. That asymmetry must surface as ``untracked_files``, and it
+        # must NOT be mistaken for a diff failure.
         (repo / "b.txt").write_text("untracked\n", encoding="utf-8")
 
         payload = _summary(client, repo)
 
         assert payload["branch"] == branch
         assert payload["changed_files"] == 2
+        assert payload["untracked_files"] == 1
         assert payload["added"] == 3
         assert payload["removed"] == 1
         assert payload["error"] is None
+        assert payload["diff_error"] is None
+
+    def test_untracked_only_changes_explain_the_missing_line_totals(
+        self, client: TestClient, tmp_path: Path
+    ) -> None:
+        """A brand-new untracked file is the case a bare zero would mislead.
+
+        ``git diff`` succeeds and prints nothing, so ``added`` / ``removed``
+        are correctly ``0`` — but the tree is emphatically not clean. The
+        badge needs ``untracked_files`` to say so, which is why this asserts
+        the counter *and* that the diff itself is not blamed.
+        """
+        repo = tmp_path / "untracked-only"
+        branch = _init_repo(repo)
+        (repo / "brand-new.txt").write_text("brand\nnew\nlines\n", encoding="utf-8")
+
+        payload = _summary(client, repo)
+
+        assert payload["branch"] == branch
+        assert payload["changed_files"] == 1
+        assert payload["untracked_files"] == 1
+        assert payload["added"] == 0
+        assert payload["removed"] == 0
+        assert payload["error"] is None
+        assert payload["diff_error"] is None
 
     def test_upstream_tracking_is_parsed_from_status_header(
         self, client: TestClient, tmp_path: Path
@@ -152,9 +180,7 @@ class TestGitSummary:
         assert payload["error"]
 
     def test_missing_directory_is_a_404(self, client: TestClient, tmp_path: Path) -> None:
-        response = client.get(
-            "/api/git/summary", params={"path": str(tmp_path / "nope")}
-        )
+        response = client.get("/api/git/summary", params={"path": str(tmp_path / "nope")})
 
         assert response.status_code == 404
 

@@ -8,8 +8,10 @@ import { swallow } from "@/core/utils/log";
  * Aggregated git counts for the workspace note badge.
  *
  * Mirrors ``GET /api/git/summary`` — branch position plus how much the
- * working tree moved. ``diffError`` means the file count is trustworthy but
- * the added/removed totals are not (untracked files never appear in a diff).
+ * working tree moved. ``untrackedFiles`` is the reason to distrust a zero in
+ * ``added`` / ``removed``: untracked files count towards ``changedFiles`` but
+ * never appear in a diff, so a caller that wants to explain the missing line
+ * totals must look there, not at ``diffError``.
  */
 export interface GitSummary {
   branch: string;
@@ -17,10 +19,13 @@ export interface GitSummary {
   ahead: number;
   behind: number;
   changedFiles: number;
+  /** Counted in ``changedFiles``; invisible to ``git diff``. */
+  untrackedFiles: number;
   added: number;
   removed: number;
   /** ``git`` itself failed (missing binary, timeout, not a repository). */
   error: string | null;
+  /** ``git diff`` failed on its own — line totals are unusable. */
   diffError: string | null;
 }
 
@@ -30,6 +35,7 @@ interface GitSummaryPayload {
   ahead?: unknown;
   behind?: unknown;
   changed_files?: unknown;
+  untracked_files?: unknown;
   added?: unknown;
   removed?: unknown;
   error?: unknown;
@@ -58,6 +64,7 @@ export function normalizeGitSummary(
     ahead: toCount(payload.ahead),
     behind: toCount(payload.behind),
     changedFiles: toCount(payload.changed_files),
+    untrackedFiles: toCount(payload.untracked_files),
     added: toCount(payload.added),
     removed: toCount(payload.removed),
     error: typeof payload.error === "string" ? payload.error : null,

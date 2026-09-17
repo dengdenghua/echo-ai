@@ -7001,6 +7001,7 @@ export const zhCN: Translations = {
     pullRequestHint:
       "echo 还没接入 Pull Request 数据源；接上 gh 或托管平台 API 后这里会显示真实状态。",
     trackedOnly: "行数只统计已跟踪文件。",
+    diffUnavailable: "差异比对失败，无法统计行数。",
     unavailable: "读取工作区状态失败，显示的是上次结果。",
     processSection: "进程",
     processProgress: (current, total) => `${current}/${total}`,

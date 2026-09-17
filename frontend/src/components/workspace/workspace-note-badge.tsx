@@ -279,9 +279,20 @@ export function WorkspaceNoteBadge({
               </span>
             </NoteRow>
 
-            {summary?.diffError ? (
-              <p className="px-2 pt-0.5 text-[11px] leading-snug text-muted-foreground/60">
+            {summary && summary.untrackedFiles > 0 ? (
+              <p
+                data-note-untracked={summary.untrackedFiles}
+                className="px-2 pt-0.5 text-[11px] leading-snug text-muted-foreground/60"
+              >
                 {t.workspaceNote.trackedOnly}
+              </p>
+            ) : null}
+            {summary?.diffError ? (
+              <p
+                data-note-diff-error="true"
+                className="px-2 pt-0.5 text-[11px] leading-snug text-muted-foreground/60"
+              >
+                {t.workspaceNote.diffUnavailable}
               </p>
             ) : null}
             {error ? (

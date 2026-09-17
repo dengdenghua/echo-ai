@@ -7408,6 +7408,7 @@ Strategy:
     pullRequestHint:
       "echo has no pull request source wired up yet; connect gh or a host API to fill this in.",
     trackedOnly: "Line totals cover tracked files only.",
+    diffUnavailable: "Couldn't diff the tree — no line totals.",
     unavailable: "Couldn't read workspace status — showing the last reading.",
     processSection: "Progress",
     processProgress: (current, total) => `${current}/${total}`,
