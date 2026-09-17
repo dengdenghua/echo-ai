@@ -9,7 +9,9 @@ from __future__ import annotations
 import hashlib
 import io
 import json
+import os
 import tarfile
+from pathlib import Path
 
 import pytest
 
@@ -157,7 +159,15 @@ class TestExtractMember:
         assert (out / "SKILL.md").exists()
         assert (out / "scripts" / "gen.py").exists()
 
-    def test_normalizes_archive_file_modes(self, tmp_path):
+    def test_normalizes_archive_file_modes(self, tmp_path, monkeypatch):
+        original_chmod = Path.chmod
+        requested_modes = {}
+
+        def record_chmod(path, mode, **kwargs):
+            requested_modes[path.name] = mode
+            return original_chmod(path, mode, **kwargs)
+
+        monkeypatch.setattr(Path, "chmod", record_chmod)
         buf = io.BytesIO()
         with tarfile.open(fileobj=buf, mode="w:gz") as tf:
             for name, mode in (("run.sh", 0o4777), ("config.json", 0o666)):
@@ -177,8 +187,13 @@ class TestExtractMember:
         )
 
         assert out is not None
-        assert (out / "run.sh").stat().st_mode & 0o7777 == 0o755
-        assert (out / "config.json").stat().st_mode & 0o7777 == 0o644
+        assert requested_modes == {"run.sh": 0o755, "config.json": 0o644}
+        assert (out / "run.sh").read_bytes() == b"content"
+        assert (out / "config.json").read_bytes() == b"content"
+        # Windows chmod only controls the read-only flag; POSIX preserves all mode bits.
+        if os.name != "nt":
+            assert (out / "run.sh").stat().st_mode & 0o7777 == 0o755
+            assert (out / "config.json").stat().st_mode & 0o7777 == 0o644
 
     def test_missing_member_returns_none(self, tmp_path):
         pack = tmp_path / "pack.tar.gz"

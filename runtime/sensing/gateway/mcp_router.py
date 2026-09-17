@@ -167,7 +167,7 @@ def create_mcp_router(
             jwt_secret=jwt_secret,
             jwt_issuer=jwt_issuer,
             jwt_audience=jwt_audience,
-        )
+        )  # AUTH-OK: actor-agnostic; resolved request principal supplies the tenant key for MCP operations
 
     def _operator_dep(request: Request) -> None:
         if request.url.path.endswith("/api/mcp/oauth/callback"):

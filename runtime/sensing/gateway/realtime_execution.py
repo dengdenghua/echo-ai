@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import asyncio
 import re
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
@@ -17,8 +18,10 @@ from typing import Any
 from runtime.execution.artifact_contracts import HandoffRecorder
 from runtime.execution.codex_backend.readiness import CodexReadiness
 from runtime.execution.engines import (
+    CapabilityRequest,
     EngineId,
     EngineSelectionError,
+    ExecutionAdapter,
     ExecutionPhase,
     ExecutionRoute,
     ExecutionSupervisor,
@@ -57,6 +60,40 @@ def is_coding_task(intent: ParsedIntent) -> bool:
         or context.get("capability_mode") == "code"
         or context.get("personal_mode") == "build"
     )
+
+
+def turn_requires_vision(turn: Turn, intent: ParsedIntent) -> bool:
+    """True when the turn carries an image the model is expected to look at.
+
+    Both sources are host-established facts, never a guess at the prompt text:
+    the pipeline's parsed modalities, and the attachment metadata the client
+    sent with the turn. Prompt wording is deliberately ignored — "look at this"
+    with no attachment is not a vision task, and an attached screenshot with no
+    words is.
+    """
+    if "image" in (intent.modalities or ()):
+        return True
+    blocks = list(getattr(getattr(turn, "params", None), "input", None) or ())
+    if not blocks:
+        return False
+    from runtime.core.cerebrum._react_context_attachments import (
+        _image_blocks_from_attachments,
+    )
+    from runtime.sensing.gateway.realtime_turn_input import _input_attachments
+
+    image_blocks, _consumed = _image_blocks_from_attachments(_input_attachments(blocks))
+    return bool(image_blocks)
+
+
+def turn_capability_request(turn: Turn, intent: ParsedIntent) -> CapabilityRequest:
+    """What this turn structurally needs from its engine.
+
+    Vision is the only signal wired today. Team orchestration is absent on
+    purpose: ``coordinated``, ``topology_id`` and ``group_fanout`` all dispatch
+    host schedulers, so they are not evidence that the *engine* must orchestrate
+    a team — deriving it here would reject the tested OpenCode coordinator path.
+    """
+    return CapabilityRequest(vision=turn_requires_vision(turn, intent))
 
 
 def codex_readiness_for_turn(runtime: Any, turn: Turn, agent: Any) -> CodexReadiness:
@@ -130,18 +167,42 @@ async def select_turn_execution(
     requested = getattr(turn.params, "execution_engine", "auto")
     config = getattr(getattr(runtime, "_stack", None), "config", None)
     default_member = getattr(getattr(config, "execution", None), "member_engine", "echo")
-    route = select_execution_route(
-        project_command=project_command,
-        group_fanout=group_fanout,
-        topology_id=topology_id,
-        codex_partner=codex_partner,
-        reflection_fast_path=reflection_fast_path,
-        requested_engine=None if requested == "auto" else EngineId(requested),
-        coding_task=is_coding_task(intent),
-        coordinated=coordinated,
-        coordinator_engine=EngineId.OPENCODE if default_member == "opencode" else None,
-        default_engine=EngineId.OPENCODE if default_member == "opencode" else None,
-    )
+    required = turn_capability_request(turn, intent)
+    try:
+        route = select_execution_route(
+            project_command=project_command,
+            group_fanout=group_fanout,
+            topology_id=topology_id,
+            codex_partner=codex_partner,
+            reflection_fast_path=reflection_fast_path,
+            requested_engine=None if requested == "auto" else EngineId(requested),
+            coding_task=is_coding_task(intent),
+            coordinated=coordinated,
+            coordinator_engine=EngineId.OPENCODE if default_member == "opencode" else None,
+            default_engine=EngineId.OPENCODE if default_member == "opencode" else None,
+            required=required,
+        )
+    except EngineSelectionError as exc:
+        if requested != "auto" or exc.reason != "capability_unmet":
+            raise
+        # Auto routing resolved a path this turn cannot use — typically the
+        # text-only OpenCode free path with an image attached. Rebinding here is
+        # still selection before any effect, not recovery from a failed engine;
+        # an explicit engine choice stays failed-closed above so the user learns
+        # why their pick cannot run instead of silently getting another one.
+        # Change the model engine while retaining the host's project/team
+        # scheduler. A vision fallback must not turn a group task into chat.
+        fallback = select_execution_route(
+            project_command=project_command,
+            group_fanout=group_fanout,
+            topology_id=topology_id,
+            coordinated=coordinated,
+            requested_engine=EngineId.ECHO,
+            required=required,
+        )
+        route = ExecutionRoute(
+            fallback.engine, fallback.driver, f"capability_unmet:{','.join(exc.unmet)}"
+        )
     if route.engine is EngineId.ECHO:
         return route
     if route.engine is EngineId.OPENCODE:
@@ -306,11 +367,14 @@ def bind_turn_execution(
         # this host turn instead of granting every continuation a new window.
         context.maximum_duration_s = _turn_timeout_s()
     host = _TurnHost(runtime, turn, log, emitter, provider, agent, route, topology_id, context)
-    adapter = {
-        EngineId.CODEX: CodexExecutionAdapter,
-        EngineId.OPENCODE: OpenCodeExecutionAdapter,
-        EngineId.ECHO: NativeExecutionAdapter,
-    }[route.engine](host)
+    adapter_by_engine: dict[
+        EngineId, Callable[[_TurnHost], ExecutionAdapter[TurnExecutionRequest]]
+    ] = {
+        EngineId.CODEX: lambda host: CodexExecutionAdapter(host),
+        EngineId.OPENCODE: lambda host: OpenCodeExecutionAdapter(host),
+        EngineId.ECHO: lambda host: NativeExecutionAdapter(host),
+    }
+    adapter = adapter_by_engine[route.engine](host)
 
     async def before_invoke(phase: ExecutionPhase, invocation: int) -> None:
         snapshot = ExecutionSnapshot(

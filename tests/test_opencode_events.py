@@ -279,9 +279,7 @@ async def test_task_cancellation_aborts_and_retires_warm_process(
         monkeypatch.setattr(backend, "_warm_lock_loop", None)
 
         async def run():
-            async with backend.managed_server(
-                "opencode", tmp_path, None, "big-pickle", False
-            ) as current:
+            async with backend.managed_server("opencode", tmp_path, None, "big-pickle") as current:
                 async for _ in stream_prompt(
                     current,
                     "ses_test",

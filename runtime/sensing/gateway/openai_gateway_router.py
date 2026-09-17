@@ -170,7 +170,7 @@ def create_openai_router(
             jwt_issuer=jwt_issuer,
             jwt_audience=jwt_audience,
             jwt_leeway_seconds=jwt_leeway_seconds,
-        )
+        )  # AUTH-OK: actor-agnostic; shared model metadata; configuration writes require operator
         return _list_openai_models()
 
     @router.get("/api/models")
@@ -183,7 +183,7 @@ def create_openai_router(
             jwt_issuer=jwt_issuer,
             jwt_audience=jwt_audience,
             jwt_leeway_seconds=jwt_leeway_seconds,
-        )
+        )  # AUTH-OK: actor-agnostic; shared model metadata; configuration writes require operator
         return {
             "models": [
                 {
@@ -209,7 +209,7 @@ def create_openai_router(
             jwt_issuer=jwt_issuer,
             jwt_audience=jwt_audience,
             jwt_leeway_seconds=jwt_leeway_seconds,
-        )
+        )  # AUTH-OK: actor-agnostic; shared model metadata; configuration writes require operator
         from .openai_gateway.mix import _DEFAULT_N, load_mix_config
 
         cfg = load_mix_config()
@@ -221,7 +221,9 @@ def create_openai_router(
 
     @router.put("/api/mix-config")
     def put_mix_config(body: dict[str, Any], request: Request) -> dict[str, Any]:
-        _resolve_actor(
+        from runtime.safety.auth.principal import require_operator
+
+        require_operator(
             request,
             identity_store,
             require_auth,

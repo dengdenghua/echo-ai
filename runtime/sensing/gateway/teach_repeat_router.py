@@ -191,7 +191,7 @@ def create_teach_repeat_router(
 
     @router.post("/api/teach-repeat/record/start")
     def start_recording(request: Request, body: StartRecordingRequest) -> dict[str, Any]:
-        _auth(request)
+        _auth(request)  # AUTH-OK: actor-agnostic; router _route_dep already requires operator
         thread_id = body.thread_id.strip()
         if not thread_id:
             raise HTTPException(400, "thread_id is required")
@@ -220,7 +220,7 @@ def create_teach_repeat_router(
         request: Request,
         body: AppendRecordingEventsRequest,
     ) -> dict[str, Any]:
-        _auth(request)
+        _auth(request)  # AUTH-OK: actor-agnostic; router _route_dep already requires operator
         thread_id = body.thread_id.strip()
         if not thread_id:
             raise HTTPException(400, "thread_id is required")
@@ -239,7 +239,7 @@ def create_teach_repeat_router(
 
     @router.post("/api/teach-repeat/record/stop")
     def stop_recording(request: Request, body: StopRecordingRequest) -> dict[str, Any]:
-        _auth(request)
+        _auth(request)  # AUTH-OK: actor-agnostic; router _route_dep already requires operator
         from runtime.safety.auth.scope import scope_from_request
 
         scope = scope_from_request(request)
@@ -325,7 +325,7 @@ def create_teach_repeat_router(
 
     @router.get("/api/teach-repeat/record/status")
     def recording_status(request: Request, thread_id: str) -> dict[str, Any]:
-        _auth(request)
+        _auth(request)  # AUTH-OK: actor-agnostic; router _route_dep already requires operator
         rec = store.status(thread_id)
         if rec is None:
             return {"recording": False, "step_count": 0, "name": ""}
@@ -348,7 +348,7 @@ def create_teach_repeat_router(
         search: str = "",
         tag: str = "",
     ) -> dict[str, Any]:
-        _auth(request)
+        _auth(request)  # AUTH-OK: actor-agnostic; router _route_dep already requires operator
         items = list(_TEMPLATES.values())
         if search:
             needle = search.lower()
@@ -384,7 +384,7 @@ def create_teach_repeat_router(
 
     @router.get("/api/teach-repeat/templates/{template_id}")
     def get_template(request: Request, template_id: str) -> dict[str, Any]:
-        _auth(request)
+        _auth(request)  # AUTH-OK: actor-agnostic; router _route_dep already requires operator
         template = _TEMPLATES.get(template_id)
         if template is None:
             raise HTTPException(404, "Template not found")
@@ -396,7 +396,7 @@ def create_teach_repeat_router(
         template_id: str,
         body: TemplateUpdateRequest,
     ) -> dict[str, Any]:
-        _auth(request)
+        _auth(request)  # AUTH-OK: actor-agnostic; router _route_dep already requires operator
         template = _TEMPLATES.get(template_id)
         if template is None:
             raise HTTPException(404, "Template not found")
@@ -411,7 +411,7 @@ def create_teach_repeat_router(
 
     @router.delete("/api/teach-repeat/templates/{template_id}")
     def delete_template(request: Request, template_id: str) -> dict[str, Any]:
-        _auth(request)
+        _auth(request)  # AUTH-OK: actor-agnostic; router _route_dep already requires operator
         _TEMPLATES.pop(template_id, None)
         return {"ok": True}
 
@@ -421,7 +421,7 @@ def create_teach_repeat_router(
         template_id: str,
         body: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
-        _auth(request)
+        _auth(request)  # AUTH-OK: actor-agnostic; router _route_dep already requires operator
         if template_id not in _TEMPLATES:
             raise HTTPException(404, "Template not found")
         _TEMPLATES[template_id]["use_count"] = (
@@ -449,7 +449,7 @@ def create_teach_repeat_router(
 
     @router.post("/api/teach-repeat/templates/{template_id}/duplicate")
     def duplicate_template(request: Request, template_id: str) -> dict[str, Any]:
-        _auth(request)
+        _auth(request)  # AUTH-OK: actor-agnostic; router _route_dep already requires operator
         template = _TEMPLATES.get(template_id)
         if template is None:
             raise HTTPException(404, "Template not found")

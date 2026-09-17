@@ -530,15 +530,15 @@ def _register_public_prompt_skills(skill_registry: Any, skills_root: Path) -> in
 
 
 def _category_for(agent_id: str) -> str:
-    if agent_id == "coder":
+    if agent_id in {"coder", "kane"}:
         return "coder"
-    if agent_id in {"general", "echo"}:
+    if agent_id in {"general", "eve", "echo"}:
         return "assistant"
-    if agent_id in {"ecommerce_mind"}:
+    if agent_id in {"ecommerce_mind", "shion"}:
         return "specialist"
-    if agent_id in {"vibe_selling"}:
+    if agent_id in {"vibe_selling", "luna"}:
         return "creative"
-    if agent_id in {"desktop_operator", "admin"}:
+    if agent_id in {"desktop_operator", "admin", "raven", "leon"}:
         return "automation"
     return "assistant"
 
@@ -813,3 +813,44 @@ def _list_local_agents() -> list[dict[str, Any]]:
         if _local_agents_signature(root) == signature:
             _LOCAL_AGENTS_CACHE = (root_key, signature, agents)
         return copy.deepcopy(agents)
+
+
+def template_to_agent_dict(
+    template: dict[str, Any],
+    *,
+    installed: set[str],
+    private_skills: list[str],
+    available_skills: list[str],
+    source_kind: str,
+) -> dict[str, Any]:
+    """模板 → 与 ``_list_local_agents`` 同形状的 dict(供按 id 直查 / 安装用,
+    不进入列表)。"""
+    agent_id = template["id"]
+    return {
+        "id": agent_id,
+        "name": agent_id,
+        "display_name": template["display_name"],
+        "description": template["description"],
+        "author": template["author"],
+        "category": template["category"],
+        "tags": template["tags"],
+        "icon": template["icon"],
+        "avatar_url": None,
+        "model": None,
+        "tool_groups": ["fs_writer", "git", "shell"],
+        "extra_affinity": list(template["tags"]),
+        "private_skills": private_skills,
+        "capabilities": {},
+        "version": "1.0.0",
+        "downloads": 0,
+        "rating": 4.5,
+        "rating_count": 0,
+        "is_featured": bool(template.get("featured")),
+        "is_official": template["author"] == "echo",
+        "is_installed": agent_id in installed,
+        "source_kind": source_kind,
+        "created_at": "0",
+        "source_url": template.get("source_url"),
+        "key_skills": list(private_skills),
+        "available_skills": available_skills,
+    }

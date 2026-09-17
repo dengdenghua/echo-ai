@@ -86,7 +86,7 @@ def test_create_project_group_commits_every_surface(tmp_path: Path) -> None:
     state = groups.state(thread_id)
     assert state.room_id == room_id
     assert state.mode == "cluster"
-    assert [member.id for member in state.roster] == ["general", "coder"]
+    assert [member.id for member in state.roster] == ["eve", "kane"]
     assert payload["room"]["thread_id"] == thread_id
     assert collaboration.session_id_for_room(room_id) == thread_id
     assert collaboration.room_for_session(thread_id)["metadata"]["project_id"] == project_id
@@ -111,13 +111,13 @@ def test_create_project_group_keeps_noncore_roles_as_members(tmp_path: Path) -> 
     thread_id = response.json()["thread_id"]
     thread = threads.get(thread_id)
     assert thread is not None
-    assert thread["metadata"]["agent_name"] == "general"
+    assert thread["metadata"]["agent_name"] == "eve"
     assert [member.id for member in groups.state(thread_id).roster] == [
-        "general",
+        "eve",
         "planner",
         "installed_code_reviewer",
     ]
-    assert response.json()["room"]["leaderId"] == "general"
+    assert response.json()["room"]["leaderId"] == "eve"
 
 
 @pytest.mark.parametrize("repair_fails", [False, True])

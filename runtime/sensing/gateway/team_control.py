@@ -36,7 +36,9 @@ async def ensure_running():
         try:
             await control("GET", "status")
             return
-        except httpx.ConnectError:
+        except (
+            httpx.ConnectError
+        ):  # intentional: Start the local service when no instance is listening.
             pass
         ROOT.mkdir(parents=True, exist_ok=True)
         with (ROOT / "service.log").open("ab") as log:

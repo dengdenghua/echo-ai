@@ -7,6 +7,7 @@ import threading
 import time
 import urllib.request
 from collections.abc import Iterator
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from typing import Any
 
@@ -21,6 +22,9 @@ from runtime.execution.suckers.browser_launch import (
     launch_persistent_chromium,
 )
 from runtime.execution.suckers.registry import SkillRegistry
+from runtime.platform.plugins.automation import prepare_automation_plugins, register_managed_group
+from runtime.platform.plugins.plugin_hub import PluginHub
+from runtime.platform.runtime_policy import capabilities
 from runtime.platform.ui.browser_router import create_browser_router
 from runtime.safety.auth import Identity, IdentityStore
 
@@ -169,10 +173,27 @@ def loaded_extension_id(context: Any) -> str:
 
 
 @pytest.fixture
+def automation_host(tmp_path, monkeypatch):
+    monkeypatch.setattr(capabilities, "_store_path", lambda: tmp_path / "capabilities.json")
+    registry = SkillRegistry()
+    hub = PluginHub(
+        plugin_dir=tmp_path / "plugins",
+        bundled_plugin_dir=ROOT / "runtime/platform/plugins/bundled",
+        skill_registry=registry,
+        activation_root=tmp_path / "activation",
+        data_root=tmp_path / "plugin-data",
+    )
+    prepare_automation_plugins(registry, enable_web=True, hub=hub)
+    register_managed_group(registry, "browser_act")
+    return registry, hub
+
+
+@pytest.fixture
 def live_extension_runtime(
     request: pytest.FixtureRequest,
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
+    automation_host,
 ) -> Iterator[tuple[str, Any, Path, str]]:
     require_auth = bool(getattr(request, "param", False))
     api_key = "sk-chrome-extension" if require_auth else ""
@@ -197,6 +218,7 @@ def live_extension_runtime(
     if api_key:
         monkeypatch.setenv("ECHO_BROWSER_RELAY_TOKEN", api_key)
     app = FastAPI()
+    app.state.plugin_hub = automation_host[1]
     identity_store = None
     if require_auth:
         identity_store = IdentityStore()
@@ -519,6 +541,52 @@ def test_real_chrome_extension_observes_and_operates_active_tab(
         lambda: page.locator("html").get_attribute("data-cursor-restored") == "true",
         timeout=3,
     )
+
+
+@pytest.mark.parametrize("reenable_immediately", [False, True])
+def test_plugin_disable_cancels_pending_click_and_reconnects(
+    live_extension_runtime, automation_host, reenable_immediately
+):
+    base_url, context, _extension, _api_key = live_extension_runtime
+    registry, hub = automation_host
+    page = context.pages[0]
+    page.goto(f"{base_url}/fixture")
+    wait_until(lambda: request_json(base_url, "/api/browser/relay/status").get("push_connected"))
+    page.evaluate("""() => {
+      const button = document.createElement('button');
+      button.id = 'late'; button.disabled = true; button.textContent = 'Late action';
+      window.lateClicks = 0; button.onclick = () => window.lateClicks++;
+      document.body.prepend(button);
+    }""")
+    cached = registry.get("live_browser_click").handler
+    with ThreadPoolExecutor(max_workers=1) as executor:
+        pending = executor.submit(cached, selector="#late")
+        wait_until(
+            lambda: (
+                request_json(base_url, "/api/browser/relay/status").get("control", {}).get("lease")
+            )
+        )
+        # Ensure the extension is already waiting inside the DOM action.
+        page.wait_for_timeout(300)
+        hub.disable_plugin("browser_control")
+        if reenable_immediately:
+            hub.enable_plugin("browser_control")
+        with pytest.raises(RuntimeError, match="revoked"):
+            cached(selector="#late")
+        page.wait_for_timeout(400)
+        page.evaluate("document.querySelector('#late').disabled = false")
+        page.wait_for_timeout(500)
+        assert page.evaluate("window.lateClicks") == 0
+        result = pending.result(timeout=12)
+        assert result.get("ok") is False
+    if not reenable_immediately:
+        hub.enable_plugin("browser_control")
+    wait_until(
+        lambda: request_json(base_url, "/api/browser/relay/status").get("push_connected"),
+        timeout=12,
+    )
+    assert registry.get("live_browser_click").handler(selector="#late")["ok"] is True
+    assert page.evaluate("window.lateClicks") == 1
 
 
 @pytest.mark.parametrize("live_extension_runtime", [True], indirect=True)

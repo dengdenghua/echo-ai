@@ -7,7 +7,10 @@ import pytest
 
 from runtime.memory.cowork.group_store import GroupStore
 from runtime.protocol import Turn
-from runtime.sensing.gateway._realtime_cerebrum_project_os import _parse_project_os_control
+from runtime.sensing.gateway._realtime_cerebrum_project_os import (
+    _drive_project_os,
+    _parse_project_os_control,
+)
 from runtime.sensing.gateway.realtime_project_initiation import initiate_project
 
 
@@ -173,7 +176,11 @@ def setup(tmp_path, action="accept", questions=None):
         "questions": questions or [],
         "deliverables": ["新品发布方案与可运行原型"],
         "acceptance_criteria": ["原型完成指定发布流程并提交测试结果"],
-        "requirements_review": {"ready": True, "understanding": ["先明确发布方案，再验证原型"], "reason": "目标和验收依据明确"},
+        "requirements_review": {
+            "ready": True,
+            "understanding": ["先明确发布方案，再验证原型"],
+            "reason": "目标和验收依据明确",
+        },
     }
 
     async def approve(*args, **kwargs):
@@ -193,6 +200,28 @@ def setup(tmp_path, action="accept", questions=None):
         prepare=lambda **_: deepcopy(proposal),
     )
     return runtime, emitter, kwargs, proposal
+
+
+def test_bare_project_command_shows_help_without_binding_project(tmp_path):
+    runtime = SimpleNamespace(
+        _cowork_group_store=GroupStore(tmp_path),
+        _emit_agent_message=AsyncMock(),
+    )
+    emitter = SimpleNamespace(actor_id="", tenant_id="", is_turn_interrupted=lambda _: False)
+    intent = SimpleNamespace(user_context={}, normalized_goal="")
+    asyncio.run(
+        _drive_project_os(
+            runtime,
+            Turn(threadId="thread"),
+            None,
+            emitter,
+            intent,
+            thread_id="thread",
+            text="/project",
+        )
+    )
+    runtime._emit_agent_message.assert_awaited_once()
+    assert "只有显式输入 /project run <目标>" in runtime._emit_agent_message.await_args.args[-1]
 
 
 @pytest.mark.parametrize("action", ["accept", "decline"])
@@ -322,6 +351,27 @@ def test_proposal_uses_selected_turn_model(tmp_path):
         )
     )
     assert seen["model"] == "chosen-model"
+
+
+def test_explicit_project_request_survives_goal_stripping(tmp_path):
+    runtime, emitter, kwargs, proposal = setup(tmp_path)
+    seen = {}
+
+    def prepare(**values):
+        seen.update(values)
+        return proposal
+
+    kwargs["prepare"] = prepare
+    asyncio.run(
+        initiate_project(
+            runtime,
+            Turn(threadId="thread"),
+            None,
+            emitter,
+            **{**kwargs, "explicit_project_request": True},
+        )
+    )
+    assert seen["explicit_project_request"] is True
 
 
 def test_provider_failure_is_not_reported_as_bad_staffing(tmp_path):

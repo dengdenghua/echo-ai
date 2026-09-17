@@ -142,9 +142,7 @@ def resolve_explicit_skill_instructions(
             body = raw
         body = _bounded(body, limit=_MAX_SKILL_INSTRUCTIONS)
         if body:
-            sections.append(
-                f"<explicit-echo-skill name={name!r}>\n{body}\n</explicit-echo-skill>"
-            )
+            sections.append(f"<explicit-echo-skill name={name!r}>\n{body}\n</explicit-echo-skill>")
     if not sections:
         return ""
     return (
@@ -228,6 +226,24 @@ def compose_role_instructions(
         if explicit:
             sections.append(explicit)
 
+    sections.append(
+        "<clarification-interaction>When missing user preferences or requirements prevent useful progress, "
+        "use ask_user_question if advertised, with questions=[{title,options,multiple}] (1-3 questions). "
+        "Ask only missing information; allow free text and uncertainty, and never invent answers. "
+        "If the tool is unavailable, render the same questionnaire as a JSON fenced block with "
+        'type="clarification_questionnaire" and questions containing title, options, multiple. '
+        "Do not replace a questionnaire with a long numbered interrogation. User answers do not authorize "
+        "project creation or adding members. End the turn to await the answer.</clarification-interaction>"
+    )
+    sections.append(
+        "<tool-error-recovery>工具失败时依据本轮返回的 error_type 和具体操作判断原因。"
+        "read_before_write_required 表示需先读取当前文件：调用 recovery 指定的读取工具，"
+        "核对最新内容、调整修改后重试，不要为此要求用户恢复终端权限。"
+        "只有终端工具实际返回权限拒绝，才能报告终端执行受限；引用具体命令和错误。"
+        "exec_shell 优先传入 argv 数组，尤其在 Windows 上执行带引号的 python -c。"
+        "退出码为 0 只说明进程退出成功，仍需检查预期输出、文件差异或测试结果，"
+        "再报告任务完成。</tool-error-recovery>"
+    )
     sections.append(
         "<search-policy>使用当前引擎实际可用且获授权的搜索工具。原生搜索失败或不可用时，"
         "若本轮工具目录提供 web_search，则调用该宿主搜索工具；不得把记忆当作搜索结果。"

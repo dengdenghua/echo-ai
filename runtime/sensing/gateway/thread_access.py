@@ -249,16 +249,34 @@ class ThreadAccessResolver:
             )
 
         room_id = self._linked_room_id(thread_id)
+        # A project group explicitly created by an auth-off host is local too.
+        # Do not extend the grant to arbitrary linked rooms or authenticated hosts.
+        local_project_room = False
+        if (
+            self._allow_anonymous_ownerless
+            and not actor and not owner and not stored_tenant
+            and metadata.get("local_project_group") is True and room_id
+        ):
+            room = self._room_snapshot(room_id) or {}
+            room_meta = room.get("metadata") or {}
+            local_project_room = bool(
+                isinstance(room_meta, dict)
+                and metadata.get("group_creation_id")
+                and room_meta.get("group_creation_id") == metadata["group_creation_id"]
+                and not room_meta.get("tenant_id")
+                and room.get("owner_id") == "local"
+                and room.get("tenant_id") == "local"
+            )
         if (
             self._allow_anonymous_ownerless
             and not actor
             and not owner
             and not stored_tenant
-            and not room_id
+            and (not room_id or local_project_room)
         ):
             # Auth-off local threads have no principal with which to prove
             # ownership.  Only restore the legacy grant when the canonical row
-            # itself is ownerless/tenantless and no Team Room owns it.  In
+            # itself is ownerless/tenantless and no shared Team Room owns it. In
             # particular, never infer this from a thread-id prefix (``eval-`` is
             # merely one producer of such historical rows).
             return ThreadAccessDecision(

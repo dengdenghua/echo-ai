@@ -9,6 +9,7 @@ import json
 import re
 import uuid
 from pathlib import Path
+from typing import Any
 
 import httpx
 from fastapi import Depends, FastAPI, HTTPException, Request
@@ -85,7 +86,9 @@ def create_team_gateway(root=ROOT, *, transport=None):
         if body.wire_api not in {"responses", "chat_completions"}:
             raise HTTPException(400, "不支持的接口协议")
         if not body.api_key:
-            previous = next((m for m in store.models(private=True) if m["id"] == model_id), {})
+            previous: dict[str, Any] = next(
+                (m for m in store.models(private=True) if m["id"] == model_id), {}
+            )
             config["api_key"] = previous.get("api_key", "")
         if not config["api_key"] or any(not 33 <= ord(c) <= 126 for c in config["api_key"]):
             raise HTTPException(400, "请填写有效的上游 Key 或热点凭证")
@@ -256,7 +259,7 @@ def create_team_gateway(root=ROOT, *, transport=None):
         )
         body["model"] = model["upstream_model"]
         call_id = uuid.uuid4().hex
-        queue = asyncio.Queue(maxsize=8)
+        queue: asyncio.Queue[bytes | Exception | None] = asyncio.Queue(maxsize=8)
         ready = asyncio.get_running_loop().create_future()
         store.audit(call_id, grant["id"], selected, "running")
 
@@ -328,9 +331,7 @@ def create_team_gateway(root=ROOT, *, transport=None):
                 while True:
                     get = asyncio.create_task(queue.get())
                     try:
-                        await asyncio.wait(
-                            {get, task}, return_when=asyncio.FIRST_COMPLETED
-                        )
+                        await asyncio.wait({get, task}, return_when=asyncio.FIRST_COMPLETED)
                         # The queue reader can finish after wait's snapshot but
                         # before this coroutine resumes; inspect its live state.
                         if get.done():

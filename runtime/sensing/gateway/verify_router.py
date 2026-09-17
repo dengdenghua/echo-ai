@@ -59,9 +59,9 @@ def create_verify_router(
     def _auth(request: Request) -> str | None:
         if require_auth and identity_store is None:
             raise HTTPException(401, "auth required")
-        from runtime.sensing.gateway.openai_gateway_router import _resolve_actor
+        from runtime.safety.auth.principal import require_operator
 
-        return _resolve_actor(
+        principal = require_operator(
             request,
             identity_store,
             require_auth,
@@ -69,13 +69,16 @@ def create_verify_router(
             jwt_issuer=jwt_issuer,
             jwt_audience=jwt_audience,
         )
+        return principal.actor_id if principal is not None else None
 
     @router.post("/api/verify/detect")
     def api_verify_detect(
         request: Request,
         body: VerifyDetectRequest,
     ) -> dict[str, Any]:
-        _auth(request)
+        _auth(
+            request
+        )  # AUTH-OK: actor-agnostic; _auth requires operator before accessing host project files
         from runtime.execution.suckers.verify_skills import detect_project
 
         profile = detect_project(body.workspace)
@@ -87,7 +90,9 @@ def create_verify_router(
 
     @router.post("/api/verify/run")
     def api_verify_run(request: Request, body: VerifyRunRequest) -> dict[str, Any]:
-        _auth(request)
+        _auth(
+            request
+        )  # AUTH-OK: actor-agnostic; _auth requires operator before accessing host project files
         from runtime.execution.suckers.verify_skills import (
             detect_project,
             run_checks,

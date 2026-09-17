@@ -98,6 +98,13 @@ class ServerMethod(StrEnum):
     # this is informational only until the graph runtime is wired
     # through realtime gateway.
     TURN_META_SKILL_HINT = "turn/metaSkill/hint"
+    # Project-intent hint: the turn reads like proposing a durable project
+    # ("开一个…项目"). The web composer detects this while typing, but a message
+    # arriving over a channel adapter never passes through it, so the runtime
+    # emits this for every entry point. Suggestion only — Project OS still
+    # requires an explicit ``/project run``, because it creates reviewed
+    # milestones, budgets and team state.
+    TURN_PROJECT_INTENT_HINT = "turn/projectIntent/hint"
     # Codebase grounding: when a code/project turn retrieves relevant wiki
     # pages + source chunks and folds them into the prompt, the runtime emits
     # this with the consulted sources. The frontend bridges it onto the AI

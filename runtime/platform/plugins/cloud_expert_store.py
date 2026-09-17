@@ -56,6 +56,16 @@ _MAX_ARCHIVE_MEMBERS = 10_000
 _MAX_EXTRACTED_BYTES = 256 * 1024 * 1024
 _MAX_MEMBER_BYTES = 64 * 1024 * 1024
 
+# Stable marketplace identity, with an Echo-owned general-purpose replacement.
+_INDUSTRY_PACK = Path(__file__).resolve().parents[3] / "extensions/echo-experts/industry-research"
+
+
+def _echo_expert(e: dict[str, Any]) -> dict[str, Any]:
+    if e.get("plugin") != "believe-in-light":
+        return e
+    metadata = json.loads((_INDUSTRY_PACK / "catalog.json").read_text(encoding="utf-8"))
+    return {**e, **metadata}
+
 
 def _installed_agent_dir(plugin: str) -> str:
     """WorkBuddy 专家 bundle 导入到 agents/<slug> 的目录名。
@@ -135,8 +145,8 @@ class CloudExpertStore:
         if not store or not store.get("experts"):
             raise RuntimeError("cloud expert store unavailable (remote + local mirror both failed)")
 
-        self._store = store
-        return store
+        self._store = {**store, "experts": [_echo_expert(e) for e in store["experts"]]}
+        return self._store
 
     def refresh(self) -> None:
         self._store = None
@@ -165,6 +175,7 @@ class CloudExpertStore:
 
     # ── 转成 agent-market wire 形状(与 _list_local_agents 同构) ──
     def to_agent_dict(self, e: dict[str, Any], *, installed: set[str]) -> dict[str, Any]:
+        e = _echo_expert(e)
         is_team = e.get("expertType") == "team"
         plugin = e.get("plugin") or e.get("id")
         agent_id = f"wb_{plugin}" if plugin else e.get("id")
@@ -179,7 +190,7 @@ class CloudExpertStore:
             "name": agent_id,
             "display_name": zh(e.get("displayName")) or e.get("id"),
             "description": zh(e.get("description")) or "",
-            "author": "WorkBuddy(腾讯)",
+            "author": "Echo" if plugin == "believe-in-light" else "WorkBuddy(腾讯)",
             "category": _category_for(e.get("id")) or str(e.get("categoryId") or ""),
             "category_id": e.get("categoryId"),
             "tags": tags,
@@ -198,7 +209,7 @@ class CloudExpertStore:
             "rating_count": 0,
             "is_featured": False,
             "is_official": True,
-            "is_installed": agent_id in installed or installed_dir in installed,
+            "is_installed": agent_id in installed or installed_dir in installed or (plugin == "believe-in-light" and "industry_research_lead" in installed),
             "is_team": is_team,
             "created_at": str(e.get("updatedAt") or ""),
             "bundle_url": e.get("bundleUrl") or "",
@@ -206,7 +217,7 @@ class CloudExpertStore:
                 p.get("zh") or p.get("en") or "" for p in (e.get("quickPrompts") or [])
             ],
             "profession": zh(e.get("profession")),
-            "source": "workbuddy-cloud",
+            "source": "echo" if plugin == "believe-in-light" else "workbuddy-cloud",
         }
 
     def list_experts(
@@ -280,6 +291,19 @@ class CloudExpertStore:
         e = self.get(expert_id)
         if not e:
             raise KeyError(f"expert not found in cloud store: {expert_id}")
+
+        if e.get("plugin") == "believe-in-light":
+            result = import_agent_from_pack(
+                _INDUSTRY_PACK, "industry-research-lead",
+                agents_root=Path(agents_root or default_agents_root()),
+                skills_root=Path(skills_root or resources_root() / "skills" / "public"),
+            )
+            return {
+                "installed": True, "already_exists": result.already_exists,
+                "agent_id": result.agent_id, "agent_name": "产业研究团队",
+                "agent_path": result.agent_path, "copied_skills": result.copied_skills,
+                "warnings": result.warnings, "source": "echo",
+            }
 
         bundle_url = e.get("bundleUrl") or e.get("bundle_url")
         if not bundle_url:

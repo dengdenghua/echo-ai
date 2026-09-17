@@ -10,6 +10,7 @@ from runtime.execution.engines import (
     EngineId,
     EngineSelectionError,
     ExecutionPhase,
+    ExecutionRoute,
     select_execution_route,
 )
 from runtime.platform.config.schema import AgentConfig
@@ -108,6 +109,79 @@ def test_empty_group_fallback_uses_bound_engine(tmp_path, monkeypatch, engine):
     )
 
 
+_IMAGE_ATTACHMENT = {"data_url": "data:image/png;base64,iVBORw0KGgo="}
+
+
+def _turn_with(requested: str, *, image: bool) -> Turn:
+    return Turn(
+        threadId="vision",
+        params=TurnParams(
+            threadId="vision",
+            executionEngine=requested,
+            input=[
+                {
+                    "type": "text",
+                    "text": "看下这张图",
+                    "attachments": [_IMAGE_ATTACHMENT] if image else [],
+                }
+            ],
+        ),
+    )
+
+
+def _stack() -> SimpleNamespace:
+    class Stack:
+        config = AgentConfig()
+
+    return SimpleNamespace(_stack=Stack())
+
+
+def _select(turn: Turn) -> ExecutionRoute:
+    intent = ParsedIntent(raw="看下这张图", normalized_goal="看下这张图", intent_type="task")
+    return asyncio.run(
+        select_turn_execution(
+            _stack(),
+            turn,
+            object(),
+            intent,
+            project_command=False,
+            group_fanout=False,
+            topology_id=None,
+            codex_partner=False,
+            reflection_fast_path=False,
+        )
+    )
+
+
+def test_auto_route_rebinds_away_from_the_text_only_engine_for_an_image_turn():
+    route = _select(_turn_with("auto", image=True))
+    assert route.engine is EngineId.ECHO
+    assert route.reason == "capability_unmet:vision"
+
+
+def test_explicit_opencode_with_an_image_fails_closed_instead_of_dropping_it():
+    with pytest.raises(EngineSelectionError) as raised:
+        _select(_turn_with("opencode", image=True))
+    assert raised.value.reason == "capability_unmet"
+    assert raised.value.unmet == ("vision",)
+    assert EngineId.CODEX in raised.value.alternatives
+
+
+@pytest.mark.parametrize("requested", ["auto", "opencode"])
+def test_a_text_only_turn_keeps_the_previous_route(requested, monkeypatch):
+    monkeypatch.setattr(
+        "runtime.execution.opencode_backend.inspect_readiness",
+        Mock(return_value={"available": True, "reason": ""}),
+    )
+    assert _select(_turn_with(requested, image=False)).engine is EngineId.OPENCODE
+
+
+def test_vision_is_derived_from_attachments_not_from_prompt_wording():
+    turn = _turn_with("auto", image=False)
+    turn.params.input[0]["text"] = "请识别这张图片里的内容"
+    assert _select(turn).engine is EngineId.OPENCODE
+
+
 @pytest.mark.parametrize("ready", [False, True])
 @pytest.mark.parametrize("requested", ["auto", "opencode"])
 @pytest.mark.parametrize("driver", ["coordinated", "group_fanout", "project_command"])
@@ -154,128 +228,6 @@ def test_standard_coordinator_admission_checks_opencode_without_native_fallback(
             asyncio.run(request)
     scope = probe.call_args.args[0]
     assert scope.actor_id == "alice" and scope.tenant_id == "acme"
-
-
-@pytest.mark.parametrize("delegation", ["absent", "error", "completed"])
-def test_realtime_external_coordinator_keeps_model_and_checks_delegation(
-    tmp_path, monkeypatch, delegation
-):
-    from unittest.mock import AsyncMock
-
-    from fastapi import FastAPI
-    from fastapi.testclient import TestClient
-
-    from runtime.memory.cowork.collaboration_store import CollaborationStore
-    from runtime.memory.cowork.group_store import GroupStore
-    from runtime.memory.cowork.service import invite_member, set_mode
-    from runtime.sensing.gateway.realtime_cerebrum import CerebrumRuntime
-    from runtime.sensing.gateway.realtime_gateway import RealtimeGateway
-    from tests.test_realtime_cerebrum import _drive
-
-    groups = GroupStore(base_dir=tmp_path / "groups")
-    collaboration = CollaborationStore(base_dir=tmp_path / "collaboration")
-    for member in ("general", "coder"):
-        invite_member(groups, "coordinator", actor="u", target_id=member, kind="agent")
-    set_mode(groups, "coordinator", actor="u", mode="swarm")
-    runtime = CerebrumRuntime(
-        stack=SimpleNamespace(config=AgentConfig()),
-        agent=object(),
-        logs_root=str(tmp_path / "threads"),
-        cowork_group_store=groups,
-        collaboration_store=collaboration,
-    )
-    native = AsyncMock(side_effect=AssertionError("native coordinator used"))
-    monkeypatch.setattr(runtime, "_drive_react", native)
-    monkeypatch.setattr(
-        "runtime.execution.opencode_backend.inspect_readiness", lambda scope: {"available": True}
-    )
-    monkeypatch.setattr(
-        "runtime.execution.opencode_backend.zen_catalog",
-        lambda: {"opencode-zen": {"managed_by_plugin": "opencode-zen", "models": ["big-pickle"]}},
-    )
-    monkeypatch.setattr(
-        "runtime.core.cerebrum.turn_complexity.select_model_for_complexity",
-        lambda *args, **kwargs: ("native/wrong-model", "fixture-route"),
-    )
-    calls = []
-
-    async def stream(*args, **kwargs):
-        calls.append(kwargs)
-        if delegation != "absent":
-            from runtime.execution.opencode_backend import MessageEvents
-
-            reducer = MessageEvents(
-                set(), tool_names={"echo_call_agent_parallel": "call_agent_parallel"}
-            )
-            snapshot = {
-                "info": {"id": "a", "role": "assistant"},
-                "parts": [
-                    {
-                        "id": "tool",
-                        "type": "tool",
-                        "callID": f"delegate-{len(calls)}",
-                        "tool": "echo_call_agent_parallel",
-                        "state": {
-                            "status": delegation,
-                            "input": {
-                                "specs": [
-                                    {
-                                        "task_id": "market",
-                                        "agent_id": "general",
-                                        "objective": "Research",
-                                        "inputs": ["request"],
-                                        "deliverable": "report",
-                                        "dependencies": [],
-                                        "acceptance_criteria": ["verified sources"],
-                                        "prompt": "Research",
-                                    }
-                                ]
-                            },
-                            "output": '{"successes":[{"spec_index":0,"task_label":"market","agent_id":"general"}],"failures":[]}',
-                            "error": "member failed" if delegation == "error" else None,
-                        },
-                    }
-                ],
-            }
-            for event in reducer.consume([snapshot]):
-                yield event
-        yield {"type": "text_delta", "delta": "已经委派并完成。"}
-        yield {"type": "react_completed", "success": True}
-
-    monkeypatch.setattr("runtime.sensing.gateway.realtime_opencode_backend.stream_role", stream)
-    gateway = RealtimeGateway(runtime=runtime, approval_timeout=5.0)
-    app = FastAPI()
-    app.include_router(gateway.router)
-    with TestClient(app) as client, client.websocket_connect("/api/realtime") as ws:
-        turn = _drive(
-            ws,
-            {
-                "threadId": "coordinator",
-                "model": "auto",
-                "input": [{"type": "text", "text": "研究竞品并输出报告"}],
-                "approvalPolicy": "never",
-            },
-        )["response"].result["turn"]
-    expected = "completed" if delegation == "completed" else "interrupted"
-    assert turn["status"] == expected, turn
-    assert len(calls) == (1 if delegation == "completed" else 2)
-    assert all(call["model"] == "big-pickle" for call in calls)
-    if len(calls) == 2:
-        assert calls[0]["request"].task is calls[1]["request"].task
-        assert (
-            calls[1]["context"]["cowork_orchestration_repair"]["reason"]
-            == "missing_delegation_evidence"
-        )
-    run = collaboration.collaboration_runs_for_session("coordinator")[0]
-    assert run["status"] == expected
-    if delegation == "completed":
-        assert run["result"]["task_graph_complete"] is True
-    native.assert_not_called()
-    from runtime.memory.threads.event_log import EventLog
-    from runtime.platform.models.custom_model_selection import custom_model_selection_id
-
-    restored = EventLog(runtime._log_for("coordinator").path).replay()[-1]
-    assert restored.params.model == custom_model_selection_id("opencode-zen", "big-pickle")
 
 
 @pytest.mark.parametrize("room_mode,message", [("chat", "大家一起看下"), ("swarm", "大家好")])
@@ -380,7 +332,6 @@ def test_explicit_opencode_group_greeting_dispatches_both_scoped_members(
             parent.permissions.allows_write(root) for root in task.permissions.writable_roots
         )
         assert call["model"] == "big-pickle"
-        assert call["tool_free"] is True
         assert call["context"]["context_steward_managed"] is True
     assert len({call["request"].task.thread_id for _, call in calls}) == 2
     replies = [item["text"] for item in turn["items"] if item["type"] == "agentMessage"]

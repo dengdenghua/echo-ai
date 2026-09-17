@@ -2,8 +2,10 @@
 
 import asyncio
 import hashlib
+from collections.abc import AsyncGenerator
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Any
 
 from runtime.execution import opencode_backend as native
 
@@ -16,7 +18,9 @@ class OpenCodeRemoteConfig:
     timeout: float = 300
 
 
-async def stream_opencode(config, *, prompt, workspace, resume=None):
+async def stream_opencode(
+    config, *, prompt, workspace, resume=None
+) -> AsyncGenerator[dict[str, Any], None]:
     command = native.executable()
     if not command:
         raise native.OpenCodeError("未找到本机 OpenCode 引擎")
@@ -25,7 +29,7 @@ async def stream_opencode(config, *, prompt, workspace, resume=None):
     )
     text = ""
     async with asyncio.timeout(config.timeout):
-        async with native.managed_server(command, root, None, config.model, False) as client:
+        async with native.managed_server(command, root, None, config.model) as client:
             await native.validate_catalog_model(client, config.model, free_only=True)
             session = await native.session_for_thread(client, root)
             async for event in native.stream_prompt(

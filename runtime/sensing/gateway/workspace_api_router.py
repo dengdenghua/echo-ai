@@ -130,7 +130,9 @@ def create_workspace_api_router(
         _principal(request)
 
     def _auth_dep(request: Request) -> None:
-        _auth(request)
+        _auth(
+            request
+        )  # AUTH-OK: actor-agnostic; _auth caches the principal consumed by _scoped_store
 
     def _scoped_store(request: Request) -> WorkspaceStore:
         principal = _principal(request)

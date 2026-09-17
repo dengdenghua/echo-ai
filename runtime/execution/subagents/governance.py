@@ -69,7 +69,7 @@ def _positive_env(name: str, default: int, *, ceiling: int) -> int:
     if raw:
         try:
             return max(1, min(int(raw), ceiling))
-        except ValueError:
+        except ValueError:  # intentional: Use the default for an invalid integer setting.
             pass
     return default
 
@@ -81,7 +81,7 @@ def _positive_float_env(name: str, default: float, *, ceiling: float) -> float:
             value = float(raw)
             if value > 0:
                 return min(value, ceiling)
-        except ValueError:
+        except ValueError:  # intentional: Use the default for an invalid float setting.
             pass
     return default
 

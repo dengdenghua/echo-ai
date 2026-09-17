@@ -11,6 +11,7 @@ from runtime.execution.engines import (
     ExecutionPhase,
     select_execution_route,
 )
+from runtime.execution.host_mcp_connection import HostMCPConnection
 from runtime.execution.opencode_backend import (
     MessageEvents,
     OpenCodeError,
@@ -20,7 +21,6 @@ from runtime.execution.opencode_backend import (
     stream_prompt,
     validate_catalog_model,
 )
-from runtime.execution.tool_engine.host_mcp import HostMCPConnection
 from runtime.platform.models.custom_model_selection import custom_model_selection_id
 from runtime.protocol.items import ExecutionSnapshot, TurnParams
 from runtime.safety.auth.scope import TenantScope
@@ -28,32 +28,41 @@ from runtime.safety.auth.scope import TenantScope
 
 def test_go_selection_and_child_route_are_isolated_from_zen(tmp_path):
     from runtime.execution.opencode_backend import model_selection_id
-    catalog = {provider: {"managed_by_plugin": provider, "models": ["glm-5.3"]} for provider in ("opencode-go", "opencode-zen")}
+
+    catalog = {
+        provider: {"managed_by_plugin": provider, "models": ["glm-5.3"]}
+        for provider in ("opencode-go", "opencode-zen")
+    }
     selection = custom_model_selection_id("opencode-go", "glm-5.3")
     resolved = resolve_zen_model(selection, catalog)
     assert resolved == "opencode-go/glm-5.3"
     assert model_selection_id(resolved) == selection
-    env = child_environment(tmp_path, "test-go-key", "test-password", resolved, False)
+    env = child_environment(tmp_path, "test-go-key", "test-password", resolved)
     config = json.loads(env["OPENCODE_CONFIG_CONTENT"])
     assert config["model"] == "opencode-go/glm-5.3"
     assert config["small_model"] == config["model"]
     assert set(config["provider"]) == {"opencode-go"}
-    assert config["provider"]["opencode-go"]["options"]["baseURL"] == "https://opencode.ai/zen/go/v1"
+    assert (
+        config["provider"]["opencode-go"]["options"]["baseURL"] == "https://opencode.ai/zen/go/v1"
+    )
     with pytest.raises(OpenCodeError, match="Go"):
-        child_environment(tmp_path, None, "test-password", resolved, False)
+        child_environment(tmp_path, None, "test-password", resolved)
     with pytest.raises(OpenCodeError, match="Go"):
         resolve_zen_model("opencode-go/glm-5.3", {})
 
 
-@pytest.mark.parametrize("model,package", [
-    ("grok-4.6", "@ai-sdk/openai"),
-    ("muse-spark-1.3-contributor", "@ai-sdk/openai"),
-    ("minimax-m3", "@ai-sdk/anthropic"),
-    ("qwen3.8-max", "@ai-sdk/anthropic"),
-    ("kimi-k3", "@ai-sdk/openai-compatible"),
-])
+@pytest.mark.parametrize(
+    "model,package",
+    [
+        ("grok-4.6", "@ai-sdk/openai"),
+        ("muse-spark-1.3-contributor", "@ai-sdk/openai"),
+        ("minimax-m3", "@ai-sdk/anthropic"),
+        ("qwen3.8-max", "@ai-sdk/anthropic"),
+        ("kimi-k3", "@ai-sdk/openai-compatible"),
+    ],
+)
 def test_go_uses_official_model_wire_protocol(tmp_path, model, package):
-    env = child_environment(tmp_path, "fake-key", "fake-password", f"opencode-go/{model}", False)
+    env = child_environment(tmp_path, "fake-key", "fake-password", f"opencode-go/{model}")
     provider = json.loads(env["OPENCODE_CONFIG_CONTENT"])["provider"]["opencode-go"]
     assert provider["npm"] == package
     assert provider["options"]["headers"]["User-Agent"] == "Echo/1.0"
@@ -96,9 +105,7 @@ def test_text_only_server_reuses_one_warm_process(tmp_path, monkeypatch):
     async def run():
         seen = []
         for _ in range(2):
-            async with backend.managed_server(
-                "opencode", tmp_path, None, "big-pickle", False
-            ) as current:
+            async with backend.managed_server("opencode", tmp_path, None, "big-pickle") as current:
                 seen.append(current)
         entry = next(iter(backend._warm_servers.values()), None)
         assert entry is not None
@@ -160,11 +167,17 @@ def test_model_selection_keeps_provider_identity():
 
 def test_shared_models_use_only_turn_proxy_credentials(tmp_path):
     from runtime.execution.opencode_backend import model_selection_id
+
     selected = "official/qwen3.5-flash"
     model = resolve_zen_model(selected, {})
     assert model_selection_id(model) == selected
-    env = child_environment(tmp_path, "scoped-token", "password", model, False,
-                            shared_provider={"base_url": "http://127.0.0.1:1234/v1"})
+    env = child_environment(
+        tmp_path,
+        "scoped-token",
+        "password",
+        model,
+        shared_provider={"base_url": "http://127.0.0.1:1234/v1"},
+    )
     config = json.loads(env["OPENCODE_CONFIG_CONTENT"])
     assert config["model"] == "echo-shared/official/qwen3.5-flash"
     assert config["provider"]["echo-shared"]["npm"] == "@ai-sdk/openai"
@@ -188,7 +201,7 @@ def test_public_default_does_not_require_a_plugin_or_account(tmp_path, monkeypat
     with pytest.raises(OpenCodeError):
         resolve_zen_model("paid-model", {})
     monkeypatch.setenv("OPENCODE_API_KEY", "must-not-inherit")
-    env = child_environment(tmp_path, None, "password", "big-pickle", False)
+    env = child_environment(tmp_path, None, "password", "big-pickle")
     assert "OPENCODE_API_KEY" not in env
     assert "provider" not in json.loads(env["OPENCODE_CONFIG_CONTENT"])
 
@@ -260,12 +273,11 @@ async def test_unreadable_catalog_is_not_reported_as_an_unavailable_model(status
             await validate_catalog_model(client, "big-pickle")
 
 
-@pytest.mark.parametrize("web", [True, False])
-def test_child_environment_isolates_credentials_and_denies_local_tools(tmp_path, monkeypatch, web):
+def test_child_environment_isolates_credentials_and_denies_local_tools(tmp_path, monkeypatch):
     monkeypatch.setenv("OPENAI_API_KEY", "unrelated")
     monkeypatch.setenv("OPENCODE_CLIENT", "untrusted-override")
     monkeypatch.setenv("OPENCODE_CONFIG", "untrusted-config")
-    env = child_environment(tmp_path, "zen-test-key", "test-password", "big-pickle", web)
+    env = child_environment(tmp_path, "zen-test-key", "test-password", "big-pickle")
     assert "OPENAI_API_KEY" not in env
     assert "OPENCODE_CLIENT" not in env
     assert "OPENCODE_CONFIG" not in env
@@ -273,7 +285,6 @@ def test_child_environment_isolates_credentials_and_denies_local_tools(tmp_path,
     config = json.loads(env["OPENCODE_CONFIG_CONTENT"])
     assert "zen-test-key" not in env["OPENCODE_CONFIG_CONTENT"]
     assert config["permission"]["*"] == "deny"
-    assert (config["permission"].get("websearch") == "allow") is web
     assert config["small_model"] == config["model"]
     assert config["share"] == "disabled"
 
@@ -291,10 +302,16 @@ def test_state_is_scoped_to_actor_tenant_and_thread():
 
 def test_host_mcp_is_explicit_and_credentials_stay_out_of_config(tmp_path, monkeypatch):
     monkeypatch.setenv("ECHO_HOST_MCP_TOKEN", "ambient-token")
-    isolated = child_environment(tmp_path, "zen", "password", "big-pickle", False)
+    isolated = child_environment(tmp_path, "zen", "password", "big-pickle")
     assert "ECHO_HOST_MCP_TOKEN" not in isolated
     connection = HostMCPConnection("http://127.0.0.1:12345/mcp", "turn-token")
-    env = child_environment(tmp_path, "zen", "password", "big-pickle", False, host_mcp=connection)
+    env = child_environment(
+        tmp_path,
+        "zen",
+        "password",
+        "big-pickle",
+        host_mcp=connection,
+    )
     config = json.loads(env["OPENCODE_CONFIG_CONTENT"])
     assert config["mcp"]["echo"]["oauth"] is False
     assert "turn-token" not in env["OPENCODE_CONFIG_CONTENT"]
@@ -313,11 +330,55 @@ def test_host_tool_events_use_the_native_skill_identity():
                 "type": "tool",
                 "tool": "echo_read_file",
                 "callID": "c",
-                "state": {"status": "completed", "input": {"path": "note.txt"}, "output": "note"},
+                "state": {
+                    "status": "completed",
+                    "input": {"path": "note.txt"},
+                    "output": "note",
+                },
             }
         ],
     }
-    assert {e["tool_name"] for e in reducer.consume([event])} == {"read_file"}
+    assert {entry["tool_name"] for entry in reducer.consume([event])} == {"read_file"}
+
+
+@pytest.mark.parametrize("success", [True, False])
+def test_delegation_preview_preserves_identity_and_failure_after_large_output(success):
+    reducer = MessageEvents(set(), tool_names={"echo_call_agent": "call_agent"})
+    receipt = {
+        "success": success,
+        "display_name": "HUB health",
+        "market_agent_id": "hub-health",
+        "identity_source": "agent-market",
+        "output": "result " * 3000,
+        "error": None if success else "failed",
+        "review_candidate": {"text": "x" * 12000},
+    }
+    events = reducer.consume(
+        [
+            {
+                "info": {"id": "a", "role": "assistant"},
+                "parts": [
+                    {
+                        "id": "p",
+                        "type": "tool",
+                        "tool": "echo_call_agent",
+                        "callID": "c",
+                        "state": {
+                            "status": "completed",
+                            "input": {"agent_id": "hub-health"},
+                            "output": json.dumps(receipt),
+                        },
+                    }
+                ],
+            }
+        ]
+    )
+    output = json.loads(events[-1]["output_preview"])
+    assert output["success"] is success
+    assert output["display_name"] == "HUB health"
+    assert output["identity_source"] == "agent-market"
+    assert len(output["output"]) == 1500
+    assert "review_candidate" not in output
 
 
 def message(text="OK", error=None):
@@ -327,28 +388,39 @@ def message(text="OK", error=None):
     }
 
 
-def test_growing_messages_and_tool_snapshots_are_not_replayed():
+def test_growing_messages_are_not_replayed():
     reducer = MessageEvents({"old"})
     assert reducer.consume([{**message(), "info": {"id": "old", "role": "assistant"}}]) == []
     assert reducer.consume([message("O")])[0]["delta"] == "O"
     assert reducer.consume([message("OK")])[0]["delta"] == "K"
     assert reducer.consume([message("OK")]) == []
-    tool_message = {
-        "info": {"id": "a", "role": "assistant"},
-        "parts": [
-            {
-                "id": "p",
-                "callID": "call-1",
-                "type": "tool",
-                "tool": "websearch",
-                "state": {"status": "completed", "input": {"query": "NAS"}, "output": "result"},
-            }
-        ],
-    }
-    events = reducer.consume([tool_message])
-    assert [e["type"] for e in events] == ["tool_start", "tool_end"]
-    assert events[1]["success"]
-    assert reducer.consume([tool_message]) == []
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("text,tools,invalid", [
+    ('<｜DSML｜tool_calls><｜DSML｜invoke name="read_file"></｜DSML｜invoke></｜DSML｜tool_calls>', {"echo_read_file": "read_file"}, True),
+    ('我使用 Bash 工具来完成这个任务。\n\n<｜DSML｜tool_calls>invoke</｜DSML｜tool_calls>', {"echo_read_file": "read_file"}, True),
+    ('~~~xml\n<｜DSML｜tool_calls>example</｜DSML｜tool_calls>\n~~~', {"echo_read_file": "read_file"}, False),
+    ('```xml\n<｜DSML｜tool_calls>example</｜DSML｜tool_calls>\n```', {"echo_read_file": "read_file"}, False),
+    ('<｜DSML｜tool_calls>example</｜DSML｜tool_calls>', {}, False),
+])
+async def test_serialized_tool_protocol_is_not_completed_work(text, tools, invalid):
+    def handle(request):
+        return httpx.Response(200, json=[] if request.method == "GET" else message(text))
+
+    events = []
+    async with httpx.AsyncClient(transport=httpx.MockTransport(handle), base_url="http://localhost") as client:
+        async def run():
+            async for event in stream_prompt(client, "test", text="edit file", system="role", model="big-pickle",
+                                             interrupted=lambda: False, poll_s=0.001, tool_names=tools):
+                events.append(event)
+        if invalid:
+            with pytest.raises(OpenCodeError, match="未执行的工具调用文本"):
+                await run()
+            assert not any(event["type"] == "react_completed" for event in events)
+        else:
+            await run()
+            assert events[-1]["type"] == "react_completed"
 
 
 @pytest.mark.asyncio
@@ -501,26 +573,47 @@ async def test_engine_prompt_bootstraps_fresh_history_and_only_sends_resume_delt
 
 
 @pytest.mark.asyncio
-@pytest.mark.parametrize("effort,variants,expected", [
-    ("high", {"high": {}, "low": {}}, "high"),
-    ("off", {"none": {}, "high": {}}, "none"),
-    ("high", {}, None),
-])
+@pytest.mark.parametrize(
+    "effort,variants,expected",
+    [
+        ("high", {"high": {}, "low": {}}, "high"),
+        ("off", {"none": {}, "high": {}}, "none"),
+        ("high", {}, None),
+    ],
+)
 async def test_reasoning_variant_reaches_native_request(effort, variants, expected):
     posted = []
+
     def handle(request):
         if request.url.path == "/provider":
-            return httpx.Response(200, json={"all": [{"id": "opencode", "models": {
-                "big-pickle": {"variants": variants}}}]})
+            return httpx.Response(
+                200,
+                json={
+                    "all": [{"id": "opencode", "models": {"big-pickle": {"variants": variants}}}]
+                },
+            )
         if request.url.path == "/event":
             return httpx.Response(200, text="")
         if request.method == "POST":
             posted.append(json.loads(request.content))
             return httpx.Response(200, json=message())
         return httpx.Response(200, json=[message()] if posted else [])
-    async with httpx.AsyncClient(transport=httpx.MockTransport(handle), base_url="http://localhost") as client:
-        events = [event async for event in stream_prompt(client, "ses_test", text="hello",
-            system="role", model="big-pickle", interrupted=lambda: False, reasoning_effort=effort)]
+
+    async with httpx.AsyncClient(
+        transport=httpx.MockTransport(handle), base_url="http://localhost"
+    ) as client:
+        events = [
+            event
+            async for event in stream_prompt(
+                client,
+                "ses_test",
+                text="hello",
+                system="role",
+                model="big-pickle",
+                interrupted=lambda: False,
+                reasoning_effort=effort,
+            )
+        ]
     assert posted[0].get("variant") == expected
     assert events[-1]["completion_receipt"]["reasoning_variant"] == expected
 
@@ -529,9 +622,26 @@ async def test_reasoning_variant_reaches_native_request(effort, variants, expect
 async def test_unsupported_variant_fails_before_sending_task():
     def handle(request):
         assert request.url.path == "/provider"
-        return httpx.Response(200, json={"all": [{"id": "opencode", "models": {
-            "big-pickle": {"variants": {"high": {}}}}}]})
-    async with httpx.AsyncClient(transport=httpx.MockTransport(handle), base_url="http://localhost") as client:
+        return httpx.Response(
+            200,
+            json={
+                "all": [{"id": "opencode", "models": {"big-pickle": {"variants": {"high": {}}}}}]
+            },
+        )
+
+    async with httpx.AsyncClient(
+        transport=httpx.MockTransport(handle), base_url="http://localhost"
+    ) as client:
         with pytest.raises(OpenCodeError, match="推理档位"):
-            _ = [event async for event in stream_prompt(client, "ses_test", text="hello",
-                system="role", model="big-pickle", interrupted=lambda: False, reasoning_effort="low")]
+            _ = [
+                event
+                async for event in stream_prompt(
+                    client,
+                    "ses_test",
+                    text="hello",
+                    system="role",
+                    model="big-pickle",
+                    interrupted=lambda: False,
+                    reasoning_effort="low",
+                )
+            ]

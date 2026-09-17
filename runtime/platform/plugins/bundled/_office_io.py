@@ -34,7 +34,11 @@ def resolve_office_path(path: str | Path, *, write: bool) -> Path:
             root = scope.primary_write if write else scope.primary_read
             if root is not None:
                 candidate = root / candidate
-    except (ImportError, AttributeError, RuntimeError):
+    except (
+        ImportError,
+        AttributeError,
+        RuntimeError,
+    ):  # intentional: The subsequent permission check remains authoritative.
         # The scope check below remains authoritative and fails closed when a
         # session exists but its permission domain cannot be resolved.
         pass

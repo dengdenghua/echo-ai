@@ -210,12 +210,12 @@ class ElectronBackend:
 
     @staticmethod
     def _default_available() -> bool:
-        from runtime.execution.suckers.browser_act_skills import _bridge_status
+        from runtime.execution.suckers.browser_act_skills import _electron_webview_available
 
         # A stale bridge.json must not capture the request and return a hard
         # error. Only advertise Electron when the authenticated desktop bridge
         # is alive and has a targetable browser surface.
-        return _bridge_status() is not None
+        return _electron_webview_available()
 
     def available(self) -> bool:
         return bool(self._available_probe())

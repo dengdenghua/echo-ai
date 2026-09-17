@@ -185,7 +185,7 @@ def create_config_router(
             jwt_secret=jwt_secret,
             jwt_issuer=jwt_issuer,
             jwt_audience=jwt_audience,
-        )
+        )  # AUTH-OK: actor-agnostic; dependency authenticates; endpoint handlers enforce scope and roles
 
     def _resolve_identity(request: Request) -> Any:
         """Resolve the full Identity (with roles) for admin checks. ``None``
@@ -240,9 +240,7 @@ def create_config_router(
 
     resolved_codex_root = resolve_codex_state_root(codex_state_root)
     resolved_deployment = (
-        str(deployment_mode or os.environ.get("ECHO_DEPLOYMENT_MODE") or "local")
-        .strip()
-        .casefold()
+        str(deployment_mode or os.environ.get("ECHO_DEPLOYMENT_MODE") or "local").strip().casefold()
     )
     legacy_codex_home: Path | str | None = None
     if resolved_deployment == "local":
@@ -688,22 +686,28 @@ def create_config_router(
     from runtime.sensing.gateway.team_control import mount_team_control
 
     def apply_team_catalog(connection, models):
-        prefix = 'echo_team_' + connection['id'] + '_'
+        prefix = "echo_team_" + connection["id"] + "_"
         entries = {}
         for model in models:
-            entry_id = prefix + model['id']
+            entry_id = prefix + model["id"]
             entries[entry_id] = {
-                'id': entry_id, 'name': '团队 · ' + model['display_name'],
-                'display_name': '团队 · ' + model['display_name'],
-                'provider': 'openai', 'base_url': connection['base_url'],
-                'api_key': connection['token'], 'models': [model['id']],
-                'wire_api': 'responses' if model['wire_api'] == 'responses' else None,
-                'codex_wire_api': 'responses' if model['wire_api'] == 'responses' else None,
-                'compat_profile': 'echo_team', 'supports_tool_use': True,
+                "id": entry_id,
+                "name": "团队 · " + model["display_name"],
+                "display_name": "团队 · " + model["display_name"],
+                "provider": "openai",
+                "base_url": connection["base_url"],
+                "api_key": connection["token"],
+                "models": [model["id"]],
+                "wire_api": "responses" if model["wire_api"] == "responses" else None,
+                "codex_wire_api": "responses" if model["wire_api"] == "responses" else None,
+                "compat_profile": "echo_team",
+                "supports_tool_use": True,
             }
         with custom_models_lock:
             _load()
-            existing = {key: value for key, value in custom_models_state.items() if key.startswith(prefix)}
+            existing = {
+                key: value for key, value in custom_models_state.items() if key.startswith(prefix)
+            }
             if existing == entries:
                 return
             for key, value in existing.items():
@@ -712,13 +716,15 @@ def create_config_router(
             custom_models_state.update(entries)
             _save(*set(existing).union(entries))
             statuses = _rebuild_routes()
-            if any(not statuses[key].get('ok') for key in entries):
-                raise ValueError('团队模型路由未生效')
+            if any(not statuses[key].get("ok") for key in entries):
+                raise ValueError("团队模型路由未生效")
 
-    team_connections = TeamConnections(path.with_name(path.stem + '.team-connections.db'), apply_team_catalog)
+    team_connections = TeamConnections(
+        path.with_name(path.stem + ".team-connections.db"), apply_team_catalog
+    )
     mount_team_control(router, _require_admin, team_connections)
-    router.add_event_handler('startup', team_connections.start_worker)
-    router.add_event_handler('shutdown', team_connections.stop_worker)
+    router.add_event_handler("startup", team_connections.start_worker)
+    router.add_event_handler("shutdown", team_connections.stop_worker)
 
     return ConfigRouter(
         router=router,

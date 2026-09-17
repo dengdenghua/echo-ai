@@ -1,7 +1,8 @@
 """Manage downloaded prompt packages and runtime enablement, not bundled files."""
-from pathlib import Path
+
 import re
 import shutil
+from pathlib import Path
 
 from runtime.platform.assets.skill_inventory import scan_local_skills
 from runtime.platform.io.transactional import path_transaction
@@ -13,7 +14,11 @@ def _download_path(name: str) -> Path:
         raise ValueError("invalid skill identifier")
     root = (app_paths().data_dir / "skills").resolve()
     target = root / name
-    if target.is_symlink() or (hasattr(target, "is_junction") and target.is_junction()) or target.resolve().parent != root:
+    if (
+        target.is_symlink()
+        or (hasattr(target, "is_junction") and target.is_junction())
+        or target.resolve().parent != root
+    ):
         raise ValueError("unsafe skill destination")
     return target
 
@@ -26,7 +31,11 @@ def _runtime_names(registry, name: str) -> list[str]:
     source = skill.trusted_source
     if source and source.startswith("skill://all_skills/"):
         source = source.split("#", 1)[0]
-        return [n for n in registry.all_names() if registry.get(n).trusted_source.split("#", 1)[0] == source]
+        return [
+            n
+            for n in registry.all_names()
+            if registry.get(n).trusted_source.split("#", 1)[0] == source
+        ]
     return [skill.name]
 
 
@@ -37,12 +46,16 @@ def skill_management_states(registry) -> dict:
         try:
             target = _download_path(name)
             removable = (target / "SKILL.md").is_file() and any(
-                Path(v["path"]) == target for v in row["variants"])
+                Path(v["path"]) == target for v in row["variants"]
+            )
         except ValueError:
             removable = False
         names = _runtime_names(registry, name)
-        states[name] = {"enabled": all(registry.is_enabled(n) for n in names) if names else True,
-                        "can_toggle": bool(names), "can_uninstall": removable}
+        states[name] = {
+            "enabled": all(registry.is_enabled(n) for n in names) if names else True,
+            "can_toggle": bool(names),
+            "can_uninstall": removable,
+        }
     return states
 
 
@@ -62,10 +75,14 @@ def manage_skill(name: str, action: str, registry) -> dict:
     target = _download_path(name)
     with path_transaction(target):
         if not (target / "SKILL.md").is_file() or not any(
-                Path(v["path"]) == target for v in rows[name]["variants"]):
+            Path(v["path"]) == target for v in rows[name]["variants"]
+        ):
             raise ValueError("内置或外部管理的技能不能在此卸载，可使用停用")
         # Do not follow reparse points while removing a user-modified package.
-        if any(p.is_symlink() or (hasattr(p, "is_junction") and p.is_junction()) for p in target.rglob("*")):
+        if any(
+            p.is_symlink() or (hasattr(p, "is_junction") and p.is_junction())
+            for p in target.rglob("*")
+        ):
             raise ValueError("技能目录含链接文件，请先移除链接后重试")
         shutil.rmtree(target)
         if registry is not None:
@@ -74,8 +91,11 @@ def manage_skill(name: str, action: str, registry) -> dict:
                 registry.unregister(runtime_name)
             # A bundled copy may have been shadowed by this downloaded version.
             from runtime.execution.suckers.market_skills import load_single_market_skill
+
             remaining = next((r for r in scan_local_skills() if r["name"] == name), None)
             if remaining:
                 folder = Path(remaining["variants"][0]["path"])
-                load_single_market_skill(registry, folder.name, all_skills_dir=folder.parent, verify_tests=False)
+                load_single_market_skill(
+                    registry, folder.name, all_skills_dir=folder.parent, verify_tests=False
+                )
     return {"name": name, "uninstalled": True}

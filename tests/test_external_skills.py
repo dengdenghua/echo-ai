@@ -1,8 +1,8 @@
 import io
 import json
+import stat
 import tarfile
 import zipfile
-import stat
 from pathlib import Path
 
 import pytest
@@ -28,17 +28,25 @@ def cache(tmp_path, monkeypatch):
     return tmp_path / "cache"
 
 
-def test_install_pins_version_namespaces_identity_and_preserves_resources(cache, tmp_path, monkeypatch):
-    body = archive({"skills/demo/SKILL.md": b"---\nname: demo\ndescription: useful\n---\nRead references/guide.md\n",
-                    "skills/demo/references/guide.md": b"reference content",
-                    "skills/other/SKILL.md": b"do not install",
-                    "LICENSE": b"repository license"})
+def test_install_pins_version_namespaces_identity_and_preserves_resources(
+    cache, tmp_path, monkeypatch
+):
+    body = archive(
+        {
+            "skills/demo/SKILL.md": b"---\nname: demo\ndescription: useful\n---\nRead references/guide.md\n",
+            "skills/demo/references/guide.md": b"reference content",
+            "skills/other/SKILL.md": b"do not install",
+            "LICENSE": b"repository license",
+        }
+    )
     rows = ext._rows("openai/skills", SHA, ext._files(body), "openai")
     ext._remember(rows)
     seen = []
+
     def download(repo, commit):
         seen.append((repo, commit))
         return body
+
     monkeypatch.setattr(ext, "_archive", download)
     result = ext.install_external_skill(rows[0]["name"], skills_dir=tmp_path / "skills")
     target = Path(result["path"])
@@ -49,7 +57,9 @@ def test_install_pins_version_namespaces_identity_and_preserves_resources(cache,
     assert (target / "REPOSITORY-LICENSE").read_text() == "repository license"
     assert not (target / "other").exists()
     assert json.loads((target / ".source.json").read_text(encoding="utf-8"))["commit"] == SHA
-    assert ext.install_external_skill(rows[0]["name"], skills_dir=tmp_path / "skills")["already_exists"]
+    assert ext.install_external_skill(rows[0]["name"], skills_dir=tmp_path / "skills")[
+        "already_exists"
+    ]
     assert seen == [("openai/skills", SHA)]
 
 
@@ -78,13 +88,29 @@ def test_sources_fail_independently_and_cached_official_is_usable(cache, monkeyp
     result = ext.list_external_skills()
     assert result["items"] == [{"name": "cached"}]
     states = {row["source"]: row["state"] for row in result["meta"]["sources"]}
-    assert states == {"openai": "stale", "anthropic": "unavailable", "vercel": "unavailable", "skills.sh": "search_required", "minimax-design": "unavailable"}
+    assert states == {
+        "openai": "stale",
+        "anthropic": "unavailable",
+        "vercel": "unavailable",
+        "skills.sh": "search_required",
+        "minimax-design": "unavailable",
+    }
 
 
-def test_search_uses_github_identity_rejects_malicious_sources_and_never_executes(cache, monkeypatch):
-    monkeypatch.setattr(ext, "_json", lambda url: {"skills": [
-        {"name": "demo", "source": "team/skills"}, {"name": "demo", "source": "other/skills"},
-        {"name": "evil", "source": "https://127.0.0.1/private"}]})
+def test_search_uses_github_identity_rejects_malicious_sources_and_never_executes(
+    cache, monkeypatch
+):
+    monkeypatch.setattr(
+        ext,
+        "_json",
+        lambda url: {
+            "skills": [
+                {"name": "demo", "source": "team/skills"},
+                {"name": "demo", "source": "other/skills"},
+                {"name": "evil", "source": "https://127.0.0.1/private"},
+            ]
+        },
+    )
     rows, state = ext._search("frontend")
     assert len(rows) == 2 and state["state"] == "ready"
     assert rows[0]["name"] != rows[1]["name"]
@@ -114,14 +140,23 @@ def test_official_curated_paths_are_visible_but_system_skills_are_not():
 def test_api_external_catalog_paginates_without_fetching_echo_catalog(monkeypatch):
     from fastapi import FastAPI
     from fastapi.testclient import TestClient
+
     from runtime.sensing.gateway.agent_world_router import create_agent_world_router
 
-    monkeypatch.setattr(ext, "list_external_skills", lambda search: {
-        "items": [{"name": "one"}, {"name": "two"}], "total": 2,
-        "meta": {"sources": [{"source": "skills.sh", "state": "ready", "count": 2}]}})
+    monkeypatch.setattr(
+        ext,
+        "list_external_skills",
+        lambda search: {
+            "items": [{"name": "one"}, {"name": "two"}],
+            "total": 2,
+            "meta": {"sources": [{"source": "skills.sh", "state": "ready", "count": 2}]},
+        },
+    )
     app = FastAPI()
     app.include_router(create_agent_world_router())
-    response = TestClient(app).get("/api/agent-market/cloud/skills?source=external&search=frontend&offset=1&limit=1")
+    response = TestClient(app).get(
+        "/api/agent-market/cloud/skills?source=external&search=frontend&offset=1&limit=1"
+    )
     assert response.status_code == 200
     assert response.json()["items"] == [{"name": "two"}]
     assert response.json()["total"] == 2
@@ -129,11 +164,24 @@ def test_api_external_catalog_paginates_without_fetching_echo_catalog(monkeypatc
 
 def test_design_catalog_paginates_and_requires_version_for_install(cache, tmp_path, monkeypatch):
     calls = []
+
     def fetch(url):
         calls.append(url)
         if "page=1&" in url:
-            return {"total": 2, "skills": [{"name": "storyboard", "display_name_zh": "分镜", "summary_zh": "规划镜头", "version": "1.0", "tags_cn": ["短剧漫剧"]}]}
+            return {
+                "total": 2,
+                "skills": [
+                    {
+                        "name": "storyboard",
+                        "display_name_zh": "分镜",
+                        "summary_zh": "规划镜头",
+                        "version": "1.0",
+                        "tags_cn": ["短剧漫剧"],
+                    }
+                ],
+            }
         return {"total": 2, "skills": [{"name": "dubbing", "display_name_zh": "配音"}]}
+
     monkeypatch.setattr(ext, "_json", fetch)
     rows, state = ext._minimax_design()
     assert len(calls) == 2 and state["count"] == 2 and state["state"] == "ready"
@@ -160,28 +208,38 @@ def test_design_partial_refresh_keeps_previous_complete_catalog(cache, monkeypat
 def zip_package(entries=None):
     output = io.BytesIO()
     with zipfile.ZipFile(output, "w", zipfile.ZIP_DEFLATED) as zf:
-        for path, body in (entries or {
-            "SKILL.md": b"---\nname: story\ndescription: story workflow\n---\nRead references/guide.md\n",
-            "meta.yaml": b"version: 1.2.3\n",
-            "references/guide.md": b"original resource",
-            "LICENSE": b"original license",
-        }).items():
+        for path, body in (
+            entries
+            or {
+                "SKILL.md": b"---\nname: story\ndescription: story workflow\n---\nRead references/guide.md\n",
+                "meta.yaml": b"version: 1.2.3\n",
+                "references/guide.md": b"original resource",
+                "LICENSE": b"original license",
+            }
+        ).items():
             zf.writestr(path, body)
     return output.getvalue()
 
 
 def design_row():
-    return {"name": ext._id("minimax-design/catalog", "story"), "original_name": "story",
-            "source": "minimax-design", "version": "1.2.3", "catalog_only": False}
+    return {
+        "name": ext._id("minimax-design/catalog", "story"),
+        "original_name": "story",
+        "source": "minimax-design",
+        "version": "1.2.3",
+        "catalog_only": False,
+    }
 
 
 def test_design_install_version_resources_provenance_and_no_overwrite(cache, tmp_path, monkeypatch):
     row, body, calls = design_row(), zip_package(), []
     ext._remember([row])
+
     def download(url, **kwargs):
         calls.append(url)
         assert kwargs["max_bytes"] == ext.MAX_ARCHIVE
         return body
+
     monkeypatch.setattr(ext, "fetch_public_https_bytes", download)
     result = ext.install_external_skill(row["name"], skills_dir=tmp_path / "skills")
     target = Path(result["path"])
@@ -193,13 +251,18 @@ def test_design_install_version_resources_provenance_and_no_overwrite(cache, tmp
     assert ext._frontmatter((target / "SKILL.original.md").read_bytes())[0]["name"] == "story"
     provenance = json.loads((target / ".source.json").read_text())
     assert provenance["archive_sha256"] == ext.hashlib.sha256(body).hexdigest()
-    assert calls == ["https://design.minimaxi.com/api/v1/skills/market/download?name=story&version=1.2.3"]
+    assert calls == [
+        "https://design.minimaxi.com/api/v1/skills/market/download?name=story&version=1.2.3"
+    ]
     (target / "references/guide.md").write_bytes(b"user edit")
     assert ext.install_external_skill(row["name"], skills_dir=tmp_path / "skills")["already_exists"]
     assert len(calls) == 1 and (target / "references/guide.md").read_bytes() == b"user edit"
 
 
-@pytest.mark.parametrize("bad", ["../escape", "/absolute", "C:/file", "a\\b", "CON.txt", "a.", "a:stream", ".source.json"])
+@pytest.mark.parametrize(
+    "bad",
+    ["../escape", "/absolute", "C:/file", "a\\b", "CON.txt", "a.", "a:stream", ".source.json"],
+)
 def test_design_zip_rejects_unsafe_paths(bad):
     body = zip_package({"SKILL.md": b"skill", bad: b"bad"})
     # Windows ZipInfo normalizes separators when creating the fixture.
@@ -209,12 +272,15 @@ def test_design_zip_rejects_unsafe_paths(bad):
         ext._zip_files(body)
 
 
-@pytest.mark.parametrize("entries", [
-    {"SKILL.md": b"skill", "skill.md": b"collision"},
-    {"SKILL.md": b"skill", "a": b"file", "a/b": b"child"},
-    {"SKILL.md": b"skill", "other/SKILL.md": b"ambiguous"},
-    {"story/SKILL.md": b"skill", "unrelated": b"file"},
-])
+@pytest.mark.parametrize(
+    "entries",
+    [
+        {"SKILL.md": b"skill", "skill.md": b"collision"},
+        {"SKILL.md": b"skill", "a": b"file", "a/b": b"child"},
+        {"SKILL.md": b"skill", "other/SKILL.md": b"ambiguous"},
+        {"story/SKILL.md": b"skill", "unrelated": b"file"},
+    ],
+)
 def test_design_zip_rejects_collisions_and_ambiguous_roots(entries):
     with pytest.raises(ValueError):
         ext._zip_files(zip_package(entries))
@@ -235,11 +301,17 @@ def test_design_zip_rejects_symlinks_and_limits(monkeypatch):
 
 
 @pytest.mark.parametrize("name,version", [("different", "1.2.3"), ("story", "9.0")])
-def test_design_install_rejects_mismatched_package_atomically(cache, tmp_path, monkeypatch, name, version):
+def test_design_install_rejects_mismatched_package_atomically(
+    cache, tmp_path, monkeypatch, name, version
+):
     row = design_row()
     ext._remember([row])
-    body = zip_package({"SKILL.md": f"---\nname: {name}\ndescription: useful\n---\nbody".encode(),
-                        "meta.yaml": f"version: {version}".encode()})
+    body = zip_package(
+        {
+            "SKILL.md": f"---\nname: {name}\ndescription: useful\n---\nbody".encode(),
+            "meta.yaml": f"version: {version}".encode(),
+        }
+    )
     monkeypatch.setattr(ext, "fetch_public_https_bytes", lambda *args, **kwargs: body)
     with pytest.raises(ValueError, match="mismatch"):
         ext.install_external_skill(row["name"], skills_dir=tmp_path / "skills")
@@ -248,8 +320,17 @@ def test_design_install_rejects_mismatched_package_atomically(cache, tmp_path, m
 
 def test_design_refreshes_legacy_catalog_before_ttl(cache, monkeypatch):
     cache.mkdir()
-    (cache / "minimax-design.json").write_text(json.dumps({"checked_at": ext.time.time(), "items": []}))
-    monkeypatch.setattr(ext, "_json", lambda url: {"total": 1, "skills": [{"name": "story", "version": "1.2.3"}]})
+    (cache / "minimax-design.json").write_text(
+        json.dumps({"checked_at": ext.time.time(), "items": []})
+    )
+    monkeypatch.setattr(
+        ext, "_json", lambda url: {"total": 1, "skills": [{"name": "story", "version": "1.2.3"}]}
+    )
     rows, _ = ext._minimax_design()
     assert len(rows) == 1 and not rows[0]["catalog_only"]
-    assert json.loads((cache / "index.json").read_text(encoding="utf-8"))[rows[0]["name"]]["catalog_only"] is False
+    assert (
+        json.loads((cache / "index.json").read_text(encoding="utf-8"))[rows[0]["name"]][
+            "catalog_only"
+        ]
+        is False
+    )

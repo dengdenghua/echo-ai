@@ -109,7 +109,8 @@ def scan_agent_pack(root: str | Path) -> AgentPackPreview:
         commands.extend(
             _scan_markdown_modules(plugin_dir / "commands", "command", plugin, warnings)
         )
-        mcp_servers.extend(_scan_mcp_servers(plugin_dir / ".mcp.json", plugin, warnings))
+        for config_path in _plugin_mcp_paths(plugin_dir, plugin, warnings):
+            mcp_servers.extend(_scan_mcp_servers(config_path, plugin, warnings))
 
     managed_agents, subagents = _scan_managed_agents(base, warnings)
     _append_security_warnings(warnings, mcp_servers, managed_agents)
@@ -147,6 +148,14 @@ def import_agent_from_pack(
     source_path = _require_real_file_under(Path(module.path), pack_root, "agent markdown")
     plugin_dir = source_path.parent.parent
     plugin = next((item for item in preview.plugins if item.id == module.source_plugin), None)
+    if plugin and plugin.metadata.get("dependency_error"):
+        raise ValueError("invalid role dependencies; fix the package manifest before importing")
+    from runtime.execution.agents.dependencies import normalize_role_dependencies
+
+    dependencies = normalize_role_dependencies({
+        "connectors": (plugin.metadata.get("required_connectors", []) if plugin else []),
+        "mcp_servers": [m.name for m in preview.mcp_servers if m.source_plugin == module.source_plugin],
+    })
     plugin_name = plugin.name if plugin else str(module.source_plugin or plugin_dir.name)
     plugin_version = str((plugin.metadata.get("version") if plugin else "") or "0.1.0")
     agent_id = _slugify_agent_id(module.name)
@@ -208,6 +217,7 @@ def import_agent_from_pack(
             "avatar": "avatar.svg",
             "model": {"provider": "auto", "name": "auto"},
             "runtime": "local",
+            "dependencies": dependencies,
             "creator": f"pack:{plugin_name}",
             "category": "researcher",
             "tags": ["finance", "research", "market", "analysis"],
@@ -268,6 +278,17 @@ def _scan_plugins(base: Path, warnings: list[str]) -> list[PackModule]:
         for manifest in sorted(base.rglob(f"{manifest_dir}/plugin.json")):
             plugin_dir = manifest.parent.parent
             data = _read_json(manifest, warnings) or {}
+            dependency_metadata: dict[str, Any] = {}
+            try:
+                from runtime.execution.agents.dependencies import normalize_role_dependencies
+
+                raw_dependencies = data.get("dependencies")
+                normalized = normalize_role_dependencies(raw_dependencies)
+                dependency_metadata["required_connectors"] = normalized["connectors"]
+                dependency_metadata["mcp_paths"] = (raw_dependencies or {}).get("mcpServers")
+            except ValueError as exc:
+                warnings.append(f"{manifest}: {exc}")
+                dependency_metadata["dependency_error"] = True
             raw_name = str(data.get("name") or plugin_dir.name)
             module_id = raw_name
             if module_id in seen_ids:
@@ -286,10 +307,37 @@ def _scan_plugins(base: Path, warnings: list[str]) -> list[PackModule]:
                         "manifest": str(manifest),
                         "format": format_name,
                         "layout": _infer_plugin_layout(plugin_dir),
+                        **dependency_metadata,
                     },
                 )
             )
     return modules
+
+
+def _plugin_mcp_paths(plugin_dir: Path, plugin: PackModule, warnings: list[str]) -> list[Path]:
+    """Resolve declared MCP files without following paths outside the plugin."""
+    raw = plugin.metadata.get("mcp_paths")
+    declared = raw is not None
+    refs = ([raw] if isinstance(raw, str) else raw) if declared else [".mcp.json"]
+    if not isinstance(refs, list) or len(refs) > 64:
+        plugin.metadata["dependency_error"] = True
+        warnings.append(f"{plugin.name}: dependencies.mcpServers must contain file paths")
+        return []
+    paths: list[Path] = []
+    for ref in refs:
+        try:
+            if not isinstance(ref, str) or not ref or Path(ref).is_absolute():
+                raise ValueError("MCP dependency must be a relative file path")
+            candidate = plugin_dir / ref
+            if not declared and not candidate.exists():
+                continue
+            resolved = _require_real_file_under(candidate, plugin_dir, "MCP dependency")
+            if resolved not in paths:
+                paths.append(resolved)
+        except (ValueError, OSError) as exc:
+            plugin.metadata["dependency_error"] = True
+            warnings.append(f"{plugin.name}: invalid MCP dependency ({type(exc).__name__})")
+    return paths
 
 
 def _infer_plugin_layout(plugin_dir: Path) -> list[str]:
@@ -390,9 +438,11 @@ def _scan_mcp_servers(
 ) -> list[PackModule]:
     data = _read_json(path, warnings)
     if not data:
+        plugin.metadata["dependency_error"] = True
         return []
     servers = data.get("mcpServers")
     if not isinstance(servers, dict):
+        plugin.metadata["dependency_error"] = True
         warnings.append(f"{path}: missing mcpServers mapping")
         return []
     modules: list[PackModule] = []

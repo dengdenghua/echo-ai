@@ -853,9 +853,13 @@ def build_fallback_router_from_custom_models(prefer: str | None = None) -> Any:
     )
     if not primary:
         return None
+    api_key = str(entry.get("api_key") or "")
+    if not api_key:
+        api_key = _resolve_credential_ref(entry)
     provider = str(entry.get("provider") or "openai").lower()
     headers = entry.get("default_headers")
     headers = headers if isinstance(headers, dict) else {}
+    headers = {**_opencode_session_headers(base_url), **headers}
     # Slow reasoning models (e.g. agnes-2.0-flash spends 60–120s on hidden
     # reasoning before answering) blow past the 60s default and raise
     # ReadTimeout. Let an entry declare its own ceiling via ``timeout`` /
@@ -870,7 +874,7 @@ def build_fallback_router_from_custom_models(prefer: str | None = None) -> Any:
             from runtime.sensing.model_router.anthropic_router import AnthropicModelRouter
 
             return AnthropicModelRouter(
-                api_key=entry.get("api_key") or "",
+                api_key=api_key,
                 default_model=primary,
                 base_url=(base_url or None),
             )
@@ -878,20 +882,45 @@ def build_fallback_router_from_custom_models(prefer: str | None = None) -> Any:
             from runtime.sensing.model_router.gemini_router import GeminiModelRouter
 
             return GeminiModelRouter(
-                api_key=entry.get("api_key") or "",
+                api_key=api_key,
                 default_model=primary,
                 base_url=base_url,
                 extra_headers=headers,
             )
         return OpenAIModelRouter(
             base_url=base_url,
-            api_key=entry.get("api_key") or "dummy",
+            api_key=api_key or "dummy",
             default_model=primary,
             extra_headers=headers,
             timeout_seconds=timeout_seconds,
         )
     except Exception:  # noqa: BLE001 — keep the existing fallback if the entry is malformed
         return None
+
+
+def _resolve_credential_ref(entry: dict[str, Any]) -> str:
+    """Resolve a ``connector:<id>:<key>`` reference to a plaintext secret."""
+    reference = str(entry.get("credential_ref") or "")
+    parts = reference.split(":", 2)
+    if len(parts) != 3 or parts[0] != "connector" or not parts[1] or not parts[2]:
+        return ""
+    try:
+        from runtime.platform.connectors.credential_store import CredentialStore
+
+        store = CredentialStore()
+        return str(store.get_secret(parts[1], parts[2]) or "")
+    except Exception:  # noqa: BLE001 — best-effort; fall back to no key
+        return ""
+
+
+def _opencode_session_headers(base_url: str) -> dict[str, str]:
+    """Identify as an OpenCode client so free-tier models accept the call."""
+    if "opencode.ai/zen" not in base_url:
+        return {}
+    import hashlib
+
+    session = hashlib.sha256(str(os.getcwd()).encode()).hexdigest()
+    return {"x-opencode-session": session, "User-Agent": "Echo/1.0"}
 
 
 def _redact_error_text(text: str) -> str:

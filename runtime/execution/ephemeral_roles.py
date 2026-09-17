@@ -30,32 +30,20 @@ def make_host_ephemeral_runner(stack: Any):
 
     def run(call):
         from runtime.execution.opencode_roles import run_role_sync
-        from runtime.execution.suckers.layers import EPHEMERAL_MEMORY_SKILLS, select_tool_specs
         from runtime.safety.approval.cancellation import current_cancellation_token
 
         context = dict(call.context or {})
-        raw = context.get("tool_allowlist", call.role.tool_allowlist)
-        allowlist = (
-            tuple(str(name).strip() for name in raw) if isinstance(raw, (list, tuple, set)) else ()
-        )
-        # Reuse the temporary-role selector: empty means atomic inheritance,
-        # blackboard tools are included, and read-only filtering happens last.
-        specs = select_tool_specs(
-            allowlist,
-            [SimpleNamespace(name=name) for name in stack.executor.registry.list_enabled()],
-            read_only=bool(context.get("tool_allowlist_read_only")),
-        )
-        ceiling = frozenset(spec.name for spec in specs) - EPHEMERAL_MEMORY_SKILLS
         agent = SimpleNamespace(
             agent_id=call.role.id,
             display_name=call.role.display_name,
             soul=call.composed_system_prompt,
             model=None,
             arms=(),
-            extra_skills=tuple(ceiling),
+            extra_skills=(),
             capabilities={"execution_backend": "opencode_server"},
         )
         cancellation = current_cancellation_token()
+
         from runtime.execution.subagents.opencode_progress import progress_emitter
 
         emit = progress_emitter(call.role.id, context)
@@ -66,7 +54,6 @@ def make_host_ephemeral_runner(stack: Any):
             call.user_prompt,
             context=context,
             interrupted=lambda: cancellation.is_cancelled,
-            tool_ceiling=ceiling,
             on_event=emit,
         )
 

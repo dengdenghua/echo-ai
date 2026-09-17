@@ -24,7 +24,12 @@ def reported_turn_cost(messages, user_message_id):
         if info.get("role") != "assistant" or info.get("parentID") != user_message_id:
             continue
         value = info.get("cost")
-        if not info.get("id") or type(value) not in (int, float) or not math.isfinite(value) or value < 0:
+        if (
+            not info.get("id")
+            or type(value) not in (int, float)
+            or not math.isfinite(value)
+            or value < 0
+        ):
             return None
         costs[info["id"]] = max(costs.get(info["id"], 0), value)
     return sum(costs.values()) if costs else None
@@ -84,7 +89,10 @@ async def receive_events(
                                 seen.discard(recent.popleft())
                 data = []
                 size = 0
-    except (httpx.HTTPError, ValueError):
+    except (
+        httpx.HTTPError,
+        ValueError,
+    ):  # intentional: Caller reconciles native messages without resending the prompt.
         pass  # The caller reconciles with native messages, never resends a prompt.
     finally:
         ready.set()

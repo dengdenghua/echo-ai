@@ -22,14 +22,14 @@ _LOG = logging.getLogger(__name__)
 
 _WHITE_GHOST_AGENT_IDS = frozenset(
     {
-        "general",
-        "coder",
-        "desktop_operator",
-        "vibe_selling",
-        "ecommerce_mind",
-        "market_researcher",
-        "aoi",
-        "admin",
+        "eve",
+        "kane",
+        "raven",
+        "luna",
+        "shion",
+        "noah",
+        "zero",
+        "leon",
     }
 )
 
@@ -38,6 +38,11 @@ def _persona_led_agents(agents: list[dict[str, Any]]) -> list[dict[str, Any]]:
     """Keep one fixed persona as owner and every other role as a member."""
 
     normalized = [dict(agent) for agent in agents]
+    from runtime.execution.agents.aliases import canonical_agent_id
+
+    for agent in normalized:
+        if isinstance(agent.get("id"), str):
+            agent["id"] = canonical_agent_id(agent["id"])
     leader_index = next(
         (
             index
@@ -47,7 +52,7 @@ def _persona_led_agents(agents: list[dict[str, Any]]) -> list[dict[str, Any]]:
         -1,
     )
     if leader_index < 0:
-        normalized.insert(0, {"id": "general", "display_name": "通用助手"})
+        normalized.insert(0, {"id": "eve", "display_name": "Eve"})
     elif leader_index > 0:
         normalized.insert(0, normalized.pop(leader_index))
     return normalized
@@ -337,6 +342,8 @@ class ProjectGroupCreationService:
             if actor_id:
                 metadata["owner_actor_id"] = actor_id
                 metadata["tenant_id"] = tenant_id
+            elif not self.require_auth:
+                metadata["local_project_group"] = True
             values = {
                 "title": project.name,
                 "agent_name": primary_agent_id,

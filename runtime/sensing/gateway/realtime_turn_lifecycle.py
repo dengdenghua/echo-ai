@@ -1068,10 +1068,24 @@ async def _start_turn(
                 else ""
             )
             # The declarative team pattern is authoritative. A focused reply
-            # must not inherit a stale cluster topology, while an orchestrated
-            # task must not be forced back into the legacy bubble fan-out by
-            # serve_mesh/cowork_is_multi compatibility flags.
-            if _team_pattern_execution == "focused":
+            # must not inherit a stale cluster topology, an orchestrated task
+            # must not be forced back into the legacy bubble fan-out by
+            # serve_mesh/cowork_is_multi compatibility flags, and neither may be
+            # re-routed to the mesh by a client-supplied topology.
+            if _team_pattern_execution in {"focused", "orchestrated"}:
+                # ``orchestrated`` is decided by the server together with the
+                # coordinator contract and any recoverable run snapshot. A
+                # client-supplied ``topology_id`` (the legacy 集群 field) would
+                # otherwise win route precedence and dispatch ``swarm_mesh``
+                # instead, while the deliverable-completeness gate below still
+                # audits this turn as coordinated execution.
+                if topology_id:
+                    _logger.info(
+                        "ignoring topology_id %r under server-owned team pattern %r",
+                        topology_id,
+                        _team_pattern_execution,
+                    )
+                    validated = validated.model_copy(update={"topology_id": None})
                 topology_id = None
             # Mode-level guard: single-agent modes MUST NOT route
             # through ``_drive_team_topology`` even if a leftover
@@ -1122,6 +1136,31 @@ async def _start_turn(
                         "stepCount": len(_matched.steps),
                     },
                 )
+
+            # Project-intent hint. The web composer detects this while typing;
+            # a channel-borne message never reaches that component, so emit it
+            # here too. Informational only — routing into Project OS stays an
+            # explicit ``/project run``, never inferred from phrasing.
+            if not explicit_project_command:
+                try:
+                    from runtime.sensing.gateway.project_intent_hint import (
+                        detect_project_intent,
+                    )
+
+                    _project_intent = detect_project_intent(text)
+                except Exception:  # noqa: BLE001 - a hint must never break a turn
+                    _logger.debug("project intent detection failed", exc_info=True)
+                    _project_intent = None
+                if _project_intent is not None:
+                    await emitter.notify(
+                        ServerMethod.TURN_PROJECT_INTENT_HINT,
+                        {
+                            "threadId": thread_id,
+                            "turnId": turn.id,
+                            "text": _project_intent,
+                            "command": "/project run",
+                        },
+                    )
 
             group_presence = bool(_cowork_context.get("cowork_group")) and (
                 _team_pattern_execution == "presence" or is_group_presence_query(text)
@@ -1342,6 +1381,9 @@ async def _start_turn(
         # be corrected without making the user repeat the request.
         if (
             _team_pattern_execution == "orchestrated"
+            # Project OS owns durable execution and acceptance evidence. Its
+            # control response must not launch a second chat orchestration run.
+            and not explicit_project_command
             and turn.status
             not in {
                 TurnStatus.PAUSED,

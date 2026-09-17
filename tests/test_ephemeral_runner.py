@@ -15,13 +15,17 @@ import pytest
 
 @pytest.fixture(autouse=True)
 def _reset_runner():
+    from runtime.execution.subagents import get_sub_agent_runner, set_sub_agent_runner
     from runtime.execution.suckers.ephemeral_agents import (
         set_ephemeral_role_runner,
     )
 
+    previous = get_sub_agent_runner()
+    set_sub_agent_runner(None)
     set_ephemeral_role_runner(None)
     yield
     set_ephemeral_role_runner(None)
+    set_sub_agent_runner(previous)
 
 
 def _make_call(role_id: str = "reviewer", user_prompt: str = "review"):
@@ -412,7 +416,9 @@ class TestEndToEnd:
             make_llm_ephemeral_runner(router, default_model="m"),
         )
 
-        result = _call_agent(agent_id="coder", prompt="write code")
+        # App wiring in an earlier test may register the real "coder" role.
+        # Exercise an absent role independently of the installed catalog.
+        result = _call_agent(agent_id="__unregistered_runner_regression_role__", prompt="write code")
         # legacy path · no runner → not configured
         assert result["success"] is False
         assert "runner not configured" in (result["error"] or "")

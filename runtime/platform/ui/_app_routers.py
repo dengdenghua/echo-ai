@@ -119,10 +119,29 @@ def mount_routers_a(
 
     project_store = ProjectStore()
     app.state.project_store = project_store
+
+    # Nothing advances a project on its own: the engine only runs from an
+    # explicit command/endpoint/CLI call, bound to that one request. A backend
+    # killed mid-run leaves a ``running`` project with no driver, so record the
+    # discontinuity instead of presenting it as still in flight. This marks
+    # only — resuming would spend budget and invoke tools without approval.
+    try:
+        from runtime.projectos.restart_sweep import sweep_projects_interrupted_by_restart
+
+        interrupted_projects = sweep_projects_interrupted_by_restart(project_store)
+        if interrupted_projects:
+            logging.getLogger(__name__).warning(
+                "projectos: %d project(s) were left running by a previous process "
+                "and are awaiting an explicit continue: %s",
+                len(interrupted_projects),
+                ", ".join(item["project_id"] for item in interrupted_projects),
+            )
+    except Exception:  # noqa: BLE001 - the sweep must never block app wiring
+        logging.getLogger(__name__).debug("project restart sweep failed", exc_info=True)
     bind_team_project_store = getattr(ctx.team_rooms_router, "bind_project_store", None)
     if callable(bind_team_project_store):
         bind_team_project_store(project_store)
-    project_model_router, _ = native_model_services(stack)
+    project_model_router, project_planning_model = native_model_services(stack)
 
     # ─── Cowork thread-group · WeChat-style membership + mode + blackboard ──
     # GET /api/cowork/{thread} (public) + POST/DELETE members/mode/blackboard
@@ -180,6 +199,7 @@ def mount_routers_a(
             workspace_root=ctx.thread_workspace_root,
             logs_root=(ctx.paths.data_dir / "threads" if ctx.paths is not None else None),
             model_router=project_model_router,
+            planning_model=project_planning_model,
             subagent_runner=ctx.subagent_runner,
             identity_store=ctx.identity_store,
             require_auth=ctx.require_auth,

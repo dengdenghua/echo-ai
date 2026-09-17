@@ -24,7 +24,7 @@ from runtime.execution.codex_backend.hotspot import (
     stream_codex,
 )
 from runtime.sensing.gateway.hotspot_store import HotspotStore
-from runtime.sensing.gateway.workbuddy_bridge import WorkBuddyExecutor
+from runtime.sensing.gateway.workbuddy_bridge import RoleBridgeConfig, WorkBuddyExecutor
 from runtime.sensing.gateway.workbuddy_bridge import create_app as role_app
 
 ROOT = Path.home() / ".echo" / "codex-hotspot"
@@ -38,7 +38,9 @@ def owner_token(root: Path) -> str:
     if not path.exists():
         try:
             fd = os.open(path, os.O_CREAT | os.O_EXCL | os.O_WRONLY, 0o600)
-        except FileExistsError:
+        except (
+            FileExistsError
+        ):  # intentional: Another process created the token; read that file below.
             pass
         else:
             with os.fdopen(fd, "w") as file:
@@ -60,6 +62,15 @@ async def bounded_body(request: Request):
     if not isinstance(value, dict):
         raise HTTPException(400, "请求必须是 JSON 对象")
     return value
+
+
+def _has_file_reference(item: dict[str, object]) -> bool:
+    if item.get("type") == "item_reference":
+        return True
+    content = item.get("content")
+    if not isinstance(content, list):
+        return False
+    return any(isinstance(part, dict) and part.get("file_id") for part in content)
 
 
 def create_hotspot(
@@ -101,7 +112,7 @@ def create_hotspot(
             engine = store.task_engine(member)
             label = "OpenCode" if engine == "opencode" else "Codex"
             runner = task_runner
-            cfg = CodexRemoteConfig(root / "members" / member, auth.home, auth)
+            cfg: RoleBridgeConfig = CodexRemoteConfig(root / "members" / member, auth.home, auth)
             if engine == "opencode":
                 from runtime.execution.opencode_hotspot import OpenCodeRemoteConfig, stream_opencode
 
@@ -281,24 +292,16 @@ def create_hotspot(
         if body.get("stream", True) is not True:
             raise HTTPException(400, "模型热点当前需要 stream=true")
         tools = body.get("tools", [])
-        if not isinstance(tools, list) or any(
+        if not isinstance(tools, list):
+            raise HTTPException(400, "模型热点仅支持客户端执行的 function/custom 工具")
+        if any(
             not isinstance(tool, dict) or tool.get("type") not in {"function", "custom"}
             for tool in tools
         ):
             raise HTTPException(400, "模型热点仅支持客户端执行的 function/custom 工具")
         inputs = body.get("input")
         if isinstance(inputs, list) and any(
-            isinstance(item, dict)
-            and (
-                item.get("type") == "item_reference"
-                or any(
-                    isinstance(part, dict) and part.get("file_id")
-                    for part in (
-                        item.get("content") if isinstance(item.get("content"), list) else []
-                    )
-                )
-            )
-            for item in inputs
+            isinstance(item, dict) and _has_file_reference(item) for item in inputs
         ):
             raise HTTPException(400, "请提供完整输入，不能引用提供方账号的已存储项目或文件")
         if slots.locked():
@@ -407,7 +410,10 @@ def create_hotspot(
                                         usage = (event.get("response") or {}).get("usage")
                                     elif event.get("type") in {"error", "response.failed"}:
                                         state = "failed"
-                                except (ValueError, TypeError):
+                                except (
+                                    ValueError,
+                                    TypeError,
+                                ):  # intentional: Forward raw SSE even if optional status parsing fails.
                                     pass
                         yield chunk
             finally:

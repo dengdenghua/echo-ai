@@ -96,10 +96,13 @@ class CodexExecutionRequest:
     execution: ExecutionRequest | None = field(default=None, repr=False)
     fresh_thread_prompt: str | None = field(default=None, repr=False)
     tool_free: bool = False
+    host_tools_only: bool = False
 
     def __post_init__(self) -> None:
         if type(self.tool_free) is not bool:
             raise ValueError("tool_free must be a boolean")
+        if type(self.host_tools_only) is not bool:
+            raise ValueError("host_tools_only must be a boolean")
         if self.tool_free and (
             self.dynamic_tools
             or self.dynamic_tool_handler is not None
@@ -385,7 +388,7 @@ class CodexExecutionSession:
             self._inner_thread_id = inner_thread_id
 
             turn_params = _turn_extra_params(context.turn_start_security_overrides())
-            if self.request.tool_free:
+            if self.request.tool_free or self.request.host_tools_only:
                 turn_params["environments"] = []
             turn_params["approvalPolicy"] = self.request.approval_policy
             if self.request.model is not None:
@@ -547,7 +550,7 @@ class CodexExecutionSession:
         # Reassert the exact current-turn catalog, including an explicit empty
         # list when Echo revoked every tool since the previous turn.
         params["dynamicTools"] = [dict(spec) for spec in self.request.dynamic_tools]
-        if self.request.tool_free:
+        if self.request.tool_free or self.request.host_tools_only:
             params["environments"] = []
         if self.request.developer_instructions is not None:
             params["developerInstructions"] = self.request.developer_instructions
@@ -572,7 +575,7 @@ class CodexExecutionSession:
         permissions = _permission_profile(overrides)
         params = _thread_extra_params(overrides, resume=False)
         params["dynamicTools"] = [dict(spec) for spec in self.request.dynamic_tools]
-        if self.request.tool_free:
+        if self.request.tool_free or self.request.host_tools_only:
             params["environments"] = []
         if self.request.developer_instructions is not None:
             params["developerInstructions"] = self.request.developer_instructions

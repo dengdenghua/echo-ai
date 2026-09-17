@@ -68,8 +68,6 @@ def test_external_graph_uses_role_catalog_and_preserves_parallel_dependencies(
     assert graph.budget.tokens == request.task.resources.token_target
     assert graph.budget.usd == request.task.resources.usd_target
     assert runner.call_args.kwargs["context"]["direct_conversation_reply"] is True
-    if engine == "opencode":
-        assert runner.call_args.kwargs["tool_ceiling"] == frozenset()
     assert "read_file" in runner.call_args.args[1].soul
     assert "exec_shell" not in runner.call_args.args[1].soul
 

@@ -16,7 +16,8 @@ from __future__ import annotations
 import inspect
 import re
 from functools import lru_cache
-from typing import Any
+from types import UnionType
+from typing import Any, Union, get_args, get_origin, get_type_hints
 
 from runtime.core.cerebrum.capability_router import (
     activate_capabilities,
@@ -28,6 +29,7 @@ from runtime.platform.models.llm import ToolSpec
 
 PRIORITY_SKILLS: frozenset[str] = frozenset(
     {
+        "ask_user_question",
         "todo_write",
         "collaboration",
         "search_capabilities",
@@ -217,6 +219,7 @@ def _input_schema_from_handler(handler: Any) -> tuple[dict[str, Any], ...]:
     """
     try:
         sig = inspect.signature(handler)
+        hints = get_type_hints(handler)
     except (ValueError, TypeError):
         return ({"type": "object", "properties": {}, "additionalProperties": True},)
 
@@ -247,25 +250,38 @@ def _input_schema_from_handler(handler: Any) -> tuple[dict[str, Any], ...]:
             continue
 
         prop: dict[str, Any] = {}
-        annotation = param.annotation
+        annotation = hints.get(pname, param.annotation)
 
         if annotation is inspect.Parameter.empty:
             prop["type"] = "string"
         else:
             ann_str = str(annotation)
-            origin = getattr(annotation, "__origin__", None)
+            origin = get_origin(annotation)
 
             # Handle both real types (list, dict) and their string
             # forms ("list", "dict") — the latter appear when the
             # module uses ``from __future__ import annotations``.
-            if origin is list or ann_str in ("list", "List"):
+            if origin is list or annotation is list or ann_str in ("list", "List"):
                 prop["type"] = "array"
-            elif origin is dict or ann_str in ("dict", "Dict"):
+            elif origin is dict or annotation is dict or ann_str in ("dict", "Dict"):
                 prop["type"] = "object"
+            elif origin in (Union, UnionType):
+                non_none_args = [arg for arg in get_args(annotation) if arg is not type(None)]
+                if len(non_none_args) == 1 and get_origin(non_none_args[0]) is list:
+                    prop["type"] = "array"
+                elif len(non_none_args) == 1 and get_origin(non_none_args[0]) is dict:
+                    prop["type"] = "object"
+                else:
+                    prop["type"] = "string"
             else:
                 matched = False
                 for py_type, json_type in _SIMPLE_TYPE_MAP.items():
-                    if ann_str == py_type or ann_str.startswith(py_type + "."):
+                    annotation_name = getattr(annotation, "__name__", ann_str)
+                    if (
+                        annotation_name == py_type
+                        or ann_str == py_type
+                        or ann_str.startswith(py_type + ".")
+                    ):
                         prop["type"] = json_type
                         matched = True
                         break

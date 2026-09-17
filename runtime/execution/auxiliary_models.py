@@ -93,7 +93,6 @@ class AuxiliaryModelRouter:
                 prompt,
                 context=context,
                 interrupted=lambda: cancellation.is_cancelled,
-                tool_ceiling=frozenset(),
                 on_event=receipt,
             )
         else:

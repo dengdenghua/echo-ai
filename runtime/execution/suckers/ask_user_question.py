@@ -35,6 +35,7 @@ def _ask_user_question(
     question: str = "",
     options: list[str] | None = None,
     allow_other: bool = True,
+    questions: list[dict[str, Any]] | None = None,
     **_kw: Any,
 ) -> dict[str, Any]:
     """Pause and ask the user a structured multiple-choice question.
@@ -46,6 +47,21 @@ def _ask_user_question(
     Returns a structured ack so the model knows the question was
     posted (not the answer — that arrives as the next user turn).
     """
+    if questions is not None:
+        if not isinstance(questions, list) or not 1 <= len(questions) <= 3:
+            return {"ok": False, "error": "questions must contain 1..3 questions"}
+        cleaned_questions = []
+        for index, item in enumerate(questions):
+            if not isinstance(item, dict) or not isinstance(item.get("title"), str) or not item["title"].strip():
+                return {"ok": False, "error": "each question requires a title"}
+            choices = item.get("options", [])
+            if not isinstance(choices, list) or len(choices) > 6 or len(choices) == 1 or any(not isinstance(x, str) or not x.strip() for x in choices):
+                return {"ok": False, "error": "options must be empty for free text or contain 2..6 strings"}
+            cleaned_questions.append({"id": f"question_{index + 1}", "title": item["title"].strip(),
+                                      "options": [x.strip() for x in choices], "multiple": item.get("multiple") is True})
+        return {"ok": True, "type": "clarification_questionnaire", "title": "完善需求",
+                "questions": cleaned_questions, "yield_turn": True,
+                "instructions": "The result is a user questionnaire. End the turn; never answer it for the user or treat it as project approval."}
     if not isinstance(question, str) or not question.strip():
         return {
             "ok": False,
@@ -124,19 +140,12 @@ def register_ask_user_question_skill(registry: SkillRegistry) -> int:
         Skill(
             name="ask_user_question",
             description=(
-                "用途: 暂停并以结构化卡片向用户提一个 2-6 选项的问题, "
-                "仅用于【多个并列方案的产品决策】——选项之间是真正的取舍, "
-                "且用户最有资格拍板。例: 用哪个数据库、用哪个框架、走哪种部署方式。\n"
-                "何时不用 (重要):\n"
-                " - 开放任务的方向/范围澄清 (如 '你想调研哪方面'、'聚焦哪个领域') "
-                "——不要用本工具反问。先按最合理的理解做一轮, 并在开头一句话亮明假设 "
-                "('我按 X 理解, 不对请说'), 让用户在看到产出后纠偏, 而不是上来就问。\n"
-                " - 单一文件改动、信息查询: 用 web_search / read_file。\n"
-                " - yes/no 工具批准: 用 request_approval。\n"
-                "关键参数: question (字符串, 非空); options (2-6 字符串列表, "
-                "每项是一个互斥的具体方案); allow_other (默认 True, 允许用户填自定义答案)。\n"
-                '示例: ask_user_question({"question":"用哪个数据库?",'
-                '"options":["PostgreSQL","SQLite","MySQL"]})'
+                "用途: 收集用户才能决定的需求、偏好或产品选择，以可点击问卷展示，不要一次列出多个纯文本问题。"
+                "只问尚未提供且影响下一步的信息，首轮最多3题；已明确的需求直接推进。"
+                "questions 参数为对象数组，每项包含 title、options（2-6个字符串；自由输入用空数组）、multiple（可选布尔）。"
+                "用户可补充文字或表示未确定。问卷不代表批准立项、拉人或执行操作；调用后结束本轮等待用户回答。"
+                "兼容单题参数 question、options、allow_other。"
+
             ),
             affinity=["interaction", "ui", "ask_user"],
             cost_profile="low",

@@ -424,6 +424,7 @@ def mount_routers_b(
 
                     _project_os_hooks = create_llm_hooks(
                         ctx.project_model_router,
+                        **({"model": _chat_model} if _chat_model else {}),
                         subagent_runner=ctx.subagent_runner,
                     )
                     from functools import partial
@@ -431,7 +432,9 @@ def mount_routers_b(
                     from runtime.projectos.initiation import prepare_proposal
 
                     _project_os_hooks["prepare_initiation"] = partial(
-                        prepare_proposal, ctx.project_model_router, model=_chat_model,
+                        prepare_proposal,
+                        ctx.project_model_router,
+                        model=_chat_model,
                     )
                 except Exception as exc:  # noqa: BLE001
                     logging.getLogger(__name__).warning(

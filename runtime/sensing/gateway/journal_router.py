@@ -27,6 +27,7 @@ from typing import Any
 from fastapi import APIRouter, HTTPException, Query, Request
 
 from runtime.memory.journal.sqlite_index import JournalIndex
+from runtime.safety.auth.scope import TenantScope
 
 _INDEX_LOCK = threading.Lock()
 _INDEX_INSTANCE: JournalIndex | None = None
@@ -72,7 +73,7 @@ def create_journal_router(
     """
     router = APIRouter()
 
-    def _auth(request: Request) -> str | None:
+    def _auth(request: Request) -> TenantScope | None:
         if require_auth and identity_store is None:
             raise HTTPException(401, "auth required")
         from runtime.safety.auth.principal import resolve_principal
@@ -86,8 +87,7 @@ def create_journal_router(
             jwt_issuer=jwt_issuer,
             jwt_audience=jwt_audience,
         )
-        request.state.journal_scope = scope_from_principal(principal)
-        return principal.actor_id if principal is not None else None
+        return scope_from_principal(principal)
 
     def _operator(request: Request) -> None:
         from runtime.safety.auth.principal import require_operator
@@ -114,7 +114,7 @@ def create_journal_router(
         limit: int = Query(default=100, ge=1, le=1000),
         offset: int = Query(default=0, ge=0),
     ) -> dict[str, Any]:
-        _auth(request)
+        scope = _auth(request)
         index = _get_index(db_path)
         rows = index.query(
             event_type=event_type,
@@ -123,15 +123,15 @@ def create_journal_router(
             session_id=session_id,
             limit=limit,
             offset=offset,
-            scope=getattr(request.state, "journal_scope", None),
+            scope=scope,
         )
         return {"events": rows, "limit": limit, "offset": offset}
 
     @router.get("/api/journal/stats")
     def get_stats(request: Request) -> dict[str, Any]:
-        _auth(request)
+        scope = _auth(request)
         index = _get_index(db_path)
-        return index.stats(scope=getattr(request.state, "journal_scope", None))
+        return index.stats(scope=scope)
 
     @router.post("/api/journal/reindex")
     def reindex(request: Request, body: dict[str, Any] | None = None) -> dict[str, Any]:

@@ -1,21 +1,28 @@
 import json
-from pathlib import Path
 
 import pytest
 
 from runtime.platform.plugins.cloud_catalog import CloudCatalog
-from runtime.tentacle.mobile.capabilities import android_capabilities
 from runtime.tentacle.ios.capabilities import ios_capabilities
 from runtime.tentacle.mobile._mcp_skill_tools import load_all_skill_tools
+from runtime.tentacle.mobile.capabilities import android_capabilities
 
 
-@pytest.mark.parametrize("platform,count,capabilities", [
-    ("android", 30, android_capabilities), ("ios", 13, ios_capabilities),
-])
-def test_device_plugin_install_activation_and_removal(tmp_path, monkeypatch, platform, count, capabilities):
+@pytest.mark.parametrize(
+    "platform,count,capabilities",
+    [
+        ("android", 30, android_capabilities),
+        ("ios", 13, ios_capabilities),
+    ],
+)
+def test_device_plugin_install_activation_and_removal(
+    tmp_path, monkeypatch, platform, count, capabilities
+):
     for field, suffix in {
-        "PLUGIN_INSTALL_ROOT": "plugins", "SKILLS_ROOT": "skills",
-        "CODEX_CACHE_ROOT": "cache", "CAPABILITY_STATE_FILE": "state.json",
+        "PLUGIN_INSTALL_ROOT": "plugins",
+        "SKILLS_ROOT": "skills",
+        "CODEX_CACHE_ROOT": "cache",
+        "CAPABILITY_STATE_FILE": "state.json",
         "CONNECTOR_STATE_FILE": "connectors.json",
     }.items():
         monkeypatch.setattr(CloudCatalog, field, tmp_path / suffix)
@@ -46,7 +53,10 @@ def test_device_plugin_install_activation_and_removal(tmp_path, monkeypatch, pla
 
 def test_device_manifests_are_not_marketplace_skills(monkeypatch):
     from runtime.platform.assets import skill_inventory
-    monkeypatch.setattr(skill_inventory, "scan_local_skills", lambda: [
-        {"name": name, "variants": []} for name in ["android.tap", "ios.tap", "pdf"]
-    ])
+
+    monkeypatch.setattr(
+        skill_inventory,
+        "scan_local_skills",
+        lambda: [{"name": name, "variants": []} for name in ["android.tap", "ios.tap", "pdf"]],
+    )
     assert skill_inventory.public_skill_inventory() == [{"name": "pdf"}]

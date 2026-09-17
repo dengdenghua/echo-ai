@@ -95,6 +95,7 @@ def test_flatten_merges_post_final_trace_items_into_delivered_answer() -> None:
     assert len(messages) == 2
     ai = messages[1]
     assert ai["content"].startswith("# Report")
+    assert ai["additional_kwargs"]["turn_duration_ms"] == 576_000
     assert "reasoning_content" not in ai["additional_kwargs"]
     assert "public_reasoning_summary" not in ai["additional_kwargs"]
     assert [tool["name"] for tool in ai["tool_calls"]] == ["todo_write"]

@@ -300,6 +300,20 @@ def create_local_auth_router(
             from runtime.safety.auth.identity import Identity
 
             existing = identity_store.get(actor_id) if hasattr(identity_store, "get") else None
+            admin_usernames = {
+                str(username).strip().lower()
+                for username in getattr(config, "admin_usernames", ())
+                if str(username).strip()
+            }
+            grant_admin = (
+                "*" in admin_usernames
+                or body.username.strip().lower() in admin_usernames
+            )
+            desired_roles = tuple(
+                dict.fromkeys(
+                    [*config.default_roles, "admin"] if grant_admin else config.default_roles
+                )
+            )
             if existing is None:
                 meta: dict[str, Any] = {
                     "provider": "local",
@@ -312,19 +326,15 @@ def create_local_auth_router(
                     identity_store.add(
                         Identity(
                             actor_id=actor_id,
-                            roles=tuple(
-                                dict.fromkeys(
-                                    [*config.default_roles, "admin"]
-                                    if body.username in getattr(config, "admin_usernames", ())
-                                    else config.default_roles
-                                )
-                            ),
+                            roles=desired_roles,
                             metadata=meta,
                         ),
                     )
                     created = True
                 except ValueError:  # noqa: BLE001 — duplicate identity silently skipped
                     pass
+            elif set(existing.roles) != set(desired_roles):
+                identity_store.set_roles(actor_id, desired_roles)
 
         access_token: str | None = None
         expires_in: int | None = None

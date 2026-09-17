@@ -43,6 +43,7 @@ def test_api_auto_uses_opencode_and_never_native_fallback(tmp_path, monkeypatch,
     calls = []
 
     async def stream(*args, **kwargs):
+        calls.append(args)
         calls.append(kwargs)
         yield {"type": "text_delta", "delta": "回答完成。"}
         yield {"type": "react_completed", "success": True}
@@ -65,8 +66,8 @@ def test_api_auto_uses_opencode_and_never_native_fallback(tmp_path, monkeypatch,
     codex.assert_not_called()
     if ready:
         assert turn["status"] == "completed", turn
-        assert len(calls) == 1
-        assert calls[0]["model"] == "big-pickle"
+        assert calls[1]["model"] == "big-pickle"
+        assert calls[1]["text"] == text
         restored = EventLog(runtime._log_for("auto-api").path).replay()[-1]
         assert restored.execution.engine == "opencode"
         assert restored.params.model == custom_model_selection_id("opencode-zen", "big-pickle")

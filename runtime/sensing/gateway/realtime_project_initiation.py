@@ -12,6 +12,64 @@ from runtime.projectos.initiation import ProjectProposal
 from runtime.protocol import ServerMethod
 
 
+def _conversation_message_text(message: dict[str, Any]) -> str:
+    content = message.get("content")
+    if isinstance(content, str):
+        return content.strip()
+    if isinstance(content, list):
+        parts: list[str] = []
+        for item in content:
+            if not isinstance(item, dict):
+                continue
+            text = item.get("text")
+            if isinstance(text, str) and text.strip():
+                parts.append(text.strip())
+        return "\n".join(parts)
+    return ""
+
+
+def _conversation_history(thread: dict[str, Any]) -> list[dict[str, str]]:
+    values = thread.get("values")
+    raw_messages = values.get("messages") if isinstance(values, dict) else []
+    raw_messages = raw_messages if isinstance(raw_messages, list) else []
+    selected: list[dict[str, str]] = []
+    total_chars = 0
+    for raw_message in reversed(raw_messages[-24:]):
+        if not isinstance(raw_message, dict):
+            continue
+        role_by_type = {"human": "user", "ai": "assistant", "assistant": "assistant", "user": "user"}
+        role = role_by_type.get(str(raw_message.get("type") or raw_message.get("role") or ""))
+        if role is None:
+            continue
+        content = _conversation_message_text(raw_message)
+        if not content:
+            continue
+        content = content[:1000]
+        selected.append({"role": role, "content": content})
+        total_chars += len(content)
+        if total_chars >= 12000:
+            break
+    selected.reverse()
+    while selected and total_chars > 12000:
+        total_chars -= len(selected.pop(0)["content"])
+    return selected
+
+
+def _original_goal_from_history(
+    previous: dict[str, Any], goal: str, history: list[dict[str, str]]
+) -> str:
+    original_goal = previous.get("original_goal") or previous.get("goal") or goal
+    if original_goal.strip() and original_goal != goal:
+        return original_goal
+    for message in history:
+        if message["role"] != "user":
+            continue
+        content = message["content"]
+        if len(content) >= 4 and content != goal:
+            return content
+    return original_goal
+
+
 async def initiate_project(
     runtime: Any,
     turn: Any,
@@ -24,6 +82,7 @@ async def initiate_project(
     tenant_id: str,
     leader: Any,
     prepare: Any,
+    explicit_project_request: bool = False,
     review_id: str = "",
     refine_id: str = "",
     feedback: str = "",
@@ -48,21 +107,38 @@ async def initiate_project(
         )
         return None
     previous = (thread.get("metadata") or {}).get("project_initiation") or {}
+    conversation_history = _conversation_history(thread)
+    previous = {
+        **previous,
+        "conversation_history": conversation_history,
+        "original_goal": _original_goal_from_history(previous, goal, conversation_history),
+    }
     if refine_id:
-        if (previous.get("id") != refine_id
-                or previous.get("leader_id") != leader.agent_id
-                or previous.get("status") not in {
-                    "needs_input", "needs_review", "approval_expired", "needs_revision",
-                    "needs_roles", "pending_approval", "model_unavailable", "review_failed", "refining",
-                }
-                or not feedback.strip()):
+        if (
+            previous.get("id") != refine_id
+            or previous.get("leader_id") != leader.agent_id
+            or previous.get("status")
+            not in {
+                "needs_input",
+                "needs_review",
+                "approval_expired",
+                "needs_revision",
+                "needs_roles",
+                "pending_approval",
+                "model_unavailable",
+                "review_failed",
+                "refining",
+            }
+            or not feedback.strip()
+        ):
             await emit("草案已更新，请在最新草案上补充需求；本次未修改或启动项目。")
             return None
         goal = previous.get("goal") or goal
     if review_id:
         if (
             previous.get("id") != review_id
-            or previous.get("status") not in {"approval_expired", "needs_revision", "needs_roles", "needs_review"}
+            or previous.get("status")
+            not in {"approval_expired", "needs_revision", "needs_roles", "needs_review"}
             or previous.get("leader_id") != leader.agent_id
             or not previous.get("proposal", {}).get("name")
         ):
@@ -110,9 +186,19 @@ async def initiate_project(
         feedback_history.append(goal)
     revisions = deepcopy(previous.get("revisions") or [])
     if previous.get("proposal", {}).get("name"):
-        revisions.append({key: deepcopy(previous.get(key)) for key in (
-            "id", "status", "goal", "proposal", "revision", "changes",
-        )})
+        revisions.append(
+            {
+                key: deepcopy(previous.get(key))
+                for key in (
+                    "id",
+                    "status",
+                    "goal",
+                    "proposal",
+                    "revision",
+                    "changes",
+                )
+            }
+        )
     changes: list[str] = []
     open_questions = list(previous.get("open_questions") or [])
 
@@ -175,6 +261,7 @@ async def initiate_project(
                     if getattr(turn, "params", None) and turn.params.model
                     else {}
                 ),
+                explicit_project_request=explicit_project_request,
             )
         )
         proposal = ProjectProposal.model_validate(raw)
@@ -186,8 +273,13 @@ async def initiate_project(
         if any(p < 1 or p > len(proposal.milestones) for n in proposal.staffing for p in n.phases):
             raise ValueError("invalid staffing phase")
     except ModelProviderHTTPError as exc:
-        status, message = exc.public_failure()
-        save("model_unavailable", previous.get("proposal") or {"error": type(exc).__name__, "status_code": status})
+        # Named apart from the proposal ``status`` below: this one is an HTTP
+        # status code, that one is a proposal lifecycle string.
+        status_code, message = exc.public_failure()
+        save(
+            "model_unavailable",
+            previous.get("proposal") or {"error": type(exc).__name__, "status_code": status_code},
+        )
         await emit(f"立项规划暂未完成：{message}尚未添加成员或启动项目执行。")
         return None
     except (ValueError, TypeError) as exc:
@@ -206,13 +298,29 @@ async def initiate_project(
         and not proposal.questions
     ):
         proposal.questions.append("尚有岗位未匹配，请确认由谁承担，或调整本期范围。")
-    for key, label in (("scope", "本期范围"), ("deliverables", "交付物"),
-                       ("acceptance_criteria", "验收标准"), ("assumptions", "暂定假设"),
-                       ("milestones", "阶段安排"), ("staffing", "人员安排"),
-                       ("budget", "预算说明"), ("deadline", "目标期限")):
-        if previous.get("proposal") and previous["proposal"].get(key) != proposal.model_dump().get(key):
+    for key, label in (
+        ("scope", "本期范围"),
+        ("deliverables", "交付物"),
+        ("acceptance_criteria", "验收标准"),
+        ("assumptions", "暂定假设"),
+        ("milestones", "阶段安排"),
+        ("staffing", "人员安排"),
+        ("budget", "预算说明"),
+        ("deadline", "目标期限"),
+    ):
+        if previous.get("proposal") and previous["proposal"].get(key) != proposal.model_dump().get(
+            key
+        ):
             changes.append(label)
     questions = proposal.clarification_questions()
+    if goal.strip() in {"?", "？"}:
+        combined_question = "请补充：要解决什么问题、服务谁、第一期交付什么？"
+        proposal.questions = [combined_question]
+        if proposal.requirements_review is not None:
+            proposal.requirements_review.blocking_questions = []
+            proposal.requirements_review.ready = False
+            proposal.requirements_review.reason = combined_question
+        questions = proposal.clarification_questions()
     open_questions = questions
     status = "needs_input" if questions else "needs_review" if refine_id else "pending_approval"
     if not save(status, proposal.model_dump()):
@@ -225,7 +333,9 @@ async def initiate_project(
         return None
     await emit(proposal.render(names))
     if refine_id:
-        await emit("本轮需求评审未发现阻塞问题。请审阅新版草案，也可以继续修改；提交立项审批后才会请求授权。")
+        await emit(
+            "本轮需求评审未发现阻塞问题。请审阅新版草案，也可以继续修改；提交立项审批后才会请求授权。"
+        )
         return None
     await emit("审批通过后将添加上述 AI 成员并建立项目计划；此步骤不会启动任务执行或支付预算。")
     try:

@@ -45,7 +45,7 @@ def create_plugin_hub_router(
             jwt_secret=jwt_secret,
             jwt_issuer=jwt_issuer,
             jwt_audience=jwt_audience,
-        )
+        )  # AUTH-OK: actor-agnostic; shared catalog; sensitive configuration and mutations require operator
 
     def _operator_dep(request: Request) -> None:
         from runtime.safety.auth.principal import require_operator

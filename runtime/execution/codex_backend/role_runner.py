@@ -511,6 +511,23 @@ def build_codex_role_request(
     )
     if server_auto_approve is True and resolved_sandbox_mode == "workspace-write":
         resolved_sandbox_mode = "danger-full-access"
+    # Windows cannot reliably run native Codex shell tools with our named
+    # profile's non-escalatable state-directory deny. Keep execution inside
+    # the Echo broker, which owns the same grants as the OpenCode integration.
+    # Do not expose native tools as an alternative when the host catalog is empty.
+    host_tools_only = os.name == "nt" and broker is not None and not requested_app_id
+    if host_tools_only:
+        instructions += (
+            "\n<echo-host-execution>Local execution is provided exclusively by the "
+            "advertised Echo dynamic tools. Use exec_shell for terminal commands "
+            "and the advertised file tools for reads and edits. Native exec_command, "
+            "shell_command and apply_patch are not execution surfaces for this turn. "
+            "A historical native-shell rejection does not describe the current Echo "
+            "tool permissions. For a request to continue, inspect current state with "
+            "an advertised, authorized read-only tool before repeating a historical "
+            "blocker. Honor current Echo tool denials; do not route around a denial "
+            "or claim successful execution without a tool result.</echo-host-execution>"
+        )
     request = CodexExecutionRequest(
         outer_thread_id=thread_id,
         outer_turn_id=turn_id,
@@ -544,6 +561,7 @@ def build_codex_role_request(
         app_mentions=((requested_app_id, requested_app_id),) if requested_app_id else (),
         execution=shared_request,
         tool_free=tool_free,
+        host_tools_only=host_tools_only,
     )
     return request, broker, provider
 

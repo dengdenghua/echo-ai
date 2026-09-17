@@ -141,6 +141,7 @@ def create_projects_router(
     workspace_root: Any = None,
     logs_root: Any = None,
     model_router: Any = None,
+    planning_model: str | None = None,
     subagent_runner: Any = None,
     identity_store: Any = None,
     require_auth: bool = False,
@@ -176,6 +177,7 @@ def create_projects_router(
 
             return create_llm_hooks(
                 model_router,
+                **({"model": planning_model} if planning_model else {}),
                 subagent_runner=subagent_runner,
             )
         return {
@@ -671,6 +673,8 @@ def create_projects_router(
             project = _engine(principal).plan(body.name, body.goal)
         except ValueError as exc:
             raise _bad_request(exc) from exc
+        except RuntimeError as exc:
+            raise HTTPException(503, "项目规划失败，请检查执行模型后重试。") from exc
         _project_to_collaboration(request, project.id)
         return {"ok": True, **_full_state(request, project.id)}
 

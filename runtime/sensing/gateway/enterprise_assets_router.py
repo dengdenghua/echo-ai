@@ -209,9 +209,9 @@ def create_enterprise_assets_router(
     def _auth(request: Request) -> str | None:
         if require_auth and identity_store is None:
             raise HTTPException(401, "auth required")
-        from runtime.sensing.gateway.openai_gateway_router import _resolve_actor
+        from runtime.safety.auth.principal import require_operator
 
-        return _resolve_actor(
+        principal = require_operator(
             request,
             identity_store,
             require_auth,
@@ -219,6 +219,7 @@ def create_enterprise_assets_router(
             jwt_issuer=jwt_issuer,
             jwt_audience=jwt_audience,
         )
+        return principal.actor_id if principal is not None else None
 
     def _require_admin(request: Request) -> None:
         from runtime.safety.auth.principal import require_roles
@@ -237,7 +238,9 @@ def create_enterprise_assets_router(
     def list_enterprise_assets(
         request: Request, category: str | None = None, search: str | None = None
     ) -> dict[str, Any]:
-        _auth(request)
+        _auth(
+            request
+        )  # AUTH-OK: actor-agnostic; _auth requires operator for host enterprise credentials
         params: dict[str, Any] = {}
         if category:
             params["category"] = category
@@ -251,7 +254,9 @@ def create_enterprise_assets_router(
 
     @router.get("/api/agent-market/enterprise/{asset_id}")
     def get_enterprise_asset(request: Request, asset_id: str) -> dict[str, Any]:
-        _auth(request)
+        _auth(
+            request
+        )  # AUTH-OK: actor-agnostic; _auth requires operator for host enterprise credentials
         asset_id = _safe_enterprise_asset_id(asset_id)
         res = _enterprise_get(f"/api/v1/agent-assets/{asset_id}")
         if not res.get("available"):

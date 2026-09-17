@@ -8,8 +8,9 @@ from __future__ import annotations
 
 import asyncio
 import contextlib
+import logging
 import threading
-from collections.abc import AsyncIterator, Callable
+from collections.abc import AsyncGenerator, AsyncIterator, Callable
 from dataclasses import dataclass, field, replace
 from pathlib import Path
 from typing import Any
@@ -87,10 +88,13 @@ async def stream_role(
     tool_free: bool = False,
     tool_ceiling: frozenset[str] | None = None,
     interrupted: Callable[[], bool],
-) -> AsyncIterator[dict[str, Any]]:
+) -> AsyncGenerator[dict[str, Any], None]:
     from runtime.execution.tool_engine.role_instructions import compose_role_instructions
 
     task = request.task
+    logging.getLogger(__name__).info(
+        "role tool routing role=%s tool_free=%s", getattr(agent, "agent_id", ""), tool_free
+    )
     if (
         task.execution_engine != "opencode"
         or task.actor_id != session.actor
@@ -168,8 +172,8 @@ async def stream_role(
             outer_thread_id=task.thread_id,
             outer_turn_id=task.task_id,
             workspace=str(workspace),
-            tenant_id=task.tenant_id or "local",
-            principal_id=task.actor_id or "local",
+            tenant_id=task.tenant_id,
+            principal_id=task.actor_id,
             approval_provider=provider,
             is_interrupted=interrupted,
             server_auto_approve=auto_approve,
@@ -177,11 +181,22 @@ async def stream_role(
             tool_ceiling=tool_ceiling,
         )
         host_tools = HostMCPBridge(broker, request, session)
+        logging.getLogger(__name__).info(
+            "role host catalog role=%s tools=%d delegation=%s",
+            getattr(agent, "agent_id", ""), len(broker.catalog.names),
+            "call_agent" in broker.catalog.names,
+        )
         system += (
             "\necho_ 开头的工具来自当前角色的授权目录。文件、终端、浏览器和桌面操作"
             "只能通过实际公布的工具完成。宿主权限、拒绝和审批结论具有最终效力。"
             "调研时使用网页工具并附真实来源；无法验证的内容须标明。直接完成需求，不要只给计划。"
         )
+        if "call_agent" in broker.catalog.names:
+            system += (
+                "\n当前委派工具名是 echo_call_agent（技能文档中简称 call_agent）。"
+                "必须通过原生工具调用通道调用，并等待实际返回；"
+                "在正文输出 DSML/XML 调用文本不会执行工具，不代表委派成功。"
+            )
         system += (
             "\n本轮可执行宿主已授权的写入工具，以执行器校验为准。这不是 OpenCode Plan Mode。"
             if task.permissions.writable_roots
@@ -213,14 +228,22 @@ async def stream_role(
                         SharedExecutionRouter,
                         native_model_services,
                     )
+
                     router, _ = native_model_services(stack)
                     selected = backend.native_model(model)[1]
                     if not SharedExecutionRouter(router).has(selected):
                         raise backend.OpenCodeError("所选共享模型尚未就绪，请检查模型连接。")
-                    proxy = ScopedResponsesProxy(router, scope=CodexResponsesScope(
-                        tenant_id=task.tenant_id or "local", principal_id=task.actor_id or "local",
-                        thread_id=task.thread_id, turn_id=task.task_id, model=selected,
-                    ), trusted_session=session)
+                    proxy = ScopedResponsesProxy(
+                        router,
+                        scope=CodexResponsesScope(
+                            tenant_id=task.tenant_id or "local",
+                            principal_id=task.actor_id or "local",
+                            thread_id=task.thread_id,
+                            turn_id=task.task_id,
+                            model=selected,
+                        ),
+                        trusted_session=session,
+                    )
                     lifetime.push_async_callback(proxy.close)
                     profile = await proxy.start()
                     key = profile.scoped_bearer_token
@@ -231,7 +254,6 @@ async def stream_role(
                         root,
                         key,
                         model,
-                        not tool_free and task.permissions.network_policy == "allow",
                         host_mcp=connection,
                         **({"shared_provider": shared_provider} if shared_provider else {}),
                     )
@@ -284,7 +306,7 @@ def run_role_sync(
         on_event = progress_emitter(agent.agent_id, context)
     try:
         asyncio.get_running_loop()
-    except RuntimeError:
+    except RuntimeError:  # intentional: No running loop is the required synchronous dispatch state.
         pass
     else:
         raise RuntimeError("OpenCode synchronous roles must be dispatched with asyncio.to_thread")
@@ -350,18 +372,24 @@ def run_role_sync(
                     completed = event.get("success") is True
                     report_usage = context.get("record_project_usage")
                     if callable(report_usage):
-                        report_usage({"governance": {
-                            "root_id": task.task_id,
-                            "cost_usd": (event.get("completion_receipt") or {}).get("cost"),
-                        }})
+                        report_usage(
+                            {
+                                "governance": {
+                                    "root_id": task.task_id,
+                                    "cost_usd": (event.get("completion_receipt") or {}).get("cost"),
+                                }
+                            }
+                        )
                 elif event.get("type") in {"tool_start", "tool_end"}:
                     notify = context.get("emit_tool_event")
                     if callable(notify):
                         notify(
                             tool_name=event.get("tool_name", "tool"),
-                            status="started"
-                            if event["type"] == "tool_start"
-                            else ("completed" if event.get("success") else "failed"),
+                            status=(
+                                "started"
+                                if event["type"] == "tool_start"
+                                else ("completed" if event.get("success") else "failed")
+                            ),
                             input_preview=event.get("input_preview"),
                             output_preview=event.get("output_preview"),
                             payload={

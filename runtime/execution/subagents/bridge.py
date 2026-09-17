@@ -149,15 +149,15 @@ def _positive_env(name: str, default: int, *, ceiling: int) -> int:
     if raw:
         try:
             return max(1, min(int(raw), ceiling))
-        except ValueError:
+        except (
+            ValueError
+        ):  # intentional: Use the bounded default for an invalid environment setting.
             pass
     return default
 
 
 MAX_SUBAGENT_DEPTH = _positive_env("ECHO_MAX_SUBAGENT_DEPTH", 3, ceiling=16)
-MAX_ACTIVE_SUBAGENTS_PER_ROOT = _positive_env(
-    "ECHO_MAX_ACTIVE_SUBAGENTS_PER_ROOT", 16, ceiling=256
-)
+MAX_ACTIVE_SUBAGENTS_PER_ROOT = _positive_env("ECHO_MAX_ACTIVE_SUBAGENTS_PER_ROOT", 16, ceiling=256)
 
 
 def _acquire_subagent_slot(root_id: str = "unscoped") -> bool:
@@ -646,7 +646,7 @@ def call_subagent(
         )
 
         _session_store = get_subagent_session_store()
-    except ImportError:  # pragma: no cover - sessions module absent
+    except ImportError:  # pragma: no cover - sessions module absent  # intentional: Session persistence is optional when its module is absent.
         pass
     _session_owner_actor_id = ""
     _session_tenant_id = ""

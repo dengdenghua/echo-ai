@@ -605,7 +605,8 @@ class TestFsAuth:
     ) -> None:
         from runtime.sensing.gateway import _fs_router_endpoints as endpoints
 
-        selected = "/Users/alice/project"
+        # Synthetic home path exercises picker or private-path redaction behavior.
+        selected = "/Users/alice/project"  # lint: allow-user-path
         monkeypatch.setattr(endpoints, "_pick_directory_macos", lambda _default: selected)
         monkeypatch.setattr(endpoints, "_pick_directory_tk", lambda _default: selected)
         monkeypatch.setattr(endpoints, "_pick_directory_windows", lambda _default: selected)

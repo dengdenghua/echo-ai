@@ -151,7 +151,14 @@ class WeixinBotChannel(Channel):
                 ],
             },
         }
-        self._request("POST", ENDPOINT_SEND_MESSAGE, body=body)
+        resp = self._request("POST", ENDPOINT_SEND_MESSAGE, body=body)
+        ret = resp.get("errcode", resp.get("ret", 0))
+        if ret:
+            logger.warning(
+                "weixin send rejected · ret=%s · body=%s",
+                ret,
+                resp,
+            )
 
     def request_qr_code(self) -> dict[str, str]:
         data = self._request(

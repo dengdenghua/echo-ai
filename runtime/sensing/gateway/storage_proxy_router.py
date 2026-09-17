@@ -78,9 +78,9 @@ def create_storage_proxy_router(
     def _auth(request: Request) -> None:
         if require_auth and identity_store is None:
             raise HTTPException(401, "auth required")
-        from runtime.adapters.web_auth import _resolve_actor
+        from runtime.safety.auth.principal import require_operator
 
-        _resolve_actor(
+        require_operator(
             request,
             identity_store,
             require_auth,
@@ -90,7 +90,9 @@ def create_storage_proxy_router(
         )
 
     async def proxy_storage(request: Request, storage_path: str) -> Any:
-        _auth(request)
+        _auth(
+            request
+        )  # AUTH-OK: actor-agnostic; _auth requires operator before using the host storage token
         safe_path = _safe_storage_path(storage_path)
         content_length = request.headers.get("content-length")
         if content_length:

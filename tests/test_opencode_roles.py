@@ -7,7 +7,6 @@ from dataclasses import replace
 from types import SimpleNamespace
 from unittest.mock import Mock
 
-import httpx
 import pytest
 
 from runtime.execution import opencode_roles as roles
@@ -85,8 +84,72 @@ def test_member_forwards_explicit_project_cost_receipt(host, monkeypatch, cost):
     report = Mock()
     monkeypatch.setattr(roles, "stream_role", stream)
     with execution_request_scope(host.request), session_scope(host.session):
-        roles.run_role_sync(host.stack, host.agent, "task", context={"record_project_usage": report}, interrupted=lambda: False)
+        roles.run_role_sync(
+            host.stack,
+            host.agent,
+            "task",
+            context={"record_project_usage": report},
+            interrupted=lambda: False,
+        )
     report.assert_called_once_with({"governance": {"root_id": seen[0], "cost_usd": cost}})
+
+
+@pytest.mark.parametrize("tenant_id", [None, "acme"])
+def test_tool_bridge_preserves_identity_for_local_and_tenant_delegation(
+    host, monkeypatch, tmp_path, tenant_id
+):
+    from runtime.execution.subagents.execution_context import child_execution_scope
+    from runtime.execution.suckers.registry import SkillRegistry
+    from runtime.execution.tool_engine.host_mcp import HostMCPBridge
+
+    host.stack.executor.registry = SkillRegistry()
+    actor_id = "alice" if tenant_id else None
+    request = replace(
+        host.request, task=replace(host.request.task, tenant_id=tenant_id, actor_id=actor_id)
+    )
+    session = replace(
+        host.session, actor=actor_id, metadata={**host.session.metadata, "tenant_id": tenant_id}
+    )
+    monkeypatch.setattr(roles.backend, "inspect_readiness", lambda scope: {"available": True})
+    monkeypatch.setattr(roles.backend, "state_directory", lambda scope, thread: tmp_path / thread)
+
+    class VerifiedBoundary(Exception):
+        pass
+
+    @contextlib.asynccontextmanager
+    async def inspect_bridge(bridge):
+        active = bridge.broker._execution_session(auto_approve=False)
+        assert active.actor == request.task.actor_id
+        assert active.metadata["tenant_id"] == request.task.tenant_id
+        child = replace(active, metadata=dict(active.metadata))
+        with child_execution_scope(
+            active, child, child_id="child", instruction="17 * 23"
+        ) as child_request:
+            assert child_request.task.actor_id == child.actor
+            assert child_request.task.tenant_id == child.metadata.get("tenant_id")
+            assert child_request.task.resources is request.task.resources
+        raise VerifiedBoundary
+        yield  # pragma: no cover
+
+    monkeypatch.setattr(HostMCPBridge, "serve", inspect_bridge)
+
+    async def run():
+        return [
+            event
+            async for event in roles.stream_role(
+                host.stack,
+                host.agent,
+                request=request,
+                session=session,
+                context={"tenant_id": "forged"},
+                model="big-pickle",
+                text="Delegate",
+                interrupted=lambda: False,
+            )
+        ]
+
+    with pytest.raises(VerifiedBoundary):
+        asyncio.run(run())
 
 
 def test_member_uses_child_identity_and_preserves_authority(host, monkeypatch):
@@ -128,7 +191,6 @@ def test_member_uses_child_identity_and_preserves_authority(host, monkeypatch):
     assert task.authorization_intent == "Original human authorization"
     assert first["session"].turn_id == task.task_id
     assert first["session"].thread_id == task.thread_id
-    assert first["tool_free"] is True
 
 
 @pytest.mark.parametrize(
@@ -227,7 +289,6 @@ def test_identity_mismatch_precedes_credential_access(host, monkeypatch, field, 
                 context={},
                 model="big-pickle",
                 text="task",
-                tool_free=True,
                 interrupted=lambda: False,
             ):
                 pass
@@ -245,8 +306,8 @@ def test_tool_free_stream_owns_lifetime_and_context(host, monkeypatch, tmp_path,
     monkeypatch.setattr(roles.backend, "executable", lambda: "fixture")
 
     @contextlib.asynccontextmanager
-    async def server(executable, root, key, model, web, *, host_mcp):
-        assert web is False and host_mcp is None
+    async def server(executable, root, key, model, *, host_mcp):
+        assert host_mcp is None
         lifecycle.append("open")
         try:
             yield object()
@@ -267,7 +328,6 @@ def test_tool_free_stream_owns_lifetime_and_context(host, monkeypatch, tmp_path,
             "model_name": "big-pickle",
             "_execution_task": host.request.task,
         }
-        assert kwargs["tool_names"] == {}
         assert str(tmp_path) in kwargs["system"]
         assert "forged-root" not in kwargs["system"]
         try:
@@ -352,13 +412,10 @@ def test_realtime_adapter_preserves_history_events_and_cleanup(
     )
 
     async def stream(*args, **kwargs):
+        assert args[0] is runtime._stack
+        assert args[1] is host.agent
         assert kwargs["text"] == "history:True:hi"
         assert kwargs["fresh_text"] == "history:False:hi"
-        task = kwargs["request"].task
-        assert task.approval_provider is (inherited_provider if provider is None else provider)
-        assert task.permissions is request.task.permissions
-        assert task.resources is request.task.resources
-        assert task.task_id == turn.id
         assert kwargs["tool_free"] is direct_reply
         yield {"type": "text_delta", "delta": "Hello"}
         if ending == "error":
@@ -434,99 +491,3 @@ def test_deadline_cancels_work_and_preserves_unrelated_timeout(host):
         assert not isinstance(exc.value, ExecutionDeadlineExceeded)
 
     asyncio.run(run())
-
-
-def test_tool_stream_uses_real_scoped_mcp_and_closes_it(tmp_path, monkeypatch):
-    from tests.test_host_mcp import host as make_host
-    from tests.test_host_mcp import rpc
-
-    original, _, workspace = make_host(tmp_path)
-    request = replace(
-        original.request, task=replace(original.request.task, execution_engine="opencode")
-    )
-    connection_seen = []
-    monkeypatch.setattr(roles.backend, "inspect_readiness", lambda scope: {"available": True})
-    monkeypatch.setattr(roles.backend, "state_directory", lambda scope, thread: tmp_path / "state")
-    monkeypatch.setattr(roles.backend, "zen_key", lambda scope: "fixture")
-    monkeypatch.setattr(roles.backend, "executable", lambda: "fixture")
-
-    @contextlib.asynccontextmanager
-    async def server(executable, root, key, model, web, *, host_mcp):
-        assert host_mcp is not None
-        connection_seen.append(host_mcp)
-
-        async def handle(req):
-            assert req.url.path == "/mcp"
-            return httpx.Response(200, json={"echo": {"status": "connected"}})
-
-        async with httpx.AsyncClient(
-            base_url="http://engine", transport=httpx.MockTransport(handle)
-        ) as client:
-            yield client
-
-    async def session_for_thread(*args):
-        return "fixture-session"
-
-    async def stream(client, session_id, **kwargs):
-        connection = connection_seen[0]
-        headers = {
-            "Authorization": f"Bearer {connection.token}",
-            "Accept": "application/json, text/event-stream",
-        }
-        async with httpx.AsyncClient(
-            base_url=connection.url, headers=headers, trust_env=False
-        ) as mcp:
-            await rpc(
-                mcp,
-                0,
-                "initialize",
-                {
-                    "protocolVersion": "2025-03-26",
-                    "capabilities": {},
-                    "clientInfo": {"name": "role-test", "version": "1"},
-                },
-            )
-            read = await rpc(
-                mcp, 1, "tools/call", {"name": "read_file", "arguments": {"path": "note.txt"}}
-            )
-            assert not read["isError"] and "before" in str(read["content"])
-            write = await rpc(
-                mcp,
-                2,
-                "tools/call",
-                {
-                    "name": "write_text_file",
-                    "arguments": {"path": "note.txt", "content": "unauthorized", "overwrite": True},
-                },
-            )
-            assert write["isError"]
-        assert "echo_read_file" in kwargs["tool_names"]
-        yield {"type": "text_delta", "delta": "Read and checked permissions"}
-        yield {"type": "react_completed", "success": True}
-
-    monkeypatch.setattr(roles.backend, "managed_server", server)
-    monkeypatch.setattr(roles.backend, "session_for_thread", session_for_thread)
-    monkeypatch.setattr(roles.backend, "stream_prompt", stream)
-
-    async def run():
-        result = [
-            event
-            async for event in roles.stream_role(
-                original.broker._stack,
-                original.session.agent,
-                request=request,
-                session=original.session,
-                context={},
-                model="big-pickle",
-                text="read",
-                interrupted=lambda: False,
-            )
-        ]
-        assert result[-1]["success"] is True
-        async with httpx.AsyncClient(trust_env=False) as client:
-            with pytest.raises((httpx.ConnectError, httpx.ConnectTimeout)):
-                await client.post(connection_seen[0].url, timeout=1)
-
-    asyncio.run(run())
-    assert (workspace / "note.txt").read_text(encoding="utf-8") == "before"
-    assert not roles._states

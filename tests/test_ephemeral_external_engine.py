@@ -52,8 +52,7 @@ def test_native_role_resolves_planner_only_when_called(monkeypatch):
     actual_runner.assert_called_once_with(call)
 
 
-@pytest.mark.parametrize("read_only", [False, True])
-def test_temporary_role_preserves_selector_and_memory_denial(monkeypatch, read_only):
+def test_temporary_role_uses_composed_prompt_without_tools(monkeypatch):
     class Host:
         config = AgentConfig()
         executor = SimpleNamespace(
@@ -79,20 +78,13 @@ def test_temporary_role_preserves_selector_and_memory_denial(monkeypatch, read_o
         "Role and authorized memory",
         "parent",
         "lead",
-        {
-            "tool_allowlist": ["read_file", "write_text_file", "remember"],
-            "tool_allowlist_read_only": read_only,
-            "tool_allowlist_mode": "all",
-        },
+        {},
     )
     captured = Mock(return_value="reviewed")
     monkeypatch.setattr("runtime.execution.opencode_roles.run_role_sync", captured)
     runner = make_host_ephemeral_runner(Host())
     assert runner(call) == "reviewed"
-    ceiling = captured.call_args.kwargs["tool_ceiling"]
-    assert "read_file" in ceiling
-    assert "remember" not in ceiling and "exec_shell" not in ceiling
-    assert ("write_text_file" in ceiling) is not read_only
+    assert "tool_ceiling" not in captured.call_args.kwargs
     assert captured.call_args.args[1].soul == call.composed_system_prompt
 
 
@@ -131,7 +123,7 @@ def test_tool_ceiling_cannot_be_widened_by_full_mode_or_dynamic_grants(tmp_path,
     assert (workspace / "note.txt").read_text(encoding="utf-8") == "before"
 
 
-def test_real_ephemeral_bridge_keeps_host_authority_and_streams(tmp_path, monkeypatch):
+def test_real_ephemeral_bridge_keeps_host_authority_and_streams_text(tmp_path, monkeypatch):
     from runtime.execution import opencode_roles
     from runtime.execution.subagents.bridge import call_subagent
     from tests.test_host_mcp import host
@@ -167,18 +159,6 @@ def test_real_ephemeral_bridge_keeps_host_authority_and_streams(tmp_path, monkey
 
     async def stream(*args, **kwargs):
         seen.append(kwargs)
-        yield {
-            "type": "tool_start",
-            "tool_name": "read_file",
-            "tool_call_id": "read-1",
-            "input_preview": '{"path":"note.txt"}',
-        }
-        yield {
-            "type": "tool_end",
-            "tool_name": "read_file",
-            "tool_call_id": "read-1",
-            "success": True,
-        }
         yield {"type": "text_delta", "delta": "Reviewed the file"}
         yield {"type": "react_completed", "success": True}
 
@@ -197,7 +177,4 @@ def test_real_ephemeral_bridge_keeps_host_authority_and_streams(tmp_path, monkey
     assert child.parent_task_id == task.task_id and child.actor_id == task.actor_id
     assert child.resources.deadline == task.resources.deadline
     assert child.authorization_intent == "Review the files"
-    assert seen[0]["tool_ceiling"] == frozenset({"read_file"})
-    tool_end = next(event for event in events if event.get("type") == "sub_tool_end")
-    assert tool_end["args"]["path"] == "note.txt" and tool_end["status"] == "success"
     assert any(event.get("type") == "sub_text_delta" for event in events)

@@ -11,12 +11,40 @@ from runtime.execution.suckers.ask_user_question import (
     register_ask_user_question_skill,
 )
 from runtime.execution.suckers.registry import SkillRegistry
+from runtime.execution.tool_spec_builder import _input_schema_from_handler
 
 
 def test_empty_question_invalid() -> None:
     out = _ask_user_question(question="", options=["a", "b"])
     assert out["ok"] is False
     assert out["error_type"] == "invalid_argument"
+
+
+def test_dynamic_questionnaire_supports_multiple_and_free_text():
+    result = _ask_user_question(
+        questions=[
+            {"title": "优先功能？", "options": ["温控", "监测"], "multiple": True},
+            {"title": "其他约束？", "options": []},
+        ]
+    )
+    assert result["type"] == "clarification_questionnaire"
+    assert result["yield_turn"] is True
+    assert result["questions"][0]["multiple"] is True
+    assert result["questions"][1]["options"] == []
+    assert "answer" not in result
+
+
+def test_questionnaire_schema_declares_arrays() -> None:
+    schema = _input_schema_from_handler(_ask_user_question)[0]
+    assert schema["properties"]["questions"]["type"] == "array"
+    assert schema["properties"]["options"]["type"] == "array"
+
+
+@pytest.mark.parametrize(
+    "questions", [[], [{}], [{"title": "Test", "options": ["one"]}], [{"title": "Test"}] * 4]
+)
+def test_invalid_questionnaire_is_rejected(questions):
+    assert _ask_user_question(questions=questions)["ok"] is False
 
 
 def test_no_options_invalid() -> None:

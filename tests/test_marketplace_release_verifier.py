@@ -80,7 +80,8 @@ def test_release_verifier_accepts_exact_catalog_archive_closure(tmp_path: Path) 
 def test_release_verifier_rejects_private_build_paths(tmp_path: Path) -> None:
     catalog, archive = _release(tmp_path)
     payload = json.loads(catalog.read_text(encoding="utf-8"))
-    payload["items"][0]["path"] = "/Users/release-runner/private/documents"
+    # Synthetic home path exercises picker or private-path redaction behavior.
+    payload["items"][0]["path"] = "/Users/release-runner/private/documents"  # lint: allow-user-path
     catalog.write_text(json.dumps(payload), encoding="utf-8")
 
     with pytest.raises(ValueError, match="private filesystem path leaked"):

@@ -27,6 +27,18 @@ from packaging.version import InvalidVersion, Version
 from runtime import __version__
 from runtime.platform.io import atomic_write_json
 from runtime.platform.io.transactional import path_transaction
+from runtime.platform.plugins._cloud_catalog_entries import (
+    _FACTORY_WORKBENCH_APPS_BY_ID as _FACTORY_WORKBENCH_APPS_BY_ID,
+)
+from runtime.platform.plugins._cloud_catalog_entries import (
+    _FACTORY_WORKBENCH_PLUGINS as _FACTORY_WORKBENCH_PLUGINS,
+)
+from runtime.platform.plugins._cloud_catalog_entries import (
+    _REMOTE_SURFACE_PLUGINS as _REMOTE_SURFACE_PLUGINS,
+)
+from runtime.platform.plugins._cloud_catalog_entries import (
+    _WORKBENCH_APPS as _WORKBENCH_APPS,
+)
 from runtime.platform.plugins._secure_fetch import fetch_public_https_bytes
 from runtime.platform.plugins.catalog_provenance import (
     catalog_signature_path,
@@ -65,149 +77,6 @@ _MAX_ARCHIVE_BYTES = 192 * 1024 * 1024
 _MAX_ARCHIVE_MEMBERS = 10_000
 _MAX_EXTRACTED_BYTES = 256 * 1024 * 1024
 _MAX_MEMBER_BYTES = 64 * 1024 * 1024
-
-_REMOTE_SURFACE_PLUGINS: tuple[dict[str, Any], ...] = (
-    {
-        "id": "codex_echo-android", "plugin": "echo-android", "source": "echo",
-        "kind": "plugin", "name": "Android Automation", "name_zh": "安卓自动化",
-        "description": "按需启用 30 项手机接口：截图、点击、输入及浏览器操作。需要连接 Echo Android 客户端。",
-        "category": "Productivity", "author": "EchoAI", "version": "1.0.0",
-        "icon": "./assets/icon.svg", "capabilities": ["android"],
-        "install": {"kind": "codex-plugin", "plugin_id": "echo-android"},
-    },
-    {
-        "id": "codex_echo-ios", "plugin": "echo-ios", "source": "echo",
-        "kind": "plugin", "name": "iOS Automation", "name_zh": "iOS 自动化",
-        "description": "按需启用 13 项 iPhone/iPad 接口。需要已配置 WebDriverAgent 的设备。",
-        "category": "Productivity", "author": "EchoAI", "version": "1.0.0",
-        "icon": "./assets/icon.svg", "capabilities": ["ios"],
-        "install": {"kind": "codex-plugin", "plugin_id": "echo-ios"},
-    },
-    {
-        "id": "codex_echo-recorder",
-        "plugin": "echo-recorder",
-        "source": "echo",
-        "kind": "plugin",
-        "name": "Echo Recorder",
-        "name_zh": "REC 录制器",
-        "description": "把真人示范和 Agent 操作沉淀为可复用流程",
-        "category": "Productivity",
-        "author": "Echo",
-        "version": "1.2.0",
-        "release_summary": "1.2.0：统一聊天与浏览器 REC 入口，新增敏感输入自动脱敏、断线降级和可恢复录制。",
-        "icon": "./assets/recorder.svg",
-        "capabilities": ["chat.recorder", "browser.recorder"],
-    },
-)
-
-_WORKBENCH_APPS: tuple[dict[str, Any], ...] = (
-    {
-        "id": "workbench_projects",
-        "plugin": "projects",
-        "source": "echo",
-        "kind": "workbench",
-        "name": "Project Management",
-        "name_zh": "项目管理",
-        "description": "里程碑、风险与项目协作",
-        "category": "workbench",
-        "author": "Echo",
-        "version": "1.0.0",
-        "release_summary": "1.0.0：可独立安装的项目管理视图，项目数据由宿主保管。",
-        "removable": True,
-        "data_policies": ["keep"],
-    },
-    {
-        "id": "workbench_paper-trading",
-        "plugin": "paper-trading",
-        "source": "echo",
-        "kind": "workbench",
-        "name": "Paper Trading",
-        "name_zh": "模拟炒股",
-        "description": "策略验证与模拟交易",
-        "category": "workbench",
-        "author": "Echo",
-        "version": "1.0.0",
-        "release_summary": "1.0.0：提供模拟交易、行情观察与策略验证工作台。",
-        "runtime_plugin": "paper_trading",
-        "removable": True,
-        "data_policies": ["keep", "trash"],
-    },
-    {
-        "id": "workbench_design",
-        "plugin": "design",
-        "source": "echo",
-        "kind": "workbench",
-        "name": "Design Canvas",
-        "name_zh": "设计画布",
-        "description": "视觉创作、素材编排与设计工作流",
-        "category": "workbench",
-        "author": "Echo",
-        "version": "1.0.0",
-        "release_summary": "1.0.0：提供视觉创作、素材编排与设计工作流画布。",
-    },
-    {
-        "id": "workbench_narrative",
-        "plugin": "narrative_studio",
-        "source": "echo",
-        "kind": "workbench",
-        "name": "Narrative Studio",
-        "name_zh": "叙事工坊",
-        "description": "角色、世界观、剧情线与叙事资产的统一创作工作台",
-        "category": "workbench",
-        "author": "Echo",
-        "version": "0.2.0",
-        "release_summary": "0.2.0：支持角色、世界观、剧情分支与正典资产协作。",
-        "runtime_plugin": "narrative_studio",
-        "removable": True,
-        "data_policies": ["keep", "trash"],
-    },
-    {
-        "id": "workbench_self-evolution",
-        "plugin": "self_evolution",
-        "source": "echo",
-        "kind": "workbench",
-        "name": "Self Evolution",
-        "name_zh": "自进化",
-        "description": "双螺旋、候选基因、治理与审计",
-        "category": "workbench",
-        "author": "Echo",
-        "version": "1.0.0",
-        "release_summary": "1.0.0：提供候选基因、双螺旋演进、治理与审计界面。",
-    },
-    {
-        "id": "workbench_intelligence",
-        "plugin": "intelligence",
-        "source": "echo",
-        "kind": "workbench",
-        "name": "Intelligence",
-        "name_zh": "订阅",
-        "description": "持续跟踪主题与情报",
-        "category": "workbench",
-        "author": "Echo",
-        "version": "1.0.0",
-        "release_summary": "1.0.0：提供主题订阅、持续跟踪与情报汇总入口。",
-    },
-    {
-        "id": "workbench_community",
-        "plugin": "community",
-        "source": "echo",
-        "kind": "workbench",
-        "name": "Community",
-        "name_zh": "发现社区",
-        "description": "发现并复用社区工作流",
-        "category": "workbench",
-        "author": "Echo",
-        "version": "1.0.0",
-        "release_summary": "1.0.0：提供社区工作流发现、浏览与复用入口。",
-    },
-)
-
-_FACTORY_WORKBENCH_APPS_BY_ID = {
-    str(item["id"]): item for item in _WORKBENCH_APPS if item.get("factory_seed")
-}
-_FACTORY_WORKBENCH_PLUGINS = frozenset(
-    str(item["plugin"]) for item in _FACTORY_WORKBENCH_APPS_BY_ID.values()
-)
 
 
 def _load_remote(name: str) -> dict[str, Any] | None:
@@ -471,9 +340,7 @@ class CloudCatalog:
     def _archive_path(self) -> Path:
         """下载并缓存内容包 tar.gz,返回本地路径。"""
         url = os.environ.get(
-            "ECHO_PLUGINS_CONTENT_URL"
-            if self._kind == "plugins"
-            else "ECHO_SKILLS_CONTENT_URL",
+            "ECHO_PLUGINS_CONTENT_URL" if self._kind == "plugins" else "ECHO_SKILLS_CONTENT_URL",
             self.CONTENT_URLS[self._kind],
         )
         CACHE_DIR.mkdir(parents=True, exist_ok=True)
@@ -701,7 +568,7 @@ class CloudCatalog:
                     names.add(cid)
         return sorted(names)
 
-    def plugin_statuses(self) -> dict[str, dict[str, Any]]:
+    def plugin_statuses(self, *, package_id: str | None = None) -> dict[str, dict[str, Any]]:
         """Return the unified lifecycle projection for catalog plugins.
 
         Keys are install-package ids (the ``plugin`` field consumed by the
@@ -719,8 +586,11 @@ class CloudCatalog:
         data_store = self._workbench_data_store()
         permission_store = self._marketplace_permission_store()
         statuses: dict[str, dict[str, Any]] = {}
+        requested_package_id = package_id
         for item in self.items():
             package_id = str(item.get("plugin") or item.get("id") or "").strip()
+            if requested_package_id is not None and package_id != requested_package_id:
+                continue
             if not package_id:
                 continue
             catalog_id = str(item.get("id") or package_id)
@@ -1642,9 +1512,9 @@ class CloudCatalog:
         marketplace_trust: dict[str, Any] | None = None
         installed_dependencies: list[dict[str, Any]] = []
         with tempfile.TemporaryDirectory(prefix="echo-plugin-") as tmp:
-            # Source checkouts can exercise the complete install flow before a
-            # release asset is published. Packaged builds do not carry ``.git``
-            # and therefore always download the exact same directory layout.
+            # Source checkouts normally exercise the same marketplace download
+            # path as packaged builds. Opt in to local source packages only
+            # when developing the packaging flow itself.
             dev_source = (
                 REPO / "extensions" / "workbench-apps" / safe
                 if plugin_kind == "workbench"
@@ -1654,6 +1524,7 @@ class CloudCatalog:
                 plugin_kind in {"workbench", "codex"}
                 and (REPO / ".git").exists()
                 and dev_source.is_dir()
+                and os.environ.get("ECHO_MARKETPLACE_DEV_SOURCES") == "1"
             )
             if dev_install:
                 extracted = Path(tmp) / safe
@@ -2267,7 +2138,10 @@ class CloudCatalog:
                             dest,
                             require_integrity=True,
                         ).load_manifest(plugin_id)
-                    except (FileNotFoundError, ValueError):
+                    except (
+                        FileNotFoundError,
+                        ValueError,
+                    ):  # intentional: Retain damaged content as forensic backup only.
                         # A repair must still be able to replace an installed
                         # generation that the current manifest or integrity
                         # rules reject. Keep it as forensic backup, but never
@@ -2284,7 +2158,10 @@ class CloudCatalog:
                             previous_manifest,
                             require_trusted=False,
                         )
-                    except (FileNotFoundError, ValueError):
+                    except (
+                        FileNotFoundError,
+                        ValueError,
+                    ):  # intentional: Do not mark an unverifiable legacy package rollback-safe.
                         pass
                     else:
                         previous_record.update(

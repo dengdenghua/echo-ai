@@ -19,7 +19,7 @@ import shutil
 import socket
 import subprocess
 import threading
-from collections.abc import AsyncIterator, Callable
+from collections.abc import AsyncGenerator, AsyncIterator, Callable
 from contextlib import asynccontextmanager
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -37,6 +37,25 @@ from runtime.safety.auth.scope import TenantScope
 
 class OpenCodeError(RuntimeError):
     """Safe-to-display engine failure, without credentials or raw responses."""
+
+
+def _has_unexecuted_tool_markup(text: str) -> bool:
+    """Recognize protocol blocks outside Markdown examples, without executing text."""
+    fence = ""
+    for line in text.splitlines():
+        marker = re.match(r"^\s*(`{3,}|~{3,})", line)
+        if marker:
+            token = marker.group(1)
+            if not fence:
+                fence = token
+            elif token[0] == fence[0] and len(token) >= len(fence):
+                fence = ""
+            continue
+        if not fence and re.match(
+            r"^\s*<[^<>\n]{0,16}DSML[^<>\n]{0,16}(?:tool_calls|invoke)\b", line
+        ):
+            return True
+    return False
 
 
 _WARM_IDLE_SECONDS = 120.0
@@ -93,8 +112,21 @@ def executable() -> str | None:
                 )
             ):
                 return str(candidate)
-    except (OSError, ValueError):
+    except (
+        OSError,
+        ValueError,
+    ):  # intentional: Try the bundled engine when the configured path is invalid.
         pass
+    bundled = (
+        Path(__file__).resolve().parents[2]
+        / "extras"
+        / "desktop"
+        / "build"
+        / "opencode"
+        / ("opencode.exe" if os.name == "nt" else "opencode")
+    )
+    if bundled.is_file():
+        return str(bundled)
     return shutil.which("opencode")
 
 
@@ -112,10 +144,15 @@ def resolve_zen_model(selection: str | None, catalog: dict[str, Any]) -> str:
         selected_go and selected_go.entry_id not in {"opencode-zen", "opencode-go"}
     ):
         return "echo-shared/" + str(selection)
-    if (selected_go and selected_go.entry_id == "opencode-go") or (selection or "").startswith("opencode-go/"):
+    if (selected_go and selected_go.entry_id == "opencode-go") or (selection or "").startswith(
+        "opencode-go/"
+    ):
         entry = catalog.get("opencode-go", {})
         model = selected_go.model if selected_go else selection.removeprefix("opencode-go/")
-        if entry.get("managed_by_plugin") not in {"opencode-go", "opencode-zen"} or model not in entry.get("models", []):
+        if entry.get("managed_by_plugin") not in {
+            "opencode-go",
+            "opencode-zen",
+        } or model not in entry.get("models", []):
             raise OpenCodeError("请先连接 OpenCode Go，并选择套餐模型。")
         if selected_go and selected_go.context_profile != "default":
             raise OpenCodeError("OpenCode Go 请选择默认上下文模型。")
@@ -151,15 +188,22 @@ def zen_key(scope: TenantScope | None) -> str | None:
 def native_model(model: str) -> tuple[str, str]:
     if model.startswith("echo-shared/"):
         return "echo-shared", model.removeprefix("echo-shared/")
-    return ("opencode-go", model.removeprefix("opencode-go/")) if model.startswith("opencode-go/") else ("opencode", model)
+    return (
+        ("opencode-go", model.removeprefix("opencode-go/"))
+        if model.startswith("opencode-go/")
+        else ("opencode", model)
+    )
 
 
 def model_selection_id(model: str) -> str:
     from runtime.platform.models.custom_model_selection import custom_model_selection_id
+
     provider, upstream = native_model(model)
     if provider == "echo-shared":
         return upstream
-    return custom_model_selection_id("opencode-go" if provider == "opencode-go" else "opencode-zen", upstream)
+    return custom_model_selection_id(
+        "opencode-go" if provider == "opencode-go" else "opencode-zen", upstream
+    )
 
 
 def model_key(scope: TenantScope | None, model: str) -> str | None:
@@ -168,7 +212,9 @@ def model_key(scope: TenantScope | None, model: str) -> str | None:
     if native_model(model)[0] != "opencode-go":
         return zen_key(scope)
     with use_capability_scope(scope):
-        key = CredentialStore().get_secret("opencode-zen", "api_key") or CredentialStore().get_secret("opencode-go", "api_key")
+        key = CredentialStore().get_secret(
+            "opencode-zen", "api_key"
+        ) or CredentialStore().get_secret("opencode-go", "api_key")
     if not key:
         raise OpenCodeError("请先连接 OpenCode Go 套餐。")
     return key
@@ -190,7 +236,7 @@ def inspect_readiness(scope: TenantScope | None) -> dict[str, Any]:
         "available": True,
         "reason": None,
         "readiness_kind": "configuration_only",
-        "capabilities": ["chat", "web_research", "host_tools", "skills", "plugin_actions"],
+        "capabilities": ["chat", "skills"],
     }
 
 
@@ -206,7 +252,6 @@ def child_environment(
     key: str | None,
     password: str,
     model: str,
-    web: bool,
     *,
     host_mcp: HostMCPConnection | None = None,
     shared_provider: dict[str, Any] | None = None,
@@ -240,8 +285,6 @@ def child_environment(
         directory.mkdir(parents=True, exist_ok=True)
         env[f"XDG_{name}_HOME"] = str(directory)
     permission = {"*": "deny"}
-    if web:
-        permission.update(webfetch="allow", websearch="allow")
     if host_mcp:
         permission["echo_*"] = "allow"
     provider, upstream = native_model(model)
@@ -262,26 +305,36 @@ def child_environment(
         if shared_provider is None or not key:
             raise OpenCodeError("Shared model proxy is unavailable")
         config["provider"][provider] = {
-            "name": "Echo models", "npm": "@ai-sdk/openai",
+            "name": "Echo models",
+            "npm": "@ai-sdk/openai",
             "models": {upstream: {"name": upstream}},
             "options": {"baseURL": shared_provider["base_url"], "apiKey": "{env:OPENCODE_API_KEY}"},
         }
     if provider == "opencode-go":
         if not key:
             raise OpenCodeError("请先连接 OpenCode Go 套餐。")
-        config["provider"][provider].update({
-            "name": "OpenCode Go",
-            "npm": (
-                "@ai-sdk/openai" if upstream.startswith(("gpt-", "grok-", "muse-spark-"))
-                else "@ai-sdk/anthropic" if upstream.startswith(("minimax-", "qwen"))
-                else "@ai-sdk/openai-compatible"
-            ),
-            "models": {upstream: {"name": upstream}},
-        })
-        config["provider"][provider]["options"].update({
-            "baseURL": "https://opencode.ai/zen/go/v1",
-            "headers": {"User-Agent": "Echo/1.0", "x-opencode-session": hashlib.sha256(str(root).encode()).hexdigest()},
-        })
+        config["provider"][provider].update(
+            {
+                "name": "OpenCode Go",
+                "npm": (
+                    "@ai-sdk/openai"
+                    if upstream.startswith(("gpt-", "grok-", "muse-spark-"))
+                    else "@ai-sdk/anthropic"
+                    if upstream.startswith(("minimax-", "qwen"))
+                    else "@ai-sdk/openai-compatible"
+                ),
+                "models": {upstream: {"name": upstream}},
+            }
+        )
+        config["provider"][provider]["options"].update(
+            {
+                "baseURL": "https://opencode.ai/zen/go/v1",
+                "headers": {
+                    "User-Agent": "Echo/1.0",
+                    "x-opencode-session": hashlib.sha256(str(root).encode()).hexdigest(),
+                },
+            }
+        )
     if host_mcp:
         config["mcp"] = {
             "echo": {
@@ -290,7 +343,6 @@ def child_environment(
                 "headers": {"Authorization": "Bearer {env:ECHO_HOST_MCP_TOKEN}"},
                 "oauth": False,
                 "enabled": True,
-                # Native approval can wait up to 120s before tool execution.
                 "timeout": 180_000,
             }
         }
@@ -343,7 +395,6 @@ async def _start_server(
     root: Path,
     key: str | None,
     model: str,
-    web: bool,
     *,
     host_mcp: HostMCPConnection | None = None,
     shared_provider: dict[str, Any] | None = None,
@@ -362,7 +413,14 @@ async def _start_server(
         "--port",
         str(port),
         cwd=workspace,
-        env=child_environment(root, key, password, model, web, host_mcp=host_mcp, shared_provider=shared_provider),
+        env=child_environment(
+            root,
+            key,
+            password,
+            model,
+            host_mcp=host_mcp,
+            shared_provider=shared_provider,
+        ),
         stdout=subprocess.DEVNULL,
         stderr=subprocess.DEVNULL,
         creationflags=subprocess.CREATE_NO_WINDOW if os.name == "nt" else 0,
@@ -381,7 +439,10 @@ async def _start_server(
                 response = await client.get("/global/health", timeout=1)
                 if response.status_code == 200 and response.json().get("healthy"):
                     break
-            except (httpx.TransportError, ValueError):
+            except (
+                httpx.TransportError,
+                ValueError,
+            ):  # intentional: Retry health until the bounded startup deadline.
                 pass
             await asyncio.sleep(0.1)
         else:
@@ -399,12 +460,18 @@ async def _ephemeral_server(
     root: Path,
     key: str | None,
     model: str,
-    web: bool,
     *,
     host_mcp: HostMCPConnection | None = None,
     shared_provider: dict[str, Any] | None = None,
 ) -> AsyncIterator[httpx.AsyncClient]:
-    process, client = await _start_server(command, root, key, model, web, host_mcp=host_mcp, shared_provider=shared_provider)
+    process, client = await _start_server(
+        command,
+        root,
+        key,
+        model,
+        host_mcp=host_mcp,
+        shared_provider=shared_provider,
+    )
     try:
         yield client
     finally:
@@ -471,23 +538,23 @@ async def _warm_text_server(
                         victim.idle_handle.cancel()
                     await _stop_server(victim.process, victim.client)
             if len(_warm_servers) < _MAX_WARM_SERVERS:
-                process, client = await _start_server(command, root, key, model, False)
+                process, client = await _start_server(command, root, key, model)
                 entry = _WarmServer(signature, root.resolve(), process, client, loop)
                 _warm_servers[signature] = entry
                 fresh = True
     if entry is None:
-        async with _ephemeral_server(command, root, key, model, False) as client:
+        async with _ephemeral_server(command, root, key, model) as client:
             yield client
         return
     reusable = False
     try:
         if not fresh:
-            response = await entry.client.get('/global/health', timeout=1)
-            if response.status_code != 200 or not response.json().get('healthy'):
-                raise OpenCodeError('OpenCode 本地引擎连接中断，请重试。')
+            response = await entry.client.get("/global/health", timeout=1)
+            if response.status_code != 200 or not response.json().get("healthy"):
+                raise OpenCodeError("OpenCode 本地引擎连接中断，请重试。")
             await validate_catalog_model(entry.client, model, free_only=not key)
         yield entry.client
-        reusable = getattr(entry.client, '_echo_reusable', True)
+        reusable = getattr(entry.client, "_echo_reusable", True)
     finally:
         async with lock:
             if _warm_servers.get(signature) is entry:
@@ -504,7 +571,11 @@ async def _warm_text_server(
 async def _discard_idle_warm_server(root: Path) -> None:
     async with _loop_lock():
         for current in tuple(_warm_servers.values()):
-            if current.in_use or current.loop is not asyncio.get_running_loop() or current.root != root.resolve():
+            if (
+                current.in_use
+                or current.loop is not asyncio.get_running_loop()
+                or current.root != root.resolve()
+            ):
                 continue
             _warm_servers.pop(current.signature, None)
             if current.idle_handle is not None:
@@ -518,22 +589,30 @@ async def managed_server(
     root: Path,
     key: str | None,
     model: str,
-    web: bool,
     *,
     host_mcp: HostMCPConnection | None = None,
     shared_provider: dict[str, Any] | None = None,
 ) -> AsyncIterator[httpx.AsyncClient]:
-    # A text-only server has an all-deny tool policy and no per-turn MCP
-    # credential. Keep up to three isolated conversations warm so replies avoid
-    # paying the official process's cold-start cost. Tool-capable turns remain
-    # ephemeral because their broker and authorization are scoped to one turn.
-    if shared_provider is None and host_mcp is None and not web and threading.current_thread() is threading.main_thread():
+    # Text-only servers are reusable. Keep up to three isolated conversations
+    # warm so replies avoid paying the native process's cold-start cost.
+    if (
+        shared_provider is None
+        and host_mcp is None
+        and threading.current_thread() is threading.main_thread()
+    ):
         async with _warm_text_server(command, root, key, model) as client:
             yield client
         return
     if threading.current_thread() is threading.main_thread():
         await _discard_idle_warm_server(root)
-    async with _ephemeral_server(command, root, key, model, web, host_mcp=host_mcp, shared_provider=shared_provider) as client:
+    async with _ephemeral_server(
+        command,
+        root,
+        key,
+        model,
+        host_mcp=host_mcp,
+        shared_provider=shared_provider,
+    ) as client:
         yield client
 
 
@@ -584,9 +663,40 @@ async def reasoning_variants(client: httpx.AsyncClient, model: str) -> list[str]
     for entry in response.json().get("all", []):
         if entry.get("id") == provider:
             variants = entry.get("models", {}).get(upstream, {}).get("variants", {})
-            return [name for name, options in variants.items()
-                    if isinstance(options, dict) and not options.get("disabled")]
+            return [
+                name
+                for name, options in variants.items()
+                if isinstance(options, dict) and not options.get("disabled")
+            ]
     return []
+
+
+async def stream_model(
+    model: str,
+    text: str,
+    *,
+    interrupted: Callable[[], bool],
+    fresh_text: str | None = None,
+    reasoning_effort: str | None = None,
+) -> AsyncGenerator[dict[str, Any], None]:
+    """Run a text-only OpenCode model turn without tools or role orchestration."""
+    command = executable()
+    if not command:
+        raise OpenCodeError("请安装 OpenCode 并配置 ECHO_OPENCODE_BIN。")
+    root = state_directory(None, "model")
+    async with _warm_text_server(command, root, model_key(None, model), model) as client:
+        session_id = await session_for_thread(client, root)
+        async for event in stream_prompt(
+            client,
+            session_id,
+            text=text,
+            system="",
+            model=model,
+            interrupted=interrupted,
+            fresh_thread_text=fresh_text,
+            reasoning_effort=reasoning_effort,
+        ):
+            yield event
 
 
 async def session_for_thread(client: httpx.AsyncClient, root: Path) -> str:
@@ -623,6 +733,57 @@ def public_model_error(error: Any) -> str:
     if "model" in detail and any(x in detail for x in ("not found", "unavailable", "404")):
         return "当前模型不可用，请切换其他模型。"
     return "OpenCode 调用模型失败，请稍后重试或检查模型连接。"
+
+
+def _tool_result_preview(tool: str, value: object) -> str:
+    text = str(value or "")
+    if tool not in {"call_agent", "call_agent_parallel"}:
+        return text[:4000]
+    try:
+        result = json.loads(text)
+    except (ValueError, TypeError):
+        return text[:4000]
+    if not isinstance(result, dict):
+        return text[:4000]
+    # Delegation receipts must remain valid JSON after previewing. Internal
+    # review queues and repeated prompt copies otherwise truncate identity and
+    # status along with the child's output.
+    keys = {
+        "agent_id",
+        "requested_agent_id",
+        "market_agent_id",
+        "identity_source",
+        "display_name",
+        "role_display_name",
+        "codename",
+        "role",
+        "avatar",
+        "avatar_url",
+        "role_source_path",
+        "success",
+        "ok",
+        "error",
+        "output",
+        "iteration_count",
+        "files_touched",
+        "spec_index",
+        "success_count",
+    }
+
+    def receipt(raw: dict) -> dict:
+        return {
+            key: (
+                val[:1500] if isinstance(val, str) else val[:50] if isinstance(val, list) else val
+            )
+            for key, val in raw.items()
+            if key in keys
+        }
+
+    preview = receipt(result)
+    for group in ("successes", "failures"):
+        if isinstance(result.get(group), list):
+            preview[group] = [receipt(row) for row in result[group] if isinstance(row, dict)]
+    return json.dumps(preview, ensure_ascii=False)
 
 
 @dataclass
@@ -689,9 +850,9 @@ class MessageEvents:
                                 "tool_call_id": call_id,
                                 "success": status == "completed",
                                 "status": "success" if status == "completed" else "error",
-                                "output_preview": str(
-                                    state.get("output") or state.get("error") or ""
-                                )[:4000],
+                                "output_preview": _tool_result_preview(
+                                    tool, state.get("output") or state.get("error") or ""
+                                ),
                             }
                         )
                     if status != "pending":
@@ -720,7 +881,12 @@ async def _abort_and_settle(client: httpx.AsyncClient, session_id: str) -> None:
                     # admission must not race with the next warm acquisition.
                     return
                 await asyncio.sleep(0.05)
-    except (TimeoutError, httpx.HTTPError, ValueError, AttributeError):
+    except (
+        TimeoutError,
+        httpx.HTTPError,
+        ValueError,
+        AttributeError,
+    ):  # intentional: Leave connection retirement to managed_server.
         pass  # managed_server must retire an unconfirmed warm connection.
 
 
@@ -785,7 +951,10 @@ async def stream_prompt(
                 f"{url}/message",
                 json={
                     "messageID": user_message_id,
-                    "model": {"providerID": native_model(model)[0], "modelID": native_model(model)[1]},
+                    "model": {
+                        "providerID": native_model(model)[0],
+                        "modelID": native_model(model)[1],
+                    },
                     "agent": "echo",
                     **({"variant": variant} if variant else {}),
                     "system": system,
@@ -849,6 +1018,14 @@ async def stream_prompt(
                 raise OpenCodeError("OpenCode 未完成本次回答，请重试继续。")
             if not any(reducer.text.values()):
                 raise OpenCodeError("模型没有返回回答，请重试或切换模型。")
+            final_text = "".join(
+                str(part.get("text", "")) for part in final.get("parts", [])
+                if part.get("type") == "text"
+            )
+            if tool_names and _has_unexecuted_tool_markup(final_text):
+                # Serialized model protocol is text, never an authorized tool
+                # invocation. Do not execute it or report the task completed.
+                raise OpenCodeError("模型输出了未执行的工具调用文本，本轮未完成。请重试或切换模型。")
             settled = True
             yield {
                 "type": "react_completed",

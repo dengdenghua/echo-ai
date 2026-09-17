@@ -292,7 +292,7 @@ async def _drive_group_fanout(
         if isinstance(r, dict) and r.get("agent_id")
     ]
     members, fanout_routing = _select_fanout_members(ctx, members)
-    has_remote_members = any(m["name"].startswith("a2a_") for m in members)
+    has_remote_members = any(str(m.get("name") or "").startswith("a2a_") for m in members)
     if has_remote_members:
         # Remote accounts receive one explicit task per user message. Automatic
         # debate/review rounds must not repeat that task or spend extra credits.

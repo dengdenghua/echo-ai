@@ -117,6 +117,7 @@ def _flatten_turns_to_messages(
     todos: list[dict[str, Any]] | None = None
 
     for turn in turns:
+        turn_message_start = len(messages)
         turn_failed = turn.status in (
             TurnStatus.FAILED,
             TurnStatus.PAUSED,
@@ -474,6 +475,21 @@ def _flatten_turns_to_messages(
                 )
 
         flush_trailing_ai(turn.status)
+
+        completed_at = getattr(turn, "completed_at", None)
+        started_at = getattr(turn, "started_at", None)
+        if completed_at is not None and started_at is not None:
+            turn_duration_ms = max(
+                0,
+                int((completed_at - started_at).total_seconds() * 1000),
+            )
+            for message in messages[turn_message_start:]:
+                if message.get("type") != "ai":
+                    continue
+                message["additional_kwargs"] = {
+                    **(message.get("additional_kwargs") or {}),
+                    "turn_duration_ms": turn_duration_ms,
+                }
 
     return messages, artifacts, todos
 

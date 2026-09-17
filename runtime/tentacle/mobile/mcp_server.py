@@ -536,8 +536,9 @@ class TentacleMcpServer:
         replacement, because names like ``android.browser.install_extension``
         intentionally contain both dots and underscores.
         """
-        from runtime.tentacle.mobile.capabilities import android_capabilities
         from runtime.tentacle.ios.capabilities import ios_capabilities
+        from runtime.tentacle.mobile.capabilities import android_capabilities
+
         active_capabilities = {*android_capabilities(), *ios_capabilities()}
         if mcp_name in active_capabilities:
             return mcp_name

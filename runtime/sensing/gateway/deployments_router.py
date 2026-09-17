@@ -68,12 +68,16 @@ def create_deployments_router(
 
     @router.get("/api/deployments")
     def list_deployments(request: Request) -> dict[str, Any]:
-        _auth(request)
+        _auth(
+            request
+        )  # AUTH-OK: actor-agnostic; shared published artifacts confined to the deployments root
         return _load_manifest()
 
     @router.get("/api/deployments/{deployment_id}")
     def deployment_index(request: Request, deployment_id: str) -> FileResponse:
-        _auth(request)
+        _auth(
+            request
+        )  # AUTH-OK: actor-agnostic; shared published artifacts confined to the deployments root
         return FileResponse(str(_resolve_file(deployment_id, "index.html")))
 
     @router.get("/api/deployments/{deployment_id}/{file_path:path}")
@@ -82,7 +86,9 @@ def create_deployments_router(
         deployment_id: str,
         file_path: str,
     ) -> FileResponse:
-        _auth(request)
+        _auth(
+            request
+        )  # AUTH-OK: actor-agnostic; shared published artifacts confined to the deployments root
         return FileResponse(str(_resolve_file(deployment_id, file_path)))
 
     return router

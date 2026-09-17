@@ -815,7 +815,9 @@ def create_meta_router(
                         getattr(local_auth_config, "allow_any_username", True),
                     ),
                     "password_required": pw_required,
-                    "password_only_username": getattr(local_auth_config, "password_only_username", None),
+                    "password_only_username": getattr(
+                        local_auth_config, "password_only_username", None
+                    ),
                     "endpoint": "/api/auth/local/login",
                 }
             )

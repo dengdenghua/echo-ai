@@ -123,7 +123,7 @@ def create_plugins_router(
             jwt_secret=jwt_secret,
             jwt_issuer=jwt_issuer,
             jwt_audience=jwt_audience,
-        )
+        )  # AUTH-OK: actor-agnostic; shared catalog; lifecycle mutations require admin
 
     def _admin_dep(request: Request) -> None:
         from runtime.safety.auth.principal import require_roles

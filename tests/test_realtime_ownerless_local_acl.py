@@ -3,8 +3,10 @@
 from __future__ import annotations
 
 from pathlib import Path
+from types import SimpleNamespace
 from typing import Any
 
+import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
@@ -129,3 +131,30 @@ def test_ownerless_compat_is_opt_in_and_does_not_cover_linked_rooms(tmp_path: Pa
     assert not linked.can_read
     assert not linked.can_write
     assert not linked.can_manage
+
+
+@pytest.mark.parametrize("enabled,owner,tenant,creation,allowed", [
+    (True, "local", "local", "creation-1", True),
+    (False, "local", "local", "creation-1", False),
+    (True, "alice", "local", "creation-1", False),
+    (True, "local", "acme", "creation-1", False),
+    (True, "local", "local", "other", False),
+])
+def test_only_matching_local_project_room_can_resume(tmp_path, enabled, owner, tenant, creation, allowed):
+    threads = ThreadStateStore()
+    threads.ensure_thread("project-local", metadata={
+        "local_project_group": True, "group_creation_id": "creation-1",
+    })
+    groups = GroupStore(base_dir=tmp_path / "groups")
+    link_room(groups, "project-local", "local-room", actor="system")
+    collaboration = SimpleNamespace(room_by_id=lambda _: {
+        "owner_id": owner, "tenant_id": tenant,
+        "metadata": {"group_creation_id": creation, "tenant_id": ""},
+    })
+    decision = ThreadAccessResolver(
+        thread_store=threads, group_store=groups, collaboration_store=collaboration,
+        allow_anonymous_ownerless=enabled,
+    ).resolve("project-local", None)
+    assert decision.can_read is allowed
+    assert decision.can_write is allowed
+    assert decision.can_manage is allowed

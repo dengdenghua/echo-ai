@@ -85,7 +85,7 @@ def create_capability_router(
             jwt_secret=jwt_secret,
             jwt_issuer=jwt_issuer,
             jwt_audience=jwt_audience,
-        )
+        )  # AUTH-OK: actor-agnostic; resolved principal is consumed by use_capability_scope below
         with use_capability_scope(scope_from_request(request)):
             yield
 

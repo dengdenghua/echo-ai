@@ -293,7 +293,9 @@ def create_channels_router(
 
     @router.get("/api/channels/{channel_id}/diagnostics")
     def get_channel_diagnostics(channel_id: str, request: Request) -> dict[str, Any]:
-        _auth(request)  # AUTH-OK: credential-free operational state
+        _auth(
+            request
+        )  # AUTH-OK: actor-agnostic; credential-free operational diagnostics; probes require admin
         safe_channel_id = _normalize_channel_id(channel_id)
         if safe_channel_id is None:
             raise HTTPException(400, "invalid channel_id")

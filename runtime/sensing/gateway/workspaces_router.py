@@ -14,8 +14,9 @@ import os
 import re
 import secrets
 import time
+from contextlib import contextmanager
 from pathlib import Path
-from typing import Any
+from typing import Any, Literal
 
 try:
     from fastapi import APIRouter, HTTPException, Query, Request
@@ -35,6 +36,7 @@ except ImportError:  # pragma: no cover
 
 from runtime.execution.misc.office_fidelity_preview import render_office_fidelity_preview
 from runtime.execution.misc.office_preview import render_office_preview
+from runtime.platform.io.atomic import AtomicWriteError, _cross_process_lock
 from runtime.platform.runtime_policy.workspaces import WorkspaceManager
 from runtime.sensing._fastapi_guard import require_fastapi
 
@@ -81,6 +83,12 @@ if FASTAPI_AVAILABLE:
         bytes: int
         sha256: str
         revision_id: str | None = None
+
+    class WorkspaceOutputProposalRequest(BaseModel):
+        action: Literal["create", "accept", "reject"] = "create"
+        proposal_id: str | None = None
+        expected_sha256: str | None = None
+        reviewed_sha256: str | None = None
 
 
 def create_workspaces_router(
@@ -178,8 +186,59 @@ def create_workspaces_router(
 
     def _revision_dir(thread_id: str, area: str, artifact_path: str) -> Path:
         area_key, _ = _area_root(thread_id, area)
-        root = manager.layout(thread_id).root / ".artifact-revisions" / area_key
+        root = _safe_child(manager.layout(thread_id).root, f".artifact-revisions/{area_key}")
         return _safe_child(root, artifact_path)
+
+    def _revision_locations(thread_id: str, target: Path) -> list[Path]:
+        # Read legacy area aliases too; new revisions use the most specific area.
+        locations: list[Path] = []
+        for area in ("final", "stages", "deploy", "upload", "output"):
+            _, root = _area_root(thread_id, area)
+            try:
+                relative = target.relative_to(root.resolve())
+            except ValueError:
+                continue
+            locations.append(_revision_dir(thread_id, area, relative.as_posix()))
+        return locations
+
+    def _find_revision(thread_id: str, target: Path, revision_id: str) -> Path:
+        if not re.fullmatch(r"\d+-[0-9a-f]{12}\.bak", revision_id):
+            raise HTTPException(400, "invalid revision_id")
+        for directory in _revision_locations(thread_id, target):
+            revision = _safe_child(directory, revision_id)
+            if revision.is_file():
+                return revision
+        raise HTTPException(404, "output revision not found")
+
+    def _read_revision(revision: Path) -> bytes:
+        try:
+            if revision.stat().st_size > 8 * 1024 * 1024:
+                raise HTTPException(413, "HTML revision exceeds the 8 MB visual-edit limit")
+            content = revision.read_bytes()
+        except OSError as exc:
+            raise HTTPException(500, "failed to read output revision") from exc
+        expected = revision.name.split("-")[1].removesuffix(".bak")
+        if not hmac.compare_digest(hashlib.sha256(content).hexdigest()[:12], expected):
+            raise HTTPException(409, "output revision has changed; cannot restore it")
+        return content
+
+    @contextmanager
+    def _output_edit_lock(thread_id: str, target: Path):
+        # Area and route aliases must share one lock, including across workers.
+        workspace = manager.layout(thread_id).root
+        try:
+            target.relative_to(workspace.resolve())
+        except ValueError as exc:
+            raise HTTPException(400, "output path escapes workspace") from exc
+        canonical = os.path.normcase(str(target.resolve()))
+        key = hashlib.sha256(canonical.encode("utf-8")).hexdigest()
+        lock_target = _safe_child(workspace, f".artifact-locks/{key}")
+        _safe_child(workspace, f".artifact-locks/{key}.lock")
+        try:
+            with _cross_process_lock(lock_target, required=True, timeout_s=5):
+                yield
+        except AtomicWriteError as exc:
+            raise HTTPException(503, "产物正在保存或暂时无法锁定，请稍后重试。") from exc
 
     def _store_revision(
         thread_id: str,
@@ -187,7 +246,8 @@ def create_workspaces_router(
         artifact_path: str,
         content: bytes,
     ) -> str:
-        revision_dir = _revision_dir(thread_id, area, artifact_path)
+        _, root = _area_root(thread_id, area)
+        revision_dir = _revision_locations(thread_id, _safe_child(root, artifact_path))[0]
         revision_dir.mkdir(parents=True, exist_ok=True)
         digest = hashlib.sha256(content).hexdigest()
         revision_id = f"{time.time_ns()}-{digest[:12]}.bak"
@@ -198,18 +258,7 @@ def create_workspaces_router(
         except OSError as exc:
             revision.unlink(missing_ok=True)
             raise HTTPException(500, f"failed to preserve output revision: {exc}") from exc
-        # Keep a bounded local history without ever making a successful save
-        # depend on cleanup of an old snapshot.
-        try:
-            history = sorted(
-                (path for path in revision_dir.iterdir() if path.is_file()),
-                key=lambda path: path.name,
-                reverse=True,
-            )
-            for stale in history[20:]:
-                stale.unlink(missing_ok=True)
-        except OSError:
-            pass
+        # Revisions are user recovery data. Do not silently evict old versions.
         return revision_id
 
     def _expected_digest(current: bytes, expected_sha256: str | None) -> str:
@@ -389,21 +438,24 @@ def create_workspaces_router(
         payload = body.content.encode("utf-8")
         if len(payload) > 8 * 1024 * 1024:
             raise HTTPException(413, "HTML output exceeds the 8 MB visual-edit limit")
-        try:
-            current = target.read_bytes()
-        except OSError as exc:
-            raise HTTPException(500, f"failed to read output: {exc}") from exc
-        _expected_digest(current, body.expected_sha256)
-        revision_id = _store_revision(thread_id, area, artifact_path, current)
-        temporary = target.with_name(f".{target.name}.{secrets.token_hex(8)}.tmp")
-        try:
-            temporary.write_bytes(payload)
-            os.chmod(temporary, target.stat().st_mode)
-            os.replace(temporary, target)
-        except OSError as exc:
-            raise HTTPException(500, f"failed to write output: {exc}") from exc
-        finally:
-            temporary.unlink(missing_ok=True)
+        with _output_edit_lock(thread_id, target):
+            if _safe_child(root, artifact_path) != target:
+                raise HTTPException(409, "output path changed; reload before editing")
+            try:
+                current = target.read_bytes()
+            except OSError as exc:
+                raise HTTPException(500, f"failed to read output: {exc}") from exc
+            _expected_digest(current, body.expected_sha256)
+            revision_id = _store_revision(thread_id, area, artifact_path, current)
+            temporary = target.with_name(f".{target.name}.{secrets.token_hex(8)}.tmp")
+            try:
+                temporary.write_bytes(payload)
+                os.chmod(temporary, target.stat().st_mode)
+                os.replace(temporary, target)
+            except OSError as exc:
+                raise HTTPException(500, f"failed to write output: {exc}") from exc
+            finally:
+                temporary.unlink(missing_ok=True)
         return {
             "success": True,
             "path": str(target),
@@ -429,25 +481,26 @@ def create_workspaces_router(
             raise HTTPException(415, "visual editing currently supports HTML outputs only")
         if not re.fullmatch(r"\d+-[0-9a-f]{12}\.bak", body.revision_id):
             raise HTTPException(400, "invalid revision_id")
-        revision = _safe_child(_revision_dir(thread_id, area, artifact_path), body.revision_id)
-        if not revision.is_file():
-            raise HTTPException(404, "output revision not found")
-        try:
-            current = target.read_bytes()
-            restored = revision.read_bytes()
-        except OSError as exc:
-            raise HTTPException(500, f"failed to read output revision: {exc}") from exc
-        _expected_digest(current, body.expected_sha256)
-        redo_revision_id = _store_revision(thread_id, area, artifact_path, current)
-        temporary = target.with_name(f".{target.name}.{secrets.token_hex(8)}.tmp")
-        try:
-            temporary.write_bytes(restored)
-            os.chmod(temporary, target.stat().st_mode)
-            os.replace(temporary, target)
-        except OSError as exc:
-            raise HTTPException(500, f"failed to restore output: {exc}") from exc
-        finally:
-            temporary.unlink(missing_ok=True)
+        with _output_edit_lock(thread_id, target):
+            if _safe_child(root, artifact_path) != target:
+                raise HTTPException(409, "output path changed; reload before editing")
+            revision = _find_revision(thread_id, target, body.revision_id)
+            try:
+                current = target.read_bytes()
+                restored = _read_revision(revision)
+            except OSError as exc:
+                raise HTTPException(500, f"failed to read output revision: {exc}") from exc
+            _expected_digest(current, body.expected_sha256)
+            redo_revision_id = _store_revision(thread_id, area, artifact_path, current)
+            temporary = target.with_name(f".{target.name}.{secrets.token_hex(8)}.tmp")
+            try:
+                temporary.write_bytes(restored)
+                os.chmod(temporary, target.stat().st_mode)
+                os.replace(temporary, target)
+            except OSError as exc:
+                raise HTTPException(500, f"failed to restore output: {exc}") from exc
+            finally:
+                temporary.unlink(missing_ok=True)
         return {
             "success": True,
             "path": str(target),
@@ -494,6 +547,91 @@ def create_workspaces_router(
         area: str = "output",
     ) -> dict[str, Any]:
         return _restore_output_file(request, thread_id, artifact_path, body, area=area)
+
+    @router.get("/api/threads/{thread_id}/output-revisions/{artifact_path:path}")
+    def api_output_revisions(
+        request: Request,
+        thread_id: str,
+        artifact_path: str,
+        area: str = "output",
+        revision_id: str | None = None,
+        before: str | None = None,
+        limit: int = Query(50, ge=1, le=100),
+    ) -> dict[str, Any]:
+        _require_thread_access(request, thread_id)
+        _, root = _area_root(thread_id, area)
+        target = _safe_child(root, artifact_path)
+        if not target.is_file():
+            raise HTTPException(404, "output not found")
+        if target.suffix.lower() not in {".html", ".htm"}:
+            raise HTTPException(415, "revision history currently supports HTML outputs only")
+        if before is not None and not re.fullmatch(r"\d+-[0-9a-f]{12}\.bak", before):
+            raise HTTPException(400, "invalid revision cursor")
+        with _output_edit_lock(thread_id, target):
+            if _safe_child(root, artifact_path) != target:
+                raise HTTPException(409, "output path changed; reload before editing")
+            if revision_id is not None:
+                content = _read_revision(_find_revision(thread_id, target, revision_id))
+                try:
+                    text = content.decode("utf-8")
+                except UnicodeDecodeError as exc:
+                    raise HTTPException(415, "revision is not UTF-8 HTML") from exc
+                return {"revision_id": revision_id, "content": text,
+                        "sha256": hashlib.sha256(content).hexdigest()}
+            revisions: dict[str, Path] = {}
+            for directory in _revision_locations(thread_id, target):
+                if not directory.exists():
+                    continue
+                for entry in directory.iterdir():
+                    if re.fullmatch(r"\d+-[0-9a-f]{12}\.bak", entry.name):
+                        safe_entry = _safe_child(directory, entry.name)
+                        if safe_entry.is_file() and (before is None or entry.name < before):
+                            revisions.setdefault(entry.name, safe_entry)
+            ordered = sorted(revisions, reverse=True)
+            items = [{"revision_id": key,
+                      "created_at": int(key.split("-")[0]) / 1_000_000_000,
+                      "bytes": revisions[key].stat().st_size} for key in ordered[:limit]]
+            return {"revisions": items,
+                    "next_cursor": ordered[limit - 1] if len(ordered) > limit else None}
+
+    @contextmanager
+    def _proposals(request: Request, thread_id: str, artifact_path: str, area: str):
+        from runtime.sensing.gateway.artifact_proposals import ArtifactProposals
+
+        _require_thread_access(request, thread_id)
+        _, root = _area_root(thread_id, area)
+        target = _safe_child(root, artifact_path)
+        if not target.is_file():
+            raise HTTPException(404, "output not found")
+        if target.suffix.lower() not in {".html", ".htm"}:
+            raise HTTPException(415, "edit proposals currently support HTML outputs only")
+        try:
+            with _output_edit_lock(thread_id, target):
+                if _safe_child(root, artifact_path) != target:
+                    raise HTTPException(409, "output path changed; reload before editing")
+                yield ArtifactProposals(manager.layout(thread_id).root, target)
+        except OSError as exc:
+            raise HTTPException(503, "产物修改暂时无法读写，请重试。") from exc
+
+    @router.get("/api/threads/{thread_id}/output-proposals/{artifact_path:path}")
+    def api_output_proposals(request: Request, thread_id: str, artifact_path: str,
+                             area: str = "output", proposal_id: str | None = None) -> dict[str, Any]:
+        with _proposals(request, thread_id, artifact_path, area) as proposals:
+            return proposals.read(proposal_id) if proposal_id else {"proposals": proposals.list()}
+
+    @router.post("/api/threads/{thread_id}/output-proposals/{artifact_path:path}")
+    def api_decide_output_proposal(request: Request, thread_id: str, artifact_path: str,
+                                   body: WorkspaceOutputProposalRequest,
+                                   area: str = "output") -> dict[str, Any]:
+        with _proposals(request, thread_id, artifact_path, area) as proposals:
+            if body.action == "create":
+                expected = _expected_digest(proposals.target.read_bytes(), body.expected_sha256)
+                return proposals.create(expected)
+            if not body.proposal_id:
+                raise HTTPException(400, "proposal_id is required")
+            result = proposals.decide(body.proposal_id, body.action, body.reviewed_sha256,
+                                      lambda content: _store_revision(thread_id, area, artifact_path, content))
+            return {**result, "current_sha256": hashlib.sha256(proposals.target.read_bytes()).hexdigest()}
 
     return router
 

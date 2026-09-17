@@ -525,6 +525,9 @@ def wire_persistent_subagent_runner(ctx: AppContext) -> None:
             agent_registry=ctx.agent_registry,
         )
         set_sub_agent_runner(runner)
+        from runtime.execution.suckers.delegation_skills import register_delegation_skills
+
+        register_delegation_skills(stack.executor.registry)
         ctx.subagent_runner = runner
         app.state.subagent_runner = runner
         app.state.subagent_runner_ready = True

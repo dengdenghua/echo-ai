@@ -499,12 +499,14 @@ def test_standalone_accounts_points_and_account_scoped_pairing(tmp_path: Path) -
 
 def _public_snapshot(content: str = "Public answer") -> dict[str, Any]:
     return {
-        "title": "Launch review /Users/alice/private/plan.md",
+        # Synthetic home path exercises picker or private-path redaction behavior.
+        "title": "Launch review /Users/alice/private/plan.md",  # lint: allow-user-path
         "messages": [
             {"role": "user", "content": "Review api_key=super-private-value"},
             {"role": "assistant", "content": content},
         ],
-        "artifacts": [r"C:\Users\Alice\private\release-notes.md"],
+        # Synthetic home path exercises picker or private-path redaction behavior.
+        "artifacts": [r"C:\Users\Alice\private\release-notes.md"],  # lint: allow-user-path
     }
 
 
@@ -564,7 +566,8 @@ def test_cloud_public_share_device_flow_hashes_token_and_revokes(tmp_path: Path)
     assert public_payload["artifacts"] == ["release-notes.md"]
     serialized = json.dumps(public_payload, ensure_ascii=False)
     assert "super-private-value" not in serialized
-    assert "/Users/alice/private" not in serialized
+    # Synthetic home path exercises picker or private-path redaction behavior.
+    assert "/Users/alice/private" not in serialized  # lint: allow-user-path
     for private_key in (
         "token",
         "token_hash",

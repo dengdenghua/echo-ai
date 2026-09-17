@@ -1,4 +1,5 @@
 """Local file inventory; presence does not imply runtime execution permission."""
+
 from __future__ import annotations
 
 import hashlib
@@ -35,7 +36,9 @@ def scan_local_skills(roots: list[tuple[Path, str]] | None = None) -> list[dict[
         if not root.is_dir():
             continue
         for directory, dirs, files in os.walk(root, followlinks=False):
-            dirs[:] = sorted(d for d in dirs if d not in SKIP_DIRS and not (Path(directory) / d).is_symlink())
+            dirs[:] = sorted(
+                d for d in dirs if d not in SKIP_DIRS and not (Path(directory) / d).is_symlink()
+            )
             if "SKILL.md" not in files:
                 continue
             md = Path(directory) / "SKILL.md"
@@ -54,7 +57,9 @@ def scan_local_skills(roots: list[tuple[Path, str]] | None = None) -> list[dict[
                         parsed = yaml.safe_load(text.split("---", 2)[1])
                         if isinstance(parsed, dict):
                             fm = parsed
-                    except yaml.YAMLError:
+                    except (
+                        yaml.YAMLError
+                    ):  # intentional: Keep filename-derived inventory metadata for malformed YAML.
                         pass
             except OSError:
                 continue
@@ -65,12 +70,18 @@ def scan_local_skills(roots: list[tuple[Path, str]] | None = None) -> list[dict[
                 author = author.get("name")
             author = author.strip() if isinstance(author, str) else ""
             key = name.casefold()
-            variant = {"path": str(md.parent.resolve()), "sha256": hashlib.sha256(content).hexdigest()}
+            variant = {
+                "path": str(md.parent.resolve()),
+                "sha256": hashlib.sha256(content).hexdigest(),
+            }
             if key in by_name:
                 by_name[key]["variants"].append(variant)
                 continue
             by_name[key] = {
-                "id": name, "name": name, "kind": "skill", "source": source,
+                "id": name,
+                "name": name,
+                "kind": "skill",
+                "source": source,
                 "description": str(fm.get("description") or ""),
                 "author": author,
                 "version": str(fm.get("version") or "0.1.0"),
@@ -80,6 +91,8 @@ def scan_local_skills(roots: list[tuple[Path, str]] | None = None) -> list[dict[
 
 
 def public_skill_inventory() -> list[dict[str, Any]]:
-    return [{key: value for key, value in item.items() if key != "variants"}
-            for item in scan_local_skills()
-            if not item["name"].startswith(("android.", "ios."))]
+    return [
+        {key: value for key, value in item.items() if key != "variants"}
+        for item in scan_local_skills()
+        if not item["name"].startswith(("android.", "ios."))
+    ]

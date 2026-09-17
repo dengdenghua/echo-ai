@@ -135,7 +135,6 @@ def plan_external_graph(stack: Any, intent: Any, *, engine: str):
             goal,
             context=context,
             interrupted=lambda: cancellation.is_cancelled,
-            tool_ceiling=frozenset(),
             on_event=record_usage,
         )
     else:

@@ -375,6 +375,11 @@ async def _drive_project_os(
         )
         return
 
+    control = _parse_project_os_control(text)
+    if control is not None and control.get("type") == "help":
+        await runtime._emit_agent_message(turn, log, emitter, _PROJECT_OS_HELP)
+        return
+
     context = intent.user_context if isinstance(intent.user_context, dict) else {}
     emitter_actor = str(getattr(emitter, "actor_id", None) or "").strip()
     emitter_tenant = str(getattr(emitter, "tenant_id", None) or "").strip()
@@ -485,6 +490,7 @@ async def _drive_project_os(
         project_hooks["resolve_thread_context"] = _resolve_thread_context
 
     goal = str(getattr(intent, "normalized_goal", "") or text or "").strip() or "当前目标"
+    explicit_project_request = _is_project_os_command(text)
     raw_name = str(context.get("team_name") or context.get("project") or "").strip()
     name = raw_name[:80] if raw_name else "当前项目"
     try:
@@ -493,7 +499,9 @@ async def _drive_project_os(
         max_ticks = 50
     max_ticks = max(1, min(max_ticks, 200))
 
-    control = _parse_project_os_control(text)
+    if control is not None and control.get("type") == "help":
+        await runtime._emit_agent_message(turn, log, emitter, _PROJECT_OS_HELP)
+        return
     review_id = ""
     refine_id = ""
     feedback = ""
@@ -535,6 +543,7 @@ async def _drive_project_os(
             owner_id=owner_id,
             tenant_id=tenant_id,
             leader=leader,
+            explicit_project_request=explicit_project_request,
             prepare=project_hooks.get("prepare_initiation"),
             review_id=review_id,
             refine_id=refine_id,
@@ -757,7 +766,9 @@ async def _drive_project_os(
 
     if control and control.get("type") == "recover" and control.get("run"):
         await runtime._emit_agent_message(
-            turn, log, emitter,
+            turn,
+            log,
+            emitter,
             "正在恢复项目并继续推进。我会检查待办、执行任务并核对验收结果；完成或遇到阻塞时会在这里说明。",
         )
     try:

@@ -156,7 +156,7 @@ def _score_reply(reply: dict[str, Any]) -> int:
             # Keep successful replies above empty successes while ranking them
             # with the explicit quality rubric rather than response length.
             return 100 + max(0, min(100, int(quality.get("score") or 0)))
-        except (TypeError, ValueError):
+        except (TypeError, ValueError):  # intentional: Use the text-based score fallback below.
             pass
     return 100 + min(20, max(1, len(text) // 40))
 

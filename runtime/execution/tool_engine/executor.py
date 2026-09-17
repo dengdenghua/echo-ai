@@ -57,6 +57,7 @@ from runtime.execution.tool_engine.effect_receipts import (
 from runtime.execution.tool_engine.effect_store import EffectStore, SQLiteEffectStore
 from runtime.execution.tool_engine.skill_gate import (
     antigen_for,
+    canonical_tool_path,
     file_safety_target,
     use_trust_engine,
 )
@@ -841,7 +842,27 @@ class ToolExecutor:
                                 str(ve),
                             )
                 except ReadBeforeWriteRequired as e:
-                    output = {"error": str(e)}
+                    read_tool = {
+                        "documents.replace_text": "documents.extract_text",
+                        "spreadsheets.update_cells": "spreadsheets.read_sheet",
+                        "presentations.replace_text": "presentations.extract_text",
+                    }.get(str(sucker_id), "read_file")
+                    output = {
+                        "error": str(e),
+                        "error_type": "read_before_write_required",
+                        "retryable": True,
+                        "blocked_operation": str(sucker_id),
+                        "recovery": {
+                            "tool": read_tool,
+                            "arguments": {"path": str(canonical_tool_path(args))},
+                            "then": "review_current_content_and_retry",
+                            "message": (
+                                "Read this file in the current turn, review its current contents, "
+                                "adjust the edit if needed, then retry the file edit. "
+                                "This precondition does not require broader permissions."
+                            ),
+                        },
+                    }
                     status = "failed"
                     error_type = "read_before_write_required"
                     stderr_tags = [error_type, str(e)]

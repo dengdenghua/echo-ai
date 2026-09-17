@@ -37,7 +37,7 @@ from runtime.adapters.integrations.oct.router_auth import (  # noqa: E402
     create_auth_router,
 )
 from runtime.platform.ui._app_auth_routers import _restore_oct_identities  # noqa: E402
-from runtime.safety.auth import IdentityStore  # noqa: E402
+from runtime.safety.auth import Identity, IdentityStore  # noqa: E402
 from runtime.sensing.model_router.actor_context import current_actor  # noqa: E402
 from runtime.sensing.model_router.models import (  # noqa: E402
     CostEntry,
@@ -197,6 +197,26 @@ def test_link_store_restores_oct_identity_after_restart(tmp_path: Any) -> None:
     assert _restore_oct_identities(identities, links) == 0
 
 
+def test_link_store_restores_configured_admin_after_restart(tmp_path: Any) -> None:
+    links = OctLinkStore(path=tmp_path / "l.json")
+    links.put(
+        OctLink(
+            echo_user_id="oct:a@b.com",
+            oct_user_id="u1",
+            oct_token="jwt",
+            email="a@b.com",
+        )
+    )
+    identities = IdentityStore()
+    identities.add(
+        Identity(actor_id="oct:a@b.com", roles=("user", "oct"), metadata={"provider": "oct"})
+    )
+
+    _restore_oct_identities(identities, links, admin_emails=("A@B.com",))
+
+    assert identities.get("oct:a@b.com").roles == ("user", "oct", "admin")
+
+
 def test_actor_from_email_lowercases() -> None:
     assert actor_from_email("  Alice@Example.COM ") == "oct:alice@example.com"
 
@@ -204,10 +224,21 @@ def test_actor_from_email_lowercases() -> None:
 # ─── auth router (TestClient + fake gateway) ─────────────
 
 
-def _auth_app(routes: dict[str, _Resp], *, store: OctLinkStore, enabled: bool = True) -> TestClient:
-    cfg = OctConfig(enabled=enabled)
+def _auth_app(
+    routes: dict[str, _Resp],
+    *,
+    store: OctLinkStore,
+    enabled: bool = True,
+    identity_store: IdentityStore | None = None,
+    admin_emails: list[str] | None = None,
+) -> TestClient:
+    cfg = OctConfig(enabled=enabled, admin_emails=admin_emails or [])
     router = create_auth_router(
-        config=cfg, link_store=store, jwt_secret=_SECRET, http_client=_FakeHttp(routes)
+        config=cfg,
+        link_store=store,
+        identity_store=identity_store,
+        jwt_secret=_SECRET,
+        http_client=_FakeHttp(routes),
     )
     app = FastAPI()
     app.include_router(router)
@@ -239,6 +270,44 @@ def test_email_login_stores_link_and_issues_jwt(tmp_path: Any) -> None:
     assert "Max-Age=" in cookie
     # 网关 JWT 存进 link
     assert store.get("oct:a@b.com").oct_token == "gw-jwt"
+
+
+def test_email_login_promotes_configured_admin(tmp_path: Any) -> None:
+    store = OctLinkStore(path=tmp_path / "l.json")
+    identity_store = IdentityStore()
+    identity_store.add(
+        Identity(
+            actor_id="oct:a@b.com",
+            roles=("user", "oct"),
+            metadata={"provider": "oct", "email": "a@b.com"},
+        )
+    )
+    client = _auth_app(
+        {"login": _Resp({"token": "gw-jwt", "userId": "u1", "email": "a@b.com"})},
+        store=store,
+        identity_store=identity_store,
+        admin_emails=["A@B.com"],
+    )
+    r = client.post("/api/auth/oct/email/login", json={"email": "a@b.com", "code": "123456"})
+    assert r.status_code == 200
+    assert identity_store.get("oct:a@b.com").roles == ("user", "oct", "admin")
+
+
+def test_email_login_wildcard_promotes_every_account(tmp_path: Any) -> None:
+    store = OctLinkStore(path=tmp_path / "l.json")
+    identity_store = IdentityStore()
+    identity_store.add(
+        Identity(actor_id="oct:a@b.com", roles=("user", "oct"), metadata={"provider": "oct"})
+    )
+    client = _auth_app(
+        {"login": _Resp({"token": "gw-jwt", "userId": "u1", "email": "a@b.com"})},
+        store=store,
+        identity_store=identity_store,
+        admin_emails=["*"],
+    )
+    r = client.post("/api/auth/oct/email/login", json={"email": "a@b.com", "code": "123456"})
+    assert r.status_code == 200
+    assert identity_store.get("oct:a@b.com").roles == ("user", "oct", "admin")
 
 
 def test_email_login_bad_code_is_401(tmp_path: Any) -> None:

@@ -55,6 +55,7 @@ from ._agent_world_helpers import (
     _template_by_id,
     _template_private_skills,
     _template_source_root,
+    template_to_agent_dict,
 )
 
 _INSTALL_STATE = app_paths().data_dir / "agents-installed.json"
@@ -285,37 +286,13 @@ def _install_template_agent(
 
 
 def _template_to_agent_dict(template: dict[str, Any], *, installed: set[str]) -> dict[str, Any]:
-    """模板 → 与 ``_list_local_agents`` 同形状的 dict(供按 id 直查 / 安装用,
-    不进入列表)。"""
-    agent_id = template["id"]
-    return {
-        "id": agent_id,
-        "name": agent_id,
-        "display_name": template["display_name"],
-        "description": template["description"],
-        "author": template["author"],
-        "category": template["category"],
-        "tags": template["tags"],
-        "icon": template["icon"],
-        "avatar_url": None,
-        "model": None,
-        "tool_groups": ["fs_writer", "git", "shell"],
-        "extra_affinity": list(template["tags"]),
-        "private_skills": _template_private_skills(template),
-        "capabilities": {},
-        "version": "1.0.0",
-        "downloads": 0,
-        "rating": 4.5,
-        "rating_count": 0,
-        "is_featured": bool(template.get("featured")),
-        "is_official": template["author"] == "echo",
-        "is_installed": agent_id in installed,
-        "source_kind": _MARKET_INSTALL_SOURCE,
-        "created_at": "0",
-        "source_url": template.get("source_url"),
-        "key_skills": _template_private_skills(template),
-        "available_skills": _template_skill_catalog(template),
-    }
+    return template_to_agent_dict(
+        template,
+        installed=installed,
+        private_skills=_template_private_skills(template),
+        available_skills=_template_skill_catalog(template),
+        source_kind=_MARKET_INSTALL_SOURCE,
+    )
 
 
 def create_agent_world_router(
@@ -345,7 +322,7 @@ def create_agent_world_router(
             jwt_secret=jwt_secret,
             jwt_issuer=jwt_issuer,
             jwt_audience=jwt_audience,
-        )
+        )  # AUTH-OK: actor-agnostic; shared catalog; mutations require _admin_dep
 
     def _admin_dep(request: Request) -> None:
         """Protect shared mutations while allowing the trusted local desktop.
@@ -414,7 +391,7 @@ def create_agent_world_router(
         agents.sort(key=lambda a: (a["is_official"], a["display_name"].lower()), reverse=True)
         return {"agents": agents[:limit], "total": len(agents), "page": 1, "page_size": limit}
 
-    @router.post("/api/agent-market/from-subagent")
+    @router.post("/api/agent-market/from-subagent", dependencies=[Depends(_admin_dep)])
     def api_agent_market_from_subagent(body: dict[str, Any]) -> dict[str, Any]:
         """把子 agent 定义晋升为角色市场岗位（进"我的安装"）。
 
@@ -734,7 +711,9 @@ def create_agent_world_router(
             if registry is not None and runtime is not None:
                 from runtime.execution.agents.loader import load_agent
 
-                _register_public_prompt_skills(skill_registry, resources_root() / "skills" / "public")
+                _register_public_prompt_skills(
+                    skill_registry, resources_root() / "skills" / "public"
+                )
                 root = default_agents_root().resolve()
                 agent_path = Path(result["agent_path"]).resolve()
                 if not agent_path.is_relative_to(root):
@@ -790,7 +769,7 @@ def create_agent_world_router(
             from runtime.platform.plugins.external_skills import list_external_skills
 
             out = list_external_skills((search or "")[:200])
-            out["items"] = out["items"][offset:offset + limit]
+            out["items"] = out["items"][offset : offset + limit]
             return out
         cat = _cloud_catalog("skills")
         if refresh:
@@ -801,7 +780,20 @@ def create_agent_world_router(
 
     # ── 云商城已安装状态(本地已落地哪些技能/插件) ─────────────
     @router.get("/api/agent-market/cloud/installed")
-    def api_agent_market_cloud_installed() -> dict[str, Any]:
+    def api_agent_market_cloud_installed(package_id: str | None = None) -> dict[str, Any]:
+        if package_id is not None:
+            from runtime.platform.plugins.workbench_package import WorkbenchPackageStore
+
+            try:
+                WorkbenchPackageStore.validate_id(package_id)
+            except ValueError as exc:
+                raise HTTPException(400, str(exc)) from exc
+            plugins = _cloud_catalog("plugins")
+            return {
+                "plugins": [name for name in plugins.installed_plugins() if name == package_id],
+                "plugin_states": plugins.plugin_statuses(package_id=package_id),
+            }
+
         from runtime.platform.assets.skill_inventory import public_skill_inventory
 
         cat = _cloud_catalog("skills")
@@ -809,6 +801,7 @@ def create_agent_world_router(
         local_skills = public_skill_inventory()
         from runtime.platform.assets.skill_lifecycle import skill_management_states
         from runtime.platform.assets.skill_users import build_skill_users
+
         return {
             "skills": sorted(set(cat.installed_skills()) | {item["name"] for item in local_skills}),
             "local_skills": local_skills,
@@ -820,11 +813,13 @@ def create_agent_world_router(
 
     @router.post("/api/agent-market/cloud/skills/{name}/manage", dependencies=[Depends(_admin_dep)])
     def api_agent_market_skill_manage(name: str, body: dict[str, Any]) -> dict[str, Any]:
-        from runtime.platform.assets.skill_lifecycle import manage_skill
         from runtime.execution.suckers.market_skills import immutable_prompt_catalog_required
+        from runtime.platform.assets.skill_lifecycle import manage_skill
 
         if immutable_prompt_catalog_required():
-            raise HTTPException(403, "skill management is restricted in shared/commercial deployments")
+            raise HTTPException(
+                403, "skill management is restricted in shared/commercial deployments"
+            )
         try:
             return manage_skill(name, str(body.get("action", "")), skill_registry)
         except KeyError as exc:
@@ -1085,6 +1080,12 @@ def create_agent_world_router(
             raise HTTPException(404, str(exc)) from exc
         except FileExistsError as exc:
             raise HTTPException(409, str(exc)) from exc
+        except FileNotFoundError as exc:
+            raise HTTPException(
+                409,
+                f"local workbench package is incomplete: {exc}. "
+                "In a source checkout, run pnpm --dir frontend build:workbenches.",
+            ) from exc
         except ValueError as exc:
             raise HTTPException(400, str(exc)) from exc
         except RuntimeError as exc:

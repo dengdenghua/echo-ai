@@ -8,8 +8,8 @@ from runtime.safety.evolution._agent_competitor_scorecard_evidence import (
     _evidence_readiness,
 )
 from runtime.safety.evolution._agent_competitor_scorecard_models import (
-    EXTERNAL_COMPETITORS,
     ECHO_COMPETITOR,
+    EXTERNAL_COMPETITORS,
     ScoreDimension,
 )
 

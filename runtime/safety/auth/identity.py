@@ -124,6 +124,22 @@ class IdentityStore:
         with self._lock:
             return self._by_actor.get(actor_id)
 
+    def set_roles(self, actor_id: str, roles: tuple[str, ...]) -> bool:
+        """Replace durable roles while preserving actor metadata and API keys."""
+
+        normalized = tuple(dict.fromkeys(str(role) for role in roles if str(role)))
+        with self._lock:
+            identity = self._by_actor.get(actor_id)
+            if identity is None:
+                return False
+            updated = Identity(actor_id, normalized, identity.metadata)
+            self._by_actor[actor_id] = updated
+            self._by_hash = {
+                key: updated if item.actor_id == actor_id else item
+                for key, item in self._by_hash.items()
+            }
+            return True
+
     def __len__(self) -> int:
         with self._lock:
             return len(self._by_actor)

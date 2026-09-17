@@ -216,7 +216,7 @@ def create_index_router(
 
     @router.get("/api/index/status")
     def api_index_status(request: Request) -> dict[str, Any]:
-        _auth(request)
+        _auth(request)  # AUTH-OK: actor-agnostic; _auth requires operator for the shared host index
         chunks, embeddings = _count_db_rows()
         return {
             **_index_state,
@@ -229,7 +229,7 @@ def create_index_router(
 
     @router.get("/api/index/stats")
     def api_index_stats(request: Request) -> dict[str, Any]:
-        _auth(request)
+        _auth(request)  # AUTH-OK: actor-agnostic; _auth requires operator for the shared host index
         stats = _get_db_stats()
         stats["last_indexed_at"] = _index_state.get("last_indexed_at", "")
         stats["config"] = {
@@ -243,7 +243,7 @@ def create_index_router(
 
     @router.post("/api/index/start")
     def api_index_start(request: Request, body: IndexStartRequest) -> dict[str, Any]:
-        _auth(request)
+        _auth(request)  # AUTH-OK: actor-agnostic; _auth requires operator for the shared host index
         if _index_state["running"]:
             raise HTTPException(409, "Indexing already in progress")
         t = threading.Thread(target=_run_indexing, args=(body.workspace, body.force), daemon=True)
@@ -252,7 +252,7 @@ def create_index_router(
 
     @router.post("/api/index/rebuild")
     def api_index_rebuild(request: Request) -> dict[str, Any]:
-        _auth(request)
+        _auth(request)  # AUTH-OK: actor-agnostic; _auth requires operator for the shared host index
         if _DB_PATH.exists():
             _DB_PATH.unlink()
         workspace = _index_state.get("workspace") or "."
@@ -262,7 +262,7 @@ def create_index_router(
 
     @router.delete("/api/index")
     def api_index_clear(request: Request) -> dict[str, Any]:
-        _auth(request)
+        _auth(request)  # AUTH-OK: actor-agnostic; _auth requires operator for the shared host index
         if _DB_PATH.exists():
             _DB_PATH.unlink()
         _index_state["total_chunks"] = 0
@@ -274,7 +274,7 @@ def create_index_router(
 
     @router.post("/api/index/search")
     def api_index_search(request: Request, body: IndexSearchRequest) -> dict[str, Any]:
-        _auth(request)
+        _auth(request)  # AUTH-OK: actor-agnostic; _auth requires operator for the shared host index
         t0 = time.monotonic()
         try:
             from runtime.execution.suckers.code_intelligence_skills import _code_search

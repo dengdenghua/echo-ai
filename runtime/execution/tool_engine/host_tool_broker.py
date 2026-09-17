@@ -179,7 +179,7 @@ def _advertised_name(skill_name: str, used: set[str]) -> str:
 def _metadata_for_bridge(
     context: Mapping[str, Any],
     *,
-    tenant_id: str,
+    tenant_id: str | None,
     workspace: str,
 ) -> tuple[dict[str, Any], Session | None]:
     """Carry the standard turn policy into the executor without ambient leaks."""
@@ -425,8 +425,8 @@ class HostToolBroker:
         outer_thread_id: str,
         outer_turn_id: str,
         workspace: str,
-        tenant_id: str,
-        principal_id: str,
+        tenant_id: str | None,
+        principal_id: str | None,
         approval_provider: ApprovalProvider | None,
         is_interrupted: Any,
         server_auto_approve: bool = False,
@@ -540,8 +540,17 @@ class HostToolBroker:
                 if isinstance(schema_value, Mapping)
                 else {"type": "object", "properties": {}, "additionalProperties": True}
             )
+            raw_description = getattr(spec, "description", "") or f"Run Echo skill {skill_name}."
+            if skill_name == "call_agent":
+                from runtime.execution.suckers._delegation_skills_common import _format_role_catalog
+
+                raw_description = (
+                    raw_description.split("Installed HUB roles:\n", 1)[0]
+                    + "Installed HUB roles (partial; query_skill exposes installed_roles in full):\n"
+                    + _format_role_catalog(query=goal, limit=12)
+                )
             description = _bounded_text(
-                getattr(spec, "description", "") or f"Run Echo skill {skill_name}.",
+                raw_description,
                 limit=_MAX_DESCRIPTION_CHARS,
             )
             try:

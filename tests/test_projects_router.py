@@ -61,7 +61,7 @@ def test_plan_run_report_flow(tmp_path) -> None:
     assert pid in [p["id"] for p in c.get("/api/projects").json()["projects"]]
 
 
-def test_plan_without_configured_model_can_create_consecutive_projects(tmp_path) -> None:
+def test_plan_without_configured_model_does_not_create_placeholder_projects(tmp_path) -> None:
     store = ProjectStore(base_dir=tmp_path)
     app = FastAPI()
     app.include_router(create_projects_router(store=store, model_router=_UnavailableModelRouter()))
@@ -76,21 +76,25 @@ def test_plan_without_configured_model_can_create_consecutive_projects(tmp_path)
         json={"name": "Second project group", "goal": "Ship second"},
     )
 
-    assert first.status_code == second.status_code == 200
-    first_state = first.json()
-    second_state = second.json()
-    assert first_state["milestones"][0]["id"] == "MS1"
-    assert first_state["milestones"][0]["name"] == "deliver"
-    assert second_state["milestones"][0]["id"] == (f"{second_state['project']['id']}:MS1")
-    assert second_state["milestones"][0]["goal"] == "Ship second"
-    assert len(store.list_projects()) == 2
-    assert all(
-        [event["kind"] for event in store.events_for_project(project_id)] == ["project.planned"]
-        for project_id in (
-            first_state["project"]["id"],
-            second_state["project"]["id"],
-        )
-    )
+    assert first.status_code == second.status_code == 503
+    assert store.list_projects() == []
+
+
+def test_project_planning_uses_configured_model(tmp_path):
+    seen = []
+
+    class Router(_StaticMilestoneModelRouter):
+        def call(self, request):
+            seen.append(request.model)
+            return super().call(request)
+
+    app = FastAPI()
+    app.include_router(create_projects_router(
+        store=ProjectStore(base_dir=tmp_path), model_router=Router(), planning_model="configured-model"
+    ))
+    result = TestClient(app).post("/api/projects", json={"name": "Verify", "goal": "Verify routing"})
+    assert result.status_code == 200
+    assert seen == ["configured-model"]
 
 
 def test_normal_llm_plan_rewrites_dependencies_across_consecutive_projects(tmp_path) -> None:
@@ -410,9 +414,7 @@ def test_portfolio_endpoint_rolls_up_the_same_projects_as_the_list(tmp_path) -> 
 
     # 与列表接口严格同源：一旦漂移，跨项目汇总就会泄漏或漏掉项目
     assert [row["id"] for row in rows] == listed
-    assert sorted(row["id"] for row in rows) == sorted(
-        c["project"]["id"] for c in created
-    )
+    assert sorted(row["id"] for row in rows) == sorted(c["project"]["id"] for c in created)
 
     row = rows[0]
     assert {
@@ -456,9 +458,7 @@ def test_portfolio_on_empty_store_returns_empty_list(tmp_path) -> None:
 
 def test_portfolio_surfaces_overdue_then_blocked_health(tmp_path) -> None:
     client, store = _client_with_store(tmp_path)
-    created = client.post(
-        "/api/projects", json={"name": "risky", "goal": "risky"}
-    ).json()
+    created = client.post("/api/projects", json={"name": "risky", "goal": "risky"}).json()
     pid = created["project"]["id"]
     ms_id = created["milestones"][0]["id"]
 

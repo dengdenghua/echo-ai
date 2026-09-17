@@ -13,6 +13,38 @@ from runtime.sensing.gateway import agent_world_router
 from runtime.sensing.gateway.agent_world_router import create_agent_world_router
 
 
+def test_targeted_installed_status_skips_skill_inventory(tmp_path, monkeypatch):
+    client, keys = _secured_client(tmp_path, monkeypatch)
+
+    class Catalog:
+        def __init__(self, kind, **kwargs):
+            assert kind == "plugins", "navigation must not load the skill catalog"
+
+        def installed_plugins(self):
+            return ["design", "unrelated"]
+
+        def plugin_statuses(self, *, package_id):
+            assert package_id == "design"
+            return {"design": {"installed": True, "enabled": False}}
+
+    from runtime.platform.plugins import cloud_catalog
+    monkeypatch.setattr(cloud_catalog, "CloudCatalog", Catalog)
+    response = client.get(
+        "/api/agent-market/cloud/installed?package_id=design",
+        headers=_headers(keys["alice"]),
+    )
+    assert response.status_code == 200
+    assert response.json() == {
+        "plugins": ["design"],
+        "plugin_states": {"design": {"installed": True, "enabled": False}},
+    }
+    assert client.get("/api/agent-market/cloud/installed?package_id=design").status_code == 401
+    assert client.get(
+        "/api/agent-market/cloud/installed?package_id=../design",
+        headers=_headers(keys["alice"]),
+    ).status_code == 400
+
+
 def _headers(token: str) -> dict[str, str]:
     return {"Authorization": f"Bearer {token}"}
 
@@ -113,7 +145,11 @@ def test_agent_world_shared_content_mutations_reject_non_admin(
         ("POST", "/api/agent-market/cloud/store/demo/install", {}),
         ("POST", "/api/agent-market/cloud/skills/demo/install", {}),
         ("POST", "/api/agent-market/cloud/skills/external-aaaaaaaaaaaaaaaaaaaaaaaa/install", {}),
-        ("POST", "/api/agent-market/cloud/skills/external-aaaaaaaaaaaaaaaaaaaaaaaa/install/stream", {}),
+        (
+            "POST",
+            "/api/agent-market/cloud/skills/external-aaaaaaaaaaaaaaaaaaaaaaaa/install/stream",
+            {},
+        ),
         ("POST", "/api/agent-market/cloud/plugins/demo-plugin/install", {}),
         ("DELETE", "/api/agent-market/cloud/plugins/demo-plugin/install", {}),
     )

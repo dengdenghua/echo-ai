@@ -84,8 +84,8 @@ a = Analysis(
         "xgboost",
         "lightgbm",
         "catboost",
-        "cv2",
-        "opencv-python",
+        # Windows Graphics Capture imports cv2. Keep it available for the
+        # optional desktop extra; excluding it makes GPU previews fail frozen.
     ],
     noarchive=False,
     optimize=0,

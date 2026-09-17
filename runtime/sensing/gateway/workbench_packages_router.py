@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import hashlib
 import hmac
+import re
 import time
 from typing import Any
 
@@ -11,6 +12,13 @@ from fastapi import APIRouter, Depends, HTTPException, Request, Response
 from fastapi.responses import FileResponse
 
 from runtime.platform.plugins.workbench_package import WorkbenchPackageStore
+
+# Vite's content-addressed assets change URL whenever their content changes.
+# Entry HTML and metadata must remain fresh so installs and revocations take
+# effect before a cached script is selected for execution.
+_VERSIONED_ASSET = re.compile(
+    r"-[A-Za-z0-9_-]{8}\.(?:js|css|woff2?|ttf|otf|png|jpe?g|webp|avif|svg|ico)$"
+)
 
 
 def create_workbench_packages_router(
@@ -61,7 +69,9 @@ def create_workbench_packages_router(
                     and identity_store.get(actor) is not None
                 ):
                     return actor
-            except JWTError:
+            except (
+                JWTError
+            ):  # intentional: Invalid preview token falls through to normal authentication.
                 pass
 
         return _resolve_actor(
@@ -129,7 +139,11 @@ def create_workbench_packages_router(
         response = FileResponse(path)
         response.headers["X-Content-Type-Options"] = "nosniff"
         response.headers["Cross-Origin-Resource-Policy"] = "same-origin"
-        response.headers["Cache-Control"] = "private, no-cache"
+        response.headers["Cache-Control"] = (
+            "private, max-age=31536000, immutable"
+            if asset_path.startswith("dist/assets/") and _VERSIONED_ASSET.search(path.name)
+            else "private, no-cache"
+        )
         if path.suffix.lower() == ".html":
             response.headers["Content-Security-Policy"] = (
                 "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; "

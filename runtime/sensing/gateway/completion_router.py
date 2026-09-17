@@ -72,7 +72,7 @@ def create_completion_router(
 
     @router.post("/api/complete")
     async def complete(request: Request, body: dict[str, Any]) -> dict[str, Any]:
-        _auth(request)
+        _auth(request)  # AUTH-OK: actor-agnostic; stateless completion of caller-supplied text only
         prefix = body.get("prefix", "")
         suffix = body.get("suffix", "")
         language = body.get("language", "")

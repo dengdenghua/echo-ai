@@ -6,7 +6,6 @@ frontend/src/app/browser/page.tsx	1172
 frontend/src/app/desktop/page.tsx	1254
 frontend/src/app/workspace/agents/new/page.tsx	1018
 frontend/src/app/workspace/channels/page.tsx	1148
-frontend/src/app/workspace/computer/page.tsx	2751
 frontend/src/app/workspace/design/canvas-model.ts	1182
 frontend/src/app/workspace/design/director-stage.tsx	1946
 frontend/src/app/workspace/design/page.tsx	8074
@@ -44,7 +43,6 @@ frontend/src/components/workspace/chat-input-box/ChatComposer.tsx	2107
 frontend/src/components/workspace/coder-engine-control.test.tsx	1262
 frontend/src/components/workspace/coder-engine-control.tsx	2277
 frontend/src/components/workspace/collab/collab-provider.tsx	1305
-frontend/src/components/workspace/community/community-data.ts	1120
 frontend/src/components/workspace/evolution-control-panel/index.tsx	1444
 frontend/src/components/workspace/intelligence-panel.tsx	1565
 frontend/src/components/workspace/knowledge-graph-view.tsx	1534

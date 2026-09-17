@@ -98,7 +98,13 @@ class TestElectronBackend:
         monkeypatch.setattr(
             browser_act_skills,
             "_bridge_status",
-            lambda: {"ok": True, "browser_ready": True},
+            lambda: {"ok": True, "activeWebContentsId": None},
+        )
+        assert ElectronBackend().available() is False
+        monkeypatch.setattr(
+            browser_act_skills,
+            "_bridge_status",
+            lambda: {"ok": True, "activeWebContentsId": 73},
         )
         assert ElectronBackend().available() is True
 

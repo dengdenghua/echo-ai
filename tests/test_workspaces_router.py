@@ -1,10 +1,14 @@
 from __future__ import annotations
 
 import hashlib
+from concurrent.futures import ThreadPoolExecutor
+from contextlib import contextmanager
 from io import BytesIO
 from pathlib import Path
+from threading import Event, Lock
 from zipfile import ZIP_DEFLATED, ZipFile
 
+import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 from pytest import MonkeyPatch
@@ -230,3 +234,122 @@ def test_visual_html_edit_rejects_stale_and_non_html_outputs(tmp_path: Path) -> 
         },
     )
     assert invalid_restore.status_code == 400
+
+
+@pytest.mark.parametrize("restore_first", [False, True])
+def test_concurrent_output_edits_share_lock_across_routers_and_area_aliases(
+    tmp_path: Path, monkeypatch: MonkeyPatch, restore_first: bool,
+) -> None:
+    from runtime.sensing.gateway import workspaces_router as module
+
+    first_client, second_client = _client(tmp_path), _client(tmp_path)
+    first_client.get("/api/workspaces/concurrent")
+    target = tmp_path / "concurrent/output/final/site.html"
+    target.write_bytes(b"original")
+    initial = first_client.put(
+        "/api/workspaces/concurrent/outputs/site.html?area=final",
+        json={"content": "current", "expected_sha256": hashlib.sha256(b"original").hexdigest()},
+    )
+    assert initial.status_code == 200
+    digest = hashlib.sha256(b"current").hexdigest()
+    replacing, second_lock_attempt, release = Event(), Event(), Event()
+    guard = Lock()
+    lock_count = 0
+    real_lock, real_replace = module._cross_process_lock, module.os.replace
+
+    @contextmanager
+    def observed_lock(path, **kwargs):
+        nonlocal lock_count
+        with guard:
+            lock_count += 1
+            if lock_count == 2:
+                second_lock_attempt.set()
+        with real_lock(path, **kwargs):
+            yield
+
+    def paused_replace(source, destination):
+        if Path(destination) == target:
+            replacing.set()
+            assert release.wait(5), "test did not release the first writer"
+        return real_replace(source, destination)
+
+    monkeypatch.setattr(module, "_cross_process_lock", observed_lock)
+    monkeypatch.setattr(module.os, "replace", paused_replace)
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        if restore_first:
+            first = pool.submit(
+                first_client.post,
+                "/api/threads/concurrent/output-revisions/site.html?area=final",
+                json={"revision_id": initial.json()["revision_id"], "expected_sha256": digest},
+            )
+        else:
+            first = pool.submit(
+                first_client.put, "/api/workspaces/concurrent/outputs/site.html?area=final",
+                json={"content": "winner", "expected_sha256": digest},
+            )
+        try:
+            assert replacing.wait(5)
+            second = pool.submit(
+                second_client.put, "/api/threads/concurrent/outputs/final/site.html?area=output",
+                json={"content": "loser", "expected_sha256": digest},
+            )
+            assert second_lock_attempt.wait(5)
+        finally:
+            release.set()
+        assert first.result().status_code == 200
+        conflict = second.result()
+        assert conflict.status_code == 409
+        assert conflict.json()["detail"]["error"] == "file_changed"
+    assert target.read_bytes() == (b"original" if restore_first else b"winner")
+    snapshots = list((tmp_path / "concurrent/.artifact-revisions").rglob("*.bak"))
+    assert sorted(path.read_bytes() for path in snapshots) == [b"current", b"original"]
+    assert not list(target.parent.glob("*.tmp"))
+
+
+@pytest.mark.parametrize("hidden_dir", [".artifact-revisions", ".artifact-locks"])
+def test_output_edits_reject_hidden_storage_symlink_escape(
+    tmp_path: Path, hidden_dir: str,
+) -> None:
+    client = _client(tmp_path)
+    client.get("/api/workspaces/escape")
+    outside = tmp_path / "outside"
+    outside.mkdir()
+    try:
+        (tmp_path / "escape" / hidden_dir).symlink_to(outside, target_is_directory=True)
+    except OSError:
+        pytest.skip("directory symlinks unavailable")
+    target = tmp_path / "escape/output/final/site.html"
+    target.write_bytes(b"original")
+    response = client.put(
+        "/api/workspaces/escape/outputs/site.html?area=final",
+        json={"content": "changed", "expected_sha256": hashlib.sha256(b"original").hexdigest()},
+    )
+    assert response.status_code == 400
+    assert target.read_bytes() == b"original"
+    assert not list(outside.iterdir())
+
+
+def test_output_lock_failure_preserves_file_and_creates_no_revision(
+    tmp_path: Path, monkeypatch: MonkeyPatch,
+) -> None:
+    from runtime.sensing.gateway import workspaces_router as module
+
+    client = _client(tmp_path)
+    client.get("/api/workspaces/unavailable")
+    target = tmp_path / "unavailable/output/final/site.html"
+    target.write_bytes(b"original")
+
+    @contextmanager
+    def unavailable_lock(*args, **kwargs):
+        raise module.AtomicWriteError("private host lock failure")
+        yield  # pragma: no cover
+
+    monkeypatch.setattr(module, "_cross_process_lock", unavailable_lock)
+    response = client.put(
+        "/api/workspaces/unavailable/outputs/site.html?area=final",
+        json={"content": "changed", "expected_sha256": hashlib.sha256(b"original").hexdigest()},
+    )
+    assert response.status_code == 503
+    assert "private host" not in response.text
+    assert target.read_bytes() == b"original"
+    assert not (tmp_path / "unavailable/.artifact-revisions").exists()

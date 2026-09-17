@@ -63,7 +63,17 @@ _DELIVERABLE_WORK_RE = re.compile(
     # real verification work through the coordinator.
     r"测试|回归|运行|执行|安装|配置|部署|发布|提交|推送|"
     r"生成|制作|导出|下载|制定|规划|策划|"
-    r"做.{0,12}(?:报告|方案|策划|计划|清单|表格)|"
+    # ``写`` / ``做`` take a bounded gap before the artifact noun: "写一份上季度
+    # 的复盘报告" is the ordinary way people ask, and the adjacent-only form
+    # above missed it — routing a report request to the tool-less bubble lane,
+    # which is exactly the failure this detector exists to prevent.
+    # ``写`` and ``做`` take a bounded gap before the artifact noun: "写一份上
+    # 季度的复盘报告" is the ordinary way people ask, and the adjacent-only form
+    # above missed it — routing a report request to the tool-less bubble lane,
+    # which is exactly the failure this detector exists to prevent. Deliberately
+    # not ``出``/``交``: "他提出的方案" would read as execution intent, and turning
+    # a discussion into a task graph is worse than missing one request.
+    r"(?:写|做).{0,12}(?:报告|方案|策划|计划|清单|表格|文档|总结|复盘)|"
     r"整理(?:成|一份|报告|文档)"
     r")",
     re.IGNORECASE,

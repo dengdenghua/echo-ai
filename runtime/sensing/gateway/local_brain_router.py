@@ -66,7 +66,7 @@ def create_local_brain_router(
 
     @router.get("/api/local-brain/status")
     def api_local_brain_status(request: Request) -> dict[str, Any]:
-        _auth(request)
+        _auth(request)  # AUTH-OK: actor-agnostic; credential-free local model readiness metadata
         """Return the plain-language readiness checklist (5 items + summary).
         Best-effort: any probe failure surfaces as that item being not-ok with
         a next step, never a 500."""

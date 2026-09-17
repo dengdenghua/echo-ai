@@ -56,6 +56,10 @@ class OctConfig(BaseModel):
         default="echo-ai",
         description="agent 自有 JWT 的 iss claim",
     )
+    admin_emails: list[str] = Field(
+        default_factory=list,
+        description="显式邮箱管理员 · 登录后同步 admin 角色，用于管理全局消息渠道",
+    )
 
 
 def load_oct_config_from_dict(data: dict | None) -> OctConfig:
