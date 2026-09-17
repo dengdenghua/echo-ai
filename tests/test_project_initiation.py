@@ -64,6 +64,17 @@ def test_proposal_displays_actual_cumulative_cap_not_model_budget_text(tmp_path,
         assert "按本项目所有阶段、所有成员累计计算；不是单次调用额度" in rendered
 
 
+def test_initiation_uses_model_narrative_instead_of_fixed_chatter(tmp_path):
+    runtime, emitter, kwargs, proposal = setup(tmp_path)
+    proposal["narrative"] = "这轮只补齐了两处关键事实，细节仍在草案里。"
+    kwargs["prepare"] = lambda **_: deepcopy(proposal)
+    asyncio.run(initiate_project(runtime, Turn(threadId="thread"), None, emitter, **kwargs))
+    texts = [call.args[3] for call in runtime._emit_agent_message.await_args_list]
+    assert proposal["narrative"] in texts
+    assert "将先担任产品经理" not in " ".join(texts)
+    assert "审批通过后将添加上述 AI 成员" not in " ".join(texts)
+
+
 def test_expired_proposal_reopens_without_model_rewrite_or_auto_approval(tmp_path):
     runtime, emitter, kwargs, proposal = setup(tmp_path, action="decline")
     runtime._thread_store.thread["metadata"]["project_initiation"] = {

@@ -149,10 +149,7 @@ async def initiate_project(
             reason = "当前项目领导角色不可用"
         else:
             reason = "当前会话缺少可用的项目规划模型"
-        await emit(
-            "我会先作为产品经理梳理立项方案。当前立项服务尚未就绪，"
-            f"没有添加成员或启动执行。{reason}，请处理后重试。"
-        )
+        await emit(f"立项服务尚未就绪：{reason}；未添加成员或启动执行。")
         return None
     raw_previous = (thread.get("metadata") or {}).get("project_initiation") or {}
     # CAS baseline: the raw stored shape. ``previous`` below is augmented with
@@ -225,18 +222,11 @@ async def initiate_project(
     names = {a.agent_id: a.display_name for a in by_id.values()}
     from runtime.projectos.recruitment import hub_candidates, provisioning_requests
 
-    await emit(
-        "正在核对已有角色并检索 HUB 候选，整理岗位职责和参与阶段；匹配结果会随立项方案交由你审批。"
-    )
     try:
         hub_rows = await asyncio.to_thread(hub_candidates, goal)
     except (OSError, ValueError, RuntimeError):
         hub_rows = []
         await emit("HUB 候选检索暂时不可用，本次先核对已有角色；缺少的岗位会在方案中说明。")
-    else:
-        await emit(
-            f"已核对 {len(by_id)} 个已有角色，检索到 {len(hub_rows)} 个 HUB 候选。产品经理将按职责匹配，不会全部加入项目。"
-        )
     hub_names = {item["agent_id"]: item["name"] for item in hub_rows}
     candidates.extend(hub_rows)
     names.update(hub_names)
@@ -306,11 +296,6 @@ async def initiate_project(
     if not review_id and not save("refining", previous.get("proposal") or {}):
         await emit("草案已被更新，本次旧请求停止。请继续最新版本。")
         return None
-    await emit(
-        "正在重新提交已保留的立项方案，核对候选角色后由你审批。"
-        if review_id
-        else f"{leader.display_name} 将先担任产品经理，分析目标、预算和人员需求，准备立项方案。"
-    )
     try:
         raw = (
             previous["proposal"]
@@ -353,10 +338,9 @@ async def initiate_project(
         return None
     if proposal.sizing == "task":
         save("suggested_task", proposal.model_dump())
+        if proposal.narrative.strip():
+            await emit(proposal.narrative.strip())
         await emit(proposal.render(names))
-        await emit(
-            "这项工作建议作为普通任务处理，可按需邀请助手协作。未创建项目或添加成员；可以继续当前任务。"
-        )
         return None
     if (
         any(need.kind == "ai" and not need.agent_id for need in proposal.staffing)
@@ -396,13 +380,11 @@ async def initiate_project(
     if questions:
         await emit(proposal.render_discovery())
         return None
+    if proposal.narrative.strip():
+        await emit(proposal.narrative.strip())
     await emit(proposal.render(names))
     if refine_id:
-        await emit(
-            "本轮需求评审未发现阻塞问题。请审阅新版草案，也可以继续修改；提交立项审批后才会请求授权。"
-        )
         return None
-    await emit("审批通过后将添加上述 AI 成员并建立项目计划；此步骤不会启动任务执行或支付预算。")
     try:
         decision = await emitter.request_approval(
             ServerMethod.REQ_COMMAND_APPROVAL,

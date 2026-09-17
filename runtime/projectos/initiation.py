@@ -44,6 +44,7 @@ class ProjectProposal(BaseModel):
     ai_budget_usd: float | None = Field(default=None, ge=0, allow_inf_nan=False)
     max_tasks_per_phase: int | None = Field(default=None, ge=1, le=100, strict=True)
     requirements_review: ProposalAssessment | None = None
+    narrative: str = ""
 
     def clarification_questions(self) -> list[str]:
         questions = [item.strip() for item in self.questions if item.strip()]
@@ -193,6 +194,8 @@ def prepare_proposal(
         "主角必须在 staffing 中担任产品经理。外部真人需求只列建议，不表示已招募。"
         "预算、工期等缺乏依据必须明确假设；影响立项的缺失信息写入 questions，最多3个并按影响排序。"
         "questions 只包含缺少答案就无法确定范围、权限、预算或关键交付的阻塞问题。"
+        "narrative 是可选的简短自然说明；根据当前目标、对话上下文和修订历史自行组织语言。"
+        "不要使用固定开场白或固定结束语，不要重复结构化方案内容；如果没有有价值的新信息就留空。"
         "latest_request 是问号或没有实质目标时，先用 previous.original_goal 和 previous.conversation_history 还原用户真实目标；"
         "能还原时按已有需求制定方案，不要重复澄清。确实无法还原时才只保留一个合并澄清问题。"
         "品牌调性、产品占位名、受众细分等可逆偏好不得反复阻塞审批；已有默认值或用户允许合理假设时，列入 assumptions，questions 留空。"
