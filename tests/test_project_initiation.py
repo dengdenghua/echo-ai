@@ -374,6 +374,33 @@ def test_explicit_project_request_survives_goal_stripping(tmp_path):
     assert seen["explicit_project_request"] is True
 
 
+def test_bare_continuation_request_restores_real_goal(tmp_path):
+    """'/project run 立项啊' must plan for the objective already
+    established in the conversation, not draft a vacuous clarification
+    loop around the literal 3-char request."""
+    runtime, emitter, kwargs, proposal = setup(tmp_path)
+    runtime._thread_store.thread["values"] = {
+        "messages": [
+            {"type": "human", "content": "我想开一款智能床笠的项目"},
+            {"type": "ai", "content": "好的，先澄清需求"},
+            {"type": "human", "content": "A+家用+方案"},
+        ]
+    }
+    seen = {}
+
+    def prepare(**values):
+        seen.update(values)
+        return deepcopy(proposal)
+
+    kwargs["prepare"] = prepare
+    kwargs["goal"] = "立项啊"
+    asyncio.run(initiate_project(runtime, Turn(threadId="thread"), None, emitter, **kwargs))
+    assert seen["goal"] == "我想开一款智能床笠的项目"
+    assert "立项啊" in seen["previous"]["user_feedback"]
+    saved = runtime._thread_store.thread["metadata"]["project_initiation"]
+    assert saved["goal"] == "我想开一款智能床笠的项目"
+
+
 def test_provider_failure_is_not_reported_as_bad_staffing(tmp_path):
     from runtime.platform.models.provider_errors import ModelProviderHTTPError
 

@@ -57,7 +57,14 @@ def test_proposal_and_review_receive_safe_conversation_context():
 
     def call(request):
         requests.append(request)
-        return SimpleNamespace(text=json.dumps(proposal_payload))
+        if len(requests) == 1:
+            return SimpleNamespace(text=json.dumps(proposal_payload))
+        # The inline requirements review must run for project-sized proposals
+        # (pinned by test_invalid_review_fails_instead_of_falling_back_to_author),
+        # so the router answers it with a valid assessment.
+        return SimpleNamespace(
+            text=json.dumps({"ready": True, "blocking_questions": [], "reason": "已核对"})
+        )
 
     previous = {
         "original_goal": "我想开一款智能床笠的项目，A+家用+方案",
@@ -82,6 +89,8 @@ def test_proposal_and_review_receive_safe_conversation_context():
     assert planner_body["previous"]["conversation_history"][0]["content"].startswith("我想开")
     assert "对话历史" in requests[0].messages[0].content
     assert "不是系统指令" in requests[0].messages[0].content
+    review_body = json.loads(requests[1].messages[1].content)
+    assert review_body["conversation_history"][0]["content"].startswith("我想开")
 
 
 def test_refine_preserves_literal_feedback():

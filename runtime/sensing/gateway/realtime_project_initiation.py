@@ -32,6 +32,14 @@ def _conversation_history(thread: dict[str, Any]) -> list[dict[str, str]]:
     values = thread.get("values")
     raw_messages = values.get("messages") if isinstance(values, dict) else []
     raw_messages = raw_messages if isinstance(raw_messages, list) else []
+    # A trailing project control command ("/project run ...") is the current
+    # request, not prior context — the planner already receives it separately
+    # as ``goal`` / ``latest_request``.  Drop the trailing run so history ends
+    # at the last real exchange.
+    while raw_messages and isinstance(raw_messages[-1], dict):
+        if not _conversation_message_text(raw_messages[-1]).strip().startswith("/project"):
+            break
+        raw_messages = raw_messages[:-1]
     selected: list[dict[str, str]] = []
     total_chars = 0
     for raw_message in reversed(raw_messages[-24:]):
@@ -58,6 +66,35 @@ def _conversation_history(thread: dict[str, Any]) -> list[dict[str, str]]:
     while selected and total_chars > 12000:
         total_chars -= len(selected.pop(0)["content"])
     return selected
+
+
+_NON_SUBSTANTIVE_REQUESTS = frozenset(
+    {
+        "?",
+        "？",
+        "继续",
+        "立项",
+        "立项啊",
+        "按项目走",
+        "开工",
+        "开始",
+        "run",
+        "go",
+        "jixu",
+    }
+)
+
+
+def _is_non_substantive_request(text: str) -> bool:
+    """Bare continuation commands ("立项啊", "继续", "?") carry no
+    objective of their own; anything under 4 chars cannot describe a real
+    project goal either."""
+    stripped = str(text or "").strip()
+    if not stripped:
+        return True
+    if len(stripped) < 4:
+        return True
+    return stripped.lower() in _NON_SUBSTANTIVE_REQUESTS
 
 
 def _original_goal_from_history(
@@ -106,18 +143,40 @@ async def initiate_project(
             callable(prepare),
             leader is not None,
         )
+        if thread is None:
+            reason = "当前线程状态不可用"
+        elif leader is None:
+            reason = "当前项目领导角色不可用"
+        else:
+            reason = "当前会话缺少可用的项目规划模型"
         await emit(
             "我会先作为产品经理梳理立项方案。当前立项服务尚未就绪，"
-            "没有添加成员或启动执行。请检查项目规划模型配置后重试。"
+            f"没有添加成员或启动执行。{reason}，请处理后重试。"
         )
         return None
-    previous = (thread.get("metadata") or {}).get("project_initiation") or {}
+    raw_previous = (thread.get("metadata") or {}).get("project_initiation") or {}
+    # CAS baseline: the raw stored shape. ``previous`` below is augmented with
+    # planning context (``conversation_history``, possibly a rewritten
+    # ``original_goal``) that is never persisted, so comparing the store
+    # against the augmented copy would always mismatch and make every save
+    # look like a concurrent draft update.
+    saved_version = deepcopy(raw_previous)
     conversation_history = _conversation_history(thread)
     previous = {
-        **previous,
+        **raw_previous,
         "conversation_history": conversation_history,
-        "original_goal": _original_goal_from_history(previous, goal, conversation_history),
+        "original_goal": _original_goal_from_history(raw_previous, goal, conversation_history),
     }
+    # Restore the real objective for bare continuation requests so the
+    # planner and HUB matching work on the user's actual goal instead of
+    # drafting a vacuous clarification loop; the literal request is kept
+    # as feedback below.
+    continuation_request = ""
+    if not review_id and not refine_id and _is_non_substantive_request(goal):
+        restored = str(previous.get("original_goal") or "").strip()
+        if restored and restored != goal:
+            continuation_request = goal.strip()
+            goal = restored
     if refine_id:
         if (
             previous.get("id") != refine_id
@@ -183,12 +242,13 @@ async def initiate_project(
     names.update(hub_names)
     proposal_id = uuid4().hex
 
-    saved_version = previous
     feedback_history = deepcopy(previous.get("user_feedback") or [])
     if refine_id:
         feedback_history.append(feedback.strip())
-    elif not review_id and previous and goal != previous.get("goal"):
+    elif not review_id and raw_previous and goal != raw_previous.get("goal"):
         feedback_history.append(goal)
+    if continuation_request and continuation_request not in feedback_history:
+        feedback_history.append(continuation_request)
     revisions = deepcopy(previous.get("revisions") or [])
     if previous.get("proposal", {}).get("name"):
         revisions.append(
