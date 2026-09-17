@@ -5,7 +5,6 @@ from fastapi.testclient import TestClient
 
 from runtime.adapters.integrations.local_auth.router import create_local_auth_router
 from runtime.platform.config.schema import LocalAuthConfig
-from runtime.safety.auth.identity import Identity
 from runtime.safety.auth.identity import IdentityStore
 from runtime.sensing.gateway.agent_world_router import create_agent_world_router
 

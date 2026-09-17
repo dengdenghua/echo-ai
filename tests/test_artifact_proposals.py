@@ -24,10 +24,14 @@ def _setup(tmp_path: Path) -> tuple[TestClient, Path, str]:
     identities.add(Identity(actor_id="alice"), api_key_plaintext="alice-key")
     identities.add(Identity(actor_id="bob"), api_key_plaintext="bob-key")
     app = FastAPI()
-    app.include_router(create_workspaces_router(
-        workspace_root=tmp_path, identity_store=identities, require_auth=True,
-        thread_store=SimpleNamespace(get=lambda _: {"metadata": {"owner_actor_id": "alice"}}),
-    ))
+    app.include_router(
+        create_workspaces_router(
+            workspace_root=tmp_path,
+            identity_store=identities,
+            require_auth=True,
+            thread_store=SimpleNamespace(get=lambda _: {"metadata": {"owner_actor_id": "alice"}}),
+        )
+    )
     client = TestClient(app, headers={"Authorization": "Bearer alice-key"})
     assert client.get("/api/workspaces/review").status_code == 200
     target = tmp_path / "review/output/final/site.html"
@@ -36,7 +40,9 @@ def _setup(tmp_path: Path) -> tuple[TestClient, Path, str]:
 
 
 def _create(client: TestClient, url: str) -> dict:
-    response = client.post(url, json={"action": "create", "expected_sha256": _digest("<h1>Original</h1>")})
+    response = client.post(
+        url, json={"action": "create", "expected_sha256": _digest("<h1>Original</h1>")}
+    )
     assert response.status_code == 200
     return response.json()
 
@@ -60,11 +66,18 @@ def test_proposal_accept_is_explicit_idempotent_and_reversible(tmp_path: Path) -
     assert target.read_text() == "<h1>Reviewed</h1>"
     # Later candidate writes cannot change the accepted snapshot or official file.
     candidate.write_text("<h1>Late tool write</h1>", encoding="utf-8")
-    assert client.get(url + "&proposal_id=" + pid).json()["candidate_content"] == "<h1>Reviewed</h1>"
+    assert (
+        client.get(url + "&proposal_id=" + pid).json()["candidate_content"] == "<h1>Reviewed</h1>"
+    )
     assert client.post(url, json=body).json()["status"] == "accepted"
     assert len(list((tmp_path / "review/.artifact-revisions").rglob("*.bak"))) == 1
-    restore = client.post("/api/threads/review/output-revisions/site.html?area=final",
-                          json={"revision_id": accepted.json()["revision_id"], "expected_sha256": _digest("<h1>Reviewed</h1>")})
+    restore = client.post(
+        "/api/threads/review/output-revisions/site.html?area=final",
+        json={
+            "revision_id": accepted.json()["revision_id"],
+            "expected_sha256": _digest("<h1>Reviewed</h1>"),
+        },
+    )
     assert restore.status_code == 200
     assert target.read_text() == "<h1>Original</h1>"
     # A network retry after undo must not silently reapply the proposal.
@@ -85,7 +98,14 @@ def test_accept_checks_both_reviewed_snapshot_and_original(tmp_path: Path, chang
     elif changed == "candidate":
         candidate.write_text("late edit", encoding="utf-8")
     before = target.read_bytes()
-    result = client.post(url, json={"action": "accept", "proposal_id": proposal["proposal_id"], "reviewed_sha256": read["candidate_sha256"]})
+    result = client.post(
+        url,
+        json={
+            "action": "accept",
+            "proposal_id": proposal["proposal_id"],
+            "reviewed_sha256": read["candidate_sha256"],
+        },
+    )
     assert result.status_code == 409
     assert target.read_bytes() == before
     assert not (tmp_path / "review/.artifact-revisions").exists()
@@ -100,11 +120,20 @@ def test_rejection_persists_and_owner_cannot_be_spoofed(tmp_path: Path) -> None:
     for suffix in ("", "&proposal_id=" + pid):
         assert client.get(url + suffix, headers=bob).status_code == 404
     for action in ("create", "accept", "reject"):
-        assert client.post(url, headers=bob, json={"action": action, "proposal_id": pid}).status_code == 404
+        assert (
+            client.post(url, headers=bob, json={"action": action, "proposal_id": pid}).status_code
+            == 404
+        )
     body = {"action": "reject", "proposal_id": pid}
     assert client.post(url, json=body).json()["status"] == "rejected"
     assert client.post(url, json=body).json()["status"] == "rejected"
-    assert client.post(url, json={"action": "accept", "proposal_id": pid, "reviewed_sha256": _digest("proposed")}).status_code == 409
+    assert (
+        client.post(
+            url,
+            json={"action": "accept", "proposal_id": pid, "reviewed_sha256": _digest("proposed")},
+        ).status_code
+        == 409
+    )
     assert target.read_text() == "<h1>Original</h1>"
     assert client.get(url + "&proposal_id=../../other").status_code == 400
     # Disk-backed state is visible to a newly constructed store.
@@ -119,7 +148,14 @@ def test_competing_accept_and_reject_produce_one_decision(tmp_path: Path) -> Non
 
     def decide(action):
         barrier.wait()
-        return client.post(url, json={"action": action, "proposal_id": proposal["proposal_id"], "reviewed_sha256": _digest("proposed")})
+        return client.post(
+            url,
+            json={
+                "action": action,
+                "proposal_id": proposal["proposal_id"],
+                "reviewed_sha256": _digest("proposed"),
+            },
+        )
 
     with ThreadPoolExecutor(max_workers=2) as pool:
         accept, reject = pool.submit(decide, "accept"), pool.submit(decide, "reject")
@@ -129,7 +165,9 @@ def test_competing_accept_and_reject_produce_one_decision(tmp_path: Path) -> Non
     assert target.read_text() == ("proposed" if winner == "accepted" else "<h1>Original</h1>")
 
 
-def test_interrupted_acceptance_is_reconciled_without_replaying_write(tmp_path: Path, monkeypatch) -> None:
+def test_interrupted_acceptance_is_reconciled_without_replaying_write(
+    tmp_path: Path, monkeypatch
+) -> None:
     client, target, url = _setup(tmp_path)
     proposal = _create(client, url)
     pid = proposal["proposal_id"]

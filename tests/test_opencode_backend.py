@@ -397,23 +397,54 @@ def test_growing_messages_are_not_replayed():
 
 
 @pytest.mark.asyncio
-@pytest.mark.parametrize("text,tools,invalid", [
-    ('<｜DSML｜tool_calls><｜DSML｜invoke name="read_file"></｜DSML｜invoke></｜DSML｜tool_calls>', {"echo_read_file": "read_file"}, True),
-    ('我使用 Bash 工具来完成这个任务。\n\n<｜DSML｜tool_calls>invoke</｜DSML｜tool_calls>', {"echo_read_file": "read_file"}, True),
-    ('~~~xml\n<｜DSML｜tool_calls>example</｜DSML｜tool_calls>\n~~~', {"echo_read_file": "read_file"}, False),
-    ('```xml\n<｜DSML｜tool_calls>example</｜DSML｜tool_calls>\n```', {"echo_read_file": "read_file"}, False),
-    ('<｜DSML｜tool_calls>example</｜DSML｜tool_calls>', {}, False),
-])
+@pytest.mark.parametrize(
+    "text,tools,invalid",
+    [
+        (
+            '<｜DSML｜tool_calls><｜DSML｜invoke name="read_file"></｜DSML｜invoke></｜DSML｜tool_calls>',
+            {"echo_read_file": "read_file"},
+            True,
+        ),
+        (
+            "我使用 Bash 工具来完成这个任务。\n\n<｜DSML｜tool_calls>invoke</｜DSML｜tool_calls>",
+            {"echo_read_file": "read_file"},
+            True,
+        ),
+        (
+            "~~~xml\n<｜DSML｜tool_calls>example</｜DSML｜tool_calls>\n~~~",
+            {"echo_read_file": "read_file"},
+            False,
+        ),
+        (
+            "```xml\n<｜DSML｜tool_calls>example</｜DSML｜tool_calls>\n```",
+            {"echo_read_file": "read_file"},
+            False,
+        ),
+        ("<｜DSML｜tool_calls>example</｜DSML｜tool_calls>", {}, False),
+    ],
+)
 async def test_serialized_tool_protocol_is_not_completed_work(text, tools, invalid):
     def handle(request):
         return httpx.Response(200, json=[] if request.method == "GET" else message(text))
 
     events = []
-    async with httpx.AsyncClient(transport=httpx.MockTransport(handle), base_url="http://localhost") as client:
+    async with httpx.AsyncClient(
+        transport=httpx.MockTransport(handle), base_url="http://localhost"
+    ) as client:
+
         async def run():
-            async for event in stream_prompt(client, "test", text="edit file", system="role", model="big-pickle",
-                                             interrupted=lambda: False, poll_s=0.001, tool_names=tools):
+            async for event in stream_prompt(
+                client,
+                "test",
+                text="edit file",
+                system="role",
+                model="big-pickle",
+                interrupted=lambda: False,
+                poll_s=0.001,
+                tool_names=tools,
+            ):
                 events.append(event)
+
         if invalid:
             with pytest.raises(OpenCodeError, match="未执行的工具调用文本"):
                 await run()

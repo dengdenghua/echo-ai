@@ -152,10 +152,14 @@ def import_agent_from_pack(
         raise ValueError("invalid role dependencies; fix the package manifest before importing")
     from runtime.execution.agents.dependencies import normalize_role_dependencies
 
-    dependencies = normalize_role_dependencies({
-        "connectors": (plugin.metadata.get("required_connectors", []) if plugin else []),
-        "mcp_servers": [m.name for m in preview.mcp_servers if m.source_plugin == module.source_plugin],
-    })
+    dependencies = normalize_role_dependencies(
+        {
+            "connectors": (plugin.metadata.get("required_connectors", []) if plugin else []),
+            "mcp_servers": [
+                m.name for m in preview.mcp_servers if m.source_plugin == module.source_plugin
+            ],
+        }
+    )
     plugin_name = plugin.name if plugin else str(module.source_plugin or plugin_dir.name)
     plugin_version = str((plugin.metadata.get("version") if plugin else "") or "0.1.0")
     agent_id = _slugify_agent_id(module.name)

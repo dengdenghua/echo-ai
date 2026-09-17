@@ -47,9 +47,7 @@ class _Transport:
         self.calls = 0
         self.seen: list[ApprovalRequest] = []
 
-    def deliver(
-        self, req: ApprovalRequest, *, timeout: float
-    ) -> ApprovalDecision | None:
+    def deliver(self, req: ApprovalRequest, *, timeout: float) -> ApprovalDecision | None:
         self.calls += 1
         self.seen.append(req)
         if self.boom:
@@ -70,7 +68,7 @@ def test_a_connected_ui_answers_and_the_channel_is_never_used() -> None:
 
 
 def test_no_reply_denies_rather_than_proceeding() -> None:
-    """"Nobody objected" is not consent."""
+    """ "Nobody objected" is not consent."""
 
     transport = _Transport(None)
     provider = NotifyingApprovalProvider(transport=transport)

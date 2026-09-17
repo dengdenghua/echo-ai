@@ -37,7 +37,12 @@ def _conversation_history(thread: dict[str, Any]) -> list[dict[str, str]]:
     for raw_message in reversed(raw_messages[-24:]):
         if not isinstance(raw_message, dict):
             continue
-        role_by_type = {"human": "user", "ai": "assistant", "assistant": "assistant", "user": "user"}
+        role_by_type = {
+            "human": "user",
+            "ai": "assistant",
+            "assistant": "assistant",
+            "user": "user",
+        }
         role = role_by_type.get(str(raw_message.get("type") or raw_message.get("role") or ""))
         if role is None:
             continue

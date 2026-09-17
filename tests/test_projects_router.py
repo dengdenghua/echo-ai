@@ -89,10 +89,16 @@ def test_project_planning_uses_configured_model(tmp_path):
             return super().call(request)
 
     app = FastAPI()
-    app.include_router(create_projects_router(
-        store=ProjectStore(base_dir=tmp_path), model_router=Router(), planning_model="configured-model"
-    ))
-    result = TestClient(app).post("/api/projects", json={"name": "Verify", "goal": "Verify routing"})
+    app.include_router(
+        create_projects_router(
+            store=ProjectStore(base_dir=tmp_path),
+            model_router=Router(),
+            planning_model="configured-model",
+        )
+    )
+    result = TestClient(app).post(
+        "/api/projects", json={"name": "Verify", "goal": "Verify routing"}
+    )
     assert result.status_code == 200
     assert seen == ["configured-model"]
 

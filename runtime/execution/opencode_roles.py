@@ -183,7 +183,8 @@ async def stream_role(
         host_tools = HostMCPBridge(broker, request, session)
         logging.getLogger(__name__).info(
             "role host catalog role=%s tools=%d delegation=%s",
-            getattr(agent, "agent_id", ""), len(broker.catalog.names),
+            getattr(agent, "agent_id", ""),
+            len(broker.catalog.names),
             "call_agent" in broker.catalog.names,
         )
         system += (

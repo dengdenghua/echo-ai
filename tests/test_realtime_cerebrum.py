@@ -954,12 +954,22 @@ def test_required_connector_blocks_engine_then_rechecks_same_thread(tmp_path, mo
     from runtime.sensing.gateway.realtime_gateway import RealtimeGateway
 
     registry = Mock()
-    registry.get.return_value = {"id": "mail", "source": "connector", "installed": True,
-                                 "enabled": True, "auth_mode": "token"}
+    registry.get.return_value = {
+        "id": "mail",
+        "source": "connector",
+        "installed": True,
+        "enabled": True,
+        "auth_mode": "token",
+    }
     registry.status.return_value = {"connected": False}
-    monkeypatch.setattr(importlib.import_module("runtime.platform.capabilities.capability_registry"), "CapabilityRegistry", lambda: registry)
-    agent = SimpleNamespace(agent_id="eve", soul="Office role", capabilities={},
-                            dependencies={"connectors": ["mail"]})
+    monkeypatch.setattr(
+        importlib.import_module("runtime.platform.capabilities.capability_registry"),
+        "CapabilityRegistry",
+        lambda: registry,
+    )
+    agent = SimpleNamespace(
+        agent_id="eve", soul="Office role", capabilities={}, dependencies={"connectors": ["mail"]}
+    )
     calls = []
 
     async def native(runtime, turn, log, emitter, intent, provider, selected_agent, **kw):
@@ -970,8 +980,11 @@ def test_required_connector_blocks_engine_then_rechecks_same_thread(tmp_path, mo
     runtime = CerebrumRuntime(stack=object(), agent=agent, logs_root=str(tmp_path / "threads"))
     app = FastAPI()
     app.include_router(RealtimeGateway(runtime=runtime).router)
-    params = {"threadId": "preparation-task", "executionEngine": "echo",
-              "input": [{"type": "text", "text": "organize the mail"}]}
+    params = {
+        "threadId": "preparation-task",
+        "executionEngine": "echo",
+        "input": [{"type": "text", "text": "organize the mail"}],
+    }
     with TestClient(app) as client, client.websocket_connect("/api/realtime") as ws:
         first = _drive(ws, params)
         blocked = first["response"].result["turn"]
@@ -987,7 +1000,9 @@ def test_required_connector_blocks_engine_then_rechecks_same_thread(tmp_path, mo
         assert second["status"] == "completed"
         assert second["id"] != blocked["id"]
         assert calls == [("preparation-task", "eve", "organize the mail")]
-    persisted = "\n".join(path.read_text(encoding="utf-8") for path in (tmp_path / "threads").rglob("*.jsonl"))
+    persisted = "\n".join(
+        path.read_text(encoding="utf-8") for path in (tmp_path / "threads").rglob("*.jsonl")
+    )
     assert "role_connections_unavailable" in persisted
     assert blocked["id"] in persisted and second["id"] in persisted
 
@@ -3938,19 +3953,36 @@ def test_authenticated_explicit_project_command_owns_project_and_subagent_worksp
         fake_call_subagent,
     )
 
-    leader = SimpleNamespace(agent_id="build-agent", display_name="Builder", description="Build securely",
-                             soul="Lead the project", capabilities={})
+    leader = SimpleNamespace(
+        agent_id="build-agent",
+        display_name="Builder",
+        description="Build securely",
+        soul="Lead the project",
+        capabilities={},
+    )
     registry = AgentRegistry()
     registry.register(leader)
     monkeypatch.setattr("runtime.projectos.recruitment.hub_candidates", lambda _goal: [])
 
     def prepare_initiation(**kwargs):
-        return {"name": "Authenticated project", "scope": kwargs["goal"],
-                "milestones": ["Secure delivery"], "budget": "Test estimate only",
-                "deliverables": ["Secure artifact"], "acceptance_criteria": ["Tenant isolation verified"],
-                "requirements_review": {"ready": True, "reason": "Scope and evidence specified"},
-                "staffing": [{"role": "engineer", "count": 1, "responsibilities": "Build and review",
-                              "agent_id": "build-agent", "phases": [1]}]}
+        return {
+            "name": "Authenticated project",
+            "scope": kwargs["goal"],
+            "milestones": ["Secure delivery"],
+            "budget": "Test estimate only",
+            "deliverables": ["Secure artifact"],
+            "acceptance_criteria": ["Tenant isolation verified"],
+            "requirements_review": {"ready": True, "reason": "Scope and evidence specified"},
+            "staffing": [
+                {
+                    "role": "engineer",
+                    "count": 1,
+                    "responsibilities": "Build and review",
+                    "agent_id": "build-agent",
+                    "phases": [1],
+                }
+            ],
+        }
 
     def tasks(milestone: Milestone) -> list[Task]:
         return [
@@ -4023,8 +4055,12 @@ def test_authenticated_explicit_project_command_owns_project_and_subagent_worksp
         assert dispatched == []
         assert [r.params.get("tool") for r in created["requests"]] == ["project_initiation"]
         established_id = projects.project_for_thread(thread_id).id
-        run_params = {"threadId": thread_id, "executionEngine": "echo",
-                      "input": [{"type": "text", "text": "/project run"}], "approvalPolicy": "never"}
+        run_params = {
+            "threadId": thread_id,
+            "executionEngine": "echo",
+            "input": [{"type": "text", "text": "/project run"}],
+            "approvalPolicy": "never",
+        }
         declined = _drive(ws, run_params, approve=False)
         assert [r.params.get("tool") for r in declined["requests"]] == ["project_phase"]
         assert dispatched == []
@@ -4043,8 +4079,13 @@ def test_authenticated_explicit_project_command_owns_project_and_subagent_worksp
         assert projects.get_project(established_id).status != "done"
         acceptance = {"threadId": thread_id, "input": [{"type": "text", "text": "/project accept"}]}
         declined_delivery = _drive(ws, acceptance, approve=False)
-        assert [r.params.get("tool") for r in declined_delivery["requests"]] == ["project_acceptance"]
-        assert not any(e["kind"] == "project.delivery_accepted" for e in projects.events_for_project(established_id))
+        assert [r.params.get("tool") for r in declined_delivery["requests"]] == [
+            "project_acceptance"
+        ]
+        assert not any(
+            e["kind"] == "project.delivery_accepted"
+            for e in projects.events_for_project(established_id)
+        )
         accepted = _drive(ws, acceptance)
         assert [r.params.get("tool") for r in accepted["requests"]] == ["project_acceptance"]
         assert len(dispatched) == 1
@@ -4115,8 +4156,9 @@ def _seed_existing_project(projects, groups, thread_id):
     """
     from runtime.projectos.cowork_bridge import run_project_from_group
 
-    return run_project_from_group(projects, groups, thread_id, name="Existing project",
-                                  goal="Deliver the project", run=False)
+    return run_project_from_group(
+        projects, groups, thread_id, name="Existing project", goal="Deliver the project", run=False
+    )
 
 
 def test_explicit_project_command_unhandled_failure_reports_driver_source(

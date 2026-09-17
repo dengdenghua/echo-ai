@@ -334,15 +334,20 @@ def test_targeted_status_preserves_integrity_checks(tmp_path, monkeypatch):
     catalog, plugin_root = _catalog(tmp_path, monkeypatch)
     catalog.install_plugin("narrative_studio", plugin_kind="workbench")
     items = catalog.items()
-    monkeypatch.setattr(catalog, "items", lambda: [
-        *items,
-        {"id": "unrelated", "plugin": "unrelated", "kind": "workbench"},
-    ])
+    monkeypatch.setattr(
+        catalog,
+        "items",
+        lambda: [
+            *items,
+            {"id": "unrelated", "plugin": "unrelated", "kind": "workbench"},
+        ],
+    )
     status = catalog.plugin_statuses(package_id="narrative_studio")
     assert list(status) == ["narrative_studio"]
     assert status["narrative_studio"]["enabled"] is True
     (plugin_root / "workbench" / "narrative_studio" / "dist" / "index.html").write_text(
-        "tampered", encoding="utf-8",
+        "tampered",
+        encoding="utf-8",
     )
     status = catalog.plugin_statuses(package_id="narrative_studio")
     assert status["narrative_studio"]["lifecycle_state"] == "broken"

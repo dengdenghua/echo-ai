@@ -69,7 +69,7 @@ def test_ordinary_project_talk_is_not_a_proposal(text: str) -> None:
         "内容平台项目，我们立项吧",
     ],
 )
-def test_known_gap_a_trigger_separated_from_项目_is_missed(text: str) -> None:
+def test_known_gap_a_trigger_separated_from_project_noun_is_missed(text: str) -> None:
     """Documents a real miss rather than asserting the behaviour is right.
 
     Widening this means editing the pattern in both the composer and the runtime

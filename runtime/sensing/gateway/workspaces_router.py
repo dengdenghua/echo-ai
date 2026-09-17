@@ -576,8 +576,11 @@ def create_workspaces_router(
                     text = content.decode("utf-8")
                 except UnicodeDecodeError as exc:
                     raise HTTPException(415, "revision is not UTF-8 HTML") from exc
-                return {"revision_id": revision_id, "content": text,
-                        "sha256": hashlib.sha256(content).hexdigest()}
+                return {
+                    "revision_id": revision_id,
+                    "content": text,
+                    "sha256": hashlib.sha256(content).hexdigest(),
+                }
             revisions: dict[str, Path] = {}
             for directory in _revision_locations(thread_id, target):
                 if not directory.exists():
@@ -588,11 +591,18 @@ def create_workspaces_router(
                         if safe_entry.is_file() and (before is None or entry.name < before):
                             revisions.setdefault(entry.name, safe_entry)
             ordered = sorted(revisions, reverse=True)
-            items = [{"revision_id": key,
-                      "created_at": int(key.split("-")[0]) / 1_000_000_000,
-                      "bytes": revisions[key].stat().st_size} for key in ordered[:limit]]
-            return {"revisions": items,
-                    "next_cursor": ordered[limit - 1] if len(ordered) > limit else None}
+            items = [
+                {
+                    "revision_id": key,
+                    "created_at": int(key.split("-")[0]) / 1_000_000_000,
+                    "bytes": revisions[key].stat().st_size,
+                }
+                for key in ordered[:limit]
+            ]
+            return {
+                "revisions": items,
+                "next_cursor": ordered[limit - 1] if len(ordered) > limit else None,
+            }
 
     @contextmanager
     def _proposals(request: Request, thread_id: str, artifact_path: str, area: str):
@@ -614,24 +624,40 @@ def create_workspaces_router(
             raise HTTPException(503, "产物修改暂时无法读写，请重试。") from exc
 
     @router.get("/api/threads/{thread_id}/output-proposals/{artifact_path:path}")
-    def api_output_proposals(request: Request, thread_id: str, artifact_path: str,
-                             area: str = "output", proposal_id: str | None = None) -> dict[str, Any]:
+    def api_output_proposals(
+        request: Request,
+        thread_id: str,
+        artifact_path: str,
+        area: str = "output",
+        proposal_id: str | None = None,
+    ) -> dict[str, Any]:
         with _proposals(request, thread_id, artifact_path, area) as proposals:
             return proposals.read(proposal_id) if proposal_id else {"proposals": proposals.list()}
 
     @router.post("/api/threads/{thread_id}/output-proposals/{artifact_path:path}")
-    def api_decide_output_proposal(request: Request, thread_id: str, artifact_path: str,
-                                   body: WorkspaceOutputProposalRequest,
-                                   area: str = "output") -> dict[str, Any]:
+    def api_decide_output_proposal(
+        request: Request,
+        thread_id: str,
+        artifact_path: str,
+        body: WorkspaceOutputProposalRequest,
+        area: str = "output",
+    ) -> dict[str, Any]:
         with _proposals(request, thread_id, artifact_path, area) as proposals:
             if body.action == "create":
                 expected = _expected_digest(proposals.target.read_bytes(), body.expected_sha256)
                 return proposals.create(expected)
             if not body.proposal_id:
                 raise HTTPException(400, "proposal_id is required")
-            result = proposals.decide(body.proposal_id, body.action, body.reviewed_sha256,
-                                      lambda content: _store_revision(thread_id, area, artifact_path, content))
-            return {**result, "current_sha256": hashlib.sha256(proposals.target.read_bytes()).hexdigest()}
+            result = proposals.decide(
+                body.proposal_id,
+                body.action,
+                body.reviewed_sha256,
+                lambda content: _store_revision(thread_id, area, artifact_path, content),
+            )
+            return {
+                **result,
+                "current_sha256": hashlib.sha256(proposals.target.read_bytes()).hexdigest(),
+            }
 
     return router
 

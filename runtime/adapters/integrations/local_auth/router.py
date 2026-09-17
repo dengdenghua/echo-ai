@@ -305,10 +305,7 @@ def create_local_auth_router(
                 for username in getattr(config, "admin_usernames", ())
                 if str(username).strip()
             }
-            grant_admin = (
-                "*" in admin_usernames
-                or body.username.strip().lower() in admin_usernames
-            )
+            grant_admin = "*" in admin_usernames or body.username.strip().lower() in admin_usernames
             desired_roles = tuple(
                 dict.fromkeys(
                     [*config.default_roles, "admin"] if grant_admin else config.default_roles

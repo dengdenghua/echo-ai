@@ -210,9 +210,7 @@ def test_a_malformed_grant_denies_instead_of_defaulting_open(tmp_path: Path) -> 
     assert admits_unattended_phase(store, "P-standing", ms).denied
 
 
-def test_unreadable_cost_denies_rather_than_spending_more(
-    tmp_path: Path, monkeypatch: Any
-) -> None:
+def test_unreadable_cost_denies_rather_than_spending_more(tmp_path: Path, monkeypatch: Any) -> None:
     store = _store(tmp_path)
     _project(store)
     ms = _milestone()

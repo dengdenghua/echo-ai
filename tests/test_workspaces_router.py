@@ -238,7 +238,9 @@ def test_visual_html_edit_rejects_stale_and_non_html_outputs(tmp_path: Path) -> 
 
 @pytest.mark.parametrize("restore_first", [False, True])
 def test_concurrent_output_edits_share_lock_across_routers_and_area_aliases(
-    tmp_path: Path, monkeypatch: MonkeyPatch, restore_first: bool,
+    tmp_path: Path,
+    monkeypatch: MonkeyPatch,
+    restore_first: bool,
 ) -> None:
     from runtime.sensing.gateway import workspaces_router as module
 
@@ -284,13 +286,15 @@ def test_concurrent_output_edits_share_lock_across_routers_and_area_aliases(
             )
         else:
             first = pool.submit(
-                first_client.put, "/api/workspaces/concurrent/outputs/site.html?area=final",
+                first_client.put,
+                "/api/workspaces/concurrent/outputs/site.html?area=final",
                 json={"content": "winner", "expected_sha256": digest},
             )
         try:
             assert replacing.wait(5)
             second = pool.submit(
-                second_client.put, "/api/threads/concurrent/outputs/final/site.html?area=output",
+                second_client.put,
+                "/api/threads/concurrent/outputs/final/site.html?area=output",
                 json={"content": "loser", "expected_sha256": digest},
             )
             assert second_lock_attempt.wait(5)
@@ -308,7 +312,8 @@ def test_concurrent_output_edits_share_lock_across_routers_and_area_aliases(
 
 @pytest.mark.parametrize("hidden_dir", [".artifact-revisions", ".artifact-locks"])
 def test_output_edits_reject_hidden_storage_symlink_escape(
-    tmp_path: Path, hidden_dir: str,
+    tmp_path: Path,
+    hidden_dir: str,
 ) -> None:
     client = _client(tmp_path)
     client.get("/api/workspaces/escape")
@@ -330,7 +335,8 @@ def test_output_edits_reject_hidden_storage_symlink_escape(
 
 
 def test_output_lock_failure_preserves_file_and_creates_no_revision(
-    tmp_path: Path, monkeypatch: MonkeyPatch,
+    tmp_path: Path,
+    monkeypatch: MonkeyPatch,
 ) -> None:
     from runtime.sensing.gateway import workspaces_router as module
 

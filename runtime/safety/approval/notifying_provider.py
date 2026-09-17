@@ -71,9 +71,7 @@ class NotifyingApprovalProvider(ApprovalProvider):
         self._local_available = local_available or (lambda: local is not None)
         self._injection_tainted = injection_tainted or (lambda _req: False)
 
-    def request(
-        self, req: ApprovalRequest, *, timeout: float = 120.0
-    ) -> ApprovalDecision:
+    def request(self, req: ApprovalRequest, *, timeout: float = 120.0) -> ApprovalDecision:
         started = time.monotonic()
         local_decision = self._try_local(req, timeout=timeout)
         if local_decision is not None:
@@ -106,9 +104,7 @@ class NotifyingApprovalProvider(ApprovalProvider):
             )
         return self._ask_remotely(req, timeout=remaining)
 
-    def _try_local(
-        self, req: ApprovalRequest, *, timeout: float
-    ) -> ApprovalDecision | None:
+    def _try_local(self, req: ApprovalRequest, *, timeout: float) -> ApprovalDecision | None:
         """The UI's answer, or ``None`` when there is nobody to ask."""
 
         if self._local is None:
@@ -127,9 +123,7 @@ class NotifyingApprovalProvider(ApprovalProvider):
             _logger.debug("local approval provider failed", exc_info=True)
             return None
 
-    def _ask_remotely(
-        self, req: ApprovalRequest, *, timeout: float
-    ) -> ApprovalDecision:
+    def _ask_remotely(self, req: ApprovalRequest, *, timeout: float) -> ApprovalDecision:
         try:
             decision = self._transport.deliver(req, timeout=timeout)
         except Exception:  # noqa: BLE001 - undelivered means undecided

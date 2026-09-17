@@ -88,7 +88,7 @@ _HANDED_OFF_PARSE_FIELDS = frozenset(
 
 def test_6b_writes_every_parse_field_6c_takes_as_a_handoff() -> None:
     parse_fields = _parse_field_names()
-    assert _HANDED_OFF_PARSE_FIELDS <= parse_fields, (
+    assert parse_fields >= _HANDED_OFF_PARSE_FIELDS, (
         "this latch drifted from the parse group definition: "
         f"{sorted(_HANDED_OFF_PARSE_FIELDS - parse_fields)}"
     )

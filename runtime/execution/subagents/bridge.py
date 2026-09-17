@@ -1837,7 +1837,9 @@ def _dispatch(
     market_role = runnable_market_roles(selected_runner).get(agent_id)
     if (context or {}).get("_require_installed_market_role") and market_role is None:
         return {
-            "agent_id": agent_id, "output": "", "success": False,
+            "agent_id": agent_id,
+            "output": "",
+            "success": False,
             "error": "HUB role is no longer installed or runnable; no substitute was spawned.",
         }
     registry = _REGISTRY
@@ -1973,11 +1975,18 @@ def _dispatch(
         "output": str(output) if output is not None else "",
         "success": True,
         "error": None,
-        **({"identity_source": "agent-market", "market_agent_id": agent_id,
-            "display_name": market_role.display_name,
-            "avatar_url": market_role.avatar_url,
-            "avatar": market_role.icon,
-            "role_source_path": market_role.soul_path} if market_role else {}),
+        **(
+            {
+                "identity_source": "agent-market",
+                "market_agent_id": agent_id,
+                "display_name": market_role.display_name,
+                "avatar_url": market_role.avatar_url,
+                "avatar": market_role.icon,
+                "role_source_path": market_role.soul_path,
+            }
+            if market_role
+            else {}
+        ),
     }
 
 

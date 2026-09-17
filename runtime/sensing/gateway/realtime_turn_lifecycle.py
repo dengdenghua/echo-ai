@@ -1268,7 +1268,9 @@ async def _start_turn(
             await execution.execute(TurnExecutionRequest(intent, text, validated.model))
         except Exception as exc:
             if isinstance(exc, (EngineSelectionError, RolePreparationError)):
-                _logger.info("CerebrumRuntime: preparation requires attention: %s", type(exc).__name__)
+                _logger.info(
+                    "CerebrumRuntime: preparation requires attention: %s", type(exc).__name__
+                )
             else:
                 _logger.exception("CerebrumRuntime: turn driver crashed: %s", turn_driver)
             if isinstance(exc, RolePreparationError):
@@ -1318,11 +1320,15 @@ async def _start_turn(
                     "failure_kind": "backpressure" if event_backpressure else "",
                     "cowork_mode": context.get("cowork_mode"),
                     "topology_id": topology_id or "",
-                    **({
-                        "engine": exc.engine.value,
-                        "reason": exc.reason,
-                        "disposition": "blocked_on_user",
-                    } if isinstance(exc, EngineSelectionError) else {}),
+                    **(
+                        {
+                            "engine": exc.engine.value,
+                            "reason": exc.reason,
+                            "disposition": "blocked_on_user",
+                        }
+                        if isinstance(exc, EngineSelectionError)
+                        else {}
+                    ),
                     **(exc.info if isinstance(exc, RolePreparationError) else {}),
                 },
             )

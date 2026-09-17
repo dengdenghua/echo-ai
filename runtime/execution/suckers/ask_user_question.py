@@ -52,16 +52,39 @@ def _ask_user_question(
             return {"ok": False, "error": "questions must contain 1..3 questions"}
         cleaned_questions = []
         for index, item in enumerate(questions):
-            if not isinstance(item, dict) or not isinstance(item.get("title"), str) or not item["title"].strip():
+            if (
+                not isinstance(item, dict)
+                or not isinstance(item.get("title"), str)
+                or not item["title"].strip()
+            ):
                 return {"ok": False, "error": "each question requires a title"}
             choices = item.get("options", [])
-            if not isinstance(choices, list) or len(choices) > 6 or len(choices) == 1 or any(not isinstance(x, str) or not x.strip() for x in choices):
-                return {"ok": False, "error": "options must be empty for free text or contain 2..6 strings"}
-            cleaned_questions.append({"id": f"question_{index + 1}", "title": item["title"].strip(),
-                                      "options": [x.strip() for x in choices], "multiple": item.get("multiple") is True})
-        return {"ok": True, "type": "clarification_questionnaire", "title": "完善需求",
-                "questions": cleaned_questions, "yield_turn": True,
-                "instructions": "The result is a user questionnaire. End the turn; never answer it for the user or treat it as project approval."}
+            if (
+                not isinstance(choices, list)
+                or len(choices) > 6
+                or len(choices) == 1
+                or any(not isinstance(x, str) or not x.strip() for x in choices)
+            ):
+                return {
+                    "ok": False,
+                    "error": "options must be empty for free text or contain 2..6 strings",
+                }
+            cleaned_questions.append(
+                {
+                    "id": f"question_{index + 1}",
+                    "title": item["title"].strip(),
+                    "options": [x.strip() for x in choices],
+                    "multiple": item.get("multiple") is True,
+                }
+            )
+        return {
+            "ok": True,
+            "type": "clarification_questionnaire",
+            "title": "完善需求",
+            "questions": cleaned_questions,
+            "yield_turn": True,
+            "instructions": "The result is a user questionnaire. End the turn; never answer it for the user or treat it as project approval.",
+        }
     if not isinstance(question, str) or not question.strip():
         return {
             "ok": False,
@@ -145,7 +168,6 @@ def register_ask_user_question_skill(registry: SkillRegistry) -> int:
                 "questions 参数为对象数组，每项包含 title、options（2-6个字符串；自由输入用空数组）、multiple（可选布尔）。"
                 "用户可补充文字或表示未确定。问卷不代表批准立项、拉人或执行操作；调用后结束本轮等待用户回答。"
                 "兼容单题参数 question、options、allow_other。"
-
             ),
             affinity=["interaction", "ui", "ask_user"],
             cost_profile="low",

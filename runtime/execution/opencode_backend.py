@@ -1019,13 +1019,16 @@ async def stream_prompt(
             if not any(reducer.text.values()):
                 raise OpenCodeError("模型没有返回回答，请重试或切换模型。")
             final_text = "".join(
-                str(part.get("text", "")) for part in final.get("parts", [])
+                str(part.get("text", ""))
+                for part in final.get("parts", [])
                 if part.get("type") == "text"
             )
             if tool_names and _has_unexecuted_tool_markup(final_text):
                 # Serialized model protocol is text, never an authorized tool
                 # invocation. Do not execute it or report the task completed.
-                raise OpenCodeError("模型输出了未执行的工具调用文本，本轮未完成。请重试或切换模型。")
+                raise OpenCodeError(
+                    "模型输出了未执行的工具调用文本，本轮未完成。请重试或切换模型。"
+                )
             settled = True
             yield {
                 "type": "react_completed",

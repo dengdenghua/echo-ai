@@ -392,21 +392,33 @@ class TestCloudStoreRouterInstall:
         assert res.json()["installed"] is True
         assert install_calls == ["wb_expert-0"]
 
+
 def test_industry_team_overrides_cached_catalog_and_installs_offline(tmp_path, monkeypatch):
-    original = {'id': 'BelieveInLight', 'plugin': 'believe-in-light', 'expertType': 'team', 'displayName': {'zh': '相信光么'}, 'description': {'zh': '光模块'}, 'bundleUrl': 'https://example.com/old.tar.gz'}
-    cache = tmp_path / 'cache.json'
-    cache.write_text(json.dumps({'experts': [original]}), encoding='utf-8')
-    monkeypatch.setattr(ces, 'CACHE_FILE', cache)
+    original = {
+        "id": "BelieveInLight",
+        "plugin": "believe-in-light",
+        "expertType": "team",
+        "displayName": {"zh": "相信光么"},
+        "description": {"zh": "光模块"},
+        "bundleUrl": "https://example.com/old.tar.gz",
+    }
+    cache = tmp_path / "cache.json"
+    cache.write_text(json.dumps({"experts": [original]}), encoding="utf-8")
+    monkeypatch.setattr(ces, "CACHE_FILE", cache)
     store = ces.CloudExpertStore(use_remote=False)
-    entry = store.get('wb_believe-in-light')
-    assert entry['displayName']['zh'] == '产业研究团队'
-    assert '光模块' not in json.dumps(entry, ensure_ascii=False)
-    monkeypatch.setattr(store, '_download', lambda *a: pytest.fail('must use the local Echo pack'))
-    result = store.install_expert('wb_believe-in-light', agents_root=tmp_path / 'agents', skills_root=tmp_path / 'skills')
-    assert result['source'] == 'echo'
-    assert Path(result['agent_path']).is_dir()
-    wire = store.to_agent_dict(entry, installed={result['agent_id']})
-    assert wire['is_installed']
-    assert wire['profession'] == '跨行业研究与产业链分析'
-    assert wire['bundle_url'] == ''
-    assert store.install_expert('wb_believe-in-light', agents_root=tmp_path / 'agents', skills_root=tmp_path / 'skills')['already_exists']
+    entry = store.get("wb_believe-in-light")
+    assert entry["displayName"]["zh"] == "产业研究团队"
+    assert "光模块" not in json.dumps(entry, ensure_ascii=False)
+    monkeypatch.setattr(store, "_download", lambda *a: pytest.fail("must use the local Echo pack"))
+    result = store.install_expert(
+        "wb_believe-in-light", agents_root=tmp_path / "agents", skills_root=tmp_path / "skills"
+    )
+    assert result["source"] == "echo"
+    assert Path(result["agent_path"]).is_dir()
+    wire = store.to_agent_dict(entry, installed={result["agent_id"]})
+    assert wire["is_installed"]
+    assert wire["profession"] == "跨行业研究与产业链分析"
+    assert wire["bundle_url"] == ""
+    assert store.install_expert(
+        "wb_believe-in-light", agents_root=tmp_path / "agents", skills_root=tmp_path / "skills"
+    )["already_exists"]

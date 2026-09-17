@@ -335,11 +335,24 @@ def register_endpoints(router: Any, ctx: _FsContext) -> None:
             raise HTTPException(413, "file exceeds the 24 MB preview limit")
         # Never execute HTML/SVG/scripts from tool results. Known passive media
         # may be viewed; every other type is an explicit user download.
-        media_types = {".png": "image/png", ".jpg": "image/jpeg", ".jpeg": "image/jpeg", ".webp": "image/webp", ".gif": "image/gif", ".pdf": "application/pdf"}
+        media_types = {
+            ".png": "image/png",
+            ".jpg": "image/jpeg",
+            ".jpeg": "image/jpeg",
+            ".webp": "image/webp",
+            ".gif": "image/gif",
+            ".pdf": "application/pdf",
+        }
         media_type = media_types.get(file_path.suffix.lower(), "application/octet-stream")
-        return FileResponse(file_path, media_type=media_type, filename=file_path.name,
-                            content_disposition_type="inline" if media_type != "application/octet-stream" else "attachment",
-                            headers={"Cache-Control": "no-store", "X-Content-Type-Options": "nosniff"})
+        return FileResponse(
+            file_path,
+            media_type=media_type,
+            filename=file_path.name,
+            content_disposition_type="inline"
+            if media_type != "application/octet-stream"
+            else "attachment",
+            headers={"Cache-Control": "no-store", "X-Content-Type-Options": "nosniff"},
+        )
 
     @router.get("/api/fs/read", response_model=FsReadResponse)
     async def api_fs_read(

@@ -647,23 +647,28 @@ def create_agent_world_router(
     @router.get("/api/agent-market/echo/catalog")
     def api_echo_catalog() -> dict[str, Any]:
         """Read-only Echo catalog roster; catalog roles are not enabled locally."""
-        catalog_root = Path(__file__).resolve().parents[3] / "extensions" / "echo-agent-catalog" / "agents"
+        catalog_root = (
+            Path(__file__).resolve().parents[3] / "extensions" / "echo-agent-catalog" / "agents"
+        )
         items: list[dict[str, Any]] = []
         from runtime.platform.process.utils import parse_jsonc
+
         if catalog_root.is_dir():
             for profile in sorted(catalog_root.glob("*/profile.jsonc")):
                 try:
                     data = parse_jsonc(profile.read_text(encoding="utf-8"))
                 except (OSError, ValueError, UnicodeError):
                     continue
-                items.append({
-                    "id": str(data.get("id") or profile.parent.name),
-                    "name": str(data.get("name") or data.get("id") or profile.parent.name),
-                    "description": str(data.get("description") or ""),
-                    "category": str(data.get("category") or ""),
-                    "expert_type": str(data.get("expertType") or "agent"),
-                    "source": "echo-catalog",
-                })
+                items.append(
+                    {
+                        "id": str(data.get("id") or profile.parent.name),
+                        "name": str(data.get("name") or data.get("id") or profile.parent.name),
+                        "description": str(data.get("description") or ""),
+                        "category": str(data.get("category") or ""),
+                        "expert_type": str(data.get("expertType") or "agent"),
+                        "source": "echo-catalog",
+                    }
+                )
         return {"agents": items, "total": len(items)}
 
     @router.get("/api/agent-market/cloud/store/categories")

@@ -209,7 +209,9 @@ class CloudExpertStore:
             "rating_count": 0,
             "is_featured": False,
             "is_official": True,
-            "is_installed": agent_id in installed or installed_dir in installed or (plugin == "believe-in-light" and "industry_research_lead" in installed),
+            "is_installed": agent_id in installed
+            or installed_dir in installed
+            or (plugin == "believe-in-light" and "industry_research_lead" in installed),
             "is_team": is_team,
             "created_at": str(e.get("updatedAt") or ""),
             "bundle_url": e.get("bundleUrl") or "",
@@ -294,15 +296,20 @@ class CloudExpertStore:
 
         if e.get("plugin") == "believe-in-light":
             result = import_agent_from_pack(
-                _INDUSTRY_PACK, "industry-research-lead",
+                _INDUSTRY_PACK,
+                "industry-research-lead",
                 agents_root=Path(agents_root or default_agents_root()),
                 skills_root=Path(skills_root or resources_root() / "skills" / "public"),
             )
             return {
-                "installed": True, "already_exists": result.already_exists,
-                "agent_id": result.agent_id, "agent_name": "产业研究团队",
-                "agent_path": result.agent_path, "copied_skills": result.copied_skills,
-                "warnings": result.warnings, "source": "echo",
+                "installed": True,
+                "already_exists": result.already_exists,
+                "agent_id": result.agent_id,
+                "agent_name": "产业研究团队",
+                "agent_path": result.agent_path,
+                "copied_skills": result.copied_skills,
+                "warnings": result.warnings,
+                "source": "echo",
             }
 
         bundle_url = e.get("bundleUrl") or e.get("bundle_url")

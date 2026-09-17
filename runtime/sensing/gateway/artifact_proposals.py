@@ -61,7 +61,9 @@ class ArtifactProposals:
         return content
 
     def _save_state(self, proposal_id: str, state: dict[str, Any]) -> None:
-        atomic_write_json(self._file(proposal_id, "state.json"), state, keep_backup=False, mode=0o600)
+        atomic_write_json(
+            self._file(proposal_id, "state.json"), state, keep_backup=False, mode=0o600
+        )
 
     def _load(self, proposal_id: str) -> dict[str, Any]:
         path = self._file(proposal_id, "state.json")
@@ -71,9 +73,13 @@ class ArtifactProposals:
             raise HTTPException(409, "invalid proposal state")
         try:
             state = json.loads(path.read_text(encoding="utf-8"))
-            if (not isinstance(state, dict) or state.get("proposal_id") != proposal_id
-                    or state.get("status") not in {"pending", "applying", "accepted", "rejected", "interrupted"}
-                    or not re.fullmatch(r"[0-9a-f]{64}", str(state.get("base_sha256", "")))):
+            if (
+                not isinstance(state, dict)
+                or state.get("proposal_id") != proposal_id
+                or state.get("status")
+                not in {"pending", "applying", "accepted", "rejected", "interrupted"}
+                or not re.fullmatch(r"[0-9a-f]{64}", str(state.get("base_sha256", "")))
+            ):
                 raise ValueError("invalid proposal state")
         except (ValueError, UnicodeError) as exc:
             raise HTTPException(409, "invalid proposal state") from exc
@@ -95,10 +101,18 @@ class ArtifactProposals:
         if digest(original) != expected_sha256:
             raise HTTPException(409, "文件已变化，请重新加载后再请求修改。")
         proposal_id = f"{time.time_ns()}-{secrets.token_hex(6)}"
-        state = {"proposal_id": proposal_id, "status": "pending", "created_at": time.time(),
-                 "base_sha256": digest(original)}
-        atomic_write_bytes(self._file(proposal_id, "base.html"), original, keep_backup=False, mode=0o600)
-        atomic_write_bytes(self._file(proposal_id, "candidate.html"), original, keep_backup=False, mode=0o600)
+        state = {
+            "proposal_id": proposal_id,
+            "status": "pending",
+            "created_at": time.time(),
+            "base_sha256": digest(original),
+        }
+        atomic_write_bytes(
+            self._file(proposal_id, "base.html"), original, keep_backup=False, mode=0o600
+        )
+        atomic_write_bytes(
+            self._file(proposal_id, "candidate.html"), original, keep_backup=False, mode=0o600
+        )
         # Publishing state last makes partially created proposals invisible.
         self._save_state(proposal_id, state)
         return {**state, "candidate_path": str(self._file(proposal_id, "candidate.html"))}
@@ -122,18 +136,29 @@ class ArtifactProposals:
         candidate_sha = digest(candidate)
         if state["status"] == "accepted" and candidate_sha != state.get("reviewed_sha256"):
             raise HTTPException(409, "accepted proposal snapshot has changed")
-        return {**state, "base_content": original.decode("utf-8"),
-                "candidate_content": candidate.decode("utf-8"), "candidate_sha256": candidate_sha,
-                "changed": candidate_sha != state["base_sha256"],
-                "conflict": digest(self._read_bytes(self.target)) != state["base_sha256"]}
+        return {
+            **state,
+            "base_content": original.decode("utf-8"),
+            "candidate_content": candidate.decode("utf-8"),
+            "candidate_sha256": candidate_sha,
+            "changed": candidate_sha != state["base_sha256"],
+            "conflict": digest(self._read_bytes(self.target)) != state["base_sha256"],
+        }
 
-    def decide(self, proposal_id: str, action: str, reviewed_sha256: str | None,
-               preserve_revision: Callable[[bytes], str]) -> dict[str, Any]:
+    def decide(
+        self,
+        proposal_id: str,
+        action: str,
+        reviewed_sha256: str | None,
+        preserve_revision: Callable[[bytes], str],
+    ) -> dict[str, Any]:
         state = self._load(proposal_id)
         desired = "accepted" if action == "accept" else "rejected"
         if state["status"] == desired:
             if action == "accept" and reviewed_sha256 != state.get("reviewed_sha256"):
-                raise HTTPException(409, "a different proposal version was accepted; reload the artifact")
+                raise HTTPException(
+                    409, "a different proposal version was accepted; reload the artifact"
+                )
             return state  # Network retries must never reapply an accepted edit.
         if state["status"] not in {"pending", "interrupted"}:
             raise HTTPException(409, "proposal has already been decided")
@@ -151,9 +176,14 @@ class ArtifactProposals:
         if proposal["candidate_sha256"] != reviewed_sha256:
             raise HTTPException(409, "工作副本已变化，请重新比较后再接受。")
         payload = proposal["candidate_content"].encode("utf-8")
-        atomic_write_bytes(self._file(proposal_id, "reviewed.html"), payload, keep_backup=False, mode=0o600)
-        state.update(status="applying", reviewed_sha256=reviewed_sha256,
-                     revision_id=preserve_revision(self._read_bytes(self.target)))
+        atomic_write_bytes(
+            self._file(proposal_id, "reviewed.html"), payload, keep_backup=False, mode=0o600
+        )
+        state.update(
+            status="applying",
+            reviewed_sha256=reviewed_sha256,
+            revision_id=preserve_revision(self._read_bytes(self.target)),
+        )
         self._save_state(proposal_id, state)
         atomic_write_bytes(self.target, payload, keep_backup=False, mode=self.target.stat().st_mode)
         state["status"] = "accepted"

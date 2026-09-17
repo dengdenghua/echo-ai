@@ -151,9 +151,7 @@ def test_the_sweep_only_reads_and_skips_finished_projects(tmp_path: Path) -> Non
     assert digest.scanned == 2
 
 
-def test_an_unreadable_project_is_counted_not_fatal(
-    tmp_path: Path, monkeypatch: Any
-) -> None:
+def test_an_unreadable_project_is_counted_not_fatal(tmp_path: Path, monkeypatch: Any) -> None:
     store = ProjectStore(base_dir=tmp_path / "projectos")
     project = Project(id="P-bad", name="坏项目", goal="目标")
     project.status = "running"  # type: ignore[assignment]

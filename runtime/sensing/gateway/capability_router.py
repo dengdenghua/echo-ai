@@ -120,11 +120,19 @@ def create_capability_router(
     def _annotate_lifecycle(item: dict[str, Any], request: Request) -> dict[str, Any]:
         public = dict(item)
         if public.get("is_codex_marketplace") is True:
-            public.update(execution_owner="codex", ownership_state="external_host",
-                          ownership_label="通过 Codex 使用 · 尚未迁移到 Echo", native_verified=False)
+            public.update(
+                execution_owner="codex",
+                ownership_state="external_host",
+                ownership_label="通过 Codex 使用 · 尚未迁移到 Echo",
+                native_verified=False,
+            )
         elif public.get("source") == "codex_plugin":
-            public.update(execution_owner="echo", ownership_state="local_package_unverified",
-                          ownership_label="Echo 本地插件 · 授权适配待验证", native_verified=False)
+            public.update(
+                execution_owner="echo",
+                ownership_state="local_package_unverified",
+                ownership_label="Echo 本地插件 · 授权适配待验证",
+                native_verified=False,
+            )
         if (
             public.get("source") == "codex_plugin"
             and public.get("is_codex_marketplace") is not True

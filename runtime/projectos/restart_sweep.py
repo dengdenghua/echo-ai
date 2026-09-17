@@ -69,9 +69,7 @@ def sweep_projects_interrupted_by_restart(store: Any) -> list[dict[str, str]]:
                 },
             )
         except Exception:  # noqa: BLE001 - a single project must not stop the sweep
-            _logger.debug(
-                "project restart sweep could not mark %s", project_id, exc_info=True
-            )
+            _logger.debug("project restart sweep could not mark %s", project_id, exc_info=True)
             continue
         marked.append(
             {

@@ -418,7 +418,9 @@ class TestEndToEnd:
 
         # App wiring in an earlier test may register the real "coder" role.
         # Exercise an absent role independently of the installed catalog.
-        result = _call_agent(agent_id="__unregistered_runner_regression_role__", prompt="write code")
+        result = _call_agent(
+            agent_id="__unregistered_runner_regression_role__", prompt="write code"
+        )
         # legacy path · no runner → not configured
         assert result["success"] is False
         assert "runner not configured" in (result["error"] or "")

@@ -254,8 +254,11 @@ class ThreadAccessResolver:
         local_project_room = False
         if (
             self._allow_anonymous_ownerless
-            and not actor and not owner and not stored_tenant
-            and metadata.get("local_project_group") is True and room_id
+            and not actor
+            and not owner
+            and not stored_tenant
+            and metadata.get("local_project_group") is True
+            and room_id
         ):
             room = self._room_snapshot(room_id) or {}
             room_meta = room.get("metadata") or {}
