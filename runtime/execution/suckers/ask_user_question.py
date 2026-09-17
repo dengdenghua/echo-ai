@@ -26,9 +26,26 @@ turn start), upgrade to a true mid-turn block.
 
 from __future__ import annotations
 
+import json
 from typing import Any
 
 from .registry import Skill, SkillRegistry
+
+
+def _coerce_json_value(value: Any) -> Any:
+    """Some execution engines deliver structured tool arguments as a
+    JSON-encoded string instead of a parsed array/object. Unwrap one level
+    of encoding so validation below sees the real shape; anything that is
+    not valid JSON is returned unchanged (and will fail validation)."""
+    if not isinstance(value, str):
+        return value
+    text = value.strip()
+    if not text or text[0] not in "[{":
+        return value
+    try:
+        return json.loads(text)
+    except (ValueError, TypeError):
+        return value
 
 
 def _ask_user_question(
@@ -47,6 +64,8 @@ def _ask_user_question(
     Returns a structured ack so the model knows the question was
     posted (not the answer — that arrives as the next user turn).
     """
+    questions = _coerce_json_value(questions)
+    options = _coerce_json_value(options)
     if questions is not None:
         if not isinstance(questions, list) or not 1 <= len(questions) <= 3:
             return {"ok": False, "error": "questions must contain 1..3 questions"}
@@ -58,7 +77,7 @@ def _ask_user_question(
                 or not item["title"].strip()
             ):
                 return {"ok": False, "error": "each question requires a title"}
-            choices = item.get("options", [])
+            choices = _coerce_json_value(item.get("options", []))
             if (
                 not isinstance(choices, list)
                 or len(choices) > 6

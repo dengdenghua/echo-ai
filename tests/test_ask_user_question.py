@@ -34,6 +34,30 @@ def test_dynamic_questionnaire_supports_multiple_and_free_text():
     assert "answer" not in result
 
 
+def test_json_encoded_arguments_are_unwrapped() -> None:
+    """Engines that stringify structured tool arguments (observed as
+    ``options must be a list`` / ``questions must contain 1..3 questions``
+    failures in the wild) still get a working questionnaire."""
+    out = _ask_user_question(
+        questions='[{"title": "\u65b9\u5411\uff1f", "options": "[\\"a\\", \\"b\\"]", "multiple": true}]'
+    )
+    assert out["ok"] is True
+    assert out["type"] == "clarification_questionnaire"
+    assert out["questions"][0]["options"] == ["a", "b"]
+    assert out["questions"][0]["multiple"] is True
+
+    single = _ask_user_question(question="pick", options='["a", "b"]')  # type: ignore[arg-type]
+    assert single["ok"] is True
+    assert single["options"] == ["a", "b"]
+
+
+def test_non_json_string_arguments_still_invalid() -> None:
+    out = _ask_user_question(questions="not json")  # type: ignore[arg-type]
+    assert out["ok"] is False
+    out = _ask_user_question(question="pick", options="a,b,c")  # type: ignore[arg-type]
+    assert out["ok"] is False
+
+
 def test_questionnaire_schema_declares_arrays() -> None:
     schema = _input_schema_from_handler(_ask_user_question)[0]
     assert schema["properties"]["questions"]["type"] == "array"
