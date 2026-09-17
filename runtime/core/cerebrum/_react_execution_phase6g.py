@@ -91,12 +91,12 @@ def _is_making_iteration_progress(state: _LoopState) -> bool:
     verifier from turning the bounded extension into an unbounded loop.
     """
     if (
-        state.consecutive_spin_iterations
-        or state.consecutive_same_failed_actions >= 2
-        or state.consecutive_same_noop_actions >= 2
+        state.iteration.consecutive_spin_iterations
+        or state.iteration.consecutive_same_failed_actions >= 2
+        or state.iteration.consecutive_same_noop_actions >= 2
     ):
         return False
-    recent = state.steps[-5:]
+    recent = state.convo.steps[-5:]
     productive = [step for step in recent if _step_has_successful_tool_evidence(step)]
     if len(productive) < 3:
         return False
@@ -110,20 +110,20 @@ def _is_making_iteration_progress(state: _LoopState) -> bool:
 
 def _auto_extend_iteration_limit(state: _LoopState, max_iterations: int) -> int:
     """Return a bounded extended limit when the recent trajectory is healthy."""
-    if state.iteration_extensions_used >= _MAX_AUTO_ITERATION_EXTENSIONS:
+    if state.iteration.iteration_extensions_used >= _MAX_AUTO_ITERATION_EXTENSIONS:
         return max_iterations
     if not _is_making_iteration_progress(state):
         return max_iterations
-    base_limit = state.iteration_base_limit or max_iterations
+    base_limit = state.iteration.iteration_base_limit or max_iterations
     extension = max(10, base_limit // 2)
     extended_limit = max_iterations + extension
-    state.iteration_base_limit = base_limit
-    state.iteration_limit = extended_limit
-    state.iteration_extensions_used += 1
-    task_id = str(state.react_task_id or "")
+    state.iteration.iteration_base_limit = base_limit
+    state.iteration.iteration_limit = extended_limit
+    state.iteration.iteration_extensions_used += 1
+    task_id = str(state.wiring.react_task_id or "")
     if task_id:
         with contextlib.suppress(Exception):
-            state.pause_controller.update_active_iteration_limit(task_id, extended_limit)
+            state.wiring.pause_controller.update_active_iteration_limit(task_id, extended_limit)
     return extended_limit
 
 
@@ -136,40 +136,39 @@ def _phase_6g_housekeeping(state: _LoopState, *, i: int, max_iterations: int) ->
     iteration. No yields — plain function, not a generator.
     """
     # Reference-typed aliases — mutations propagate to the main loop.
-    steps = state.steps
-    final_answer_segments = state.final_answer_segments
-    messages = state.messages
-    _working_set = state.working_set
-    stack = state.stack
-    react_task_id = state.react_task_id
-    router = state.router
-    thread_id = state.thread_id
-    resp = state.resp
-    step = state.step
+    steps = state.convo.steps
+    final_answer_segments = state.convo.final_answer_segments
+    messages = state.convo.messages
+    _working_set = state.convo.working_set
+    stack = state.wiring.stack
+    react_task_id = state.wiring.react_task_id
+    router = state.wiring.router
+    thread_id = state.wiring.thread_id
+    resp = state.parse.resp
+    step = state.parse.step
     assert step is not None, "phase 6g requires a parsed ReAct step"
-    _pause = state.pause_controller
-    # Scalar pulls — original local names; pushed back in the finally.
-    planning_mode = state.planning_mode
-    enable_tools = state.enable_tools
-    executor = state.executor
-    tools_active = state.tools_active
-    maybe_final = state.maybe_final
-    final_answer = state.final_answer
-    final_answer_emitted = state.final_answer_emitted
-    terminated_reason = state.terminated_reason
-    effective_model = state.effective_model
-    _current_phase = state.current_phase
-    _progress_summary = state.progress_summary
-    _force_convergence_next = state.force_convergence_next
-    _length_limit_should_continue = state.length_limit_should_continue
-    _is_code_mode = state.is_code_mode
-    _native_mode = state.native_mode
-    _observed_read_sequence = state.observed_read_sequence
-    _length_limited = state.length_limited
-    _final_delta_emitted_this_iteration = state.final_delta_emitted_this_iteration
-    text = state.text
-    _agent_id_for_pause = state.agent_id_for_pause
-    _consecutive_spin_iterations = state.consecutive_spin_iterations
+    _pause = state.wiring.pause_controller
+    # Scalar pulls — read snapshots; every WRITE goes straight through to
+    # state via double assignment (local and group attr set together) so
+    # no bulk push-back is needed in the finally. Reference fields below
+    # are mutated in place except ``messages``, which ``_compress_context``
+    # may rebind (also write-through at that point).
+    planning_mode = state.iteration.planning_mode
+    executor = state.wiring.executor
+    maybe_final = state.parse.maybe_final
+    effective_model = state.iteration.effective_model
+    _current_phase = state.iteration.current_phase
+    _progress_summary = state.iteration.progress_summary
+    _force_convergence_next = state.iteration.force_convergence_next
+    _length_limit_should_continue = state.parse.length_limit_should_continue
+    _is_code_mode = state.mode.is_code_mode
+    _native_mode = state.iteration.native_mode
+    _observed_read_sequence = state.wiring.observed_read_sequence
+    _length_limited = state.parse.length_limited
+    _final_delta_emitted_this_iteration = state.emit.final_delta_emitted_this_iteration
+    text = state.parse.text
+    _agent_id_for_pause = state.model_call.agent_id_for_pause
+    _consecutive_spin_iterations = state.iteration.consecutive_spin_iterations
     try:
         # Mid-turn plan exit: model called exit_plan_mode and user approved.
         # Switch from "plan only" to "execute" without ending the turn.
@@ -185,23 +184,26 @@ def _phase_6g_housekeeping(state: _LoopState, *, i: int, max_iterations: int) ->
                 and _session_obj.metadata is not None
                 and _session_obj.metadata.pop("_plan_mode_exit_approved", False)
             ):
-                planning_mode = False
-                enable_tools = True
-                executor = getattr(stack, "executor", None)
-                tools_active = executor is not None
+                planning_mode = state.iteration.planning_mode = False
+                state.iteration.enable_tools = True
+                executor = state.wiring.executor = getattr(stack, "executor", None)
+                state.iteration.tools_active = executor is not None
                 _logger.info(
                     "plan_mode exited mid-turn; continuing execution in same turn",
                 )
 
         if _is_code_mode and step.action and step.action.lower() not in {"none", "n/a", ""}:
             _update_working_set(_working_set, step, _current_phase)
-            _current_phase = _detect_phase(step, _current_phase)
-            _progress_summary = _build_progress_summary(steps, _working_set, _current_phase)
+            _current_phase = state.iteration.current_phase = _detect_phase(step, _current_phase)
+            _progress_summary = state.iteration.progress_summary = _build_progress_summary(
+                steps, _working_set, _current_phase
+            )
 
         _has_real_observation = bool(step.observation and step.observation != "N/A")
         _has_response_tool_calls = bool(getattr(resp, "tool_calls", None))
-        _length_limit_should_continue = _length_limited and not (
-            _has_response_tool_calls or _has_real_observation
+        _length_limit_should_continue = state.parse.length_limit_should_continue = (
+            _length_limited
+            and not (_has_response_tool_calls or _has_real_observation)
         )
         _checkpoint_has_final = maybe_final is not None and not _length_limit_should_continue
         if react_task_id is not None and _checkpoint_has_final:
@@ -238,19 +240,19 @@ def _phase_6g_housekeeping(state: _LoopState, *, i: int, max_iterations: int) ->
                     _logger.debug("checkpoint write failed", exc_info=True)
         if maybe_final and _length_limit_should_continue:
             final_answer_segments.append(maybe_final)
-            maybe_final = None
+            maybe_final = state.parse.maybe_final = None
 
         if maybe_final:
             if final_answer_segments:
-                final_answer = "".join(final_answer_segments + [maybe_final])
+                state.emit.final_answer = "".join(final_answer_segments + [maybe_final])
                 final_answer_segments.clear()
             else:
-                final_answer = maybe_final
+                state.emit.final_answer = maybe_final
             # A guarded long-task answer may have been intentionally buffered
             # until every completion gate passed.  Only suppress the final
             # emitter when this iteration actually yielded answer text.
-            final_answer_emitted = _final_delta_emitted_this_iteration
-            terminated_reason = "final_answer"
+            state.emit.final_answer_emitted = _final_delta_emitted_this_iteration
+            state.emit.terminated_reason = "final_answer"
             return _LoopControl.BREAK
 
         # ── Model-spin guard ─────────────────────────────────────────
@@ -280,10 +282,11 @@ def _phase_6g_housekeeping(state: _LoopState, *, i: int, max_iterations: int) ->
             and not _spin_relevant_final
         )
         if _is_blank_step:
-            _consecutive_spin_iterations += 1
+            _consecutive_spin_iterations = state.iteration.consecutive_spin_iterations = (
+                _consecutive_spin_iterations + 1
+            )
         else:
-            _consecutive_spin_iterations = 0
-        state.consecutive_spin_iterations = _consecutive_spin_iterations
+            _consecutive_spin_iterations = state.iteration.consecutive_spin_iterations = 0
 
         if (
             _consecutive_spin_iterations >= _SPIN_BAIL_AT
@@ -294,13 +297,12 @@ def _phase_6g_housekeeping(state: _LoopState, *, i: int, max_iterations: int) ->
             # spinning turn immediately, first force a context-compression
             # pass, then attempt a model switch. Only when both fail to break
             # the spin do we pause with a clear reason.
-            _spin_stage = state.spin_escalation_stage
+            _spin_stage = state.iteration.spin_escalation_stage
             if _spin_stage == 0:
                 # Stage 1: force convergence/compression on the next iteration.
-                _force_convergence_next = True
-                state.spin_escalation_stage = 1
-                _consecutive_spin_iterations = 0
-                state.consecutive_spin_iterations = 0
+                _force_convergence_next = state.iteration.force_convergence_next = True
+                state.iteration.spin_escalation_stage = 1
+                _consecutive_spin_iterations = state.iteration.consecutive_spin_iterations = 0
                 _logger.warning(
                     "react_loop spin-guard stage 1·compress at iter %d · task %s · "
                     "%d consecutive blank steps",
@@ -311,10 +313,9 @@ def _phase_6g_housekeeping(state: _LoopState, *, i: int, max_iterations: int) ->
             elif _spin_stage == 1:
                 # Stage 2: request a model switch; the main loop consumes the
                 # flag before the next LLM call.
-                state.spin_model_switch_requested = True
-                state.spin_escalation_stage = 2
-                _consecutive_spin_iterations = 0
-                state.consecutive_spin_iterations = 0
+                state.iteration.spin_model_switch_requested = True
+                state.iteration.spin_escalation_stage = 2
+                _consecutive_spin_iterations = state.iteration.consecutive_spin_iterations = 0
                 _logger.warning(
                     "react_loop spin-guard stage 2·switch-model at iter %d · task %s · "
                     "%d consecutive blank steps",
@@ -358,7 +359,7 @@ def _phase_6g_housekeeping(state: _LoopState, *, i: int, max_iterations: int) ->
                     react_task_id,
                     max_iterations,
                     _extended_limit,
-                    state.iteration_extensions_used,
+                    state.iteration.iteration_extensions_used,
                     _MAX_AUTO_ITERATION_EXTENSIONS,
                 )
             else:
@@ -402,7 +403,7 @@ def _phase_6g_housekeeping(state: _LoopState, *, i: int, max_iterations: int) ->
         if _length_limit_should_continue:
             _code_action_recovery = _is_code_mode and not final_answer_segments
             if _code_action_recovery:
-                _force_convergence_next = True
+                _force_convergence_next = state.iteration.force_convergence_next = True
                 _length_recovery_prompt = (
                     "Your previous code-task response hit the output limit before producing an "
                     "executable action. Do not continue or repeat the prose analysis. Extended "
@@ -473,7 +474,7 @@ def _phase_6g_housekeeping(state: _LoopState, *, i: int, max_iterations: int) ->
         # context right after this step's tool results, before the next LLM
         # round (the deny fast paths flushed theirs via
         # ``_flush_guard_notices``; this drain covers every other exit).
-        _guard_notices = getattr(state, "guard_notices", None)
+        _guard_notices = state.guard_tools.guard_notices
         if _guard_notices:
             for _guard_notice in _guard_notices:
                 messages.append(Message(role="user", content=_guard_notice))
@@ -503,7 +504,7 @@ def _phase_6g_housekeeping(state: _LoopState, *, i: int, max_iterations: int) ->
             provider_context_tokens=_provider_context_tokens,
             capacity_tokens=_context_capacity,
         )
-        messages = _compress_context(
+        messages = state.convo.messages = _compress_context(
             messages,
             max_tokens=_context_target,
             router=router,
@@ -530,19 +531,9 @@ def _phase_6g_housekeeping(state: _LoopState, *, i: int, max_iterations: int) ->
             _pause.update_active_iteration(str(react_task_id), i + 1)
         return _LoopControl.CONTINUE
     finally:
-        state.planning_mode = planning_mode
-        state.enable_tools = enable_tools
-        state.executor = executor
-        state.tools_active = tools_active
-        state.maybe_final = maybe_final
-        state.final_answer = final_answer
-        state.final_answer_emitted = final_answer_emitted
-        state.terminated_reason = terminated_reason
-        state.current_phase = _current_phase
-        state.progress_summary = _progress_summary
-        state.force_convergence_next = _force_convergence_next
-        state.length_limit_should_continue = _length_limit_should_continue
-        state.messages = messages
+        # Wave B: every scalar write already went through to state at its
+        # assignment site, so there is nothing left to push back here.
+        pass
 
 
 def _phase_6d_pre_dispatch_guards(

@@ -22,7 +22,7 @@ def _step(**kw: object) -> ReActStep:
 
 
 def test_state_defaults_to_no_deficit() -> None:
-    assert _LoopState().zero_action_rounds == 0
+    assert _LoopState().iteration.zero_action_rounds == 0
 
 
 def test_request_defaults_to_not_forcing() -> None:

@@ -1,12 +1,19 @@
-"""Shared per-turn state for the ReAct main-loop phases (Wave 2).
+"""Shared per-turn state for the ReAct main-loop phases.
 
-``_LoopState`` is the minimal skeleton covering exactly what PHASE 6c
-reads or writes today — no speculative fields for 6b/6d/6e yet; they
-join as those phases are extracted. Reference-typed fields (``steps``,
-``executed_beak_steps``, ``guard_impasse_state``) are shared with the
-main loop and mutated in place; scalar fields are synced local→state
-before a phase call and state→local after it, so the loop body stays
-the single source of truth between phase extractions.
+``_LoopState`` stores everything in eight nested group dataclasses
+(``wiring``, ``model_call``, ``mode``, ``guard_tools``, ``convo``,
+``iteration``, ``emit``, ``parse``) so each phase owns a clearly
+bounded slice.  The constructor still accepts the historical flat
+keyword arguments and routes them via ``_FIELD_TO_GROUP`` (derived from
+the group dataclasses themselves, so routing cannot drift); attribute
+access is group-qualified everywhere — ``state.iteration.tools_active``
+— which ``__slots__`` enforces by rejecting stray attributes.
+
+Reference-typed fields (``steps``, ``executed_beak_steps``,
+``messages``, ``working_set``, ``final_answer_segments``) are shared
+with the main loop and mutated in place; scalar fields are synced
+local→state before a phase call and state→local after it, so the loop
+body stays the single source of truth between phase extractions.
 
 Depends only on react_types / platform-level types; must never import
 react_loop.
@@ -14,6 +21,7 @@ react_loop.
 
 from __future__ import annotations
 
+import dataclasses
 import enum
 from dataclasses import dataclass, field
 from typing import Any
@@ -31,10 +39,9 @@ class _LoopControl(enum.Enum):
 
 
 @dataclass
-class _LoopState:
-    """Minimal per-turn state shared between stream_react_loop and phases."""
+class _WiringState:
+    """Turn-level wiring, assembled once and read-only inside phases."""
 
-    # ── cfg · turn-level wiring (assembled once, read-only in 6c) ──
     stack: Any = None
     goal: str = ""
     executor: Any = None
@@ -60,7 +67,12 @@ class _LoopState:
     ordered_result_handoffs: bool = False
     realtime_public_orientation: bool = False
     realtime_public_narrative: bool = False
-    # ── cfg · 6b model-call wiring (assembled once, read-only) ──
+
+
+@dataclass
+class _ModelCallState:
+    """6b model-call wiring, assembled once and read-only downstream."""
+
     temperature: float = 0.0
     max_tokens_per_iter: int = 0
     wants_thinking: bool = False
@@ -72,7 +84,12 @@ class _LoopState:
     agent_id_for_pause: str = ""
     throughput_started_at: float = 0.0
     throughput_interval_s: float = 0.5
-    # ── mode · turn flags (read-only in 6c) ──
+
+
+@dataclass
+class _ModeState:
+    """Turn flags (read-only in the per-iteration phases)."""
+
     is_code_mode: bool = False
     browser_operation_mode: bool = False
     todo_protocol_required: bool = False
@@ -80,16 +97,31 @@ class _LoopState:
     file_inspection_tools_visible: bool = False
     read_only_turn: bool = False
     no_tool_turn: bool = False
-    # ── guard · dsh repeat-tool-reminder (advisory, never vetoes) ──
+
+
+@dataclass
+class _GuardToolsState:
+    """dsh repeat-tool-reminder state (advisory, never vetoes)."""
+
     repeat_guard: Any = None
     guard_notices: list = field(default_factory=list)
-    # ── convo · shared references (mutated in place, never re-synced) ──
+
+
+@dataclass
+class _ConvoState:
+    """Shared references mutated in place, never re-synced."""
+
     steps: list = field(default_factory=list)
     executed_beak_steps: list = field(default_factory=list)
     messages: list = field(default_factory=list)
     working_set: dict = field(default_factory=dict)
     final_answer_segments: list = field(default_factory=list)
-    # ── per-iteration synced scalars (synced in before 6c) ──
+
+
+@dataclass
+class _IterationState:
+    """Per-iteration synced scalars (synced in before each phase call)."""
+
     tools_active: bool = False
     planning_mode: bool = False
     enable_tools: bool = True
@@ -155,12 +187,22 @@ class _LoopState:
     # a model switch. The main loop consumes it after the cancel/pause guard
     # (before the next LLM call) and calls the model-failover closure.
     spin_model_switch_requested: bool = False
-    # ── emit · terminal accumulators (synced in/out) ──
+
+
+@dataclass
+class _EmitState:
+    """Terminal accumulators (synced in/out)."""
+
     final_answer: str | None = None
     terminated_reason: str = "max_iter"
     final_answer_emitted: bool = False
     final_delta_emitted_this_iteration: bool = False
-    # ── parse · 6b/6c outputs consumed by later phases (synced out only) ──
+
+
+@dataclass
+class _ParseState:
+    """6b/6c outputs consumed by later phases (synced out only)."""
+
     resp: Any = None
     raw_text: str = ""
     request_has_tool_evidence: bool = False
@@ -171,3 +213,72 @@ class _LoopState:
     text: str = ""
     length_limited: bool = False
     length_limit_should_continue: bool = False
+
+
+# Group attr name → group dataclass, used by the guard tests to verify
+# every group member is routed and no orphan remains.
+_LOOP_STATE_GROUPS = {
+    "wiring": _WiringState,
+    "model_call": _ModelCallState,
+    "mode": _ModeState,
+    "guard_tools": _GuardToolsState,
+    "convo": _ConvoState,
+    "iteration": _IterationState,
+    "emit": _EmitState,
+    "parse": _ParseState,
+}
+
+# flat field name → owning group attr name, derived from the group
+# dataclasses themselves so the constructor's flat-kwargs routing and
+# the guard tests cannot drift from the group definitions.
+_FIELD_TO_GROUP = {
+    f.name: group_attr
+    for group_attr, group_cls in _LOOP_STATE_GROUPS.items()
+    for f in dataclasses.fields(group_cls)
+}
+
+
+class _LoopState:
+    """Per-turn state shared between stream_react_loop and the phases.
+
+    Storage is the eight nested groups below; the constructor accepts
+    the historical flat keyword arguments and routes each to its group.
+    ``__slots__`` pins the attribute set to the groups, so a typo'd
+    ``state.<attr> = …`` raises instead of silently creating an
+    unrelated instance attribute.
+    """
+
+    __slots__ = (
+        "wiring",
+        "model_call",
+        "mode",
+        "guard_tools",
+        "convo",
+        "iteration",
+        "emit",
+        "parse",
+    )
+
+    wiring: _WiringState
+    model_call: _ModelCallState
+    mode: _ModeState
+    guard_tools: _GuardToolsState
+    convo: _ConvoState
+    iteration: _IterationState
+    emit: _EmitState
+    parse: _ParseState
+
+    def __init__(self, **kwargs: Any) -> None:
+        self.wiring = _WiringState()
+        self.model_call = _ModelCallState()
+        self.mode = _ModeState()
+        self.guard_tools = _GuardToolsState()
+        self.convo = _ConvoState()
+        self.iteration = _IterationState()
+        self.emit = _EmitState()
+        self.parse = _ParseState()
+        for name in kwargs:
+            if name not in _FIELD_TO_GROUP:
+                raise TypeError(f"_LoopState() got an unexpected keyword argument {name!r}")
+        for name, value in kwargs.items():
+            setattr(getattr(self, _FIELD_TO_GROUP[name]), name, value)

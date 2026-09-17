@@ -373,7 +373,7 @@ def _evaluate_final_answer_guards(
 
 
 def _note_guard_impasse(
-    state: dict,
+    impasse: dict,
     label: str,
     steps: list,
     *,
@@ -412,15 +412,15 @@ def _note_guard_impasse(
         )
         or bool(getattr(s, "action_results", None))
     )
-    if state.get("label") == label and state.get("progress") == progress:
-        state["count"] = state.get("count", 0) + 1
+    if impasse.get("label") == label and impasse.get("progress") == progress:
+        impasse["count"] = impasse.get("count", 0) + 1
     else:
-        state.update(label=label, progress=progress, count=1)
-    if state.get("global_progress") == progress:
-        state["global_count"] = state.get("global_count", 0) + 1
+        impasse.update(label=label, progress=progress, count=1)
+    if impasse.get("global_progress") == progress:
+        impasse["global_count"] = impasse.get("global_count", 0) + 1
     else:
-        state.update(global_progress=progress, global_count=1)
-    return state["count"] >= rejection_limit or state["global_count"] >= global_rejection_limit
+        impasse.update(global_progress=progress, global_count=1)
+    return impasse["count"] >= rejection_limit or impasse["global_count"] >= global_rejection_limit
 
 
 def guard_stall_kind(steps: list[ReActStep]) -> str:
@@ -439,7 +439,7 @@ def guard_stall_kind(steps: list[ReActStep]) -> str:
     return "evidence" if _trajectory_has_executed_action(steps) else "action_deficit"
 
 
-def _guard_rejection_outcome(state: dict, label: str, steps: list) -> str:
+def _guard_rejection_outcome(impasse: dict, label: str, steps: list) -> str:
     """Return ``retry`` or ``hard_stop`` for a repeated rejection.
 
     A rejected candidate can never become successful merely because retrying
@@ -451,7 +451,7 @@ def _guard_rejection_outcome(state: dict, label: str, steps: list) -> str:
 
     disposition = guard_disposition(label)
     limit = 3 if disposition == "hard" else 2
-    if not _note_guard_impasse(state, label, steps, rejection_limit=limit):
+    if not _note_guard_impasse(impasse, label, steps, rejection_limit=limit):
         return "retry"
     return "hard_stop"
 
@@ -986,237 +986,220 @@ def _phase_6e_guards_and_step_emit(
     _append_pending_live_steering = append_pending_live_steering
     _build_research_progress_summary = build_research_progress_summary
     # Reference-typed aliases — mutations propagate to the main loop.
-    intent = state.intent
-    steps = state.steps
-    final_answer_segments = state.final_answer_segments
-    step = state.step
+    intent = state.wiring.intent
+    steps = state.convo.steps
+    final_answer_segments = state.convo.final_answer_segments
+    step = state.parse.step
     assert step is not None, "phase 6e requires a parsed ReAct step"
-    react_task_id = state.react_task_id
-    _working_set = state.working_set
-    _guard_impasse_state = state.guard_impasse_state
-    _final_guard_grounded_source_paths = state.final_guard_grounded_source_paths
-    # Scalar mailbox — pulled in, pushed back in the finally below.
-    maybe_final = state.maybe_final
-    final_answer = state.final_answer
-    terminated_reason = state.terminated_reason
-    _evidence_convergence_active = state.evidence_convergence_active
-    _force_convergence_next = state.force_convergence_next
-    _final_stream_started = state.final_stream_started
-    _final_delta_emitted_this_iteration = state.final_delta_emitted_this_iteration
-    _todo_protocol_required = state.todo_protocol_required
-    _todo_protocol_visible = state.todo_protocol_visible
-    _is_code_mode = state.is_code_mode
-    _browser_operation_mode = state.browser_operation_mode
-    _file_inspection_tools_visible = state.file_inspection_tools_visible
-    tools_active = state.tools_active
-    _green_verification_convergence_active = state.green_verification_convergence_active
-    _green_convergence_todo_used = state.green_convergence_todo_used
-    _clean_verification_rounds_after_write = state.clean_verification_rounds_after_write
-    _streamed_final_chars = state.streamed_final_chars
-    _current_phase = state.current_phase
-    _progress_summary = state.progress_summary
-    _public_progress_summary = state.public_progress_summary
+    react_task_id = state.wiring.react_task_id
+    _working_set = state.convo.working_set
+    _guard_impasse_state = state.wiring.guard_impasse_state
+    _final_guard_grounded_source_paths = state.wiring.final_guard_grounded_source_paths
+    # Scalar mailbox — reads pull from state; every write point writes through immediately.
+    maybe_final = state.parse.maybe_final
+    _evidence_convergence_active = state.iteration.evidence_convergence_active
+    _final_stream_started = state.iteration.final_stream_started
+    _final_delta_emitted_this_iteration = state.emit.final_delta_emitted_this_iteration
+    _todo_protocol_required = state.mode.todo_protocol_required
+    _todo_protocol_visible = state.mode.todo_protocol_visible
+    _is_code_mode = state.mode.is_code_mode
+    _browser_operation_mode = state.mode.browser_operation_mode
+    _file_inspection_tools_visible = state.mode.file_inspection_tools_visible
+    tools_active = state.iteration.tools_active
+    _streamed_final_chars = state.iteration.streamed_final_chars
+    _current_phase = state.iteration.current_phase
+    _progress_summary = state.iteration.progress_summary
+    _public_progress_summary = state.iteration.public_progress_summary
     _research_guard_active = _research_final_answer_guards_active(
         is_code_mode=_is_code_mode,
         goal=intent.normalized_goal,
         steps=steps + [step],
         tools_active=tools_active,
     )
-    _length_fragment_pending = state.length_limited and not (
-        bool(getattr(state.resp, "tool_calls", None))
+    _length_fragment_pending = state.parse.length_limited and not (
+        bool(getattr(state.parse.resp, "tool_calls", None))
         or bool(step.observation and step.observation != "N/A")
     )
-    try:
-        if (
-            maybe_final
-            and _evidence_convergence_active is not None
-            and evidence_answer_conflicts_with_goal(
-                goal=intent.normalized_goal,
-                answer=maybe_final,
-            )
-        ):
-            # Bounded evidence exists, so an idle/greeting answer claiming
-            # there was no task is objectively contradictory. Keep it out of
-            # the answer stream and retry with the original request attached.
-            step.observation = (
-                (((step.observation or "") + "\n\n") if step.observation else "")
-                + "[evidence-answer-conflict]\n"
-                + "The proposed answer falsely denied the active user request or the "
-                + "completed evidence. Discard it and answer the original request "
-                + "directly from the bounded evidence already supplied."
-            )
-            maybe_final = None
-            if _research_guard_active:
-                final_answer_segments.clear()
-            _force_convergence_next = True
+    if (
+        maybe_final
+        and _evidence_convergence_active is not None
+        and evidence_answer_conflicts_with_goal(
+            goal=intent.normalized_goal,
+            answer=maybe_final,
+        )
+    ):
+        # Bounded evidence exists, so an idle/greeting answer claiming
+        # there was no task is objectively contradictory. Keep it out of
+        # the answer stream and retry with the original request attached.
+        step.observation = (
+            (((step.observation or "") + "\n\n") if step.observation else "")
+            + "[evidence-answer-conflict]\n"
+            + "The proposed answer falsely denied the active user request or the "
+            + "completed evidence. Discard it and answer the original request "
+            + "directly from the bounded evidence already supplied."
+        )
+        maybe_final = state.parse.maybe_final = None
+        if _research_guard_active:
+            final_answer_segments.clear()
+        state.iteration.force_convergence_next = True
 
-        # Close the race where a follow-up arrives while the model is composing
-        # what would otherwise be the terminal answer. Keep that answer as
-        # conversation history, then give the latest user message the next
-        # model round instead of finalizing over it.
-        if maybe_final and _append_pending_live_steering():
-            maybe_final = None
-            if _research_guard_active:
-                final_answer_segments.clear()
-            _logger.info(
-                "react_loop deferred finalization for a priority user follow-up",
-            )
-
-        # A length-limited research response is only a fragment. PHASE 6g
-        # stores it in ``final_answer_segments`` and the next iteration
-        # continues; guard and publish only after the complete candidate is
-        # available so cross-segment links/facts are checked atomically.
-        if maybe_final and not (_research_guard_active and _length_fragment_pending):
-            _guard_candidate = (
-                "".join(final_answer_segments + [maybe_final])
-                if _research_guard_active and final_answer_segments
-                else maybe_final
-            )
-            _deferred_final_emit = not _final_stream_started and (
-                _evidence_convergence_active is not None
-                or _final_answer_needs_pre_emit_guard(
-                    _guard_candidate,
-                    is_code_mode=_is_code_mode,
-                    browser_operation_mode=_browser_operation_mode,
-                    research_guard_active=_research_guard_active,
-                )
-            )
-            _guard_hit = _evaluate_final_answer_guards(
-                steps=steps,
-                step=step,
-                final_answer=_guard_candidate,
-                is_code_mode=_is_code_mode,
-                todo_protocol_required=_todo_protocol_required,
-                todo_protocol_visible=_todo_protocol_visible,
-                file_inspection_tools_visible=_file_inspection_tools_visible,
-                tools_active=tools_active,
-                goal=intent.normalized_goal,
-                browser_operation_mode=_browser_operation_mode,
-                grounded_source_paths=_final_guard_grounded_source_paths,
-                prior_grounding_text=state.prior_grounding_text,
-            )
-            if _guard_hit is not None:
-                if _research_guard_active:
-                    final_answer_segments.clear()
-                # Solution-A: a guard rejection that is purely a leaked ReAct
-                # protocol block is downgraded to a one-shot cleaned delivery
-                # rather than retried in a loop. The model usually already did
-                # the work (tools ran); only the answer markup was dirty.
-                _downgrade = _try_clean_downgrade(_guard_candidate)
-                if _downgrade is not None:
-                    final_answer = _downgrade
-                    terminated_reason = "final_answer_with_warning"
-                    steps.append(step)
-                    return _LoopControl.BREAK
-                _guard_label, _guard_message = _guard_hit
-                _auto_inspect_step = _try_auto_project_inspection_salvage(
-                    _guard_label,
-                    _guard_candidate,
-                    steps,
-                    iteration=i + 1,
-                    tools_active=tools_active,
-                )
-                if _auto_inspect_step is not None:
-                    step.thought = _auto_inspect_step.thought
-                    step.public_update = _auto_inspect_step.public_update
-                    step.action = _auto_inspect_step.action
-                    step.actions = _auto_inspect_step.actions
-                    _final_stream_started = False
-                    maybe_final = None
-                    return _LoopControl.CONTINUE
-                _guard_outcome = _guard_rejection_outcome(_guard_impasse_state, _guard_label, steps)
-                if _guard_outcome == "hard_stop":
-                    # Same guard, repeated rejections, zero new action-bearing
-                    # steps in between: pushing back again only burns the
-                    # remaining budget and ends in the auto-pause path's
-                    # misleading "paused" report. Terminate with the truth.
-                    _logger.warning(
-                        "react_loop guard impasse · %s rejected the final answer "
-                        "3x with no intervening tool execution — terminating "
-                        "explicitly instead of burning the iteration budget",
-                        _guard_label,
-                    )
-                    final_answer = _guard_impasse_final_answer(_guard_label, _guard_message, steps)
-                    terminated_reason = "guard_impasse"
-                    steps.append(step)
-                    return _LoopControl.BREAK
-                maybe_final = None
-                # A completion guard may discover a semantic defect even
-                # after two superficially green verifier rounds. Re-open the
-                # tool path so the model can perform the demanded repair;
-                # otherwise the convergence gate would suppress every fix
-                # and turn a useful guard into an impasse. The todo protocol
-                # is different: terminal evidence is still valid and the
-                # convergence state already allows exactly one checklist
-                # update. Clearing it here caused green agents to resume an
-                # unbounded test/lint cycle after that update.
-                if _guard_label != "todo-protocol guard" and not (
-                    _guard_label == "final-answer completeness guard"
-                    and _trajectory_has_successful_tool_evidence(steps)
-                ):
-                    _green_verification_convergence_active = False
-                    _green_convergence_todo_used = False
-                    _clean_verification_rounds_after_write = 0
-                    _force_convergence_next = False
-                step.observation = (
-                    (((step.observation or "") + "\n\n") if step.observation else "")
-                    + f"[{_guard_label}]\n"
-                    + _guard_repair_feedback(
-                        _guard_label,
-                        _guard_message,
-                        steps,
-                        candidate_was_published=(
-                            _final_stream_started or _final_delta_emitted_this_iteration
-                        ),
-                    )
-                )
-            elif _deferred_final_emit:
-                _delta = (
-                    _guard_candidate
-                    if _research_guard_active
-                    else (
-                        _guard_candidate[_streamed_final_chars:]
-                        if _streamed_final_chars
-                        else _guard_candidate
-                    )
-                )
-                _emit_assistant_chunk(
-                    state.stack,
-                    iteration=i + 1,
-                    delta=_delta,
-                    task_id=react_task_id,
-                )
-                yield {
-                    "type": "text_delta",
-                    "delta": _delta,
-                    "iteration": i + 1,
-                }
-                _final_delta_emitted_this_iteration = True
-
-        _public_progress_summary = (
-            _progress_summary if _is_code_mode else _build_research_progress_summary(steps + [step])
+    # Close the race where a follow-up arrives while the model is composing
+    # what would otherwise be the terminal answer. Keep that answer as
+    # conversation history, then give the latest user message the next
+    # model round instead of finalizing over it.
+    if maybe_final and _append_pending_live_steering():
+        maybe_final = state.parse.maybe_final = None
+        if _research_guard_active:
+            final_answer_segments.clear()
+        _logger.info(
+            "react_loop deferred finalization for a priority user follow-up",
         )
 
-        yield {
-            "type": "react_step_complete",
-            "iteration": step.iteration,
-            "thought": step.thought,
-            "public_update": step.public_update,
-            "action": step.action,
-            "observation": step.observation,
-            "task_id": str(react_task_id),
-            "current_phase": _current_phase if _is_code_mode else None,
-            "working_set": list(_working_set.values()) if _is_code_mode else None,
-            "progress_summary": _public_progress_summary,
-        }
-        return _LoopControl.CONTINUE
-    finally:
-        state.maybe_final = maybe_final
-        state.force_convergence_next = _force_convergence_next
-        state.green_verification_convergence_active = _green_verification_convergence_active
-        state.green_convergence_todo_used = _green_convergence_todo_used
-        state.clean_verification_rounds_after_write = _clean_verification_rounds_after_write
-        state.final_answer = final_answer
-        state.terminated_reason = terminated_reason
-        state.final_delta_emitted_this_iteration = _final_delta_emitted_this_iteration
-        state.public_progress_summary = _public_progress_summary
+    # A length-limited research response is only a fragment. PHASE 6g
+    # stores it in ``final_answer_segments`` and the next iteration
+    # continues; guard and publish only after the complete candidate is
+    # available so cross-segment links/facts are checked atomically.
+    if maybe_final and not (_research_guard_active and _length_fragment_pending):
+        _guard_candidate = (
+            "".join(final_answer_segments + [maybe_final])
+            if _research_guard_active and final_answer_segments
+            else maybe_final
+        )
+        _deferred_final_emit = not _final_stream_started and (
+            _evidence_convergence_active is not None
+            or _final_answer_needs_pre_emit_guard(
+                _guard_candidate,
+                is_code_mode=_is_code_mode,
+                browser_operation_mode=_browser_operation_mode,
+                research_guard_active=_research_guard_active,
+            )
+        )
+        _guard_hit = _evaluate_final_answer_guards(
+            steps=steps,
+            step=step,
+            final_answer=_guard_candidate,
+            is_code_mode=_is_code_mode,
+            todo_protocol_required=_todo_protocol_required,
+            todo_protocol_visible=_todo_protocol_visible,
+            file_inspection_tools_visible=_file_inspection_tools_visible,
+            tools_active=tools_active,
+            goal=intent.normalized_goal,
+            browser_operation_mode=_browser_operation_mode,
+            grounded_source_paths=_final_guard_grounded_source_paths,
+            prior_grounding_text=state.wiring.prior_grounding_text,
+        )
+        if _guard_hit is not None:
+            if _research_guard_active:
+                final_answer_segments.clear()
+            # Solution-A: a guard rejection that is purely a leaked ReAct
+            # protocol block is downgraded to a one-shot cleaned delivery
+            # rather than retried in a loop. The model usually already did
+            # the work (tools ran); only the answer markup was dirty.
+            _downgrade = _try_clean_downgrade(_guard_candidate)
+            if _downgrade is not None:
+                state.emit.final_answer = _downgrade
+                state.emit.terminated_reason = "final_answer_with_warning"
+                steps.append(step)
+                return _LoopControl.BREAK
+            _guard_label, _guard_message = _guard_hit
+            _auto_inspect_step = _try_auto_project_inspection_salvage(
+                _guard_label,
+                _guard_candidate,
+                steps,
+                iteration=i + 1,
+                tools_active=tools_active,
+            )
+            if _auto_inspect_step is not None:
+                step.thought = _auto_inspect_step.thought
+                step.public_update = _auto_inspect_step.public_update
+                step.action = _auto_inspect_step.action
+                step.actions = _auto_inspect_step.actions
+                _final_stream_started = False
+                state.parse.maybe_final = None
+                return _LoopControl.CONTINUE
+            _guard_outcome = _guard_rejection_outcome(_guard_impasse_state, _guard_label, steps)
+            if _guard_outcome == "hard_stop":
+                # Same guard, repeated rejections, zero new action-bearing
+                # steps in between: pushing back again only burns the
+                # remaining budget and ends in the auto-pause path's
+                # misleading "paused" report. Terminate with the truth.
+                _logger.warning(
+                    "react_loop guard impasse · %s rejected the final answer "
+                    "3x with no intervening tool execution — terminating "
+                    "explicitly instead of burning the iteration budget",
+                    _guard_label,
+                )
+                state.emit.final_answer = _guard_impasse_final_answer(_guard_label, _guard_message, steps)
+                state.emit.terminated_reason = "guard_impasse"
+                steps.append(step)
+                return _LoopControl.BREAK
+            state.parse.maybe_final = None
+            # A completion guard may discover a semantic defect even
+            # after two superficially green verifier rounds. Re-open the
+            # tool path so the model can perform the demanded repair;
+            # otherwise the convergence gate would suppress every fix
+            # and turn a useful guard into an impasse. The todo protocol
+            # is different: terminal evidence is still valid and the
+            # convergence state already allows exactly one checklist
+            # update. Clearing it here caused green agents to resume an
+            # unbounded test/lint cycle after that update.
+            if _guard_label != "todo-protocol guard" and not (
+                _guard_label == "final-answer completeness guard"
+                and _trajectory_has_successful_tool_evidence(steps)
+            ):
+                state.iteration.green_verification_convergence_active = False
+                state.iteration.green_convergence_todo_used = False
+                state.iteration.clean_verification_rounds_after_write = 0
+                state.iteration.force_convergence_next = False
+            step.observation = (
+                (((step.observation or "") + "\n\n") if step.observation else "")
+                + f"[{_guard_label}]\n"
+                + _guard_repair_feedback(
+                    _guard_label,
+                    _guard_message,
+                    steps,
+                    candidate_was_published=(
+                        _final_stream_started or _final_delta_emitted_this_iteration
+                    ),
+                )
+            )
+        elif _deferred_final_emit:
+            _delta = (
+                _guard_candidate
+                if _research_guard_active
+                else (
+                    _guard_candidate[_streamed_final_chars:]
+                    if _streamed_final_chars
+                    else _guard_candidate
+                )
+            )
+            _emit_assistant_chunk(
+                state.wiring.stack,
+                iteration=i + 1,
+                delta=_delta,
+                task_id=react_task_id,
+            )
+            yield {
+                "type": "text_delta",
+                "delta": _delta,
+                "iteration": i + 1,
+            }
+            state.emit.final_delta_emitted_this_iteration = True
+
+    _public_progress_summary = state.iteration.public_progress_summary = (
+        _progress_summary if _is_code_mode else _build_research_progress_summary(steps + [step])
+    )
+
+    yield {
+        "type": "react_step_complete",
+        "iteration": step.iteration,
+        "thought": step.thought,
+        "public_update": step.public_update,
+        "action": step.action,
+        "observation": step.observation,
+        "task_id": str(react_task_id),
+        "current_phase": _current_phase if _is_code_mode else None,
+        "working_set": list(_working_set.values()) if _is_code_mode else None,
+        "progress_summary": _public_progress_summary,
+    }
+    return _LoopControl.CONTINUE

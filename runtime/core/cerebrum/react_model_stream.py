@@ -229,7 +229,7 @@ def _phase_6b_model_stream(
     Moved verbatim from ``react_loop.py``. Returns ``NEXT_ITERATION``
     for the failover / transient-retry outer-loop continues,
     ``RETURN_NONE`` when the first iteration fails with no steps,
-    ``BREAK`` for a terminal model error (``state.terminated_reason`` is
+    ``BREAK`` for a terminal model error (``state.emit.terminated_reason`` is
     then ``"error"``), and ``CONTINUE`` on success (``state`` carries
     ``resp`` / ``raw_text`` / ``request_has_tool_evidence`` /
     ``iteration_soft_timed_out`` / ``maybe_emit_throughput`` for the
@@ -244,24 +244,24 @@ def _phase_6b_model_stream(
     _model_iteration_timeout_s = model_iteration_timeout_s
     _try_react_model_failover = try_react_model_failover
     # Reference-typed aliases — mutations propagate to the main loop.
-    intent = state.intent
-    steps = state.steps
-    executed_beak_steps = state.executed_beak_steps
-    messages = state.messages
-    router = state.router
-    stack = state.stack
-    react_task_id = state.react_task_id
-    thread_id = state.thread_id
-    _pause = state.pause_controller
+    intent = state.wiring.intent
+    steps = state.convo.steps
+    executed_beak_steps = state.convo.executed_beak_steps
+    messages = state.convo.messages
+    router = state.wiring.router
+    stack = state.wiring.stack
+    react_task_id = state.wiring.react_task_id
+    thread_id = state.wiring.thread_id
+    _pause = state.wiring.pause_controller
     # Turn-level cfg (assembled once, read-only here).
-    temperature = state.temperature
-    _max_tokens_per_iter = state.max_tokens_per_iter
-    _wants_thinking = state.wants_thinking
-    _reasoning_effort = state.reasoning_effort
-    _native_evidence_update_tool_specs = state.native_evidence_update_tool_specs
-    _native_public_update_tool_specs = state.native_public_update_tool_specs
-    _budget_auto_pause_enabled = state.budget_auto_pause_enabled
-    _budget_pause_threshold = state.budget_pause_threshold
+    temperature = state.model_call.temperature
+    _max_tokens_per_iter = state.model_call.max_tokens_per_iter
+    _wants_thinking = state.model_call.wants_thinking
+    _reasoning_effort = state.model_call.reasoning_effort
+    _native_evidence_update_tool_specs = state.model_call.native_evidence_update_tool_specs
+    _native_public_update_tool_specs = state.model_call.native_public_update_tool_specs
+    _budget_auto_pause_enabled = state.model_call.budget_auto_pause_enabled
+    _budget_pause_threshold = state.model_call.budget_pause_threshold
     _budget_config = getattr(getattr(stack, "config", None), "budget", None)
     _user_context = getattr(intent, "user_context", None) or {}
     _cumulative_token_auto_pause_enabled = bool(
@@ -269,41 +269,38 @@ def _phase_6b_model_stream(
         or getattr(intent, "flags", {}).get("cumulative_token_auto_pause", False)
         or getattr(_budget_config, "cumulative_token_auto_pause", False)
     )
-    _agent_id_for_pause = state.agent_id_for_pause
-    _throughput_started_at = state.throughput_started_at
-    _throughput_interval_s = state.throughput_interval_s
-    _is_code_mode = state.is_code_mode
-    _browser_operation_mode = state.browser_operation_mode
+    _agent_id_for_pause = state.model_call.agent_id_for_pause
+    _throughput_started_at = state.model_call.throughput_started_at
+    _throughput_interval_s = state.model_call.throughput_interval_s
+    _is_code_mode = state.mode.is_code_mode
+    _browser_operation_mode = state.mode.browser_operation_mode
     _research_guard_active = _research_final_answer_guards_active(
         is_code_mode=_is_code_mode,
-        goal=state.goal,
+        goal=state.wiring.goal,
         steps=steps,
-        tools_active=state.tools_active,
+        tools_active=state.iteration.tools_active,
     )
-    # Scalar mailbox — pulled in, pushed back in the finally below.
-    effective_model = state.effective_model
-    _native_mode = state.native_mode
-    _evidence_convergence_active = state.evidence_convergence_active
-    _force_convergence_next = state.force_convergence_next
-    _terminal_convergence_active = state.terminal_convergence_active
-    _last_public_update_key = state.last_public_update_key
-    _throughput_chars = state.throughput_chars
-    _final_stream_started = state.final_stream_started
-    _streamed_final_chars = state.streamed_final_chars
-    _final_delta_emitted_this_iteration = state.final_delta_emitted_this_iteration
-    terminated_reason = state.terminated_reason
-    consecutive_llm_errors = state.consecutive_llm_errors
-    _model_failovers = state.model_failovers
-    _zero_action_rounds = state.zero_action_rounds
-    resp = None
-    raw_text = ""
-    _request_has_tool_evidence = False
-    _iteration_soft_timed_out = False
+    # Scalar mailbox — write-through: every write below syncs state immediately.
+    effective_model = state.iteration.effective_model
+    _native_mode = state.iteration.native_mode
+    _evidence_convergence_active = state.iteration.evidence_convergence_active
+    _force_convergence_next = state.iteration.force_convergence_next
+    _terminal_convergence_active = state.iteration.terminal_convergence_active
+    _throughput_chars = state.iteration.throughput_chars
+    _final_stream_started = state.iteration.final_stream_started
+    _streamed_final_chars = state.iteration.streamed_final_chars
+    consecutive_llm_errors = state.iteration.consecutive_llm_errors
+    _model_failovers = state.iteration.model_failovers
+    _zero_action_rounds = state.iteration.zero_action_rounds
+    resp = state.parse.resp = None
+    state.parse.raw_text = ""
+    _request_has_tool_evidence = state.parse.request_has_tool_evidence = False
+    state.parse.iteration_soft_timed_out = False
     try:
         try:
             _iteration_recovery_mode = _force_convergence_next
-            _force_convergence_next = False
-            _request_has_tool_evidence = bool(
+            _force_convergence_next = state.iteration.force_convergence_next = False
+            _request_has_tool_evidence = state.parse.request_has_tool_evidence = bool(
                 executed_beak_steps
                 or any(
                     prior_step.action_results or (prior_step.action and prior_step.observation)
@@ -363,25 +360,25 @@ def _phase_6b_model_stream(
             )
             text_parts: list[str] = []
             thinking_parts: list[str] = []
-            resp = None
+            resp = state.parse.resp = None
             # Once we detect the ``Final Answer:`` anchor in the streaming
             # text we switch to live token streaming so short tasks see
             # first-byte latency closer to the LLM's TTFT instead of full
             # response time. Pre-anchor chunks must stay buffered because
             # they may contain Thought:/Action: prose that must not leak.
-            _final_stream_started = False
+            _final_stream_started = state.iteration.final_stream_started = False
             _visible_stream_state = {"chars": 0}
-            _streamed_final_chars = 0
+            _streamed_final_chars = state.iteration.streamed_final_chars = 0
             _final_stream_guarded = False
             _final_anchor_action_checked = False
-            _final_delta_emitted_this_iteration = False
+            state.emit.final_delta_emitted_this_iteration = False
             # Incremental Thought-streaming state: while the Final Answer
             # is still buffered, the Thought prose already decodes token
             # by token — surface it into the thinking block so tool-heavy
             # turns show signs of life long before the terminal answer.
             _thought_stream_cursor = 0
             _thought_stream_open = False
-            _iteration_soft_timed_out = False
+            state.parse.iteration_soft_timed_out = False
             _base_iteration_timeout = _model_iteration_timeout_s(model_iteration_timeout_s_config)
             _has_tool_evidence = _request_has_tool_evidence
             _reasoning_watchdog_s = _reasoning_only_watchdog_s(
@@ -405,10 +402,10 @@ def _phase_6b_model_stream(
                 # so PHASE 6c's calls through this closure update the same
                 # value the next iteration syncs in.
                 _now = time.monotonic()
-                if _now - state.throughput_last_emit < _throughput_interval_s:
+                if _now - state.iteration.throughput_last_emit < _throughput_interval_s:
                     return None
                 _elapsed = _now - _throughput_started_at
-                state.throughput_last_emit = _now
+                state.iteration.throughput_last_emit = _now
                 return {
                     "type": "throughput",
                     "chars": chars,
@@ -416,7 +413,7 @@ def _phase_6b_model_stream(
                     "chars_per_sec": (chars / _elapsed if _elapsed > 0 else 0.0),
                 }
 
-            state.maybe_emit_throughput = _maybe_emit_throughput
+            state.parse.maybe_emit_throughput = _maybe_emit_throughput
 
             def _visible_started(state: dict[str, Any] = _visible_stream_state) -> Any:
                 return state["chars"]
@@ -435,7 +432,7 @@ def _phase_6b_model_stream(
                 any_activity_counts=_evidence_convergence_active is None,
             ):
                 if evt is _MODEL_STREAM_DEADLINE:
-                    _iteration_soft_timed_out = True
+                    state.parse.iteration_soft_timed_out = True
                     _logger.warning(
                         "react_loop iter %d model stream exceeded %.1fs before "
                         "a visible final answer; switching to convergence mode",
@@ -463,7 +460,7 @@ def _phase_6b_model_stream(
                     # its terminal done/tool-call envelope. Cancellation is
                     # atomic: discard that pending lane and let PHASE 7 emit
                     # the explicit cancellation outcome.
-                    terminated_reason = "cancelled"
+                    state.emit.terminated_reason = "cancelled"
                     return _LoopControl.BREAK
                 if evt.type == "text_delta":
                     text_parts.append(evt.delta)
@@ -499,7 +496,7 @@ def _phase_6b_model_stream(
                                 )
                             ):
                                 _final_stream_guarded = True
-                                _final_stream_started = False
+                                _final_stream_started = state.iteration.final_stream_started = False
                                 continue
                             safe_end = _safe_stream_end(answer_so_far)
                             if safe_end > _streamed_final_chars:
@@ -515,10 +512,10 @@ def _phase_6b_model_stream(
                                     "delta": delta_out,
                                     "iteration": i + 1,
                                 }
-                                _final_delta_emitted_this_iteration = True
-                                _streamed_final_chars = safe_end
+                                state.emit.final_delta_emitted_this_iteration = True
+                                _streamed_final_chars = state.iteration.streamed_final_chars = safe_end
                                 _visible_stream_state["chars"] = safe_end
-                                _throughput_chars += len(delta_out)
+                                _throughput_chars = state.iteration.throughput_chars = _throughput_chars + len(delta_out)
                                 _tp = _maybe_emit_throughput(_throughput_chars)
                                 if _tp is not None:
                                     yield _tp
@@ -575,7 +572,7 @@ def _phase_6b_model_stream(
                                     "delta": _thought_delta,
                                     "iteration": i + 1,
                                 }
-                                _throughput_chars += len(_thought_delta)
+                                _throughput_chars = state.iteration.throughput_chars = _throughput_chars + len(_thought_delta)
                                 _tp = _maybe_emit_throughput(_throughput_chars)
                                 if _tp is not None:
                                     yield _tp
@@ -631,13 +628,13 @@ def _phase_6b_model_stream(
                                         "delta": delta_out,
                                         "iteration": i + 1,
                                     }
-                                    _final_delta_emitted_this_iteration = True
-                                    _streamed_final_chars = safe_end
-                                    _throughput_chars += len(delta_out)
+                                    state.emit.final_delta_emitted_this_iteration = True
+                                    _streamed_final_chars = state.iteration.streamed_final_chars = safe_end
+                                    _throughput_chars = state.iteration.throughput_chars = _throughput_chars + len(delta_out)
                                     _tp = _maybe_emit_throughput(_throughput_chars)
                                     if _tp is not None:
                                         yield _tp
-                                _final_stream_started = True
+                                _final_stream_started = state.iteration.final_stream_started = True
                                 _visible_stream_state["chars"] = _streamed_final_chars
                         elif (
                             len(joined) >= _ZERO_ANCHOR_STREAM_GATE_CHARS
@@ -699,20 +696,20 @@ def _phase_6b_model_stream(
                                     "delta": delta_out,
                                     "iteration": i + 1,
                                 }
-                                _final_delta_emitted_this_iteration = True
-                                _streamed_final_chars = safe_end
-                                _throughput_chars += len(delta_out)
+                                state.emit.final_delta_emitted_this_iteration = True
+                                _streamed_final_chars = state.iteration.streamed_final_chars = safe_end
+                                _throughput_chars = state.iteration.throughput_chars = _throughput_chars + len(delta_out)
                                 _tp = _maybe_emit_throughput(_throughput_chars)
                                 if _tp is not None:
                                     yield _tp
-                            _final_stream_started = True
+                            _final_stream_started = state.iteration.final_stream_started = True
                             _visible_stream_state["chars"] = _streamed_final_chars
                 elif evt.type == "thinking_delta":
                     if (
                         _reasoning_watchdog_s is not None
                         and time.monotonic() - _reasoning_started_at >= _reasoning_watchdog_s
                     ):
-                        _iteration_soft_timed_out = True
+                        state.parse.iteration_soft_timed_out = True
                         _logger.warning(
                             "react_loop iter %d stalled in private reasoning for %.1fs; "
                             "switching to convergence",
@@ -733,7 +730,7 @@ def _phase_6b_model_stream(
                         "delta": evt.delta,
                         "iteration": i + 1,
                     }
-                    _throughput_chars += len(evt.delta or "")
+                    _throughput_chars = state.iteration.throughput_chars = _throughput_chars + len(evt.delta or "")
                     _tp = _maybe_emit_throughput(_throughput_chars)
                     if _tp is not None:
                         yield _tp
@@ -757,7 +754,7 @@ def _phase_6b_model_stream(
                             )
                         ):
                             _final_stream_guarded = True
-                            _final_stream_started = False
+                            _final_stream_started = state.iteration.final_stream_started = False
                         elif len(answer_so_far) > _streamed_final_chars:
                             delta_out = answer_so_far[_streamed_final_chars:]
                             _emit_assistant_chunk(
@@ -771,14 +768,14 @@ def _phase_6b_model_stream(
                                 "delta": delta_out,
                                 "iteration": i + 1,
                             }
-                            _final_delta_emitted_this_iteration = True
-                            _streamed_final_chars = len(answer_so_far)
+                            state.emit.final_delta_emitted_this_iteration = True
+                            _streamed_final_chars = state.iteration.streamed_final_chars = len(answer_so_far)
                             _visible_stream_state["chars"] = _streamed_final_chars
-                            _throughput_chars += len(delta_out)
+                            _throughput_chars = state.iteration.throughput_chars = _throughput_chars + len(delta_out)
                             _tp = _maybe_emit_throughput(_throughput_chars)
                             if _tp is not None:
                                 yield _tp
-                    resp = evt.final
+                    resp = state.parse.resp = evt.final
             if resp is None:
                 # The provider iterator may end immediately after arranging
                 # cancellation, leaving no next event on which the in-loop
@@ -794,7 +791,7 @@ def _phase_6b_model_stream(
                 except (ImportError, AttributeError, TypeError, UnboundLocalError):  # noqa: BLE001
                     _ct_after_stream = None
                 if _ct_after_stream is not None and _ct_after_stream.is_cancelled:
-                    terminated_reason = "cancelled"
+                    state.emit.terminated_reason = "cancelled"
                     return _LoopControl.BREAK
                 if _native_mode and bool(req.tools):
                     # Native providers are allowed to stream answer-looking
@@ -812,7 +809,7 @@ def _phase_6b_model_stream(
                     )
                 from runtime.platform.models.llm import ModelResponse
 
-                resp = ModelResponse(
+                resp = state.parse.resp = ModelResponse(
                     text="".join(text_parts),
                     thinking="".join(thinking_parts),
                     model=effective_model,
@@ -850,7 +847,7 @@ def _phase_6b_model_stream(
                     is_code_mode=_is_code_mode,
                 )
                 messages[:] = _compacted
-                consecutive_llm_errors += 1
+                consecutive_llm_errors = state.iteration.consecutive_llm_errors = consecutive_llm_errors + 1
                 messages.append(
                     Message(
                         role="user",
@@ -880,7 +877,7 @@ def _phase_6b_model_stream(
                 _fallback_model = _try_react_model_failover(type(exc).__name__)
                 # The injected wrapper bumped the counter through the
                 # react_loop closure; refresh the local mirror.
-                _model_failovers = state.model_failovers
+                _model_failovers = state.iteration.model_failovers
                 if _fallback_model:
                     messages.append(
                         Message(
@@ -907,7 +904,7 @@ def _phase_6b_model_stream(
                         "iteration": i + 1,
                         "attempt": _model_failovers,
                     }
-                    _force_convergence_next = bool(steps)
+                    _force_convergence_next = state.iteration.force_convergence_next = bool(steps)
                     return _LoopControl.NEXT_ITERATION
             if not steps:
                 _err_msg = _safe_react_error_message(exc)
@@ -935,7 +932,7 @@ def _phase_6b_model_stream(
                 )
             )
             if not _error_text_was_exposed and not _auth_failure and consecutive_llm_errors < 2:
-                consecutive_llm_errors += 1
+                consecutive_llm_errors = state.iteration.consecutive_llm_errors = consecutive_llm_errors + 1
                 messages.append(
                     Message(
                         role="user",
@@ -957,11 +954,11 @@ def _phase_6b_model_stream(
                     "attempt": consecutive_llm_errors,
                 }
                 return _LoopControl.NEXT_ITERATION
-            terminated_reason = "error"
+            state.emit.terminated_reason = "error"
             return _LoopControl.BREAK
 
-        consecutive_llm_errors = 0
-        raw_text = "".join(text_parts)
+        state.iteration.consecutive_llm_errors = 0
+        state.parse.raw_text = "".join(text_parts)
         try:
             _in_tok = int(getattr(resp, "input_tokens", 0) or 0)
             _out_tok = int(getattr(resp, "output_tokens", 0) or 0)
@@ -1121,16 +1118,17 @@ def _phase_6b_model_stream(
             _logger.debug("budget check failed", exc_info=True)
         return _LoopControl.CONTINUE
     finally:
-        state.force_convergence_next = _force_convergence_next
-        state.last_public_update_key = _last_public_update_key
-        state.throughput_chars = _throughput_chars
-        state.final_stream_started = _final_stream_started
-        state.streamed_final_chars = _streamed_final_chars
-        state.final_delta_emitted_this_iteration = _final_delta_emitted_this_iteration
-        state.terminated_reason = terminated_reason
-        state.consecutive_llm_errors = consecutive_llm_errors
-        state.model_failovers = _model_failovers
-        state.resp = resp
-        state.raw_text = raw_text
-        state.request_has_tool_evidence = _request_has_tool_evidence
-        state.iteration_soft_timed_out = _iteration_soft_timed_out
+        # Wave B: writes already land on state at their assignment sites, so
+        # the old bulk push-back is reduced to the mirrors this body actually
+        # keeps dual-written. Fields this body only ever wrote straight to
+        # state (last_public_update_key / terminated_reason / raw_text /
+        # iteration_soft_timed_out / final_delta_emitted_this_iteration) are
+        # not pushed back here.
+        state.iteration.force_convergence_next = _force_convergence_next
+        state.iteration.throughput_chars = _throughput_chars
+        state.iteration.final_stream_started = _final_stream_started
+        state.iteration.streamed_final_chars = _streamed_final_chars
+        state.iteration.consecutive_llm_errors = consecutive_llm_errors
+        state.iteration.model_failovers = _model_failovers
+        state.parse.resp = resp
+        state.parse.request_has_tool_evidence = _request_has_tool_evidence

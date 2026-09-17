@@ -515,11 +515,11 @@ def _stream_react_loop_impl(
             )
             # dsh guard semantics: a user interjection changes the context;
             # repetition across it is not a loop. Reset the repeat-call chain.
-            _repeat_guard = state.repeat_guard
+            _repeat_guard = state.guard_tools.repeat_guard
             if _repeat_guard is not None:
                 try:
                     _repeat_guard.reset(
-                        agent_key=state.thread_id or "default",
+                        agent_key=state.wiring.thread_id or "default",
                     )
                 except Exception:  # noqa: BLE001 — advisory; never break the turn
                     _logger.debug("repeat-tool guard reset skipped", exc_info=True)
@@ -742,8 +742,8 @@ def _stream_react_loop_impl(
         # compression pass failed to break a spinning turn. Consume the flag
         # here, before the next LLM call, so the switch takes effect on this
         # iteration rather than waiting for another blank round.
-        if state.spin_model_switch_requested:
-            state.spin_model_switch_requested = False
+        if state.iteration.spin_model_switch_requested:
+            state.iteration.spin_model_switch_requested = False
             _fallback_model = _try_requested_model_switch(state)
             if _fallback_model is not None:
                 _logger.warning(
@@ -754,23 +754,23 @@ def _stream_react_loop_impl(
                 )
 
         # ── PHASE 6b · LLM call + Final-Answer anchor stream ───────────
-        state.native_mode = _native_mode
-        state.evidence_convergence_active = _evidence_convergence_active
-        state.effective_model = effective_model
-        state.force_convergence_next = _force_convergence_next
+        state.iteration.native_mode = _native_mode
+        state.iteration.evidence_convergence_active = _evidence_convergence_active
+        state.iteration.effective_model = effective_model
+        state.iteration.force_convergence_next = _force_convergence_next
         # PHASE 6b decides whether a research candidate may stream before the
         # response is parsed. Keep live tool availability synchronized here,
         # including the first iteration and plan-mode transitions.
-        state.tools_active = tools_active
-        state.last_public_update_key = _last_public_update_key
-        state.throughput_chars = _throughput_chars
-        state.throughput_last_emit = _throughput_last_emit
+        state.iteration.tools_active = tools_active
+        state.iteration.last_public_update_key = _last_public_update_key
+        state.iteration.throughput_chars = _throughput_chars
+        state.iteration.throughput_last_emit = _throughput_last_emit
         # final_stream_started / streamed_final_chars /
         # final_delta_emitted_this_iteration are reset unconditionally
         # inside the phase each iteration — write-only, no sync-in.
-        state.terminated_reason = terminated_reason
-        state.consecutive_llm_errors = consecutive_llm_errors
-        state.model_failovers = _model_failovers
+        state.emit.terminated_reason = terminated_reason
+        state.iteration.consecutive_llm_errors = consecutive_llm_errors
+        state.iteration.model_failovers = _model_failovers
 
         def _try_failover_for_6b(reason: str) -> str | None:
             # Same closure bridge as _try_failover_for_6c: the loop's
@@ -780,9 +780,9 @@ def _stream_react_loop_impl(
             # code used to see. ``next_custom_model_fallback`` keeps
             # resolving through the react_loop module global.
             nonlocal _native_mode
-            _native_mode = state.native_mode
+            _native_mode = state.iteration.native_mode
             _fallback = _try_react_model_failover(reason)
-            state.model_failovers = _model_failovers  # noqa: B023 — called immediately, same iteration
+            state.iteration.model_failovers = _model_failovers  # noqa: B023 — called immediately, same iteration
             return _fallback
 
         _loop_ctrl = yield from _phase_6b_model_stream(
@@ -792,21 +792,17 @@ def _stream_react_loop_impl(
             model_iteration_timeout_s_config=_model_iteration_timeout_s_config,
             try_react_model_failover=_try_failover_for_6b,
         )
-        _force_convergence_next = state.force_convergence_next
-        _last_public_update_key = state.last_public_update_key
-        _throughput_chars = state.throughput_chars
-        _throughput_last_emit = state.throughput_last_emit
-        _final_stream_started = state.final_stream_started
-        _streamed_final_chars = state.streamed_final_chars
-        _final_delta_emitted_this_iteration = state.final_delta_emitted_this_iteration
-        terminated_reason = state.terminated_reason
-        consecutive_llm_errors = state.consecutive_llm_errors
-        _model_failovers = state.model_failovers
-        resp = state.resp
-        raw_text = state.raw_text
-        _request_has_tool_evidence = state.request_has_tool_evidence
-        _iteration_soft_timed_out = state.iteration_soft_timed_out
-        _maybe_emit_throughput = state.maybe_emit_throughput
+        _force_convergence_next = state.iteration.force_convergence_next
+        _last_public_update_key = state.iteration.last_public_update_key
+        _throughput_chars = state.iteration.throughput_chars
+        _throughput_last_emit = state.iteration.throughput_last_emit
+        _final_stream_started = state.iteration.final_stream_started
+        _streamed_final_chars = state.iteration.streamed_final_chars
+        _final_delta_emitted_this_iteration = state.emit.final_delta_emitted_this_iteration
+        terminated_reason = state.emit.terminated_reason
+        consecutive_llm_errors = state.iteration.consecutive_llm_errors
+        _model_failovers = state.iteration.model_failovers
+        _maybe_emit_throughput = state.parse.maybe_emit_throughput
         if _loop_ctrl is _LoopControl.RETURN_NONE:
             return None
         if _loop_ctrl is _LoopControl.BREAK:
@@ -817,19 +813,19 @@ def _stream_react_loop_impl(
         # ── PHASE 6c · parse step / format-violation check ─────────────
         # Sync per-iteration scalars into state; the phase pulls/pushes
         # them internally and the write-set is synced back below.
-        state.native_mode = _native_mode
-        state.evidence_convergence_active = _evidence_convergence_active
-        state.model_timeout_recoveries = _model_timeout_recoveries
-        state.model_failovers = _model_failovers
-        state.final_stream_started = _final_stream_started
-        state.force_convergence_next = _force_convergence_next
-        state.tools_active = tools_active
-        state.consecutive_format_violations = consecutive_format_violations
-        state.throughput_chars = _throughput_chars
-        state.final_answer = final_answer
-        state.terminated_reason = terminated_reason
-        state.final_answer_emitted = final_answer_emitted
-        state.final_delta_emitted_this_iteration = _final_delta_emitted_this_iteration
+        state.iteration.native_mode = _native_mode
+        state.iteration.evidence_convergence_active = _evidence_convergence_active
+        state.iteration.model_timeout_recoveries = _model_timeout_recoveries
+        state.iteration.model_failovers = _model_failovers
+        state.iteration.final_stream_started = _final_stream_started
+        state.iteration.force_convergence_next = _force_convergence_next
+        state.iteration.tools_active = tools_active
+        state.iteration.consecutive_format_violations = consecutive_format_violations
+        state.iteration.throughput_chars = _throughput_chars
+        state.emit.final_answer = final_answer
+        state.emit.terminated_reason = terminated_reason
+        state.emit.final_answer_emitted = final_answer_emitted
+        state.emit.final_delta_emitted_this_iteration = _final_delta_emitted_this_iteration
 
         def _try_failover_for_6c(reason: str) -> str | None:
             # The failover closure reads the loop's ``_native_mode`` and
@@ -838,58 +834,54 @@ def _stream_react_loop_impl(
             # used to see. ``next_custom_model_fallback`` keeps resolving
             # through the react_loop module global (tests patch it there).
             nonlocal _native_mode
-            _native_mode = state.native_mode
+            _native_mode = state.iteration.native_mode
             _fallback = _try_react_model_failover(reason)
-            state.model_failovers = _model_failovers  # noqa: B023 — called immediately, same iteration
+            state.iteration.model_failovers = _model_failovers  # noqa: B023 — called immediately, same iteration
             return _fallback
 
         _loop_ctrl = yield from _phase_6c_parse_and_guard(
             state,
-            resp=resp,
-            raw_text=raw_text,
             i=i,
-            request_has_tool_evidence=_request_has_tool_evidence,
-            iteration_soft_timed_out=_iteration_soft_timed_out,
             try_react_model_failover=_try_failover_for_6c,
             maybe_emit_throughput=_maybe_emit_throughput,
         )
-        _native_mode = state.native_mode
-        _model_timeout_recoveries = state.model_timeout_recoveries
-        _final_stream_started = state.final_stream_started
-        _force_convergence_next = state.force_convergence_next
-        consecutive_format_violations = state.consecutive_format_violations
-        _throughput_chars = state.throughput_chars
-        final_answer = state.final_answer
-        terminated_reason = state.terminated_reason
-        final_answer_emitted = state.final_answer_emitted
-        _final_delta_emitted_this_iteration = state.final_delta_emitted_this_iteration
-        step = state.step
-        maybe_final = state.maybe_final
-        text = state.text
-        _length_limited = state.length_limited
-        _length_limit_should_continue = state.length_limit_should_continue
+        _native_mode = state.iteration.native_mode
+        _model_timeout_recoveries = state.iteration.model_timeout_recoveries
+        _final_stream_started = state.iteration.final_stream_started
+        _force_convergence_next = state.iteration.force_convergence_next
+        consecutive_format_violations = state.iteration.consecutive_format_violations
+        _throughput_chars = state.iteration.throughput_chars
+        final_answer = state.emit.final_answer
+        terminated_reason = state.emit.terminated_reason
+        final_answer_emitted = state.emit.final_answer_emitted
+        _final_delta_emitted_this_iteration = state.emit.final_delta_emitted_this_iteration
+        step = state.parse.step
+        maybe_final = state.parse.maybe_final
+        text = state.parse.text
+        _length_limited = state.parse.length_limited
+        _length_limit_should_continue = state.parse.length_limit_should_continue
         if _loop_ctrl is _LoopControl.RETURN_NONE:
             return None
         if _loop_ctrl is _LoopControl.BREAK:
             break
         assert step is not None, "phase 6c must produce a ReAct step before execution"
         # ── PHASE 6d · action dispatch + observation ───────────────────
-        state.maybe_final = maybe_final
-        state.terminated_reason = terminated_reason
-        state.evidence_convergence_active = _evidence_convergence_active
-        state.force_convergence_next = _force_convergence_next
-        state.tools_active = tools_active
-        state.effective_model = effective_model
-        state.current_phase = _current_phase
-        state.consecutive_same_failed_actions = _consecutive_same_failed_actions
-        state.last_failed_action_fingerprint = _last_failed_action_fingerprint
-        state.green_verification_convergence_active = _green_verification_convergence_active
-        state.green_convergence_todo_used = _green_convergence_todo_used
-        state.result_handoff_ready = _result_handoff_ready
-        state.last_public_update_key = _last_public_update_key
-        state.saw_successful_code_write = _saw_successful_code_write
-        state.clean_verification_rounds_after_write = _clean_verification_rounds_after_write
-        state.quiet_evidence_steps = _quiet_evidence_steps
+        state.parse.maybe_final = maybe_final
+        state.emit.terminated_reason = terminated_reason
+        state.iteration.evidence_convergence_active = _evidence_convergence_active
+        state.iteration.force_convergence_next = _force_convergence_next
+        state.iteration.tools_active = tools_active
+        state.iteration.effective_model = effective_model
+        state.iteration.current_phase = _current_phase
+        state.iteration.consecutive_same_failed_actions = _consecutive_same_failed_actions
+        state.iteration.last_failed_action_fingerprint = _last_failed_action_fingerprint
+        state.iteration.green_verification_convergence_active = _green_verification_convergence_active
+        state.iteration.green_convergence_todo_used = _green_convergence_todo_used
+        state.iteration.result_handoff_ready = _result_handoff_ready
+        state.iteration.last_public_update_key = _last_public_update_key
+        state.iteration.saw_successful_code_write = _saw_successful_code_write
+        state.iteration.clean_verification_rounds_after_write = _clean_verification_rounds_after_write
+        state.iteration.quiet_evidence_steps = _quiet_evidence_steps
         _loop_ctrl = yield from _phase_6d_dispatch_and_observe(
             state,
             i=i,
@@ -905,19 +897,19 @@ def _stream_react_loop_impl(
             tool_call_succeeded=_tool_call_succeeded,
             observation_is_noop=_observation_is_noop,
         )
-        maybe_final = state.maybe_final
-        terminated_reason = state.terminated_reason
-        _evidence_convergence_active = state.evidence_convergence_active
-        _force_convergence_next = state.force_convergence_next
-        _consecutive_same_failed_actions = state.consecutive_same_failed_actions
-        _last_failed_action_fingerprint = state.last_failed_action_fingerprint
-        _green_verification_convergence_active = state.green_verification_convergence_active
-        _green_convergence_todo_used = state.green_convergence_todo_used
-        _result_handoff_ready = state.result_handoff_ready
-        _last_public_update_key = state.last_public_update_key
-        _saw_successful_code_write = state.saw_successful_code_write
-        _clean_verification_rounds_after_write = state.clean_verification_rounds_after_write
-        _quiet_evidence_steps = state.quiet_evidence_steps
+        maybe_final = state.parse.maybe_final
+        terminated_reason = state.emit.terminated_reason
+        _evidence_convergence_active = state.iteration.evidence_convergence_active
+        _force_convergence_next = state.iteration.force_convergence_next
+        _consecutive_same_failed_actions = state.iteration.consecutive_same_failed_actions
+        _last_failed_action_fingerprint = state.iteration.last_failed_action_fingerprint
+        _green_verification_convergence_active = state.iteration.green_verification_convergence_active
+        _green_convergence_todo_used = state.iteration.green_convergence_todo_used
+        _result_handoff_ready = state.iteration.result_handoff_ready
+        _last_public_update_key = state.iteration.last_public_update_key
+        _saw_successful_code_write = state.iteration.saw_successful_code_write
+        _clean_verification_rounds_after_write = state.iteration.clean_verification_rounds_after_write
+        _quiet_evidence_steps = state.iteration.quiet_evidence_steps
         if _loop_ctrl is _LoopControl.RETURN_NONE:
             return None
         if _loop_ctrl is _LoopControl.BREAK:
@@ -950,36 +942,36 @@ def _stream_react_loop_impl(
         )
 
         # ── PHASE 6e · guards + step yield ────────────────────────────
-        state.maybe_final = maybe_final
-        state.final_stream_started = _final_stream_started
-        state.force_convergence_next = _force_convergence_next
-        state.terminal_convergence_active = _terminal_convergence_active
-        state.final_delta_emitted_this_iteration = _final_delta_emitted_this_iteration
-        state.green_verification_convergence_active = _green_verification_convergence_active
-        state.green_convergence_todo_used = _green_convergence_todo_used
-        state.clean_verification_rounds_after_write = _clean_verification_rounds_after_write
-        state.final_answer = final_answer
-        state.terminated_reason = terminated_reason
-        state.evidence_convergence_active = _evidence_convergence_active
-        state.tools_active = tools_active
-        state.current_phase = _current_phase
-        state.streamed_final_chars = _streamed_final_chars
-        state.progress_summary = _progress_summary
+        state.parse.maybe_final = maybe_final
+        state.iteration.final_stream_started = _final_stream_started
+        state.iteration.force_convergence_next = _force_convergence_next
+        state.iteration.terminal_convergence_active = _terminal_convergence_active
+        state.emit.final_delta_emitted_this_iteration = _final_delta_emitted_this_iteration
+        state.iteration.green_verification_convergence_active = _green_verification_convergence_active
+        state.iteration.green_convergence_todo_used = _green_convergence_todo_used
+        state.iteration.clean_verification_rounds_after_write = _clean_verification_rounds_after_write
+        state.emit.final_answer = final_answer
+        state.emit.terminated_reason = terminated_reason
+        state.iteration.evidence_convergence_active = _evidence_convergence_active
+        state.iteration.tools_active = tools_active
+        state.iteration.current_phase = _current_phase
+        state.iteration.streamed_final_chars = _streamed_final_chars
+        state.iteration.progress_summary = _progress_summary
         _loop_ctrl = yield from _phase_6e_guards_and_step_emit(
             state,
             i=i,
             append_pending_live_steering=_append_pending_live_steering,
             build_research_progress_summary=_build_research_progress_summary,
         )
-        maybe_final = state.maybe_final
-        _force_convergence_next = state.force_convergence_next
-        _green_verification_convergence_active = state.green_verification_convergence_active
-        _green_convergence_todo_used = state.green_convergence_todo_used
-        _clean_verification_rounds_after_write = state.clean_verification_rounds_after_write
-        final_answer = state.final_answer
-        terminated_reason = state.terminated_reason
-        _final_delta_emitted_this_iteration = state.final_delta_emitted_this_iteration
-        _public_progress_summary = state.public_progress_summary
+        maybe_final = state.parse.maybe_final
+        _force_convergence_next = state.iteration.force_convergence_next
+        _green_verification_convergence_active = state.iteration.green_verification_convergence_active
+        _green_convergence_todo_used = state.iteration.green_convergence_todo_used
+        _clean_verification_rounds_after_write = state.iteration.clean_verification_rounds_after_write
+        final_answer = state.emit.final_answer
+        terminated_reason = state.emit.terminated_reason
+        _final_delta_emitted_this_iteration = state.emit.final_delta_emitted_this_iteration
+        _public_progress_summary = state.iteration.public_progress_summary
         if _loop_ctrl is _LoopControl.BREAK:
             break
 
@@ -997,7 +989,7 @@ def _stream_react_loop_impl(
             current_phase=_current_phase,
             public_progress_summary=_public_progress_summary,
             step_evaluator=step_evaluator,
-            retry_hint_sink=state.guard_notices,
+            retry_hint_sink=state.guard_tools.guard_notices,
         )
 
         steps.append(step)
@@ -1005,37 +997,37 @@ def _stream_react_loop_impl(
         # ── PHASE 6g · housekeeping (msg append / continue / loop tail)
         # Body moved to react_execution._phase_6g_housekeeping (Wave 2);
         # sync the per-iteration scalars in/out around the call.
-        state.planning_mode = planning_mode
-        state.enable_tools = enable_tools
-        state.executor = executor
-        state.tools_active = tools_active
-        state.maybe_final = maybe_final
-        state.final_answer = final_answer
-        state.final_answer_emitted = final_answer_emitted
-        state.terminated_reason = terminated_reason
-        state.current_phase = _current_phase
-        state.progress_summary = _progress_summary
-        state.force_convergence_next = _force_convergence_next
-        state.length_limit_should_continue = _length_limit_should_continue
-        state.messages = messages
+        state.iteration.planning_mode = planning_mode
+        state.iteration.enable_tools = enable_tools
+        state.wiring.executor = executor
+        state.iteration.tools_active = tools_active
+        state.parse.maybe_final = maybe_final
+        state.emit.final_answer = final_answer
+        state.emit.final_answer_emitted = final_answer_emitted
+        state.emit.terminated_reason = terminated_reason
+        state.iteration.current_phase = _current_phase
+        state.iteration.progress_summary = _progress_summary
+        state.iteration.force_convergence_next = _force_convergence_next
+        state.parse.length_limit_should_continue = _length_limit_should_continue
+        state.convo.messages = messages
         _loop_ctrl = _phase_6g_housekeeping(state, i=i, max_iterations=max_iterations)
-        planning_mode = state.planning_mode
-        enable_tools = state.enable_tools
-        executor = state.executor
-        tools_active = state.tools_active
-        maybe_final = state.maybe_final
-        final_answer = state.final_answer
-        final_answer_emitted = state.final_answer_emitted
-        terminated_reason = state.terminated_reason
-        _current_phase = state.current_phase
-        _progress_summary = state.progress_summary
-        _force_convergence_next = state.force_convergence_next
-        _length_limit_should_continue = state.length_limit_should_continue
-        messages = state.messages
+        planning_mode = state.iteration.planning_mode
+        enable_tools = state.iteration.enable_tools
+        executor = state.wiring.executor
+        tools_active = state.iteration.tools_active
+        maybe_final = state.parse.maybe_final
+        final_answer = state.emit.final_answer
+        final_answer_emitted = state.emit.final_answer_emitted
+        terminated_reason = state.emit.terminated_reason
+        _current_phase = state.iteration.current_phase
+        _progress_summary = state.iteration.progress_summary
+        _force_convergence_next = state.iteration.force_convergence_next
+        _length_limit_should_continue = state.parse.length_limit_should_continue
+        messages = state.convo.messages
         # ``_iteration_indices`` closes over this local, so a productive turn
         # can continue immediately after a bounded extension without creating
         # a new task or waiting for a user-authored "继续" turn.
-        max_iterations = max(max_iterations, state.iteration_limit)
+        max_iterations = max(max_iterations, state.iteration.iteration_limit)
         if _loop_ctrl is _LoopControl.BREAK:
             break
 

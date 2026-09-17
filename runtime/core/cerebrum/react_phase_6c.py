@@ -139,66 +139,70 @@ def _zero_action_protocol_reminder(step: Any, consecutive_format_violations: int
 def _phase_6c_parse_and_guard(
     state: _LoopState,
     *,
-    resp: Any,
-    raw_text: str,
     i: int,
-    request_has_tool_evidence: bool,
-    iteration_soft_timed_out: bool,
     try_react_model_failover: Callable[[str], str | None],
     maybe_emit_throughput: Callable[[int], dict[str, Any] | None],
 ) -> Generator[dict[str, Any], None, _LoopControl]:
     """Parse the model response into a step and run the guard machinery."""
     # Reference-typed aliases — mutations propagate to the main loop.
-    steps = state.steps
-    executed_beak_steps = state.executed_beak_steps
-    final_answer_segments = state.final_answer_segments
-    stack = state.stack
-    react_task_id = state.react_task_id
-    goal = state.goal
-    executor = state.executor
-    effective_wp = state.effective_wp
-    _guard_impasse_state = state.guard_impasse_state
-    _pause = state.pause_controller
+    steps = state.convo.steps
+    executed_beak_steps = state.convo.executed_beak_steps
+    final_answer_segments = state.convo.final_answer_segments
+    stack = state.wiring.stack
+    react_task_id = state.wiring.react_task_id
+    goal = state.wiring.goal
+    executor = state.wiring.executor
+    effective_wp = state.wiring.effective_wp
+    _guard_impasse_state = state.wiring.guard_impasse_state
+    _pause = state.wiring.pause_controller
     # Scalar pulls — identical names to the original loop body so the
-    # moved code stays verbatim; pushed back in the finally below.
-    _native_mode = state.native_mode
-    _evidence_convergence_active = state.evidence_convergence_active
-    _model_timeout_recoveries = state.model_timeout_recoveries
-    _final_stream_started = state.final_stream_started
-    _force_convergence_next = state.force_convergence_next
-    consecutive_format_violations = state.consecutive_format_violations
-    _format_violation_bail_at = state.format_violation_bail_at
-    _throughput_chars = state.throughput_chars
-    final_answer = state.final_answer
-    terminated_reason = state.terminated_reason
-    final_answer_emitted = state.final_answer_emitted
-    _final_delta_emitted_this_iteration = state.final_delta_emitted_this_iteration
-    _todo_protocol_required = state.todo_protocol_required
-    _todo_protocol_visible = state.todo_protocol_visible
-    _is_code_mode = state.is_code_mode
-    _browser_operation_mode = state.browser_operation_mode
-    _file_inspection_tools_visible = state.file_inspection_tools_visible
-    tools_active = state.tools_active
+    # moved code stays verbatim. Every write goes straight through to
+    # state at its assignment site (Wave B), so the finally only computes
+    # the derived zero-action counter.
+    _native_mode = state.iteration.native_mode
+    _evidence_convergence_active = state.iteration.evidence_convergence_active
+    _model_timeout_recoveries = state.iteration.model_timeout_recoveries
+    _final_stream_started = state.iteration.final_stream_started
+    _force_convergence_next = state.iteration.force_convergence_next
+    consecutive_format_violations = state.iteration.consecutive_format_violations
+    _format_violation_bail_at = state.wiring.format_violation_bail_at
+    _throughput_chars = state.iteration.throughput_chars
+    _final_delta_emitted_this_iteration = state.emit.final_delta_emitted_this_iteration
+    _todo_protocol_required = state.mode.todo_protocol_required
+    _todo_protocol_visible = state.mode.todo_protocol_visible
+    _is_code_mode = state.mode.is_code_mode
+    _browser_operation_mode = state.mode.browser_operation_mode
+    _file_inspection_tools_visible = state.mode.file_inspection_tools_visible
+    tools_active = state.iteration.tools_active
     _research_guard_active = _research_final_answer_guards_active(
         is_code_mode=_is_code_mode,
         goal=goal,
         steps=steps,
         tools_active=tools_active,
     )
-    _read_only_turn = state.read_only_turn
-    _no_tool_turn = state.no_tool_turn
-    _final_guard_grounded_source_paths = state.final_guard_grounded_source_paths
-    # Injected per-iteration inputs under their original names.
-    _request_has_tool_evidence = request_has_tool_evidence
-    _iteration_soft_timed_out = iteration_soft_timed_out
+    _read_only_turn = state.mode.read_only_turn
+    _no_tool_turn = state.mode.no_tool_turn
+    _final_guard_grounded_source_paths = state.wiring.final_guard_grounded_source_paths
+    # 6b writes the whole ``parse`` group in a ``finally``, so every exit path
+    # leaves these authoritative on state. Reading them here instead of taking
+    # them as kwargs removes a state → local → kwarg → local round trip.
+    resp = state.parse.resp
+    raw_text = state.parse.raw_text
+    _request_has_tool_evidence = state.parse.request_has_tool_evidence
+    _iteration_soft_timed_out = state.parse.iteration_soft_timed_out
+    # Closures stay injected: they capture the loop's own nonlocals.
     _try_react_model_failover = try_react_model_failover
     _maybe_emit_throughput = maybe_emit_throughput
-    # Outputs consumed by 6d–6g; assigned unconditionally below.
-    step: Any = None
-    maybe_final: str | None = None
-    text = ""
-    _length_limited = False
-    _length_limit_should_continue = False
+    # Outputs consumed by 6d–6g; assigned unconditionally below. The
+    # initializers write through to state so an exception before the
+    # first real assignment leaves the same state the old finally did.
+    step: Any
+    maybe_final: str | None
+    step = state.parse.step = None
+    maybe_final = state.parse.maybe_final = None
+    text = state.parse.text = ""
+    _length_limited = state.parse.length_limited = False
+    _length_limit_should_continue = state.parse.length_limit_should_continue = False
     try:
         text = (resp.text or raw_text or "").strip()
         resp_thinking = (getattr(resp, "thinking", "") or "").strip()
@@ -207,14 +211,14 @@ def _phase_6c_parse_and_guard(
             # tool_calls instead of regex-parsing it out of free text. Only
             # falls through to the text parser when the model returned no
             # tool calls (i.e. it produced a final answer).
-            step = step_from_tool_calls(
+            step = state.parse.step = step_from_tool_calls(
                 resp.tool_calls,
                 text=resp.text or "",
                 thinking=getattr(resp, "thinking", "") or "",
                 iteration=i + 1,
                 evidence_round=_request_has_tool_evidence,
             )
-            maybe_final = None
+            maybe_final = state.parse.maybe_final = None
             _missing_native_args = _native_tool_calls_missing_required_args(resp.tool_calls)
             if _missing_native_args:
                 # Some OpenAI-compatible reasoning providers surface a tool
@@ -226,7 +230,7 @@ def _phase_6c_parse_and_guard(
                 # Dual-write: the injected failover closure reads the main
                 # loop's ``_native_mode`` local mid-call via a wrapper that
                 # re-syncs from state, so the flip must land on state now.
-                _native_mode = state.native_mode = False
+                _native_mode = state.iteration.native_mode = False
                 step.action = ""
                 step.actions = []
                 step.action_results = []
@@ -240,14 +244,16 @@ def _phase_6c_parse_and_guard(
                 )
         else:
             step, maybe_final = _parse_step(text, iteration=i + 1)
+            state.parse.step = step
+            state.parse.maybe_final = maybe_final
             if not text and resp_thinking:
                 reasoning_step = _parse_reasoning_action_fallback(
                     resp_thinking,
                     iteration=i + 1,
                 )
                 if reasoning_step is not None:
-                    step = reasoning_step
-                    maybe_final = None
+                    step = state.parse.step = reasoning_step
+                    maybe_final = state.parse.maybe_final = None
         _research_guard_active = _research_final_answer_guards_active(
             is_code_mode=_is_code_mode,
             goal=goal,
@@ -265,7 +271,7 @@ def _phase_6c_parse_and_guard(
                 "executed. Retry now using Action: skill_name({JSON}); do not narrate "
                 "the intended call or repeat the private <|tool_calls_*|> markers."
             )
-            maybe_final = None
+            maybe_final = state.parse.maybe_final = None
         if (
             _looks_like_observation_echo(text)
             and not step.observation
@@ -283,15 +289,17 @@ def _phase_6c_parse_and_guard(
             # model (or its same-upstream sibling) that just overran its
             # deadline — this is the cross-turn escalation that breaks the
             # "primary stalls → same fallback stalls → fail" loop.
-            note_model_stall(str(state.effective_model or ""))
-            _model_timeout_recoveries += 1
+            note_model_stall(str(state.iteration.effective_model or ""))
+            _model_timeout_recoveries = state.iteration.model_timeout_recoveries = (
+                _model_timeout_recoveries + 1
+            )
             # Long tasks legitimately hit slow-but-working provider rounds. A
             # stalled round that finally yields an action/final resets the
             # counter below, so this break only fires after *consecutive* pure
             # stalls (the provider really returned nothing inside its deadline).
             # Scale the tolerance with the turn's iteration budget so a deep
             # task isn't hard-capped after just two slow rounds.
-            _stall_break_threshold = max(2, min(6, state.iteration_limit // 5))
+            _stall_break_threshold = max(2, min(6, state.iteration.iteration_limit // 5))
             if _model_timeout_recoveries >= _stall_break_threshold:
                 if _evidence_convergence_active is not None:
                     # A provider can ignore tools=[] and finish a timed-out
@@ -301,22 +309,22 @@ def _phase_6c_parse_and_guard(
                     # truthful handoff as ordinary answer text before the
                     # terminal receipt; emitting react_error first makes the
                     # realtime gateway close the turn and drop that text.
-                    final_answer = _stage_update_timeout_fallback(steps)
+                    state.emit.final_answer = _stage_update_timeout_fallback(steps)
                     step.observation = (
                         "[model-iteration-timeout] evidence synthesis retry also timed out"
                     )
                     steps.append(step)
-                    terminated_reason = "model_stall"
+                    state.emit.terminated_reason = "model_stall"
                     return _LoopControl.BREAK
                 # Graceful degradation: instead of a hard "react_error" that
                 # the gateway treats as a turn failure, surface a friendly
                 # handoff as ordinary answer text.  The turn still ends, but
                 # the user sees a natural message (like a thoughtful person
                 # pausing mid-conversation) rather than a system error banner.
-                final_answer = _model_stall_handoff_answer(steps)
+                state.emit.final_answer = _model_stall_handoff_answer(steps)
                 step.observation = "[model-iteration-timeout] convergence retry also timed out"
                 steps.append(step)
-                terminated_reason = "model_stall"
+                state.emit.terminated_reason = "model_stall"
                 return _LoopControl.BREAK
             _fallback_model = None
             if not _final_stream_started:
@@ -346,9 +354,9 @@ def _phase_6c_parse_and_guard(
                     "model": _fallback_model,
                     "iteration": i + 1,
                     # Read from state, not a pulled local: the injected
-                    # failover wrapper refreshes state.model_failovers
+                    # failover wrapper refreshes state.iteration.model_failovers
                     # mid-call after the closure's nonlocal increment.
-                    "attempt": state.model_failovers,
+                    "attempt": state.iteration.model_failovers,
                 }
             step.public_update = recovery_update
             _timeout_recovery_observation = (
@@ -368,12 +376,14 @@ def _phase_6c_parse_and_guard(
                 if _recovery_directive:
                     _timeout_recovery_observation += f"\n\n{_recovery_directive}"
             step.observation = _timeout_recovery_observation
-            _force_convergence_next = True
+            _force_convergence_next = state.iteration.force_convergence_next = True
         elif step.action or maybe_final is not None:
-            _model_timeout_recoveries = 0
+            _model_timeout_recoveries = state.iteration.model_timeout_recoveries = 0
         _finish_reason = (getattr(resp, "finish_reason", "") or "").strip().lower()
-        _length_limited = _finish_reason_is_length_limited(_finish_reason)
-        _length_limit_should_continue = False
+        _length_limited = state.parse.length_limited = _finish_reason_is_length_limited(
+            _finish_reason
+        )
+        _length_limit_should_continue = state.parse.length_limit_should_continue = False
         if (
             maybe_final
             and not _final_stream_started
@@ -403,6 +413,7 @@ def _phase_6c_parse_and_guard(
                 "iteration": i + 1,
             }
             _final_delta_emitted_this_iteration = True
+            state.emit.final_delta_emitted_this_iteration = True
 
         # Chat-style answer recovery: the model produced plain
         # markdown without any ReAct anchor BUT we already streamed
@@ -433,8 +444,8 @@ def _phase_6c_parse_and_guard(
                 goal=goal,
                 browser_operation_mode=_browser_operation_mode,
                 grounded_source_paths=_final_guard_grounded_source_paths,
-                model=state.effective_model,
-                prior_grounding_text=state.prior_grounding_text,
+                model=state.iteration.effective_model,
+                prior_grounding_text=state.wiring.prior_grounding_text,
                 categories=(
                     None
                     if (_browser_operation_mode or _is_code_mode)
@@ -449,8 +460,8 @@ def _phase_6c_parse_and_guard(
                 # work (tools ran); only the answer markup was dirty.
                 _downgrade = _try_clean_downgrade(text)
                 if _downgrade is not None:
-                    final_answer = _downgrade
-                    terminated_reason = "final_answer_with_warning"
+                    state.emit.final_answer = _downgrade
+                    state.emit.terminated_reason = "final_answer_with_warning"
                     steps.append(step)
                     return _LoopControl.BREAK
                 _guard_label, _guard_message = _guard_hit
@@ -466,8 +477,8 @@ def _phase_6c_parse_and_guard(
                     step.public_update = _auto_inspect_step.public_update
                     step.action = _auto_inspect_step.action
                     step.actions = _auto_inspect_step.actions
-                    _final_stream_started = False
-                    maybe_final = None
+                    _final_stream_started = state.iteration.final_stream_started = False
+                    maybe_final = state.parse.maybe_final = None
                     return _LoopControl.CONTINUE
                 _guard_outcome = _guard_rejection_outcome(_guard_impasse_state, _guard_label, steps)
                 if _guard_outcome == "hard_stop":
@@ -482,8 +493,8 @@ def _phase_6c_parse_and_guard(
                         step.public_update = _auto_verify_step.public_update
                         step.action = _auto_verify_step.action
                         step.actions = _auto_verify_step.actions
-                        _final_stream_started = False
-                        maybe_final = None
+                        _final_stream_started = state.iteration.final_stream_started = False
+                        maybe_final = state.parse.maybe_final = None
                         return _LoopControl.CONTINUE
                     # Same loop-level bound as the main guard site: the
                     # chat-flush path rejects and continues too, so an
@@ -493,11 +504,13 @@ def _phase_6c_parse_and_guard(
                         "with no intervening tool execution — terminating",
                         _guard_label,
                     )
-                    final_answer = _guard_impasse_final_answer(_guard_label, _guard_message, steps)
-                    terminated_reason = "guard_impasse"
+                    state.emit.final_answer = _guard_impasse_final_answer(
+                        _guard_label, _guard_message, steps
+                    )
+                    state.emit.terminated_reason = "guard_impasse"
                     steps.append(step)
                     return _LoopControl.BREAK
-                _final_stream_started = False
+                _final_stream_started = state.iteration.final_stream_started = False
                 step.observation = (
                     (((step.observation or "") + "\n\n") if step.observation else "")
                     + f"[{_guard_label}]\n"
@@ -510,11 +523,11 @@ def _phase_6c_parse_and_guard(
                         ),
                     )
                 )
-                maybe_final = None
+                maybe_final = state.parse.maybe_final = None
             else:
-                final_answer = text
-                terminated_reason = "final_answer"
-                final_answer_emitted = True
+                state.emit.final_answer = text
+                state.emit.terminated_reason = "final_answer"
+                state.emit.final_answer_emitted = True
                 steps.append(step)
                 return _LoopControl.BREAK
 
@@ -532,7 +545,7 @@ def _phase_6c_parse_and_guard(
                 step.action = "; ".join(_recovered_read_actions)
                 if not step.thought:
                     step.thought = text
-                consecutive_format_violations = 0
+                consecutive_format_violations = state.iteration.consecutive_format_violations = 0
 
         if _is_format_violation(step, maybe_final):
             # Length-limited generation gets a free pass on the
@@ -564,7 +577,7 @@ def _phase_6c_parse_and_guard(
                             "delta": text,
                             "iteration": i + 1,
                         }
-                consecutive_format_violations = 0
+                consecutive_format_violations = state.iteration.consecutive_format_violations = 0
             elif _unfinished_implementation_recovery_needed(
                 text,
                 goal,
@@ -576,14 +589,14 @@ def _phase_6c_parse_and_guard(
                 # terminated at that point and left knowingly broken code.
                 # Preserve the diagnosis as an observation and make the next
                 # round a bounded, no-extended-thinking convergence attempt.
-                consecutive_format_violations = 0
-                _final_stream_started = False
+                consecutive_format_violations = state.iteration.consecutive_format_violations = 0
+                _final_stream_started = state.iteration.final_stream_started = False
                 step.observation = (
                     "[unfinished-work-recovery] Your previous prose explicitly says work remains. "
                     "Do not restate the diagnosis. Execute the next necessary tool call now using "
                     "Action: skill_name({JSON}); after focused verification passes, emit Final Answer."
                 )
-                _force_convergence_next = True
+                _force_convergence_next = state.iteration.force_convergence_next = True
                 yield {
                     "type": "commentary_delta",
                     "delta": "检测到尚未完成的实现诊断；已保留结论，下一轮直接执行修复。",
@@ -591,7 +604,10 @@ def _phase_6c_parse_and_guard(
                     "iteration": i + 1,
                 }
             else:
-                consecutive_format_violations += 1
+                consecutive_format_violations = (
+                    state.iteration.consecutive_format_violations + 1
+                )
+                state.iteration.consecutive_format_violations = consecutive_format_violations
                 _plain_answer_can_finish = bool(
                     text
                     and not maybe_final
@@ -646,8 +662,8 @@ def _phase_6c_parse_and_guard(
                             goal=goal,
                             browser_operation_mode=_browser_operation_mode,
                             grounded_source_paths=_final_guard_grounded_source_paths,
-                            model=state.effective_model,
-                            prior_grounding_text=state.prior_grounding_text,
+                            model=state.iteration.effective_model,
+                            prior_grounding_text=state.wiring.prior_grounding_text,
                             categories=(
                                 None
                                 if (_browser_operation_mode or _is_code_mode)
@@ -661,12 +677,12 @@ def _phase_6c_parse_and_guard(
                         # cleaned delivery instead of a retry loop.
                         _downgrade = _try_clean_downgrade(_plain_guard_candidate)
                         if _downgrade is not None:
-                            final_answer = _downgrade
-                            terminated_reason = "final_answer_with_warning"
+                            state.emit.final_answer = _downgrade
+                            state.emit.terminated_reason = "final_answer_with_warning"
                             # The raw candidate was withheld by the protocol
                             # pre-emit guard.  Keep this false so PHASE 7 emits
                             # the cleaned answer exactly once.
-                            final_answer_emitted = False
+                            state.emit.final_answer_emitted = False
                             steps.append(step)
                             return _LoopControl.BREAK
                         _guard_label, _guard_message = _guard_hit
@@ -682,8 +698,8 @@ def _phase_6c_parse_and_guard(
                             step.public_update = _auto_inspect_step.public_update
                             step.action = _auto_inspect_step.action
                             step.actions = _auto_inspect_step.actions
-                            _final_stream_started = False
-                            maybe_final = None
+                            _final_stream_started = state.iteration.final_stream_started = False
+                            maybe_final = state.parse.maybe_final = None
                             return _LoopControl.CONTINUE
                         _guard_outcome = _guard_rejection_outcome(
                             _guard_impasse_state, _guard_label, steps
@@ -700,8 +716,8 @@ def _phase_6c_parse_and_guard(
                                 step.public_update = _auto_verify_step.public_update
                                 step.action = _auto_verify_step.action
                                 step.actions = _auto_verify_step.actions
-                                _final_stream_started = False
-                                maybe_final = None
+                                _final_stream_started = state.iteration.final_stream_started = False
+                                maybe_final = state.parse.maybe_final = None
                                 return _LoopControl.CONTINUE
                             _logger.warning(
                                 "react_loop guard impasse (plain-answer recovery) · "
@@ -709,15 +725,15 @@ def _phase_6c_parse_and_guard(
                                 "terminating",
                                 _guard_label,
                             )
-                            final_answer = _guard_impasse_final_answer(
+                            state.emit.final_answer = _guard_impasse_final_answer(
                                 _guard_label,
                                 _guard_message,
                                 steps,
                             )
-                            terminated_reason = "guard_impasse"
+                            state.emit.terminated_reason = "guard_impasse"
                             steps.append(step)
                             return _LoopControl.BREAK
-                        consecutive_format_violations = 0
+                        consecutive_format_violations = state.iteration.consecutive_format_violations = 0
                         step.observation = (
                             (((step.observation or "") + "\n\n") if step.observation else "")
                             + f"[{_guard_label}]\n"
@@ -731,8 +747,8 @@ def _phase_6c_parse_and_guard(
                             )
                         )
                     if _guard_hit is not None:
-                        consecutive_format_violations = 0
-                        maybe_final = None
+                        consecutive_format_violations = state.iteration.consecutive_format_violations = 0
+                        maybe_final = state.parse.maybe_final = None
                     elif text and not maybe_final:
                         # Guarded plain prose is a valid final answer even when
                         # the provider omitted the literal ReAct label. The old
@@ -751,11 +767,11 @@ def _phase_6c_parse_and_guard(
                                 "delta": _plain_guard_candidate,
                                 "iteration": i + 1,
                             }
-                        final_answer = _plain_guard_candidate
+                        state.emit.final_answer = _plain_guard_candidate
                         if _research_guard_active:
                             final_answer_segments.clear()
-                        final_answer_emitted = True
-                        terminated_reason = "final_answer"
+                        state.emit.final_answer_emitted = True
+                        state.emit.terminated_reason = "final_answer"
                         steps.append(step)
                         return _LoopControl.BREAK
                     else:
@@ -769,7 +785,7 @@ def _phase_6c_parse_and_guard(
                         _pause.unregister_active(str(react_task_id))
                         return _LoopControl.RETURN_NONE
         else:
-            consecutive_format_violations = 0
+            consecutive_format_violations = state.iteration.consecutive_format_violations = 0
 
         # Some reasoning models (e.g. Kimi K3) emit an ``Update:`` progress
         # line but stop before issuing the required ``Action:`` tool call —
@@ -784,30 +800,19 @@ def _phase_6c_parse_and_guard(
         if resp_thinking and not step.thought:
             step.thought = resp_thinking
 
-        _throughput_chars += len(text)
+        _throughput_chars = state.iteration.throughput_chars = _throughput_chars + len(text)
         _tp = _maybe_emit_throughput(_throughput_chars)
         if _tp is not None:
             yield _tp
         return _LoopControl.CONTINUE
     finally:
-        state.zero_action_rounds = _next_zero_action_rounds(
-            state.zero_action_rounds,
-            step=step,
-            maybe_final=maybe_final,
-            final_answer_emitted=final_answer_emitted,
+        # Wave B: scalar writes already landed on state at their assignment
+        # sites (and at the pre-try initializers for exception paths), so the
+        # old bulk push-back is gone. This one derived counter still needs
+        # computing: it reads the final step/maybe_final outcome of the phase.
+        state.iteration.zero_action_rounds = _next_zero_action_rounds(
+            state.iteration.zero_action_rounds,
+            step=state.parse.step,
+            maybe_final=state.parse.maybe_final,
+            final_answer_emitted=state.emit.final_answer_emitted,
         )
-        state.native_mode = _native_mode
-        state.model_timeout_recoveries = _model_timeout_recoveries
-        state.final_stream_started = _final_stream_started
-        state.force_convergence_next = _force_convergence_next
-        state.consecutive_format_violations = consecutive_format_violations
-        state.throughput_chars = _throughput_chars
-        state.final_answer = final_answer
-        state.terminated_reason = terminated_reason
-        state.final_answer_emitted = final_answer_emitted
-        state.final_delta_emitted_this_iteration = _final_delta_emitted_this_iteration
-        state.step = step
-        state.maybe_final = maybe_final
-        state.text = text
-        state.length_limited = _length_limited
-        state.length_limit_should_continue = _length_limit_should_continue

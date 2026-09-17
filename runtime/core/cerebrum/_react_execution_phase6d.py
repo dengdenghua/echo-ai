@@ -92,20 +92,20 @@ def _observe_repeat_guard(state: _LoopState, tool_name: str, arguments: Any) -> 
     denied call is exactly the loop worth breaking. Best-effort: a guard
     failure must never break the turn.
     """
-    guard = getattr(state, "repeat_guard", None)
+    guard = state.guard_tools.repeat_guard
     if guard is None:
         return
     try:
         reminder = guard.observe(
             tool_name,
             arguments,
-            agent_key=state.thread_id or "default",
+            agent_key=state.wiring.thread_id or "default",
         )
     except Exception:  # noqa: BLE001 — advisory; never break the turn
         _logger.debug("repeat-tool guard observe skipped", exc_info=True)
         return
     if reminder:
-        state.guard_notices.append(reminder)
+        state.guard_tools.guard_notices.append(reminder)
 
 
 def _flush_guard_notices(state: _LoopState, messages: Any) -> None:
@@ -115,7 +115,7 @@ def _flush_guard_notices(state: _LoopState, messages: Any) -> None:
     nudge still lands before the next model call — dsh's post-execute
     ``additionalContexts`` timing. Notices are drained (never duplicated).
     """
-    notices = getattr(state, "guard_notices", None)
+    notices = state.guard_tools.guard_notices
     if not notices:
         return
     from runtime.platform.models.llm import Message
@@ -189,8 +189,8 @@ def _pause_for_unavailable_approval(
 ) -> bool:
     """Request a checkpointed pause instead of turning UI absence into failure."""
 
-    pause_controller = state.pause_controller
-    task_id = str(state.react_task_id or "").strip()
+    pause_controller = state.wiring.pause_controller
+    task_id = str(state.wiring.react_task_id or "").strip()
     if pause_controller is None or not task_id:
         return False
     pause_controller.request_pause(
@@ -198,12 +198,12 @@ def _pause_for_unavailable_approval(
         reason="approval_required",
         requested_by="system",
         note=f"{tool_name}: {detail}",
-        thread_id=state.thread_id,
-        agent_id=state.agent_id_for_pause,
+        thread_id=state.wiring.thread_id,
+        agent_id=state.model_call.agent_id_for_pause,
     )
     # Reserve a boundary for the normal pause guard, including when the
     # blocked call happened on what would otherwise be the final iteration.
-    state.iteration_limit = max(state.iteration_limit, iteration + 2)
+    state.iteration.iteration_limit = max(state.iteration.iteration_limit, iteration + 2)
     return True
 
 
@@ -345,20 +345,20 @@ def _phase_6d_dispatch_and_observe(
     _tool_call_succeeded = tool_call_succeeded
     _observation_is_noop = observation_is_noop
     # Reference-typed aliases — mutations propagate to the main loop.
-    step = state.step
+    step = state.parse.step
     assert step is not None, "phase 6d requires a parsed ReAct step"
-    steps = state.steps
-    executed_beak_steps = state.executed_beak_steps
-    messages = state.messages
-    _working_set = state.working_set
-    stack = state.stack
-    react_task_id = state.react_task_id
-    executor = state.executor
-    agent = state.agent
-    intent = state.intent
-    router = state.router
-    thread_id = state.thread_id
-    approval_provider = state.approval_provider
+    steps = state.convo.steps
+    executed_beak_steps = state.convo.executed_beak_steps
+    messages = state.convo.messages
+    _working_set = state.convo.working_set
+    stack = state.wiring.stack
+    react_task_id = state.wiring.react_task_id
+    executor = state.wiring.executor
+    agent = state.wiring.agent
+    intent = state.wiring.intent
+    router = state.wiring.router
+    thread_id = state.wiring.thread_id
+    approval_provider = state.wiring.approval_provider
     # Guardian independent review (opt-in): high/critical risk actions get
     # a second opinion from an independent model before escalating to the
     # user. Off by default; budget is per-thread (exhaustion = long-task
@@ -389,14 +389,14 @@ def _phase_6d_dispatch_and_observe(
                 ),
                 # The conversation's own model — reference state directly, the
                 # local ``effective_model`` scalar pull happens further down.
-                default_model=state.effective_model,
+                default_model=state.iteration.effective_model,
             ),
         )
     from runtime.safety.approval.permission_modes import is_auto_review_mode
 
     _auto_review_provider = None
     if is_auto_review_mode(
-        intent.user_context.get("permission_mode") or state.metadata.get("permission_mode")
+        intent.user_context.get("permission_mode") or state.wiring.metadata.get("permission_mode")
     ):
         from runtime.safety.approval.guardian_review import (
             AutoReviewApprovalProvider,
@@ -407,39 +407,57 @@ def _phase_6d_dispatch_and_observe(
         _auto_review_provider = AutoReviewApprovalProvider(
             reviewer_router,
             user_intent=_latest_human_intent(messages),
-            default_model=state.effective_model if reviewer_router is router else None,
+            default_model=state.iteration.effective_model if reviewer_router is router else None,
         )
-    output_chunk_sink = state.output_chunk_sink
-    _metadata = state.metadata
-    _effective_wp = state.effective_wp
-    # Scalar pulls — original local names; pushed back in the finally.
-    tools_active = state.tools_active
-    effective_model = state.effective_model
-    _current_phase = state.current_phase
-    _is_code_mode = state.is_code_mode
-    _todo_protocol_required = state.todo_protocol_required
-    _todo_protocol_visible = state.todo_protocol_visible
-    _read_only_turn = state.read_only_turn
-    _is_goal_mode = state.is_goal_mode
-    _observed_read_sequence = state.observed_read_sequence
-    _ordered_result_handoffs = state.ordered_result_handoffs
-    _realtime_public_orientation = state.realtime_public_orientation
-    _realtime_public_narrative = state.realtime_public_narrative
-    maybe_final = state.maybe_final
-    terminated_reason = state.terminated_reason
-    _evidence_convergence_active = state.evidence_convergence_active
-    _force_convergence_next = state.force_convergence_next
-    _consecutive_same_failed_actions = state.consecutive_same_failed_actions
-    _last_failed_action_fingerprint = state.last_failed_action_fingerprint
-    _consecutive_same_noop_actions = state.consecutive_same_noop_actions
-    _last_noop_action_fingerprint = state.last_noop_action_fingerprint
-    _green_verification_convergence_active = state.green_verification_convergence_active
-    _green_convergence_todo_used = state.green_convergence_todo_used
-    _result_handoff_ready = state.result_handoff_ready
-    _last_public_update_key = state.last_public_update_key
-    _saw_successful_code_write = state.saw_successful_code_write
-    _clean_verification_rounds_after_write = state.clean_verification_rounds_after_write
-    _quiet_evidence_steps = state.quiet_evidence_steps
+    output_chunk_sink = state.wiring.output_chunk_sink
+    _metadata = state.wiring.metadata
+    _effective_wp = state.wiring.effective_wp
+    # Scalar pulls — read snapshots; every WRITE goes straight through to
+    # state via double assignment (``local = state.<group>.<field> = value``) so no
+    # bulk push-back is needed in the finally.
+    # Config-driven ceilings (budget.approval_timeout_s /
+    # budget.parallel_batch_timeout_s), mirroring react_loop's
+    # model_iteration_timeout_s pattern: read off the stack when present,
+    # fall back to the schema defaults otherwise.
+    _budget_cfg = getattr(getattr(stack, "config", None), "budget", None)
+    _approval_timeout_s = (
+        float(_budget_cfg.approval_timeout_s)
+        if _budget_cfg is not None
+        and getattr(_budget_cfg, "approval_timeout_s", None) is not None
+        else 600.0
+    )
+    _parallel_batch_timeout_s = (
+        float(_budget_cfg.parallel_batch_timeout_s)
+        if _budget_cfg is not None
+        and getattr(_budget_cfg, "parallel_batch_timeout_s", None) is not None
+        else 600.0
+    )
+    tools_active = state.iteration.tools_active
+    effective_model = state.iteration.effective_model
+    _current_phase = state.iteration.current_phase
+    _is_code_mode = state.mode.is_code_mode
+    _todo_protocol_required = state.mode.todo_protocol_required
+    _todo_protocol_visible = state.mode.todo_protocol_visible
+    _read_only_turn = state.mode.read_only_turn
+    _is_goal_mode = state.wiring.is_goal_mode
+    _observed_read_sequence = state.wiring.observed_read_sequence
+    _ordered_result_handoffs = state.wiring.ordered_result_handoffs
+    _realtime_public_orientation = state.wiring.realtime_public_orientation
+    _realtime_public_narrative = state.wiring.realtime_public_narrative
+    maybe_final = state.parse.maybe_final
+    _evidence_convergence_active = state.iteration.evidence_convergence_active
+    _force_convergence_next = state.iteration.force_convergence_next
+    _consecutive_same_failed_actions = state.iteration.consecutive_same_failed_actions
+    _last_failed_action_fingerprint = state.iteration.last_failed_action_fingerprint
+    _consecutive_same_noop_actions = state.iteration.consecutive_same_noop_actions
+    _last_noop_action_fingerprint = state.iteration.last_noop_action_fingerprint
+    _green_verification_convergence_active = state.iteration.green_verification_convergence_active
+    _green_convergence_todo_used = state.iteration.green_convergence_todo_used
+    _result_handoff_ready = state.iteration.result_handoff_ready
+    _last_public_update_key = state.iteration.last_public_update_key
+    _saw_successful_code_write = state.iteration.saw_successful_code_write
+    _clean_verification_rounds_after_write = state.iteration.clean_verification_rounds_after_write
+    _quiet_evidence_steps = state.iteration.quiet_evidence_steps
     try:
         (
             observation,
@@ -481,6 +499,9 @@ def _phase_6d_dispatch_and_observe(
             _deduplicate_actions=_deduplicate_actions,
             _action_batch_fingerprint=_action_batch_fingerprint,
         )
+        state.parse.maybe_final = maybe_final
+        state.iteration.force_convergence_next = _force_convergence_next
+        state.iteration.green_convergence_todo_used = _green_convergence_todo_used
 
         # ``Update:`` is the explicit public checkpoint channel. Emit only
         # after the whole model turn has parsed, immediately before the tool
@@ -505,7 +526,7 @@ def _phase_6d_dispatch_and_observe(
             # If a provider omits it, do not spend a second model call trying
             # to classify arbitrary prose as commentary: the real tool row is
             # sufficient activity feedback and private text stays private.
-            and not state.native_mode
+            and not state.iteration.native_mode
             and not _prior_result_handoff
         ):
             try:
@@ -524,7 +545,7 @@ def _phase_6d_dispatch_and_observe(
                 _repaired_public_update = ""
             if _repaired_public_update:
                 step.public_update = _repaired_public_update
-                _last_public_update_key = (
+                _last_public_update_key = state.iteration.last_public_update_key = (
                     re.sub(r"\s+", " ", _repaired_public_update).strip().casefold()
                 )
         _model_supplied_update = bool(step.public_update)
@@ -547,13 +568,13 @@ def _phase_6d_dispatch_and_observe(
                 "start_new_segment": True,
                 "iteration": i + 1,
             }
-            _last_public_update_key = _public_update_key
+            _last_public_update_key = state.iteration.last_public_update_key = _public_update_key
 
         if tool_action_requested:
-            _result_handoff_ready = False
+            state.iteration.result_handoff_ready = False
             observation = None
             step.observation = ""
-            maybe_final = None
+            maybe_final = state.parse.maybe_final = None
 
         # Multi-action fast path: when the model emitted >1 tool call
         # in a single Action: block, dispatch them concurrently and
@@ -572,6 +593,7 @@ def _phase_6d_dispatch_and_observe(
                 agent=agent,
                 intent=intent,
                 beak_step_sink=executed_beak_steps,
+                parallel_batch_timeout_s=_parallel_batch_timeout_s,
             )
             if _parallel_obs is not None:
                 observation = _parallel_obs
@@ -582,7 +604,7 @@ def _phase_6d_dispatch_and_observe(
                 # dsh repeat-tool-reminder: observe each parallel attempt
                 # (args re-parsed from the action text; the dispatcher
                 # already deduplicated identical calls within the batch).
-                if state.repeat_guard is not None:
+                if state.guard_tools.repeat_guard is not None:
                     for _r_idx, _r in enumerate(_parallel_results):
                         _r_parsed = _parse_action(step.actions[_r_idx])
                         _r_name = _r.get("tool_name") or (_r_parsed[0] if _r_parsed else "")
@@ -673,7 +695,7 @@ def _phase_6d_dispatch_and_observe(
                             _approval_action = "ask"
                         _approval_risk = _approval_risk.with_injection_taint()
                     _permission_context = {
-                        **state.metadata,
+                        **state.wiring.metadata,
                         **intent.user_context,
                     }
                     if _approval_action in {
@@ -768,7 +790,7 @@ def _phase_6d_dispatch_and_observe(
                                 args_preview=str(_input_preview)[:500] if _input_preview else "",
                                 detail=_approval_detail,
                             ),
-                            timeout=600.0,
+                            timeout=_approval_timeout_s,
                         )
                         if not _decision.approved:
                             if _approval_could_not_reach_user(
@@ -872,7 +894,7 @@ def _phase_6d_dispatch_and_observe(
                             "output_preview": "(已取消) 用户中断了此操作。",
                             "duration_ms": int((time.monotonic() - _tool_started_at) * 1000),
                         }
-                        terminated_reason = "cancelled"
+                        state.emit.terminated_reason = "cancelled"
                         return _LoopControl.BREAK
                     # ── Sandbox-blocked escalation ─────────────────────────
                     # A tool that ran inside the sandbox can be blocked
@@ -927,7 +949,7 @@ def _phase_6d_dispatch_and_observe(
                                 args_preview=(str(_input_preview)[:500] if _input_preview else ""),
                                 detail=_escalation_detail,
                             ),
-                            timeout=600.0,
+                            timeout=_approval_timeout_s,
                         )
                         if not _escalation_decision.approved:
                             if _approval_could_not_reach_user(
@@ -1152,7 +1174,7 @@ def _phase_6d_dispatch_and_observe(
             succeeded=tool_ok,
         )
         if _direct_command_answer is not None:
-            maybe_final = _direct_command_answer
+            maybe_final = state.parse.maybe_final = _direct_command_answer
 
         if _duplicate_action_count and step.observation:
             step.observation += (
@@ -1168,31 +1190,31 @@ def _phase_6d_dispatch_and_observe(
             step.observation += "\n\n" + _explicit_read_scope_note
         if tool_action_requested and _current_action_fingerprint:
             if tool_ok:
-                _last_failed_action_fingerprint = ""
-                _consecutive_same_failed_actions = 0
+                state.iteration.last_failed_action_fingerprint = ""
+                state.iteration.consecutive_same_failed_actions = 0
             elif _current_action_fingerprint == _last_failed_action_fingerprint:
-                _consecutive_same_failed_actions += 1
+                state.iteration.consecutive_same_failed_actions += 1
             else:
-                _last_failed_action_fingerprint = _current_action_fingerprint
-                _consecutive_same_failed_actions = 1
+                state.iteration.last_failed_action_fingerprint = _current_action_fingerprint
+                state.iteration.consecutive_same_failed_actions = 1
             # Silent no-op detection: the tool returned ok=True but the
             # observation shows an empty/zero-count result.  This catches
             # the "wrong key" failure mode where the handler swallows the
             # unknown argument and returns a valid-but-empty payload.
             _is_noop = tool_ok and _observation_is_noop(step.observation or "")
             if _is_noop and _current_action_fingerprint == _last_noop_action_fingerprint:
-                _consecutive_same_noop_actions += 1
+                state.iteration.consecutive_same_noop_actions += 1
             elif _is_noop:
-                _last_noop_action_fingerprint = _current_action_fingerprint
-                _consecutive_same_noop_actions = 1
+                state.iteration.last_noop_action_fingerprint = _current_action_fingerprint
+                state.iteration.consecutive_same_noop_actions = 1
             else:
-                _last_noop_action_fingerprint = ""
-                _consecutive_same_noop_actions = 0
+                state.iteration.last_noop_action_fingerprint = ""
+                state.iteration.consecutive_same_noop_actions = 0
         elif not _repeated_failure_skipped and not _repeated_noop_skipped and tool_action_requested:
-            _last_failed_action_fingerprint = ""
-            _consecutive_same_failed_actions = 0
-            _last_noop_action_fingerprint = ""
-            _consecutive_same_noop_actions = 0
+            state.iteration.last_failed_action_fingerprint = ""
+            state.iteration.consecutive_same_failed_actions = 0
+            state.iteration.last_noop_action_fingerprint = ""
+            state.iteration.consecutive_same_noop_actions = 0
 
         # Common single/parallel tool outlet. Keep terminal evidence here so
         # a model round that launches lint + tests together is counted exactly
@@ -1205,8 +1227,10 @@ def _phase_6d_dispatch_and_observe(
                     _last_successful_write_idx = _outcome_idx
 
             if _last_successful_write_idx >= 0:
-                _saw_successful_code_write = True
-                _clean_verification_rounds_after_write = 0
+                _saw_successful_code_write = state.iteration.saw_successful_code_write = True
+                _clean_verification_rounds_after_write = (
+                    state.iteration.clean_verification_rounds_after_write
+                ) = 0
                 _verification_outcomes = _ordered_outcomes[_last_successful_write_idx + 1 :]
             else:
                 _verification_outcomes = _ordered_outcomes
@@ -1221,15 +1245,20 @@ def _phase_6d_dispatch_and_observe(
                         # whole batch once caused green code agents to run the
                         # same suite a dozen more times before convergence.
                         _clean_verification_rounds_after_write += 1
+                        state.iteration.clean_verification_rounds_after_write = (
+                            _clean_verification_rounds_after_write
+                        )
                     else:
-                        _clean_verification_rounds_after_write = 0
+                        _clean_verification_rounds_after_write = (
+                            state.iteration.clean_verification_rounds_after_write
+                        ) = 0
 
             if (
                 _clean_verification_rounds_after_write >= 2
                 and not _green_verification_convergence_active
             ):
-                _green_verification_convergence_active = True
-                _force_convergence_next = True
+                state.iteration.green_verification_convergence_active = True
+                state.iteration.force_convergence_next = True
                 step.observation = (step.observation or observation or "") + (
                     "\n\n[green-verification-convergence]\n"
                     "Two clean verifier rounds completed after the latest successful code "
@@ -1240,14 +1269,16 @@ def _phase_6d_dispatch_and_observe(
 
         _evidence_convergence_became_active = False
         if _evidence_convergence_active is None and tool_action_requested:
-            _evidence_convergence_active = read_only_evidence_convergence(
+            _evidence_convergence_active = (
+                state.iteration.evidence_convergence_active
+            ) = read_only_evidence_convergence(
                 goal=intent.normalized_goal,
                 steps=steps + [step],
                 read_only=_read_only_turn,
             )
             if _evidence_convergence_active is not None:
                 _evidence_convergence_became_active = True
-                _force_convergence_next = True
+                state.iteration.force_convergence_next = True
                 _coverage = ", ".join(_evidence_convergence_active.covered[:6])
                 _coverage_note = f" Covered evidence: {_coverage}." if _coverage else ""
                 _direct_answer_directive = build_direct_answer_directive(
@@ -1294,7 +1325,7 @@ def _phase_6d_dispatch_and_observe(
             _quiet_evidence_steps.append(step)
             # Keep prompts bounded when a provider repeatedly inspects new
             # files without producing a checkpoint of its own.
-            _quiet_evidence_steps = _quiet_evidence_steps[-4:]
+            _quiet_evidence_steps = state.iteration.quiet_evidence_steps = _quiet_evidence_steps[-4:]
         _quiet_evidence_due = _quiet_evidence_checkpoint_due(_quiet_evidence_steps)
         _model_result_update = ""
         if _observed_result_checkpoint and maybe_final is None:
@@ -1359,12 +1390,12 @@ def _phase_6d_dispatch_and_observe(
             # Whether the narrator spoke or the deterministic read receipt was
             # used, this evidence window has been considered. Start a fresh
             # window so long read-only tasks get bounded conversational beats.
-            _quiet_evidence_steps = []
+            state.iteration.quiet_evidence_steps = []
         _model_result_update_key = re.sub(r"\s+", " ", _model_result_update).strip().casefold()
         if _model_result_update and _model_result_update_key != _last_public_update_key:
-            _last_public_update_key = _model_result_update_key
+            state.iteration.last_public_update_key = _model_result_update_key
             if _ordered_result_handoffs:
-                _result_handoff_ready = True
+                state.iteration.result_handoff_ready = True
 
         if _is_code_mode and observation and _current_phase in ("execute", "verify"):
             _write_tools = frozenset(
@@ -1411,18 +1442,6 @@ def _phase_6d_dispatch_and_observe(
 
         return _LoopControl.CONTINUE
     finally:
-        state.maybe_final = maybe_final
-        state.terminated_reason = terminated_reason
-        state.evidence_convergence_active = _evidence_convergence_active
-        state.force_convergence_next = _force_convergence_next
-        state.consecutive_same_failed_actions = _consecutive_same_failed_actions
-        state.last_failed_action_fingerprint = _last_failed_action_fingerprint
-        state.consecutive_same_noop_actions = _consecutive_same_noop_actions
-        state.last_noop_action_fingerprint = _last_noop_action_fingerprint
-        state.green_verification_convergence_active = _green_verification_convergence_active
-        state.green_convergence_todo_used = _green_convergence_todo_used
-        state.result_handoff_ready = _result_handoff_ready
-        state.last_public_update_key = _last_public_update_key
-        state.saw_successful_code_write = _saw_successful_code_write
-        state.clean_verification_rounds_after_write = _clean_verification_rounds_after_write
-        state.quiet_evidence_steps = _quiet_evidence_steps
+        # Wave B: every scalar write already went through to state at its
+        # assignment site, so there is nothing left to push back here.
+        pass
