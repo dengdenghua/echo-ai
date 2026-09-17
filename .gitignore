@@ -273,3 +273,7 @@ pet-sidecar/.godot/
 docs/archive/
 docs/audits/
 .trae/
+
+# Windows UIAutomation side-effect log: the uiautomation package dumps its
+# CoInitialize / UIAutomationCore.dll complaints here. Never source.
+/@AutomationLog.txt
