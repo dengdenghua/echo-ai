@@ -55,6 +55,29 @@ def _dispatch(
     )
 
 
+def _warm_up_dispatch() -> None:
+    """Absorb first-call lazy imports before any deadline is timed.
+
+    ``_dispatch_parallel_actions`` imports executor/approval/cancellation
+    modules lazily on first execution; on Windows that cold call costs
+    ~0.4s of wall clock which would otherwise land inside the first
+    test's elapsed-time assertion (threshold 0.3s). Import-time warmup
+    keeps the deadline contract meaningful while staying out of any
+    measured window.
+    """
+    try:
+        _dispatch(
+            ['read_file({"path":"warm1"})', 'read_file({"path":"warm2"})'],
+            _executor("read_file"),
+            timeout_s=5.0,
+        )
+    except Exception:  # noqa: BLE001 — warmup must never fail collection
+        pass
+
+
+_warm_up_dispatch()
+
+
 def test_parallel_deadline_returns_without_waiting_for_noncooperative_lane(
     monkeypatch: Any,
     caplog: Any,
