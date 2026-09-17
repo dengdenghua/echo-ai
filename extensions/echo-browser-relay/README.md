@@ -44,6 +44,12 @@ fingerprint has one unique match; ambiguous matches fail closed. Click-driven
 navigation is tracked separately so a destroyed execution context is not
 misreported as failure after the page has actually moved.
 
+When the push WebSocket disconnects (including plugin disablement), the relay
+cancels its active command batch and waiting DOM actions. Reconnecting does
+not resume old commands. A synchronous browser action already dispatched
+cannot be undone. This cancellation guarantee applies to the WebSocket path,
+not the HTTP polling compatibility mode for older gateways.
+
 If the EchoOS gateway has authentication enabled, open the key button in
 the side panel and enter the same API key or session token used by the main
 app. The credential is stored only in the current Chrome profile and is sent

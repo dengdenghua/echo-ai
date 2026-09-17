@@ -20,6 +20,28 @@ const READ_ONLY_ACTIONS = new Set([
   "wait",
 ]);
 const runningCommands = new Set();
+const commandScopes = new Map();
+let relayGeneration = 0;
+
+function assertCommandActive(id) {
+  if (id && commandScopes.get(id)?.cancelled) {
+    throw new Error("automation cancelled: relay disconnected");
+  }
+}
+
+function cancelRunningCommands() {
+  relayGeneration += 1;
+  for (const [id, scope] of commandScopes) {
+    scope.cancelled = true;
+    if (scope.tabId != null) {
+      void runInTab(scope.tabId, (commandId) => {
+        const cancelled = globalThis.__ECHO_CANCELLED_COMMANDS__ ||= new Set();
+        cancelled.add(commandId);
+        while (cancelled.size > 256) cancelled.delete(cancelled.values().next().value);
+      }, [id]).catch(() => {}); // a closed tab cannot perform its pending action
+    }
+  }
+}
 const recentHumanActivityByTab = new Map();
 // Content scripts are recreated on every navigation. Keep the active cursor
 // state in the extension service worker so the new document can recover the
@@ -80,6 +102,7 @@ async function updateGatewayToken(nextToken) {
     await chrome.storage.local.remove(AUTH_TOKEN_KEY);
   }
   if (relaySocket) {
+    cancelRunningCommands();
     const socket = relaySocket;
     relaySocket = null;
     socket.close(1000, "gateway credentials changed");
@@ -458,10 +481,12 @@ async function runInTab(tabId, fn, args = []) {
 }
 
 async function runDomActionInTab(tabId, action, params, { includeDocumentId = false } = {}) {
+  assertCommandActive(params._echoCommandId);
   await chrome.scripting.executeScript({
     target: { tabId },
     files: ["dom-actions.js"],
   });
+  assertCommandActive(params._echoCommandId);
   const [injection] = await chrome.scripting.executeScript({
     target: { tabId },
     func: async (nextAction, nextParams) => {
@@ -622,8 +647,12 @@ async function executeCommand(command) {
   const lease = await validateCommandLease(command);
   const tab = await currentTab();
   const tabId = tab.id;
+  const scope = commandScopes.get(command.id);
+  if (scope) scope.tabId = tabId;
+  assertCommandActive(command.id);
   const action = command.action;
   const params = { ...(command.params || {}) };
+  params._echoCommandId = command.id;
   const deadlineAt = Number(command.deadline_at || 0);
   if (params.timeout == null && deadlineAt > 0) {
     // Leave a small margin for posting the result before the gateway's HTTP
@@ -643,6 +672,7 @@ async function executeCommand(command) {
       lease,
     });
     await setPageCursorOverlay(tabId, "start", action, params);
+    assertCommandActive(command.id);
     if (action === "navigate") {
       const url = String(params.url || "");
       if (!url) throw new Error("url is required");
@@ -781,9 +811,12 @@ async function reportResult(command, result) {
 }
 
 async function processCommands(commands = []) {
+  const generation = relayGeneration;
   for (const command of commands) {
+    if (generation !== relayGeneration) break;
     if (!command?.id || runningCommands.has(command.id)) continue;
     runningCommands.add(command.id);
+    commandScopes.set(command.id, { cancelled: false, tabId: null });
     try {
       const result = await executeCommand(command);
       await reportResult(command, result);
@@ -797,6 +830,7 @@ async function processCommands(commands = []) {
       });
     } finally {
       runningCommands.delete(command.id);
+      commandScopes.delete(command.id);
     }
   }
 }
@@ -875,7 +909,10 @@ async function connectRelaySocket() {
     }
   };
   socket.onclose = () => {
-    if (relaySocket === socket) relaySocket = null;
+    if (relaySocket === socket) {
+      relaySocket = null;
+      cancelRunningCommands();
+    }
     scheduleRelaySocketReconnect();
   };
   socket.onerror = () => {

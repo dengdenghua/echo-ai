@@ -1,0 +1,9 @@
+{
+  "name": "echo-industry-research",
+  "version": "1.0.0",
+  "description": "通用产业研究团队",
+  "author": {
+    "name": "Echo"
+  },
+  "agentName": "industry-research-lead"
+}

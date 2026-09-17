@@ -26401,12 +26401,12 @@
       "id": "BelieveInLight",
       "categoryId": "08-FinanceInvestment",
       "displayName": {
-        "en": "Believe in Light",
-        "zh": "相信光么"
+        "en": "Industry Research Team",
+        "zh": "产业研究团队"
       },
       "profession": {
-        "en": "Believe in Light",
-        "zh": "相信光么"
+        "en": "Industry Research Team",
+        "zh": "产业研究团队"
       },
       "description": {
         "zh": "光模块产业链信号监控专家团。主理人 + 6位成员Agent 三端采集信号，因果验证+权重校准，三层嵌套输出景气度评级。",
@@ -26417,8 +26417,8 @@
       "createdAt": "2026-07-26T06:28:28Z",
       "updatedAt": "2026-07-26T06:28:28Z",
       "defaultInitPrompt": {
-        "zh": "你好，我是相信光么主理人何光候。我们7人专职监控光模块产业链信号，从供给/需求/技术三端扫描，经过因果验证和权重校准，最终输出景气度评级。跑一下？",
-        "en": "Hi, I'm He Guanghou, lead analyst of 'Believe in Light'. We're a 7-agent team monitoring optical module supply chain signals. Ready to scan?"
+        "zh": "你好，我是产业研究团队主理人何光候。我们7人专职监控光模块产业链信号，从供给/需求/技术三端扫描，经过因果验证和权重校准，最终输出景气度评级。跑一下？",
+        "en": "Hi, I'm He Guanghou, lead analyst of 'Industry Research Team'. We're a 7-agent team monitoring optical module supply chain signals. Ready to scan?"
       },
       "expertType": "team",
       "agentName": "believe-in-light-team-lead",
@@ -26439,8 +26439,8 @@
       ],
       "quickPrompts": [
         {
-          "en": "Hi, I'm He Guanghou, lead analyst of 'Believe in Light'. We're a 7-agent team monitoring optical module supply chain signals. Ready to scan?",
-          "zh": "你好，我是相信光么主理人何光候。我们7人专职监控光模块产业链信号，从供给/需求/技术三端扫描，经过因果验证和权重校准，最终输出景气度评级。跑一下？"
+          "en": "Hi, I'm He Guanghou, lead analyst of 'Industry Research Team'. We're a 7-agent team monitoring optical module supply chain signals. Ready to scan?",
+          "zh": "你好，我是产业研究团队主理人何光候。我们7人专职监控光模块产业链信号，从供给/需求/技术三端扫描，经过因果验证和权重校准，最终输出景气度评级。跑一下？"
         },
         {
           "en": "What is the current rating of the optical module industry?",

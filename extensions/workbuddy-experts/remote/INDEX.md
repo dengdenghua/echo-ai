@@ -56,7 +56,7 @@
 - **BackendArchitect** [agent] · 磐石石 — 02-Engineering
 - **BaiduSeoExpert** [agent] · 度优优 — 05-MarketingGrowth
 - **BehavioralNudgeEngine** [agent] · 助推推 — 01-ProductDesign
-- **BelieveInLight** [team] · 相信光么 — 08-FinanceInvestment
+- **BelieveInLight** [team] · 产业研究团队 — 08-FinanceInvestment
 - **BiddingStrategist** [agent] · 投标策略师 — 07-SalesCommerce
 - **BilibiliContentStrategist** [agent] · 弹幕幕 — 06-ContentCreative
 - **BlockchainSecurityAuditor** [agent] · 链审审 — 11-SecurityCompliance

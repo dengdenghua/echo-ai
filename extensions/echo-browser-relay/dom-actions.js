@@ -3,6 +3,11 @@
 
   const MAX_TEXT = 20_000;
   const DEFAULT_LIMIT = 30;
+  function assertNotCancelled(params) {
+    if (params._echoCommandId && globalThis.__ECHO_CANCELLED_COMMANDS__?.has(params._echoCommandId)) {
+      throw new Error("automation cancelled: relay disconnected");
+    }
+  }
   const CACHE_LIMIT = 300;
   const existingCache = globalThis.__ECHO_DOM_ACTION_CACHE__;
   const snapshotCache = existingCache instanceof Map ? existingCache : new Map();
@@ -345,6 +350,7 @@
     let previousRect = null;
     let lastReason = "not found";
     while (true) {
+      assertNotCancelled(params);
       const resolved = resolveCachedElement(selector);
       const element = resolved.element;
 
@@ -564,6 +570,8 @@
     const started = Date.now();
     return new Promise((resolve, reject) => {
       const check = () => {
+        try { assertNotCancelled(params); }
+        catch (error) { reject(error); return; }
         let element = null;
         if (selector) {
           try {
@@ -598,6 +606,7 @@
 
   async function run(action, rawParams = {}) {
     const params = rawParams && typeof rawParams === "object" ? rawParams : {};
+    assertNotCancelled(params);
     const selector = String(params.selector || "");
     if (action === "visualSnapshot") {
       return { viewport: visualState() };
