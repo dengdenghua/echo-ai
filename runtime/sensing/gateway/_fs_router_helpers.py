@@ -52,6 +52,55 @@ def _resolved_path(path_value: str | Path) -> Path:
 def _add_scope_root(roots: list[Path], value: Any) -> None:
     if isinstance(value, str) and value.strip():
         roots.append(_resolved_path(value.strip()))
+    elif isinstance(value, Path):
+        roots.append(_resolved_path(value))
+
+
+def _thread_artifact_workspace(
+    ctx: _FsContext,
+    *,
+    thread_id: str,
+    metadata: dict[str, Any] | None = None,
+) -> Path | None:
+    """Return the server-owned thread workspace used for uploads / outputs.
+
+    Project-mode threads keep ``metadata.workspace_path`` pointed at the
+    opened project (e.g. ``D:\\pod-App``) while Echo still writes deliverables
+    under ``<workspace_root>/<thread_id>/output/...``. Preview/read must
+    accept that second root; without it the chat file chip 403s on every
+    HTML/image deliverable even though the file exists.
+    """
+    meta = metadata if isinstance(metadata, dict) else {}
+    if ctx.workspace_root is not None:
+        managed = verified_managed_workspace(
+            ctx.workspace_root,
+            thread_id=thread_id,
+            metadata=meta,
+        )
+        if managed is not None:
+            return managed
+        try:
+            from runtime.platform.runtime_policy.workspaces import WorkspaceManager
+
+            candidate = WorkspaceManager(Path(ctx.workspace_root)).path_for(thread_id)
+            # Only expose an existing layout — never create directories from a
+            # read/preview path check.
+            if candidate.is_dir():
+                return _resolved_path(candidate)
+        except (OSError, RuntimeError, TypeError, ValueError):
+            pass
+
+    for key in ("_artifact_output_root", "personal_workspace_path"):
+        raw = meta.get(key)
+        if not isinstance(raw, str) or not raw.strip():
+            continue
+        candidate = _resolved_path(raw.strip())
+        # ``_artifact_output_root`` is usually ``.../output/final``; allow that
+        # leaf, and also its thread workspace parent when present.
+        if candidate.name.casefold() == "final" and candidate.parent.name.casefold() == "output":
+            return candidate.parent.parent
+        return candidate
+    return None
 
 
 def _scope_roots(
@@ -85,6 +134,7 @@ def _scope_roots(
             return []
 
     roots: list[Path] = []
+    metadata: dict[str, Any] | None = None
     if ctx.thread_store is not None and thread_id:
         try:
             thread = None
@@ -92,8 +142,9 @@ def _scope_roots(
                 thread = ctx.thread_store.get(thread_id)
             if thread is None and hasattr(ctx.thread_store, "get_state"):
                 thread = ctx.thread_store.get_state(thread_id)
-            metadata = (thread or {}).get("metadata", {}) if thread else {}
-            if isinstance(metadata, dict):
+            raw_metadata = (thread or {}).get("metadata", {}) if thread else {}
+            if isinstance(raw_metadata, dict):
+                metadata = raw_metadata
                 _add_scope_root(roots, metadata.get("workspace_path"))
                 extra = metadata.get("extra_workspaces")
                 if isinstance(extra, list):
@@ -102,6 +153,14 @@ def _scope_roots(
         except (OSError, TypeError, ValueError):  # noqa: BLE001 — scope root resolution failed; fall through to workspace
             pass
     _add_scope_root(roots, workspace_path)
+    if thread_id:
+        artifact_root = _thread_artifact_workspace(
+            ctx,
+            thread_id=thread_id,
+            metadata=metadata,
+        )
+        if artifact_root is not None:
+            _add_scope_root(roots, artifact_root)
 
     deduped: list[Path] = []
     seen: set[str] = set()

@@ -59,9 +59,18 @@ class _ThreadStore:
         return {"metadata": self.metadata}
 
 
-def scoped_client(metadata: dict[str, object]) -> TestClient:
+def scoped_client(
+    metadata: dict[str, object],
+    *,
+    workspace_root: Path | None = None,
+) -> TestClient:
     app = FastAPI()
-    app.include_router(create_fs_router(thread_store=_ThreadStore(metadata)))
+    app.include_router(
+        create_fs_router(
+            thread_store=_ThreadStore(metadata),
+            workspace_root=workspace_root,
+        )
+    )
     return TestClient(app)
 
 
@@ -271,6 +280,70 @@ class TestFsRead:
         assert ok.status_code == 200
         assert blocked.status_code == 403
         assert blocked.json()["detail"]["error"] == "path_outside_workspace"
+
+    def test_project_thread_can_preview_thread_artifact_output(
+        self,
+        tmp_path: Path,
+    ) -> None:
+        """Regression: project-mode threads keep workspace_path on the opened
+        project, while deliverables land under data/workspaces/<thread>/output.
+        Preview/read must accept that second root or every HTML/image chip 403s.
+        """
+        project = tmp_path / "pod-App"
+        project.mkdir()
+        workspaces = tmp_path / "workspaces"
+        thread_ws = workspaces / "thread-scope"
+        artifact = thread_ws / "output" / "final" / "report.html"
+        artifact.parent.mkdir(parents=True)
+        artifact.write_text("<h1>ok</h1>", encoding="utf-8")
+        outside = tmp_path / "secret.txt"
+        outside.write_text("nope", encoding="utf-8")
+
+        client = scoped_client(
+            {"workspace_path": str(project)},
+            workspace_root=workspaces,
+        )
+
+        ok = client.get(
+            "/api/fs/preview",
+            params={"path": str(artifact), "thread_id": "thread-scope"},
+        )
+        blocked = client.get(
+            "/api/fs/preview",
+            params={"path": str(outside), "thread_id": "thread-scope"},
+        )
+
+        assert ok.status_code == 200
+        assert ok.headers["content-type"] == "application/octet-stream"
+        assert blocked.status_code == 403
+        assert blocked.json()["detail"]["error"] == "path_outside_workspace"
+
+    def test_project_thread_can_read_via_artifact_output_root_metadata(
+        self,
+        tmp_path: Path,
+    ) -> None:
+        project = tmp_path / "project"
+        project.mkdir()
+        thread_ws = tmp_path / "thread-artifacts"
+        final = thread_ws / "output" / "final"
+        final.mkdir(parents=True)
+        report = final / "notes.md"
+        report.write_text("# done\n", encoding="utf-8")
+
+        client = scoped_client(
+            {
+                "workspace_path": str(project),
+                "_artifact_output_root": str(final),
+            }
+        )
+
+        ok = client.get(
+            "/api/fs/read",
+            params={"path": str(report), "thread_id": "thread-scope"},
+        )
+
+        assert ok.status_code == 200
+        assert "# done" in ok.json()["content"]
 
 
 class TestFsWrite:
