@@ -146,6 +146,43 @@ describe("LoginPage", () => {
     expect(navigateMock).toHaveBeenCalled();
   });
 
+  it("toggles password visibility between password and text in local login", async () => {
+    getAuthProvidersMock.mockResolvedValue([
+      {
+        id: "local",
+        password_required: true,
+        password_only_username: "owner",
+      },
+    ]);
+    const user = userEvent.setup();
+    renderPage();
+
+    const password = await screen.findByLabelText("密码", { selector: "input" });
+    expect(password).toHaveAttribute("type", "password");
+
+    const toggleBtn = screen.getByRole("button", { name: "显示密码" });
+    await user.click(toggleBtn);
+    expect(password).toHaveAttribute("type", "text");
+
+    const hideBtn = screen.getByRole("button", { name: "隐藏密码" });
+    await user.click(hideBtn);
+    expect(password).toHaveAttribute("type", "password");
+  });
+
+  it("validates empty fields in local login form before submitting", async () => {
+    getAuthProvidersMock.mockResolvedValue([
+      { id: "local", password_required: true },
+    ]);
+    const user = userEvent.setup();
+    renderPage();
+
+    await screen.findByRole("textbox", { name: "用户名" });
+    await user.click(screen.getByRole("button", { name: "进入 ECHO" }));
+
+    expect(screen.getByText("请输入用户名")).toBeInTheDocument();
+    expect(localLoginMock).not.toHaveBeenCalled();
+  });
+
   it("defaults to the email form with email + code fields visible", async () => {
     await renderPageAtLoginForm();
     expect(screen.getByRole("textbox", { name: "邮箱" })).toBeInTheDocument();

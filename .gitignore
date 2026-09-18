@@ -277,3 +277,7 @@ docs/audits/
 # Windows UIAutomation side-effect log: the uiautomation package dumps its
 # CoInitialize / UIAutomationCore.dll complaints here. Never source.
 /@AutomationLog.txt
+
+# Frontend build backup archives
+frontend/dist.old*/
+dist.old*/

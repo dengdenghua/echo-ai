@@ -862,6 +862,13 @@ html:has(.echo-login-shell) {
   }
 }
 
+.echo-age-field-paused .echo-age-wave,
+.echo-age-field-paused .echo-age-vortex,
+.echo-age-field-paused .echo-age-particle,
+.echo-age-field-paused .echo-age-core {
+  animation-play-state: paused !important;
+}
+
 @media (prefers-reduced-motion: reduce) {
   .echo-login-aurora,
   .echo-age-wave,

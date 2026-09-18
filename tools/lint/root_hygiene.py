@@ -193,6 +193,8 @@ def _git_tracked_root_entries(root: Path) -> list[str] | None:
             check=True,
             capture_output=True,
             text=True,
+            encoding="utf-8",
+            errors="replace",
         )
     except (subprocess.CalledProcessError, OSError):
         return None
