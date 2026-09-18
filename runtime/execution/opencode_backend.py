@@ -622,27 +622,49 @@ async def managed_server(
         yield client
 
 
+_PROVIDER_CATALOG_LOAD_TIMEOUT = 10.0
+_PROVIDER_CATALOG_POLL_INTERVAL = 0.4
+
+
 async def validate_catalog_model(
     client: httpx.AsyncClient, model: str, *, free_only: bool = False
 ) -> None:
-    """Reject stale Zen selections before OpenCode reports an opaque HTTP 500."""
-    try:
-        response = await client.get("/provider")
-        response.raise_for_status()
-        payload = response.json()
-        providers = payload.get("all") if isinstance(payload, dict) else None
-        if not isinstance(providers, list):
-            raise ValueError("invalid provider catalog")
-        provider, upstream = native_model(model)
-        zen = next(
-            (p for p in providers if isinstance(p, dict) and p.get("id") == provider),
-            {},
-        )
-        models = zen.get("models", {})
-        if not isinstance(models, dict):
-            raise ValueError("invalid model catalog")
-    except (httpx.HTTPError, ValueError):
-        raise OpenCodeError("无法读取 OpenCode 模型列表，请稍后重试。") from None
+    """Reject stale Zen selections before OpenCode reports an opaque HTTP 500.
+
+    A freshly spawned engine answers /global/health before its models.dev
+    catalog finishes loading (a network fetch that can take seconds on a
+    cold start), so reading /provider immediately can see an empty list and
+    falsely reject a perfectly valid selection — and the failed turn then
+    kills the server before the cache ever lands, so the next turn races
+    again. Wait a bounded time while the catalog is empty; only declare the
+    model missing once the catalog has actually loaded. (Probed 2026-09-18:
+    a cold server fetched models.json ~3s after spawn while /provider was
+    already reachable, and two turns failed before one warm cache existed.)
+    """
+    deadline = asyncio.get_running_loop().time() + _PROVIDER_CATALOG_LOAD_TIMEOUT
+    while True:
+        try:
+            response = await client.get("/provider")
+            response.raise_for_status()
+            payload = response.json()
+            providers = payload.get("all") if isinstance(payload, dict) else None
+            if not isinstance(providers, list):
+                raise ValueError("invalid provider catalog")
+            provider, upstream = native_model(model)
+            zen = next(
+                (p for p in providers if isinstance(p, dict) and p.get("id") == provider),
+                {},
+            )
+            models = zen.get("models", {})
+            if not isinstance(models, dict):
+                raise ValueError("invalid model catalog")
+        except (httpx.HTTPError, ValueError):
+            raise OpenCodeError("无法读取 OpenCode 模型列表，请稍后重试。") from None
+        if models:
+            break
+        if asyncio.get_running_loop().time() >= deadline:
+            raise OpenCodeError("OpenCode 模型列表尚未就绪，请稍后重试。")
+        await asyncio.sleep(_PROVIDER_CATALOG_POLL_INTERVAL)
     if upstream not in models:
         raise OpenCodeError("OpenCode 当前未提供所选 Zen 模型，请在输入框选择其他模型后重试。")
     if free_only:
@@ -734,6 +756,20 @@ def public_model_error(error: Any) -> str:
     detail = json.dumps(error, ensure_ascii=False).lower()
     if "429" in detail or "limit" in detail or "rate" in detail:
         return "当前模型额度或请求频率受限，请稍后重试或切换模型。"
+    if (
+        "403" in detail
+        or "forbidden" in detail
+        or "payment" in detail
+        or "credits" in detail
+        or "subscription" in detail
+        or "entitlement" in detail
+    ):
+        # Upstream entitlement rejections (free-tier gates, contributor-only
+        # models, missing payment method) are per-model, not a broken login.
+        # Say so, or they read as "authentication dropped" and users re-login
+        # for nothing. (Probed 2026-09-18: muse-spark-1.3-contributor-free
+        # failed this way right after a working big-pickle turn.)
+        return "当前账号没有这个模型的使用资格（部分免费模型有额外门槛或需付费），请换一个模型。"
     if "401" in detail or "unauthorized" in detail or "authentication" in detail:
         return "模型连接已失效，请在模型设置中检查授权。"
     if "model" in detail and any(x in detail for x in ("not found", "unavailable", "404")):

@@ -686,3 +686,86 @@ async def test_unsupported_variant_fails_before_sending_task():
                     reasoning_effort="low",
                 )
             ]
+
+
+@pytest.mark.asyncio
+@pytest.mark.asyncio
+async def test_validate_catalog_model_waits_for_cold_engine_catalog(monkeypatch):
+    """A cold engine answers /provider before models.dev finishes loading.
+
+    The first read sees an empty catalog; the fix must retry until the real
+    catalog lands instead of rejecting a valid selection. (2026-09-18: two
+    live turns failed exactly this way before the models.json cache existed.)
+    """
+    from runtime.execution import opencode_backend as backend
+
+    calls = {"n": 0}
+
+    def handle(request):
+        calls["n"] += 1
+        if calls["n"] == 1:
+            return httpx.Response(200, json={"all": [{"id": "opencode", "models": {}}]})
+        return httpx.Response(
+            200,
+            json={
+                "all": [
+                    {
+                        "id": "opencode",
+                        "models": {"union-alpha": {"cost": {"input": 0, "output": 0}}},
+                    }
+                ]
+            },
+        )
+
+    monkeypatch.setattr(backend, "_PROVIDER_CATALOG_LOAD_TIMEOUT", 5.0)
+    monkeypatch.setattr(backend, "_PROVIDER_CATALOG_POLL_INTERVAL", 0.01)
+    async with httpx.AsyncClient(
+        transport=httpx.MockTransport(handle), base_url="http://localhost"
+    ) as client:
+        await validate_catalog_model(client, "union-alpha")
+    assert calls["n"] >= 2
+
+
+@pytest.mark.asyncio
+@pytest.mark.asyncio
+async def test_validate_catalog_model_still_rejects_missing_model_when_loaded():
+    """Once the catalog is populated, a genuinely absent model must still fail."""
+
+    def handle(request):
+        return httpx.Response(
+            200,
+            json={
+                "all": [
+                    {
+                        "id": "opencode",
+                        "models": {"big-pickle": {"cost": {"input": 0, "output": 0}}},
+                    }
+                ]
+            },
+        )
+
+    async with httpx.AsyncClient(
+        transport=httpx.MockTransport(handle), base_url="http://localhost"
+    ) as client:
+        with pytest.raises(OpenCodeError, match="当前未提供所选 Zen 模型"):
+            await validate_catalog_model(client, "union-alpha")
+
+
+@pytest.mark.asyncio
+@pytest.mark.asyncio
+async def test_validate_catalog_model_gives_up_when_catalog_never_loads(monkeypatch):
+    """An engine whose catalog never loads surfaces a retry message, not a
+    false 'model not provided'."""
+
+    from runtime.execution import opencode_backend as backend
+
+    def handle(request):
+        return httpx.Response(200, json={"all": [{"id": "opencode", "models": {}}]})
+
+    monkeypatch.setattr(backend, "_PROVIDER_CATALOG_LOAD_TIMEOUT", 0.2)
+    monkeypatch.setattr(backend, "_PROVIDER_CATALOG_POLL_INTERVAL", 0.01)
+    async with httpx.AsyncClient(
+        transport=httpx.MockTransport(handle), base_url="http://localhost"
+    ) as client:
+        with pytest.raises(OpenCodeError, match="尚未就绪"):
+            await validate_catalog_model(client, "union-alpha")
