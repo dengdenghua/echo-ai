@@ -47,7 +47,7 @@ def _thread(client: TestClient, messages: list[dict[str, object]]) -> str:
 
 
 class TestSplitSystemSections:
-    def test_charges_each_labelled_span_once(self) -> None:
+    def test_classifies_each_paragraph_by_its_own_heading(self) -> None:
         prompt = (
             "You are Echo.\n\n"
             "AVAILABLE SKILLS (name · one-liner):\n- web\n\n"
@@ -56,11 +56,35 @@ class TestSplitSystemSections:
 
         sections = split_system_sections(prompt)
 
-        assert sections["system_prompt"].startswith("You are Echo.")
-        assert "AVAILABLE SKILLS" in sections["skills"]
-        assert "RELEVANT LONG-TERM MEMORY" in sections["memory"]
-        # No span is dropped and none is counted twice.
-        assert sum(len(span) for span in sections.values()) == len(prompt)
+        assert sections["system_prompt"] == "You are Echo."
+        assert sections["skills"].startswith("AVAILABLE SKILLS")
+        assert sections["memory"].startswith("RELEVANT LONG-TERM MEMORY:")
+        # Every non-empty line landed in exactly one bucket.
+        remaining = [line for line in prompt.splitlines() if line.strip()]
+        for bucket in sections.values():
+            for line in bucket.splitlines():
+                if line.strip():
+                    remaining.remove(line)
+        assert remaining == []
+
+    def test_guidance_after_the_catalogue_stays_in_the_system_prompt(self) -> None:
+        """A heading must not swallow everything that follows it.
+
+        The assembly appends plan-first guidance and other notes after the
+        tool catalogue; charging those to skills would inflate the one row a
+        reader is most likely to act on.
+        """
+        prompt = (
+            "base\n\n"
+            "可用工具 (skill):\n  - read_file: 读取文件\n\n"
+            "PLAN FIRST: write plan.md before executing.\n"
+        )
+
+        sections = split_system_sections(prompt)
+
+        assert sections["skills"].startswith("可用工具 (skill):")
+        assert "PLAN FIRST" not in sections["skills"]
+        assert "PLAN FIRST" in sections["system_prompt"]
 
     def test_a_prompt_without_markers_is_all_system_prompt(self) -> None:
         sections = split_system_sections("plain instructions")
@@ -129,6 +153,27 @@ class TestMeasureRequest:
         assert tokens["skills"] > 0
         assert tokens["memory"] > 0
         assert tokens["system_prompt"] > 0
+
+    def test_the_react_catalogue_header_counts_as_skills(self) -> None:
+        """The ReAct loop heads its catalogue differently from the planner.
+
+        Missing this one silently charged every tool description to the
+        system prompt, which is the row a reader least expects to grow.
+        """
+        tokens = measure_request(
+            messages=[
+                {
+                    "role": "system",
+                    "content": (
+                        "base\n\n可用工具 (skill):\n  - read_file: 读取文件\n"
+                        "  - todo_write: 写清单\n"
+                    ),
+                }
+            ],
+            tools=[],
+        )
+
+        assert tokens["skills"] > 0
 
 
 class TestSnapshotStore:

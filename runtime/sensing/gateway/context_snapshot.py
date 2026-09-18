@@ -33,10 +33,12 @@ MEASURED_KEYS = (
 # reads the thread it is displaying, so the map is a short-lived cache.
 _MAX_THREADS = 200
 
-# The ReAct assembly writes the skill catalogue and the memory blocks into the
-# system prompt as prose. These are the headings it uses, so their spans are
-# measured from the real text instead of guessed from the conversation.
-_SKILLS_MARKERS = ("AVAILABLE SKILLS",)
+# The assembly writes the skill catalogue and the memory blocks into the
+# system prompt as prose. These are the headings it actually uses, so their
+# spans are measured from the real text instead of guessed from the
+# conversation. Two headers exist because the ReAct loop and the planner
+# each build their own catalogue.
+_SKILLS_MARKERS = ("AVAILABLE SKILLS", "可用工具 (skill):")
 _MEMORY_MARKERS = ("RELEVANT LONG-TERM MEMORY:", "USER PROFILE MEMORY:")
 _SECTION_MARKERS = _SKILLS_MARKERS + _MEMORY_MARKERS
 
@@ -89,35 +91,34 @@ def classify_tool_name(name: str) -> str:
     return "system_tools"
 
 
+def _starts_with_any(text: str, markers: tuple[str, ...]) -> bool:
+    return any(text.startswith(marker) for marker in markers)
+
+
 def split_system_sections(text: str) -> dict[str, str]:
     """Slice a system prompt into the labelled spans it already contains.
 
-    Each marker opens a block that runs until the next marker, which is how the
-    assembly appends them. Text before the first marker is the ordinary system
-    prompt. Nothing is invented here: a prompt with no markers reports every
-    token as ``system_prompt``.
+    The assembly appends each section as its own paragraph and joins them
+    with blank lines, so a section is identified by the heading its own
+    paragraph opens with. Anchoring on the paragraph — rather than letting a
+    heading swallow everything up to the next one — keeps the guidance that
+    follows the tool catalogue out of the skills bucket. Text that merely
+    mentions a heading is not reclassified, and a prompt with no headings
+    reports every token as ``system_prompt``: nothing is invented either way.
     """
-    sections = {"system_prompt": "", "skills": "", "memory": ""}
+    buckets: dict[str, list[str]] = {"system_prompt": [], "skills": [], "memory": []}
     if not text:
-        return sections
+        return {key: "" for key in buckets}
 
-    found: list[tuple[int, str]] = []
-    for marker in _SECTION_MARKERS:
-        start = text.find(marker)
-        while start != -1:
-            bucket = "skills" if marker in _SKILLS_MARKERS else "memory"
-            found.append((start, bucket))
-            start = text.find(marker, start + len(marker))
-    if not found:
-        sections["system_prompt"] = text
-        return sections
-
-    found.sort()
-    sections["system_prompt"] = text[: found[0][0]]
-    for index, (start, bucket) in enumerate(found):
-        end = found[index + 1][0] if index + 1 < len(found) else len(text)
-        sections[bucket] += text[start:end]
-    return sections
+    for paragraph in text.split("\n\n"):
+        stripped = paragraph.lstrip()
+        if _starts_with_any(stripped, _SKILLS_MARKERS):
+            buckets["skills"].append(paragraph)
+        elif _starts_with_any(stripped, _MEMORY_MARKERS):
+            buckets["memory"].append(paragraph)
+        else:
+            buckets["system_prompt"].append(paragraph)
+    return {key: "\n\n".join(chunks) for key, chunks in buckets.items()}
 
 
 def measure_request(messages: Any, tools: Any) -> dict[str, int]:
