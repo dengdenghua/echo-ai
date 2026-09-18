@@ -97,13 +97,76 @@ def model_is_reasoning(model: str) -> bool:
     return _record(model).get("reasoning") is True
 
 
+@lru_cache(maxsize=1)
+def _free_by_provider() -> dict[str, frozenset[str]]:
+    """Zero-cost model ids per upstream provider, from the same snapshot."""
+    try:
+        from runtime.platform.process.paths import resources_root
+
+        path = resources_root().joinpath(*_SNAPSHOT_RELATIVE)
+        raw = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, ValueError, ImportError) as exc:
+        _logger.debug("model capability snapshot unavailable: %s", exc)
+        return {}
+    section = raw.get("free_by_provider") if isinstance(raw, dict) else None
+    if not isinstance(section, dict):
+        return {}
+    return {
+        str(provider): frozenset(str(m) for m in models)
+        for provider, models in section.items()
+        if isinstance(models, list)
+    }
+
+
+def _probe(model: str) -> str:
+    return (model or "").strip().removesuffix("::1m")
+
+
+def model_is_free(model: str, provider: str | None = None) -> bool:
+    """Whether upstream prices this model at zero input cost.
+
+    Pass ``provider`` (a models.dev provider id such as ``opencode``) whenever
+    the caller knows which service it will actually bill against. Price is the
+    one fact that differs between providers hosting the same model id: on the
+    live dump 162 ids are free on one provider and paid on another, so
+    ``qwen3.5-plus`` is free on ``alibaba-coding-plan-cn`` and costs 0.2 on
+    ``opencode``. This is the lookup the OpenCode CLI performs — by provider,
+    never by bare model name.
+
+    Without a provider the flattened flag applies, which the distiller only
+    sets when EVERY provider listing the id prices it at zero. Falling back to
+    the ``*-free`` suffix is last resort for an id the snapshot never saw; a
+    non-suffix id is never guessed free, so a paid Gemini release cannot
+    inherit a Free badge the way it did from the old hardcoded list.
+    """
+
+    probe = _probe(model)
+    if not probe:
+        return False
+    if provider:
+        known = _free_by_provider().get(provider)
+        # A hit is decisive. A miss is NOT: the vendored snapshot lags the
+        # provider's own catalog, so a model published after the last refresh
+        # is simply absent here and still has to reach the suffix check below,
+        # or every newly shipped ``*-free`` model would render as paid until
+        # someone regenerates the snapshot.
+        if known and (probe in known or probe.rsplit("/", 1)[-1] in known):
+            return True
+    record = _record(model)
+    if "free" in record:
+        return record.get("free") is True
+    return probe.rsplit("/", 1)[-1].endswith("-free")
+
+
 def reset_capability_cache() -> None:
     """Drop the cached snapshot. For tests that patch the resources root."""
     _snapshot.cache_clear()
+    _free_by_provider.cache_clear()
 
 
 __all__ = [
     "known_model_context_window",
+    "model_is_free",
     "model_is_reasoning",
     "model_rejects_temperature",
     "reset_capability_cache",

@@ -14,6 +14,8 @@ from collections.abc import Callable
 from typing import Any
 from urllib.parse import urlsplit, urlunsplit
 
+from runtime.platform.models.model_capabilities import model_is_free
+
 
 def model_provider_responses_models(entry: dict[str, Any], models: list[str]) -> list[str]:
     """Resolve reviewed Responses families, including older saved Zen entries."""
@@ -117,6 +119,17 @@ class ModelProviderPluginManager:
         return str(descriptor.get("entry_id") or item.get("id") or "").strip()
 
     @staticmethod
+    def _price_provider(descriptor: dict[str, Any]) -> str | None:
+        """models.dev provider id whose price table applies to this endpoint.
+
+        Declared per descriptor because the same model id is free on one
+        service and billed on another, so a bare-name price lookup silently
+        marks paid models free.
+        """
+
+        return str(descriptor.get("price_provider") or "").strip() or None
+
+    @staticmethod
     def _provider_name(item: dict[str, Any], descriptor: dict[str, Any]) -> str:
         return str(
             descriptor.get("display_name_zh")
@@ -210,6 +223,9 @@ class ModelProviderPluginManager:
             for row in (rows if isinstance(rows, list) else [])
             if isinstance(row, dict) and str(row.get("id") or "").strip()
         }
+        # ``free_models`` is a compat/ordering hint only. Free status itself
+        # comes from upstream prices, because a hardcoded list goes stale the
+        # moment the provider publishes or retires a model.
         configured = [
             str(model).strip()
             for model in (descriptor.get("free_models") or [])
@@ -220,20 +236,20 @@ class ModelProviderPluginManager:
             for model in (descriptor.get("excluded_models") or [])
             if str(model or "").strip()
         }
-        # Preserve the reviewed list's order, then append newly published
-        # ``*-free`` models automatically. Explicit exclusions remain available
-        # for providers that publish a model before its wire protocol is
-        # supported by this adapter.
+        price_provider = self._price_provider(descriptor)
+        # Discovery reads the provider's own catalog. Explicit exclusions remain
+        # available for providers that publish a model before its wire protocol
+        # is supported by this adapter.
         discovered = sorted(
             model
             for model in available
-            if (descriptor.get("discover_all_models") or model.endswith("-free"))
+            if (descriptor.get("discover_all_models") or model_is_free(model, price_provider))
             and model not in excluded
         )
         models = [model for model in configured if model in available and model not in excluded]
         models.extend(model for model in discovered if model not in models)
         if descriptor.get("discover_all_models"):
-            models.sort(key=lambda model: model not in configured and not model.endswith("-free"))
+            models.sort(key=lambda model: not model_is_free(model, price_provider))
         if not models:
             raise ValueError(f"当前账号没有检测到可用的 {provider_name} 模型")
         channels = {}
@@ -296,11 +312,15 @@ class ModelProviderPluginManager:
             "supports_vision": bool(descriptor.get("supports_vision", False)),
             "supports_tool_use": bool(descriptor.get("supports_tool_use", True)),
             "is_free": bool(descriptor.get("models_are_free", False)),
+            # Free badges follow upstream prices, not a reviewed list: the list
+            # marked union-alpha free (no zero-cost record upstream at all) and
+            # would keep doing so for every future rename. Prices are read under
+            # this provider's own id, since the same model id is free on one
+            # service and billed on another.
             "model_free_status": {
-                model: (model in (descriptor.get("free_models") or []) or model.endswith("-free"))
-                for model in selected
+                model: model_is_free(model, self._price_provider(descriptor)) for model in selected
             }
-            if entry_id == "opencode-zen"
+            if self._price_provider(descriptor)
             else {},
             "compat_profile": str(descriptor.get("compat_profile") or "openai_compat"),
             "responses_model_prefixes": list(descriptor.get("responses_model_prefixes") or []),

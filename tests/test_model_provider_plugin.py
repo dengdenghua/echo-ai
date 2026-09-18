@@ -55,6 +55,7 @@ def _item() -> dict[str, Any]:
             "display_name_zh": "OpenCode Zen 免费模型",
             "base_url": "https://opencode.ai/zen/v1",
             "models_endpoint": "https://opencode.ai/zen/v1/models",
+            "price_provider": "opencode",
             "free_models": [
                 "big-pickle",
                 "muse-spark-1.2-contributor-free",

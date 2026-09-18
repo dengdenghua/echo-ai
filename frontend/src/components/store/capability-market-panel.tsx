@@ -856,21 +856,23 @@ export function ConnectDialog({
                 </p>
               </div>
             ) : null}
-            <div className="rounded-md bg-muted/40 p-2.5 text-xs">
-              <p className="font-medium text-foreground">
-                {modelProvider.model_list_label_zh ?? "预置模型"}
-              </p>
-              <div className="mt-1.5 flex flex-wrap gap-1">
-                {modelProvider.free_models.map((model) => (
-                  <code
-                    key={model}
-                    className="rounded bg-background px-1.5 py-0.5 text-[11px] text-muted-foreground"
-                  >
-                    {model}
-                  </code>
-                ))}
+            {modelProvider.free_models.length > 0 ? (
+              <div className="rounded-md bg-muted/40 p-2.5 text-xs">
+                <p className="font-medium text-foreground">
+                  {modelProvider.model_list_label_zh ?? "预置模型"}
+                </p>
+                <div className="mt-1.5 flex flex-wrap gap-1">
+                  {modelProvider.free_models.map((model) => (
+                    <code
+                      key={model}
+                      className="rounded bg-background px-1.5 py-0.5 text-[11px] text-muted-foreground"
+                    >
+                      {model}
+                    </code>
+                  ))}
+                </div>
               </div>
-            </div>
+            ) : null}
             {(modelProvider.privacy_notices_zh ?? []).length > 0 ? (
               <div className="rounded-md border border-warning/30 bg-warning/5 px-2.5 py-2 text-[11px] leading-5 text-warning">
                 {(modelProvider.privacy_notices_zh ?? []).map((notice) => (

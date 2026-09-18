@@ -13,12 +13,18 @@ Run this to refresh it:
 
     make refresh-model-capabilities
 
-Only the three fields we act on are kept, so the snapshot stays small and
+Only the fields we act on are kept, so the snapshot stays small and
 reviewable in a diff:
 
 ``context``       input window, corrects an entry's ``context_window``
 ``temperature``   False means the model 400s on a temperature parameter
 ``reasoning``     True means it spends output tokens thinking before writing
+``free``          True only when EVERY provider listing the id prices it at 0
+
+Prices are additionally kept per provider under ``free_by_provider``, because
+price is the one fact that genuinely differs between services hosting the same
+model id. Callers that know which service they bill against should look there;
+``free`` is the conservative fallback for callers that do not.
 
 Usage:
     python -m tools.refresh_model_capabilities [--url URL] [--out PATH]
@@ -54,6 +60,38 @@ def _fetch(url: str) -> dict[str, Any]:
     return payload
 
 
+def free_by_provider(raw: dict[str, Any]) -> dict[str, list[str]]:
+    """Zero-input-cost model ids, kept per provider.
+
+    Price is the one fact that genuinely differs between providers hosting the
+    same model id, so it cannot be flattened the way capability claims can.
+    Measured on the live dump: 162 ids are free on one provider and paid on
+    another — ``qwen3.5-plus`` costs 0.2 on ``opencode`` while
+    ``alibaba-coding-plan-cn`` lists it at 0. Flattening let that 0 win and
+    painted a paid Zen model with a Free badge.
+
+    This is how the OpenCode CLI reads it too: look up the price under the
+    provider you are actually calling, never under a bare model name.
+    """
+    out: dict[str, list[str]] = {}
+    for provider_id, provider in raw.items():
+        if not isinstance(provider, dict):
+            continue
+        models = provider.get("models")
+        if not isinstance(models, dict):
+            continue
+        free = sorted(
+            model_id
+            for model_id, model in models.items()
+            if isinstance(model, dict)
+            and isinstance(model.get("cost"), dict)
+            and model["cost"].get("input") == 0
+        )
+        if free:
+            out[str(provider_id)] = free
+    return dict(sorted(out.items()))
+
+
 def distill(raw: dict[str, Any]) -> dict[str, dict[str, Any]]:
     """Reduce the upstream dump to the fields we actually act on.
 
@@ -61,8 +99,23 @@ def distill(raw: dict[str, Any]) -> dict[str, dict[str, Any]]:
     itself). Their capability claims agree in practice; when they disagree we
     keep the first and do not try to arbitrate — the operator's own
     ``custom_models.json`` entry always wins over this snapshot anyway.
+
+    Price is the exception and is NOT flattened here; see ``free_by_provider``.
     """
     out: dict[str, dict[str, Any]] = {}
+    # Must be complete before the main pass: a model seen first under a
+    # zero-cost provider would otherwise be flagged free before the paid
+    # record that disqualifies it is ever read.
+    paid_somewhere = {
+        model_id
+        for provider in raw.values()
+        if isinstance(provider, dict) and isinstance(provider.get("models"), dict)
+        for model_id, model in provider["models"].items()
+        if isinstance(model, dict)
+        and isinstance(model.get("cost"), dict)
+        and isinstance(model["cost"].get("input"), int | float)
+        and model["cost"]["input"] != 0
+    }
     for provider in raw.values():
         if not isinstance(provider, dict):
             continue
@@ -72,6 +125,7 @@ def distill(raw: dict[str, Any]) -> dict[str, dict[str, Any]]:
         for model_id, model in models.items():
             if not isinstance(model, dict) or model_id in out:
                 continue
+            cost = model.get("cost")
             record: dict[str, Any] = {}
 
             limit = model.get("limit")
@@ -91,6 +145,19 @@ def distill(raw: dict[str, Any]) -> dict[str, dict[str, Any]]:
             # floor for models the operator never declared.
             if model.get("reasoning") is True:
                 record["reasoning"] = True
+
+            # OpenCode (and models.dev) treat ``cost.input === 0`` as free.
+            # Zen's own ``/models`` endpoint does not publish prices, so this
+            # snapshot is what lets Echo mark Free badges without a hardcoded
+            # id list that goes stale the next time upstream ships a model.
+            #
+            # This flattened flag is only the fallback for callers that have no
+            # provider in hand, so it is deliberately conservative: free ONLY
+            # when every provider listing the id prices it at zero. An id that
+            # is free on one relay and paid on another resolves to False here
+            # and must be looked up via ``free_by_provider``.
+            if isinstance(cost, dict) and cost.get("input") == 0 and model_id not in paid_somewhere:
+                record["free"] = True
 
             # ``interleaved.field`` (which response key carries reasoning) is
             # deliberately NOT captured. Across the whole upstream dump it only
@@ -115,11 +182,12 @@ def main(argv: list[str] | None = None) -> int:
     models = distill(raw)
     if not models:
         raise SystemExit("refusing to write an empty snapshot")
+    free = free_by_provider(raw)
 
     args.out.parent.mkdir(parents=True, exist_ok=True)
     args.out.write_text(
         json.dumps(
-            {"source": args.url, "models": models},
+            {"source": args.url, "models": models, "free_by_provider": free},
             indent=1,
             ensure_ascii=False,
             sort_keys=True,
@@ -127,7 +195,10 @@ def main(argv: list[str] | None = None) -> int:
         + "\n",
         encoding="utf-8",
     )
-    print(f"wrote {args.out} · {len(models)} models from {len(raw)} providers")
+    print(
+        f"wrote {args.out} · {len(models)} models from {len(raw)} providers · "
+        f"free prices for {len(free)} providers"
+    )
     return 0
 
 

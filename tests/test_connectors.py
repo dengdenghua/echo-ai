@@ -381,13 +381,12 @@ class TestConnectorRegistry:
         assert catalog_item["type"] == "plugin"
         assert catalog_item["mcp_servers"] == []
         assert catalog_item["model_provider"]["base_url"] == "https://opencode.ai/zen/v1"
-        free_models = catalog_item["model_provider"]["free_models"]
-        assert "big-pickle" in free_models
-        # Zero-cost ids that carry no ``-free`` suffix are exactly the ones the
-        # suffix heuristic in model_provider_plugin cannot infer, so this reviewed
-        # list is their only source of truth. Without them a genuinely free model
-        # renders with paid styling and sorts to the bottom of the picker.
-        assert {"union-alpha", "grok-code"} <= set(free_models)
+        # Free status is derived from upstream prices (models.dev
+        # ``cost.input == 0``) via model_capabilities, never from a reviewed id
+        # list: the list went stale every time Zen published or retired a model,
+        # and it had marked ``union-alpha`` free although upstream never priced
+        # it at zero. The descriptor keeps the field only for compatibility.
+        assert catalog_item["model_provider"]["free_models"] == []
 
         result = reg.install("opencode-zen")
         assert result["installed"] is True

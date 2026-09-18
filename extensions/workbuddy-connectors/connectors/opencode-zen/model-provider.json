@@ -12,16 +12,8 @@
   "login_cta_zh": "登录 OpenCode 并获取 Key",
   "connection_note_zh": "一份 Key，连接 Zen 与 Go 两个渠道。Go 需要有效套餐。",
   "model_list_label_zh": "可用模型",
-  "free_models": [
-    "big-pickle",
-    "muse-spark-1.2-contributor-free",
-    "mimo-v2.5-free",
-    "hy3-free",
-    "nemotron-3-ultra-free",
-    "nemotron-3.5-lightning-free",
-    "union-alpha",
-    "grok-code"
-  ],
+  "free_models": [],
+  "price_provider": "opencode",
   "excluded_models": [],
   "responses_models": [
     "muse-spark-1.2-contributor-free"
@@ -57,6 +49,7 @@
       "connection_note_zh": "Go 与 Zen 共用 OpenCode Key。已连接 Zen 可留空直接连接；Go 需有效套餐。",
       "model_list_label_zh": "套餐模型",
       "free_models": [],
+      "price_provider": "opencode-go",
       "excluded_models": [],
       "responses_models": [],
       "responses_model_prefixes": [
