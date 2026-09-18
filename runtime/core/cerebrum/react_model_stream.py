@@ -358,6 +358,16 @@ def _phase_6b_model_stream(
                     and _zero_action_rounds > 0
                 ),
             )
+            # The context ring reports what this request actually carries, and
+            # this is the only place both halves are known: the assembled
+            # payload and the thread it belongs to. Recording is best-effort —
+            # a display cache must never be able to break a turn.
+            with contextlib.suppress(Exception):
+                from runtime.sensing.gateway.context_snapshot import (
+                    record_request_context,
+                )
+
+                record_request_context(thread_id, req.messages, req.tools)
             text_parts: list[str] = []
             thinking_parts: list[str] = []
             resp = state.parse.resp = None

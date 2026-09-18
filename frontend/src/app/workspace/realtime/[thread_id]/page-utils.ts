@@ -7,6 +7,11 @@ import type { ResearchJob } from "@/core/research/api";
 import type { ReasoningEffort } from "@/core/threads";
 import { swallow } from "@/core/utils/log";
 import { isAbsolutePath } from "@/lib/path-utils";
+import {
+  CONTEXT_BREAKDOWN_ORDER,
+  type ContextBreakdownKey,
+  type ContextBreakdownSegment,
+} from "@/core/threads/context-breakdown";
 
 export function normalizeReasoningEffortForUi(
   effort: ReasoningEffort | undefined,
@@ -209,27 +214,13 @@ export function estimateCurrentContextTokens(messages: Message[]): number {
   return Math.max(latestUsage ?? 0, retainedEstimate);
 }
 
-export type ContextBreakdownKey =
-  | "messages"
-  | "mcpTools"
-  | "systemTools"
-  | "skills"
-  | "systemPrompt"
-  | "memory";
-
-export interface ContextBreakdownSegment {
-  key: ContextBreakdownKey;
-  tokens: number;
-}
-
-const CONTEXT_BREAKDOWN_ORDER: ContextBreakdownKey[] = [
-  "messages",
-  "mcpTools",
-  "systemTools",
-  "skills",
-  "systemPrompt",
-  "memory",
-];
+// The ring's segment vocabulary lives in core so the endpoint's payload can
+// be translated in one place; re-exported here because the realtime page and
+// its tests import them from this module.
+export type {
+  ContextBreakdownKey,
+  ContextBreakdownSegment,
+} from "@/core/threads/context-breakdown";
 
 function classifyToolName(name: string): ContextBreakdownKey {
   const probe = name.toLowerCase();
@@ -251,6 +242,19 @@ function classifyToolName(name: string): ContextBreakdownKey {
  * ``estimateCurrentContextTokens`` so the ring and the breakdown stay on
  * one scale. Empty buckets are omitted.
  */
+export function contextSegmentLabel(
+  key: ContextBreakdownKey,
+  t: ReturnType<typeof useI18n>["t"],
+): string {
+  const labels = t.contextWindow;
+  if (key === "mcpTools") return labels.mcpTools;
+  if (key === "systemTools") return labels.systemTools;
+  if (key === "skills") return labels.skills;
+  if (key === "systemPrompt") return labels.systemPrompt;
+  if (key === "memory") return labels.memory;
+  return labels.messages;
+}
+
 export function breakdownContextSegments(
   messages: Message[],
 ): ContextBreakdownSegment[] {

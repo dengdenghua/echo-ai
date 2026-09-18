@@ -40,7 +40,9 @@ def _text_of(value: Any) -> str:
             if isinstance(item, str):
                 parts.append(item)
             elif isinstance(item, dict):
-                parts.append(str(item.get("text") or item.get("thinking") or item.get("content") or ""))
+                parts.append(
+                    str(item.get("text") or item.get("thinking") or item.get("content") or "")
+                )
         return "\n".join(part for part in parts if part)
     if isinstance(value, dict):
         return str(value.get("text") or value.get("content") or "")
@@ -105,4 +107,41 @@ def breakdown_messages(messages: list[Any] | None) -> dict[str, Any]:
     return {
         "segments": segments,
         "total_tokens": sum(tokens.values()),
+    }
+
+
+def breakdown_for_thread(thread_id: str, messages: list[Any] | None) -> dict[str, Any]:
+    """Segments for one thread, preferring the last measured request.
+
+    A measured request is used wholesale rather than blended with the
+    estimate: a number matching neither measurement nor estimate would be
+    worse than either. ``source`` tells the caller which one it got, so the
+    ring can say so instead of presenting a guess as a reading.
+    """
+    from .context_snapshot import MEASURED_KEYS, get_request_context
+
+    snapshot = get_request_context(thread_id)
+    if snapshot is not None:
+        tokens = snapshot["tokens"]
+        return {
+            "thread_id": thread_id,
+            "segments": [
+                {"key": key, "tokens": int(tokens.get(key, 0))}
+                for key in MEASURED_KEYS
+                if int(tokens.get(key, 0)) > 0
+            ],
+            "total_tokens": sum(int(tokens.get(key, 0)) for key in MEASURED_KEYS),
+            "source": "request",
+            "measured_at": snapshot["measured_at"],
+        }
+
+    estimate = breakdown_messages(messages)
+    return {
+        "thread_id": thread_id,
+        "segments": [
+            {"key": segment["key"], "tokens": segment["tokens"]} for segment in estimate["segments"]
+        ],
+        "total_tokens": estimate["total_tokens"],
+        "source": "estimate",
+        "measured_at": None,
     }

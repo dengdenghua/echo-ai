@@ -188,6 +188,8 @@ import {
 } from "@/components/workspace/use-thread-page";
 import { useThreadStopController } from "@/components/workspace/use-thread-stop-controller";
 import { swallow } from "@/core/utils/log";
+import { useContextBreakdown } from "@/core/threads/use-context-breakdown";
+import { CONTEXT_SEGMENT_COLORS } from "@/core/threads/context-breakdown";
 import { getRecordingStatus } from "@/core/teach-repeat/api";
 import { SubtasksProvider } from "@/core/tasks/context";
 import { getAPIClient } from "@/core/api";
@@ -322,6 +324,7 @@ import {
   extractResearchUrls,
   estimateCurrentContextTokens,
   breakdownContextSegments,
+  contextSegmentLabel,
   type ContextBreakdownKey,
   firstString,
   threadOwnerAgentFromMetadata,
@@ -2637,6 +2640,24 @@ function RealtimePageContent({
     () => estimateCurrentContextTokens(thread.messages),
     [thread.messages],
   );
+  // The ring shows the composition the server actually measured for this
+  // thread. A thread this server has not run yet — or a fetch that failed —
+  // falls back to splitting the live conversation here, so the detail is
+  // never empty.
+  const { breakdown: measuredContext } = useContextBreakdown(threadId, {
+    refreshKey: `${thread.messages.length}:${thread.lastTurnStatus ?? ""}`,
+  });
+  const contextSegments = useMemo(
+    () =>
+      (measuredContext?.segments ?? breakdownContextSegments(thread.messages)).map(
+        (segment) => ({
+          label: contextSegmentLabel(segment.key, t),
+          tokens: segment.tokens,
+          color: CONTEXT_SEGMENT_COLORS[segment.key],
+        }),
+      ),
+    [measuredContext, thread.messages, t],
+  );
   const compactThread = (thread as typeof thread & CompactableThread).compact;
   const handleCompressContext = useCallback(async () => {
     if (!compactThread || isCompressingContext) {
@@ -4866,13 +4887,7 @@ function RealtimePageContent({
                             maxContextTokens={maxContextTokens}
                             isCompressingContext={isCompressingContext}
                             onCompressContext={handleCompressContext}
-                            contextSegments={[
-                              {
-                                label: t.contextWindow.history,
-                                tokens: contextTokens,
-                                color: "bg-primary/70",
-                              },
-                            ]}
+                            contextSegments={contextSegments}
                             onModelChange={handleModelChange}
                             onModelSwitchNotice={handleModelSwitchNotice}
                             onReasoningEffortChange={

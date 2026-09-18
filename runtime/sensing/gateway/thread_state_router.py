@@ -688,11 +688,12 @@ def create_thread_state_router(
             raise HTTPException(404, f"thread not found: {thread_id}")
         values = thread.get("values") if isinstance(thread.get("values"), dict) else {}
         messages = values.get("messages") if isinstance(values, dict) else None
-        from .context_breakdown import breakdown_messages
+        from .context_breakdown import breakdown_for_thread
 
-        result = breakdown_messages(messages if isinstance(messages, list) else [])
-        result["thread_id"] = thread_id
-        return result
+        # The last measured request wins when this server assembled one for
+        # the thread; otherwise the segments are an estimate of the stored
+        # messages, and ``source`` says so.
+        return breakdown_for_thread(thread_id, messages if isinstance(messages, list) else [])
 
     @router.get("/api/threads/{thread_id}")
     def get_thread(request: Request, thread_id: str) -> dict[str, Any]:
