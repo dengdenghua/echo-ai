@@ -78,6 +78,29 @@ def _normalize_computer_api_base_url(raw: str) -> str:
     )
 
 
+def _internal_bearer_token() -> str | None:
+    """Best-effort internal JWT for the current session actor.
+
+    Returns ``None`` when no signer is configured or the session has no
+    actor (anonymous/dev runs) — callers then send no Authorization
+    header and rely on the gateway's friction-free path.
+    """
+    try:
+        from runtime.platform.process.session import current_actor
+
+        actor = current_actor()
+    except (ImportError, AttributeError, TypeError):  # pragma: no cover
+        actor = None
+    if not actor:
+        return None
+    try:
+        from runtime.safety.auth.internal_token import mint_internal_session_token
+
+        return mint_internal_session_token(actor)
+    except (ImportError, Exception):  # noqa: BLE001 — never break the bridge on signing errors
+        return None
+
+
 def _call(method: str, path: str, body: dict[str, Any] | None = None) -> dict[str, Any]:
     diagnostics = _computer_api_diagnostics()
     base_url = str(diagnostics["base_url"])
@@ -90,6 +113,9 @@ def _call(method: str, path: str, body: dict[str, Any] | None = None) -> dict[st
             body.setdefault("automation_target", target)
     data = None if body is None else json.dumps(body).encode("utf-8")
     headers = {"Content-Type": "application/json"}
+    token = _internal_bearer_token()
+    if token:
+        headers["Authorization"] = f"Bearer {token}"
     req = urllib_request.Request(url, data=data, method=method, headers=headers)
     try:
         with urllib_request.urlopen(req, timeout=_TIMEOUT_SECONDS) as resp:  # nosec B310 — audited HTTP computer API endpoint

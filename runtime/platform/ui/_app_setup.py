@@ -198,6 +198,18 @@ def setup_app(
             "use only for trusted local development"
         )
 
+    # Internal loopback callers (e.g. the computer-automation bridge skill)
+    # call the local gateway back over 127.0.0.1 and must carry a valid token
+    # when require_auth is on. Install the same signer the gateway uses so
+    # those self-calls authenticate as the authenticated session actor.
+    from runtime.safety.auth.internal_token import configure_internal_token_signer
+
+    configure_internal_token_signer(
+        secret=cocoloop_jwt_secret,
+        issuer=cocoloop_jwt_issuer,
+        audience=cocoloop_jwt_audience,
+    )
+
     _install_legacy_control_plane_auth(
         app,
         identity_store=cocoloop_identity_store,
