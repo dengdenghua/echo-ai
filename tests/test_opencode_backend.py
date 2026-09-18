@@ -290,6 +290,12 @@ def test_child_environment_isolates_credentials_and_denies_local_tools(tmp_path,
     # Zen's free tier rejects wildcard-deny configs, so the "*" key must stay
     # out of the injected permission map.
     assert "*" not in config["permission"]
+    # The free tier also rejects any custom default_agent / agent block
+    # ("OpenCode's free tier can only be used from within OpenCode"), so the
+    # injected config must stay minimal — only a bare targeted deny list passes
+    # the gate.  Host MCP routing is carried by config["mcp"] + echo_* allow.
+    assert "default_agent" not in config
+    assert "agent" not in config
     assert config["small_model"] == config["model"]
     assert config["share"] == "disabled"
 

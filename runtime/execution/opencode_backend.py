@@ -284,12 +284,15 @@ def child_environment(
         directory = root / name.lower()
         directory.mkdir(parents=True, exist_ok=True)
         env[f"XDG_{name}_HOME"] = str(directory)
-    # Zen's free tier rejects wildcard-deny configs ("OpenCode's free tier can
-    # only be used from within OpenCode"; probed 2026-09-18: any *targeted*
-    # deny passes and only the "*" key trips the gate), so deny the dangerous
-    # native tools individually instead of via "*".  read/glob/grep/list/
-    # webfetch stay available natively; privileged actions must still go
-    # through the echo_* host MCP tools.
+    # Zen's free tier rejects any non-default OpenCode config ("OpenCode's free
+    # tier can only be used from within OpenCode"; verified 2026-09-18 ~00:53 UTC:
+    # the previous injection carrying default_agent + agent block returned 403
+    # FreeTierError for big-pickle / mimo-v2.5-free). Only a bare targeted
+    # permission deny list — WITHOUT default_agent / agent — passes the gate.
+    # Host MCP tools stay attached via config["mcp"] and are permitted by
+    # permission["echo_*"] = "allow", so dropping the agent block does not break
+    # Echo's tool routing. bash/edit/write are blocked; read/glob/grep/list/
+    # webfetch stay available natively; privileged actions go through echo_*.
     permission = {"bash": "deny", "edit": "deny", "write": "deny"}
     if host_mcp:
         permission["echo_*"] = "allow"
@@ -301,8 +304,6 @@ def child_environment(
         "autoupdate": False,
         "snapshot": False,
         "permission": permission,
-        "default_agent": "echo",
-        "agent": {"echo": {"mode": "primary", "permission": permission, "steps": 16}},
     }
     if key:
         config["provider"] = {provider: {"options": {"apiKey": "{env:OPENCODE_API_KEY}"}}}
