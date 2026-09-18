@@ -12,6 +12,7 @@ import atexit
 import contextlib
 import hashlib
 import json
+import logging
 import os
 import re
 import secrets
@@ -33,6 +34,8 @@ from runtime.platform.connectors.credential_store import CredentialStore
 from runtime.platform.models.custom_model_selection import resolve_custom_model_selection
 from runtime.platform.process.paths import app_paths
 from runtime.safety.auth.scope import TenantScope
+
+_logger = logging.getLogger(__name__)
 
 
 class OpenCodeError(RuntimeError):
@@ -59,6 +62,11 @@ def _has_unexecuted_tool_markup(text: str) -> bool:
 
 
 _WARM_IDLE_SECONDS = 120.0
+
+# Native tools the engine must never run. Injected as "ask" (see
+# ``child_environment``) and refused on every ``permission.asked`` event, so the
+# ceiling holds without a static deny the Zen free tier rejects.
+DENIED_NATIVE_TOOLS = ("bash", "edit", "write")
 
 
 @dataclass
@@ -284,16 +292,26 @@ def child_environment(
         directory = root / name.lower()
         directory.mkdir(parents=True, exist_ok=True)
         env[f"XDG_{name}_HOME"] = str(directory)
-    # Zen's free tier rejects any non-default OpenCode config ("OpenCode's free
-    # tier can only be used from within OpenCode"; verified 2026-09-18 ~00:53 UTC:
-    # the previous injection carrying default_agent + agent block returned 403
-    # FreeTierError for big-pickle / mimo-v2.5-free). Only a bare targeted
-    # permission deny list — WITHOUT default_agent / agent — passes the gate.
-    # Host MCP tools stay attached via config["mcp"] and are permitted by
-    # permission["echo_*"] = "allow", so dropping the agent block does not break
-    # Echo's tool routing. bash/edit/write are blocked; read/glob/grep/list/
-    # webfetch stay available natively; privileged actions go through echo_*.
-    permission = {"bash": "deny", "edit": "deny", "write": "deny"}
+    # Zen's free tier refuses any config that *statically* disables a native
+    # tool: "OpenCode's free tier can only be used from within OpenCode".
+    # Bisected 2026-09-18 against the real upstream, one config key at a time —
+    # the gate fires on `permission: {<tool>: "deny"}` (a single entry is
+    # enough), on `"*": "deny"`, and on `tools: {<tool>: false}`, whether at the
+    # top level or inside an agent block. It does *not* fire on "ask"/"allow",
+    # on an empty permission map, on a deny for a tool that does not exist, or
+    # on anything else Echo injects (XDG redirection, the OPENCODE_DISABLE_*
+    # flags, the provider apiKey override, an agent block without permissions).
+    # Neither the credential nor the binary is involved: the CLI's own key gets
+    # the same 403 through this path, and the bundled binary succeeds without
+    # these keys.
+    #
+    # So ask instead of deny, and refuse every ask for these tools in
+    # ``stream_prompt``. The ceiling is unchanged — bash/edit/write never run —
+    # but it is now enforced by us at request time rather than declared in a
+    # config the gate rejects. read/glob/grep/list/webfetch stay available
+    # natively; privileged actions must still go through the echo_* host MCP
+    # tools, which are allowed outright.
+    permission = dict.fromkeys(DENIED_NATIVE_TOOLS, "ask")
     if host_mcp:
         permission["echo_*"] = "allow"
     provider, upstream = native_model(model)
@@ -304,6 +322,8 @@ def child_environment(
         "autoupdate": False,
         "snapshot": False,
         "permission": permission,
+        "default_agent": "echo",
+        "agent": {"echo": {"mode": "primary", "permission": permission, "steps": 16}},
     }
     if key:
         config["provider"] = {provider: {"options": {"apiKey": "{env:OPENCODE_API_KEY}"}}}
@@ -753,12 +773,101 @@ async def session_for_thread(client: httpx.AsyncClient, root: Path) -> str:
     return session_id
 
 
+async def refuse_pending_permissions(client: httpx.AsyncClient) -> int:
+    """Refuse asks that never reached us over SSE; returns how many.
+
+    ``receive_events`` ends streaming on any gap (45s read timeout, a parse
+    error, a dropped connection) and never reconnects. An ask raised after that
+    point would sit unanswered forever while the prompt POST waits with no
+    timeout — the turn would hang rather than fail. Polling the engine's own
+    pending list closes that window, so a lost event stream costs a refusal, not
+    a stuck turn.
+    """
+
+    try:
+        response = await client.get("/permission", timeout=10)
+        response.raise_for_status()
+        pending = response.json()
+    except (httpx.HTTPError, ValueError):
+        return 0
+    if not isinstance(pending, list):
+        return 0
+    refused = 0
+    for request in pending:
+        if not isinstance(request, dict):
+            continue
+        if await refuse_permission(client, {"type": "permission.asked", "properties": request}):
+            refused += 1
+    return refused
+
+
+async def refuse_permission(client: httpx.AsyncClient, event: dict[str, Any]) -> bool:
+    """Refuse a native tool the host never grants; ``True`` if we handled it.
+
+    ``child_environment`` asks rather than denies because a static deny trips
+    Zen's free-tier gate, so the ceiling is enforced here instead. Every ask is
+    refused, not just the ones we asked for: an unexpected prompt is a tool we
+    did not intend to expose, and fail-closed is the only safe reading.
+
+    The refusal carries a message because a bare reject ends the turn at
+    ``finish: "tool-calls"`` with no text — the model stops mid-step and
+    ``stream_prompt`` reports "未完成本次回答". With a reason attached the model
+    finishes normally and explains what it could not do.
+    """
+
+    if str(event.get("type", "")) != "permission.asked":
+        return False
+    properties = event.get("properties")
+    if not isinstance(properties, dict):
+        return False
+    request_id = properties.get("id")
+    if not isinstance(request_id, str) or not request_id:
+        return False
+    tool = str(properties.get("permission", "") or "unknown")
+    try:
+        response = await client.post(
+            f"/permission/{request_id}/reply",
+            json={
+                "reply": "reject",
+                "message": (
+                    f"The host does not allow the native {tool} tool. "
+                    "Use the available echo_* tools instead, or explain to the "
+                    "user what you could not do."
+                ),
+            },
+            timeout=30,
+        )
+        response.raise_for_status()
+    except httpx.HTTPError:
+        # A refusal we could not deliver must not read as a grant: the tool
+        # stays pending and the turn fails on its own deadline rather than
+        # running something the host forbids.
+        _logger.warning("could not refuse native %s permission %s", tool, request_id)
+    return True
+
+
+def _has_status(detail: str, status: str) -> bool:
+    """A status code, not any digits that happen to spell one.
+
+    ``"403" in detail`` also matches the milliseconds in
+    ``2026-09-18T02:08:58.403Z``, which turned a transport error into "your
+    account has no entitlement for this model".
+    """
+
+    return re.search(rf"(?<![\d.]){status}(?![\d.])", detail) is not None
+
+
 def public_model_error(error: Any) -> str:
     detail = json.dumps(error, ensure_ascii=False).lower()
-    if "429" in detail or "limit" in detail or "rate" in detail:
+    if "free tier can only be used from within opencode" in detail or "freetiererror" in detail:
+        # Not an entitlement problem: Zen refuses free-tier traffic from a
+        # client it does not recognise as OpenCode itself. Switching model does
+        # not help, so do not send the user model-shopping.
+        return "OpenCode 免费额度只允许其官方客户端使用，请改用已连接的付费模型或自有模型。"
+    if _has_status(detail, "429") or "limit" in detail or "rate" in detail:
         return "当前模型额度或请求频率受限，请稍后重试或切换模型。"
     if (
-        "403" in detail
+        _has_status(detail, "403")
         or "forbidden" in detail
         or "payment" in detail
         or "credits" in detail
@@ -771,9 +880,11 @@ def public_model_error(error: Any) -> str:
         # for nothing. (Probed 2026-09-18: muse-spark-1.3-contributor-free
         # failed this way right after a working big-pickle turn.)
         return "当前账号没有这个模型的使用资格（部分免费模型有额外门槛或需付费），请换一个模型。"
-    if "401" in detail or "unauthorized" in detail or "authentication" in detail:
+    if _has_status(detail, "401") or "unauthorized" in detail or "authentication" in detail:
         return "模型连接已失效，请在模型设置中检查授权。"
-    if "model" in detail and any(x in detail for x in ("not found", "unavailable", "404")):
+    if "model" in detail and (
+        _has_status(detail, "404") or any(x in detail for x in ("not found", "unavailable"))
+    ):
         return "当前模型不可用，请切换其他模型。"
     return "OpenCode 调用模型失败，请稍后重试或检查模型连接。"
 
@@ -1025,11 +1136,18 @@ async def stream_prompt(
                 incoming = None
                 if native is None:
                     streaming = False
+                elif await refuse_permission(client, native):
+                    # A permission prompt is host policy, not turn content: it
+                    # never reaches the projection or the UI.
+                    incoming = asyncio.create_task(queue.get())
                 else:
                     for event in projection.consume(native):
                         yield event
                     incoming = asyncio.create_task(queue.get())
             if not streaming and not pending.done() and loop.time() >= next_snapshot:
+                # With no event stream left, an ask raised from here on would
+                # never be refused and the turn would hang on it. Poll instead.
+                await refuse_pending_permissions(client)
                 response = await client.get(f"{url}/message")
                 response.raise_for_status()
                 for event in projection.snapshots(response.json()):

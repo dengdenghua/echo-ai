@@ -16,6 +16,9 @@ from runtime.execution.opencode_backend import (
     MessageEvents,
     OpenCodeError,
     child_environment,
+    public_model_error,
+    refuse_pending_permissions,
+    refuse_permission,
     resolve_zen_model,
     state_directory,
     stream_prompt,
@@ -284,20 +287,153 @@ def test_child_environment_isolates_credentials_and_denies_local_tools(tmp_path,
     assert env["OPENCODE_API_KEY"] == "zen-test-key"
     config = json.loads(env["OPENCODE_CONFIG_CONTENT"])
     assert "zen-test-key" not in env["OPENCODE_CONFIG_CONTENT"]
-    assert config["permission"]["bash"] == "deny"
-    assert config["permission"]["edit"] == "deny"
-    assert config["permission"]["write"] == "deny"
-    # Zen's free tier rejects wildcard-deny configs, so the "*" key must stay
-    # out of the injected permission map.
+    # The dangerous native tools must never simply be *available*, but the Zen
+    # free tier rejects any config that statically disables one, so they are
+    # asked for and refused in ``stream_prompt`` instead of denied here.
+    assert config["permission"]["bash"] == "ask"
+    assert config["permission"]["edit"] == "ask"
+    assert config["permission"]["write"] == "ask"
+    assert "deny" not in env["OPENCODE_CONFIG_CONTENT"]
     assert "*" not in config["permission"]
-    # The free tier also rejects any custom default_agent / agent block
-    # ("OpenCode's free tier can only be used from within OpenCode"), so the
-    # injected config must stay minimal — only a bare targeted deny list passes
-    # the gate.  Host MCP routing is carried by config["mcp"] + echo_* allow.
-    assert "default_agent" not in config
-    assert "agent" not in config
+    assert "tools" not in config
     assert config["small_model"] == config["model"]
     assert config["share"] == "disabled"
+
+
+def _permission_event(tool="bash", request_id="per_1"):
+    return {
+        "type": "permission.asked",
+        "properties": {"id": request_id, "sessionID": "ses_1", "permission": tool},
+    }
+
+
+@pytest.mark.asyncio
+async def test_every_native_permission_prompt_is_refused_with_a_reason():
+    """The ceiling moved from the config to here; it must still hold.
+
+    The reason matters as much as the refusal: a bare reject ends the turn at
+    ``finish: "tool-calls"`` with no text, which surfaces as "未完成本次回答".
+    """
+
+    seen = []
+
+    def handler(request):
+        seen.append((request.url.path, json.loads(request.content)))
+        return httpx.Response(200, json=True)
+
+    async with httpx.AsyncClient(
+        transport=httpx.MockTransport(handler), base_url="http://localhost"
+    ) as client:
+        for tool in ("bash", "edit", "write", "some_tool_we_never_declared"):
+            assert await refuse_permission(client, _permission_event(tool)) is True
+
+    assert [path for path, _ in seen] == ["/permission/per_1/reply"] * 4
+    assert all(body["reply"] == "reject" for _, body in seen)
+    assert all(body.get("message") for _, body in seen)
+
+
+@pytest.mark.asyncio
+async def test_ordinary_events_are_not_treated_as_permission_prompts():
+    async with httpx.AsyncClient(
+        transport=httpx.MockTransport(lambda _: httpx.Response(500)),
+        base_url="http://localhost",
+    ) as client:
+        assert await refuse_permission(client, {"type": "message.part.updated"}) is False
+        assert await refuse_permission(client, {"type": "permission.asked"}) is False
+        assert (
+            await refuse_permission(
+                client, {"type": "permission.asked", "properties": {"permission": "bash"}}
+            )
+            is False
+        )
+
+
+@pytest.mark.asyncio
+async def test_an_undeliverable_refusal_never_reads_as_a_grant():
+    """A transport failure must leave the tool pending, not approved."""
+
+    def handler(_request):
+        raise httpx.ConnectError("engine went away")
+
+    async with httpx.AsyncClient(
+        transport=httpx.MockTransport(handler), base_url="http://localhost"
+    ) as client:
+        assert await refuse_permission(client, _permission_event()) is True
+
+
+@pytest.mark.asyncio
+async def test_asks_raised_after_the_event_stream_dies_are_still_refused():
+    """``receive_events`` never reconnects; an unrefused ask would hang the turn.
+
+    The prompt POST waits with no timeout, so a permission nobody answers is a
+    stuck turn rather than a failed one. The engine's pending list closes it.
+    """
+
+    posted = []
+
+    def handler(request):
+        if request.url.path == "/permission":
+            return httpx.Response(
+                200,
+                json=[
+                    {"id": "per_a", "sessionID": "ses_1", "permission": "bash"},
+                    {"id": "per_b", "sessionID": "ses_1", "permission": "write"},
+                ],
+            )
+        posted.append(request.url.path)
+        return httpx.Response(200, json=True)
+
+    async with httpx.AsyncClient(
+        transport=httpx.MockTransport(handler), base_url="http://localhost"
+    ) as client:
+        assert await refuse_pending_permissions(client) == 2
+
+    assert posted == ["/permission/per_a/reply", "/permission/per_b/reply"]
+
+
+@pytest.mark.asyncio
+async def test_an_unreadable_pending_list_is_not_an_error():
+    """A polling failure must not take down a turn that is otherwise fine."""
+
+    async with httpx.AsyncClient(
+        transport=httpx.MockTransport(lambda _: httpx.Response(500, text="nope")),
+        base_url="http://localhost",
+    ) as client:
+        assert await refuse_pending_permissions(client) == 0
+
+    async with httpx.AsyncClient(
+        transport=httpx.MockTransport(lambda _: httpx.Response(200, json={"not": "a list"})),
+        base_url="http://localhost",
+    ) as client:
+        assert await refuse_pending_permissions(client) == 0
+
+
+def test_the_free_tier_gate_is_not_reported_as_a_missing_entitlement():
+    """Switching model does not help: the gate is about the client, not the plan."""
+
+    message = public_model_error(
+        {
+            "name": "APIError",
+            "data": {
+                "message": (
+                    "Error from provider (Console): OpenCode's free tier can only "
+                    "be used from within OpenCode"
+                ),
+                "statusCode": 403,
+            },
+        }
+    )
+    assert "使用资格" not in message
+    assert "OpenCode" in message
+
+
+def test_a_millisecond_timestamp_is_not_mistaken_for_an_http_status():
+    """``"403" in detail`` also matches ``12:00:00.403Z``."""
+
+    message = public_model_error(
+        {"statusCode": 500, "body": "at 2026-09-18T02:08:58.403Z: connection reset"}
+    )
+    assert "使用资格" not in message
 
 
 def test_state_is_scoped_to_actor_tenant_and_thread():
@@ -329,9 +465,9 @@ def test_host_mcp_is_explicit_and_credentials_stay_out_of_config(tmp_path, monke
     assert "turn-token" not in repr(connection)
     assert env["ECHO_HOST_MCP_TOKEN"] == "turn-token"
     assert config["permission"] == {
-        "bash": "deny",
-        "edit": "deny",
-        "write": "deny",
+        "bash": "ask",
+        "edit": "ask",
+        "write": "ask",
         "echo_*": "allow",
     }
 
