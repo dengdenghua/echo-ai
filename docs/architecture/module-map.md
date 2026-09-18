@@ -80,6 +80,54 @@ does not select DAG execution. Native reflex/ReAct and GraphRuntime remain
 available within their configured paths. Engine capability fallback before
 execution preserves any host project/team scheduler.
 
+### Three naming systems, one execution
+
+"Mode" names three orthogonal things. They are not layers of one concept, and
+reading one as another is the most common way to misjudge what a turn will do.
+
+| Layer | Values | Owner | What it decides |
+| --- | --- | --- | --- |
+| `AgentModeName` | `develop`, `audit`, `uxui` | `frontend/src/core/agent-modes/presets.ts` | Prompt/preset persona. No effect on routing. |
+| `TeamMode` | `chat`, `cluster`, `swarm`, `project` | `frontend/src/components/workspace/team-mode-picker.tsx` | The user's per-turn *intent*, sent as a request field. `project` is migration-only — `normalizeTeamResponseMode` folds it to `chat`. |
+| `PatternExecution` | `presence`, `focused`, `fanout`, `orchestrated` | `runtime/execution/agents/team_patterns.py` | Server-arbitrated truth, from `select_team_pattern`. |
+| Execution driver | `react`, `project_os`, `group_fanout`, `swarm_mesh`, `opencode_server`, `codex_app_server` | `select_execution_route` in `runtime/execution/engines.py` | What actually runs. |
+
+`select_team_pattern` → `PatternExecution` is fixed
+(`TEAM_PATTERNS`, team_patterns.py:123-161):
+
+| Pattern | Execution | Rounds |
+| --- | --- | --- |
+| `presence_check` | `presence` | 0 |
+| `focused_reply` | `focused` | 1 |
+| `parallel_roundtable` | `fanout` | 1 |
+| `adversarial_review` | `fanout` | 2 |
+| `coordinated_execution` | `orchestrated` | 1 |
+
+`PatternExecution` then reaches a driver through `select_execution_route`,
+whose precedence is `project_command` > `group_fanout` > `topology_id` >
+`coordinated` (engines.py:274-286). Two consequences worth holding onto:
+
+* `orchestrated` does **not** reach a dedicated driver. It sets `coordinated`,
+  which routes to the *coordinator's own engine* (`react` /
+  `opencode_server` / `codex_app_server`), and the delivery-completeness gate
+  audits it as `orchestrated` (realtime_turn_lifecycle.py:1394).
+* `topology_id` outranks `coordinated`, so a stale client-supplied
+  `topology_id` would dispatch `swarm_mesh` while the turn is still audited as
+  `orchestrated`. `realtime_turn_lifecycle.py:1080-1094` clears it under
+  server-owned `focused`/`orchestrated` patterns for exactly that reason.
+
+`serve_mesh` and `topology_id` are compatibility inputs, not intent:
+`serveMeshForMode` maps cluster→`"0"` and swarm→`"1"`
+(team-mode-picker.tsx:90-94), and `serve_mesh == "1"` is only a *fallback*
+condition for `group_fanout` when no server pattern was produced
+(realtime_turn_lifecycle.py:1173-1186).
+
+Known label/semantics gap: the zh-CN strings describe cluster as
+"队长拆解→分派→汇总" and swarm as "并行共创", but swarm falls through to
+`group_fanout`, which states outright that it is still conversation rather than
+a task graph (`runtime/execution/agents/group_fanout.py:12-15`). Whether the
+copy or the mapping is wrong is a product decision and is still open.
+
 ## Practical Navigation Guide
 
 - Realtime transport: `runtime/sensing/gateway/realtime_gateway.py`
