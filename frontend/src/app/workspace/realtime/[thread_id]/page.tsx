@@ -4864,6 +4864,13 @@ function RealtimePageContent({
                             maxContextTokens={maxContextTokens}
                             isCompressingContext={isCompressingContext}
                             onCompressContext={handleCompressContext}
+                            contextSegments={[
+                              {
+                                label: t.agentWorkbench.messages,
+                                tokens: contextTokens,
+                                color: "bg-primary/70",
+                              },
+                            ]}
                             onModelChange={handleModelChange}
                             onModelSwitchNotice={handleModelSwitchNotice}
                             onReasoningEffortChange={

@@ -27,6 +27,10 @@ import { WorkDirSelector } from "./workdir-selector";
 
 import { ChatComposer } from "./chat-input-box/ChatComposer";
 import { ModeIntentSuggestion } from "./chat-input-box/mode-intent-suggestion";
+import {
+  ContextWindowBar,
+  type ContextWindowSegment,
+} from "./chat-input-box/ContextWindowBar";
 import type { GroupTaskStrategy } from "./group-task-strategy";
 import type { MentionMemberInput } from "./mention-autocomplete";
 import type { AutomationTarget } from "@/core/computer/api";
@@ -99,6 +103,8 @@ export interface ChatInputBoxProps {
   isCompressingContext?: boolean;
   /** 压缩回调 */
   onCompressContext?: () => void | Promise<void>;
+  /** Optional source categories shown in the Claude-style context popover. */
+  contextSegments?: ContextWindowSegment[];
   allowAgentModes?: boolean;
   showInspirationToggle?: boolean;
   permissionMode?: PermissionMode;
@@ -279,6 +285,13 @@ function ChatInputBoxImpl(props: ChatInputBoxProps) {
         />
       ) : null}
       <ChatComposer {...props} />
+      <ContextWindowBar
+        contextTokens={props.contextTokens}
+        maxContextTokens={props.maxContextTokens}
+        isCompressingContext={props.isCompressingContext}
+        onCompressContext={props.onCompressContext}
+        segments={props.contextSegments}
+      />
       {showStatusStrip && (
         <div
           data-testid="chat-status-strip"

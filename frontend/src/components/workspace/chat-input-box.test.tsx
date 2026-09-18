@@ -1276,6 +1276,25 @@ describe("<ChatInputBox /> cowork materials", () => {
     expect(screen.getByLabelText(/Context Usage: 60%/)).toBeInTheDocument();
   });
 
+  it("shows the Claude-style context window under the composer", async () => {
+    renderWithProviders(
+      <ChatInputBox
+        mode="react"
+        threadId="thread-context-window"
+        contextTokens={500}
+        maxContextTokens={1_000_000}
+        contextSegments={[{ label: "Messages", tokens: 500, color: "bg-primary" }]}
+      />,
+    );
+
+    const trigger = screen.getByTestId("chat-context-window-trigger");
+    expect(trigger).toHaveTextContent(/Context Window/i);
+    expect(trigger).toHaveTextContent("500 / 1M (0%)");
+    fireEvent.pointerDown(trigger, { button: 0, ctrlKey: false });
+    fireEvent.click(trigger);
+    expect(await screen.findByText("Messages")).toBeInTheDocument();
+  });
+
   it("submits only enabled URL/text materials", async () => {
     const onDeepResearch = vi.fn().mockResolvedValue(true);
     renderWithProviders(
