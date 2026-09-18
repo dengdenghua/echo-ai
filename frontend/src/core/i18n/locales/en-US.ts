@@ -7467,6 +7467,12 @@ Strategy:
     tools: "Tools",
     memory: "Memory",
     history: "History",
+    messages: "Messages",
+    mcpTools: "MCP tools",
+    systemTools: "System tools",
+    skills: "Skills",
+    systemPrompt: "System prompt",
+    freeSpace: "Free space",
   },
 
   contextCompressor: {

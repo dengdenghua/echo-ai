@@ -1252,47 +1252,29 @@ describe("<ChatInputBox /> cowork materials", () => {
     expect(onReasoningEffortChange).toHaveBeenCalledWith("xhigh");
   });
 
-  it("shows the context compressor as a persistent input control", () => {
-    const { rerender } = renderWithProviders(
-      <ChatInputBox
-        mode="react"
-        threadId="thread-1"
-        contextTokens={500}
-        maxContextTokens={1000}
-      />,
-    );
-
-    expect(screen.getByLabelText(/Context Usage: 50%/)).toBeInTheDocument();
-
-    rerender(
-      <ChatInputBox
-        mode="react"
-        threadId="thread-1"
-        contextTokens={600}
-        maxContextTokens={1000}
-      />,
-    );
-
-    expect(screen.getByLabelText(/Context Usage: 60%/)).toBeInTheDocument();
-  });
-
-  it("shows the Claude-style context window under the composer", async () => {
+  it("shows the Claude-style context ring on the workspace status row", async () => {
     renderWithProviders(
       <ChatInputBox
         mode="react"
         threadId="thread-context-window"
+        workDir="D:/pod-App"
         contextTokens={500}
         maxContextTokens={1_000_000}
         contextSegments={[{ label: "Messages", tokens: 500, color: "bg-primary" }]}
       />,
     );
 
+    const strip = screen.getByTestId("chat-status-strip");
     const trigger = screen.getByTestId("chat-context-window-trigger");
-    expect(trigger).toHaveTextContent(/Context Window/i);
-    expect(trigger).toHaveTextContent("500 / 1M (0%)");
+    expect(strip).toContainElement(trigger);
+    expect(trigger).toHaveAttribute(
+      "aria-label",
+      expect.stringMatching(/Context Window: 500 \/ 1M \(0%\)/),
+    );
     fireEvent.pointerDown(trigger, { button: 0, ctrlKey: false });
     fireEvent.click(trigger);
     expect(await screen.findByText("Messages")).toBeInTheDocument();
+    expect(await screen.findByText(/Free space/i)).toBeInTheDocument();
   });
 
   it("submits only enabled URL/text materials", async () => {

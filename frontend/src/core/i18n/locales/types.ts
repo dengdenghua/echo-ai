@@ -6502,6 +6502,12 @@ export interface Translations {
     tools: string;
     memory: string;
     history: string;
+    messages: string;
+    mcpTools: string;
+    systemTools: string;
+    skills: string;
+    systemPrompt: string;
+    freeSpace: string;
   };
 
   contextCompressor: {

@@ -209,6 +209,85 @@ export function estimateCurrentContextTokens(messages: Message[]): number {
   return Math.max(latestUsage ?? 0, retainedEstimate);
 }
 
+export type ContextBreakdownKey =
+  | "messages"
+  | "mcpTools"
+  | "systemTools"
+  | "skills"
+  | "systemPrompt"
+  | "memory";
+
+export interface ContextBreakdownSegment {
+  key: ContextBreakdownKey;
+  tokens: number;
+}
+
+const CONTEXT_BREAKDOWN_ORDER: ContextBreakdownKey[] = [
+  "messages",
+  "mcpTools",
+  "systemTools",
+  "skills",
+  "systemPrompt",
+  "memory",
+];
+
+function classifyToolName(name: string): ContextBreakdownKey {
+  const probe = name.toLowerCase();
+  if (probe.includes("mcp")) return "mcpTools";
+  if (
+    probe.includes("skill") ||
+    probe.startsWith("use_capability") ||
+    probe.startsWith("query_skill")
+  ) {
+    return "skills";
+  }
+  if (probe.includes("memory") || probe.includes("remember")) return "memory";
+  return "systemTools";
+}
+
+/** Split the live thread into Claude-style context segments.
+ *
+ * Token counts follow the same chars/4 estimate as
+ * ``estimateCurrentContextTokens`` so the ring and the breakdown stay on
+ * one scale. Empty buckets are omitted.
+ */
+export function breakdownContextSegments(
+  messages: Message[],
+): ContextBreakdownSegment[] {
+  const tokens: Record<ContextBreakdownKey, number> = {
+    messages: 0,
+    mcpTools: 0,
+    systemTools: 0,
+    skills: 0,
+    systemPrompt: 0,
+    memory: 0,
+  };
+  for (const message of messages) {
+    const contentTokens = Math.ceil(retainedMessageTextLength(message) / 4);
+    if (message.type === "system") {
+      tokens.systemPrompt += contentTokens;
+      continue;
+    }
+    if (message.type === "human") {
+      tokens.messages += contentTokens;
+      continue;
+    }
+    if (message.type === "tool") {
+      tokens[classifyToolName(message.name ?? "")] += contentTokens;
+      continue;
+    }
+    tokens.messages += contentTokens;
+    const calls = "tool_calls" in message ? message.tool_calls : undefined;
+    for (const call of calls ?? []) {
+      const payload = `${call.name}\n${JSON.stringify(call.args ?? {})}`;
+      tokens[classifyToolName(call.name)] += Math.ceil(payload.length / 4);
+    }
+  }
+  return CONTEXT_BREAKDOWN_ORDER.filter((key) => tokens[key] > 0).map(
+    (key) => ({ key, tokens: tokens[key] }),
+  );
+}
+
 export function recordFromUnknown(value: unknown): Record<string, unknown> | null {
   if (!value || typeof value !== "object" || Array.isArray(value)) return null;
   return value as Record<string, unknown>;

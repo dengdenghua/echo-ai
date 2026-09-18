@@ -7336,6 +7336,12 @@ export const koKR: Translations = {
     tools: "Tools",
     memory: "Memory",
     history: "History",
+    messages: "메시지",
+    mcpTools: "MCP 도구",
+    systemTools: "시스템 도구",
+    skills: "스킬",
+    systemPrompt: "시스템 프롬프트",
+    freeSpace: "여유 공간",
   },
 
   contextCompressor: {

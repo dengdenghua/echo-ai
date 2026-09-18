@@ -7056,6 +7056,12 @@ export const zhCN: Translations = {
     tools: "工具",
     memory: "记忆",
     history: "历史",
+    messages: "消息",
+    mcpTools: "MCP 工具",
+    systemTools: "系统工具",
+    skills: "技能",
+    systemPrompt: "系统提示",
+    freeSpace: "剩余空间",
   },
 
   contextCompressor: {

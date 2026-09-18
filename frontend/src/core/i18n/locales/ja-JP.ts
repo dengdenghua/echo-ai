@@ -7435,6 +7435,12 @@ export const jaJP: Translations = {
     tools: "Tools",
     memory: "Memory",
     history: "History",
+    messages: "メッセージ",
+    mcpTools: "MCP ツール",
+    systemTools: "システムツール",
+    skills: "スキル",
+    systemPrompt: "システムプロンプト",
+    freeSpace: "空き容量",
   },
 
   contextCompressor: {

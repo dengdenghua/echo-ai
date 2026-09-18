@@ -321,6 +321,8 @@ import {
   readRememberedChatWorkDir,
   extractResearchUrls,
   estimateCurrentContextTokens,
+  breakdownContextSegments,
+  type ContextBreakdownKey,
   firstString,
   threadOwnerAgentFromMetadata,
   latestArtifactFocusPathFromEvents,
@@ -4866,7 +4868,7 @@ function RealtimePageContent({
                             onCompressContext={handleCompressContext}
                             contextSegments={[
                               {
-                                label: t.agentWorkbench.messages,
+                                label: t.contextWindow.history,
                                 tokens: contextTokens,
                                 color: "bg-primary/70",
                               },

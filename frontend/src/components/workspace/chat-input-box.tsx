@@ -267,12 +267,19 @@ function ChatInputBoxImpl(props: ChatInputBoxProps) {
     [isGroupConversation, onGroupTaskStrategyChange, onProjectAgentModeChange],
   );
   const showAgentSegment = false;
+  const showContextWindow =
+    (props.maxContextTokens ?? 0) > 0 &&
+    ((props.contextTokens ?? 0) > 0 ||
+      Boolean(props.isCompressingContext) ||
+      Boolean(props.contextSegments?.length));
   const statusSegmentCount =
     (showAgentSegment ? 1 : 0) +
     (showWorkDirSegment ? 1 : 0) +
     (showModeSegment ? 1 : 0) +
     (statusTrailing ? 1 : 0);
-  const showStatusStrip = statusSegmentCount > 0;
+  // Keep the under-composer strip whenever the context ring is present so it
+  // can sit on the same row as the workspace control, right-aligned.
+  const showStatusStrip = statusSegmentCount > 0 || showContextWindow;
 
   return (
     <>
@@ -285,13 +292,6 @@ function ChatInputBoxImpl(props: ChatInputBoxProps) {
         />
       ) : null}
       <ChatComposer {...props} />
-      <ContextWindowBar
-        contextTokens={props.contextTokens}
-        maxContextTokens={props.maxContextTokens}
-        isCompressingContext={props.isCompressingContext}
-        onCompressContext={props.onCompressContext}
-        segments={props.contextSegments}
-      />
       {showStatusStrip && (
         <div
           data-testid="chat-status-strip"
@@ -381,7 +381,18 @@ function ChatInputBoxImpl(props: ChatInputBoxProps) {
               </>
             ) : null}
           </div>
-          {contextActions ? <div className="ml-auto flex items-center gap-1">{contextActions}</div> : null}
+          <div className="ml-auto flex items-center gap-1">
+            {contextActions}
+            {showContextWindow ? (
+              <ContextWindowBar
+                contextTokens={props.contextTokens}
+                maxContextTokens={props.maxContextTokens}
+                isCompressingContext={props.isCompressingContext}
+                onCompressContext={props.onCompressContext}
+                segments={props.contextSegments}
+              />
+            ) : null}
+          </div>
         </div>
       )}
     </>

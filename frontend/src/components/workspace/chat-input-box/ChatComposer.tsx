@@ -56,7 +56,6 @@ import { CoderEngineControl } from "../coder-engine-control";
 import { PreviewRefreshIndicator } from "../preview-refresh-indicator";
 import { tryLocalSlash } from "../local-slash-dispatch";
 import { useSlashTypeahead } from "../use-slash-typeahead";
-import { ContextCompressor } from "../context-compressor";
 import { PermissionIndicator } from "../permission-indicator";
 import {
   DropdownMenu,
@@ -476,12 +475,6 @@ export function ChatComposer({
     () => parseComposerUrls(researchUrlText),
     [researchUrlText],
   );
-  // Only surface the context meter once it's actually filling up — showing
-  // "0%" on an empty thread is just noise. Appears at ≥50% (when compressing
-  // starts to matter), or while a compression is running.
-  const showContextCompressor =
-    maxContextTokens > 0 &&
-    (isCompressingContext || contextTokens / maxContextTokens >= 0.5);
   const sendableDraftText = visibleDraft.trim();
   const enabledPlugins = useMemo(
     () =>
@@ -2054,18 +2047,6 @@ export function ChatComposer({
               )}
             </button>
           ) : null}
-          {/* 上下文压缩指示器 */}
-          {showContextCompressor && (
-            <div className="composer-footer__secondary contents">
-              <ContextCompressor
-                currentTokens={contextTokens}
-                maxTokens={maxContextTokens}
-                isCompressing={isCompressingContext}
-                onCompress={onCompressContext}
-                disabled={isBusy || status === "streaming"}
-              />
-            </div>
-          )}
         </div>
         <div className="ml-auto flex min-w-0 shrink-0 items-center justify-end gap-1">
           {responseModeControl ? (
