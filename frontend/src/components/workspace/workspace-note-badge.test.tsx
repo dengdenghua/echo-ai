@@ -8,6 +8,7 @@ import { renderWithProviders } from "@/test/harness";
 interface SummaryPayload {
   branch: string;
   detached?: boolean;
+  worktree?: boolean;
   upstream?: string | null;
   ahead?: number;
   behind?: number;
@@ -55,7 +56,13 @@ function planEvents(): LiveToolEvent[] {
   ];
 }
 
-afterEach(() => vi.unstubAllGlobals());
+// The note persists its expanded state in localStorage, so a test that
+// expands the card would otherwise leave every later test starting expanded
+// instead of collapsed.
+afterEach(() => {
+  vi.unstubAllGlobals();
+  window.localStorage.clear();
+});
 
 describe("<WorkspaceNoteBadge />", () => {
   test("stays out of the way when there is nothing to report", async () => {
@@ -317,5 +324,118 @@ describe("<WorkspaceNoteBadge />", () => {
     expect(fetchMock).not.toHaveBeenCalled();
     // The run checklist still has something to say.
     expect(container).not.toBeEmptyDOMElement();
+  });
+
+  test("renders Codex-style floating card with defaultExpanded and persistence", async () => {
+    window.localStorage.clear();
+    stubSummary({
+      branch: "codex/message-actions-quotes",
+      changed_files: 2,
+      added: 1606,
+      removed: 258,
+    });
+
+    const onOpenWorkbench = vi.fn();
+
+    renderWithProviders(
+      <WorkspaceNoteBadge
+        workDir="D:/echo-ai"
+        events={planEvents()}
+        defaultExpanded={true}
+        onOpenWorkbench={onOpenWorkbench}
+      />,
+      { locale: "zh-CN" },
+    );
+
+    // Directly expanded without needing to click first
+    expect(await screen.findByText("Git 工具")).toBeVisible();
+    expect(screen.getByText("更改")).toBeVisible();
+    expect(screen.getByText("+1,606")).toBeVisible();
+    expect(screen.getByText("-258")).toBeVisible();
+    expect(screen.getByText("codex/message-actions-quotes")).toBeVisible();
+    expect(screen.getByText("提交或推送")).toBeVisible();
+    expect(screen.getByText("进程")).toBeVisible();
+
+    // Clicking commit or push invokes workbench
+    fireEvent.click(screen.getByText("提交或推送"));
+    expect(onOpenWorkbench).toHaveBeenCalledTimes(1);
+
+    // Clicking outside does NOT close the persistent card
+    fireEvent.pointerDown(document.body);
+    expect(screen.getByText("Git 工具")).toBeVisible();
+
+    // Clicking collapse button (ChevronUp) collapses it into the pill
+    fireEvent.click(screen.getByRole("button", { name: "收起便签" }));
+    await waitFor(() => {
+      expect(screen.queryByText("Git 工具")).not.toBeInTheDocument();
+    });
+    expect(screen.getByRole("button", { name: "概要便签" })).toHaveAttribute(
+      "aria-expanded",
+      "false",
+    );
+  });
+
+  test("marks a local checkout and stays quiet about detached HEAD", async () => {
+    window.localStorage.clear();
+    stubSummary({ branch: "main", changed_files: 0, added: 0, removed: 0 });
+
+    renderWithProviders(
+      <WorkspaceNoteBadge workDir="D:/echo-ai" events={[]} defaultExpanded={true} />,
+      { locale: "zh-CN" },
+    );
+
+    expect(await screen.findByText("本地")).toBeVisible();
+    expect(document.querySelector('[data-note-env="local"]')).not.toBeNull();
+    expect(document.querySelector('[data-note-detached-hint="true"]')).toBeNull();
+  });
+
+  test("labels a linked worktree and explains a detached HEAD", async () => {
+    window.localStorage.clear();
+    stubSummary({
+      branch: "",
+      detached: true,
+      worktree: true,
+      changed_files: 1,
+      added: 3,
+      removed: 1,
+    });
+
+    renderWithProviders(
+      <WorkspaceNoteBadge workDir="D:/echo-ai" events={[]} defaultExpanded={true} />,
+      { locale: "zh-CN" },
+    );
+
+    expect(await screen.findByText("Worktree")).toBeVisible();
+    expect(document.querySelector('[data-note-env="worktree"]')).not.toBeNull();
+    expect(document.querySelector('[data-note-detached-hint="true"]')).not.toBeNull();
+  });
+
+  test("remembers the expanded state across mounts", async () => {
+    window.localStorage.clear();
+    stubSummary({ branch: "main", changed_files: 0, added: 0, removed: 0 });
+
+    const first = renderWithProviders(
+      <WorkspaceNoteBadge workDir="D:/echo-ai" events={[]} defaultExpanded={true} />,
+      { locale: "zh-CN" },
+    );
+    expect(await screen.findByText("Git 工具")).toBeVisible();
+
+    fireEvent.click(screen.getByRole("button", { name: "收起便签" }));
+    await waitFor(() => {
+      expect(screen.queryByText("Git 工具")).not.toBeInTheDocument();
+    });
+    first.unmount();
+
+    // The persisted choice wins over defaultExpanded on the next mount.
+    renderWithProviders(
+      <WorkspaceNoteBadge workDir="D:/echo-ai" events={[]} defaultExpanded={true} />,
+      { locale: "zh-CN" },
+    );
+    // The summary fetch resolves asynchronously, so wait for the pill
+    // before asserting the card stayed collapsed.
+    expect(
+      await screen.findByRole("button", { name: "概要便签" }),
+    ).toBeVisible();
+    expect(screen.queryByText("Git 工具")).not.toBeInTheDocument();
   });
 });

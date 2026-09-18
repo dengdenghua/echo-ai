@@ -21,6 +21,8 @@ export interface GitSummary {
    * own localized wording from ``detachedHead`` instead.
    */
   detached: boolean;
+  /** True when this checkout is a linked ``git worktree``, not the main one. */
+  worktree: boolean;
   upstream: string | null;
   ahead: number;
   behind: number;
@@ -38,6 +40,7 @@ export interface GitSummary {
 interface GitSummaryPayload {
   branch?: unknown;
   detached?: unknown;
+  worktree?: unknown;
   upstream?: unknown;
   ahead?: unknown;
   behind?: unknown;
@@ -68,6 +71,7 @@ export function normalizeGitSummary(
   return {
     branch: typeof payload.branch === "string" ? payload.branch : "",
     detached: payload.detached === true,
+    worktree: payload.worktree === true,
     upstream: typeof payload.upstream === "string" ? payload.upstream : null,
     ahead: toCount(payload.ahead),
     behind: toCount(payload.behind),

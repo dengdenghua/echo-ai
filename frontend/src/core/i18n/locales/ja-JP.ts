@@ -7376,6 +7376,13 @@ export const jaJP: Translations = {
     filesCount: (count) => `${count} ファイル`,
     branchLabel: "ブランチ",
     detachedHead: "デタッチド HEAD",
+    localEnv: "ローカル",
+    worktreeEnv: "Worktree",
+    envHandoffHint:
+      "ローカルチェックアウトはフォアグラウンドのワークスペース、Worktree はバックグラウンドの並列コピーです。チャットは Handoff で両者を行き来できます（echo はまだ移動に未対応のため、現在の環境のみ表示します）。",
+    detachedHint:
+      "HEAD がデタッチド状態です（新規 Worktree の既定）。このチェックアウトでブランチを作成すると通常どおりコミットできます。",
+
     aheadBehind: (ahead, behind) => `先行 ${ahead} / 遅れ ${behind}`,
     pullRequestLabel: "プルリクエストの状態",
     pullRequestUnavailable: "プルリクエストの状態を取得できません",

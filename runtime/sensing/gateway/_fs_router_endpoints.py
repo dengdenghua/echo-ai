@@ -18,6 +18,7 @@ import subprocess
 import sys
 import time
 import uuid
+from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
@@ -93,6 +94,7 @@ def _empty_git_summary(error: str) -> dict[str, Any]:
         "ahead": 0,
         "behind": 0,
         "detached": False,
+        "worktree": False,
         "changed_files": 0,
         "untracked_files": 0,
         "added": 0,
@@ -100,6 +102,31 @@ def _empty_git_summary(error: str) -> dict[str, Any]:
         "error": error,
         "diff_error": None,
     }
+
+
+def _is_linked_worktree(
+    root: Path, run_git: Callable[[list[str], float], subprocess.CompletedProcess[str]]
+) -> bool:
+    """True when ``root`` is a linked ``git worktree``, not the main checkout.
+
+    A linked worktree's git dir lives at ``<common dir>/worktrees/<name>``;
+    comparing the two ``git rev-parse`` answers distinguishes it from the
+    main checkout (where both print ``.git``) without parsing paths loosely
+    enough to misread a submodule (whose git dir lives under ``modules/``).
+    """
+    git_dir = run_git(["rev-parse", "--git-dir"], 5.0)
+    common_dir = run_git(["rev-parse", "--git-common-dir"], 5.0)
+    if git_dir.returncode != 0 or common_dir.returncode != 0:
+        return False
+
+    def _abs(value: str) -> str:
+        candidate = Path(value.strip())
+        if not candidate.is_absolute():
+            candidate = root / candidate
+        return os.path.normcase(str(candidate))
+
+    rel = os.path.relpath(_abs(git_dir.stdout), _abs(common_dir.stdout))
+    return rel == "worktrees" or rel.startswith(f"worktrees{os.sep}")
 
 
 def _parse_git_branch_line(raw: str) -> tuple[str, str | None, int, int, bool]:
@@ -880,6 +907,11 @@ def register_endpoints(router: Any, ctx: _FsContext) -> None:
             if line.startswith("??"):
                 untracked_files += 1
 
+        try:
+            worktree = _is_linked_worktree(root, run_git)
+        except (FileNotFoundError, subprocess.TimeoutExpired):
+            worktree = False
+
         added = 0
         removed = 0
         diff_error: str | None = None
@@ -914,6 +946,7 @@ def register_endpoints(router: Any, ctx: _FsContext) -> None:
             "ahead": ahead,
             "behind": behind,
             "detached": detached,
+            "worktree": worktree,
             "changed_files": changed_files,
             "untracked_files": untracked_files,
             "added": added,

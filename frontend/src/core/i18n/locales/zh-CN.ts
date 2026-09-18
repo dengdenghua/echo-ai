@@ -7001,6 +7001,13 @@ export const zhCN: Translations = {
     filesCount: (count) => `${count} 个文件`,
     branchLabel: "分支",
     detachedHead: "游离 HEAD",
+    localEnv: "本地",
+    worktreeEnv: "Worktree",
+    envHandoffHint:
+      "本地检出是前台工作区；Worktree 是后台并行副本，聊天可通过 Handoff 在两者间迁移（echo 暂未接入迁移，此处仅显示当前环境）。",
+    detachedHint:
+      "当前处于游离 HEAD（新建 Worktree 默认如此）。在这个检出上创建分支后即可正常提交。",
+
     aheadBehind: (ahead, behind) => `领先 ${ahead} / 落后 ${behind}`,
     pullRequestLabel: "Pull Request 状态",
     pullRequestUnavailable: "无法获取 Pull Request 状态",

@@ -7,6 +7,8 @@ import {
   GitBranchIcon,
   GitForkIcon,
   GitPullRequestIcon,
+  HardDriveIcon,
+  InfoIcon,
   Loader2Icon,
   MoreHorizontalIcon,
   RefreshCwIcon,
@@ -26,6 +28,30 @@ import type { LiveToolEvent } from "./live-tool-timeline";
 import { useI18n } from "@/core/i18n/hooks";
 import { useGitSummary } from "@/core/workspace/use-git-summary";
 import { cn } from "@/lib/utils";
+
+const NOTE_EXPANDED_STORAGE_KEY = "echo.workspace-note.expanded";
+
+function readStoredExpanded(): boolean | null {
+  if (typeof window === "undefined") return null;
+  try {
+    const raw = window.localStorage.getItem(NOTE_EXPANDED_STORAGE_KEY);
+    if (raw === "1") return true;
+    if (raw === "0") return false;
+  } catch {
+    // Private-mode browsers throw on storage access; persistence is
+    // best-effort and the props decide the initial state instead.
+  }
+  return null;
+}
+
+function writeStoredExpanded(value: boolean): void {
+  if (typeof window === "undefined") return;
+  try {
+    window.localStorage.setItem(NOTE_EXPANDED_STORAGE_KEY, value ? "1" : "0");
+  } catch {
+    // Mirror readStoredExpanded: quota or privacy errors are non-fatal.
+  }
+}
 
 /**
  * Always-visible floating card styled like ZCode / Codex.
@@ -62,8 +88,10 @@ export function WorkspaceNoteBadge({
   onOpenWorkbench?: () => void;
 }) {
   const { t, locale } = useI18n();
+  // Persisted choice wins over defaultExpanded: once the user has explicitly
+  // collapsed or expanded the note, re-mounts (and re-runs) honor that.
   const [uncontrolledExpanded, setUncontrolledExpanded] = useState(
-    defaultExpanded ?? false,
+    () => readStoredExpanded() ?? defaultExpanded ?? false,
   );
   const isControlled = controlledExpanded !== undefined;
   const expanded = isControlled ? controlledExpanded : uncontrolledExpanded;
@@ -72,6 +100,7 @@ export function WorkspaceNoteBadge({
     const nextVal = typeof next === "function" ? next(expanded) : next;
     if (!isControlled) {
       setUncontrolledExpanded(nextVal);
+      writeStoredExpanded(nextVal);
     }
     onExpandedChange?.(nextVal);
   };
@@ -247,6 +276,29 @@ export function WorkspaceNoteBadge({
 
         {/* Section 1: Git Tools Body */}
         <div className="space-y-1 p-2">
+          {/* Row 0: 环境 / Local or Worktree */}
+          {summary ? (
+            <div
+              data-note-env={summary.worktree ? "worktree" : "local"}
+              className="flex items-center justify-between rounded-lg px-2 py-1 text-xs hover:bg-muted/40 transition-colors"
+              title={t.workspaceNote.envHandoffHint}
+            >
+              <span className="flex items-center gap-2 text-muted-foreground">
+                {summary.worktree ? (
+                  <GitForkIcon className="size-3.5 shrink-0 text-muted-foreground" />
+                ) : (
+                  <HardDriveIcon className="size-3.5 shrink-0 text-muted-foreground" />
+                )}
+                <span className="font-medium text-foreground/85">
+                  {summary.worktree
+                    ? t.workspaceNote.worktreeEnv
+                    : t.workspaceNote.localEnv}
+                </span>
+              </span>
+              <InfoIcon className="size-3 shrink-0 text-muted-foreground/50" />
+            </div>
+          ) : null}
+
           {/* Row 1: 更改 / Changes */}
           <div className="flex items-center justify-between rounded-lg px-2 py-1 text-xs hover:bg-muted/40 transition-colors">
             <div className="flex items-center gap-2 text-muted-foreground">
@@ -316,6 +368,15 @@ export function WorkspaceNoteBadge({
             </div>
             <ChevronDownIcon className="size-3 shrink-0 text-muted-foreground/60" />
           </div>
+
+          {summary?.detached ? (
+            <p
+              data-note-detached-hint="true"
+              className="px-2 pt-0.5 text-[11px] leading-snug text-muted-foreground/60"
+            >
+              {t.workspaceNote.detachedHint}
+            </p>
+          ) : null}
 
           {/* Row 3: 提交或推送 / Commit or push */}
           <button

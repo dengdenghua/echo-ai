@@ -6452,6 +6452,10 @@ export interface Translations {
     filesCount: (count: string) => string;
     branchLabel: string;
     detachedHead: string;
+    localEnv: string;
+    worktreeEnv: string;
+    envHandoffHint: string;
+    detachedHint: string;
     aheadBehind: (ahead: string, behind: string) => string;
     pullRequestLabel: string;
     pullRequestUnavailable: string;

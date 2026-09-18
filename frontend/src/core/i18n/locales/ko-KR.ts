@@ -7277,6 +7277,13 @@ export const koKR: Translations = {
     filesCount: (count) => `파일 ${count}개`,
     branchLabel: "브랜치",
     detachedHead: "분리된 HEAD",
+    localEnv: "로컬",
+    worktreeEnv: "Worktree",
+    envHandoffHint:
+      "로컬 체크아웃은 포그라운드 작업 공간이고, Worktree는 백그라운드 병렬 복제본입니다. 채팅은 Handoff로 두 환경을 오갈 수 있습니다(echo는 아직 이동을 지원하지 않으므로 현재 환경만 표시합니다).",
+    detachedHint:
+      "HEAD가 분리되어 있습니다(새 Worktree의 기본값). 이 체크아웃에서 브랜치를 만들면 정상적으로 커밋할 수 있습니다.",
+
     aheadBehind: (ahead, behind) => `앞섬 ${ahead} / 뒤짐 ${behind}`,
     pullRequestLabel: "풀 리퀘스트 상태",
     pullRequestUnavailable: "풀 리퀘스트 상태를 가져올 수 없습니다",

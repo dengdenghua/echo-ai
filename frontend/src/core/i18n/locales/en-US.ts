@@ -7408,6 +7408,13 @@ Strategy:
     filesCount: (count) => `${count} files`,
     branchLabel: "Branch",
     detachedHead: "detached HEAD",
+    localEnv: "Local",
+    worktreeEnv: "Worktree",
+    envHandoffHint:
+      "A local checkout is the foreground workspace; a worktree is a background parallel copy. Chats can migrate between them via Handoff (echo does not wire migration yet — this row only shows the current environment).",
+    detachedHint:
+      "HEAD is detached (the default for a fresh worktree). Create a branch on this checkout to commit normally.",
+
     aheadBehind: (ahead, behind) => `${ahead} ahead / ${behind} behind`,
     pullRequestLabel: "Pull request",
     pullRequestUnavailable: "Can't read pull request status",

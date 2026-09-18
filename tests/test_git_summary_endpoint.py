@@ -82,6 +82,7 @@ class TestGitSummary:
         assert payload["added"] == 0
         assert payload["removed"] == 0
         assert payload["error"] is None
+        assert payload["worktree"] is False
 
     def test_dirty_repo_counts_files_and_line_totals(
         self, client: TestClient, tmp_path: Path
@@ -187,6 +188,67 @@ class TestGitSummary:
 
         assert response.status_code == 404
 
+    def test_main_checkout_is_not_flagged_as_a_worktree(
+        self, client: TestClient, tmp_path: Path
+    ) -> None:
+        """The main checkout is the default; only linked worktrees are flagged.
+
+        The badge labels this row "Local" or "Worktree", so a false
+        positive would mislabel every ordinary repository.
+        """
+        repo = tmp_path / "main-checkout"
+        _init_repo(repo)
+
+        payload = _summary(client, repo)
+
+        assert payload["worktree"] is False
+
+    def test_linked_worktree_is_flagged(self, client: TestClient, tmp_path: Path) -> None:
+        """``git worktree add`` is what a parallel task runs in.
+
+        Detection compares ``--git-dir`` against ``--git-common-dir``: a
+        linked worktree's git dir sits under ``<common>/worktrees/<name>``,
+        which is what separates it from the main checkout.
+        """
+        repo = tmp_path / "worktree-main"
+        _init_repo(repo)
+        linked = tmp_path / "linked"
+        _git(repo, "worktree", "add", str(linked))
+
+        payload = _summary(client, linked)
+
+        assert payload["worktree"] is True
+        assert payload["branch"] == "linked"
+        assert payload["error"] is None
+
+    def test_submodule_is_not_mistaken_for_a_worktree(
+        self, client: TestClient, tmp_path: Path
+    ) -> None:
+        """A submodule also keeps its git dir outside the checkout.
+
+        It resolves under ``.git/modules/<name>``, not
+        ``.git/worktrees/<name>``, which is exactly the distinction the
+        relative-path check has to make.
+        """
+        inner = tmp_path / "inner"
+        _init_repo(inner)
+        repo = tmp_path / "outer"
+        _init_repo(repo)
+        _git(
+            repo,
+            "-c",
+            "protocol.file.allow=always",
+            "submodule",
+            "add",
+            str(inner),
+            "sub",
+        )
+        _git(repo, "commit", "-m", "add submodule")
+
+        payload = _summary(client, repo / "sub")
+
+        assert payload["worktree"] is False
+
 
 class TestGitSummaryBranchLineParsing:
     """``## ...`` header shapes come straight from git and vary a lot."""
@@ -238,4 +300,5 @@ class TestGitSummaryBranchLineParsing:
         assert payload["changed_files"] == 0
         assert payload["untracked_files"] == 0
         assert payload["detached"] is False
+        assert payload["worktree"] is False
         assert payload["upstream"] is None
