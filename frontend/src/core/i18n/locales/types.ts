@@ -6443,6 +6443,9 @@ export interface Translations {
     title: string;
     collapse: string;
     refresh: string;
+    more: string;
+    gitToolsTitle: string;
+    commitOrPush: string;
     environmentSection: string;
     changesLabel: string;
     clean: string;
@@ -6456,6 +6459,7 @@ export interface Translations {
     trackedOnly: string;
     diffUnavailable: string;
     unavailable: string;
+    unavailableFresh: string;
     processSection: string;
     processProgress: (current: number, total: number) => string;
     processEmpty: string;

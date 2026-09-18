@@ -3,22 +3,17 @@ import {
   ChevronDownIcon,
   ChevronUpIcon,
   CircleIcon,
+  FileTextIcon,
   GitBranchIcon,
+  GitForkIcon,
   GitPullRequestIcon,
-  ListChecksIcon,
   Loader2Icon,
+  MoreHorizontalIcon,
   RefreshCwIcon,
   StickyNoteIcon,
   XCircleIcon,
 } from "lucide-react";
-import {
-  useEffect,
-  useMemo,
-  useRef,
-  useState,
-  type HTMLAttributes,
-  type ReactNode,
-} from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
 import {
   agentPhaseDisplayTitle,
@@ -33,13 +28,11 @@ import { useGitSummary } from "@/core/workspace/use-git-summary";
 import { cn } from "@/lib/utils";
 
 /**
- * Always-visible corner note.
+ * Always-visible floating card styled like ZCode / Codex.
  *
- * The workbench sidebar is the right home for *acting* on a workspace (stage,
- * commit, push, compare branches). This badge is the opposite: a one-line
- * reading of what the sidebar would tell you — branch, how much changed, and
- * how far the current run has got — that stays on screen with the sidebar
- * closed. It never mutates anything.
+ * Displays Git tools (branch, uncommitted changes, commit/push action)
+ * alongside the run process checklist in a single persistent top-right floating card.
+ * Can be collapsed into a compact pill button.
  */
 export function WorkspaceNoteBadge({
   workDir,
@@ -50,6 +43,10 @@ export function WorkspaceNoteBadge({
   paused,
   className,
   pollIntervalMs,
+  defaultExpanded,
+  expanded: controlledExpanded,
+  onExpandedChange,
+  onOpenWorkbench,
 }: {
   workDir?: string | null;
   events: LiveToolEvent[];
@@ -59,9 +56,26 @@ export function WorkspaceNoteBadge({
   paused?: boolean;
   className?: string;
   pollIntervalMs?: number;
+  defaultExpanded?: boolean;
+  expanded?: boolean;
+  onExpandedChange?: (expanded: boolean) => void;
+  onOpenWorkbench?: () => void;
 }) {
   const { t, locale } = useI18n();
-  const [expanded, setExpanded] = useState(false);
+  const [uncontrolledExpanded, setUncontrolledExpanded] = useState(
+    defaultExpanded ?? false,
+  );
+  const isControlled = controlledExpanded !== undefined;
+  const expanded = isControlled ? controlledExpanded : uncontrolledExpanded;
+
+  const setExpanded = (next: boolean | ((prev: boolean) => boolean)) => {
+    const nextVal = typeof next === "function" ? next(expanded) : next;
+    if (!isControlled) {
+      setUncontrolledExpanded(nextVal);
+    }
+    onExpandedChange?.(nextVal);
+  };
+
   const rootRef = useRef<HTMLDivElement>(null);
   const { summary, error, isLoading, refresh } = useGitSummary(workDir, {
     pollIntervalMs,
@@ -78,6 +92,7 @@ export function WorkspaceNoteBadge({
   const changedFiles = summary?.changedFiles ?? 0;
   const lineDelta = (summary?.added ?? 0) + (summary?.removed ?? 0);
   const hasProcess = phases.length > 0;
+
   // A detached HEAD arrives as an empty branch plus a flag, because git's own
   // wording for it ("HEAD (no branch)") is not something to show a reader who
   // is using the UI in another language.
@@ -92,15 +107,9 @@ export function WorkspaceNoteBadge({
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key === "Escape") setExpanded(false);
     };
-    const onPointerDown = (event: PointerEvent) => {
-      if (rootRef.current?.contains(event.target as Node)) return;
-      setExpanded(false);
-    };
     document.addEventListener("keydown", onKeyDown);
-    document.addEventListener("pointerdown", onPointerDown);
     return () => {
       document.removeEventListener("keydown", onKeyDown);
-      document.removeEventListener("pointerdown", onPointerDown);
     };
   }, [expanded]);
 
@@ -109,228 +118,294 @@ export function WorkspaceNoteBadge({
     return null;
   }
 
+  if (!expanded) {
+    return (
+      <div
+        ref={rootRef}
+        data-workspace-note-badge="collapsed"
+        className={cn("relative flex flex-col items-end", className)}
+      >
+        <button
+          type="button"
+          data-note-summary="true"
+          aria-expanded={false}
+          aria-label={t.workspaceNote.title}
+          title={t.workspaceNote.title}
+          onClick={() => setExpanded(true)}
+          className={cn(
+            "pointer-events-auto flex max-w-[min(24rem,65vw)] items-center gap-2",
+            "rounded-full border border-border-default bg-background/95 py-1.5 pr-2.5 pl-3 text-xs",
+            "shadow-md backdrop-blur transition-all hover:bg-muted/70 hover:shadow-lg",
+          )}
+        >
+          <StickyNoteIcon className="size-3.5 shrink-0 text-primary" />
+          {branchLabel ? (
+            <span
+              data-note-branch={summary?.branch || ""}
+              data-note-detached={summary?.detached ? "true" : undefined}
+              className="flex min-w-0 items-center gap-1 font-mono"
+            >
+              <GitBranchIcon className="size-3 shrink-0 text-muted-foreground" />
+              <span
+                className="min-w-0 truncate font-medium text-foreground/85"
+                title={branchLabel}
+              >
+                {branchLabel}
+              </span>
+            </span>
+          ) : null}
+          {changedFiles > 0 ? (
+            <span
+              data-note-changes={changedFiles}
+              className="flex shrink-0 items-center gap-1.5 font-mono tabular-nums"
+            >
+              <span className="text-muted-foreground/70">
+                {t.workspaceNote.filesCount(numberFormat.format(changedFiles))}
+              </span>
+              {lineDelta > 0 ? (
+                <>
+                  <span className="font-medium text-emerald-500">
+                    +{numberFormat.format(summary?.added ?? 0)}
+                  </span>
+                  <span className="font-medium text-rose-500">
+                    -{numberFormat.format(summary?.removed ?? 0)}
+                  </span>
+                </>
+              ) : null}
+            </span>
+          ) : null}
+          {hasProcess ? (
+            <span
+              data-note-process={progress.total}
+              className="shrink-0 rounded-full bg-muted/80 px-2 py-0.5 font-mono text-[11px] font-medium tabular-nums text-muted-foreground"
+            >
+              {t.workspaceNote.processProgress(
+                progress.current,
+                progress.total,
+              )}
+            </span>
+          ) : null}
+          <ChevronDownIcon className="size-3 shrink-0 text-muted-foreground/70" />
+        </button>
+      </div>
+    );
+  }
+
   return (
     <div
       ref={rootRef}
-      data-workspace-note-badge={expanded ? "expanded" : "collapsed"}
+      data-workspace-note-badge="expanded"
       className={cn("relative flex flex-col items-end", className)}
     >
-      <button
-        type="button"
-        data-note-summary="true"
-        aria-expanded={expanded}
-        aria-label={t.workspaceNote.title}
-        title={t.workspaceNote.title}
-        onClick={() => setExpanded((value) => !value)}
+      <div
+        data-note-card="true"
         className={cn(
-          "pointer-events-auto flex max-w-[min(22rem,60vw)] items-center gap-2",
-          "rounded-full border border-border-default bg-background/95 py-1 pr-2 pl-2.5 text-xs",
-          "shadow-[var(--shadow-xs)] backdrop-blur transition-colors hover:bg-muted/60",
+          "pointer-events-auto flex w-72 flex-col overflow-hidden rounded-xl",
+          "border border-border-default/80 bg-background/95 shadow-xl backdrop-blur-md",
         )}
       >
-        <StickyNoteIcon className="size-3.5 shrink-0 text-primary" />
-        {branchLabel ? (
-          <span
-            data-note-branch={summary?.branch || ""}
-            data-note-detached={summary?.detached ? "true" : undefined}
-            className="flex min-w-0 items-center gap-1"
-          >
-            <GitBranchIcon className="size-3 shrink-0 text-muted-foreground" />
-            <span
-              className="min-w-0 truncate font-medium text-foreground/85"
-              title={branchLabel}
-            >
-              {branchLabel}
-            </span>
-          </span>
-        ) : null}
-        {changedFiles > 0 ? (
-          <span
-            data-note-changes={changedFiles}
-            className="flex shrink-0 items-center gap-1.5 font-mono tabular-nums"
-          >
-            <span className="text-muted-foreground/70">
-              {t.workspaceNote.filesCount(
-                numberFormat.format(changedFiles),
-              )}
-            </span>
-            {lineDelta > 0 ? (
-              <>
-                <span className="text-success">
-                  +{numberFormat.format(summary?.added ?? 0)}
-                </span>
-                <span className="text-destructive">
-                  -{numberFormat.format(summary?.removed ?? 0)}
-                </span>
-              </>
-            ) : null}
-          </span>
-        ) : null}
-        {hasProcess ? (
-          <span
-            data-note-process={progress.total}
-            className="shrink-0 rounded-full bg-muted/70 px-1.5 py-0.5 font-medium tabular-nums text-muted-foreground"
-          >
-            {t.workspaceNote.processProgress(
-              progress.current,
-              progress.total,
-            )}
-          </span>
-        ) : null}
-        {expanded ? (
-          <ChevronUpIcon className="size-3 shrink-0 text-muted-foreground/70" />
-        ) : (
-          <ChevronDownIcon className="size-3 shrink-0 text-muted-foreground/70" />
-        )}
-      </button>
-
-      {expanded ? (
-        <div
-          data-note-card="true"
-          className={cn(
-            "pointer-events-auto absolute right-0 top-[calc(100%+0.375rem)] w-72",
-            "overflow-hidden rounded-xl border border-border-default",
-            "bg-background/95 shadow-[var(--shadow-lg)] backdrop-blur",
-          )}
+        {/* Header: Git 工具 + 刷新 + 更多 + 收起 */}
+        <header
+          data-note-environment="true"
+          className="flex items-center justify-between border-b border-border-subtle/70 px-3 py-2"
         >
-          <header
-            data-note-environment="true"
-            className="flex items-center justify-between border-b border-border-subtle px-2.5 py-1.5"
-          >
-            <span className="text-xs font-medium text-foreground/85">
-              {t.workspaceNote.environmentSection}
-            </span>
-            <div className="flex items-center gap-0.5">
-              <button
-                type="button"
-                onClick={() => void refresh()}
-                disabled={isLoading}
-                title={t.workspaceNote.refresh}
-                aria-label={t.workspaceNote.refresh}
-                className="flex size-5 items-center justify-center rounded text-muted-foreground/70 transition-colors hover:bg-muted hover:text-foreground disabled:opacity-60"
-              >
-                <RefreshCwIcon className={cn("size-3", isLoading && "animate-spin")} />
-              </button>
-              <button
-                type="button"
-                onClick={() => setExpanded(false)}
-                title={t.workspaceNote.collapse}
-                aria-label={t.workspaceNote.collapse}
-                className="flex size-5 items-center justify-center rounded text-muted-foreground/70 transition-colors hover:bg-muted hover:text-foreground"
-              >
-                <ChevronUpIcon className="size-3" />
-              </button>
-            </div>
-          </header>
-
-          <div className="space-y-0.5 px-1 py-1">
-            <NoteRow
-              icon={<CircleIcon className="size-3 text-primary" />}
-              label={t.workspaceNote.changesLabel}
+          <span className="text-xs font-semibold text-foreground/90">
+            {t.workspaceNote.gitToolsTitle || t.workspaceNote.environmentSection}
+          </span>
+          <span className="sr-only">{t.workspaceNote.environmentSection}</span>
+          <div className="flex items-center gap-0.5">
+            <button
+              type="button"
+              onClick={() => void refresh()}
+              disabled={isLoading}
+              title={t.workspaceNote.refresh}
+              aria-label={t.workspaceNote.refresh}
+              className="flex size-6 items-center justify-center rounded-md text-muted-foreground/70 transition-colors hover:bg-muted hover:text-foreground disabled:opacity-60"
             >
-              {changedFiles === 0 ? (
-                <span className="text-muted-foreground/70">
+              <RefreshCwIcon className={cn("size-3", isLoading && "animate-spin")} />
+            </button>
+            <button
+              type="button"
+              onClick={onOpenWorkbench}
+              title={t.workspaceNote.more ?? "更多选项"}
+              aria-label={t.workspaceNote.more ?? "更多选项"}
+              className="flex size-6 items-center justify-center rounded-md text-muted-foreground/70 transition-colors hover:bg-muted hover:text-foreground"
+            >
+              <MoreHorizontalIcon className="size-3.5" />
+            </button>
+            <button
+              type="button"
+              onClick={() => setExpanded(false)}
+              title={t.workspaceNote.collapse}
+              aria-label={t.workspaceNote.collapse}
+              className="flex size-6 items-center justify-center rounded-md text-muted-foreground/70 transition-colors hover:bg-muted hover:text-foreground"
+            >
+              <ChevronUpIcon className="size-3.5" />
+            </button>
+          </div>
+        </header>
+
+        {/* Section 1: Git Tools Body */}
+        <div className="space-y-1 p-2">
+          {/* Row 1: 更改 / Changes */}
+          <div className="flex items-center justify-between rounded-lg px-2 py-1 text-xs hover:bg-muted/40 transition-colors">
+            <div className="flex items-center gap-2 text-muted-foreground">
+              <FileTextIcon className="size-3.5 text-muted-foreground" />
+              <span>{t.workspaceNote.changesLabel === "变更" ? "更改" : t.workspaceNote.changesLabel}</span>
+              <span className="sr-only">{t.workspaceNote.changesLabel}</span>
+            </div>
+            <div>
+              {!summary && error ? (
+                <span className="text-xs text-muted-foreground/50 font-mono">
+                  —
+                </span>
+              ) : changedFiles === 0 ? (
+                <span className="text-xs text-muted-foreground/70 font-mono">
                   {t.workspaceNote.clean}
                 </span>
               ) : (
-                <span className="flex items-center gap-1.5 font-mono tabular-nums">
-                  <span className="text-muted-foreground/70">
-                    {t.workspaceNote.filesCount(
-                      numberFormat.format(changedFiles),
-                    )}
-                  </span>
+                <span
+                  data-note-changes={changedFiles}
+                  className="flex items-center gap-1.5 font-mono text-xs tabular-nums"
+                >
                   {lineDelta > 0 ? (
                     <>
-                      <span className="text-success">
+                      <span className="font-medium text-emerald-500">
                         +{numberFormat.format(summary?.added ?? 0)}
                       </span>
-                      <span className="text-destructive">
+                      <span className="font-medium text-rose-500">
                         -{numberFormat.format(summary?.removed ?? 0)}
                       </span>
                     </>
-                  ) : null}
+                  ) : (
+                    <span className="text-muted-foreground/70">
+                      {t.workspaceNote.filesCount(numberFormat.format(changedFiles))}
+                    </span>
+                  )}
                 </span>
               )}
-            </NoteRow>
-
-            <NoteRow
-              icon={<GitBranchIcon className="size-3 text-muted-foreground" />}
-              label={t.workspaceNote.branchLabel}
-            >
-              <span className="flex min-w-0 items-center gap-1.5">
-                <span
-                  data-note-branch-label={branchLabel || "none"}
-                  className={cn("min-w-0 truncate", summary?.branch && "font-mono")}
-                  title={summary?.branch || undefined}
-                >
-                  {branchLabel || "—"}
-                </span>
-                {summary && (summary.ahead > 0 || summary.behind > 0) ? (
-                  <span className="shrink-0 text-muted-foreground/70">
-                    {t.workspaceNote.aheadBehind(
-                      numberFormat.format(summary.ahead),
-                      numberFormat.format(summary.behind),
-                    )}
-                  </span>
-                ) : null}
-              </span>
-            </NoteRow>
-
-            <NoteRow
-              data-note-pr="unavailable"
-              icon={<GitPullRequestIcon className="size-3 text-muted-foreground" />}
-              label={t.workspaceNote.pullRequestLabel}
-            >
-              <span
-                className="text-muted-foreground/70"
-                title={t.workspaceNote.pullRequestHint}
-              >
-                {t.workspaceNote.pullRequestUnavailable}
-              </span>
-            </NoteRow>
-
-            {summary && summary.untrackedFiles > 0 ? (
-              <p
-                data-note-untracked={summary.untrackedFiles}
-                className="px-2 pt-0.5 text-[11px] leading-snug text-muted-foreground/60"
-              >
-                {t.workspaceNote.trackedOnly}
-              </p>
-            ) : null}
-            {summary?.diffError ? (
-              <p
-                data-note-diff-error="true"
-                className="px-2 pt-0.5 text-[11px] leading-snug text-muted-foreground/60"
-              >
-                {t.workspaceNote.diffUnavailable}
-              </p>
-            ) : null}
-            {error ? (
-              <p
-                data-note-error="true"
-                className="px-2 pt-0.5 text-[11px] leading-snug text-warning"
-              >
-                {t.workspaceNote.unavailable}
-              </p>
-            ) : null}
+            </div>
           </div>
 
-          <header className="flex items-center justify-between border-t border-border-subtle px-2.5 py-1.5">
-            <span className="flex items-center gap-1.5 text-xs font-medium text-foreground/85">
-              <ListChecksIcon className="size-3.5 text-primary" />
+          {/* Row 2: 分支 / Branch */}
+          <div
+            className="flex items-center justify-between rounded-lg px-2 py-1 text-xs hover:bg-muted/40 transition-colors"
+            title={summary?.branch ? `${t.workspaceNote.branchLabel}: ${summary.branch}` : undefined}
+          >
+            <div className="flex min-w-0 items-center gap-2">
+              <GitBranchIcon className="size-3.5 shrink-0 text-muted-foreground" />
+              <span className="sr-only">{t.workspaceNote.branchLabel}</span>
+              <span
+                data-note-branch-label={branchLabel || "none"}
+                className={cn(
+                  "min-w-0 truncate text-foreground/90",
+                  summary?.branch && "font-mono",
+                )}
+                title={summary?.branch || undefined}
+              >
+                {branchLabel || "—"}
+              </span>
+              {summary && (summary.ahead > 0 || summary.behind > 0) ? (
+                <span className="shrink-0 text-[11px] font-mono text-muted-foreground/70">
+                  {t.workspaceNote.aheadBehind(
+                    numberFormat.format(summary.ahead),
+                    numberFormat.format(summary.behind),
+                  )}
+                </span>
+              ) : null}
+            </div>
+            <ChevronDownIcon className="size-3 shrink-0 text-muted-foreground/60" />
+          </div>
+
+          {/* Row 3: 提交或推送 / Commit or push */}
+          <button
+            type="button"
+            onClick={onOpenWorkbench}
+            className="flex w-full items-center gap-2 rounded-lg px-2 py-1 text-xs text-muted-foreground hover:bg-muted/60 hover:text-foreground transition-colors text-left"
+          >
+            <GitForkIcon className="size-3.5 shrink-0 text-muted-foreground rotate-180" />
+            <span className="font-medium text-foreground/85">
+              {t.workspaceNote.commitOrPush}
+            </span>
+          </button>
+
+          {/* Pull Request Row */}
+          <div
+            data-note-pr="unavailable"
+            className="flex items-center justify-between rounded-lg px-2 py-0.5 text-[11px] text-muted-foreground/60"
+          >
+            <span className="flex items-center gap-1.5">
+              <GitPullRequestIcon className="size-3 shrink-0 text-muted-foreground/60" />
+              <span>{t.workspaceNote.pullRequestLabel}</span>
+            </span>
+            <span title={t.workspaceNote.pullRequestHint}>
+              {t.workspaceNote.pullRequestUnavailable}
+            </span>
+          </div>
+
+          {summary && summary.untrackedFiles > 0 ? (
+            <p
+              data-note-untracked={summary.untrackedFiles}
+              className="px-2 pt-0.5 text-[11px] leading-snug text-muted-foreground/60"
+            >
+              {t.workspaceNote.trackedOnly}
+            </p>
+          ) : null}
+          {summary?.diffError ? (
+            <p
+              data-note-diff-error="true"
+              className="px-2 pt-0.5 text-[11px] leading-snug text-muted-foreground/60"
+            >
+              {t.workspaceNote.diffUnavailable}
+            </p>
+          ) : null}
+          {error ? (
+            <p
+              data-note-error="true"
+              className="px-2 pt-0.5 text-[11px] leading-snug text-warning"
+            >
+              {summary
+                ? t.workspaceNote.unavailable
+                : t.workspaceNote.unavailableFresh}
+            </p>
+          ) : null}
+        </div>
+
+        {/* Separator */}
+        <div className="border-t border-border-subtle/70" />
+
+        {/* Section 2: Process Checklist */}
+        <div className="p-2">
+          <div className="flex items-center justify-between px-2 pb-1.5">
+            <span className="text-xs font-semibold text-foreground/90">
               {t.workspaceNote.processSection}
             </span>
-            {hasProcess ? (
-              <span className="rounded-full bg-muted/70 px-1.5 py-0.5 text-xs font-medium tabular-nums text-muted-foreground">
-                {t.workspaceNote.processProgress(
-                  progress.current,
-                  progress.total,
-                )}
-              </span>
-            ) : null}
-          </header>
+            <div className="flex items-center gap-1.5">
+              {hasProcess ? (
+                <span className="font-mono text-xs font-medium tabular-nums text-muted-foreground">
+                  {t.workspaceNote.processProgress(
+                    progress.current,
+                    progress.total,
+                  )}
+                </span>
+              ) : null}
+              {onOpenWorkbench ? (
+                <button
+                  type="button"
+                  data-note-open-workbench="true"
+                  onClick={onOpenWorkbench}
+                  className="rounded px-1.5 py-0.5 text-[11px] font-medium text-primary transition-colors hover:bg-primary/10"
+                >
+                  {t.todoList.title}
+                </button>
+              ) : null}
+            </div>
+          </div>
 
-          <div data-note-process-list="true" className="max-h-40 overflow-y-auto px-1 pb-1.5">
+          <div
+            data-note-process-list="true"
+            className="max-h-48 space-y-0.5 overflow-y-auto pr-1"
+          >
             {hasProcess ? (
               phases.map((phase) => (
                 <PhaseRow
@@ -339,6 +414,7 @@ export function WorkspaceNoteBadge({
                   active={phase.id === currentPhase?.id}
                   labels={t.agentPhases}
                   statusLabel={phaseStatusLabel(phase.status, t)}
+                  onClick={onOpenWorkbench}
                 />
               ))
             ) : (
@@ -348,33 +424,7 @@ export function WorkspaceNoteBadge({
             )}
           </div>
         </div>
-      ) : null}
-    </div>
-  );
-}
-
-function NoteRow({
-  icon,
-  label,
-  children,
-  ...rest
-}: {
-  icon: ReactNode;
-  label: string;
-  children: ReactNode;
-} & HTMLAttributes<HTMLDivElement>) {
-  return (
-    <div
-      {...rest}
-      className="flex min-w-0 items-start gap-2 rounded-lg px-2 py-1 text-xs"
-    >
-      <span className="mt-0.5 flex size-3.5 shrink-0 items-center justify-center">
-        {icon}
-      </span>
-      <span className="w-16 shrink-0 text-muted-foreground">{label}</span>
-      <span className="min-w-0 flex-1 text-right text-foreground/85">
-        {children}
-      </span>
+      </div>
     </div>
   );
 }
@@ -384,22 +434,38 @@ function PhaseRow({
   active,
   labels,
   statusLabel,
+  onClick,
 }: {
   phase: AgentPhase;
   active: boolean;
   labels: Parameters<typeof agentPhaseDisplayTitle>[1];
   statusLabel: string;
+  onClick?: () => void;
 }) {
   return (
     <div
+      role={onClick ? "button" : undefined}
+      tabIndex={onClick ? 0 : undefined}
+      onClick={onClick}
+      onKeyDown={
+        onClick
+          ? (e) => {
+              if (e.key === "Enter" || e.key === " ") {
+                e.preventDefault();
+                onClick();
+              }
+            }
+          : undefined
+      }
       data-note-phase={phase.status}
       className={cn(
-        "flex min-w-0 items-center gap-2 rounded-lg px-2 py-1 text-xs",
-        active ? "bg-primary/8 text-foreground" : "text-muted-foreground",
+        "group flex min-w-0 items-center gap-2 rounded-lg px-2 py-1 text-xs transition-colors",
+        active ? "bg-primary/8 text-foreground" : "text-muted-foreground/85 hover:text-foreground",
+        onClick && "cursor-pointer hover:bg-muted/60",
       )}
     >
       <PhaseStatusIcon status={phase.status} />
-      <span className="min-w-0 flex-1 truncate" title={phase.title}>
+      <span className="min-w-0 flex-1 truncate font-normal" title={phase.title}>
         {agentPhaseDisplayTitle(phase, labels)}
       </span>
       {active ? (
@@ -416,12 +482,12 @@ function PhaseStatusIcon({ status }: { status: AgentPhaseStatus }) {
     return <Loader2Icon className="size-3.5 shrink-0 animate-spin text-primary" />;
   }
   if (status === "pending") {
-    return <CircleIcon className="size-3.5 shrink-0 text-muted-foreground/45" />;
+    return <CircleIcon className="size-3.5 shrink-0 text-muted-foreground/40" />;
   }
   if (status === "error") {
     return <XCircleIcon className="size-3.5 shrink-0 text-destructive" />;
   }
-  return <CheckCircle2Icon className="size-3.5 shrink-0 text-success" />;
+  return <CheckCircle2Icon className="size-3.5 shrink-0 text-emerald-500" />;
 }
 
 function phaseStatusLabel(

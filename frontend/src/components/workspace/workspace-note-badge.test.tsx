@@ -219,6 +219,28 @@ describe("<WorkspaceNoteBadge />", () => {
     ).toBeTruthy();
   });
 
+  test("a failed first read does not masquerade as a clean tree", async () => {
+    // fetch rejects before any summary lands: there is no "last reading" to
+    // show, so the card must not claim the tree is clean.
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockRejectedValue(new Error("connection refused")),
+    );
+
+    renderWithProviders(
+      <WorkspaceNoteBadge workDir="D:/echo-ai" events={planEvents()} />,
+      { locale: "zh-CN" },
+    );
+
+    fireEvent.click(await screen.findByRole("button", { name: "概要便签" }));
+
+    expect(
+      await screen.findByText("读取工作区状态失败，请刷新重试。"),
+    ).toBeVisible();
+    expect(screen.queryByText("无未提交变更")).toBeNull();
+    expect(screen.queryByText("读取工作区状态失败，显示的是上次结果。")).toBeNull();
+  });
+
   test("flags that line totals skip untracked files", async () => {
     // The shape the endpoint actually returns for a brand-new untracked file:
     // git diff succeeds, prints nothing, and the file count is non-zero.
