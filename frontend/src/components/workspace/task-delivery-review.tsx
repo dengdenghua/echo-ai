@@ -9,6 +9,106 @@ import { parseUnifiedDiff } from "@/core/diff/unified-diff";
 import { DiffView } from "./diff-view";
 import { cn } from "@/lib/utils";
 
+const DOC_EXT_RE = /\.(md|markdown|txt)$/i;
+
+export function isDocumentationPath(path: string): boolean {
+  return DOC_EXT_RE.test(path.trim());
+}
+
+export function createVirtualDiff(content: string): string {
+  if (typeof content !== "string" || content.length === 0) {
+    return "";
+  }
+  const normalized = content.endsWith("\n") ? content.slice(0, -1) : content;
+  const lines = normalized.split(/\r?\n/);
+  return `@@ -0,0 +1,${lines.length} @@\n${lines.map((line) => `+${line}`).join("\n")}`;
+}
+
+function parseRecord(value: unknown): Record<string, unknown> | null {
+  if (value && typeof value === "object" && !Array.isArray(value)) {
+    return value as Record<string, unknown>;
+  }
+  if (typeof value === "string" && value.charCodeAt(0) === 123) {
+    try {
+      const parsed = JSON.parse(value);
+      if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
+        return parsed as Record<string, unknown>;
+      }
+    } catch {}
+  }
+  return null;
+}
+
+function extractContentFromInput(input: unknown): string | undefined {
+  const rec = parseRecord(input);
+  if (!rec) return undefined;
+  if (typeof rec.content === "string") return rec.content;
+  if (typeof rec.text === "string") return rec.text;
+  if (typeof rec.code === "string") return rec.code;
+  const args = parseRecord(rec.arguments);
+  if (args) {
+    if (typeof args.content === "string") return args.content;
+    if (typeof args.text === "string") return args.text;
+    if (typeof args.code === "string") return args.code;
+  }
+  return undefined;
+}
+
+function extractDiffFromEvent(event: LiveToolEvent): string | undefined {
+  const out = parseRecord(event.output);
+  if (out) {
+    if (typeof out.diff === "string" && out.diff.trim()) return out.diff;
+    if (typeof out.diff_preview === "string" && out.diff_preview.trim()) {
+      return out.diff_preview;
+    }
+  }
+  const inp = parseRecord(event.input);
+  if (inp) {
+    if (typeof inp.diff === "string" && inp.diff.trim()) return inp.diff;
+    if (typeof inp.diff_preview === "string" && inp.diff_preview.trim()) {
+      return inp.diff_preview;
+    }
+  }
+  return undefined;
+}
+
+function isCreateOperation(
+  operation: string,
+  input: unknown,
+  output: unknown,
+): boolean {
+  if (operation === "create_file") return true;
+  const inp = parseRecord(input);
+  if (inp) {
+    if (
+      inp.op === "create" ||
+      inp.mode === "create" ||
+      inp.is_new === true ||
+      inp.create === true
+    ) {
+      return true;
+    }
+    const args = parseRecord(inp.arguments);
+    if (
+      args &&
+      (args.op === "create" ||
+        args.mode === "create" ||
+        args.is_new === true ||
+        args.create === true)
+    ) {
+      return true;
+    }
+  }
+  const out = parseRecord(output);
+  if (
+    out &&
+    (out.op === "create" || out.is_new === true || out.created === true)
+  ) {
+    return true;
+  }
+  return false;
+}
+
 export function deliveryEvidence(events: LiveToolEvent[]) {
   const changes: {
     id: string;
@@ -37,6 +137,13 @@ export function deliveryEvidence(events: LiveToolEvent[]) {
         "delete_file",
       ].includes(operation)
     ) {
+      const isCreate = isCreateOperation(operation, event.input, event.output);
+      let diff = extractDiffFromEvent(event);
+      const content = extractContentFromInput(event.input);
+      if (!diff && isCreate && content !== undefined) {
+        diff = createVirtualDiff(content);
+      }
+
       for (const ref of toolResources(event.input, event.input?.arguments)) {
         if (ref.kind !== "file") continue;
         changes.push({
@@ -45,9 +152,10 @@ export function deliveryEvidence(events: LiveToolEvent[]) {
           op:
             operation === "delete_file"
               ? "delete"
-              : operation === "create_file"
+              : isCreate
                 ? "create"
                 : "update",
+          diff,
           truncated: false,
           status: event.status,
         });
@@ -57,21 +165,27 @@ export function deliveryEvidence(events: LiveToolEvent[]) {
       for (const [i, raw] of event.input.changes.entries()) {
         if (!raw || typeof raw !== "object" || typeof raw.path !== "string")
           continue;
+        const op = String(raw.op ?? "update");
+        let diff = typeof raw.diff === "string" ? raw.diff : undefined;
+        if (
+          !diff &&
+          (op === "create" || raw.is_new === true) &&
+          typeof raw.content === "string"
+        ) {
+          diff = createVirtualDiff(raw.content);
+        }
         changes.push({
           id: `${event.id}:${i}`,
           path: raw.path,
-          op: String(raw.op ?? "update"),
-          diff: typeof raw.diff === "string" ? raw.diff : undefined,
+          op,
+          diff,
           truncated: raw.diffTruncated === true,
           status: event.status,
         });
       }
     }
     if (event.name.startsWith("verification:")) {
-      const output =
-        event.output && typeof event.output === "object"
-          ? (event.output as Record<string, unknown>)
-          : {};
+      const output = parseRecord(event.output) ?? {};
       checks.push({
         id: event.id,
         command: String(event.input?.command ?? "验证"),
@@ -129,6 +243,9 @@ export function TaskDeliveryReview({
   if (running || (!evidence.changes.length && !evidence.checks.length))
     return null;
   const failures = evidence.checks.filter((c) => c.state === "failed").length;
+  const isDocOnly =
+    evidence.changes.length > 0 &&
+    evidence.changes.every((change) => isDocumentationPath(change.path));
 
   return (
     <section
@@ -212,8 +329,15 @@ export function TaskDeliveryReview({
         </ul>
 
         {!evidence.checks.length && (
-          <p className="border-t border-border-default px-3 py-2 text-xs text-warning">
-            本轮未收到结构化验证记录，不能据此确认测试通过。
+          <p
+            className={cn(
+              "border-t border-border-default px-3 py-2 text-xs",
+              isDocOnly ? "text-muted-foreground" : "text-warning",
+            )}
+          >
+            {isDocOnly
+              ? "文档/分析类交付，无测试项"
+              : "本轮未收到结构化验证记录，不能据此确认测试通过。"}
           </p>
         )}
       </div>
