@@ -105,7 +105,7 @@ desktop-core = [
     # anthropic is required at boot — the default desktop config routes the
     # planner through AnthropicModelRouter, constructed eagerly at startup.
     # Keep in sync with backend-runtime.cjs::CORE_DEPS.
-    "anthropic>=0.40,<1.0",
+    "anthropic>=0.40,<2.0",
     # First-party Office plugins and artifact previews must work in the
     # packaged desktop runtime, not only in a developer environment that
     # happens to have these libraries installed.
@@ -152,7 +152,7 @@ office = [
 # ../echo-storage`) or point ECHO_STORAGE_CMD at its executable.
 # ── LLM provider adapters ────────────────────────────────
 anthropic = [
-    "anthropic>=0.40,<1.0",
+    "anthropic>=0.40,<2.0",
 ]
 # ── MCP client ───────────────────────────────────────────
 mcp = [
@@ -254,7 +254,7 @@ all = [
     "python-pptx>=1.0.2",
     "reportlab>=4.4.4",
     # LLM providers
-    "anthropic>=0.40,<1.0",
+    "anthropic>=0.40,<2.0",
     # MCP client
     "mcp>=2.0.0,<3.0",
     "pydantic-settings>=2.14.2",
