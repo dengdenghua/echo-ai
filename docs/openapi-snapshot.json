@@ -635,6 +635,17 @@
           "label": {
             "title": "Label",
             "type": "string"
+          },
+          "password_only_username": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Password Only Username"
           }
         },
         "required": [
@@ -2705,6 +2716,17 @@
             "title": "Description",
             "type": "string"
           },
+          "display_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Display Name"
+          },
           "model": {
             "anyOf": [
               {
@@ -3292,6 +3314,18 @@
               }
             ],
             "title": "Unsupported Request Fields"
+          },
+          "wire_api": {
+            "anyOf": [
+              {
+                "const": "responses",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Wire Api"
           }
         },
         "required": [
@@ -3551,6 +3585,28 @@
             "type": "string"
           }
         },
+        "type": "object"
+      },
+      "DesignCapabilityRequest": {
+        "properties": {
+          "check_connection": {
+            "default": false,
+            "title": "Check Connection",
+            "type": "boolean"
+          },
+          "goal": {
+            "default": "",
+            "maxLength": 32000,
+            "title": "Goal",
+            "type": "string"
+          },
+          "preferences": {
+            "additionalProperties": true,
+            "title": "Preferences",
+            "type": "object"
+          }
+        },
+        "title": "DesignCapabilityRequest",
         "type": "object"
       },
       "DetachFromGroupBody": {
@@ -4009,6 +4065,19 @@
           "description"
         ],
         "title": "DispatchTaskInput",
+        "type": "object"
+      },
+      "DriverBody": {
+        "properties": {
+          "driver": {
+            "title": "Driver",
+            "type": "string"
+          }
+        },
+        "required": [
+          "driver"
+        ],
+        "title": "DriverBody",
         "type": "object"
       },
       "DualHelixShadowRunBody": {
@@ -4716,6 +4785,11 @@
           "kind": {
             "default": "agent",
             "title": "Kind",
+            "type": "string"
+          },
+          "owner": {
+            "default": "",
+            "title": "Owner",
             "type": "string"
           },
           "role": {
@@ -5897,6 +5971,116 @@
         "title": "ModeInfo",
         "type": "object"
       },
+      "ModelCaptureBody": {
+        "properties": {
+          "max_dim": {
+            "default": 640,
+            "maximum": 1280.0,
+            "minimum": 240.0,
+            "title": "Max Dim",
+            "type": "integer"
+          },
+          "views": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "maxItems": 4,
+                "minItems": 1,
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Views"
+          }
+        },
+        "title": "ModelCaptureBody",
+        "type": "object"
+      },
+      "ModelCompareBody": {
+        "properties": {
+          "reference_path": {
+            "title": "Reference Path",
+            "type": "string"
+          },
+          "view": {
+            "default": "iso",
+            "title": "View",
+            "type": "string"
+          }
+        },
+        "required": [
+          "reference_path"
+        ],
+        "title": "ModelCompareBody",
+        "type": "object"
+      },
+      "ModelGenerateBody": {
+        "properties": {
+          "label": {
+            "default": "程序化模型",
+            "maxLength": 40,
+            "title": "Label",
+            "type": "string"
+          },
+          "model_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Model Id"
+          },
+          "parts": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "maxItems": 64,
+            "minItems": 1,
+            "title": "Parts",
+            "type": "array"
+          },
+          "position": {
+            "items": {
+              "type": "number"
+            },
+            "maxItems": 3,
+            "minItems": 3,
+            "title": "Position",
+            "type": "array"
+          },
+          "rotation": {
+            "items": {
+              "type": "number"
+            },
+            "maxItems": 3,
+            "minItems": 3,
+            "title": "Rotation",
+            "type": "array"
+          },
+          "scale": {
+            "items": {
+              "type": "number"
+            },
+            "maxItems": 3,
+            "minItems": 3,
+            "title": "Scale",
+            "type": "array"
+          }
+        },
+        "required": [
+          "parts"
+        ],
+        "title": "ModelGenerateBody",
+        "type": "object"
+      },
       "ModesResponse": {
         "properties": {
           "modes": {
@@ -6081,6 +6265,54 @@
         "title": "PluginNodeStatePut",
         "type": "object"
       },
+      "ProjectEditBody": {
+        "properties": {
+          "description": {
+            "default": "编辑时间线",
+            "maxLength": 160,
+            "title": "Description",
+            "type": "string"
+          },
+          "operations": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "maxItems": 50,
+            "minItems": 1,
+            "title": "Operations",
+            "type": "array"
+          },
+          "validate_only": {
+            "default": false,
+            "title": "Validate Only",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "operations"
+        ],
+        "title": "ProjectEditBody",
+        "type": "object"
+      },
+      "ProjectExportBody": {
+        "properties": {
+          "include_audio": {
+            "default": true,
+            "title": "Include Audio",
+            "type": "boolean"
+          },
+          "max_dim": {
+            "default": 1280,
+            "maximum": 1280.0,
+            "minimum": 160.0,
+            "title": "Max Dim",
+            "type": "integer"
+          }
+        },
+        "title": "ProjectExportBody",
+        "type": "object"
+      },
       "ProjectGroupAgentBody": {
         "properties": {
           "avatar_url": {
@@ -6163,6 +6395,118 @@
           "name"
         ],
         "title": "ProjectGroupBody",
+        "type": "object"
+      },
+      "ProjectHistoryBody": {
+        "properties": {
+          "action": {
+            "title": "Action",
+            "type": "string"
+          },
+          "steps": {
+            "default": 1,
+            "maximum": 20.0,
+            "minimum": 1.0,
+            "title": "Steps",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "action"
+        ],
+        "title": "ProjectHistoryBody",
+        "type": "object"
+      },
+      "ProjectSnapshotBody": {
+        "properties": {
+          "count": {
+            "default": 4,
+            "maximum": 8.0,
+            "minimum": 1.0,
+            "title": "Count",
+            "type": "integer"
+          },
+          "from_sec": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "From Sec"
+          },
+          "max_dim": {
+            "default": 640,
+            "maximum": 1280.0,
+            "minimum": 160.0,
+            "title": "Max Dim",
+            "type": "integer"
+          },
+          "times": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "number"
+                },
+                "maxItems": 8,
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Times"
+          },
+          "to_sec": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "To Sec"
+          }
+        },
+        "title": "ProjectSnapshotBody",
+        "type": "object"
+      },
+      "ProjectViewBody": {
+        "properties": {
+          "action": {
+            "title": "Action",
+            "type": "string"
+          },
+          "from_sec": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "From Sec"
+          },
+          "to_sec": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "To Sec"
+          }
+        },
+        "required": [
+          "action"
+        ],
+        "title": "ProjectViewBody",
         "type": "object"
       },
       "ProviderCapabilitiesWire": {
@@ -6383,6 +6727,36 @@
           "member_id"
         ],
         "title": "ReadBody",
+        "type": "object"
+      },
+      "ReceiptBody": {
+        "properties": {
+          "action": {
+            "enum": [
+              "acknowledge",
+              "cancel"
+            ],
+            "title": "Action",
+            "type": "string"
+          },
+          "message_id": {
+            "default": "",
+            "maxLength": 160,
+            "title": "Message Id",
+            "type": "string"
+          },
+          "task_id": {
+            "maxLength": 160,
+            "minLength": 1,
+            "title": "Task Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "task_id",
+          "action"
+        ],
+        "title": "ReceiptBody",
         "type": "object"
       },
       "RecoverBody": {
@@ -6771,6 +7145,50 @@
           }
         },
         "title": "RunBody",
+        "type": "object"
+      },
+      "SceneEditBody": {
+        "properties": {
+          "operations": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "maxItems": 50,
+            "minItems": 1,
+            "title": "Operations",
+            "type": "array"
+          },
+          "validate_only": {
+            "default": false,
+            "title": "Validate Only",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "operations"
+        ],
+        "title": "SceneEditBody",
+        "type": "object"
+      },
+      "SceneHistoryBody": {
+        "properties": {
+          "action": {
+            "title": "Action",
+            "type": "string"
+          },
+          "steps": {
+            "default": 1,
+            "maximum": 20.0,
+            "minimum": 1.0,
+            "title": "Steps",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "action"
+        ],
+        "title": "SceneHistoryBody",
         "type": "object"
       },
       "ScorecardGapQueueBody": {
@@ -7480,6 +7898,43 @@
           "ref"
         ],
         "title": "TaskAssigneeWire",
+        "type": "object"
+      },
+      "TaskBody": {
+        "properties": {
+          "assignee": {
+            "maxLength": 160,
+            "minLength": 1,
+            "title": "Assignee",
+            "type": "string"
+          },
+          "dependencies": {
+            "items": {
+              "type": "string"
+            },
+            "maxItems": 32,
+            "title": "Dependencies",
+            "type": "array"
+          },
+          "prompt": {
+            "maxLength": 12000,
+            "minLength": 1,
+            "title": "Prompt",
+            "type": "string"
+          },
+          "request_id": {
+            "maxLength": 160,
+            "minLength": 1,
+            "title": "Request Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "assignee",
+          "prompt",
+          "request_id"
+        ],
+        "title": "TaskBody",
         "type": "object"
       },
       "TaskInterventionBody": {
@@ -8636,6 +9091,25 @@
         "title": "VideoWatchRequest",
         "type": "object"
       },
+      "VisualSnapshotBody": {
+        "properties": {
+          "data_url": {
+            "title": "Data Url",
+            "type": "string"
+          },
+          "view": {
+            "default": "director",
+            "pattern": "^(director|camera)$",
+            "title": "View",
+            "type": "string"
+          }
+        },
+        "required": [
+          "data_url"
+        ],
+        "title": "VisualSnapshotBody",
+        "type": "object"
+      },
       "WorkflowImport": {
         "properties": {
           "name": {
@@ -8800,6 +9274,55 @@
         "title": "WorkspaceOutputEntry",
         "type": "object"
       },
+      "WorkspaceOutputProposalRequest": {
+        "properties": {
+          "action": {
+            "default": "create",
+            "enum": [
+              "create",
+              "accept",
+              "reject"
+            ],
+            "title": "Action",
+            "type": "string"
+          },
+          "expected_sha256": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Expected Sha256"
+          },
+          "proposal_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Proposal Id"
+          },
+          "reviewed_sha256": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reviewed Sha256"
+          }
+        },
+        "title": "WorkspaceOutputProposalRequest",
+        "type": "object"
+      },
       "WorkspaceOutputRestoreRequest": {
         "properties": {
           "expected_sha256": {
@@ -8912,6 +9435,34 @@
         "title": "WorkspaceOutputsResponse",
         "type": "object"
       },
+      "_GroupPayload": {
+        "properties": {
+          "group_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Group Id"
+          },
+          "name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Name"
+          }
+        },
+        "title": "_GroupPayload",
+        "type": "object"
+      },
       "_MoveIn": {
         "properties": {
           "to": {
@@ -9006,11 +9557,51 @@
         ],
         "title": "_RuleOut",
         "type": "object"
+      },
+      "_SyncCapturePayload": {
+        "properties": {
+          "messages": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "title": "Messages",
+            "type": "array"
+          }
+        },
+        "required": [
+          "messages"
+        ],
+        "title": "_SyncCapturePayload",
+        "type": "object"
+      },
+      "_SyncConfigurePayload": {
+        "properties": {
+          "cloud_url": {
+            "title": "Cloud Url",
+            "type": "string"
+          },
+          "device_name": {
+            "default": "Echo Desktop",
+            "title": "Device Name",
+            "type": "string"
+          },
+          "pairing_code": {
+            "title": "Pairing Code",
+            "type": "string"
+          }
+        },
+        "required": [
+          "cloud_url",
+          "pairing_code"
+        ],
+        "title": "_SyncConfigurePayload",
+        "type": "object"
       }
     }
   },
   "info": {
-    "title": "echo-ai"
+    "title": "Echo"
   },
   "openapi": "3.1.0",
   "paths": {
@@ -9262,6 +9853,287 @@
         "tags": [
           "a2a"
         ]
+      }
+    },
+    "/api/a2a/hotspot/discover": {
+      "post": {
+        "operationId": "discover_api_a2a_hotspot_discover_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "additionalProperties": true,
+                "title": "Body",
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Discover",
+        "tags": [
+          "a2a"
+        ]
+      }
+    },
+    "/api/a2a/hotspot/enabled": {
+      "post": {
+        "operationId": "enable_api_a2a_hotspot_enabled_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "additionalProperties": true,
+                "title": "Body",
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Enable",
+        "tags": [
+          "a2a"
+        ]
+      }
+    },
+    "/api/a2a/hotspot/local-role": {
+      "post": {
+        "operationId": "local_role_api_a2a_hotspot_local_role_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "anyOf": [
+                  {
+                    "additionalProperties": true,
+                    "type": "object"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Body"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Local Role",
+        "tags": [
+          "a2a"
+        ]
+      }
+    },
+    "/api/a2a/hotspot/members": {
+      "post": {
+        "operationId": "invite_api_a2a_hotspot_members_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "additionalProperties": true,
+                "title": "Body",
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Invite",
+        "tags": [
+          "a2a"
+        ]
+      }
+    },
+    "/api/a2a/hotspot/members/{member}": {
+      "delete": {
+        "operationId": "revoke_api_a2a_hotspot_members__member__delete",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "member",
+            "required": true,
+            "schema": {
+              "title": "Member",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Revoke",
+        "tags": [
+          "a2a"
+        ]
+      }
+    },
+    "/api/a2a/hotspot/status": {
+      "get": {
+        "operationId": "status_api_a2a_hotspot_status_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Status",
+        "tags": [
+          "a2a"
+        ]
+      }
+    },
+    "/api/a2a/published-roles": {
+      "get": {
+        "operationId": "status_api_a2a_published_roles_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Status"
+      },
+      "post": {
+        "operationId": "create_api_a2a_published_roles_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "additionalProperties": true,
+                "title": "Body",
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Create"
       }
     },
     "/api/a2a/rpc": {
@@ -11020,6 +11892,24 @@
     "/api/agent-market/cloud/installed": {
       "get": {
         "operationId": "api_agent_market_cloud_installed_api_agent_market_cloud_installed_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "package_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Package Id"
+            }
+          }
+        ],
         "responses": {
           "200": {
             "content": {
@@ -11032,6 +11922,16 @@
               }
             },
             "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
           }
         },
         "summary": "Api Agent Market Cloud Installed",
@@ -11404,6 +12304,22 @@
           },
           {
             "in": "query",
+            "name": "source",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Source"
+            }
+          },
+          {
+            "in": "query",
             "name": "offset",
             "required": false,
             "schema": {
@@ -11550,6 +12466,62 @@
           }
         },
         "summary": "Api Agent Market Cloud Skill Install Stream",
+        "tags": [
+          "agent-market"
+        ]
+      }
+    },
+    "/api/agent-market/cloud/skills/{name}/manage": {
+      "post": {
+        "operationId": "api_agent_market_skill_manage_api_agent_market_cloud_skills__name__manage_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "name",
+            "required": true,
+            "schema": {
+              "title": "Name",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "additionalProperties": true,
+                "title": "Body",
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Api Agent Market Skill Manage Api Agent Market Cloud Skills  Name  Manage Post",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Api Agent Market Skill Manage",
         "tags": [
           "agent-market"
         ]
@@ -11776,6 +12748,30 @@
         ]
       }
     },
+    "/api/agent-market/echo/catalog": {
+      "get": {
+        "description": "Read-only Echo catalog roster; catalog roles are not enabled locally.",
+        "operationId": "api_echo_catalog_api_agent_market_echo_catalog_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Api Echo Catalog Api Agent Market Echo Catalog Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Api Echo Catalog",
+        "tags": [
+          "agent-market"
+        ]
+      }
+    },
     "/api/agent-market/enterprise": {
       "get": {
         "operationId": "list_enterprise_assets_api_agent_market_enterprise_get",
@@ -11928,6 +12924,52 @@
         "summary": "Install Enterprise Asset",
         "tags": [
           "agent-market-enterprise"
+        ]
+      }
+    },
+    "/api/agent-market/from-subagent": {
+      "post": {
+        "description": "把子 agent 定义晋升为角色市场岗位（进\"我的安装\"）。\n\n使用过程中没有合适岗位时，运行中造出的子 agent 定义可以用这个\n端点转正：写 profile.jsonc + 生成头像 + SOUL.md，立刻出现在\n已安装角色列表，并且反向自动成为可派发的子 agent（market 桥）。",
+        "operationId": "api_agent_market_from_subagent_api_agent_market_from_subagent_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "additionalProperties": true,
+                "title": "Body",
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Api Agent Market From Subagent Api Agent Market From Subagent Post",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Api Agent Market From Subagent",
+        "tags": [
+          "agent-market"
         ]
       }
     },
@@ -12379,6 +13421,50 @@
           }
         },
         "summary": "Api Agent Market Ratings",
+        "tags": [
+          "agent-market"
+        ]
+      }
+    },
+    "/api/agent-market/store/{agent_id}/readiness": {
+      "get": {
+        "operationId": "api_agent_market_readiness_api_agent_market_store__agent_id__readiness_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "agent_id",
+            "required": true,
+            "schema": {
+              "title": "Agent Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Api Agent Market Readiness Api Agent Market Store  Agent Id  Readiness Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Api Agent Market Readiness",
         "tags": [
           "agent-market"
         ]
@@ -21739,6 +22825,146 @@
         ]
       }
     },
+    "/api/collab/{thread_id}/coordination": {
+      "get": {
+        "operationId": "snapshot_api_collab__thread_id__coordination_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "thread_id",
+            "required": true,
+            "schema": {
+              "title": "Thread Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Snapshot",
+        "tags": [
+          "cowork"
+        ]
+      }
+    },
+    "/api/collab/{thread_id}/coordination/receipt": {
+      "post": {
+        "operationId": "receipt_api_collab__thread_id__coordination_receipt_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "thread_id",
+            "required": true,
+            "schema": {
+              "title": "Thread Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReceiptBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Receipt",
+        "tags": [
+          "cowork"
+        ]
+      }
+    },
+    "/api/collab/{thread_id}/coordination/tasks": {
+      "post": {
+        "operationId": "create_task_api_collab__thread_id__coordination_tasks_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "thread_id",
+            "required": true,
+            "schema": {
+              "title": "Thread Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TaskBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Create Task",
+        "tags": [
+          "cowork"
+        ]
+      }
+    },
     "/api/collab/{thread_id}/deliveries": {
       "get": {
         "description": "Reliable result-delivery state for recovery and operator visibility.",
@@ -23681,6 +24907,51 @@
         ]
       }
     },
+    "/api/computer/preview": {
+      "post": {
+        "operationId": "window_preview_api_computer_preview_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "additionalProperties": true,
+                "title": "Body",
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Window Preview Api Computer Preview Post",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Window Preview",
+        "tags": [
+          "computer"
+        ]
+      }
+    },
     "/api/computer/screenshot": {
       "post": {
         "operationId": "screenshot_api_computer_screenshot_post",
@@ -24401,6 +25672,30 @@
         },
         "summary": "Api Openai Compat Profiles",
         "tags": [
+          "config"
+        ]
+      }
+    },
+    "/api/config/opencode/status": {
+      "get": {
+        "operationId": "opencode_status_api_config_opencode_status_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Opencode Status Api Config Opencode Status Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Opencode Status",
+        "tags": [
+          "config",
           "config"
         ]
       }
@@ -26348,7 +27643,7 @@
     },
     "/api/cowork/{thread_id}/members": {
       "post": {
-        "description": "Reference a canonical agent (or human) from this thread.\n\nRetrying the same add is a successful no-op.  The group stores only the\ncanonical id; it does not clone a role, home, memory, or owner lane.",
+        "description": "Reference a canonical agent (or human, or 数字员工) from this thread.\n\nRetrying the same add is a successful no-op.  The group stores only the\ncanonical id; it does not clone a role, home, memory, or owner lane.\n``kind=\"role\"`` requires ``owner`` — the human who answers for it.",
         "operationId": "invite_member_api_cowork__thread_id__members_post",
         "parameters": [
           {
@@ -26450,6 +27745,70 @@
           }
         },
         "summary": "Remove Member",
+        "tags": [
+          "cowork"
+        ]
+      }
+    },
+    "/api/cowork/{thread_id}/members/{member_id}/driver": {
+      "post": {
+        "description": "接管 / 交还: hand a member's wheel to its AI or to a person.\n\nWhile ``driver=\"human\"`` the member is removed from ``responders`` — the\nAI stands down so no utterance can have two drivers. Takes over a role\nmember only when it has an accountable owner. The event is appended, so\nthe whole takeover history is replayable and auditable.",
+        "operationId": "set_member_driver_api_cowork__thread_id__members__member_id__driver_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "thread_id",
+            "required": true,
+            "schema": {
+              "title": "Thread Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "member_id",
+            "required": true,
+            "schema": {
+              "title": "Member Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DriverBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Set Member Driver Api Cowork  Thread Id  Members  Member Id  Driver Post",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Set Member Driver",
         "tags": [
           "cowork"
         ]
@@ -27088,6 +28447,51 @@
           }
         },
         "summary": "Complete Task",
+        "tags": [
+          "cowork"
+        ]
+      }
+    },
+    "/api/cowork/{thread_id}/trust": {
+      "get": {
+        "description": "闲鱼式成员信任分：交付记录（封签链）+ 接管历史 → 可解释分数。\n\n信号全部来自已封签的事件源（成员时间线、任务审核链），评分权重\n显式暴露在响应里。外包/外部成员进群前先看这一眼。",
+        "operationId": "get_trust_api_cowork__thread_id__trust_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "thread_id",
+            "required": true,
+            "schema": {
+              "title": "Thread Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Get Trust Api Cowork  Thread Id  Trust Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Trust",
         "tags": [
           "cowork"
         ]
@@ -27912,6 +29316,49 @@
           }
         },
         "summary": "Read Design Asset",
+        "tags": [
+          "design-studio"
+        ]
+      }
+    },
+    "/api/design/capabilities/resolve": {
+      "post": {
+        "operationId": "resolve_capabilities_api_design_capabilities_resolve_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DesignCapabilityRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Resolve Capabilities Api Design Capabilities Resolve Post",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Resolve Capabilities",
         "tags": [
           "design-studio"
         ]
@@ -34299,6 +35746,62 @@
         ]
       }
     },
+    "/api/fs/preview": {
+      "get": {
+        "operationId": "api_fs_preview_api_fs_preview_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "path",
+            "required": true,
+            "schema": {
+              "title": "Path",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "thread_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Thread Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Api Fs Preview",
+        "tags": [
+          "fs"
+        ]
+      }
+    },
     "/api/fs/read": {
       "get": {
         "operationId": "api_fs_read_api_fs_read_get",
@@ -34738,6 +36241,84 @@
           }
         },
         "summary": "Api Git Status",
+        "tags": [
+          "fs"
+        ]
+      }
+    },
+    "/api/git/summary": {
+      "get": {
+        "description": "Aggregate the numbers an always-visible workspace note needs.\n\n``/api/git/status`` answers \"which files moved?\"; this answers \"how\nmuch moved, and where does the branch stand?\" in one round-trip, so a\nbadge that polls it stays cheap: branch, dirty-file count, ahead /\nbehind against upstream, and added / removed line totals versus HEAD.\n\nUntracked files are counted in ``changed_files`` but can never\ncontribute line totals — ``git diff`` does not see them. They are\ntherefore reported separately as ``untracked_files``, which is what\nlets a caller tell \"nothing changed\" apart from \"nothing *tracked*\nchanged, but N new files appeared\" instead of reading a bare zero.\n``diff_error`` is reserved for ``git diff`` failing outright.",
+        "operationId": "api_git_summary_api_git_summary_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "path",
+            "required": false,
+            "schema": {
+              "default": ".",
+              "title": "Path",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "thread_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Thread Id"
+            }
+          },
+          {
+            "in": "query",
+            "name": "workspace_path",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Workspace Path"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Api Git Summary Api Git Summary Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Api Git Summary",
         "tags": [
           "fs"
         ]
@@ -39469,6 +41050,50 @@
         ]
       }
     },
+    "/api/opencode/reasoning-variants": {
+      "get": {
+        "operationId": "api_opencode_reasoning_variants_api_opencode_reasoning_variants_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "model",
+            "required": true,
+            "schema": {
+              "title": "Model",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Api Opencode Reasoning Variants Api Opencode Reasoning Variants Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Api Opencode Reasoning Variants",
+        "tags": [
+          "config"
+        ]
+      }
+    },
     "/api/organizations/topologies": {
       "get": {
         "operationId": "list_topologies_api_organizations_topologies_get",
@@ -40890,6 +42515,46 @@
         ]
       }
     },
+    "/api/plugin-hub/plugins/{name}/diagnostics": {
+      "get": {
+        "operationId": "get_automation_diagnostics_api_plugin_hub_plugins__name__diagnostics_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "name",
+            "required": true,
+            "schema": {
+              "title": "Name",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Automation Diagnostics",
+        "tags": [
+          "plugin-hub"
+        ]
+      }
+    },
     "/api/plugin-hub/plugins/{name}/disable": {
       "post": {
         "operationId": "disable_plugin_api_plugin_hub_plugins__name__disable_post",
@@ -41298,6 +42963,1153 @@
         ]
       }
     },
+    "/api/plugins/clip-studio/health": {
+      "get": {
+        "operationId": "health_api_plugins_clip_studio_health_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Health Api Plugins Clip Studio Health Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Health",
+        "tags": [
+          "clip_studio"
+        ]
+      }
+    },
+    "/api/plugins/clip-studio/page": {
+      "get": {
+        "operationId": "page_api_plugins_clip_studio_page_get",
+        "responses": {
+          "200": {
+            "content": {
+              "text/html": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Page",
+        "tags": [
+          "clip_studio"
+        ]
+      }
+    },
+    "/api/plugins/clip-studio/projects/{project_id}": {
+      "get": {
+        "operationId": "get_project_api_plugins_clip_studio_projects__project_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "title": "Project Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "view",
+            "required": false,
+            "schema": {
+              "default": "clips",
+              "pattern": "^(summary|tracks|clips|full)$",
+              "title": "View",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Get Project Api Plugins Clip Studio Projects  Project Id  Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Project",
+        "tags": [
+          "clip_studio"
+        ]
+      }
+    },
+    "/api/plugins/clip-studio/projects/{project_id}/diagnostics": {
+      "get": {
+        "operationId": "diagnostics_api_plugins_clip_studio_projects__project_id__diagnostics_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "title": "Project Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Diagnostics Api Plugins Clip Studio Projects  Project Id  Diagnostics Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Diagnostics",
+        "tags": [
+          "clip_studio"
+        ]
+      }
+    },
+    "/api/plugins/clip-studio/projects/{project_id}/edit": {
+      "post": {
+        "operationId": "edit_api_plugins_clip_studio_projects__project_id__edit_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "title": "Project Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ProjectEditBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Edit Api Plugins Clip Studio Projects  Project Id  Edit Post",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Edit",
+        "tags": [
+          "clip_studio"
+        ]
+      }
+    },
+    "/api/plugins/clip-studio/projects/{project_id}/export": {
+      "post": {
+        "operationId": "export_project_api_plugins_clip_studio_projects__project_id__export_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "title": "Project Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ProjectExportBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Export Project Api Plugins Clip Studio Projects  Project Id  Export Post",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Export Project",
+        "tags": [
+          "clip_studio"
+        ]
+      }
+    },
+    "/api/plugins/clip-studio/projects/{project_id}/export/file": {
+      "get": {
+        "operationId": "export_file_api_plugins_clip_studio_projects__project_id__export_file_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "title": "Project Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Export File",
+        "tags": [
+          "clip_studio"
+        ]
+      }
+    },
+    "/api/plugins/clip-studio/projects/{project_id}/history": {
+      "post": {
+        "operationId": "history_api_plugins_clip_studio_projects__project_id__history_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "title": "Project Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ProjectHistoryBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response History Api Plugins Clip Studio Projects  Project Id  History Post",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "History",
+        "tags": [
+          "clip_studio"
+        ]
+      }
+    },
+    "/api/plugins/clip-studio/projects/{project_id}/snapshot": {
+      "post": {
+        "operationId": "snapshot_api_plugins_clip_studio_projects__project_id__snapshot_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "title": "Project Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ProjectSnapshotBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Snapshot Api Plugins Clip Studio Projects  Project Id  Snapshot Post",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Snapshot",
+        "tags": [
+          "clip_studio"
+        ]
+      }
+    },
+    "/api/plugins/clip-studio/projects/{project_id}/view": {
+      "post": {
+        "operationId": "view_project_api_plugins_clip_studio_projects__project_id__view_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "title": "Project Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ProjectViewBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response View Project Api Plugins Clip Studio Projects  Project Id  View Post",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "View Project",
+        "tags": [
+          "clip_studio"
+        ]
+      }
+    },
+    "/api/plugins/comfyui-bridge/capabilities": {
+      "get": {
+        "operationId": "capabilities_api_plugins_comfyui_bridge_capabilities_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Capabilities Api Plugins Comfyui Bridge Capabilities Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Capabilities",
+        "tags": [
+          "comfyui_bridge"
+        ]
+      }
+    },
+    "/api/plugins/comfyui-bridge/health": {
+      "get": {
+        "operationId": "health_api_plugins_comfyui_bridge_health_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Health Api Plugins Comfyui Bridge Health Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Health",
+        "tags": [
+          "comfyui_bridge"
+        ]
+      }
+    },
+    "/api/plugins/director-stage/health": {
+      "get": {
+        "operationId": "health_api_plugins_director_stage_health_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Health Api Plugins Director Stage Health Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Health",
+        "tags": [
+          "director_stage"
+        ]
+      }
+    },
+    "/api/plugins/director-stage/scene-schema": {
+      "get": {
+        "operationId": "scene_schema_api_plugins_director_stage_scene_schema_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Scene Schema Api Plugins Director Stage Scene Schema Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Scene Schema",
+        "tags": [
+          "director_stage"
+        ]
+      }
+    },
+    "/api/plugins/director-stage/scenes/{scene_id}": {
+      "get": {
+        "operationId": "get_scene_api_plugins_director_stage_scenes__scene_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "scene_id",
+            "required": true,
+            "schema": {
+              "title": "Scene Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "view",
+            "required": false,
+            "schema": {
+              "default": "full",
+              "pattern": "^(summary|entities|timeline|full)$",
+              "title": "View",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Get Scene Api Plugins Director Stage Scenes  Scene Id  Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Scene",
+        "tags": [
+          "director_stage"
+        ]
+      }
+    },
+    "/api/plugins/director-stage/scenes/{scene_id}/camera-paths/{path_id}": {
+      "get": {
+        "operationId": "camera_path_api_plugins_director_stage_scenes__scene_id__camera_paths__path_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "scene_id",
+            "required": true,
+            "schema": {
+              "title": "Scene Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "path_id",
+            "required": true,
+            "schema": {
+              "title": "Path Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Camera Path Api Plugins Director Stage Scenes  Scene Id  Camera Paths  Path Id  Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Camera Path",
+        "tags": [
+          "director_stage"
+        ]
+      }
+    },
+    "/api/plugins/director-stage/scenes/{scene_id}/diagnostics": {
+      "get": {
+        "operationId": "diagnostics_api_plugins_director_stage_scenes__scene_id__diagnostics_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "scene_id",
+            "required": true,
+            "schema": {
+              "title": "Scene Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Diagnostics Api Plugins Director Stage Scenes  Scene Id  Diagnostics Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Diagnostics",
+        "tags": [
+          "director_stage"
+        ]
+      }
+    },
+    "/api/plugins/director-stage/scenes/{scene_id}/edit": {
+      "post": {
+        "operationId": "update_scene_api_plugins_director_stage_scenes__scene_id__edit_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "scene_id",
+            "required": true,
+            "schema": {
+              "title": "Scene Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SceneEditBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Update Scene Api Plugins Director Stage Scenes  Scene Id  Edit Post",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Update Scene",
+        "tags": [
+          "director_stage"
+        ]
+      }
+    },
+    "/api/plugins/director-stage/scenes/{scene_id}/history": {
+      "post": {
+        "operationId": "history_api_plugins_director_stage_scenes__scene_id__history_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "scene_id",
+            "required": true,
+            "schema": {
+              "title": "Scene Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SceneHistoryBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response History Api Plugins Director Stage Scenes  Scene Id  History Post",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "History",
+        "tags": [
+          "director_stage"
+        ]
+      }
+    },
+    "/api/plugins/director-stage/scenes/{scene_id}/models/generate": {
+      "post": {
+        "operationId": "generate_model_api_plugins_director_stage_scenes__scene_id__models_generate_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "scene_id",
+            "required": true,
+            "schema": {
+              "title": "Scene Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ModelGenerateBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Generate Model Api Plugins Director Stage Scenes  Scene Id  Models Generate Post",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Generate Model",
+        "tags": [
+          "director_stage"
+        ]
+      }
+    },
+    "/api/plugins/director-stage/scenes/{scene_id}/models/{model_id}/capture": {
+      "post": {
+        "operationId": "capture_api_plugins_director_stage_scenes__scene_id__models__model_id__capture_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "scene_id",
+            "required": true,
+            "schema": {
+              "title": "Scene Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "model_id",
+            "required": true,
+            "schema": {
+              "title": "Model Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ModelCaptureBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Capture Api Plugins Director Stage Scenes  Scene Id  Models  Model Id  Capture Post",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Capture",
+        "tags": [
+          "director_stage"
+        ]
+      }
+    },
+    "/api/plugins/director-stage/scenes/{scene_id}/models/{model_id}/compare": {
+      "post": {
+        "operationId": "compare_api_plugins_director_stage_scenes__scene_id__models__model_id__compare_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "scene_id",
+            "required": true,
+            "schema": {
+              "title": "Scene Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "model_id",
+            "required": true,
+            "schema": {
+              "title": "Model Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ModelCompareBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Compare Api Plugins Director Stage Scenes  Scene Id  Models  Model Id  Compare Post",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Compare",
+        "tags": [
+          "director_stage"
+        ]
+      }
+    },
+    "/api/plugins/director-stage/scenes/{scene_id}/motions/{motion_id}": {
+      "get": {
+        "operationId": "motion_api_plugins_director_stage_scenes__scene_id__motions__motion_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "scene_id",
+            "required": true,
+            "schema": {
+              "title": "Scene Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "motion_id",
+            "required": true,
+            "schema": {
+              "title": "Motion Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Motion Api Plugins Director Stage Scenes  Scene Id  Motions  Motion Id  Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Motion",
+        "tags": [
+          "director_stage"
+        ]
+      }
+    },
+    "/api/plugins/director-stage/scenes/{scene_id}/snapshot": {
+      "get": {
+        "operationId": "snapshot_api_plugins_director_stage_scenes__scene_id__snapshot_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "scene_id",
+            "required": true,
+            "schema": {
+              "title": "Scene Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "view",
+            "required": false,
+            "schema": {
+              "default": "director",
+              "pattern": "^(director|camera)$",
+              "title": "View",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Snapshot Api Plugins Director Stage Scenes  Scene Id  Snapshot Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Snapshot",
+        "tags": [
+          "director_stage"
+        ]
+      }
+    },
+    "/api/plugins/director-stage/scenes/{scene_id}/visual-snapshot": {
+      "put": {
+        "operationId": "update_visual_snapshot_api_plugins_director_stage_scenes__scene_id__visual_snapshot_put",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "scene_id",
+            "required": true,
+            "schema": {
+              "title": "Scene Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/VisualSnapshotBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Update Visual Snapshot Api Plugins Director Stage Scenes  Scene Id  Visual Snapshot Put",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Update Visual Snapshot",
+        "tags": [
+          "director_stage"
+        ]
+      }
+    },
     "/api/plugins/lifecycle/history": {
       "get": {
         "operationId": "_plugin_lifecycle_history_api_plugins_lifecycle_history_get",
@@ -41468,6 +44280,440 @@
         ]
       }
     },
+    "/api/plugins/mx2025_viewer/group-assignments/{room_id}": {
+      "put": {
+        "operationId": "assign_group_api_plugins_mx2025_viewer_group_assignments__room_id__put",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "room_id",
+            "required": true,
+            "schema": {
+              "title": "Room Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/_GroupPayload"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Assign Group Api Plugins Mx2025 Viewer Group Assignments  Room Id  Put",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Assign Group",
+        "tags": [
+          "mx2025_viewer"
+        ]
+      }
+    },
+    "/api/plugins/mx2025_viewer/groups": {
+      "get": {
+        "operationId": "list_groups_api_plugins_mx2025_viewer_groups_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response List Groups Api Plugins Mx2025 Viewer Groups Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "List Groups",
+        "tags": [
+          "mx2025_viewer"
+        ]
+      },
+      "post": {
+        "operationId": "create_group_api_plugins_mx2025_viewer_groups_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/_GroupPayload"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Create Group Api Plugins Mx2025 Viewer Groups Post",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Create Group",
+        "tags": [
+          "mx2025_viewer"
+        ]
+      }
+    },
+    "/api/plugins/mx2025_viewer/groups/{group_id}": {
+      "delete": {
+        "operationId": "delete_group_api_plugins_mx2025_viewer_groups__group_id__delete",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "group_id",
+            "required": true,
+            "schema": {
+              "title": "Group Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Delete Group Api Plugins Mx2025 Viewer Groups  Group Id  Delete",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Delete Group",
+        "tags": [
+          "mx2025_viewer"
+        ]
+      },
+      "patch": {
+        "operationId": "rename_group_api_plugins_mx2025_viewer_groups__group_id__patch",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "group_id",
+            "required": true,
+            "schema": {
+              "title": "Group Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/_GroupPayload"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Rename Group Api Plugins Mx2025 Viewer Groups  Group Id  Patch",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Rename Group",
+        "tags": [
+          "mx2025_viewer"
+        ]
+      }
+    },
+    "/api/plugins/mx2025_viewer/page": {
+      "get": {
+        "operationId": "viewer_page_api_plugins_mx2025_viewer_page_get",
+        "responses": {
+          "200": {
+            "content": {
+              "text/html": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Viewer Page",
+        "tags": [
+          "mx2025_viewer"
+        ]
+      }
+    },
+    "/api/plugins/mx2025_viewer/sync/capture": {
+      "post": {
+        "operationId": "sync_capture_api_plugins_mx2025_viewer_sync_capture_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/_SyncCapturePayload"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Sync Capture Api Plugins Mx2025 Viewer Sync Capture Post",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Sync Capture",
+        "tags": [
+          "mx2025_viewer"
+        ]
+      }
+    },
+    "/api/plugins/mx2025_viewer/sync/config": {
+      "delete": {
+        "operationId": "sync_disconnect_api_plugins_mx2025_viewer_sync_config_delete",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Sync Disconnect Api Plugins Mx2025 Viewer Sync Config Delete",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Sync Disconnect",
+        "tags": [
+          "mx2025_viewer"
+        ]
+      }
+    },
+    "/api/plugins/mx2025_viewer/sync/configure": {
+      "post": {
+        "operationId": "sync_configure_api_plugins_mx2025_viewer_sync_configure_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/_SyncConfigurePayload"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Sync Configure Api Plugins Mx2025 Viewer Sync Configure Post",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Sync Configure",
+        "tags": [
+          "mx2025_viewer"
+        ]
+      }
+    },
+    "/api/plugins/mx2025_viewer/sync/flush": {
+      "post": {
+        "operationId": "sync_flush_api_plugins_mx2025_viewer_sync_flush_post",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Sync Flush Api Plugins Mx2025 Viewer Sync Flush Post",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Sync Flush",
+        "tags": [
+          "mx2025_viewer"
+        ]
+      }
+    },
+    "/api/plugins/mx2025_viewer/sync/status": {
+      "get": {
+        "operationId": "sync_status_api_plugins_mx2025_viewer_sync_status_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Sync Status Api Plugins Mx2025 Viewer Sync Status Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Sync Status",
+        "tags": [
+          "mx2025_viewer"
+        ]
+      }
+    },
+    "/api/plugins/paper-trading-replica/health": {
+      "get": {
+        "operationId": "health_api_plugins_paper_trading_replica_health_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Health Api Plugins Paper Trading Replica Health Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Health",
+        "tags": [
+          "paper_trading_replica"
+        ]
+      }
+    },
+    "/api/plugins/paper-trading-replica/page": {
+      "get": {
+        "operationId": "serve_page_api_plugins_paper_trading_replica_page_get",
+        "responses": {
+          "200": {
+            "content": {
+              "text/html": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Serve Page",
+        "tags": [
+          "paper_trading_replica"
+        ]
+      }
+    },
     "/api/plugins/permission-rule-drafts": {
       "get": {
         "operationId": "_plugin_permission_rule_drafts_api_plugins_permission_rule_drafts_get",
@@ -41539,6 +44785,29 @@
         "summary": " Plugin Permission Rule Draft Install",
         "tags": [
           "plugins"
+        ]
+      }
+    },
+    "/api/plugins/project-wiki/contract": {
+      "get": {
+        "operationId": "api_project_wiki_contract_api_plugins_project_wiki_contract_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Api Project Wiki Contract Api Plugins Project Wiki Contract Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Api Project Wiki Contract",
+        "tags": [
+          "project-wiki"
         ]
       }
     },
@@ -42355,6 +45624,30 @@
           }
         },
         "summary": "Move Thread",
+        "tags": [
+          "projectos"
+        ]
+      }
+    },
+    "/api/projects/portfolio": {
+      "get": {
+        "description": "Cross-project roll-up: every visible project's PM row in one read.\n\nDeclared before ``/api/projects/{project_id}`` so the literal path is\nnot captured by the parameterised route.\n\nOne project's read failure must not blank the whole portfolio: the\nentry is still emitted with ``readable=False`` so the sidebar can show\nthe project instead of silently dropping it.",
+        "operationId": "portfolio_api_projects_portfolio_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Portfolio Api Projects Portfolio Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Portfolio",
         "tags": [
           "projectos"
         ]
@@ -47763,6 +51056,300 @@
         "summary": "Replay Template Adaptive"
       }
     },
+    "/api/team-gateway/admin/{path}": {
+      "delete": {
+        "operationId": "admin_api_team_gateway_admin__path__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "path",
+            "required": true,
+            "schema": {
+              "title": "Path",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Admin",
+        "tags": [
+          "config"
+        ]
+      },
+      "get": {
+        "operationId": "admin_api_team_gateway_admin__path__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "path",
+            "required": true,
+            "schema": {
+              "title": "Path",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Admin",
+        "tags": [
+          "config"
+        ]
+      },
+      "post": {
+        "operationId": "admin_api_team_gateway_admin__path__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "path",
+            "required": true,
+            "schema": {
+              "title": "Path",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Admin",
+        "tags": [
+          "config"
+        ]
+      },
+      "put": {
+        "operationId": "admin_api_team_gateway_admin__path__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "path",
+            "required": true,
+            "schema": {
+              "title": "Path",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Admin",
+        "tags": [
+          "config"
+        ]
+      }
+    },
+    "/api/team-gateway/connections": {
+      "get": {
+        "operationId": "list_connections_api_team_gateway_connections_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "List Connections",
+        "tags": [
+          "config"
+        ]
+      }
+    },
+    "/api/team-gateway/connections/{connection_id}": {
+      "delete": {
+        "operationId": "disconnect_api_team_gateway_connections__connection_id__delete",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "connection_id",
+            "required": true,
+            "schema": {
+              "title": "Connection Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Disconnect",
+        "tags": [
+          "config"
+        ]
+      }
+    },
+    "/api/team-gateway/connections/{connection_id}/sync": {
+      "post": {
+        "operationId": "sync_api_team_gateway_connections__connection_id__sync_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "connection_id",
+            "required": true,
+            "schema": {
+              "title": "Connection Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Sync",
+        "tags": [
+          "config"
+        ]
+      }
+    },
+    "/api/team-gateway/join": {
+      "post": {
+        "operationId": "join_api_team_gateway_join_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "additionalProperties": true,
+                "title": "Body",
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Join",
+        "tags": [
+          "config"
+        ]
+      }
+    },
     "/api/team-invites/{token}": {
       "get": {
         "operationId": "inspect_invite_api_team_invites__token__get",
@@ -50792,7 +54379,262 @@
         ]
       }
     },
+    "/api/threads/{thread_id}/output-proposals/{artifact_path}": {
+      "get": {
+        "operationId": "api_output_proposals_api_threads__thread_id__output_proposals__artifact_path__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "thread_id",
+            "required": true,
+            "schema": {
+              "title": "Thread Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "artifact_path",
+            "required": true,
+            "schema": {
+              "title": "Artifact Path",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "area",
+            "required": false,
+            "schema": {
+              "default": "output",
+              "title": "Area",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "proposal_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Proposal Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Api Output Proposals Api Threads  Thread Id  Output Proposals  Artifact Path  Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Api Output Proposals",
+        "tags": [
+          "workspaces"
+        ]
+      },
+      "post": {
+        "operationId": "api_decide_output_proposal_api_threads__thread_id__output_proposals__artifact_path__post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "thread_id",
+            "required": true,
+            "schema": {
+              "title": "Thread Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "artifact_path",
+            "required": true,
+            "schema": {
+              "title": "Artifact Path",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "area",
+            "required": false,
+            "schema": {
+              "default": "output",
+              "title": "Area",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/WorkspaceOutputProposalRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Api Decide Output Proposal Api Threads  Thread Id  Output Proposals  Artifact Path  Post",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Api Decide Output Proposal",
+        "tags": [
+          "workspaces"
+        ]
+      }
+    },
     "/api/threads/{thread_id}/output-revisions/{artifact_path}": {
+      "get": {
+        "operationId": "api_output_revisions_api_threads__thread_id__output_revisions__artifact_path__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "thread_id",
+            "required": true,
+            "schema": {
+              "title": "Thread Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "artifact_path",
+            "required": true,
+            "schema": {
+              "title": "Artifact Path",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "area",
+            "required": false,
+            "schema": {
+              "default": "output",
+              "title": "Area",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "revision_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Revision Id"
+            }
+          },
+          {
+            "in": "query",
+            "name": "before",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Before"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 50,
+              "maximum": 100,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Api Output Revisions Api Threads  Thread Id  Output Revisions  Artifact Path  Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Api Output Revisions",
+        "tags": [
+          "workspaces"
+        ]
+      },
       "post": {
         "operationId": "api_restore_thread_workspace_output_file_api_threads__thread_id__output_revisions__artifact_path__post",
         "parameters": [
