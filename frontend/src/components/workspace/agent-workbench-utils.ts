@@ -541,10 +541,10 @@ export function workspaceFocusTabFromEvents(
   if (focus.view === "browser") return null;
   if (focus.view === "terminal") return "terminal";
   if (focus.view === "diff") return "diff";
-  if (focus.view === "file") return "agent";
-  if (focus.view === "artifact" || focus.view === "image") return "agent";
+  if (focus.view === "file") return "diff";
+  if (focus.view === "artifact" || focus.view === "image") return "artifacts";
   if (focus.view === "subagent") return "subagents";
-  return "agent";
+  return "diff";
 }
 
 export function textFromUnknown(value: unknown): string {

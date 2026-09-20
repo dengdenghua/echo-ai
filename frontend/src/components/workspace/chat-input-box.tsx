@@ -34,6 +34,19 @@ import {
 import type { GroupTaskStrategy } from "./group-task-strategy";
 import type { MentionMemberInput } from "./mention-autocomplete";
 import type { AutomationTarget } from "@/core/computer/api";
+import { UsersIcon } from "lucide-react";
+import { toast } from "sonner";
+import { eventBus } from "@/core/events/event-bus";
+import { useLocation } from "react-router-dom";
+import { emitAgentWorkbenchFocus } from "@/components/workspace/agent-workbench-events";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { cn } from "@/lib/utils";
+import { SandboxMergeBanner } from "./realtime/sandbox-merge-banner";
 
 /**
  * Simplified chat composer for the /workspace/realtime route. Same visual
@@ -178,6 +191,168 @@ export interface DeepResearchComposerOptions {
   maxSearches: number;
 }
 
+export interface GroupMemberAvatarStackProps {
+  members: MentionMemberInput[];
+  className?: string;
+}
+
+export function GroupMemberAvatarStack({
+  members,
+  className,
+}: GroupMemberAvatarStackProps) {
+  if (!members || members.length === 0) return null;
+
+  const shouldCompress = members.length > 10;
+  const maxVisible = 10;
+  const visibleMembers = shouldCompress ? members.slice(0, maxVisible) : members;
+  const overflowMembers = shouldCompress ? members.slice(maxVisible) : [];
+  const overflowCount = overflowMembers.length;
+
+  const overflowTitle =
+    overflowCount > 0
+      ? `更多群成员 (${overflowCount}): ${overflowMembers
+          .map((m) => m.display_name?.trim() || m.name)
+          .join(", ")}`
+      : undefined;
+
+  return (
+    <div
+      data-testid="group-member-avatar-stack"
+      className={cn(
+        "inline-flex items-center gap-1.5 rounded-full bg-muted/30 px-2 py-0.5 text-xs text-muted-foreground",
+        className,
+      )}
+      title="群聊成员 · 点击头像查看并行进程，右键 @ 成员"
+    >
+      <UsersIcon
+        className="size-3 shrink-0 text-muted-foreground/70"
+        aria-hidden="true"
+      />
+      <div
+        className={cn(
+          "flex items-center",
+          shouldCompress ? "-space-x-1" : "gap-1",
+        )}
+      >
+        {visibleMembers.map((member, idx) => {
+          const name = member.display_name?.trim() || member.name;
+          const initial = name.charAt(0).toUpperCase() || "M";
+          const rawAvatar = member.avatar_url;
+          const avatarUrl = rawAvatar
+            ? rawAvatar.startsWith("http://") || rawAvatar.startsWith("https://")
+              ? withAgentAvatarVersion(rawAvatar)
+              : withAgentAvatarVersion(`${getBackendBaseURL()}${rawAvatar}`)
+            : null;
+          const mentionText = `@${member.mention_value?.trim() || member.display_name?.trim() || member.name}`;
+
+          return (
+            <button
+              key={`${member.name}-${idx}`}
+              type="button"
+              className="relative inline-flex size-5 shrink-0 items-center justify-center overflow-hidden rounded-full border border-background bg-muted text-[10px] font-semibold text-muted-foreground transition-transform hover:z-10 hover:scale-125 hover:border-primary/60 focus:outline-none focus:ring-1 focus:ring-primary"
+              title={`${name} · 点击查看并行进程，右键 @ 成员`}
+              aria-label={`查看 ${name} 并行进程（右键 @ 提及）`}
+              onClick={(e) => {
+                e.preventDefault();
+                emitAgentWorkbenchFocus({
+                  agentId: member.name,
+                  agent: {
+                    id: member.name,
+                    name,
+                    role: member.name,
+                    avatar: avatarUrl || undefined,
+                    status: "running",
+                    task: "",
+                  },
+                  tab: "agent",
+                  view: "screen",
+                });
+                toast.info(`正在打开【${name}】的并行进程执行画面`);
+              }}
+              onContextMenu={(e) => {
+                e.preventDefault();
+                eventBus.emit("composer:insert-mention", { text: mentionText });
+                toast.success(`已在输入框 @ ${name}`);
+              }}
+            >
+              {avatarUrl ? (
+                <img
+                  src={avatarUrl}
+                  alt={name}
+                  className="size-full object-cover"
+                />
+              ) : member.icon ? (
+                <span className="text-[9px]">{member.icon}</span>
+              ) : (
+                <span>{initial}</span>
+              )}
+            </button>
+          );
+        })}
+        {overflowCount > 0 && (
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <button
+                type="button"
+                className="relative inline-flex size-5 shrink-0 items-center justify-center rounded-full border border-background bg-muted text-[9px] font-semibold text-muted-foreground transition-transform hover:z-10 hover:scale-125 focus:outline-none focus:ring-1 focus:ring-primary"
+                title={overflowTitle}
+                aria-label={`更多 ${overflowCount} 位群成员（点击查看，右键 @ 提及）`}
+              >
+                +{overflowCount}
+              </button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="start" className="w-52 p-1 text-xs">
+              <div className="px-2 py-1 text-[10px] font-medium text-muted-foreground">
+                更多群成员（左键查看进程，右键 @ 提及）
+              </div>
+              {overflowMembers.map((member, idx) => {
+                const name = member.display_name?.trim() || member.name;
+                const rawAvatar = member.avatar_url;
+                const avatarUrl = rawAvatar
+                  ? rawAvatar.startsWith("http://") || rawAvatar.startsWith("https://")
+                    ? withAgentAvatarVersion(rawAvatar)
+                    : withAgentAvatarVersion(`${getBackendBaseURL()}${rawAvatar}`)
+                  : null;
+                const mentionText = `@${member.mention_value?.trim() || member.display_name?.trim() || member.name}`;
+                return (
+                  <DropdownMenuItem
+                    key={`${member.name}-${idx}`}
+                    className="flex cursor-pointer items-center justify-between gap-2 px-2 py-1.5"
+                    onClick={() => {
+                      emitAgentWorkbenchFocus({
+                        agentId: member.name,
+                        agent: {
+                          id: member.name,
+                          name,
+                          role: member.name,
+                          avatar: avatarUrl || undefined,
+                          status: "running",
+                          task: "",
+                        },
+                        tab: "agent",
+                        view: "screen",
+                      });
+                      toast.info(`正在打开【${name}】的并行进程执行画面`);
+                    }}
+                    onContextMenu={(e) => {
+                      e.preventDefault();
+                      eventBus.emit("composer:insert-mention", { text: mentionText });
+                      toast.success(`已在输入框 @ ${name}`);
+                    }}
+                  >
+                    <span className="truncate font-medium">{name}</span>
+                    <span className="text-[10px] text-muted-foreground">查看进程</span>
+                  </DropdownMenuItem>
+                );
+              })}
+            </DropdownMenuContent>
+          </DropdownMenu>
+        )}
+      </div>
+    </div>
+  );
+}
+
 function ChatInputBoxImpl(props: ChatInputBoxProps) {
   const {
     showWorkDirSelector = false,
@@ -207,6 +382,14 @@ function ChatInputBoxImpl(props: ChatInputBoxProps) {
   } = props;
 
   const { t } = useI18n();
+  const location = useLocation();
+  const searchParams = useMemo(
+    () => new URLSearchParams(location.search),
+    [location.search],
+  );
+  const isSandbox = searchParams.get("sandbox") === "true";
+  const parentThreadId = searchParams.get("parent_thread_id") || undefined;
+  const agentParam = searchParams.get("agent") || undefined;
 
   // ── Status strip derived values ──────────────────────────────
   const resolvedPermissionMode = normalizePermissionMode(permissionMode);
@@ -266,6 +449,9 @@ function ChatInputBoxImpl(props: ChatInputBoxProps) {
     },
     [isGroupConversation, onGroupTaskStrategyChange, onProjectAgentModeChange],
   );
+  const showGroupMembers =
+    Boolean(isGroupConversation) &&
+    Boolean(props.mentionMembers && props.mentionMembers.length > 0);
   const showAgentSegment = false;
   const showContextWindow =
     (props.maxContextTokens ?? 0) > 0 &&
@@ -273,6 +459,7 @@ function ChatInputBoxImpl(props: ChatInputBoxProps) {
       Boolean(props.isCompressingContext) ||
       Boolean(props.contextSegments?.length));
   const statusSegmentCount =
+    (showGroupMembers ? 1 : 0) +
     (showAgentSegment ? 1 : 0) +
     (showWorkDirSegment ? 1 : 0) +
     (showModeSegment ? 1 : 0) +
@@ -283,6 +470,14 @@ function ChatInputBoxImpl(props: ChatInputBoxProps) {
 
   return (
     <>
+      {isSandbox && (
+        <div className="mb-2 overflow-hidden rounded-lg border border-emerald-500/30 shadow-xs">
+          <SandboxMergeBanner
+            parentThreadId={parentThreadId}
+            agentName={agentParam}
+          />
+        </div>
+      )}
       {modeIntentSuggestion ? (
         <ModeIntentSuggestion
           mode={modeIntentSuggestion.mode}
@@ -320,7 +515,7 @@ function ChatInputBoxImpl(props: ChatInputBoxProps) {
                   </span>
                   <span className="truncate">{displayAgentLabel}</span>
                 </div>
-                {(showWorkDirSegment || showModeSegment) && (
+                {(showWorkDirSegment || showModeSegment || showGroupMembers) && (
                   <span
                     className="h-3 w-px shrink-0 bg-border/35"
                     aria-hidden="true"
@@ -367,11 +562,25 @@ function ChatInputBoxImpl(props: ChatInputBoxProps) {
                 />
               </>
             ) : null}
-            {statusTrailing ? (
+            {showGroupMembers ? (
               <>
                 {(showAgentSegment ||
                   showWorkDirSegment ||
                   showModeSegment) && (
+                  <span
+                    className="h-3 w-px shrink-0 bg-border/35"
+                    aria-hidden="true"
+                  />
+                )}
+                <GroupMemberAvatarStack members={props.mentionMembers!} />
+              </>
+            ) : null}
+            {statusTrailing ? (
+              <>
+                {(showAgentSegment ||
+                  showWorkDirSegment ||
+                  showModeSegment ||
+                  showGroupMembers) && (
                   <span
                     className="h-3 w-px shrink-0 bg-border/35"
                     aria-hidden="true"

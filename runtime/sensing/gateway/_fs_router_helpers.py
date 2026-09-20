@@ -87,7 +87,7 @@ def _thread_artifact_workspace(
             # read/preview path check.
             if candidate.is_dir():
                 return _resolved_path(candidate)
-        except (OSError, RuntimeError, TypeError, ValueError):
+        except (OSError, RuntimeError, TypeError, ValueError):  # noqa: BLE001 — best effort workspace layout probe
             pass
 
     for key in ("_artifact_output_root", "personal_workspace_path"):
@@ -121,13 +121,13 @@ def _scope_roots(
                 thread = ctx.thread_store.get(thread_id)
             if thread is None and hasattr(ctx.thread_store, "get_state"):
                 thread = ctx.thread_store.get_state(thread_id)
-            metadata = (thread or {}).get("metadata", {}) if thread else {}
-            if not isinstance(metadata, dict):
+            thread_meta = (thread or {}).get("metadata", {}) if thread else {}
+            if not isinstance(thread_meta, dict):
                 return []
             managed = verified_managed_workspace(
                 ctx.workspace_root,
                 thread_id=thread_id,
-                metadata=metadata,
+                metadata=thread_meta,
             )
             return [managed] if managed is not None else []
         except (OSError, RuntimeError, TypeError, ValueError):

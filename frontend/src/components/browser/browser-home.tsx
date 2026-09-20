@@ -1,3 +1,4 @@
+import { resolveBrowserInput } from "./task-browser-start";
 import { SEARCH_ENGINES, type SearchEngine } from "./search-engines";
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 import {
@@ -7,6 +8,7 @@ import {
   useRef,
   useMemo,
   type CSSProperties,
+  type ReactNode,
   type DragEvent,
   type KeyboardEvent as ReactKeyboardEvent,
 } from "react";
@@ -943,7 +945,9 @@ export function BrowserHome({
   active,
   device,
   onOpen,
+  startContent,
 }: {
+  startContent?: ReactNode;
   active: boolean;
   device: BrowserTab["device"];
   onOpen: (url: string) => void;
@@ -1378,11 +1382,7 @@ export function BrowserHome({
     if (!trimmed) return;
     const engine = selectedSearchEngine;
     if (!engine) return;
-    const target = /^[a-zA-Z][a-zA-Z0-9+.-]*:\/\//.test(trimmed)
-      ? trimmed
-      : /\s/.test(trimmed) || !trimmed.includes(".")
-        ? engine.url + encodeURIComponent(trimmed)
-        : `https://${trimmed}`;
+    const target = resolveBrowserInput(trimmed, engine.url);
     setEnginePickerOpen(false);
     onOpen(target);
   };
@@ -1784,6 +1784,7 @@ export function BrowserHome({
     return (
       <BrowserStartPage
         active={active}
+        children={startContent}
         query={query}
         onQueryChange={setQuery}
         onSearch={submitSearch}

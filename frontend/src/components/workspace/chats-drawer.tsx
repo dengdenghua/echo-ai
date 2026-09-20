@@ -50,7 +50,11 @@ import {
 import type { AgentThread } from "@/core/threads/types";
 import { formatCompactRelativeTimestamp } from "@/core/utils/datetime";
 import { uuid } from "@/core/utils/uuid";
-import { activeWorkspaceThreadIdFromPathname } from "@/core/threads/sidebar";
+import {
+  activeWorkspaceThreadIdFromPathname,
+  deriveThreadAgents,
+  syncThreadAgentSelection,
+} from "@/core/threads/sidebar";
 import { isIMEComposing } from "@/lib/ime";
 import { isAbsolutePath } from "@/lib/path-utils";
 import { cn } from "@/lib/utils";
@@ -366,8 +370,7 @@ export function ChatsDrawer({ open, onOpenChange }: ChatsDrawerProps) {
                             threadWorkspacePath(thread) || undefined,
                         }}
                         onMouseDown={() => {
-                          const owner = threadOwnerAgent(thread);
-                          if (owner) emitAgentChanged(owner, "thread");
+                          syncThreadAgentSelection(deriveThreadAgents(thread));
                         }}
                         onClick={() => onOpenChange(false)}
                         aria-current={active ? "page" : undefined}

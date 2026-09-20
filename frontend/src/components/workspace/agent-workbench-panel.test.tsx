@@ -349,7 +349,7 @@ describe("<AgentWorkbenchPanel />", () => {
     expect(screen.queryByTestId("workbench-current-objective")).toBeNull();
     expect(screen.queryByTestId("workbench-result-receipt")).toBeNull();
     expect(screen.queryByRole("heading", { name: "产物" })).toBeNull();
-    expect(screen.getByRole("button", { name: /^上下文/ })).toHaveAttribute(
+    expect(screen.getByRole("button", { name: /^参考资料/ })).toHaveAttribute(
       "aria-expanded",
       "false",
     );
@@ -1505,9 +1505,9 @@ describe("<AgentWorkbenchPanel />", () => {
       />,
     );
 
-    expandSummarySection(/上下文/);
+    expandSummarySection(/参考资料/);
 
-    expect(screen.getByText("\u4e0a\u4e0b\u6587")).toBeInTheDocument();
+    expect(screen.getByText("参考资料")).toBeInTheDocument();
     expect(screen.queryByText("Repo Wiki")).not.toBeInTheDocument();
     expect(screen.queryByText("\u77e5\u8bc6\u5361")).not.toBeInTheDocument();
     expect(screen.queryByText("\u8bb0\u5fc6")).not.toBeInTheDocument();
@@ -1598,7 +1598,7 @@ describe("<AgentWorkbenchPanel />", () => {
       />,
     );
 
-    expandSummarySection(/上下文/);
+    expandSummarySection(/参考资料/);
 
     expect(screen.getByText("approval_gate.py")).toBeInTheDocument();
     expect(screen.getByText("computer_control_session.py")).toBeInTheDocument();
@@ -1633,7 +1633,7 @@ describe("<AgentWorkbenchPanel />", () => {
       />,
     );
 
-    expandSummarySection(/上下文/);
+    expandSummarySection(/参考资料/);
 
     expect(screen.getByText("approval_gate.py")).toBeInTheDocument();
     expect(screen.getByText("Runtime architecture")).toBeInTheDocument();
@@ -1674,7 +1674,7 @@ describe("<AgentWorkbenchPanel />", () => {
       />,
     );
 
-    expandSummarySection(/上下文/);
+    expandSummarySection(/参考资料/);
 
     expect(screen.getByText("items.py")).toBeInTheDocument();
     expect(screen.queryByText("wrong.py")).not.toBeInTheDocument();
@@ -1707,7 +1707,7 @@ describe("<AgentWorkbenchPanel />", () => {
       />,
     );
 
-    expandSummarySection(/上下文/);
+    expandSummarySection(/参考资料/);
 
     // 喂入的上下文文件应出现在 files 分类中
     expect(screen.getByText("report.pdf")).toBeInTheDocument();
@@ -1722,7 +1722,7 @@ describe("<AgentWorkbenchPanel />", () => {
     ).toBeInTheDocument();
   });
 
-  test("uses the real context window and exposes compression in the summary", () => {
+  test("keeps references separate from composer context usage and compression", () => {
     const onCompressContext = vi.fn();
     renderWorkbench(
       <AgentWorkbenchPanel
@@ -1741,7 +1741,7 @@ describe("<AgentWorkbenchPanel />", () => {
       />,
     );
 
-    expandSummarySection(/上下文/);
+    expandSummarySection(/参考资料/);
 
     expect(screen.getByTestId("agent-summary-scroll-viewport")).toHaveClass(
       "min-w-0",
@@ -1749,23 +1749,17 @@ describe("<AgentWorkbenchPanel />", () => {
       "overflow-y-auto",
     );
     expect(
-      screen.getByLabelText("当前对话中 AI 获取的上下文"),
+      screen.getByLabelText("本轮任务查阅的网页、文件和其他资料"),
     ).toBeInTheDocument();
-    expect(
-      screen.getByRole("button", {
-        name: "已占用 59%（上限 200K）",
-      }),
-    ).toHaveTextContent("59%");
-    expect(
-      screen.getByTestId("workbench-context-usage-bar").firstElementChild,
-    ).toHaveStyle({ width: "59%" });
+    expect(screen.queryByTestId("workbench-context-usage-bar")).not.toBeInTheDocument();
+    expect(screen.queryByText("59%")).not.toBeInTheDocument();
     const referenceList = screen.getByTestId("workbench-reference-list");
     expect(referenceList).toHaveClass("space-y-1", "overflow-x-hidden");
     expect(referenceList).not.toHaveClass("grid", "flex-1");
     expect(referenceList).not.toHaveClass("max-h-64", "overflow-y-auto");
 
-    fireEvent.click(screen.getByRole("button", { name: "压缩" }));
-    expect(onCompressContext).toHaveBeenCalledTimes(1);
+    expect(screen.queryByRole("button", { name: "压缩" })).not.toBeInTheDocument();
+    expect(onCompressContext).not.toHaveBeenCalled();
   });
 
   test("surfaces real sub-agents as task cards", () => {
@@ -2424,9 +2418,8 @@ describe("<AgentWorkbenchPanel />", () => {
     );
 
     await waitFor(() => {
-      expect(screen.getByRole("button", { name: "概要" })).toHaveClass(
-        "border-foreground/70",
-      );
+      expect(screen.getByTestId("agent-summary-scroll-viewport")).toBeInTheDocument();
+      expect(screen.queryByRole("button", { name: "概要" })).not.toBeInTheDocument();
     });
     expect(screen.queryByText("活动轨迹")).not.toBeInTheDocument();
   });
@@ -3074,7 +3067,7 @@ describe("<AgentWorkbenchPanel />", () => {
       "aria-expanded",
       "true",
     );
-    expect(screen.getByRole("button", { name: /^上下文/ })).toHaveAttribute(
+    expect(screen.getByRole("button", { name: /^参考资料/ })).toHaveAttribute(
       "aria-expanded",
       "true",
     );
@@ -3239,7 +3232,7 @@ describe("<AgentWorkbenchPanel />", () => {
     );
 
     const progress = screen.getByRole("button", { name: /进展/ });
-    const context = screen.getByRole("button", { name: /上下文/ });
+    const context = screen.getByRole("button", { name: /参考资料/ });
 
     expect(progress).toHaveAttribute("aria-expanded", "true");
     expect(progress).not.toHaveTextContent("来源");
@@ -3376,3 +3369,38 @@ describe("avatarForRole", () => {
     }
   });
 });
+
+
+describe("chat workbench without the duplicate main overview", () => {
+  test("keeps research references and progress out of the main surface", () => {
+    renderWorkbench(<AgentWorkbenchPanel hideMainOverview activeTab="agent" events={[
+      event({name: "web_search", input: {query: "research"}, output: {results: [{title: "Research source", url: "https://example.com/report"}]}}),
+    ]} hasAnswer runSettled />);
+    expect(screen.queryByTestId("agent-summary-scroll-viewport")).not.toBeInTheDocument();
+    expect(screen.queryByText("参考资料")).not.toBeInTheDocument();
+    expect(screen.queryByText("任务进展")).not.toBeInTheDocument();
+    expect(screen.getByLabelText("工作台能力")).toBeInTheDocument();
+  });
+
+  test("keeps explicit terminal and subagent views available", () => {
+    const {rerender} = renderWorkbench(<AgentWorkbenchPanel hideMainOverview activeTab="terminal" threadId="thread-tools" events={[]} />);
+    expect(screen.getByTestId("mock-terminal-panel")).toBeInTheDocument();
+    rerender(<AgentWorkbenchPanel hideMainOverview activeTab="agent" focusedAgentId="researcher" focusedAgentView="summary" events={[
+      event({id: "spawn", name: "subagent_spawned", agentId: "researcher", agentName: "Researcher", subAgentRole: "researcher", status: "running"}),
+    ]} />);
+    expect(screen.getByRole("button", {name: "概要"})).toBeInTheDocument();
+    expect(screen.getByRole("button", {name: "执行画面"})).toBeInTheDocument();
+  });
+});
+
+
+ test("removes the development landing tab and resolves old links to Diff", () => {
+   renderWorkbench(<AgentWorkbenchPanel personaId="kane" hideMainOverview activeTab="workspace" events={[
+     event({name: "read_file", input: {path: "src/app.ts"}}),
+   ]} />);
+   expect(screen.queryByLabelText("工作台能力")).not.toBeInTheDocument();
+   fireEvent.pointerDown(screen.getByRole("button", {name: "标签页列表"}), {button: 0, ctrlKey: false, pointerType: "mouse"});
+   expect(screen.queryByRole("menuitem", {name: "开发"})).not.toBeInTheDocument();
+   expect(screen.getByRole("menuitem", {name: /Diff/})).toBeInTheDocument();
+   expect(screen.getByRole("menuitem", {name: /终端/})).toBeInTheDocument();
+ });

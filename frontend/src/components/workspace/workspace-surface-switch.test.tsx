@@ -34,8 +34,8 @@ describe("WorkspaceSurfaceSwitch", () => {
       );
       expect(animate).toHaveBeenCalledWith(
         [
-          { transform: "translateX(0)", width: "44px" },
-          { transform: "translateX(48px)", width: "44px" },
+          { transform: "translateX(0)", width: "48px" },
+          { transform: "translateX(50px)", width: "48px" },
         ],
         expect.objectContaining({ duration: 180 }),
       );

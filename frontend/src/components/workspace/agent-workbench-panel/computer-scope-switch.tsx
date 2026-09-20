@@ -3,9 +3,11 @@ import { useI18n } from "@/core/i18n/hooks";
 export function ComputerScopeSwitch({
   subLabel,
   onOpenMain,
+  trailingAction,
 }: {
   subLabel: string;
   onOpenMain: () => void;
+  trailingAction?: React.ReactNode;
 }) {
   const { t } = useI18n();
   return (
@@ -22,6 +24,9 @@ export function ComputerScopeSwitch({
         >
           {t.agentWorkbenchPanel.mainComputer}
         </button>
+        {trailingAction && (
+          <div className="ml-auto pb-1.5">{trailingAction}</div>
+        )}
       </div>
     </div>
   );

@@ -438,4 +438,47 @@ describe("<WorkspaceNoteBadge />", () => {
     ).toBeVisible();
     expect(screen.queryByText("Git 工具")).not.toBeInTheDocument();
   });
+
+  test("triggers onOpenDiff when changes row is clicked in expanded card", async () => {
+    window.localStorage.clear();
+    stubSummary({ branch: "main", changed_files: 2, added: 10, removed: 5 });
+    const onOpenDiff = vi.fn();
+
+    renderWithProviders(
+      <WorkspaceNoteBadge
+        workDir="D:/echo-ai"
+        events={[]}
+        defaultExpanded={true}
+        onOpenDiff={onOpenDiff}
+      />,
+      { locale: "zh-CN" },
+    );
+
+    const changesRow = await screen.findByRole("button", { name: /更改/i });
+    expect(changesRow).toBeInTheDocument();
+    fireEvent.click(changesRow);
+    expect(onOpenDiff).toHaveBeenCalledTimes(1);
+  });
+});
+
+
+describe("Git-only workspace note", () => {
+  test("does not show a card for research progress without a repository", async () => {
+    const fetchMock = stubSummary({ branch: "", changed_files: 0, added: 0, removed: 0 });
+    const { container } = renderWithProviders(
+      <WorkspaceNoteBadge workDir="D:/research" events={planEvents()} showProcess={false} defaultExpanded />,
+    );
+    await waitFor(() => expect(fetchMock).toHaveBeenCalled());
+    expect(container).toBeEmptyDOMElement();
+  });
+
+  test("keeps Git changes but omits the duplicate process checklist", async () => {
+    stubSummary({ branch: "main", changed_files: 2, added: 10, removed: 3 });
+    const { container } = renderWithProviders(
+      <WorkspaceNoteBadge workDir="D:/echo-ai" events={planEvents()} showProcess={false} defaultExpanded />,
+    );
+    await waitFor(() => expect(container.querySelector('[data-note-card]')).not.toBeNull());
+    expect(container.querySelector('[data-note-process-list]')).toBeNull();
+    expect(container.querySelector('[data-note-changes]')).not.toBeNull();
+  });
 });

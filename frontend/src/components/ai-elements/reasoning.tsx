@@ -113,6 +113,43 @@ export const Reasoning = memo(
   },
 );
 
+export function ThinkingClockIcon({ className }: { className?: string }) {
+  return (
+    <span
+      className={cn(
+        "relative inline-flex size-4 shrink-0 items-center justify-center text-primary",
+        className,
+      )}
+      aria-hidden="true"
+    >
+      <svg
+        viewBox="0 0 16 16"
+        className="size-full fill-none stroke-current"
+        strokeWidth="1.5"
+      >
+        <circle cx="8" cy="8" r="6.25" className="opacity-35" />
+        <circle cx="8" cy="8" r="1" className="fill-current" />
+        <line
+          x1="8"
+          y1="8"
+          x2="8"
+          y2="4"
+          strokeLinecap="round"
+          className="origin-[8px_8px] animate-[spin_3s_linear_infinite]"
+        />
+        <line
+          x1="8"
+          y1="8"
+          x2="10.5"
+          y2="8"
+          strokeLinecap="round"
+          className="origin-[8px_8px] animate-[spin_12s_linear_infinite]"
+        />
+      </svg>
+    </span>
+  );
+}
+
 export type ReasoningTriggerProps = ComponentProps<
   typeof CollapsibleTrigger
 > & {
@@ -132,7 +169,7 @@ export const ReasoningTrigger = memo(
       getThinkingMessage ??
       ((streaming: boolean, elapsed?: number) => {
         if (streaming || elapsed === 0) {
-          return <span className="animate-pulse">{t.streaming.thinking}</span>;
+          return <span className="text-shimmer font-medium">{t.streaming.thinking}</span>;
         }
         if (elapsed === undefined) {
           return <span>{t.streaming.thoughtProcess}</span>;
@@ -150,7 +187,11 @@ export const ReasoningTrigger = memo(
       >
         {children ?? (
           <>
-            <BrainIcon className="size-4" />
+            {isStreaming ? (
+              <ThinkingClockIcon className="size-4" />
+            ) : (
+              <BrainIcon className="size-4" />
+            )}
             {resolvedThinkingMessage(isStreaming, duration)}
             <ChevronDownIcon
               className={cn(

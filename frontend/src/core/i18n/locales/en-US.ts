@@ -1475,9 +1475,9 @@ export const enUS: Translations = {
     inputs: "Inputs",
     inputsUploadedFiles: (count) => `${count} uploaded files`,
     inputsAttachments: (count) => `${count} attachments`,
-    context: "Context",
+    context: "References",
     contextCompress: "Compress",
-    contextDescription: "Context available to AI in this conversation",
+    contextDescription: "Web pages, files, and other sources consulted for this task",
     contextUsed: (percentage, limit) => `${percentage}% used (${limit} limit)`,
     observableThisRound: "Observable this round",
     sourceCount: (count) => `${count} sources`,
@@ -7396,6 +7396,9 @@ Strategy:
   },
 
   workspaceNote: {
+    menuTitle: "Environment and sources",
+    sourcesTitle: "Sources",
+    viewAllSources: "View all",
     title: "Workspace note",
     collapse: "Collapse the note",
     refresh: "Refresh",
@@ -7462,7 +7465,7 @@ Strategy:
   },
 
   contextWindow: {
-    title: "Context Window",
+    title: "Context usage",
     system: "System",
     tools: "Tools",
     memory: "Memory",

@@ -270,3 +270,16 @@
     width: auto;
   }
 }
+
+.browser-start-task-services {
+  position: absolute;
+  top: max(140px, calc(15% + 66px));
+  left: 50%;
+  transform: translateX(-50%);
+  width: min(800px, calc(100% - 48px));
+  max-height: calc(75% - 80px);
+  overflow-y: auto;
+  border-radius: 16px;
+  padding: 12px 16px;
+  box-shadow: 0 4px 24px #00000018;
+}

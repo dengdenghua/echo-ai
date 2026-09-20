@@ -162,6 +162,7 @@ function SummaryDiffEntryList({
 type ObservedReferenceTabId = "files" | "web" | "memory" | "other";
 
 interface ObservedReferenceItem {
+  path?: string;
   faviconUrl?: string;
   host?: string;
   id: string;
@@ -219,7 +220,7 @@ const OBSERVED_REFERENCE_META: Record<
   },
 };
 
-function buildObservedReferenceTabs(
+export function buildObservedReferenceTabs(
   blocks: WorkBlock[],
   t: Translations,
 ): ObservedReferenceTab[] {
@@ -338,6 +339,7 @@ function localFileSearchReferenceItems(
     const name = basename(path);
     return {
       id: `${block.id}:local-search:${index}:${path}`,
+      path,
       title: compactReference(name || path, 120),
       subtitle: path !== name ? compactReference(path, 140) : blockTitle,
       tag: fileKindLabel(path),
@@ -406,6 +408,7 @@ function fileReferenceItems(
     const name = basename(path);
     return {
       id: `${block.id}:file:${index}:${path}`,
+      path,
       title: compactReference(name || path, 120),
       subtitle: path !== name ? compactReference(path, 140) : blockTitle,
       tag: fileKindLabel(path),
@@ -762,16 +765,6 @@ function compactReference(value: unknown, max: number): string {
   return clean.length <= max ? clean : `${clean.slice(0, max - 1)}…`;
 }
 
-function compactTokenCount(value: number): string {
-  if (value >= 1_000_000) {
-    return `${Number((value / 1_000_000).toFixed(1))}M`;
-  }
-  if (value >= 1_000) {
-    return `${Number((value / 1_000).toFixed(1))}K`;
-  }
-  return value.toLocaleString();
-}
-
 function ReferenceIcon({
   fallbackClassName,
   Icon,
@@ -940,10 +933,6 @@ export function AgentSummaryPage({
   groundingSources = [],
   preferStructuredReferences = false,
   terminalState,
-  contextTokens,
-  maxContextTokens,
-  isCompressingContext,
-  onCompressContext,
   onSelectTab,
   onOpenArtifact,
   resultPreviewUrl: _resultPreviewUrl,
@@ -1215,120 +1204,6 @@ export function AgentSummaryPage({
   // receipt for the exceptional information users may need to act on or audit.
   const showResultReceipt =
     !runActive && (recoveredCount > 0 || unresolvedCount > 0);
-
-  // 上下文容量估算
-  const contextStats = useMemo(() => {
-    // 粗略估算：每4个字符约等于1个token
-    const estimateTokens = (text: string) => Math.ceil(text.length / 4);
-    let fileTokens = 0;
-    let otherTokens = 0;
-    const tokenByTab: Record<ObservedReferenceTabId, number> = {
-      files: 0,
-      web: 0,
-      memory: 0,
-      other: 0,
-    };
-
-    for (const block of preferStructuredReferences ? [] : blocks) {
-      if (isAgentLifecycleBlock(block)) continue;
-      const referenceItems = referenceItemsForBlock(block, t);
-      if (referenceItems.length === 0) continue;
-
-      const referenceTab = referenceTabForBlock(block);
-      // Commands and generic tool status belong to their dedicated evidence
-      // surfaces. Counting them as "other context" makes the source total
-      // look larger than the evidence the user can actually inspect.
-      if (!OBSERVED_REFERENCE_TABS.includes(referenceTab)) continue;
-
-      const inputTokens = estimateTokens(block.inputText || "");
-      const outputTokens = estimateTokens(block.outputText || "");
-      const total = inputTokens + outputTokens;
-      tokenByTab[referenceTab] += total;
-
-      if (block.kind === "file" || block.kind === "read") {
-        fileTokens += total;
-      } else {
-        otherTokens += total;
-      }
-    }
-
-    // 对话开始时喂入的上下文文件（上传文件/附件）同样占用上下文，计入 files 统计。
-    for (const item of inputReferenceItems) {
-      const tokens =
-        estimateTokens(item.title || "") + estimateTokens(item.subtitle || "");
-      fileTokens += tokens;
-      tokenByTab.files += tokens;
-    }
-    for (const item of injectedGroundingItems) {
-      const tokens =
-        estimateTokens(item.title || "") + estimateTokens(item.subtitle || "");
-      fileTokens += tokens;
-      tokenByTab.files += tokens;
-    }
-
-    const totalTokens = fileTokens + otherTokens;
-    const visualWindow = 128000;
-    const percentage =
-      totalTokens > 0
-        ? Math.max(
-            1,
-            Math.min(Math.round((totalTokens / visualWindow) * 100), 100),
-          )
-        : 0;
-    const filePercentage =
-      totalTokens > 0 ? Math.round((fileTokens / totalTokens) * 100) : 0;
-    const otherPercentage = totalTokens > 0 ? 100 - filePercentage : 0;
-    const segments = OBSERVED_REFERENCE_TABS.map((id) => ({
-      id,
-      label: t.agentWorkbenchPages.reference[id],
-      percentage:
-        totalTokens > 0
-          ? Math.max(1, Math.round((tokenByTab[id] / totalTokens) * 100))
-          : 0,
-      tokens: tokenByTab[id],
-    })).filter((segment) => segment.tokens > 0);
-
-    return {
-      totalTokens,
-      percentage,
-      filePercentage,
-      otherPercentage,
-      segments,
-    };
-  }, [
-    blocks,
-    t,
-    injectedGroundingItems,
-    inputReferenceItems,
-    preferStructuredReferences,
-  ]);
-
-  // Prefer the same real conversation-window estimate used by the composer.
-  // Falling back to observed reference text keeps the standalone workbench
-  // useful in tests and embedded surfaces that do not own thread messages.
-  const resolvedContextTokens = Math.max(
-    0,
-    contextTokens ?? contextStats.totalTokens,
-  );
-  const resolvedMaxContextTokens = Math.max(0, maxContextTokens ?? 128_000);
-  const resolvedContextPercentage =
-    resolvedMaxContextTokens > 0 && resolvedContextTokens > 0
-      ? Math.max(
-          1,
-          Math.min(
-            Math.round(
-              (resolvedContextTokens / resolvedMaxContextTokens) * 100,
-            ),
-            100,
-          ),
-        )
-      : 0;
-  const showContextEstimate = resolvedContextPercentage >= 1;
-  const formattedContextLimit = compactTokenCount(resolvedMaxContextTokens);
-  const contextUsageLabel = t.agentWorkbenchPages.contextUsed(
-    resolvedContextPercentage,
-    formattedContextLimit,
-  );
 
   const isCompletelyEmpty =
     !focusedProcessEvent &&
@@ -1709,7 +1584,7 @@ export function AgentSummaryPage({
           </section>
         )}
 
-        {/* 上下文（只展示本轮事件流里可确认的内容） */}
+        {/* 参考资料（只展示本轮事件流里可确认的内容） */}
         {totalReferenceItems > 0 && (
           <section className="py-4">
             <div className="flex items-center gap-2">
@@ -1743,77 +1618,13 @@ export function AgentSummaryPage({
                   {t.agentWorkbenchPages.contextDescription}
                 </TooltipContent>
               </Tooltip>
-              {!expandedSections.has("references") ? (
-                <span className="ml-auto truncate text-xs text-muted-foreground">
-                  {totalReferenceItems > 0
-                    ? t.agentWorkbenchPages.sourceCount(totalReferenceItems)
-                    : t.agentWorkbenchPages.noSources}
-                  {showContextEstimate
-                    ? ` · ${resolvedContextPercentage}%`
-                    : ""}
-                </span>
-              ) : onCompressContext ? (
-                <button
-                  type="button"
-                  onClick={() => void onCompressContext()}
-                  disabled={isCompressingContext || resolvedContextTokens <= 0}
-                  className="ml-auto h-7 shrink-0 rounded-md bg-muted px-3 text-xs text-muted-foreground transition-colors hover:bg-muted/80 hover:text-foreground disabled:cursor-default disabled:opacity-50"
-                >
-                  {isCompressingContext
-                    ? t.contextCompressor.compressing
-                    : t.agentWorkbenchPages.contextCompress}
-                </button>
-              ) : null}
+              <span className="ml-auto shrink-0 text-xs text-muted-foreground">
+                {t.agentWorkbenchPages.sourceCount(totalReferenceItems)}
+              </span>
             </div>
             {expandedSections.has("references") && (
               <div className="mt-3">
-                {/* Real context-window usage. The colored source segments fill
-                    only the occupied portion; the remainder is capacity. */}
                 <div>
-                  {showContextEstimate ? (
-                    <div className="mb-3 flex items-center gap-2">
-                      <div
-                        className="h-1.5 min-w-0 flex-1 overflow-hidden rounded-full border border-border-subtle bg-background"
-                        data-testid="workbench-context-usage-bar"
-                      >
-                        <div
-                          className="flex h-full overflow-hidden rounded-full bg-muted-foreground/20"
-                          style={{ width: `${resolvedContextPercentage}%` }}
-                        >
-                          {contextStats.segments.length === 0 ? (
-                            <div className="h-full w-full bg-muted-foreground/30" />
-                          ) : (
-                            contextStats.segments.map((segment) => (
-                              <div
-                                key={segment.id}
-                                className={cn(
-                                  "h-full transition-all",
-                                  OBSERVED_REFERENCE_META[segment.id]
-                                    .barClassName,
-                                )}
-                                style={{ width: `${segment.percentage}%` }}
-                                title={`${segment.label} ${t.agentWorkbenchPages.estimatedTokens(segment.tokens)}`}
-                              />
-                            ))
-                          )}
-                        </div>
-                      </div>
-                      <Tooltip delayDuration={200}>
-                        <TooltipTrigger asChild>
-                          <button
-                            type="button"
-                            aria-label={contextUsageLabel}
-                            className="shrink-0 font-mono text-xs text-foreground"
-                          >
-                            {resolvedContextPercentage}%
-                          </button>
-                        </TooltipTrigger>
-                        <TooltipContent side="top" align="end">
-                          {contextUsageLabel}
-                        </TooltipContent>
-                      </Tooltip>
-                    </div>
-                  ) : null}
                   <div className="mb-1.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs">
                     {observedReferenceTabs.length === 0 ? (
                       <span className="text-muted-foreground">
@@ -1852,7 +1663,7 @@ export function AgentSummaryPage({
                     )}
                   </div>
                 </div>
-                {/* 上下文列表 */}
+                {/* 参考资料列表 */}
                 <ul
                   data-testid="workbench-reference-list"
                   className="mt-2 space-y-1 overflow-x-hidden pr-0.5"

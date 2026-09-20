@@ -1,4 +1,4 @@
-import { useState, type RefObject } from "react";
+import { useRef, useState, type ReactNode, type RefObject } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   CloudSun,
@@ -20,6 +20,7 @@ import { useAuth } from "@/providers/AuthProvider";
 import { cn } from "@/lib/utils";
 import "./browser-start-page.css";
 
+const CUSTOM_WALLPAPER_KEY = "echo.browser.start.custom-wallpaper.v1";
 const WALLPAPER_KEY = "echo.browser.start.wallpaper.v1";
 const WALLPAPERS = [
   {
@@ -43,6 +44,7 @@ interface StartApp {
   category: string;
 }
 interface Props {
+  children?: ReactNode;
   active: boolean;
   query: string;
   onQueryChange: (query: string) => void;
@@ -58,6 +60,7 @@ interface Props {
 
 export function BrowserStartPage({
   active,
+  children,
   query,
   onQueryChange,
   onSearch,
@@ -82,8 +85,49 @@ export function BrowserStartPage({
       return "ocean";
     }
   });
+  const uploadRef = useRef<HTMLInputElement>(null);
+  const [uploadError, setUploadError] = useState("");
+  const [uploading, setUploading] = useState(false);
+  const [customWallpaper, setCustomWallpaper] = useState(() => {
+    try { return localStorage.getItem(CUSTOM_WALLPAPER_KEY) || ""; }
+    catch { return ""; }
+  });
+  const uploadWallpaper = (file?: File) => {
+    if (!file) return;
+    setUploadError("");
+    if (!["image/jpeg", "image/png", "image/webp"].includes(file.type)) {
+      setUploadError("请选择 JPG、PNG 或 WebP 图片。");
+      return;
+    }
+    if (file.size > 2 * 1024 * 1024) {
+      setUploadError("图片不能超过 2 MB，请压缩后重试。");
+      return;
+    }
+    setUploading(true);
+    const reader = new FileReader();
+    reader.onerror = () => { setUploading(false); setUploadError("图片读取失败，请重试。"); };
+    reader.onload = () => {
+      const url = String(reader.result);
+      const img = new Image();
+      img.onerror = () => { setUploading(false); setUploadError("无法打开这张图片，请换一张。"); };
+      img.onload = () => {
+        try {
+          localStorage.setItem(CUSTOM_WALLPAPER_KEY, url);
+          localStorage.setItem(WALLPAPER_KEY, "custom");
+          setCustomWallpaper(url);
+          setWallpaper("custom");
+        } catch { setUploadError("本地存储空间不足，请选择更小的图片。"); }
+        setUploading(false);
+      };
+      img.src = url;
+    };
+    reader.readAsDataURL(file);
+  };
+  const wallpaperOptions = customWallpaper
+    ? [...WALLPAPERS, { id: "custom", name: "自定义", url: customWallpaper }]
+    : WALLPAPERS;
   const image =
-    WALLPAPERS.find((item) => item.id === wallpaper) ?? WALLPAPERS[0];
+    wallpaperOptions.find((item) => item.id === wallpaper) ?? WALLPAPERS[0];
   const visibleApps = apps.filter((app) =>
     `${app.name} ${app.description}`
       .toLowerCase()
@@ -196,6 +240,7 @@ export function BrowserStartPage({
           <Search size={22} strokeWidth={1.8} />
         </button>
       </form>
+      {children && <div className="browser-start-task-services bg-background text-foreground">{children}</div>}
       <Dialog
         open={active && panel !== null}
         onOpenChange={(open) => {
@@ -286,7 +331,7 @@ export function BrowserStartPage({
                   主页背景
                 </p>
                 <div className="browser-start-wallpapers">
-                  {WALLPAPERS.map((item) => (
+                  {wallpaperOptions.map((item) => (
                     <button
                       type="button"
                       key={item.id}
@@ -298,6 +343,16 @@ export function BrowserStartPage({
                     </button>
                   ))}
                 </div>
+                <input ref={uploadRef} type="file" accept="image/jpeg,image/png,image/webp"
+                  aria-label="上传自定义壁纸" className="sr-only" disabled={uploading}
+                  onChange={event => { uploadWallpaper(event.target.files?.[0]); event.target.value = ""; }} />
+                <button type="button" className="browser-start-setting-row mt-3" disabled={uploading}
+                  onClick={() => uploadRef.current?.click()}>
+                  {uploading ? "正在保存…" : customWallpaper ? "更换自定义壁纸" : "上传自定义壁纸"}
+                  <ArrowUpRight size={16} />
+                </button>
+                <p className="mt-2 text-xs text-muted-foreground">支持 JPG、PNG、WebP，最大 2 MB，仅保存在当前浏览器。</p>
+                {uploadError && <p role="alert" className="mt-2 text-xs text-destructive">{uploadError}</p>}
                 {panel === "settings" && (
                   <label className="mt-6 block text-sm">
                     搜索引擎

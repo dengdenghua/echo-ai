@@ -202,6 +202,15 @@ export function mergeThreadRunStatus(
   return priority[next] > priority[current] ? next : current;
 }
 
+/** Only hide generated task-folder labels, never a user-named project. */
+export function isGeneratedWorkspaceProject(project: string, workspacePath?: string): boolean {
+  const path = workspacePath?.replaceAll("\\", "/").replace(/\/+$/, "") ?? "";
+  const leaf = basename(path);
+  return project === leaf &&
+    /(?:^|\/)data\/workspaces\/[^/]+(?:\/[^/]+)?$/i.test(path) &&
+    /^[a-z0-9_-]{16,}$/i.test(leaf);
+}
+
 export function projectNameForThread(
   thread: Pick<ThreadSummary, "mode">,
   meta: Record<string, unknown>,

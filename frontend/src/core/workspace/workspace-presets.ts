@@ -78,7 +78,7 @@ export const PERSONA_WORKSPACE_PRESETS: Readonly<
     direction: "软件研发",
     themeId: "kane",
     defaultWorkbenchTab: "agent",
-    workbenchLabel: "开发工作台",
+    workbenchLabel: "开发",
     workbenchSummary: "聚合代码执行、变更审阅和可运行预览。",
     workbenchLanes: ["终端", "变更", "预览"],
     workbench: "development",

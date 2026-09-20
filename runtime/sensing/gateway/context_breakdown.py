@@ -145,3 +145,27 @@ def breakdown_for_thread(thread_id: str, messages: list[Any] | None) -> dict[str
         "source": "estimate",
         "measured_at": None,
     }
+
+
+def handle_thread_context_breakdown(
+    request: Any,
+    thread_id: str,
+    auth_fn: Any,
+    tenant_fn: Any,
+    require_store_fn: Any,
+    require_thread_id_fn: Any,
+    get_thread_fn: Any,
+) -> dict[str, Any]:
+    from fastapi import HTTPException
+
+    actor_id = auth_fn(request)
+    tenant_id = tenant_fn(request)
+    require_store_fn()
+    thread_id = require_thread_id_fn(thread_id)
+    thread = get_thread_fn(thread_id, actor_id, tenant_id)
+    if thread is None:
+        raise HTTPException(404, f"thread not found: {thread_id}")
+    values = thread.get("values") if isinstance(thread.get("values"), dict) else {}
+    messages = values.get("messages") if isinstance(values, dict) else None
+    return breakdown_for_thread(thread_id, messages if isinstance(messages, list) else [])
+

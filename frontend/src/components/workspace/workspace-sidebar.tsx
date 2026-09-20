@@ -122,6 +122,7 @@ import {
   mergeThreadRunStatus,
   normalizeThreadRunStatus,
   projectNameForThread,
+  isGeneratedWorkspaceProject,
   summarizeThreadForSidebar,
   syncThreadAgentSelection,
   activeTeamTaskRoomId,
@@ -1766,6 +1767,8 @@ function ProjectGroupTrigger({
   hasBoundFolder: boolean;
   boundWorkspacePath?: string;
 }) {
+  const generatedWorkspace = isGeneratedWorkspaceProject(project, boundWorkspacePath);
+  const displayName = generatedWorkspace ? "任务文件" : project;
   return (
     <Tooltip>
       <TooltipTrigger asChild>
@@ -1778,7 +1781,7 @@ function ProjectGroupTrigger({
           )}
         >
           <ProjectGroupIcon hasBoundFolder={hasBoundFolder} />
-          <span className="min-w-0 truncate">{project}</span>
+          <span className="min-w-0 truncate">{displayName}</span>
           <span
             className={cn(
               "ml-auto shrink-0 text-xs text-muted-foreground/60 transition-opacity",
@@ -1794,9 +1797,11 @@ function ProjectGroupTrigger({
         align="center"
         className="max-w-72 break-words"
       >
-        <span className="block font-medium">{project}</span>
+        <span className="block font-medium">{displayName}</span>
         <span className="mt-0.5 block text-[11px] text-muted-foreground">
-          {hasBoundFolder
+          {generatedWorkspace
+            ? "此任务自动创建的文件空间"
+            : hasBoundFolder
             ? boundWorkspacePath || "本地目录项目"
             : "里程碑项目 · 不绑定本地目录"}
         </span>

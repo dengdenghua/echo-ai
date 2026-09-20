@@ -64,4 +64,29 @@ describe("ProjectGroupHeaderBadge", () => {
       screen.queryByRole("button", { name: "项目操作：只读成员群" }),
     ).toBeNull();
   });
+
+  it("renders active milestone progress and decisions count when provided", () => {
+    const onOpenWorkbench = vi.fn();
+    renderWithProviders(
+      <ProjectGroupHeaderBadge
+        name="核心架构重构"
+        status="running"
+        activeMilestone={{
+          id: "ms-2",
+          name: "M2 微服务拆解",
+          progress: 65,
+        }}
+        decisionsCount={3}
+        onOpenWorkbench={onOpenWorkbench}
+      />,
+      { locale: "zh-CN" },
+    );
+
+    expect(screen.getByText("M2 微服务拆解")).toBeInTheDocument();
+    expect(screen.getByText("65%")).toBeInTheDocument();
+    expect(screen.getByText("🏛️ 3")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByText("🏛️ 3"));
+    expect(screen.getByText(/核心事实库与历史决议/)).toBeInTheDocument();
+  });
 });

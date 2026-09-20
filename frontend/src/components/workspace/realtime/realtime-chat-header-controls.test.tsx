@@ -30,12 +30,13 @@ describe("realtime chat header controls", () => {
     );
   });
 
-  it("keeps recording, workbench, and sharing in a stable order", () => {
+  it("places environment between sharing and the workbench", () => {
     renderWithProviders(
       <RealtimeChatHeaderActions
         recording={<button type="button">REC active</button>}
         workbench={<button type="button">Workbench</button>}
         share={<button type="button">Share</button>}
+        environment={<button type="button">Environment</button>}
       />,
       { locale: "en-US" },
     );
@@ -48,7 +49,7 @@ describe("realtime chat header controls", () => {
       within(actions as HTMLElement)
         .getAllByRole("button")
         .map((button) => button.textContent),
-    ).toEqual(["REC active", "Workbench", "Share"]);
+    ).toEqual(["REC active", "Share", "Environment", "Workbench"]);
     expect(
       within(actions as HTMLElement).getByRole("group", {
         name: "View controls",

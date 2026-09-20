@@ -1,3 +1,4 @@
+import { useMemo } from "react";
 import type { Message } from "@/core/api/types";
 import { isAIMessage, isHumanMessage } from "@/core/api/types";
 import { extractTextFromMessage } from "@/core/messages/utils";
@@ -9,9 +10,11 @@ import { swallow } from "@/core/utils/log";
 import { isAbsolutePath } from "@/lib/path-utils";
 import {
   CONTEXT_BREAKDOWN_ORDER,
+  CONTEXT_SEGMENT_COLORS,
   type ContextBreakdownKey,
   type ContextBreakdownSegment,
 } from "@/core/threads/context-breakdown";
+import { useContextBreakdown } from "@/core/threads/use-context-breakdown";
 
 export function normalizeReasoningEffortForUi(
   effort: ReasoningEffort | undefined,
@@ -91,6 +94,24 @@ export function rememberGroupPerspective(threadId: string, agentId: string | nul
   } catch (error) {
     swallow(error, "remember-group-perspective");
   }
+}
+
+export function resolveGroupPerspective(
+  current: string | null,
+  activeAgentId: string | null,
+  threadId: string,
+  groupPerspectiveAgentIds: Set<string>,
+  fallbackAgentId: string,
+): string {
+  if (current && groupPerspectiveAgentIds.has(current)) return current;
+  if (activeAgentId && groupPerspectiveAgentIds.has(activeAgentId)) {
+    return activeAgentId;
+  }
+  const remembered = readGroupPerspective(threadId);
+  if (remembered && groupPerspectiveAgentIds.has(remembered)) {
+    return remembered;
+  }
+  return fallbackAgentId;
 }
 
 /** Keep role folders readable while preventing display names from escaping the root. */
@@ -292,6 +313,28 @@ export function breakdownContextSegments(
   );
 }
 
+export function useThreadContextSegments(
+  threadId: string | null | undefined,
+  messages: Message[],
+  lastTurnStatus: string | null | undefined,
+  t: ReturnType<typeof useI18n>["t"],
+) {
+  const { breakdown: measuredContext } = useContextBreakdown(threadId, {
+    refreshKey: `${messages.length}:${lastTurnStatus ?? ""}`,
+  });
+  return useMemo(
+    () =>
+      (measuredContext?.segments ?? breakdownContextSegments(messages)).map(
+        (segment) => ({
+          label: contextSegmentLabel(segment.key, t),
+          tokens: segment.tokens,
+          color: CONTEXT_SEGMENT_COLORS[segment.key],
+        }),
+      ),
+    [measuredContext, messages, t],
+  );
+}
+
 export function recordFromUnknown(value: unknown): Record<string, unknown> | null {
   if (!value || typeof value !== "object" || Array.isArray(value)) return null;
   return value as Record<string, unknown>;
@@ -352,3 +395,26 @@ export function emptyThreadResearchViewState(
     visible: false,
   };
 }
+
+export function resolveActiveProjectMilestone(
+  boundProjectState?: import("@/components/workspace/agent-workbench-panel/project-os-tab").ProjectFullState | null,
+  defaultMilestoneId?: string,
+): { id: string; name: string; status: string; progress?: number } | undefined {
+  if (!boundProjectState || !boundProjectState.milestones || boundProjectState.milestones.length === 0) {
+    return undefined;
+  }
+  const target =
+    boundProjectState.milestones.find((m) => m.id === defaultMilestoneId) ??
+    boundProjectState.milestones[0];
+  if (!target) return undefined;
+  const tasks = boundProjectState.tasks?.[target.id] ?? [];
+  const done = tasks.filter((t) => t.status === "done").length;
+  const progress =
+    tasks.length > 0
+      ? Math.round((done / tasks.length) * 100)
+      : target.status === "done"
+        ? 100
+        : 0;
+  return { id: target.id, name: target.name, status: target.status, progress };
+}
+

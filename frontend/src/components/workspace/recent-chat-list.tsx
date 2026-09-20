@@ -52,6 +52,7 @@ import { getAPIClient } from "@/core/api";
 import { useActiveAgentId } from "@/core/agents/active";
 import { copyTextToClipboard } from "@/core/clipboard";
 import { emitAgentChanged } from "@/core/events";
+import { deriveThreadAgents, syncThreadAgentSelection } from "@/core/threads/sidebar";
 import { useI18n } from "@/core/i18n/hooks";
 import {
   type Project,
@@ -321,8 +322,7 @@ export function RecentChatList() {
             }}
             title={titleOfThread(thread)}
             onMouseDown={() => {
-              const owner = ownerAgentForThread(thread);
-              if (owner) emitAgentChanged(owner, "thread");
+              syncThreadAgentSelection(deriveThreadAgents(thread));
             }}
           >
             <span>{titleOfThread(thread)}</span>

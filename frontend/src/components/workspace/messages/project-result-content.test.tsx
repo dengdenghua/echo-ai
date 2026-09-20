@@ -1,5 +1,6 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { renderWithProviders } from "@/test/harness";
 import { parseProjectReceipt, ProjectResultContent } from "./project-result-content";
 const files = vi.hoisted(() => ({ artifacts: [] as string[] }));
 vi.mock("../artifacts/context", () => ({ useOptionalArtifacts: () => files }));
@@ -11,7 +12,7 @@ describe("project result receipt", () => {
     files.artifacts = ["workspace-output:final:release.md", "workspace-output:stages:draft.md"];
     const listener = vi.fn();
     window.addEventListener("echo:open-artifact", listener);
-    const { unmount } = render(<ProjectResultContent content={receipt} renderBody={text => <p>{text}</p>} />);
+    const { unmount } = renderWithProviders(<ProjectResultContent content={receipt} renderBody={text => <p>{text}</p>} />);
     expect(screen.queryByText("draft.md")).toBeNull();
     expect(screen.queryByRole("button", { name: "查看成果" })).toBeNull();
     fireEvent.click(screen.getByRole("button", { name: /release\.md/ }));
@@ -23,7 +24,7 @@ describe("project result receipt", () => {
   it("deduplicates counts and opens existing workbench surfaces", () => {
     const listener = vi.fn();
     window.addEventListener("echo:agent-workbench-open", listener);
-    const { container } = render(<ProjectResultContent content={receipt} renderBody={text => <p>{text}</p>} />);
+    const { container } = renderWithProviders(<ProjectResultContent content={receipt} renderBody={text => <p>{text}</p>} />);
     expect(screen.getByText("已完成")).toBeInTheDocument();
     expect(screen.getByText(/2\/2 项任务完成/)).toBeInTheDocument();
     expect(container.querySelector("details")?.open).toBe(false);
@@ -33,15 +34,25 @@ describe("project result receipt", () => {
     window.removeEventListener("echo:agent-workbench-open", listener);
   });
   it("does not turn blocked projects into completed receipts", () => {
-    render(<ProjectResultContent content={receipt.replace("状态：done", "状态：blocked")} renderBody={text => <p>{text}</p>} />);
+    renderWithProviders(<ProjectResultContent content={receipt.replace("状态：done", "状态：blocked")} renderBody={text => <p>{text}</p>} />);
     expect(screen.getByText("需要处理")).toBeInTheDocument();
     expect(screen.queryByText("已完成")).toBeNull();
   });
   it("keeps ordinary prose, incomplete receipts and streams unchanged", () => {
     expect(parseProjectReceipt("解释：" + receipt)).toBeNull();
     expect(parseProjectReceipt("Project OS 已继续推进项目。")).toBeNull();
-    render(<ProjectResultContent content={receipt} isLoading renderBody={text => <p>{text}</p>} />);
+    renderWithProviders(<ProjectResultContent content={receipt} isLoading renderBody={text => <p>{text}</p>} />);
     expect(screen.queryByRole("region")).toBeNull();
     expect(screen.queryByRole("button")).toBeNull();
+  });
+  it("renders collaborative landmark card when non-receipt content matches landmark", () => {
+    renderWithProviders(
+      <ProjectResultContent
+        content="🏛️ [项目决策固化] 采纳系统重构规划"
+        renderBody={text => <p>{text}</p>}
+      />,
+    );
+    expect(screen.getByTestId("landmark-decision-card")).toBeInTheDocument();
+    expect(screen.getByText("项目核心决策固化")).toBeInTheDocument();
   });
 });

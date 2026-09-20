@@ -1,5 +1,5 @@
 import { useContext, useMemo, useState } from "react";
-import { ChevronRightIcon, FileDiffIcon } from "lucide-react";
+import { ChevronRightIcon, FileDiffIcon, FileTextIcon } from "lucide-react";
 import type { LiveToolEvent } from "./live-tool-timeline";
 import { LinkedFileReference } from "./messages/linked-file-reference";
 import { FileReferenceScope } from "@/core/navigation/file-reference";
@@ -258,11 +258,30 @@ export function TaskDeliveryReview({
       <div className="min-w-0 overflow-hidden rounded-xl border border-border-default bg-muted/[0.12]">
         <div className="flex min-w-0 items-center gap-3 border-b border-border-default bg-muted/25 px-3 py-2.5">
           <span className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-background text-muted-foreground shadow-[var(--shadow-xs)]">
-            <FileDiffIcon className="size-4" aria-hidden="true" />
+            {isDocOnly ? (
+              <FileTextIcon className="size-4 text-sky-500" aria-hidden="true" />
+            ) : (
+              <FileDiffIcon className="size-4" aria-hidden="true" />
+            )}
           </span>
           <span className="min-w-0 flex-1">
-            <span className="block text-sm font-semibold text-foreground/90">
-              本轮交付
+            <span className="flex items-center gap-2">
+              <span className="text-sm font-semibold text-foreground/90">
+                本轮交付
+              </span>
+              {isDocOnly ? (
+                <span className="rounded-md border border-border-default/60 bg-muted/70 px-1.5 py-0.5 font-mono text-[11px] font-medium text-muted-foreground">
+                  文档/报告
+                </span>
+              ) : failures > 0 ? (
+                <span className="rounded-md border border-destructive/20 bg-destructive/10 px-1.5 py-0.5 font-mono text-[11px] font-medium text-destructive">
+                  存在未通过项
+                </span>
+              ) : evidence.checks.length > 0 ? (
+                <span className="rounded-md border border-success/20 bg-success/10 px-1.5 py-0.5 font-mono text-[11px] font-medium text-success">
+                  验证已通过
+                </span>
+              ) : null}
             </span>
             <span className="block truncate text-xs text-muted-foreground">
               {evidence.changes.length} 个文件

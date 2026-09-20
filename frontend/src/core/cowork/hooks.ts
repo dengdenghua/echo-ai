@@ -14,6 +14,7 @@ import {
   removeCoworkMember,
   replaceCoworkRoster,
   searchCowork,
+  setCoworkMemberDriver,
   setCoworkMode,
 } from "./api";
 import type {
@@ -107,6 +108,27 @@ export function useSetCoworkMode() {
   return useMutation({
     mutationFn: ({ threadId, mode }: { threadId: string; mode: CoworkMode }) =>
       setCoworkMode(threadId, mode),
+    onSuccess: (_state, { threadId }) => {
+      void qc.invalidateQueries({ queryKey: coworkQueryKeys.group(threadId) });
+      void qc.invalidateQueries({
+        queryKey: coworkQueryKeys.session(threadId),
+      });
+    },
+  });
+}
+
+export function useSetCoworkMemberDriver() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({
+      threadId,
+      memberId,
+      driver,
+    }: {
+      threadId: string;
+      memberId: string;
+      driver: "ai" | "human";
+    }) => setCoworkMemberDriver(threadId, memberId, driver),
     onSuccess: (_state, { threadId }) => {
       void qc.invalidateQueries({ queryKey: coworkQueryKeys.group(threadId) });
       void qc.invalidateQueries({

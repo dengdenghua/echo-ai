@@ -44,11 +44,13 @@ export function RealtimeChatHeaderActions({
   recording,
   workbench,
   share,
+  environment,
   className,
 }: {
   recording?: ReactNode;
   workbench?: ReactNode;
   share?: ReactNode;
+  environment?: ReactNode;
   className?: string;
 }) {
   const { t } = useI18n();
@@ -68,8 +70,9 @@ export function RealtimeChatHeaderActions({
           "[&_[data-state]]:h-full [&_[data-state]]:rounded-md [&_[data-state]]:border-0",
         )}
       >
-        {workbench}
         {share ? <div className="shrink-0">{share}</div> : null}
+        {environment}
+        {workbench}
       </div>
     </div>
   );

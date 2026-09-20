@@ -169,7 +169,9 @@ export function AgentFooter() {
   const selectAgent = (name: string) => {
     setActiveName(name);
     emitAgentChanged(name);
-    _navigate(taskWorkspaceRoute({ agentId: name }));
+    if (!pathname.startsWith("/workspace/realtime/")) {
+      _navigate(taskWorkspaceRoute({ agentId: name }));
+    }
   };
 
   // Keep pointer-up inside the profile action too: otherwise Radix synthesizes

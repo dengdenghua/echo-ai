@@ -4,6 +4,10 @@ import { emitOpenAgentWorkbench } from "../agent-workbench-events";
 import { useOptionalArtifacts } from "../artifacts/context";
 import { artifactDisplayPath, parseWorkspaceOutputRef } from "@/core/artifacts/utils";
 import { dispatchOpenArtifact } from "@/core/artifacts/open-artifact";
+import {
+  parseCollaborationLandmark,
+  ProjectCollaborationLandmark,
+} from "./project-collaboration-landmark";
 
 /** Strict compatibility reader for persisted Project OS receipts. Never infer success. */
 export function parseProjectReceipt(content: string) {
@@ -27,7 +31,19 @@ export function ProjectResultContent({ content, isLoading, renderBody }: {
     path => parseWorkspaceOutputRef(path)?.area === "final",
   );
   const receipt = !isLoading ? parseProjectReceipt(content) : null;
-  if (!receipt) return renderBody(content);
+  if (!receipt) {
+    const landmark = !isLoading ? parseCollaborationLandmark(content) : null;
+    if (landmark) {
+      return (
+        <ProjectCollaborationLandmark
+          match={landmark}
+          rawContent={content}
+          renderBody={renderBody}
+        />
+      );
+    }
+    return renderBody(content);
+  }
   const complete = receipt.status === "done";
   const blocked = receipt.status === "blocked" || receipt.status === "failed";
   const label = complete ? "已完成" : blocked ? "需要处理" : receipt.status === "running" ? "进行中" : "待启动";

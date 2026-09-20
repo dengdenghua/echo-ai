@@ -1,3 +1,4 @@
+import { BrowserHome } from "@/components/browser/browser-home";
 import { DEVICE_STAGE } from "@/core/browser/device-stage";
 /* Implementation note. */
 
@@ -86,6 +87,7 @@ function BrowserShell() {
   const personaThemeId = workspacePresetForAgent(activeAgentId).themeId;
   const {
     state,
+    settings,
     activeTab,
     patchTab,
     openTab,
@@ -633,6 +635,12 @@ function BrowserShell() {
                         tab.id === state.activeId ? (
                           <BrowserPreviewPanel
                             key={tab.id}
+                            renderStartPage={(onNavigate, services) => (
+                              <BrowserHome active device={tab.device} startContent={services}
+                                onOpen={url => url.startsWith("echo://") ? openTab(url) : onNavigate(url)} />
+                            )}
+                            searchEngineUrl={SEARCH_ENGINE_URLS[settings.searchEngine]}
+                            onPageInfoChange={page => patchTab(tab.id, {title: !page.url || page.url === "about:blank" ? "新标签页" : (page.title || page.url)})}
                             threadId={tab.taskPreview.threadId}
                             workspacePath={tab.taskPreview.workspacePath}
                             sharedSessionId={tab.taskPreview.sessionId}

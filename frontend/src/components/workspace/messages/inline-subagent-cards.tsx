@@ -20,6 +20,7 @@ import {
   isInternalAutoParallelFailure,
   subagentAvatarSrc,
 } from "@/components/workspace/agent-workbench-utils";
+import { InlineSubagentCardExpansion } from "./inline-subagent-card-expansion";
 
 type InlineSubagentStatus = "running" | "done" | "error" | "waiting";
 
@@ -1063,10 +1064,7 @@ function KimiStyleSubagentCard({
       },
       turnIndex,
       tab: "agent",
-      view:
-        !paired && (agent.status === "done" || agent.status === "error")
-          ? "summary"
-          : "screen",
+      view: "screen",
     });
   };
 
@@ -1116,6 +1114,9 @@ function KimiStyleSubagentCard({
         <AgentAvatar agent={agent} />
         <span className="min-w-0 flex-1 truncate text-sm font-medium text-foreground">
           {agent.name}
+        </span>
+        <span className="shrink-0 rounded border border-border/50 bg-background/50 px-1 py-0.2 text-[10px] text-muted-foreground/70">
+          我的协作者
         </span>
         <span
           className={cn(
@@ -1174,18 +1175,15 @@ function KimiStyleSubagentCard({
                   ? t.message.viewReply
                   : t.message.viewReport}
           </button>
-          {reportOpen && (
-            <div
-              data-testid={`agent-report-${agent.index ?? 0}`}
-              className="mx-2 mt-1 max-h-72 basis-full overflow-y-auto whitespace-pre-wrap rounded-md border border-border/50 bg-background/40 px-2.5 py-2 text-xs leading-relaxed text-muted-foreground"
-            >
-              {agent.error ? (
-                <span className="text-destructive/80">{agent.error}</span>
-              ) : (
-                agent.summary
-              )}
-            </div>
-          )}
+          <InlineSubagentCardExpansion
+            agent={agent}
+            isOpen={reportOpen}
+            onOpenWorkbench={() =>
+              handleClick({
+                currentTarget: { blur: () => {} },
+              } as unknown as React.MouseEvent<HTMLButtonElement>)
+            }
+          />
         </div>
       )}
 

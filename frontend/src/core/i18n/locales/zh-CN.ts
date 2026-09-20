@@ -1363,7 +1363,7 @@ export const zhCN: Translations = {
     statusWaitingApproval: "待确认",
     statusError: "异常",
     statusDone: "已完成",
-    progress: "进展",
+    progress: "任务进展",
     currentObjective: "当前目标",
     currentObjectiveHint: "Agent 正在处理这一项，完成后会自动生成结果回执。",
     resultReceipt: "结果回执",
@@ -1396,9 +1396,9 @@ export const zhCN: Translations = {
     inputs: "输入",
     inputsUploadedFiles: (count) => `上传文件 ${count} 个`,
     inputsAttachments: (count) => `附件 ${count} 个`,
-    context: "上下文",
+    context: "参考资料",
     contextCompress: "压缩",
-    contextDescription: "当前对话中 AI 获取的上下文",
+    contextDescription: "本轮任务查阅的网页、文件和其他资料",
     contextUsed: (percentage, limit) =>
       `已占用 ${percentage}%（上限 ${limit}）`,
     observableThisRound: "本轮可观测",
@@ -6989,6 +6989,9 @@ export const zhCN: Translations = {
   },
 
   workspaceNote: {
+    menuTitle: "环境与来源",
+    sourcesTitle: "来源",
+    viewAllSources: "查看全部",
     title: "概要便签",
     collapse: "收起便签",
     refresh: "刷新",
@@ -7051,7 +7054,7 @@ export const zhCN: Translations = {
   },
 
   contextWindow: {
-    title: "上下文窗口",
+    title: "上下文用量",
     system: "系统",
     tools: "工具",
     memory: "记忆",

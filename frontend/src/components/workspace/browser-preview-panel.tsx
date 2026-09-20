@@ -1,4 +1,6 @@
+import { TaskBrowserStart, resolveBrowserInput } from "@/components/browser/task-browser-start";
 import {
+  ListIcon,
   ArrowLeftIcon,
   ArrowRightIcon,
   CheckIcon,
@@ -628,6 +630,8 @@ interface BrowserPreviewToolbarProps {
   sessionIdle?: boolean;
   runtimeLabel: string;
   returnToTask?: boolean;
+  onToggleActionLog?: () => void;
+  actionFailureCount?: number;
 }
 
 /**
@@ -656,6 +660,8 @@ export function BrowserPreviewToolbar({
   sessionIdle = false,
   returnToTask = false,
   runtimeLabel,
+  onToggleActionLog,
+  actionFailureCount = 0,
 }: BrowserPreviewToolbarProps) {
   const { t } = useI18n();
   const bp = t.browserPreviewPanel;
@@ -671,7 +677,7 @@ export function BrowserPreviewToolbar({
         <button
           type="button"
           onClick={onBack}
-          className="grid size-7 place-items-center rounded-md text-muted-foreground transition-colors hover:bg-background hover:text-foreground"
+          className="grid size-8 place-items-center rounded-md text-muted-foreground transition-colors hover:bg-muted/55 hover:text-foreground"
           title={t.browser.back}
           aria-label={t.browser.back}
         >
@@ -680,7 +686,7 @@ export function BrowserPreviewToolbar({
         <button
           type="button"
           onClick={onForward}
-          className="grid size-7 place-items-center rounded-md text-muted-foreground transition-colors hover:bg-background hover:text-foreground"
+          className="grid size-8 place-items-center rounded-md text-muted-foreground transition-colors hover:bg-muted/55 hover:text-foreground"
           title={t.browser.forward}
           aria-label={t.browser.forward}
         >
@@ -689,7 +695,7 @@ export function BrowserPreviewToolbar({
         <button
           type="button"
           onClick={onReload}
-          className="grid size-7 place-items-center rounded-md text-muted-foreground transition-colors hover:bg-background hover:text-foreground"
+          className="grid size-8 place-items-center rounded-md text-muted-foreground transition-colors hover:bg-muted/55 hover:text-foreground"
           title={t.browser.reload}
           aria-label={t.browser.reload}
         >
@@ -704,7 +710,7 @@ export function BrowserPreviewToolbar({
         }}
         className="flex min-w-0 flex-1 items-center"
       >
-        <div className="relative flex h-8 min-w-0 flex-1 items-center rounded-md border border-transparent bg-muted/35 transition-colors hover:bg-muted/50 focus-within:border-ring focus-within:bg-background">
+        <div className="relative flex h-9 min-w-0 flex-1 items-center rounded-md border border-transparent bg-muted/35 transition-colors hover:bg-muted/50 focus-within:border-ring focus-within:bg-background">
           <GlobeIcon className="absolute left-2.5 size-3.5 text-muted-foreground" />
           <input
             type="text"
@@ -712,7 +718,7 @@ export function BrowserPreviewToolbar({
             onChange={(event) => onUrlInputChange(event.target.value)}
             placeholder={t.browser.urlPlaceholder}
             aria-label={t.browser.urlPlaceholder}
-            className="h-full w-full bg-transparent pr-2 pl-8 text-xs outline-none"
+            className="h-full w-full bg-transparent pr-2 pl-8 text-sm outline-none"
           />
         </div>
       </form>
@@ -802,6 +808,10 @@ export function BrowserPreviewToolbar({
           </DropdownMenuSub>
           <DropdownMenuSeparator />
           <DropdownMenuLabel>任务工具</DropdownMenuLabel>
+          {onToggleActionLog && <DropdownMenuItem onSelect={onToggleActionLog}>
+            <ListIcon className="size-3.5" />{t.browser.actionLog}
+            {actionFailureCount > 0 && <span className="ml-auto text-xs text-destructive">{bp.failureCount(actionFailureCount)}</span>}
+          </DropdownMenuItem>}
           <DropdownMenuItem onSelect={onAttachScreenshot}>
             <ImageIcon className="size-3.5" />
             {bp.attachScreenshotToComposer}
@@ -873,6 +883,9 @@ interface BrowserPreviewPanelProps {
   className?: string;
   sharedSessionId?: string;
   onReturnToTask?: () => void;
+  searchEngineUrl?: string;
+  renderStartPage?: React.ComponentProps<typeof TaskBrowserStart>["renderHome"];
+  onPageInfoChange?: (page: PageInfo) => void;
 }
 
 export function BrowserPreviewPanel({
@@ -882,6 +895,9 @@ export function BrowserPreviewPanel({
   className,
   sharedSessionId,
   onReturnToTask,
+  searchEngineUrl,
+  renderStartPage,
+  onPageInfoChange,
 }: BrowserPreviewPanelProps) {
   const navigate = useNavigate();
   const location = useLocation();
@@ -1193,8 +1209,8 @@ export function BrowserPreviewPanel({
     }
   }, [applySessionSnapshot, refreshBrowserArtifacts, sessionIdentity]);
 
-  const handleNavigate = useCallback(async () => {
-    if (!urlInput.trim()) return;
+  const handleNavigate = useCallback(async (input = urlInput) => {
+    if (!input.trim()) return;
     setLoading(true);
     setError(null);
     try {
@@ -1203,10 +1219,7 @@ export function BrowserPreviewPanel({
         const data = await browserApi.ensure(sessionIdentity);
         applySessionSnapshot(data.session);
       }
-      let url = urlInput.trim();
-      if (!url.startsWith("http://") && !url.startsWith("https://")) {
-        url = "https://" + url;
-      }
+      const url = resolveBrowserInput(input, searchEngineUrl);
       const info = await browserApi.navigate(sessionIdentity, url);
       setPageInfo(info);
       setUrlInput(info.url);
@@ -1232,6 +1245,7 @@ export function BrowserPreviewPanel({
     applySessionSnapshot,
     refreshSessionStatus,
     urlInput,
+    searchEngineUrl,
     session,
     sessionId,
     sessionIdentity,
@@ -1591,7 +1605,7 @@ export function BrowserPreviewPanel({
         const request: BrowserOpenUrlRequest = {
           url: target,
           title:
-            pageInfo.title || (target === "about:blank" ? "任务浏览" : target),
+            target === "about:blank" ? "新标签页" : (pageInfo.title || target),
           device: browserTabDeviceForPreset(devicePreview),
           source: "agent-preview",
           sessionId,
@@ -1708,6 +1722,16 @@ export function BrowserPreviewPanel({
     })();
   }, [initialUrl, sessionIdentity, applySessionSnapshot]);
 
+  const [recentPages, setRecentPages] = useState<PageInfo[]>([]);
+  const onPageInfoChangeRef = useRef(onPageInfoChange);
+  onPageInfoChangeRef.current = onPageInfoChange;
+  useEffect(() => { onPageInfoChangeRef.current?.(pageInfo); }, [pageInfo.url, pageInfo.title]);
+  useEffect(() => { setRecentPages([]); }, [sessionId]);
+  useEffect(() => {
+    if (!/^https?:\/\//i.test(pageInfo.url)) return;
+    setRecentPages(previous => [pageInfo, ...previous.filter(page => page.url !== pageInfo.url)].slice(0, 6));
+  }, [pageInfo.url, pageInfo.title]);
+
   // ----- Render ------------------------------------------------------------
 
   // Starting state
@@ -1787,6 +1811,8 @@ export function BrowserPreviewPanel({
         sessionHealthy={sessionHealthy}
         sessionIdle={sessionIdle}
         runtimeLabel={runtimeLabel}
+        onToggleActionLog={() => setActionLogExpanded(value => !value)}
+        actionFailureCount={actionFailureCount}
       />
 
       {!error && !sessionHealthy && sessionIssues.length > 0 && (
@@ -2080,10 +2106,11 @@ export function BrowserPreviewPanel({
             </div>
           </div>
         ) : (
-          <div className="flex h-full flex-col items-center justify-center p-5">
+          <div className="h-full overflow-y-auto">
+          {!hasOpenPage ? <TaskBrowserStart renderHome={renderStartPage} onNavigate={value => void handleNavigate(value)} recentPages={recentPages}>
             {/* 本地服务快速入口 */}
             {detectedServices.length > 0 ? (
-              <div className="w-full max-w-sm space-y-3 p-3">
+              <div className="w-full space-y-3">
                 <div className="flex items-center gap-2">
                   <button
                     type="button"
@@ -2168,30 +2195,11 @@ export function BrowserPreviewPanel({
                 )}
               </div>
             ) : (
-              <div className="max-w-sm p-5 text-center">
-                <div className="mx-auto grid size-10 place-items-center">
-                  <GlobeIcon className="size-5 text-muted-foreground" />
-                </div>
-                <h3 className="mt-3 text-sm font-medium text-foreground">
-                  {hasOpenPage ? "等待网页画面" : "开始浏览"}
-                </h3>
-                <p className="mt-2 text-xs leading-relaxed text-muted-foreground">
-                  {t.browser.navigateHint}
-                </p>
-                <button
-                  onClick={handleRescanPorts}
-                  disabled={scanningPorts}
-                  className="mx-auto mt-3 flex h-8 items-center gap-1.5 rounded-md px-3 text-xs text-muted-foreground transition-colors hover:bg-muted/50 hover:text-foreground disabled:opacity-50"
-                >
-                  {scanningPorts ? (
-                    <Loader2Icon className="size-3 animate-spin" />
-                  ) : (
-                    <RefreshCwIcon className="size-3" />
-                  )}
-                  {bp.scanLocalServices}
-                </button>
-              </div>
+              <button type="button" onClick={handleRescanPorts} disabled={scanningPorts} className="flex h-8 items-center gap-2 text-xs text-muted-foreground hover:text-foreground disabled:opacity-50">
+                <ServerIcon className="size-3.5" />{scanningPorts ? "扫描中…" : bp.scanLocalServices}
+              </button>
             )}
+          </TaskBrowserStart> : <div className="flex h-full items-center justify-center text-sm text-muted-foreground">等待网页画面…</div>}
           </div>
         )}
         {(loading || viewportChanging) && (
@@ -2201,8 +2209,8 @@ export function BrowserPreviewPanel({
         )}
       </div>
 
-      {/* Action Log */}
-      <div className="shrink-0 border-t">
+      {/* Action Log opens only on demand. */}
+      {actionLogExpanded && <div className="shrink-0 border-t">
         <button
           type="button"
           onClick={() => setActionLogExpanded((value) => !value)}
@@ -2350,7 +2358,7 @@ export function BrowserPreviewPanel({
             )}
           </div>
         )}
-      </div>
+      </div>}
     </div>
   );
 }

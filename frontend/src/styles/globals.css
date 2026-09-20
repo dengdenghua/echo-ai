@@ -203,12 +203,13 @@
     }
   }
 
+  --animate-shimmer: shimmer 2.4s ease-in-out infinite;
   @keyframes shimmer {
-    from {
-      background-position: -200% 0;
+    0% {
+      background-position: 140% 0;
     }
-    to {
-      background-position: 200% 0;
+    100% {
+      background-position: -140% 0;
     }
   }
 
@@ -221,6 +222,20 @@
       background-position: -120% 0;
     }
   }
+}
+
+.text-shimmer {
+  background: linear-gradient(
+    90deg,
+    var(--muted-foreground) 0%,
+    var(--foreground) 50%,
+    var(--muted-foreground) 100%
+  );
+  background-size: 200% 100%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  animation: shimmer 2.4s ease-in-out infinite;
 }
 
 /* Persona accents remain available for illustrations and subtle atmosphere.

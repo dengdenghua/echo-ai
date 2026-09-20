@@ -1,4 +1,4 @@
-import { memo, useContext, type CSSProperties } from "react";
+import { memo, useContext, type ReactNode, type CSSProperties } from "react";
 import { WorkbenchHeaderSlot } from "../workbench-header-slot";
 
 import { CheckIcon, LayoutGridIcon, XIcon } from "lucide-react";
@@ -36,6 +36,7 @@ function WorkbenchTabHeaderImpl({
   workspaceLabel,
   showWorkspaceLabel,
   mainRunStatusLabel,
+  actions,
 }: {
   mainButton: {
     active: boolean;
@@ -54,6 +55,7 @@ function WorkbenchTabHeaderImpl({
   workspaceLabel?: string;
   showWorkspaceLabel?: boolean;
   mainRunStatusLabel?: string;
+  actions?: ReactNode;
 }) {
   const { t } = useI18n();
   const setHeaderSlot = useContext(WorkbenchHeaderSlot);
@@ -153,6 +155,7 @@ function WorkbenchTabHeaderImpl({
             );
           })}
         </div>
+        {actions}
         <DropdownMenu>
           <Tooltip content={t.agentWorkbenchPanel.tabList}>
             <DropdownMenuTrigger asChild>

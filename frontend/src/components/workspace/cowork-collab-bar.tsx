@@ -2,13 +2,16 @@ import {
   FileTextIcon,
   ListTodoIcon,
   MessageSquareIcon,
+  RadioIcon,
   SearchIcon,
   UsersIcon,
 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 
 import {
   useCollabSession,
+  useCoworkGroup,
   useCoworkSearch,
   useMarkCoworkRead,
 } from "@/core/cowork/hooks";
@@ -39,44 +42,25 @@ function kindLabel(kind: CoworkSearchKind, t: T): string {
   return t.coworkCollab.kindEvent;
 }
 
-/** Compact presence row: online dots. Pure — data in. */
-export function PresenceDots({
-  members,
-  seatNames = {},
-  t,
-}: {
+/** Presence for the dedicated collaboration view, not the workbench toolbar. */
+export function PresenceDots({ members, seatNames = {}, t }: {
   members: CoworkMemberPresence[];
   seatNames?: Record<string, string>;
   t: T;
 }) {
   if (members.length === 0) return null;
-  const online = members.filter((m) => m.online).length;
-  const shown = members.slice(0, 6);
-  const extra = members.length - shown.length;
-
+  const online = members.filter(member => member.online).length;
   return (
-    <div
-      className="flex min-w-0 items-center gap-2"
-      data-testid="cowork-presence"
-    >
+    <div className="flex min-w-0 items-center gap-2" data-testid="cowork-presence">
       <div className="flex items-center -space-x-0.5">
-        {shown.map((m) => (
-          <span
-            key={m.member_id}
-            title={`${seatNames[m.member_id] ?? m.member_id}${m.online ? ` · ${t.coworkCollab.online}` : ""}`}
-            className={cn(
-              "relative inline-flex size-2.5 rounded-full ring-2 ring-background",
-              m.online ? "bg-success" : "bg-muted-foreground/35",
-            )}
-          />
+        {members.slice(0, 6).map(member => (
+          <span key={member.member_id}
+            title={`${seatNames[member.member_id] ?? member.member_id}${member.online ? ` · ${t.coworkCollab.online}` : ""}`}
+            className={cn("relative inline-flex size-2.5 rounded-full ring-2 ring-background", member.online ? "bg-success" : "bg-muted-foreground/35")} />
         ))}
-        {extra > 0 && (
-          <span className="pl-1.5 text-xs text-muted-foreground">+{extra}</span>
-        )}
+        {members.length > 6 && <span className="pl-1.5 text-xs text-muted-foreground">+{members.length - 6}</span>}
       </div>
-      <span className="shrink-0 text-xs text-muted-foreground">
-        {online} {t.coworkCollab.online}
-      </span>
+      <span className="shrink-0 text-xs text-muted-foreground">{online} {t.coworkCollab.online}</span>
     </div>
   );
 }
@@ -122,14 +106,12 @@ export function SearchHitList({ hits, t }: { hits: CoworkSearchHit[]; t: T }) {
   );
 }
 
-/** Cowork group collab bar for the workbench: presence + replayable search. */
-export function CoworkCollabBar({
+/** Cowork group collab bar for the workbench: replayable search and actionable takeover status. */
+export function CoworkSearchMenu({
   threadId,
-  rosterSeats = [],
   className,
 }: {
   threadId: string;
-  rosterSeats?: { id: string; name: string }[];
   className?: string;
 }) {
   const { t } = useI18n();
@@ -140,12 +122,11 @@ export function CoworkCollabBar({
   const markRead = useMarkCoworkRead();
   const lastMarkedSeq = useRef(0);
 
-  const seatNames: Record<string, string> = {};
-  for (const seat of rosterSeats) seatNames[seat.id] = seat.name;
+  const group = useCoworkGroup(threadId);
+  const takeoverCount = group.data?.state.takeover_ids?.length ?? 0;
+
 
   const collab = session.data;
-  const members = collab?.presence ?? [];
-  const hasOnlineMembers = members.some((m) => m.online);
   const trimmed = query.trim();
 
   const latestMessageSeq = Math.max(
@@ -159,41 +140,38 @@ export function CoworkCollabBar({
     markRead.mutate({ threadId, memberId, messageSeq: latestMessageSeq });
   }, [collabTransport?.currentUser?.id, latestMessageSeq, markRead, threadId]);
 
-  if (!hasOnlineMembers && trimmed.length === 0) return null;
+  if (!threadId) return null;
 
   return (
-    <div
-      className={cn(
-        "shrink-0 border-b border-border-subtle bg-background/60 px-3 py-1.5",
-        className,
+    <div className={cn("flex shrink-0 items-center gap-1", className)}>
+      {takeoverCount > 0 && (
+        <span data-testid="cowork-takeover-indicator" className="flex items-center gap-1 text-[11px] text-amber-600" title={`${takeoverCount} 位真人接管`}>
+          <RadioIcon className="size-3" />{takeoverCount}
+        </span>
       )}
-      data-testid="cowork-collab-bar"
-    >
-      <div className="flex items-center justify-between gap-2">
-        <PresenceDots members={members} seatNames={seatNames} t={t} />
-        <div className="relative w-44 max-w-[55%] shrink-0">
-          <SearchIcon className="pointer-events-none absolute left-2 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground" />
-          <input
-            type="search"
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            placeholder={t.coworkCollab.searchPlaceholder}
-            aria-label={t.coworkCollab.searchPlaceholder}
-            className="h-7 w-full rounded-md border border-border-default bg-background/70 pl-7 pr-2 text-xs text-foreground placeholder:text-muted-foreground/70 focus-visible:border-primary/30 focus-visible:outline-none"
-          />
-        </div>
-      </div>
-      {trimmed.length > 0 && (
-        <div className="mt-1.5 max-h-64 overflow-y-auto">
-          {search.isLoading ? (
-            <div className="px-1 py-3 text-center text-xs text-muted-foreground">
-              …
+      <DropdownMenu modal={false} onOpenChange={open => { if (!open) setQuery(""); }}>
+        <DropdownMenuTrigger asChild>
+          <button type="button" data-testid="cowork-search-trigger" aria-label={t.coworkCollab.searchPlaceholder} title={t.coworkCollab.searchPlaceholder}
+            className="flex size-8 shrink-0 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted/45 hover:text-foreground data-[state=open]:bg-muted/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
+            <SearchIcon className="size-3.5" />
+          </button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="end" side="bottom" sideOffset={8} collisionPadding={12}
+          className="w-80 max-w-[calc(100vw-24px)] p-2">
+          <div className="relative">
+            <SearchIcon className="pointer-events-none absolute left-2 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground" />
+            <input autoFocus type="search" value={query} onChange={event => setQuery(event.target.value)}
+              onKeyDown={event => { if (event.key !== "Escape") event.stopPropagation(); }}
+              placeholder={t.coworkCollab.searchPlaceholder} aria-label={t.coworkCollab.searchPlaceholder}
+              className="h-8 w-full rounded-md border border-border-default bg-background pl-7 pr-2 text-xs focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring" />
+          </div>
+          {trimmed.length > 0 && (
+            <div className="mt-1.5 max-h-64 overflow-y-auto">
+              {search.isLoading ? <div className="py-3 text-center text-xs text-muted-foreground">…</div> : <SearchHitList hits={search.data?.hits ?? []} t={t} />}
             </div>
-          ) : (
-            <SearchHitList hits={search.data?.hits ?? []} t={t} />
           )}
-        </div>
-      )}
+        </DropdownMenuContent>
+      </DropdownMenu>
     </div>
   );
 }

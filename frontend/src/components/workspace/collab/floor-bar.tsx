@@ -28,14 +28,24 @@ export function FloorBar() {
   const inQueue = floor.floorRequests.includes(myId);
   const nameFor = (id: string) => users.find((u) => u.id === id)?.name ?? id;
 
+  const policyLabel =
+    floor.speakerPolicy === "round_robin"
+      ? "轮流发言"
+      : floor.speakerPolicy === "roll_call"
+        ? "点名发言"
+        : "举手发言";
+
   return (
     <div className="flex flex-wrap items-center gap-2 border-b border-border-subtle px-3 py-1.5 text-xs">
       <MegaphoneIcon className="size-3.5 text-muted-foreground" />
+      <span className="rounded bg-muted px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground">
+        {policyLabel}
+      </span>
       <span
         className={cn(
           "font-medium",
           isMyTurn
-            ? "text-success"
+            ? "text-success font-semibold"
             : "text-muted-foreground",
         )}
       >

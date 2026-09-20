@@ -39,7 +39,3 @@ export {
   type CoworkRoomTimelineEntryProps,
   type CoworkRoomTimelineProps,
 } from "./cowork-room-timeline";
-export {
-  TeamWorkbenchPanel,
-  type TeamWorkbenchTabId,
-} from "./team-workbench-panel";

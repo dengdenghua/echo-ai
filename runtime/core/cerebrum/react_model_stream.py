@@ -21,6 +21,8 @@ import uuid
 from collections.abc import Callable, Generator
 from typing import Any
 
+from runtime.platform.models.context_snapshot import record_request_context
+
 from runtime.core.cerebrum.react_context import (
     _compress_context,
     _estimate_messages_tokens,
@@ -353,20 +355,11 @@ def _phase_6b_model_stream(
                 require_tool_use=(
                     _native_mode
                     and _evidence_convergence_active is None
-                    and not _iteration_recovery_mode
-                    and not _terminal_convergence_active
+                    and not _iteration_recovery_mode and not _terminal_convergence_active
                     and _zero_action_rounds > 0
                 ),
             )
-            # The context ring reports what this request actually carries, and
-            # this is the only place both halves are known: the assembled
-            # payload and the thread it belongs to. Recording is best-effort —
-            # a display cache must never be able to break a turn.
             with contextlib.suppress(Exception):
-                from runtime.sensing.gateway.context_snapshot import (
-                    record_request_context,
-                )
-
                 record_request_context(thread_id, req.messages, req.tools)
             text_parts: list[str] = []
             thinking_parts: list[str] = []
@@ -417,9 +410,7 @@ def _phase_6b_model_stream(
                 _elapsed = _now - _throughput_started_at
                 state.iteration.throughput_last_emit = _now
                 return {
-                    "type": "throughput",
-                    "chars": chars,
-                    "elapsed_ms": int(_elapsed * 1000),
+                    "type": "throughput", "chars": chars, "elapsed_ms": int(_elapsed * 1000),
                     "chars_per_sec": (chars / _elapsed if _elapsed > 0 else 0.0),
                 }
 
@@ -429,10 +420,7 @@ def _phase_6b_model_stream(
                 return state["chars"]
 
             for evt in _iter_model_stream_with_deadline(
-                router,
-                req,
-                _iteration_timeout,
-                _visible_started,
+                router, req, _iteration_timeout, _visible_started,
                 # Normal rounds: any streamed thinking token is liveness, so a
                 # deep-reasoning model is never judged slow while it is still
                 # emitting. Evidence-convergence rounds keep the strict

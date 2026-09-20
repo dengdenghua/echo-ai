@@ -7265,6 +7265,9 @@ export const koKR: Translations = {
   },
 
   workspaceNote: {
+    menuTitle: "환경 및 출처",
+    sourcesTitle: "출처",
+    viewAllSources: "모두 보기",
     title: "워크스페이스 메모",
     collapse: "메모 접기",
     refresh: "새로 고침",

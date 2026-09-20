@@ -120,7 +120,7 @@ import {
   saveAutomationTarget,
 } from "@/core/automation/target";
 import { ChatPageLayout } from "@/components/workspace/chat-page-layout";
-import { WorkspaceNoteBadge } from "@/components/workspace/workspace-note-badge";
+import { WorkspaceContextMenu } from "@/components/workspace/workspace-context-menu";
 import { AutomationControlDock } from "@/components/workspace/automation-control-dock";
 import { TeachRepeatPanel } from "@/components/workspace/teach-repeat-panel";
 import { RunDurationBadge } from "@/components/workspace/run-duration-badge";
@@ -188,8 +188,6 @@ import {
 } from "@/components/workspace/use-thread-page";
 import { useThreadStopController } from "@/components/workspace/use-thread-stop-controller";
 import { swallow } from "@/core/utils/log";
-import { useContextBreakdown } from "@/core/threads/use-context-breakdown";
-import { CONTEXT_SEGMENT_COLORS } from "@/core/threads/context-breakdown";
 import { getRecordingStatus } from "@/core/teach-repeat/api";
 import { SubtasksProvider } from "@/core/tasks/context";
 import { getAPIClient } from "@/core/api";
@@ -222,7 +220,7 @@ import {
   isThreadStale,
   writePendingNewSession,
 } from "@/core/threads/pending-new-session";
-import { useIsMobile } from "@/hooks/use-mobile";
+import type { Team } from "@/core/teams/api";
 import type { ReasoningEffort } from "@/core/threads";
 import {
   normalizePermissionMode,
@@ -318,17 +316,17 @@ import {
   normalizeWorkDirKey,
   readGroupPerspective,
   rememberGroupPerspective,
+  resolveGroupPerspective,
   personalRoleFolderName,
   rememberChatWorkDir,
   readRememberedChatWorkDir,
   extractResearchUrls,
   estimateCurrentContextTokens,
-  breakdownContextSegments,
-  contextSegmentLabel,
-  type ContextBreakdownKey,
+  useThreadContextSegments,
   firstString,
   threadOwnerAgentFromMetadata,
   latestArtifactFocusPathFromEvents,
+  resolveActiveProjectMilestone,
   emptyThreadResearchViewState,
   type ThreadRouteState,
   type CompactableThread,
@@ -363,7 +361,6 @@ function RealtimePageContent({
   useLayoutEffect(() => {
     activeThreadIdRef.current = threadId;
   }, [threadId]);
-  const isMobile = useIsMobile();
   const {
     artifacts,
     open: artifactsOpen,
@@ -429,10 +426,9 @@ function RealtimePageContent({
   const [showResearchHistory, setShowResearchHistory] = useState(false);
   const [showAgentPlan, setShowAgentPlan] = useState(false);
   const [agentWorkbenchTab, setAgentWorkbenchTab] =
-    useState<AgentWorkbenchTabId>("agent");
+    useState<AgentWorkbenchTabId>("diff");
   const [agentWorkbenchTabTouched, setAgentWorkbenchTabTouched] =
     useState(false);
-  const [agentWorkbenchDismissed, setAgentWorkbenchDismissed] = useState(false);
   const [agentWorkbenchManuallyOpened, setAgentWorkbenchManuallyOpened] =
     useState(false);
   const [focusedWorkbenchAgentId, setFocusedWorkbenchAgentId] = useState<
@@ -471,7 +467,6 @@ function RealtimePageContent({
   const [focusedWorkbenchEffectKey, setFocusedWorkbenchEffectKey] = useState<
     string | null
   >(null);
-  const settledWorkbenchAutoDismissedRef = useRef<string | null>(null);
   const emptyWorkbenchAutoDismissedRef = useRef<string | null>(null);
   const [chatsDrawerOpen, setChatsDrawerOpen] = useState(false);
   // 助理专属：右侧内嵌「自动化 / 订阅」管理面板开关。
@@ -743,7 +738,7 @@ function RealtimePageContent({
       if (!sessionStorage.getItem(`echo:browser-return:${location.pathname}`)) return;
       setAgentWorkbenchTab("browser");
       setAgentWorkbenchTabTouched(true);
-      setAgentWorkbenchDismissed(false);
+
       setAgentWorkbenchManuallyOpened(true);
     } catch { /* Returning to the conversation still works without storage. */ }
   }, [location.pathname]);
@@ -770,7 +765,7 @@ function RealtimePageContent({
     setShowResearchHistory(false);
     setShowResearch(false);
     setShowPreview(false);
-    setAgentWorkbenchDismissed(false);
+
     setAgentWorkbenchManuallyOpened(true);
     setAgentWorkbenchTab("project");
     setAgentWorkbenchTabTouched(true);
@@ -1066,7 +1061,7 @@ function RealtimePageContent({
     [currentTaskAgentName],
   );
   const welcomeRosterLoadedRef = useRef<string | null>(null);
-  const handleWelcomeTeamLoaded = useCallback((team: import("@/core/teams/api").Team) => {
+  const handleWelcomeTeamLoaded = useCallback((team: Team) => {
     if (!isNewThread || welcomeRosterLoadedRef.current === team.id) return;
     welcomeRosterLoadedRef.current = team.id;
     applyTaskCollaboratorPreset({ leaderId: team.leaderId, collaboratorIds: team.members.map(member => member.name), mode: "cluster" });
@@ -1390,15 +1385,17 @@ function RealtimePageContent({
       setGroupPerspectiveAgentId(null);
       return;
     }
-    setGroupPerspectiveAgentId((current) => {
-      if (current && groupPerspectiveAgentIds.has(current)) return current;
-      const remembered = readGroupPerspective(threadId);
-      if (remembered && groupPerspectiveAgentIds.has(remembered)) {
-        return remembered;
-      }
-      return effectiveAgentId;
-    });
+    setGroupPerspectiveAgentId((current) =>
+      resolveGroupPerspective(
+        current,
+        activeAgentId,
+        threadId,
+        groupPerspectiveAgentIds,
+        effectiveAgentId,
+      ),
+    );
   }, [
+    activeAgentId,
     effectiveAgentId,
     groupPerspectiveAgentIds,
     isGroupConversation,
@@ -2001,7 +1998,7 @@ function RealtimePageContent({
       setShowResearchHistory(false);
       setShowResearch(false);
       setShowPreview(false);
-      setAgentWorkbenchDismissed(false);
+
       setAgentWorkbenchManuallyOpened(true);
       setAgentWorkbenchTab("project");
       setAgentWorkbenchTabTouched(true);
@@ -2068,7 +2065,7 @@ function RealtimePageContent({
     await boundProjectQuery.refetch().catch(() => undefined);
     setAgentWorkbenchTab("agent");
     setAgentWorkbenchManuallyOpened(false);
-    setAgentWorkbenchDismissed(true);
+
     toast.success(t.projectCapability.detached);
   }, [
     boundProjectQuery,
@@ -2331,28 +2328,19 @@ function RealtimePageContent({
     routeAgentName,
   ]);
   useEffect(() => {
-    // 使用 effectiveAgentId 而非 resolvedThreadOwnerAgentId：echo-assistant
-    // 的存量 metadata 可能写的是 general，若据此派发会把 footer 的 active
-    // persona 漂移到别的 agent（「助手跳转别人agent」的另一个来源）。归位后
-    // echo 与 activeAgentId 相等，自然命中首条守卫而跳过派发。
-    if (
-      !effectiveAgentId ||
-      effectiveAgentId === activeAgentId ||
-      effectiveAgentId === "echo"
-    ) {
-      return;
-    }
+    // 在群对话中，当前主视角以 mainPerspectiveAgentId 为准，避免强制切回群创建人；
+    // 单聊则以 effectiveAgentId 为准。
+    const target = isGroupConversation ? mainPerspectiveAgentId : effectiveAgentId;
+    if (!target || target === activeAgentId || target === "echo") return;
     try {
       window.dispatchEvent(
-        new CustomEvent(ACTIVE_AGENT_EVENT, {
-          detail: { name: effectiveAgentId, source: "thread" },
-        }),
+        new CustomEvent(ACTIVE_AGENT_EVENT, { detail: { name: target, source: "thread" } }),
       );
     } catch (e) {
       swallow(e, "event");
     }
-    emitAgentChanged(effectiveAgentId, "thread");
-  }, [activeAgentId, effectiveAgentId]);
+    emitAgentChanged(target, "thread");
+  }, [activeAgentId, effectiveAgentId, isGroupConversation, mainPerspectiveAgentId]);
   useEffect(() => {
     const context = settings.context as typeof settings.context & {
       page_agent_memory_mode?: string;
@@ -2629,35 +2617,11 @@ function RealtimePageContent({
     }));
   }, [modelSwitchTimeline, threadId]);
   const conversationTimelineEntries = useMemo<MessageListTimelineEntry[]>(
-    () => [...roomTimelineEntries, ...modelSwitchTimelineEntries],
-    [modelSwitchTimelineEntries, roomTimelineEntries],
+    () => [...roomTimelineEntries, ...modelSwitchTimelineEntries], [modelSwitchTimelineEntries, roomTimelineEntries],
   );
-  const maxContextTokens = useMemo(
-    () => resolveModelContextWindow(selectedModel),
-    [selectedModel],
-  );
-  const contextTokens = useMemo(
-    () => estimateCurrentContextTokens(thread.messages),
-    [thread.messages],
-  );
-  // The ring shows the composition the server actually measured for this
-  // thread. A thread this server has not run yet — or a fetch that failed —
-  // falls back to splitting the live conversation here, so the detail is
-  // never empty.
-  const { breakdown: measuredContext } = useContextBreakdown(threadId, {
-    refreshKey: `${thread.messages.length}:${thread.lastTurnStatus ?? ""}`,
-  });
-  const contextSegments = useMemo(
-    () =>
-      (measuredContext?.segments ?? breakdownContextSegments(thread.messages)).map(
-        (segment) => ({
-          label: contextSegmentLabel(segment.key, t),
-          tokens: segment.tokens,
-          color: CONTEXT_SEGMENT_COLORS[segment.key],
-        }),
-      ),
-    [measuredContext, thread.messages, t],
-  );
+  const maxContextTokens = useMemo(() => resolveModelContextWindow(selectedModel), [selectedModel]);
+  const contextTokens = useMemo(() => estimateCurrentContextTokens(thread.messages), [thread.messages]);
+  const contextSegments = useThreadContextSegments(threadId, thread.messages, thread.lastTurnStatus, t);
   const compactThread = (thread as typeof thread & CompactableThread).compact;
   const handleCompressContext = useCallback(async () => {
     if (!compactThread || isCompressingContext) {
@@ -3212,8 +3176,6 @@ function RealtimePageContent({
     hasCompletedAgentOutput,
     agentRunFailed,
   ]);
-  const shouldHideSettledProcessChrome =
-    agentRunSettled && hasCompletedAgentOutput;
   const hasRenderableAgentWorkbench = useMemo(
     () =>
       isAgentWorkflowMode &&
@@ -3248,10 +3210,7 @@ function RealtimePageContent({
     (collaborationEnabled || Boolean(boundProjectQuery.data));
   const showAgentWorkbench =
     canOpenAgentWorkbench &&
-    (agentWorkbenchManuallyOpened ||
-      (!agentWorkbenchDismissed &&
-        hasRenderableAgentWorkbench &&
-        showAgentPlan)) &&
+    agentWorkbenchManuallyOpened &&
     !showResearchHistory &&
     !(showResearch && (!!researchJob || !!researchError));
   const artifactCount = artifacts?.length ?? 0;
@@ -3269,37 +3228,9 @@ function RealtimePageContent({
       setAgentWorkbenchManuallyOpened(false);
     }
     if (!hasRenderableAgentWorkbench) {
-      if (!isNewThread) {
-        setAgentWorkbenchDismissed(false);
-      }
       setAgentWorkbenchTabTouched(false);
     }
   }, [canOpenAgentWorkbench, hasRenderableAgentWorkbench, isNewThread]);
-
-  useEffect(() => {
-    if (
-      durableCollaborationEnabled ||
-      !hasRenderableAgentWorkbench ||
-      !shouldHideSettledProcessChrome ||
-      artifactsOpen ||
-      showAgentPlan
-    ) {
-      return;
-    }
-    if (settledWorkbenchAutoDismissedRef.current === settledWorkbenchTurnKey) {
-      return;
-    }
-    settledWorkbenchAutoDismissedRef.current = settledWorkbenchTurnKey;
-    setAgentWorkbenchDismissed(true);
-    setAgentWorkbenchTabTouched(false);
-  }, [
-    artifactsOpen,
-    durableCollaborationEnabled,
-    hasRenderableAgentWorkbench,
-    settledWorkbenchTurnKey,
-    shouldHideSettledProcessChrome,
-    showAgentPlan,
-  ]);
 
   useEffect(() => {
     if (
@@ -3330,7 +3261,7 @@ function RealtimePageContent({
     }
     emptyWorkbenchAutoDismissedRef.current = settledWorkbenchTurnKey;
     setAgentWorkbenchManuallyOpened(false);
-    setAgentWorkbenchDismissed(true);
+
     setAgentWorkbenchTabTouched(false);
   }, [
     agentRunSettled,
@@ -3352,7 +3283,7 @@ function RealtimePageContent({
   useEffect(() => {
     if (thread.isLoading) {
       setAgentWorkbenchTabTouched(false);
-      setAgentWorkbenchDismissed(false);
+
     }
   }, [thread.isLoading]);
 
@@ -3418,7 +3349,7 @@ function RealtimePageContent({
       setFocusedWorkbenchEffectKey(null);
       setArtifactsOpen(false);
       setShowAgentPlan(false);
-      setAgentWorkbenchDismissed(false);
+
       setAgentWorkbenchManuallyOpened(true);
       setShowResearchHistory(false);
       setShowResearch(false);
@@ -3447,7 +3378,7 @@ function RealtimePageContent({
       setFocusedWorkbenchEventNonce((n) => n + 1);
       setArtifactsOpen(false);
       setShowAgentPlan(false);
-      setAgentWorkbenchDismissed(false);
+
       setAgentWorkbenchManuallyOpened(true);
       setShowResearchHistory(false);
       setShowResearch(false);
@@ -4018,7 +3949,7 @@ function RealtimePageContent({
       }
       setArtifactsOpen(false);
       setShowAgentPlan(false);
-      setAgentWorkbenchDismissed(false);
+
       setAgentWorkbenchManuallyOpened(true);
       setShowResearchHistory(false);
       setShowResearch(false);
@@ -4035,7 +3966,7 @@ function RealtimePageContent({
     // terminal / browser). Open the workbench and switch to that tab.
     setArtifactsOpen(false);
     setShowAgentPlan(false);
-    setAgentWorkbenchDismissed(false);
+
     setAgentWorkbenchManuallyOpened(true);
     setShowResearchHistory(false);
     setShowResearch(false);
@@ -4059,7 +3990,7 @@ function RealtimePageContent({
       // if it's not visible.
       setArtifactsOpen(false);
       setShowAgentPlan(false);
-      setAgentWorkbenchDismissed(false);
+
       setAgentWorkbenchManuallyOpened(true);
       setShowResearchHistory(false);
       setShowResearch(false);
@@ -4109,7 +4040,7 @@ function RealtimePageContent({
     closeSpecialUtilityPanels();
     setArtifactsOpen(false);
     setShowAgentPlan(false);
-    setAgentWorkbenchDismissed(false);
+
     setAgentWorkbenchManuallyOpened(true);
     setShowResearchHistory(false);
     setShowResearch(false);
@@ -4139,7 +4070,7 @@ function RealtimePageContent({
   const closeAgentWorkbenchPanel = useCallback(() => {
     setArtifactsOpen(false);
     setAgentWorkbenchManuallyOpened(false);
-    setAgentWorkbenchDismissed(true);
+
   }, [setArtifactsOpen]);
 
   const closeUnifiedRightPanel = useCallback(() => {
@@ -4190,7 +4121,7 @@ function RealtimePageContent({
       // terminal / browser) — no need to open the legacy standalone sidebar.
       setArtifactsOpen(false);
       setShowAgentPlan(false);
-      setAgentWorkbenchDismissed(false);
+
       setAgentWorkbenchManuallyOpened(true);
       setShowResearchHistory(false);
       setShowResearch(false);
@@ -4422,8 +4353,26 @@ function RealtimePageContent({
   const headerMemberSurface = !isEchoAssistant ? (
     <RealtimeChatHeaderMemberSurface aiMembers={headerMemberControl} />
   ) : null;
+  const headerEnvironment = !isNewThread && !embeddedDesignChat ? (
+    <WorkspaceContextMenu
+      key={threadId}
+      workDir={isProjectCodeMode ? effectiveWorkDir : null}
+      events={agentDisplayEvents}
+      userInput={lastTurnUserInput}
+      groundingSources={thread.values.latest_grounding ?? []}
+      onOpenDiff={() => {
+        setAgentWorkbenchManuallyOpened(true);
+
+        setAgentWorkbenchTab("diff");
+        setAgentWorkbenchTabTouched(true);
+      }}
+      onOpenFile={openWorkbenchArtifact}
+
+    />
+  ) : null;
   const headerActions = !isEchoAssistant ? (
     <RealtimeChatHeaderActions
+      environment={headerEnvironment}
       recording={recorderPluginEnabled ? headerRecorder : null}
       workbench={headerWorkbench}
       share={
@@ -4500,8 +4449,9 @@ function RealtimePageContent({
                         projectStatus={
                           !embeddedDesignChat && boundProjectState ? (
                             <ProjectGroupHeaderBadge
-                              name={boundProjectState.project.name}
-                              status={boundProjectState.project.status}
+                              name={boundProjectState.project.name} status={boundProjectState.project.status}
+                              activeMilestone={resolveActiveProjectMilestone(boundProjectState, defaultProjectMilestoneId)}
+                              decisionsCount={boundProjectState.decisions?.length} decisions={boundProjectState.decisions}
                               onOpenWorkbench={() =>
                                 openProjectWorkbenchForEntity()
                               }
@@ -4542,6 +4492,7 @@ function RealtimePageContent({
                         <div className="ml-auto flex shrink-0 items-center gap-1">
                           {/* 助理是单聊：不提供加人/协作，也不录制，头部保持极简 */}
                           {headerEchoShare}
+                          {headerEnvironment}
                           <AssistantChannels />
                           <Button
                             type="button"
@@ -4809,7 +4760,7 @@ function RealtimePageContent({
                                 : undefined
                             }
                             responseModeControl={
-                              !embeddedDesignChat && isGroupConversation ? (
+                              !embeddedDesignChat && isGroupConversation && visibleCollaborationRoster.length > 1 ? (
                                 <TeamModePicker
                                   value={teamModeIntent}
                                   onChange={handleTeamModeIntentChange}
@@ -4932,18 +4883,6 @@ function RealtimePageContent({
                     )}
                   </div>
                 }
-                cornerNote={
-                  isNewThread ? null : (
-                    <WorkspaceNoteBadge
-                      workDir={effectiveWorkDir}
-                      events={agentDisplayEvents}
-                      hasAnswer={hasCompletedAgentOutput}
-                      runSettled={agentRunSettled}
-                      runFailed={agentRunFailed}
-                      paused={hasPausedOrPendingBackgroundTask}
-                    />
-                  )
-                }
                 secondaryPanel={
                   recorderPluginEnabled && showTeachRepeatPanel ? (
                     <div className="flex size-full min-h-0 flex-col overflow-hidden">
@@ -5017,6 +4956,7 @@ function RealtimePageContent({
                     <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
                       <div className="flex min-h-0 flex-1">
                         <AgentWorkbenchPanel
+                          hideMainOverview
                           activeTab={agentWorkbenchTab}
                           personaId={effectiveAgentId}
                           events={workbenchDisplayEvents}

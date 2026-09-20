@@ -7364,6 +7364,9 @@ export const jaJP: Translations = {
   },
 
   workspaceNote: {
+    menuTitle: "環境とソース",
+    sourcesTitle: "ソース",
+    viewAllSources: "すべて表示",
     title: "ワークスペースメモ",
     collapse: "メモを折りたたむ",
     refresh: "更新",

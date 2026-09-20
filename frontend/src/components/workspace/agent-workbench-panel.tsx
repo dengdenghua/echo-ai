@@ -48,7 +48,7 @@ import type {
 } from "./agent-workbench-events";
 import type { LiveToolEvent } from "./live-tool-timeline";
 import { cn } from "@/lib/utils";
-import { CoworkCollabBar } from "./cowork-collab-bar";
+import { CoworkSearchMenu } from "./cowork-collab-bar";
 import { CollaborationDeliveryRecovery } from "./collaboration-delivery-recovery";
 import type { ExtractedCodeBlocks } from "@/lib/extract-code-blocks";
 import type { StreamdownProps } from "streamdown";
@@ -129,8 +129,11 @@ function AgentWorkbenchPanelImpl({
   showMachineScopeRail = true,
   showMachineRosterRail = true,
   showDeliveryRecovery = false,
+  hideMainOverview = false,
 }: {
   activeTab?: AgentWorkbenchTabId;
+  /** Chat owns task progress; the header menu owns sources. */
+  hideMainOverview?: boolean;
   events: LiveToolEvent[];
   /** 「进展」面板的叙事大纲（按 iteration 分组）；缺省时回退为 phase 平铺。 */
   progressOutline?: OutlineRound[];
@@ -518,7 +521,8 @@ function AgentWorkbenchPanelImpl({
     (requestedActiveTab === "project" &&
       (projectOsQuery.isLoading || projectOsQuery.isError));
   const mergeProjectHome = projectTabVisible && workspacePresetForAgent(personaId).workbench === "office";
-  const effectiveActiveTab:
+  const isDevelopmentWorkbench = workspacePresetForAgent(personaId).workbench === "development";
+  const normalizedActiveTab:
     | "agent"
     | "diff"
     | "terminal"
@@ -535,13 +539,23 @@ function AgentWorkbenchPanelImpl({
       : requestedActiveTab === "project" && !projectTabVisible
         ? "agent"
         : requestedActiveTab;
+  const effectiveActiveTab =
+    isDevelopmentWorkbench && normalizedActiveTab === "workspace"
+      ? "diff"
+      : hideMainOverview &&
+    normalizedActiveTab === "agent" &&
+    !selectedAgent &&
+    !selectedRosterSeat &&
+    !selectedEffectKey
+      ? (mergeProjectHome ? "project" : isDevelopmentWorkbench ? "diff" : "workspace")
+      : normalizedActiveTab;
   const workbenchTabs: WorkbenchTab[] = useMemo(
     () => [
       ...(mergeProjectHome ? [{
         id: "project" as const,
         label: t.agentWorkbenchPages.projectTab,
         Icon: FolderKanbanIcon,
-      }] : [{
+      }] : isDevelopmentWorkbench ? [] : [{
         id: "workspace" as const,
         label: workspacePresetForAgent(personaId).workbenchLabel,
         Icon: PanelsTopLeftIcon,
@@ -576,7 +590,7 @@ function AgentWorkbenchPanelImpl({
           ]
         : []),
     ],
-    [t.agentWorkbenchPages, t.conversation, projectTabVisible, personaId, mergeProjectHome],
+    [t.agentWorkbenchPages, t.conversation, projectTabVisible, personaId, mergeProjectHome, isDevelopmentWorkbench],
   );
 
   // Auto-open a tab if it becomes the effective active tab
@@ -754,10 +768,7 @@ function AgentWorkbenchPanelImpl({
         onBack={() => setSelectedEffectKey(null)}
       />
     ) : effectiveActiveTab === "diff" ? (
-      <AgentDiffPage
-        entries={visibleDiffEntries}
-        onBackToSummary={() => handleOpenTab("agent")}
-      />
+      <AgentDiffPage entries={visibleDiffEntries} />
     ) : effectiveActiveTab === "terminal" ? (
       <TerminalPanel
         sessionId={`agent-workbench-${threadId ?? "local"}`}
@@ -816,6 +827,7 @@ function AgentWorkbenchPanelImpl({
       )}
     >
       <WorkbenchTabHeader
+        actions={threadId && effectiveActiveTab !== "project" && effectiveActiveTab !== "workspace" ? <CoworkSearchMenu threadId={threadId} /> : null}
         mainButton={{
           active:
             effectiveActiveTab === "agent" &&
@@ -843,7 +855,6 @@ function AgentWorkbenchPanelImpl({
       effectiveActiveTab !== "project" &&
       effectiveActiveTab !== "workspace" ? (
         <>
-          <CoworkCollabBar threadId={threadId} rosterSeats={rosterSeats} />
           {showDeliveryRecovery ? (
             <CollaborationDeliveryRecovery threadId={threadId} />
           ) : null}

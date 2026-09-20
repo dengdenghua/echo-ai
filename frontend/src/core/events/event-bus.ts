@@ -44,6 +44,7 @@ export interface EventMap {
   // page can safely remount onto that route. The sidebar uses this transient
   // route while the page keeps its live socket mounted.
   "thread:route-sync": { href: string; threadId: string };
+  "composer:insert-mention": { text: string; submit?: boolean };
 
   // 团队相关
   "team:select": { id: string; name: string };

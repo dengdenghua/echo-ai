@@ -1,4 +1,6 @@
+import { useState } from "react";
 import {
+  BookmarkIcon,
   FolderKanbanIcon,
   MoreHorizontalIcon,
   PanelRightOpenIcon,
@@ -14,6 +16,10 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { useI18n } from "@/core/i18n/hooks";
 import { cn } from "@/lib/utils";
+import {
+  ProjectDecisionsModal,
+  type ProjectDecisionItem,
+} from "./project-decisions-modal";
 
 const PROJECT_STATUS_DOT: Record<string, string> = {
   planning: "bg-amber-500",
@@ -29,21 +35,35 @@ const PROJECT_STATUS_DOT: Record<string, string> = {
  * canonical group title, roster, invitations, chat and AI participation live
  * in the shared header. This marker only opens or detaches the workbench.
  */
-export function ProjectGroupHeaderBadge({
-  name,
-  status,
-  onOpenWorkbench,
-  canDetach = false,
-  onDetach,
-  isDetaching = false,
-}: {
+export interface ProjectGroupHeaderBadgeProps {
   name: string;
   status?: string;
+  activeMilestone?: {
+    id: string;
+    name: string;
+    progress?: number;
+    status?: string;
+  };
+  decisionsCount?: number;
+  decisions?: ProjectDecisionItem[];
   onOpenWorkbench: () => void;
   canDetach?: boolean;
   onDetach?: () => void;
   isDetaching?: boolean;
-}) {
+}
+
+export function ProjectGroupHeaderBadge({
+  name,
+  status,
+  activeMilestone,
+  decisionsCount,
+  decisions,
+  onOpenWorkbench,
+  canDetach = false,
+  onDetach,
+  isDetaching = false,
+}: ProjectGroupHeaderBadgeProps) {
+  const [showDecisionsModal, setShowDecisionsModal] = useState(false);
   const { t } = useI18n();
   const copy = t.projectCapability;
   const safeName = name.trim();
@@ -69,28 +89,57 @@ export function ProjectGroupHeaderBadge({
         data-slot="project-capability-button"
         onClick={onOpenWorkbench}
         aria-label={`${copy.openWorkbench}：${safeName}`}
-        title={`${copy.openWorkbench}：${safeName}`}
-        className="inline-flex h-7 min-w-0 max-w-52 items-center gap-1.5 rounded-l-md px-2 text-[11px] font-medium transition-colors hover:bg-primary/10"
+        title={`${copy.openWorkbench}：${safeName}${activeMilestone ? ` · 当前里程碑：${activeMilestone.name}${typeof activeMilestone.progress === "number" ? ` (${activeMilestone.progress}%)` : ""}` : ""}${decisionsCount ? ` · 已沉淀 ${decisionsCount} 条核心决议` : ""}`}
+        className={cn(
+          "inline-flex h-7 min-w-0 items-center gap-1.5 rounded-l-md px-2 text-[11px] font-medium transition-colors hover:bg-primary/10",
+          activeMilestone ? "max-w-72" : "max-w-52",
+        )}
       >
         <FolderKanbanIcon
           data-slot="project-capability-icon"
           className="size-3.5 shrink-0"
           aria-hidden="true"
         />
-        <span data-slot="project-capability-label" className="truncate">
-          {copy.enabled}
-        </span>
-        <span data-slot="project-capability-separator" aria-hidden="true">
-          ·
-        </span>
-        <span
-          className={cn(
-            "size-1.5 shrink-0 rounded-full",
-            PROJECT_STATUS_DOT[safeStatus] || "bg-muted-foreground/55",
-          )}
-        />
-        <span className="truncate text-foreground/70">{statusLabel}</span>
+        {activeMilestone ? (
+          <>
+            <span className="truncate max-w-28 text-foreground/85 font-medium">
+              {activeMilestone.name}
+            </span>
+            {typeof activeMilestone.progress === "number" && (
+              <span className="shrink-0 rounded bg-primary/10 px-1 py-0.5 text-[9px] font-mono font-semibold text-primary">
+                {activeMilestone.progress}%
+              </span>
+            )}
+          </>
+        ) : (
+          <>
+            <span data-slot="project-capability-label" className="truncate">
+              {copy.enabled}
+            </span>
+            <span data-slot="project-capability-separator" aria-hidden="true">
+              ·
+            </span>
+            <span
+              className={cn(
+                "size-1.5 shrink-0 rounded-full",
+                PROJECT_STATUS_DOT[safeStatus] || "bg-muted-foreground/55",
+              )}
+            />
+            <span className="truncate text-foreground/70">{statusLabel}</span>
+          </>
+        )}
       </button>
+
+      {decisionsCount != null && decisionsCount > 0 && (
+        <button
+          type="button"
+          onClick={() => setShowDecisionsModal(true)}
+          className="hidden sm:inline-flex h-7 shrink-0 items-center gap-0.5 border-l border-primary/15 px-2 text-[10px] text-muted-foreground hover:bg-amber-500/15 hover:text-amber-700 dark:hover:text-amber-300 transition-colors"
+          title={`${decisionsCount} 条已沉淀项目决议（点击查看详情）`}
+        >
+          🏛️ {decisionsCount}
+        </button>
+      )}
 
       {canDetach && onDetach ? (
         <DropdownMenu>
@@ -114,6 +163,12 @@ export function ProjectGroupHeaderBadge({
               <PanelRightOpenIcon />
               <span>{copy.openWorkbench}</span>
             </DropdownMenuItem>
+            {decisionsCount != null && decisionsCount > 0 && (
+              <DropdownMenuItem onSelect={() => setShowDecisionsModal(true)}>
+                <BookmarkIcon className="size-3.5" />
+                <span>查看核心事实与决议 ({decisionsCount})</span>
+              </DropdownMenuItem>
+            )}
             <DropdownMenuSeparator />
             <DropdownMenuItem
               variant="destructive"
@@ -126,6 +181,14 @@ export function ProjectGroupHeaderBadge({
           </DropdownMenuContent>
         </DropdownMenu>
       ) : null}
+
+      <ProjectDecisionsModal
+        isOpen={showDecisionsModal}
+        onClose={() => setShowDecisionsModal(false)}
+        projectName={safeName}
+        decisions={decisions}
+        onOpenWorkbench={onOpenWorkbench}
+      />
     </div>
   );
 }

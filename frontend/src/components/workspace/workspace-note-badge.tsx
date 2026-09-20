@@ -15,7 +15,7 @@ import {
   StickyNoteIcon,
   XCircleIcon,
 } from "lucide-react";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import {
   agentPhaseDisplayTitle,
@@ -26,6 +26,7 @@ import {
 } from "./agent-phases";
 import type { LiveToolEvent } from "./live-tool-timeline";
 import { useI18n } from "@/core/i18n/hooks";
+import { ThinkingClockIcon } from "@/components/ai-elements/reasoning";
 import { useGitSummary } from "@/core/workspace/use-git-summary";
 import { cn } from "@/lib/utils";
 
@@ -62,6 +63,7 @@ function writeStoredExpanded(value: boolean): void {
  */
 export function WorkspaceNoteBadge({
   workDir,
+  showProcess = true,
   events,
   hasAnswer,
   runSettled,
@@ -73,8 +75,11 @@ export function WorkspaceNoteBadge({
   expanded: controlledExpanded,
   onExpandedChange,
   onOpenWorkbench,
+  onOpenDiff,
 }: {
   workDir?: string | null;
+  /** Hide the checklist when task progress already has a dedicated surface. */
+  showProcess?: boolean;
   events: LiveToolEvent[];
   hasAnswer?: boolean;
   runSettled?: boolean;
@@ -86,6 +91,7 @@ export function WorkspaceNoteBadge({
   expanded?: boolean;
   onExpandedChange?: (expanded: boolean) => void;
   onOpenWorkbench?: () => void;
+  onOpenDiff?: () => void;
 }) {
   const { t, locale } = useI18n();
   // Persisted choice wins over defaultExpanded: once the user has explicitly
@@ -96,14 +102,17 @@ export function WorkspaceNoteBadge({
   const isControlled = controlledExpanded !== undefined;
   const expanded = isControlled ? controlledExpanded : uncontrolledExpanded;
 
-  const setExpanded = (next: boolean | ((prev: boolean) => boolean)) => {
-    const nextVal = typeof next === "function" ? next(expanded) : next;
-    if (!isControlled) {
-      setUncontrolledExpanded(nextVal);
-      writeStoredExpanded(nextVal);
-    }
-    onExpandedChange?.(nextVal);
-  };
+  const setExpanded = useCallback(
+    (next: boolean | ((prev: boolean) => boolean)) => {
+      const nextVal = typeof next === "function" ? next(expanded) : next;
+      if (!isControlled) {
+        setUncontrolledExpanded(nextVal);
+        writeStoredExpanded(nextVal);
+      }
+      onExpandedChange?.(nextVal);
+    },
+    [expanded, isControlled, onExpandedChange],
+  );
 
   const rootRef = useRef<HTMLDivElement>(null);
   const { summary, error, isLoading, refresh } = useGitSummary(workDir, {
@@ -120,7 +129,7 @@ export function WorkspaceNoteBadge({
   const numberFormat = useMemo(() => new Intl.NumberFormat(locale), [locale]);
   const changedFiles = summary?.changedFiles ?? 0;
   const lineDelta = (summary?.added ?? 0) + (summary?.removed ?? 0);
-  const hasProcess = phases.length > 0;
+  const hasProcess = showProcess && phases.length > 0;
 
   // A detached HEAD arrives as an empty branch plus a flag, because git's own
   // wording for it ("HEAD (no branch)") is not something to show a reader who
@@ -140,10 +149,10 @@ export function WorkspaceNoteBadge({
     return () => {
       document.removeEventListener("keydown", onKeyDown);
     };
-  }, [expanded]);
+  }, [expanded, setExpanded]);
 
   // Nothing worth a permanent pixel: no repository, no changes, no run yet.
-  if (!branchLabel && changedFiles === 0 && !hasProcess && !error) {
+  if (!branchLabel && changedFiles === 0 && !hasProcess && (!showProcess || !error)) {
     return null;
   }
 
@@ -158,8 +167,8 @@ export function WorkspaceNoteBadge({
           type="button"
           data-note-summary="true"
           aria-expanded={false}
-          aria-label={t.workspaceNote.title}
-          title={t.workspaceNote.title}
+          aria-label={showProcess ? t.workspaceNote.title : t.workspaceNote.gitToolsTitle}
+          title={showProcess ? t.workspaceNote.title : t.workspaceNote.gitToolsTitle}
           onClick={() => setExpanded(true)}
           className={cn(
             "pointer-events-auto flex max-w-[min(24rem,65vw)] items-center gap-2",
@@ -167,7 +176,15 @@ export function WorkspaceNoteBadge({
             "shadow-md backdrop-blur transition-all hover:bg-muted/70 hover:shadow-lg",
           )}
         >
-          <StickyNoteIcon className="size-3.5 shrink-0 text-primary" />
+          <div className="relative flex items-center justify-center shrink-0">
+            <StickyNoteIcon className="size-3.5 shrink-0 text-primary" />
+            {showProcess && currentPhase?.status === "running" ? (
+              <span className="absolute -top-0.5 -right-0.5 flex size-2">
+                <span className="absolute inline-flex size-full animate-ping rounded-full bg-emerald-400 opacity-75" />
+                <span className="relative inline-flex size-2 rounded-full bg-emerald-500" />
+              </span>
+            ) : null}
+          </div>
           {branchLabel ? (
             <span
               data-note-branch={summary?.branch || ""}
@@ -231,6 +248,7 @@ export function WorkspaceNoteBadge({
         className={cn(
           "pointer-events-auto flex w-72 flex-col overflow-hidden rounded-xl",
           "border border-border-default/80 bg-background/95 shadow-xl backdrop-blur-md",
+          "ring-1 ring-black/5 dark:ring-white/10 dark:shadow-[0_12px_36px_rgba(0,0,0,0.5)]",
         )}
       >
         {/* Header: Git 工具 + 刷新 + 更多 + 收起 */}
@@ -300,7 +318,25 @@ export function WorkspaceNoteBadge({
           ) : null}
 
           {/* Row 1: 更改 / Changes */}
-          <div className="flex items-center justify-between rounded-lg px-2 py-1 text-xs hover:bg-muted/40 transition-colors">
+          <div
+            role={onOpenDiff || onOpenWorkbench ? "button" : undefined}
+            tabIndex={onOpenDiff || onOpenWorkbench ? 0 : undefined}
+            onClick={() => {
+              if (onOpenDiff) onOpenDiff();
+              else if (onOpenWorkbench) onOpenWorkbench();
+            }}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" || e.key === " ") {
+                e.preventDefault();
+                if (onOpenDiff) onOpenDiff();
+                else if (onOpenWorkbench) onOpenWorkbench();
+              }
+            }}
+            className={cn(
+              "flex items-center justify-between rounded-lg px-2 py-1 text-xs hover:bg-muted/40 transition-colors",
+              (onOpenDiff || onOpenWorkbench) && "cursor-pointer",
+            )}
+          >
             <div className="flex items-center gap-2 text-muted-foreground">
               <FileTextIcon className="size-3.5 text-muted-foreground" />
               <span>{t.workspaceNote.changesLabel === "变更" ? "更改" : t.workspaceNote.changesLabel}</span>
@@ -432,6 +468,7 @@ export function WorkspaceNoteBadge({
           ) : null}
         </div>
 
+        {showProcess && <>
         {/* Separator */}
         <div className="border-t border-border-subtle/70" />
 
@@ -468,11 +505,12 @@ export function WorkspaceNoteBadge({
             className="max-h-48 space-y-0.5 overflow-y-auto pr-1"
           >
             {hasProcess ? (
-              phases.map((phase) => (
+              phases.map((phase, idx) => (
                 <PhaseRow
                   key={phase.id}
                   phase={phase}
                   active={phase.id === currentPhase?.id}
+                  isLast={idx === phases.length - 1}
                   labels={t.agentPhases}
                   statusLabel={phaseStatusLabel(phase.status, t)}
                   onClick={onOpenWorkbench}
@@ -485,6 +523,7 @@ export function WorkspaceNoteBadge({
             )}
           </div>
         </div>
+        </>}
       </div>
     </div>
   );
@@ -493,12 +532,14 @@ export function WorkspaceNoteBadge({
 function PhaseRow({
   phase,
   active,
+  isLast,
   labels,
   statusLabel,
   onClick,
 }: {
   phase: AgentPhase;
   active: boolean;
+  isLast?: boolean;
   labels: Parameters<typeof agentPhaseDisplayTitle>[1];
   statusLabel: string;
   onClick?: () => void;
@@ -520,17 +561,33 @@ function PhaseRow({
       }
       data-note-phase={phase.status}
       className={cn(
-        "group flex min-w-0 items-center gap-2 rounded-lg px-2 py-1 text-xs transition-colors",
+        "group relative flex min-w-0 items-center gap-2 rounded-lg px-2 py-1 text-xs transition-colors",
         active ? "bg-primary/8 text-foreground" : "text-muted-foreground/85 hover:text-foreground",
         onClick && "cursor-pointer hover:bg-muted/60",
       )}
     >
-      <PhaseStatusIcon status={phase.status} />
+      <div className="relative flex size-4 shrink-0 items-center justify-center">
+        {!isLast ? (
+          <span
+            className={cn(
+              "absolute top-3.5 -bottom-2.5 left-1/2 -translate-x-1/2 w-px",
+              phase.status === "done" ? "bg-emerald-500/40" : "bg-border-default/60",
+            )}
+            aria-hidden="true"
+          />
+        ) : null}
+        <PhaseStatusIcon status={phase.status} />
+      </div>
       <span className="min-w-0 flex-1 truncate font-normal" title={phase.title}>
         {agentPhaseDisplayTitle(phase, labels)}
       </span>
       {active ? (
-        <span className="shrink-0 text-[11px] font-medium text-primary">
+        <span
+          className={cn(
+            "shrink-0 text-[11px] font-medium",
+            phase.status === "running" ? "text-shimmer font-semibold" : "text-primary",
+          )}
+        >
           {statusLabel}
         </span>
       ) : null}
@@ -539,7 +596,10 @@ function PhaseRow({
 }
 
 function PhaseStatusIcon({ status }: { status: AgentPhaseStatus }) {
-  if (status === "running" || status === "waiting_approval") {
+  if (status === "running") {
+    return <ThinkingClockIcon className="size-3.5" />;
+  }
+  if (status === "waiting_approval") {
     return <Loader2Icon className="size-3.5 shrink-0 animate-spin text-primary" />;
   }
   if (status === "pending") {

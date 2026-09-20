@@ -235,7 +235,7 @@ class DurableIdentityStore(IdentityStore):
 
     def _save(self) -> None:
         with self._lock:
-            hash_by_actor = {}
+            hash_by_actor: dict[str, str] = {}
             for stored_hash, identity in self._by_hash.items():
                 hash_by_actor.setdefault(identity.actor_id, stored_hash)
             rows = [

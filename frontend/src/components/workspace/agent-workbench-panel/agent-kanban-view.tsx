@@ -143,7 +143,7 @@ function AgentKanbanViewImpl({
       {/* Summary remains the default for the main process. A selected agent's
           execution screen is available here; identity belongs to the avatar
           profile card in the conversation, not this workbench. */}
-      <div className="flex items-center gap-4 border-b border-border-subtle px-5 py-2">
+      {(selectedAgent || selectedRosterSeat) && <div className="flex items-center gap-4 border-b border-border-subtle px-5 py-2">
         {[
           { id: "summary" as const, label: t.agentWorkbenchPanel.summaryLabel },
           ...(selectedAgent
@@ -177,7 +177,7 @@ function AgentKanbanViewImpl({
               mainAgentName ??
               t.agentWorkbenchPanel.mainComputer)}
         </span>
-      </div>
+      </div>}
 
       {effectiveActivityView === "summary" &&
       selectedAgent &&

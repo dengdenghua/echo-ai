@@ -6440,6 +6440,9 @@ export interface Translations {
   };
 
   workspaceNote: {
+    menuTitle: string;
+    sourcesTitle: string;
+    viewAllSources: string;
     title: string;
     collapse: string;
     refresh: string;

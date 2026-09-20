@@ -69,6 +69,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { cn } from "@/lib/utils";
+import { useEvent } from "@/core/events/event-bus";
 import { normalizePermissionMode } from "@/core/permissions";
 import { captureComputerAppshot } from "@/core/computer/api";
 import { uploadFiles, useAttachmentUploads } from "@/core/uploads";
@@ -333,6 +334,24 @@ export function ChatComposer({
       return serializeComposerDraft({ ...parsed, body });
     });
   }, []);
+
+  useEvent("composer:insert-mention", ({ text, submit }) => {
+    let next = "";
+    setDraft((cur) => {
+      const p = parseComposerDraft(cur);
+      next = p.body?.trimEnd() ? `${p.body.trimEnd()} ${text} ` : `${text} `;
+      return serializeComposerDraft({ ...p, body: next });
+    });
+    window.setTimeout(() => {
+      if (submit && next.trim()) {
+        onSubmit?.({ text: next.trim() });
+        return;
+      }
+      textareaRef.current?.focus();
+      const len = textareaRef.current?.value.length ?? 0;
+      textareaRef.current?.setSelectionRange(len, len);
+    }, 10);
+  });
 
   useEffect(() => {
     let focusTimer: ReturnType<typeof setTimeout> | undefined;

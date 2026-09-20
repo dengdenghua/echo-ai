@@ -1,10 +1,12 @@
 import { Fragment, useMemo, useState, type ReactNode } from "react";
 import { Link2Icon, PinIcon, SmilePlusIcon } from "lucide-react";
+import { toast } from "sonner";
 
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { MemberProfilePopover } from "@/components/workspace/member-profile-popover";
 import {
   senderAttribution,
+  useSetCoworkMemberDriver,
   type CoworkRoomEntityRef,
   type CoworkRoomMessage,
   type CoworkRoomParticipant,
@@ -302,6 +304,37 @@ function CoworkRoomTimelineEntryContent({
     ),
   );
 
+  const threadId = message.room_id || "";
+  const setDriverMutation = useSetCoworkMemberDriver();
+  const isDigitalRole =
+    participant?.kind === "role" || Boolean(participant?.accountable_owner);
+  const isTakeover = participant?.driver === "human";
+  const actionLabel = isDigitalRole
+    ? isTakeover
+      ? "交还 AI 自动托管"
+      : "接管此角色 (真人驾驶)"
+    : undefined;
+
+  const handleTakeoverToggle = () => {
+    if (!participant?.id || !threadId) return;
+    const nextDriver = isTakeover ? "ai" : "human";
+    setDriverMutation.mutate(
+      { threadId, memberId: participant.id, driver: nextDriver },
+      {
+        onSuccess: () => {
+          toast.success(
+            nextDriver === "human"
+              ? `已接管【${displayName}】，AI 已暂停自动应答`
+              : `已将【${displayName}】交还 AI 自动托管`,
+          );
+        },
+        onError: (err) => {
+          toast.error(`切换失败: ${String(err)}`);
+        },
+      },
+    );
+  };
+
   return (
     <article
       data-message-seq={message.seq}
@@ -343,6 +376,30 @@ function CoworkRoomTimelineEntryContent({
               ? "正在参与当前协作。"
               : "该成员正在参与当前对话。")
         }
+        details={[
+          {
+            label: "主体类别",
+            value:
+              participant?.kind === "role"
+                ? "数字员工 (具身岗位)"
+                : participant?.kind === "agent"
+                  ? "AI 助手 (平台算力)"
+                  : "真人用户",
+          },
+          ...(participant?.accountable_owner
+            ? [{ label: "责任人", value: participant.accountable_owner }]
+            : []),
+          ...(isDigitalRole
+            ? [
+                {
+                  label: "驾驶状态",
+                  value: isTakeover ? "真人接管中 (AI停手)" : "AI 自动托管中",
+                },
+              ]
+            : []),
+        ]}
+        actionLabel={actionLabel}
+        onAction={isDigitalRole && threadId ? handleTakeoverToggle : undefined}
         trigger={
           <button
             type="button"

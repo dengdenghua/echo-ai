@@ -15,8 +15,8 @@ type WorkspaceSurfaceMode = "agent" | "browser";
 let lastSurface: WorkspaceSurfaceMode | null = null;
 const sliderPosition = (surface: WorkspaceSurfaceMode) =>
   surface === "agent"
-    ? { transform: "translateX(0)", width: "44px" }
-    : { transform: "translateX(48px)", width: "44px" };
+    ? { transform: "translateX(0)", width: "48px" }
+    : { transform: "translateX(50px)", width: "48px" };
 
 export const LAST_AGENT_WORKSPACE_ROUTE_KEY =
   "echo:last-agent-workspace-route";
@@ -93,7 +93,7 @@ export function WorkspaceSurfaceSwitch({
   return (
     <div
       className={cn(
-        "relative isolate grid h-7 w-[92px] shrink-0 grid-cols-2 items-center gap-1 bg-foreground/[0.045]",
+        "relative isolate grid h-8 w-[104px] shrink-0 grid-cols-2 items-center gap-0.5 bg-foreground/[0.05] p-[3px] dark:bg-foreground/[0.07]",
         "group-data-[collapsible=icon]:hidden",
       )}
       style={{ borderRadius: radiusVar }}
@@ -103,9 +103,9 @@ export function WorkspaceSurfaceSwitch({
       <span
         ref={slider}
         aria-hidden="true"
-        className="pointer-events-none absolute inset-y-0.5 left-0 bg-background shadow-sm dark:bg-foreground/[0.14]"
+        className="pointer-events-none absolute inset-y-[3px] left-[3px] bg-background shadow-[0_1px_3px_rgb(0_0_0/0.08)] dark:bg-foreground/[0.14] dark:shadow-[0_1px_3px_rgb(0_0_0/0.16)]"
         style={{
-          borderRadius: `max(4px, calc(${radiusVar} - 4px))`,
+          borderRadius: `max(4px, calc(${radiusVar} - 3px))`,
           ...sliderPosition(active),
         }}
       />
@@ -121,17 +121,17 @@ export function WorkspaceSurfaceSwitch({
             role="tab"
             aria-selected={isActive}
             className={cn(
-              "relative z-10 flex h-7 min-w-0 items-center justify-center gap-1.5 px-1 text-xs leading-none after:absolute after:inset-x-0 after:-inset-y-[2px] after:content-['']",
-              "transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring",
+              "relative z-10 flex h-[26px] min-w-0 items-center justify-center gap-1.5 px-1 text-xs leading-none after:absolute after:inset-x-0 after:-inset-y-[3px] after:content-['']",
+              "transition-colors duration-150 motion-reduce:transition-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring",
               isActive
                 ? "font-medium text-foreground"
-                : "font-medium text-muted-foreground hover:bg-foreground/[0.035] hover:text-foreground",
+                : "font-medium text-foreground/60 hover:bg-foreground/[0.04] hover:text-foreground",
             )}
-            style={{ borderRadius: `max(4px, calc(${radiusVar} - 4px))` }}
+            style={{ borderRadius: `max(4px, calc(${radiusVar} - 3px))` }}
           >
             {item.value === "browser" && (
               <GlobeIcon
-                className="size-[14px] shrink-0"
+                className="size-4 shrink-0"
                 strokeWidth={1.75}
                 aria-hidden="true"
               />

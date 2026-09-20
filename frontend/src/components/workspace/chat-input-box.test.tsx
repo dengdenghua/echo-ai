@@ -1255,15 +1255,10 @@ describe("<ChatInputBox /> cowork materials", () => {
   it("shows the Claude-style context ring on the workspace status row", async () => {
     renderWithProviders(
       <ChatInputBox
-        mode="react"
-        threadId="thread-context-window"
-        workDir="D:/pod-App"
-        contextTokens={500}
-        maxContextTokens={1_000_000}
+        mode="react" threadId="thread-context-window" workDir="D:/pod-App"
+        contextTokens={500} maxContextTokens={1_000_000}
         contextSegments={[
-          { label: "Messages", tokens: 400, color: "bg-primary" },
-          { label: "MCP tools", tokens: 60, color: "bg-chart-4" },
-          { label: "Skills", tokens: 40, color: "bg-chart-2" },
+          { label: "Messages", tokens: 400, color: "bg-primary" }, { label: "MCP tools", tokens: 60, color: "bg-chart-4" }, { label: "Skills", tokens: 40, color: "bg-chart-2" },
         ]}
       />,
     );
@@ -1271,13 +1266,9 @@ describe("<ChatInputBox /> cowork materials", () => {
     const strip = screen.getByTestId("chat-status-strip");
     const trigger = screen.getByTestId("chat-context-window-trigger");
     expect(strip).toContainElement(trigger);
-    expect(trigger).toHaveAttribute(
-      "aria-label",
-      expect.stringMatching(/Context Window: 500 \/ 1M \(0%\)/),
-    );
+    expect(trigger).toHaveAttribute("aria-label", expect.stringMatching(/Context usage: 500 \/ 1M \(0%\)/));
     fireEvent.pointerDown(trigger, { button: 0, ctrlKey: false });
     fireEvent.click(trigger);
-    // One row per segment: the detail is the point of expanding the ring.
     expect(await screen.findByText("Messages")).toBeInTheDocument();
     expect(screen.getByText("MCP tools")).toBeInTheDocument();
     expect(screen.getByText("Skills")).toBeInTheDocument();

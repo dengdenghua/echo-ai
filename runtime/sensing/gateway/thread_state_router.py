@@ -649,51 +649,23 @@ def create_thread_state_router(
         if not getattr(store, "feedback_enabled", True):
             raise HTTPException(501, "feedback system not enabled")
         try:
-            if message_index is not None:
-                feedbacks = store.get_message_feedback(thread_id, message_index)
-            else:
-                feedbacks = store.get_message_feedback(thread_id, None)
+            feedbacks = store.get_message_feedback(thread_id, message_index)
         except Exception as exc:
             _logger.exception("get feedback failed")
             raise HTTPException(500, f"get feedback failed: {exc}") from exc
-        return {
-            "feedbacks": [
-                {
-                    "thread_id": f.thread_id,
-                    "message_index": f.message_index,
-                    "feedback_type": f.feedback_type,
-                    "tags": list(f.tags),
-                    "comment": f.comment,
-                    "timestamp": f.timestamp,
-                    "user_id": f.user_id,
-                }
-                for f in feedbacks
-            ]
-        }
+        return {"feedbacks": [
+            {"thread_id": f.thread_id, "message_index": f.message_index, "feedback_type": f.feedback_type,
+             "tags": list(f.tags), "comment": f.comment, "timestamp": f.timestamp, "user_id": f.user_id}
+            for f in feedbacks
+        ]}
 
     @router.get("/api/threads/{thread_id}/context-breakdown")
     def get_thread_context_breakdown(request: Request, thread_id: str) -> dict[str, Any]:
-        """Claude-style context segments for the composer ring.
-
-        Walks this thread's stored messages and splits them into messages,
-        MCP tools, system tools, skills, system prompt, and memory. The
-        caller must already be able to read the thread.
-        """
-        actor_id = _auth(request)
-        tenant_id = _tenant(request)
-        _require_store()
-        thread_id = _require_thread_id(thread_id)
-        thread = _get_accessible_thread(thread_id, actor_id, tenant_id)
-        if thread is None:
-            raise HTTPException(404, f"thread not found: {thread_id}")
-        values = thread.get("values") if isinstance(thread.get("values"), dict) else {}
-        messages = values.get("messages") if isinstance(values, dict) else None
-        from .context_breakdown import breakdown_for_thread
-
-        # The last measured request wins when this server assembled one for
-        # the thread; otherwise the segments are an estimate of the stored
-        # messages, and ``source`` says so.
-        return breakdown_for_thread(thread_id, messages if isinstance(messages, list) else [])
+        """Claude-style context segments for the composer ring."""
+        from .context_breakdown import handle_thread_context_breakdown
+        return handle_thread_context_breakdown(
+            request, thread_id, _auth, _tenant, _require_store, _require_thread_id, _get_accessible_thread
+        )
 
     @router.get("/api/threads/{thread_id}")
     def get_thread(request: Request, thread_id: str) -> dict[str, Any]:

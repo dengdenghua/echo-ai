@@ -61,10 +61,7 @@ export function EmptyShellView({
   const { t } = useI18n();
   const emptyEmbeddedPage =
     effectiveActiveTab === "diff" ? (
-      <AgentDiffPage
-        entries={visibleDiffEntries}
-        onBackToSummary={() => onTabClick("agent")}
-      />
+      <AgentDiffPage entries={visibleDiffEntries} />
     ) : effectiveActiveTab === "terminal" ? (
       <TerminalPanel
         sessionId={`agent-workbench-${threadId ?? "local"}`}
