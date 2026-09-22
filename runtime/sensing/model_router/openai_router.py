@@ -147,7 +147,15 @@ class OpenAIModelRouter(Provider, ModelRouter):
         self.default_model = default_model
         self.timeout_seconds = timeout_seconds
         self.pricing_per_1k = pricing_per_1k or {}
-        self.extra_headers = dict(extra_headers or {})
+        # OpenCode's Zen/Go endpoints answer 400 ``MissingSessionID`` unless the
+        # client identifies a session, and their free tier is gated on the caller
+        # looking like OpenCode. Merge those headers here instead of at each
+        # construction site so the planner, the gateway and the fallback builder
+        # all send them; headers passed in by the entry still win.
+        self.extra_headers = {
+            **_opencode_session_headers(self.base_url),
+            **dict(extra_headers or {}),
+        }
         # A routed selection_id already resolved one exact endpoint entry.
         # Bind that metadata so entries sharing the same upstream model cannot
         # borrow each other's capability or compatibility flags after rewrite.
@@ -965,6 +973,18 @@ def _format_openai_http_error(
         return _append_compatibility_retry_summary(
             f"http_{status_code}: 模型账户余额不足，请充值当前模型供应商账户，"
             "或在模型选择里切换到可用模型。",
+            compatibility_events,
+        )
+    if status_code == 403 and (
+        "freetiererror" in lower or "free tier can only be used" in lower
+    ):
+        # OpenCode answers this for its free catalog when the caller is not the
+        # OpenCode client itself. Saying "invalid API key" here sent operators
+        # hunting for a credential problem that does not exist.
+        return _append_compatibility_retry_summary(
+            "http_403: OpenCode 免费模型只能在 OpenCode 客户端内调用，"
+            "第三方客户端无法使用该渠道的免费模型；"
+            "请改用 OpenCode Go 渠道的同名模型，或在模型选择里换一个可用模型。",
             compatibility_events,
         )
     if status_code in (401, 403):

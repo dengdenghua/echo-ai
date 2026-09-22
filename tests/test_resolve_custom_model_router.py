@@ -415,3 +415,126 @@ def test_unconfigured_model_router_raises_clear_error() -> None:
     req = ModelRequest(model="x", messages=[Message(role="user", content="hi")])
     with _pytest.raises(RuntimeError, match="no LLM model configured"):
         UnconfiguredModelRouter().call(req)
+
+
+class _StubCredentialStore:
+    """Stands in for the AES-encrypted store so tests never touch ~/.echo."""
+
+    def __init__(self, secrets: dict[tuple[str, str], str]) -> None:
+        self._secrets = dict(secrets)
+
+    def get_secret(self, connector_id: str, key: str) -> str:
+        return self._secrets.get((connector_id, key), "")
+
+
+class TestCredentialReferenceResolution:
+    """Connector-backed entries (OpenCode Zen/Go and every other model
+    provider plugin) keep the secret in the credential store and leave only a
+    ``connector:<id>:<key>`` reference in custom_models.json. The resolver has
+    to follow that reference, otherwise the request goes upstream without an
+    Authorization header and the provider answers "Missing API key."
+    """
+
+    def test_credential_ref_is_resolved(
+        self,
+        _custom_models_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        from runtime.sensing.gateway.openai_gateway.request_parser import (
+            _resolve_custom_model_router,
+        )
+
+        _write(
+            _custom_models_path,
+            {
+                "opencode-go": {
+                    "id": "opencode-go",
+                    "provider": "openai-compatible",
+                    "base_url": "https://opencode.ai/zen/go/v1",
+                    "api_key": "",
+                    "credential_ref": "connector:opencode-zen:api_key",
+                    "models": ["mimo-v2.6-flash", "qwen3.8-flash"],
+                },
+            },
+        )
+        monkeypatch.setattr(
+            "runtime.platform.connectors.credential_store.CredentialStore",
+            lambda *args, **kwargs: _StubCredentialStore(
+                {("opencode-zen", "api_key"): "sk-resolved"},
+            ),
+        )
+
+        router, resolved = _resolve_custom_model_router("mimo-v2.6-flash", object())
+
+        assert resolved == "mimo-v2.6-flash"
+        assert getattr(router, "api_key", None) == "sk-resolved"
+
+    def test_inline_key_wins_over_the_reference(
+        self,
+        _custom_models_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        from runtime.sensing.gateway.openai_gateway.request_parser import (
+            _resolve_custom_model_router,
+        )
+
+        _write(
+            _custom_models_path,
+            {
+                "relay": {
+                    "id": "relay",
+                    "provider": "openai",
+                    "base_url": "https://relay.example/v1",
+                    "api_key": "sk-inline",
+                    "credential_ref": "connector:relay:api_key",
+                    "models": ["relay-small"],
+                },
+            },
+        )
+
+        def _explode(*_args: object, **_kwargs: object) -> None:
+            raise AssertionError("inline keys must not hit the credential store")
+
+        monkeypatch.setattr(
+            "runtime.platform.connectors.credential_store.CredentialStore",
+            _explode,
+        )
+
+        router, resolved = _resolve_custom_model_router("relay-small", object())
+
+        assert resolved == "relay-small"
+        assert getattr(router, "api_key", None) == "sk-inline"
+
+    def test_missing_secret_still_builds_a_router(
+        self,
+        _custom_models_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """A stale reference must degrade to the old unauthenticated path,
+        not blow up the turn."""
+        from runtime.sensing.gateway.openai_gateway.request_parser import (
+            _resolve_custom_model_router,
+        )
+
+        _write(
+            _custom_models_path,
+            {
+                "opencode-go": {
+                    "id": "opencode-go",
+                    "provider": "openai-compatible",
+                    "base_url": "https://opencode.ai/zen/go/v1",
+                    "api_key": "",
+                    "credential_ref": "connector:opencode-zen:api_key",
+                    "models": ["mimo-v2.6-flash"],
+                },
+            },
+        )
+        monkeypatch.setattr(
+            "runtime.platform.connectors.credential_store.CredentialStore",
+            lambda *args, **kwargs: _StubCredentialStore({}),
+        )
+
+        router, resolved = _resolve_custom_model_router("mimo-v2.6-flash", object())
+
+        assert resolved == "mimo-v2.6-flash"
+        assert getattr(router, "api_key", "") == ""

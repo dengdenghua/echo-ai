@@ -68,6 +68,21 @@ def _resolve_custom_model_router(
         _provider = str(_custom_entry.get("provider") or "openai").lower()
         _base_url = str(_custom_entry.get("base_url") or "")
         _api_key = str(_custom_entry.get("api_key") or "")
+        if not _api_key:
+            # Connector-backed entries (OpenCode Zen/Go, and every other
+            # model-provider plugin) keep the secret in the credential store
+            # and leave only a reference in the entry. Resolving it here — per
+            # turn, never at startup — is what keeps the direct-LLM fallback
+            # from going upstream unauthenticated, which the provider answers
+            # with "Missing API key."
+            try:
+                from runtime.platform.models.model_provider_plugin import (
+                    resolve_model_provider_api_key,
+                )
+
+                _api_key = resolve_model_provider_api_key(_custom_entry)
+            except Exception:  # noqa: BLE001 — keep the unauthenticated path
+                _api_key = ""
         # When the caller passed a variant name, that exact name IS
         # the upstream model. Otherwise pick the first model in the
         # entry's models[] list (legacy "entry-as-alias" behavior).

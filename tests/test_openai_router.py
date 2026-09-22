@@ -1554,3 +1554,117 @@ class TestDeepSeekNativeEffortWire:
         # must not receive an unknown effort value or an enabled envelope.
         assert "reasoning_effort" not in payload
         assert "thinking" not in payload
+
+
+# ═══════════════════════════════════════════════════════════
+# OpenCode Zen / Go session identification
+# ═══════════════════════════════════════════════════════════
+
+
+def test_opencode_zen_sends_session_header() -> None:
+    """OpenCode Go answers 400 MissingSessionID without a session header.
+
+    The header has to be attached by the router itself: the planner, the
+    gateway and the fallback builder all construct routers, and only one of
+    them remembered to do it.
+    """
+    fake = _FakeClient(response=_FakeResponse(200, _openai_response("ok")))
+    router = OpenAIModelRouter(
+        base_url="https://opencode.ai/zen/go/v1",
+        api_key="sk-test",
+        default_model="mimo-v2.6-flash",
+        client=fake,
+    )
+    router.call(_req(model="mimo-v2.6-flash"))
+
+    headers = fake.calls[0]["headers"]
+    assert headers["x-opencode-session"]
+    assert headers["Authorization"] == "Bearer sk-test"
+
+
+def test_opencode_zen_free_catalog_uses_the_same_session_header() -> None:
+    fake = _FakeClient(response=_FakeResponse(200, _openai_response("ok")))
+    router = OpenAIModelRouter(
+        base_url="https://opencode.ai/zen/v1",
+        api_key="sk-test",
+        default_model="mimo-v2.6-flash-free",
+        client=fake,
+    )
+    router.call(_req(model="mimo-v2.6-flash-free"))
+
+    assert fake.calls[0]["headers"]["x-opencode-session"]
+
+
+def test_entry_headers_still_win_over_the_session_defaults() -> None:
+    fake = _FakeClient(response=_FakeResponse(200, _openai_response("ok")))
+    router = OpenAIModelRouter(
+        base_url="https://opencode.ai/zen/go/v1",
+        api_key="sk-test",
+        default_model="mimo-v2.6-flash",
+        extra_headers={"x-opencode-session": "conversation-42"},
+        client=fake,
+    )
+    router.call(_req(model="mimo-v2.6-flash"))
+
+    assert fake.calls[0]["headers"]["x-opencode-session"] == "conversation-42"
+
+
+@pytest.mark.parametrize(
+    "base_url",
+    [
+        "http://x/v1",
+        "https://api.deepseek.com/v1",
+        # A relay that merely mirrors the path must not be treated as OpenCode.
+        "https://relay.example/zen/go/v1",
+    ],
+)
+def test_other_providers_get_no_session_header(base_url: str) -> None:
+    fake = _FakeClient(response=_FakeResponse(200, _openai_response("ok")))
+    router = OpenAIModelRouter(
+        base_url=base_url,
+        api_key="sk-test",
+        default_model="some-model",
+        client=fake,
+    )
+    router.call(_req(model="some-model"))
+
+    assert "x-opencode-session" not in fake.calls[0]["headers"]
+
+
+def test_opencode_free_tier_403_explains_the_gate() -> None:
+    """The upstream gate is not a credential problem and must not read like one."""
+    fake = _FakeClient(
+        response=_FakeResponse(
+            403,
+            {
+                "type": "error",
+                "error": {
+                    "type": "FreeTierError",
+                    "message": "OpenCode's free tier can only be used from within OpenCode",
+                },
+            },
+        )
+    )
+    router = OpenAIModelRouter(
+        base_url="https://opencode.ai/zen/v1",
+        api_key="sk-test",
+        default_model="mimo-v2.6-flash-free",
+        client=fake,
+    )
+
+    with pytest.raises(OpenAIRouterError) as exc:
+        router.call(_req(model="mimo-v2.6-flash-free"))
+
+    message = str(exc.value)
+    assert "免费模型只能在 OpenCode 客户端内调用" in message
+    assert "API Key 无效" not in message
+
+
+def test_plain_403_still_reports_a_credential_problem() -> None:
+    fake = _FakeClient(response=_FakeResponse(403, text="Forbidden"))
+    router = OpenAIModelRouter(base_url="http://x/v1", client=fake)
+
+    with pytest.raises(OpenAIRouterError) as exc:
+        router.call(_req())
+
+    assert "模型 API Key 无效或没有权限" in str(exc.value)
