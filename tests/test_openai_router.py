@@ -1489,6 +1489,133 @@ def test_entry_profile_still_applies_when_the_base_url_identifies_the_vendor() -
     assert router._profile_for_model("some-unreleased-id").id == "deepseek"
 
 
+def _patch_custom_models_catalog(monkeypatch, tmp_path, catalog: dict) -> None:
+    """Point ``custom_models.json`` at a fixture catalog for one test."""
+
+    import json as _json
+
+    from runtime.platform.process.paths import app_paths
+
+    custom_models_path = tmp_path / "custom_models.json"
+    custom_models_path.write_text(_json.dumps(catalog), encoding="utf-8")
+    original = app_paths()
+
+    class _Patched:
+        pass
+
+    _Patched.custom_models_path = custom_models_path
+
+    def _getattr(self, name: str) -> object:
+        return getattr(original, name)
+
+    _Patched.__getattr__ = _getattr
+    monkeypatch.setattr(
+        "runtime.platform.process.paths.app_paths",
+        lambda: _Patched(),
+    )
+
+
+# Two endpoints fronting the same upstream model id — the shape that made a
+# model-name-only reverse lookup cross vendor lines.
+_RELAY_CATALOG = {
+    "zen": {
+        "id": "zen",
+        "provider": "openai-compatible",
+        "base_url": "https://opencode.ai/zen/v1",
+        "models": ["deepseek-v4-flash"],
+        "compat_profile": "kimi_coding",
+    },
+    "go": {
+        "id": "go",
+        "provider": "openai-compatible",
+        "base_url": "https://opencode.ai/zen/go/v1",
+        "models": ["deepseek-v4-flash"],
+    },
+}
+
+
+def test_relay_does_not_borrow_a_sibling_entry_for_a_same_named_model(
+    monkeypatch,
+    tmp_path,
+) -> None:
+    """The reverse lookup is anchored on the endpoint actually being called.
+
+    Both entries advertise ``deepseek-v4-flash``. Only the one whose
+    ``base_url`` is really being called may contribute its compat profile;
+    otherwise a sibling entry's quirks cross vendor lines.
+    """
+    _patch_custom_models_catalog(monkeypatch, tmp_path, _RELAY_CATALOG)
+
+    go = OpenAIModelRouter(
+        base_url="https://opencode.ai/zen/go/v1",
+        api_key="sk-test",
+        default_model="deepseek-v4-flash",
+    )
+    assert go._entry_for_model("deepseek-v4-flash")["id"] == "go"
+    # That entry declares no compat_profile, so the model's own profile stands.
+    assert go._profile_for_model("deepseek-v4-flash").id == "deepseek"
+
+    relay = _relay_router("deepseek-v4-flash")
+    # Neither entry is the endpoint being called: refuse to guess rather than
+    # hand the call a sibling entry's kimi_coding quirks.
+    assert relay._entry_for_model("deepseek-v4-flash") is None
+    profile = relay._profile_for_model("deepseek-v4-flash")
+    assert profile.id == "deepseek"
+    assert profile.omit_sampling_parameters is False
+
+
+def test_entry_without_base_url_still_matches_the_model_everywhere(
+    monkeypatch,
+    tmp_path,
+) -> None:
+    """A credential-backed row declares no ``base_url`` and must keep working.
+
+    An entry with no endpoint of its own is a statement about the model id
+    everywhere, so an unrelated relay still inherits its operator flags.
+    """
+    _patch_custom_models_catalog(
+        monkeypatch,
+        tmp_path,
+        {
+            "manual-kimi": {
+                "id": "manual-kimi",
+                "provider": "openai",
+                "models": ["manual-code-model"],
+                "compat_profile": "qwen",
+                "omit_sampling_parameters": True,
+            },
+        },
+    )
+
+    router = OpenAIModelRouter(
+        base_url="https://relay.example/v1",
+        api_key="sk-test",
+        default_model="manual-code-model",
+    )
+    assert router._entry_for_model("manual-code-model")["id"] == "manual-kimi"
+    assert router._profile_for_model("manual-code-model").id == "qwen"
+
+
+def test_explicit_entry_outranks_the_catalog_lookup(monkeypatch, tmp_path) -> None:
+    """A routed row already resolved one exact endpoint; never re-guess it."""
+
+    _patch_custom_models_catalog(monkeypatch, tmp_path, _RELAY_CATALOG)
+
+    router = OpenAIModelRouter(
+        base_url="https://relay.example/v1",
+        api_key="sk-test",
+        default_model="deepseek-v4-flash",
+        custom_model_entry={
+            "id": "explicit",
+            "provider": "openai-compatible",
+            "models": ["deepseek-v4-flash"],
+            "compat_profile": "glm",
+        },
+    )
+    assert router._entry_for_model("glm-5.2")["id"] == "explicit"
+    assert router._profile_for_model("deepseek-v4-flash").id == "glm"
+
+
 def test_non_streaming_response_splits_inline_reasoning() -> None:
     """The blocking ``call`` path needs the same split as the stream path."""
     router = OpenAIModelRouter(

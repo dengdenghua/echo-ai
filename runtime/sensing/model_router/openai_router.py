@@ -614,9 +614,23 @@ class OpenAIModelRouter(Provider, ModelRouter):
         if profile.id == "openai_compat" and self._can_fall_back_to_entry_profile(model):
             profile = self._provider_profile
         return apply_custom_openai_compat_profile(
-            self._custom_model_entry or custom_model_entry_for(model),
+            self._entry_for_model(model),
             base_profile=profile,
         )
+
+    def _entry_for_model(self, model: str) -> dict[str, Any] | None:
+        """The operator entry governing ``model`` on *this* endpoint.
+
+        An entry handed to the constructor already resolved one exact row, so
+        it wins outright. Otherwise the reverse lookup is anchored on
+        ``self.base_url``: a relay serves many vendors behind one URL, and a
+        model-name-only match let a sibling entry's ``compat_profile`` and
+        capability flags cross vendor lines.
+        """
+
+        if self._custom_model_entry is not None:
+            return self._custom_model_entry
+        return custom_model_entry_for(model, self.base_url)
 
     def _can_fall_back_to_entry_profile(self, model: str) -> bool:
         """Whether the entry-level profile may stand in for this model.
