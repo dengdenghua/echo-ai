@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import logging
 from typing import TYPE_CHECKING, Any
 
 from fastapi import HTTPException, Request
@@ -433,6 +434,23 @@ def _validate_account_model_preference(
 def _account_http_error(exc: Exception, *, operation: str) -> HTTPException:
     """Map failures to fixed, non-secret public messages."""
 
+    # The wire message stays opaque on purpose, which used to leave an
+    # operator staring at a bare 503 with nothing in the log to explain it.
+    # Keep the response identical and record the cause server-side.
+    if not isinstance(
+        exc,
+        (
+            CodexAccountConflict,
+            CodexAccountCapacityError,
+            CodexAccountLeaseError,
+            ConfigurationError,
+        ),
+    ):
+        logging.getLogger(__name__).warning(
+            "codex account %s failed",
+            operation,
+            exc_info=exc,
+        )
     if isinstance(exc, CodexAccountConflict):
         return HTTPException(409, "A Codex login is already pending")
     if isinstance(exc, CodexAccountCapacityError):

@@ -34,6 +34,7 @@ from runtime.execution.codex_backend.types import (
     CodexAppServerConfig,
     ConfigurationError,
     Notification,
+    RemoteError,
     RequestTimeoutError,
 )
 from runtime.execution.codex_backend.upstream_update import CodexUpstreamUpdateService
@@ -103,6 +104,7 @@ class _FakeControlClient:
         self.model_calls = 0
         self.refresh_reads = 0
         self.logout_calls = 0
+        self.account_read_error: BaseException | None = None
 
     @property
     def home(self) -> Path:
@@ -112,6 +114,8 @@ class _FakeControlClient:
         return {"userAgent": "fake-control"}
 
     async def account_read(self, *, refresh_token: bool = False) -> dict[str, object]:
+        if self.account_read_error is not None:
+            raise self.account_read_error
         if refresh_token and self.account is not None:
             self.refresh_reads += 1
             auth = self.home / "auth.json"
@@ -241,11 +245,13 @@ class _FakeControlClient:
 
 
 class _ControlFactory:
-    def __init__(self) -> None:
+    def __init__(self, *, account_read_error: BaseException | None = None) -> None:
         self.clients: list[_FakeControlClient] = []
+        self.account_read_error = account_read_error
 
     def __call__(self, config: CodexAppServerConfig) -> Any:
         client = _FakeControlClient(config, serial=len(self.clients) + 1)
+        client.account_read_error = self.account_read_error
         self.clients.append(client)
         return client
 
@@ -640,6 +646,181 @@ async def test_shared_principal_never_inherits_host_chatgpt_login(tmp_path: Path
 
     assert not (service.account_home(scope) / "auth.json").exists()
     await service.close_all()
+
+
+@pytest.mark.asyncio
+async def test_revoked_chatgpt_credential_is_quarantined_and_reported_as_signed_out(
+    tmp_path: Path,
+) -> None:
+    """A provider-revoked token must not turn into an opaque account/read 503.
+
+    Codex App Server resolves workspace routing while answering
+    ``account/read``, so once the provider revokes the stored ChatGPT token the
+    whole call fails with ``-32603 workspace routing discovery failed``.  That
+    error used to surface as a 503 and hide the authorization controls, leaving
+    the user unable to reach the official login URL.  The dead file is now
+    retired and the principal is reported as plainly signed out.
+    """
+
+    factory = _ControlFactory(
+        account_read_error=RemoteError(-32603, "workspace routing discovery failed")
+    )
+    service = CodexAccountService(
+        tmp_path / "state",
+        command=_FAKE_COMMAND,
+        client_factory=factory,
+    )
+    scope = TenantScope("tenant", "alice")
+    try:
+        home = service.account_home(scope)
+        home.mkdir(parents=True, exist_ok=True)
+        auth = home / "auth.json"
+        auth.write_text(json.dumps({"marker": "revoked-chatgpt"}), encoding="utf-8")
+        auth.chmod(0o600)
+
+        status = await service.read_account(scope)
+
+        assert status.account is None
+        assert status.requires_openai_auth is True
+        assert not auth.exists()
+        quarantined = list(home.glob("auth.json.revoked-*"))
+        assert len(quarantined) == 1
+        assert json.loads(quarantined[0].read_text(encoding="utf-8")) == {
+            "marker": "revoked-chatgpt"
+        }
+        # The dead credential lived in a control child that cached it, so the
+        # service must retire that child and retry through a clean one.
+        assert len(factory.clients) == 2
+        assert factory.clients[0].closed is True
+        assert factory.clients[1].closed is False
+    finally:
+        await service.close_all()
+
+
+@pytest.mark.asyncio
+async def test_unrelated_codex_account_errors_still_propagate(tmp_path: Path) -> None:
+    """Only the revoked-credential signature is recovered; anything else raises."""
+
+    factory = _ControlFactory(account_read_error=RemoteError(-32000, "transport boom"))
+    service = CodexAccountService(
+        tmp_path / "state",
+        command=_FAKE_COMMAND,
+        client_factory=factory,
+    )
+    scope = TenantScope("tenant", "alice")
+    try:
+        home = service.account_home(scope)
+        home.mkdir(parents=True, exist_ok=True)
+        auth = home / "auth.json"
+        auth.write_text(json.dumps({"marker": "live-chatgpt"}), encoding="utf-8")
+        auth.chmod(0o600)
+
+        with pytest.raises(RemoteError):
+            await service.read_account(scope)
+
+        assert auth.exists()
+        assert not list(home.glob("auth.json.revoked-*"))
+        assert len(factory.clients) == 1
+    finally:
+        await service.close_all()
+
+
+@pytest.mark.asyncio
+async def test_rejected_credential_does_not_interrupt_an_in_flight_login(
+    tmp_path: Path,
+) -> None:
+    """A pending authorization ceremony keeps its control child and login id."""
+
+    factory = _ControlFactory(
+        account_read_error=RemoteError(-32603, "workspace routing discovery failed")
+    )
+    service = CodexAccountService(
+        tmp_path / "state",
+        command=_FAKE_COMMAND,
+        client_factory=factory,
+    )
+    scope = TenantScope("tenant", "alice")
+    try:
+        started = await service.login(scope, login_type="chatgpt")
+        assert started["login_id"]
+        assert len(factory.clients) == 1
+
+        home = service.account_home(scope)
+        auth = home / "auth.json"
+        auth.write_text(json.dumps({"marker": "revoked-chatgpt"}), encoding="utf-8")
+        auth.chmod(0o600)
+
+        status = await service.read_account(scope)
+
+        assert status.account is None
+        assert status.login_pending is True
+        assert status.login_id == started["login_id"]
+        assert not auth.exists()
+        # Reusing the child preserves the live login id instead of cancelling it.
+        assert len(factory.clients) == 1
+    finally:
+        await service.close_all()
+
+
+@pytest.mark.asyncio
+async def test_rejected_legacy_credential_is_not_reseeded_but_a_new_one_is(
+    tmp_path: Path,
+) -> None:
+    """The host credential must not be resurrected after the provider rejects it.
+
+    ``local`` deployments seed ``~/.codex/auth.json`` into each principal home.
+    Once the provider revokes that token the quarantine removes it, so an
+    unconditional re-seed brought the dead file straight back: every read
+    failed, a fresh App Server child was retired, and the panel never settled
+    on "not connected".  The guard is content-based, so a real new host login
+    is still inherited.
+    """
+
+    legacy_home = tmp_path / "legacy-codex"
+    _private_auth(legacy_home, "host-chatgpt")
+    state = tmp_path / "state"
+    scope = TenantScope("local-tenant", "desktop-user")
+
+    def build() -> CodexAccountService:
+        return CodexAccountService(
+            state,
+            command=_FAKE_COMMAND,
+            client_factory=_ControlFactory(),
+            legacy_source_home=legacy_home,
+            allow_local_principal_inheritance=True,
+        )
+
+    first = build()
+    home = first.account_home(scope)
+    auth = home / "auth.json"
+    try:
+        await first.read_account(scope)
+        assert json.loads(auth.read_text(encoding="utf-8")) == {"marker": "host-chatgpt"}
+
+        # The provider rejected it: the control plane retires the dead bytes.
+        quarantined = home / "auth.json.revoked-20260101T000000Z"
+        auth.replace(quarantined)
+    finally:
+        await first.close_all()
+
+    second = build()
+    try:
+        assert (await second.read_account(scope)).account is None
+        assert not auth.exists()
+        assert quarantined.exists()
+    finally:
+        await second.close_all()
+
+    # A genuinely new host login must still be inherited.
+    legacy_auth = legacy_home / "auth.json"
+    legacy_auth.write_text(json.dumps({"marker": "host-chatgpt-2"}), encoding="utf-8")
+    legacy_auth.chmod(0o600)
+    third = build()
+    try:
+        await third.read_account(scope)
+        assert json.loads(auth.read_text(encoding="utf-8")) == {"marker": "host-chatgpt-2"}
+    finally:
+        await third.close_all()
 
 
 @pytest.mark.asyncio
