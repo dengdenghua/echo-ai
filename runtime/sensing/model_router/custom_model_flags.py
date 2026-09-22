@@ -50,21 +50,25 @@ def custom_model_entry_for(model: str, base_url: str | None = None) -> dict[str,
     return find_custom_model_entry(data, model, base_url)
 
 
-def model_supports_tool_use(model: str) -> bool:
+def model_supports_tool_use(model: str, base_url: str | None = None) -> bool:
     """Return False when ``custom_models.json`` (or per-model env
     overrides) marks this model id as not supporting native
     function calling.
+
+    ``base_url`` anchors the lookup on the endpoint actually being
+    called, so a relay cannot lend one vendor's declaration to a
+    same-named model served by another.
 
     Default is True — most OpenAI-compatible endpoints honor
     ``tools``. We only flip to False when the operator has
     explicitly declared incompatibility, so we don't accidentally
     disable working providers.
     """
-    entry = custom_model_entry_for(model)
+    entry = custom_model_entry_for(model, base_url)
     return not (isinstance(entry, dict) and entry.get("supports_tool_use") is False)
 
 
-def model_omits_sampling_parameters(model: str) -> bool:
+def model_omits_sampling_parameters(model: str, base_url: str | None = None) -> bool:
     """Return True for strict OpenAI-compatible coding endpoints.
 
     Some coding-model gateways reject sampling knobs entirely (or
@@ -72,12 +76,12 @@ def model_omits_sampling_parameters(model: str) -> bool:
     ``omit_sampling_parameters=true`` in ``custom_models.json`` so
     Echo sends only model/messages/max_tokens/tool fields.
     """
-    entry = custom_model_entry_for(model)
+    entry = custom_model_entry_for(model, base_url)
     return bool(entry.get("omit_sampling_parameters")) if isinstance(entry, dict) else False
 
 
-def custom_model_supports_thinking(model: str) -> bool:
-    entry = custom_model_entry_for(model)
+def custom_model_supports_thinking(model: str, base_url: str | None = None) -> bool:
+    entry = custom_model_entry_for(model, base_url)
     return bool(entry.get("supports_thinking")) if isinstance(entry, dict) else False
 
 

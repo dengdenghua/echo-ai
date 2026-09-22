@@ -48,21 +48,30 @@ def custom_model_entry_for(model: str, base_url: str | None = None) -> dict[str,
     return find_custom_model_entry(data, model, base_url)
 
 
-def model_supports_tool_use(model: str) -> bool:
-    """Return whether the operator permits native function calling."""
+def model_supports_tool_use(model: str, base_url: str | None = None) -> bool:
+    """Return whether the operator permits native function calling.
 
-    entry = custom_model_entry_for(model)
+    ``base_url`` anchors the lookup on the endpoint actually being called,
+    so a relay cannot lend one vendor's declaration to a same-named model
+    served by another.
+    """
+
+    entry = custom_model_entry_for(model, base_url)
     return not (isinstance(entry, dict) and entry.get("supports_tool_use") is False)
 
 
-def model_omits_sampling_parameters(model: str) -> bool:
+def model_omits_sampling_parameters(
+    model: str, base_url: str | None = None
+) -> bool:
     """Return whether sampling knobs must be omitted for this model."""
 
-    entry = custom_model_entry_for(model)
+    entry = custom_model_entry_for(model, base_url)
     return bool(entry.get("omit_sampling_parameters")) if isinstance(entry, dict) else False
 
 
-def model_is_openai_compat_endpoint(model: str) -> bool:
+def model_is_openai_compat_endpoint(
+    model: str, base_url: str | None = None
+) -> bool:
     """Whether ``model`` maps to an operator-added OpenAI-compatible endpoint.
 
     Operator endpoints are the ones declared in ``custom_models.json`` that
@@ -71,7 +80,7 @@ def model_is_openai_compat_endpoint(model: str) -> bool:
     Qwen, GLM, Moonshot, …) all honour the extended-thinking envelope and
     silently ignore it when unsupported — so it is safe to probe.
     """
-    entry = custom_model_entry_for(model)
+    entry = custom_model_entry_for(model, base_url)
     if not isinstance(entry, dict):
         return False
     provider = str(entry.get("provider", "")).lower()
@@ -97,7 +106,9 @@ def model_supports_vision(model: str) -> bool | None:
     return None
 
 
-def custom_model_supports_thinking(model: str) -> bool:
+def custom_model_supports_thinking(
+    model: str, base_url: str | None = None
+) -> bool:
     """Operator-declared thinking capability for a custom model.
 
     This is the single source of truth for the thinking channel on custom
@@ -116,7 +127,7 @@ def custom_model_supports_thinking(model: str) -> bool:
     Strict models that break on the probe can be pinned off with
     ``supports_thinking: false`` (or ``unsupported_request_fields: ["thinking"]``).
     """
-    entry = custom_model_entry_for(model)
+    entry = custom_model_entry_for(model, base_url)
     if isinstance(entry, dict):
         declared = entry.get("supports_thinking")
         if declared is True:
@@ -124,7 +135,7 @@ def custom_model_supports_thinking(model: str) -> bool:
         if declared is False:
             return False
         # absent -> forward-compat default for OpenAI-compatible endpoints
-        return model_is_openai_compat_endpoint(model)
+        return model_is_openai_compat_endpoint(model, base_url)
     return False
 
 

@@ -90,7 +90,7 @@ def _openai_reasoning_effort(value: Any) -> str:
     return _OPENAI_REASONING_EFFORT.get(normalize_reasoning_effort(value) or "high", "high")
 
 
-def _model_might_think(model: str) -> bool:
+def _model_might_think(model: str, base_url: str | None = None) -> bool:
     """Whether ``model`` may spend output tokens reasoning before it writes.
 
     Two sources, deliberately OR'ed rather than ranked: the operator's own
@@ -98,8 +98,12 @@ def _model_might_think(model: str) -> bool:
     Either saying yes is enough, because the cost of a false positive is a
     slightly larger output floor while the cost of a false negative is a
     response with no content in it.
+
+    ``base_url`` anchors the operator lookup on the endpoint actually being
+    called. The models.dev side stays name-based on purpose: it is knowledge
+    about the upstream family, not about any one operator endpoint.
     """
-    return custom_model_supports_thinking(model) or model_is_reasoning(model)
+    return custom_model_supports_thinking(model, base_url) or model_is_reasoning(model)
 
 
 def _compat_payload_fingerprint(payload: dict[str, Any]) -> str:
@@ -524,7 +528,7 @@ class OpenAIModelRouter(Provider, ModelRouter):
         omits_sampling = (
             bool(self._custom_model_entry.get("omit_sampling_parameters"))
             if self._custom_model_entry is not None
-            else model_omits_sampling_parameters(model)
+            else model_omits_sampling_parameters(model, self.base_url)
         )
         if not omits_sampling and not model_rejects_temperature(model):
             payload["temperature"] = request.temperature
@@ -542,7 +546,7 @@ class OpenAIModelRouter(Provider, ModelRouter):
                 or (
                     bool(self._custom_model_entry.get("supports_thinking"))
                     if self._custom_model_entry is not None
-                    else _model_might_think(model)
+                    else _model_might_think(model, self.base_url)
                 )
             )
             and max_tokens is not None
@@ -567,7 +571,7 @@ class OpenAIModelRouter(Provider, ModelRouter):
         supports_tool_use = (
             self._custom_model_entry.get("supports_tool_use") is not False
             if self._custom_model_entry is not None
-            else model_supports_tool_use(model)
+            else model_supports_tool_use(model, self.base_url)
         )
         if request.tools and supports_tool_use:
             payload["tools"] = [

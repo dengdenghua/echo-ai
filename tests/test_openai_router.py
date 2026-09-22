@@ -1596,6 +1596,130 @@ def test_entry_without_base_url_still_matches_the_model_everywhere(
     assert router._profile_for_model("manual-code-model").id == "qwen"
 
 
+# The same two-endpoint shape, but here only one endpoint declares the
+# capability flags. ``strict-sibling`` comes first in catalog order, which is
+# exactly what made the old model-name-only flag lookup hand its declarations
+# to the endpoint actually being called.
+_FLAG_CATALOG = {
+    "strict-sibling": {
+        "id": "strict-sibling",
+        "provider": "openai",
+        "base_url": "https://strict.example/v1",
+        "models": ["mimo-2.6"],
+        "supports_tool_use": False,
+        "omit_sampling_parameters": True,
+        "supports_thinking": False,
+    },
+    "target": {
+        "id": "target",
+        "provider": "openai",
+        "base_url": "https://relay.example/v1",
+        "models": ["mimo-2.6"],
+        "supports_thinking": True,
+    },
+}
+
+
+def _tool_request(model: str):
+    return _req(model=model).model_copy(
+        update={
+            "max_tokens": 32,
+            "tools": [
+                ToolSpec(
+                    name="read_file",
+                    description="read",
+                    input_schema={"type": "object"},
+                ),
+            ],
+        },
+    )
+
+
+def test_capability_flags_do_not_leak_across_endpoints(monkeypatch, tmp_path) -> None:
+    """Tool / sampling / thinking flags follow the endpoint, not the model id.
+
+    A relay fronts many vendors behind one ``base_url`` and advertises the
+    same upstream model id on several entries. Reading ``supports_tool_use``,
+    ``omit_sampling_parameters`` and ``supports_thinking`` by model name alone
+    applied the first catalog match, so one vendor's declarations governed
+    another vendor's call.
+    """
+    _patch_custom_models_catalog(monkeypatch, tmp_path, _FLAG_CATALOG)
+
+    fake = _FakeClient(response=_FakeResponse(200, _openai_response()))
+    router = OpenAIModelRouter(
+        base_url="https://relay.example/v1",
+        api_key="sk-test",
+        default_model="mimo-2.6",
+        client=fake,
+    )
+    assert router._entry_for_model("mimo-2.6")["id"] == "target"
+    router.call(_tool_request("mimo-2.6"))
+
+    payload = fake.calls[0]["json"]
+    # The sibling declared tools off; this endpoint never did.
+    assert [tool["function"]["name"] for tool in payload["tools"]] == ["read_file"]
+    assert payload["tool_choice"] == "auto"
+    # ...and the sibling's ``omit_sampling_parameters`` is not ours either.
+    assert payload["temperature"] == 0.0
+    # Our own ``supports_thinking`` still lifts the tiny output budget.
+    assert payload["max_tokens"] == _MIN_THINKING_OUTPUT_TOKENS
+
+
+def test_capability_flags_stay_conservative_on_an_unlisted_endpoint(
+    monkeypatch,
+    tmp_path,
+) -> None:
+    """Neither endpoint is the one being called: refuse to guess.
+
+    Matching no entry must not fall back to "the first entry that names this
+    model" — the capability flags then stay at their documented defaults.
+    """
+    _patch_custom_models_catalog(monkeypatch, tmp_path, _FLAG_CATALOG)
+
+    fake = _FakeClient(response=_FakeResponse(200, _openai_response()))
+    router = OpenAIModelRouter(
+        base_url="https://unlisted.example/v1",
+        api_key="sk-test",
+        default_model="mimo-2.6",
+        client=fake,
+    )
+    assert router._entry_for_model("mimo-2.6") is None
+    router.call(_tool_request("mimo-2.6"))
+
+    payload = fake.calls[0]["json"]
+    assert "tools" in payload
+    assert "temperature" in payload
+    assert payload["max_tokens"] == 32
+
+
+def test_explicit_entry_flags_outrank_the_catalog(monkeypatch, tmp_path) -> None:
+    """A routed row already resolved one exact endpoint; never re-guess it."""
+
+    _patch_custom_models_catalog(monkeypatch, tmp_path, _FLAG_CATALOG)
+
+    fake = _FakeClient(response=_FakeResponse(200, _openai_response()))
+    router = OpenAIModelRouter(
+        base_url="https://relay.example/v1",
+        api_key="sk-test",
+        default_model="mimo-2.6",
+        client=fake,
+        custom_model_entry={
+            "id": "explicit",
+            "provider": "openai",
+            "models": ["mimo-2.6"],
+            "supports_tool_use": False,
+            "omit_sampling_parameters": True,
+        },
+    )
+    router.call(_tool_request("mimo-2.6"))
+
+    payload = fake.calls[0]["json"]
+    assert "tools" not in payload
+    assert "tool_choice" not in payload
+    assert "temperature" not in payload
+
+
 def test_explicit_entry_outranks_the_catalog_lookup(monkeypatch, tmp_path) -> None:
     """A routed row already resolved one exact endpoint; never re-guess it."""
 
