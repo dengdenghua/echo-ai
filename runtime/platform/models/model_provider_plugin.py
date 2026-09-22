@@ -356,6 +356,47 @@ class ModelProviderPluginManager:
             "models": selected,
         }
 
+    def managed_connector_ids(self) -> list[str]:
+        """Connector ids that currently own a persisted model entry.
+
+        Channel entries (``opencode-go``) record the connector that wrote
+        them, so refreshing one connector covers every catalog it owns
+        without the caller needing the channel layout.
+        """
+
+        with self._lock:
+            entries = list(self._custom_models.values())
+        owners: set[str] = set()
+        for entry in entries:
+            if not isinstance(entry, dict):
+                continue
+            owner = str(entry.get("managed_by_plugin") or "").strip()
+            if owner:
+                owners.add(owner)
+        return sorted(owners)
+
+    def refresh(
+        self,
+        item: dict[str, Any],
+        *,
+        tokens: dict[str, str] | None = None,
+    ) -> dict[str, Any]:
+        """Re-discover the upstream catalog and persist the result.
+
+        The provider's own ``/models`` stays the only source of candidates, so
+        a refresh retires models as well as adding them. An unreachable or
+        empty upstream raises here before anything is written, which is what
+        keeps the previous catalog alive when discovery fails.
+        """
+
+        discovered = self.validate(item, tokens=tokens)
+        return self.configure(
+            item,
+            models=list(discovered.get("models") or []),
+            channels=discovered.get("channels"),
+            base_url=str(discovered.get("base_url") or "") or None,
+        )
+
     def remove(self, item: dict[str, Any]) -> dict[str, Any]:
         """Remove only the model entry owned by this plugin."""
 

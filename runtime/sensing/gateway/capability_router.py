@@ -49,6 +49,7 @@ from runtime.sensing.gateway._device_flow_models import (
     DeviceFlowCancelResponse,
     DeviceFlowResponse,
 )
+from runtime.sensing.gateway.model_catalog_refresh import ModelCatalogRefreshLoop
 
 
 def create_capability_router(
@@ -444,17 +445,7 @@ def create_capability_router(
                 registry.set_enabled(cid, False, revoke_credentials=False)
                 raise HTTPException(503, "模型适配器服务尚未就绪")
             try:
-                discovered = await asyncio.to_thread(
-                    model_provider_plugins.validate,
-                    item,
-                    tokens=None,
-                )
-                configured = model_provider_plugins.configure(
-                    item,
-                    models=list(discovered.get("models") or []),
-                    channels=discovered.get("channels"),
-                    base_url=str(discovered.get("base_url") or "") or None,
-                )
+                configured = await asyncio.to_thread(model_provider_plugins.refresh, item)
             except Exception as exc:  # noqa: BLE001 - restore the lifecycle state
                 registry.set_enabled(cid, False, revoke_credentials=False)
                 raise HTTPException(409, str(exc)) from exc
@@ -644,5 +635,37 @@ def create_capability_router(
             "configured": bool(headers),
             "header_names": sorted(str(name) for name in headers),
         }
+
+    # A connected provider's catalog is a snapshot, not a live view, so a
+    # model published upstream after the last connect would never reach the
+    # picker. Re-run each connected provider's own discovery on a cadence;
+    # failures keep the previous catalog and are logged, never fatal.
+    def _refresh_model_provider_catalogs() -> int:
+        if model_provider_plugins is None:
+            return 0
+        connector_ids = model_provider_plugins.managed_connector_ids()
+        if not connector_ids:
+            return 0
+        available = {
+            str(entry.get("id") or ""): entry
+            for entry in registry.list()
+            if entry.get("model_provider")
+        }
+        refreshed = 0
+        for cid in connector_ids:
+            item = available.get(cid)
+            if item is None:
+                continue
+            try:
+                model_provider_plugins.refresh(item)
+            except Exception as exc:  # noqa: BLE001 - other providers still refresh
+                logger.warning("model catalog refresh failed for %s: %s", cid, exc)
+                continue
+            refreshed += 1
+        return refreshed
+
+    catalog_refresh = ModelCatalogRefreshLoop(_refresh_model_provider_catalogs)
+    router.add_event_handler("startup", catalog_refresh.start)
+    router.add_event_handler("shutdown", catalog_refresh.close)
 
     return router
