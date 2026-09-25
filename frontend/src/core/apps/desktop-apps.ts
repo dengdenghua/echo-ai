@@ -6,6 +6,7 @@ import {
   FolderIcon,
   GlobeIcon,
   MonitorIcon,
+  MonitorSmartphoneIcon,
   SettingsIcon,
   SparklesIcon,
   TerminalSquareIcon,
@@ -74,6 +75,15 @@ function workbenchDesktopApp(app: WorkbenchBuiltinApp): DesktopApp {
  */
 export function buildDesktopApps(t: Translations): DesktopApp[] {
   const apps: DesktopApp[] = [
+    {
+      id: "devices",
+      name: "设备互联",
+      subtitle: "电脑与手机 · 同屏与文件收发",
+      route: "/workspace/devices",
+      icon: MonitorSmartphoneIcon,
+      color: "from-blue-500 to-cyan-500",
+      placement: "primary",
+    },
     {
       id: "workspace",
       name: t.desktop.apps.workspace.name,

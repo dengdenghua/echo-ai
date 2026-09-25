@@ -28,6 +28,7 @@ import logging
 import os
 import struct
 import time
+import uuid
 from collections.abc import Awaitable, Callable
 from typing import Any
 
@@ -42,6 +43,7 @@ except ImportError:  # pragma: no cover - compatibility for older deployments
     _WebSocketState = None  # type: ignore[assignment]
 
 from ..base import Heartbeat, ToolCall, ToolResult, now_ms
+from .device_protocol import PROTOCOL_VERSION, normalize_hello
 
 logger = logging.getLogger(__name__)
 
@@ -115,6 +117,9 @@ class DeviceHello:
     """设备首次连接上报的元信息."""
 
     def __init__(self, payload: dict[str, Any]) -> None:
+        payload = normalize_hello(payload)
+        self.device_kind = payload["device_kind"]
+        self.hostname = payload.get("hostname", "")
         self.tentacle_id: str = payload["tentacle_id"]
         self.platform: str = payload.get("platform", "android")
         self.brand: str = payload.get("brand", "Unknown")
@@ -143,6 +148,10 @@ class DeviceHello:
                 "version": self.version,
             }
         return {
+            "platform": self.platform,
+            "device_kind": self.device_kind,
+            "reported_capabilities": list(self.capabilities),
+            "hostname": self.hostname,
             "brand": self.brand,
             "model": self.model,
             "android_version": self.android_version,
@@ -227,7 +236,22 @@ class TentacleWebSocketServer:
 
         # tentacle_id → WebSocket 连接映射
         self._connections: dict[str, WebSocketConnection] = {}
+        self.pc_screen_subscribers: dict[str, tuple[str, ...]] = {}
         # 等待 tool/result 的 future：call_id → asyncio.Future
+        self._call_owners: dict[str, Any] = {}
+        # Explicit directed grants: {source_device: {target_device: [tool, ...]}}.
+        # Pairing alone never authorizes control of another paired device.
+        self.peer_grants = json.loads(os.environ.get("ECHO_DEVICE_PEER_GRANTS") or "{}")
+        if not isinstance(self.peer_grants, dict) or any(
+            not isinstance(targets, dict)
+            or any(
+                not isinstance(names, list) or any(not isinstance(name, str) for name in names)
+                for names in targets.values()
+            )
+            for targets in self.peer_grants.values()
+        ):
+            raise ValueError("invalid ECHO_DEVICE_PEER_GRANTS")
+        self._peer_tasks: set[asyncio.Task[Any]] = set()
         self._pending_calls: dict[str, asyncio.Future[ToolResult]] = {}
 
         self._server: asyncio.Server | None = None
@@ -300,6 +324,17 @@ class TentacleWebSocketServer:
         if self._server:
             self._server.close()
             await self._server.wait_closed()
+        # ASGI connections are not owned by websockets.serve.
+        for connection in list(self._connections.values()):
+            with contextlib.suppress(Exception):
+                await connection.close(code=1001, reason="device transport stopped")
+        self._server = None
+        self._call_owners.clear()
+        for task in self._peer_tasks:
+            task.cancel()
+        if self._peer_tasks:
+            await asyncio.gather(*self._peer_tasks, return_exceptions=True)
+        self._peer_tasks.clear()
         # 取消所有 pending calls
         for future in self._pending_calls.values():
             future.cancel()
@@ -330,6 +365,11 @@ class TentacleWebSocketServer:
         if ws is None or not _ws_is_open(ws):
             return ToolResult.fail(call.call_id, -32011, f"Device {tentacle_id} not connected", 0)
 
+        if call.tentacle_id != tentacle_id:
+            return ToolResult.fail(call.call_id, -32004, "Device target mismatch", 0)
+        if call.call_id in self._pending_calls:
+            return ToolResult.fail(call.call_id, -32004, "Duplicate call id", 0)
+        self._call_owners[call.call_id] = ws
         # 创建 future 等待结果
         future: asyncio.Future[ToolResult] = asyncio.get_event_loop().create_future()
         self._pending_calls[call.call_id] = future
@@ -353,6 +393,7 @@ class TentacleWebSocketServer:
             return ToolResult.fail(call.call_id, -32013, f"Send failed: {e}", 0)
         finally:
             self._pending_calls.pop(call.call_id, None)
+            self._call_owners.pop(call.call_id, None)
 
     async def send_task_result(
         self,
@@ -437,10 +478,21 @@ class TentacleWebSocketServer:
                     except json.JSONDecodeError:
                         await self._send_error(ws, None, -32700, "Parse error")
                         continue
+                    if not isinstance(hello_msg, dict):
+                        await ws.close(code=1008, reason="invalid device message")
+                        return
+                    if hello_msg.get("method") == MSG_DEVICE_HELLO:
+                        try:
+                            hello_msg["params"] = normalize_hello(hello_msg.get("params", {}))
+                        except (ValueError, TypeError):
+                            await ws.close(code=1008, reason="invalid device hello")
+                            return
                     if hello_msg.get("method") == MSG_DEVICE_HELLO and self._check_auth(hello_msg):
                         authenticated = True
                         self._clear_hello_failures(client_ip)
                         tentacle_id = await self._handle_hello(ws, hello_msg)
+                        if tentacle_id is None:
+                            return
                         continue
                     self._record_hello_failure(client_ip)
                     logger.warning("ws unauthorized hello from %s", remote)
@@ -464,11 +516,38 @@ class TentacleWebSocketServer:
                     await self._send_error(ws, None, -32700, "Parse error")
                     continue
 
+                if not isinstance(msg, dict) or not isinstance(msg.get("params", {}), dict):
+                    await self._send_error(ws, None, -32600, "Invalid device message")
+                    continue
                 method = msg.get("method", "")
+                if method == "device/screen_changed":
+                    method = MSG_DEVICE_SCREEN
                 msg_id = msg.get("id")
 
+                if tentacle_id is None and method != MSG_DEVICE_HELLO:
+                    await ws.close(code=1008, reason="device hello required")
+                    return
+                if method in {MSG_DEVICE_HEARTBEAT, MSG_DEVICE_SCREEN, MSG_TASK_EXECUTE}:
+                    params = msg.setdefault("params", {})
+                    if params.get("tentacle_id", tentacle_id) != tentacle_id:
+                        if method == MSG_TASK_EXECUTE:
+                            await self.send_task_result(
+                                tentacle_id,
+                                params.get("task_id", ""),
+                                False,
+                                "Device identity mismatch",
+                            )
+                        else:
+                            await self._send_error(ws, msg_id, -32099, "Device identity mismatch")
+                        continue
+                    params["tentacle_id"] = tentacle_id
                 if method == MSG_DEVICE_HELLO:
+                    if tentacle_id is not None:
+                        await ws.close(code=1008, reason="device already registered")
+                        return
                     tentacle_id = await self._handle_hello(ws, msg)
+                    if tentacle_id is None:
+                        return
                 elif method == MSG_DEVICE_HEARTBEAT:
                     await self._handle_heartbeat(ws, msg)
                 elif method == MSG_DEVICE_SCREEN:
@@ -477,6 +556,13 @@ class TentacleWebSocketServer:
                     await self._handle_task_execute(ws, msg)
                 elif method == MSG_TOOL_RESULT:
                     await self._handle_tool_result(ws, msg)
+                elif method == "device/call":
+                    if len(self._peer_tasks) >= 64:
+                        await self._send_error(ws, msg_id, -32010, "Device hub is busy")
+                        continue
+                    task = asyncio.create_task(self._handle_peer_call(ws, msg, tentacle_id))
+                    self._peer_tasks.add(task)
+                    task.add_done_callback(self._peer_tasks.discard)
                 elif method == MSG_REMOTE_INPUT:
                     await self._handle_remote_input(ws, msg, tentacle_id)
                 elif method == MSG_PC_SCREEN_SUBSCRIBE:
@@ -495,8 +581,16 @@ class TentacleWebSocketServer:
         except Exception as e:
             logger.warning("ws connection error from %s: %s", remote, e)
         finally:
-            if tentacle_id:
+            for call_id, owner in list(self._call_owners.items()):
+                if owner is ws:
+                    pending = self._pending_calls.get(call_id)
+                    if pending is not None and not pending.done():
+                        pending.set_result(
+                            ToolResult.fail(call_id, -32011, "Device disconnected", 0)
+                        )
+            if tentacle_id and self._connections.get(tentacle_id) is ws:
                 self._connections.pop(tentacle_id, None)
+                self.pc_screen_subscribers.pop(tentacle_id, None)
                 if self.on_device_disconnect:
                     try:
                         await self.on_device_disconnect(tentacle_id)
@@ -506,12 +600,57 @@ class TentacleWebSocketServer:
 
     # ── 消息处理器 ──────────────────────────────────────────
 
+    async def _handle_peer_call(
+        self, ws: WebSocketConnection, msg: dict[str, Any], source: str
+    ) -> None:
+        params = msg.get("params", {})
+        target, tool = params.get("target_device_id"), params.get("tool")
+        args = params.get("args", {})
+        granted = (
+            self.peer_grants.get(source, {}).get(target, []) if isinstance(target, str) else []
+        )
+        if not isinstance(tool, str) or tool not in granted or not isinstance(args, dict):
+            await self._send_error(ws, msg.get("id"), -32099, "Peer tool access is not granted")
+            return
+        if self._connections.get(source) is not ws:
+            return
+        timeout = params.get("timeout_ms", 15000)
+        if type(timeout) is not int or not 1 <= timeout <= 60000:
+            await self._send_error(ws, msg.get("id"), -32602, "Invalid peer timeout")
+            return
+        call = ToolCall(
+            call_id=f"peer-{uuid.uuid4().hex}",
+            tentacle_id=target,
+            tool=tool,
+            args=args,
+            timeout_ms=timeout,
+            trace_id=f"device:{source}",
+        )
+        # The destination still enforces its advertised/local tool policy. Use
+        # a server-generated id so a peer cannot spoof another outstanding call.
+        result = await self.send_tool_execute(target, call, timeout_ms=timeout)
+        with contextlib.suppress(Exception):
+            await ws.send(
+                json.dumps({"jsonrpc": "2.0", "id": msg.get("id"), "result": result.to_dict()})
+            )
+
     async def _handle_hello(self, ws: WebSocketConnection, msg: dict[str, Any]) -> str | None:
         """处理 device/hello —— 设备注册."""
         params = msg.get("params", {})
-        hello = DeviceHello(params)
+        try:
+            hello = DeviceHello(params)
+        except (ValueError, TypeError):
+            await self._send_error(ws, msg.get("id"), -32602, "Invalid device hello")
+            await ws.close(code=1008, reason="invalid device hello")
+            return None
+        current = self._connections.get(hello.tentacle_id)
+        if current is not None and current is not ws and _ws_is_open(current):
+            await self._send_error(ws, msg.get("id"), -32004, "Device id already connected")
+            await ws.close(code=1008, reason="duplicate device identity")
+            return None
 
         # 保存连接
+        self.pc_screen_subscribers.pop(hello.tentacle_id, None)
         self._connections[hello.tentacle_id] = ws
 
         # 回调注册
@@ -520,13 +659,21 @@ class TentacleWebSocketServer:
                 await self.on_device_hello(hello, ws)
             except Exception as e:
                 logger.warning("on_device_hello error: %s", e)
+                self._connections.pop(hello.tentacle_id, None)
+                await ws.close(code=1011, reason="device registration failed")
+                return None
 
         # 回复确认
         await ws.send(
             json.dumps(
                 {
                     "jsonrpc": "2.0",
-                    "result": {"registered": True, "server_time": now_ms()},
+                    "result": {
+                        "registered": True,
+                        "server_time": now_ms(),
+                        "protocol_version": PROTOCOL_VERSION,
+                        "nonce": params.get("nonce"),
+                    },
                     "id": msg.get("id"),
                 }
             )
@@ -584,7 +731,10 @@ class TentacleWebSocketServer:
             return
 
         # 使用帧头中的 tentacle_id（优先）或连接中的 ID
-        effective_tid = parsed_tid or tentacle_id
+        if tentacle_id is None or (parsed_tid and parsed_tid != tentacle_id):
+            logger.warning("Rejected screen frame with mismatched device identity")
+            return
+        effective_tid = tentacle_id
         if effective_tid is None:
             logger.warning("binary frame without tentacle_id from %s", _ws_remote_label(ws))
             return
@@ -662,6 +812,11 @@ class TentacleWebSocketServer:
         """处理 tool/result —— 工具执行结果."""
         params = msg.get("params", {})
         call_id = params.get("call_id", "")
+        if self._call_owners.get(call_id) is not ws:
+            await self._send_error(
+                ws, msg.get("id"), -32099, "Tool result does not belong to this connection"
+            )
+            return
         result = ToolResult(
             call_id=call_id,
             success=params.get("success", False),
@@ -720,6 +875,14 @@ class TentacleWebSocketServer:
         msg_id = msg.get("id")
         # 注册手机端为 PC 屏幕流的订阅者
         # 通过 ScreenRelay 的 add_subscriber 实现
+        if not tentacle_id or self._connections.get(tentacle_id) is not ws:
+            await self._send_error(ws, msg_id, -32099, "Registered device required")
+            return
+        formats = (msg.get("params") or {}).get("formats", ["h264"])
+        if not isinstance(formats, list) or any(not isinstance(value, str) for value in formats):
+            await self._send_error(ws, msg_id, -32602, "Invalid frame formats")
+            return
+        self.pc_screen_subscribers[tentacle_id] = tuple(value for value in formats if value in {"h264", "jpeg"})
         await ws.send(
             json.dumps(
                 {
@@ -736,6 +899,8 @@ class TentacleWebSocketServer:
     ) -> None:
         """处理 pc_screen/unsubscribe —— 手机端取消订阅PC屏幕流."""
         msg_id = msg.get("id")
+        if tentacle_id and self._connections.get(tentacle_id) is ws:
+            self.pc_screen_subscribers.pop(tentacle_id, None)
         await ws.send(
             json.dumps(
                 {
@@ -755,10 +920,10 @@ class TentacleWebSocketServer:
         Args:
             frame_data: 编码后的二进制帧（含帧头）
         """
-        # 向所有已连接设备推送 PC 屏幕帧
+        # Only explicitly subscribed devices may receive host pixels.
         tasks = []
         for _tid, ws in self._connections.items():
-            if _ws_is_open(ws):
+            if _tid in self.pc_screen_subscribers and _ws_is_open(ws):
                 tasks.append(self._safe_send(ws, frame_data))
         if tasks:
             await asyncio.gather(*tasks, return_exceptions=True)

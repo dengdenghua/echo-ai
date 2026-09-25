@@ -1,6 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 
-import { getBackendBaseURL } from "@/core/config";
+import { listDevices } from "@/core/tentacle/api";
 
 import type { Agent } from "./types";
 
@@ -50,11 +50,7 @@ export function useMobileDevices(opts: MobileDeviceQueryOptions = {}): {
     queryKey: ["tentacle-devices"],
     queryFn: async ({ signal }): Promise<TentacleDevice[] | null> => {
       try {
-        const res = await fetch(`${getBackendBaseURL()}/api/tentacle/devices`, {
-          signal,
-        });
-        if (!res.ok) return null;
-        return (await res.json()) as TentacleDevice[];
+        return await listDevices(signal);
       } catch {
         return null;
       }

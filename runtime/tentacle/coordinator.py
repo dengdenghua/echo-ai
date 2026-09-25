@@ -74,6 +74,13 @@ def _build_device_from_hello(
         hello: 设备上报的元信息（含 platform / ios 专属字段）
         ws_server: WebSocket 服务器（Android 设备用于收发指令，iOS 忽略）
     """
+    if hello.platform in {"windows", "linux", "darwin"}:
+        from .remote_device import RemoteDesktopDevice
+
+        return RemoteDesktopDevice(
+            tentacle_id=hello.tentacle_id, device_meta=hello.to_meta(),
+            ws_server=ws_server, capabilities=hello.capabilities,
+        )
     if hello.platform == "ios":
         from .ios.device import IOSDevice
 
@@ -124,6 +131,10 @@ class TentacleCoordinator:
         dashboard_jwt_audience: str | None = None,
         procedure_checkpoint_dir: Path | None = None,
     ) -> None:
+        from .discovery import DeviceDiscovery
+
+        self.discovery = DeviceDiscovery()
+        self._discovery_host = host
         self.pool = TentaclePool()
         self.telemetry = TelemetryHub()
         self.device_executor = DeviceActionExecutor(
@@ -183,6 +194,7 @@ class TentacleCoordinator:
             procedure.procedure_id: procedure for procedure in self.procedure_store.load_all()
         }
         await self.ws_server.start()
+        await self.discovery.start(self._discovery_host)
         logger.info("TentacleCoordinator started (ws port=%d)", self.ws_server.port)
 
         # 启动 PC 屏幕捕获
@@ -288,6 +300,7 @@ class TentacleCoordinator:
         # 断开所有设备
         for t in self.pool.all():
             await t.disconnect()
+        self.discovery.stop()
         await self.ws_server.stop()
         self._pet_bridge.close()
         # 停止 Dashboard

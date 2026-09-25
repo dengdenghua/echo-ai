@@ -75,7 +75,7 @@ function SettingsRoute() {
 
 const LEGACY_REDIRECTS = {
   computer: "/workspace/settings?section=desktopAutomation",
-  mobile: "/workspace/settings?section=desktopAutomation",
+  mobile: "/workspace/devices",
   store: "/workspace/agents?surface=chat",
   replay: "/workspace/observability",
   workflows: "/workspace/agents?surface=chat&tab=skills",
@@ -110,6 +110,7 @@ const ObservabilityPage = lazy(
 // wired into this router. Clicks fell through to the ``*`` catch-all
 // and bounced the user to landing. Fixed by registering them here.
 const KnowledgePage = lazy(() => import("./app/workspace/knowledge/page"));
+const DevicesPage = lazy(() => import("./app/workspace/devices/page"));
 const StoragePage = lazy(() => import("./app/workspace/storage/page"));
 const WorkspaceWebAppPage = lazy(() => import("./app/workspace/web-app/page"));
 // Reflex monitor + YAML editor. See app/workspace/reflex/page.tsx.
@@ -218,6 +219,7 @@ export function AppRouter() {
                 />
                 <Route path="realtime/:threadId" element={<ChatPage />} />
                 <Route path="team/join" element={<TeamJoinPage />} />
+                <Route path="devices" element={<DevicesPage />} />
                 {/* Browser previews stay in the Agent workbench. The complete
                     desktop browser mode owns the top-level /browser route. */}
                 <Route

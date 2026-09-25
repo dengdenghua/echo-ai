@@ -26,13 +26,30 @@ pytestmark = pytest.mark.integration
 
 
 @pytest_asyncio.fixture
-async def coordinator():
+async def coordinator(monkeypatch):
     """启动协调器，测试结束后停止."""
     # Bind to an ephemeral free port to avoid Windows TIME_WAIT collisions
     # when many fixtures spin up and tear down ws_servers in rapid succession.
     # Disable the dashboard (port 8766 by default) to prevent the same kind
     # of collision on the dashboard socket.
     import socket
+    from pathlib import Path
+
+    from runtime.tentacle import device_plugins
+
+    # This suite tests transport with the Android plugin enabled, independent
+    # of the developer's installed/disabled marketplace packages.
+    monkeypatch.setattr(
+        device_plugins,
+        "device_plugin_tools_root",
+        lambda platform: (
+            Path(__file__).resolve().parents[1]
+            / "extensions"
+            / "codex-plugins"
+            / f"echo-{platform}"
+            / "tool-manifests"
+        ),
+    )
 
     s = socket.socket()
     s.bind(("127.0.0.1", 0))
@@ -403,7 +420,7 @@ async def test_task_execute_device_not_found(coordinator, mock_mobile_client):
 
     assert data["method"] == "task/result"
     assert data["params"]["success"] is False
-    assert "not found" in data["params"]["response"]
+    assert "identity mismatch" in data["params"]["response"]
 
 
 # ── 断开与统计 ────────────────────────────────────────────

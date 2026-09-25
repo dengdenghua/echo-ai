@@ -10,6 +10,7 @@
  */
 
 import { authHeaders } from "@/core/auth/api";
+import { getBackendBaseURL } from "@/core/config";
 
 // ── Types ──────────────────────────────────────────────
 
@@ -128,7 +129,7 @@ export interface ScreenAnalysis {
 const TENTACLE_BASE = "/api/tentacle";
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
-  const url = `${TENTACLE_BASE}${path}`;
+  const url = `${getBackendBaseURL()}${TENTACLE_BASE}${path}`;
   const res = await fetch(url, {
     ...init,
     headers: {
@@ -144,8 +145,8 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   return res.json();
 }
 
-export async function listDevices(): Promise<TentacleDevice[]> {
-  return request<TentacleDevice[]>("/devices");
+export async function listDevices(signal?: AbortSignal): Promise<TentacleDevice[]> {
+  return request<TentacleDevice[]>("/devices", { signal });
 }
 
 export async function getDevice(tentacleId: string): Promise<TentacleDevice> {

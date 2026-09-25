@@ -106,6 +106,13 @@ export function CommandPalette() {
   );
   const PAGE_ITEMS = useMemo(
     () => [
+      {
+        id: "devices",
+        to: "/workspace/devices",
+        label: "设备互联",
+        icon: CableIcon,
+        keywords: "devices phone mobile mirror transfer 手机 同屏 文件 电脑 虚拟",
+      },
       ...WORKBENCH_BUILTIN_APPS.map((app) => ({
         id: app.id,
         to: app.workspaceRoute,
