@@ -49,19 +49,27 @@ def create_mirror_router(coordinator_provider: Callable[[], Any]) -> APIRouter:
             if not hasattr(coordinator, "_cast_sessions"):
                 coordinator._cast_sessions = CastSessions()
             return await coordinator._cast_sessions.invoke(coordinator, device_id, args)
-        from .transfer_journal import TransferJournal
+        from .transfer_journal import TransferConflict, TransferJournal
 
         if coordinator is not None and not hasattr(coordinator, "_transfer_journal"):
-            coordinator._transfer_journal = TransferJournal()
+            coordinator._transfer_journal = TransferJournal(
+                getattr(coordinator, "transfer_journal_path", None)
+            )
         journal = coordinator._transfer_journal if coordinator else None
         transfer_id = args.pop("_transferId", "")
         if not isinstance(transfer_id, str) or not re.fullmatch(r"[A-Za-z0-9-]{1,80}", transfer_id):
             transfer_id = ""
+        attempt = args.pop("_transferAttempt", "")
+        if not isinstance(attempt, str) or (
+            attempt and not re.fullmatch(r"[A-Za-z0-9-]{1,80}", attempt)
+        ):
+            raise HTTPException(422, "Invalid transfer attempt")
         if operation == "transfers":
             if args.get("operation") == "report":
                 return {
                     "recorded": bool(
-                        journal and journal.report(device_id, transfer_id, args.get("state", ""))
+                        journal
+                        and journal.report(device_id, transfer_id, args.get("state", ""), attempt)
                     )
                 }
             return {"jobs": journal.snapshot() if journal else []}
@@ -75,6 +83,11 @@ def create_mirror_router(coordinator_provider: Callable[[], Any]) -> APIRouter:
             raise HTTPException(409, "设备未启用此能力，请更新手机应用并检查工具权限后重连")
         if active.get(device_id, 0) >= 4:
             raise HTTPException(429, "设备请求过多，请稍后重试")
+        if operation == "files" and transfer_id and journal:
+            try:
+                journal.prepare(device_id, transfer_id, args, attempt)
+            except ValueError as exc:
+                raise HTTPException(409, str(exc)) from exc
         active[device_id] = active.get(device_id, 0) + 1
         try:
 
@@ -112,10 +125,12 @@ def create_mirror_router(coordinator_provider: Callable[[], Any]) -> APIRouter:
             if required and required not in payload:
                 raise ValueError("Phone response contains no result")
             if operation == "files" and transfer_id and journal:
-                journal.observe(device_id, transfer_id, args, payload)
+                journal.observe(device_id, transfer_id, args, payload, attempt)
             return payload
         except TimeoutError as exc:
             raise HTTPException(504, "等待手机响应超时") from exc
+        except TransferConflict as exc:
+            raise HTTPException(409, str(exc)) from exc
         except (ValueError, TypeError) as exc:
             raise HTTPException(502, "手机返回的数据不完整") from exc
         finally:

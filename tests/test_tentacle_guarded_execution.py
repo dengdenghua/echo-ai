@@ -13,6 +13,7 @@ from runtime.tentacle import (
     MobileDevice,
     TentaclePool,
     ToolCall,
+    ToolResult,
     ValueConstraint,
 )
 
@@ -37,6 +38,9 @@ def test_renewable_lease_keeps_identity_and_extends_expiry() -> None:
 
 def test_approval_envelope_enforces_narrower_range() -> None:
     class Heater(MobileDevice):
+        async def execute(self, call: ToolCall) -> ToolResult:
+            return ToolResult.ok(call.call_id, {"value": call.args["value"]})
+
         @property
         def manifest(self) -> DeviceManifest:
             return DeviceManifest(

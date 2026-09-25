@@ -15,7 +15,8 @@ export type PhoneTransfer = {
   size: number;
   bytes: number;
   upload: boolean;
-  state: "queued" | "running" | "done" | "error" | "cancelled";
+  state: "queued" | "running" | "done" | "error" | "cancelled" | "interrupted";
+  sha256?: string;
   file?: File;
   error?: string;
 };
@@ -25,6 +26,8 @@ let sequence = 0;
 const listeners = new Set<() => void>();
 const active = new Map<string, AbortController>();
 const scope = () => `${currentActorId()}:${getToken() || "cookie"}`;
+const newId = () =>
+  crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}-${++sequence}`;
 const notify = () => listeners.forEach((listener) => listener());
 const update = (id: string, patch: Partial<PhoneTransfer>) => {
   jobs = jobs.map((job) => (job.id === id ? { ...job, ...patch } : job));
@@ -52,6 +55,7 @@ async function pump(deviceId: string) {
   const controller = new AbortController();
   active.set(deviceId, controller);
   const actor = owner;
+  const attemptId = newId();
   const watch = setInterval(() => {
     if (scope() !== actor) resetPhoneTransfers();
   }, 500);
@@ -61,6 +65,7 @@ async function pump(deviceId: string) {
     const progress = (bytes: number) => {
       if (live()) update(job.id, { bytes });
     };
+    if (job.upload && !job.file) throw new Error("请重新选择原文件");
     if (job.file)
       await uploadPhoneFile(
         deviceId,
@@ -68,6 +73,7 @@ async function pump(deviceId: string) {
         progress,
         controller.signal,
         job.id,
+        { attemptId, expectedSha256: job.sha256 },
       );
     else {
       const blob = await downloadPhoneFile(
@@ -76,6 +82,7 @@ async function pump(deviceId: string) {
         progress,
         controller.signal,
         job.id,
+        { attemptId, expectedSha256: job.sha256 },
       );
       controller.signal.throwIfAborted();
       if (!live()) return;
@@ -88,19 +95,31 @@ async function pump(deviceId: string) {
     }
     if (live()) {
       update(job.id, { state: "done", file: undefined });
-      void phoneRequest(job.deviceId, "transfers", {
-        operation: "report",
-        _transferId: job.id,
-        state: "done",
-      }).catch(() => {});
+      void phoneRequest(
+        job.deviceId,
+        "transfers",
+        {
+          operation: "report",
+          _transferId: job.id,
+          _transferAttempt: attemptId,
+          state: "done",
+        },
+        AbortSignal.timeout(5000),
+      ).catch(() => {});
     }
   } catch (error) {
     if (live())
-      void phoneRequest(job.deviceId, "transfers", {
-        operation: "report",
-        _transferId: job.id,
-        state: controller.signal.aborted ? "cancelled" : "error",
-      }).catch(() => {});
+      await phoneRequest(
+        job.deviceId,
+        "transfers",
+        {
+          operation: "report",
+          _transferId: job.id,
+          _transferAttempt: attemptId,
+          state: controller.signal.aborted ? "cancelled" : "error",
+        },
+        AbortSignal.timeout(5000),
+      ).catch(() => {});
     if (live())
       update(job.id, {
         state: controller.signal.aborted ? "cancelled" : "error",
@@ -133,7 +152,7 @@ export function enqueuePhoneTransfer(
     (job) => job.state !== "done" || jobs.indexOf(job) >= jobs.length - 30,
   );
   const job: PhoneTransfer = {
-    id: `transfer-${crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}-${++sequence}`}`,
+    id: `transfer-${newId()}`,
     deviceId,
     name: file.name,
     size: file.size,
@@ -153,6 +172,30 @@ export function pausePhoneTransfer(id: string) {
   if (job.state === "running") active.get(job.deviceId)?.abort();
   else if (job.state === "queued") update(id, { state: "cancelled" });
 }
+export function recoverPhoneTransfer(receipt: PhoneTransfer, file?: File) {
+  ensureOwner();
+  if (!["error", "cancelled", "interrupted"].includes(receipt.state))
+    throw new Error("请先暂停原窗口中的传输");
+  if (jobs.some((job) => job.id === receipt.id))
+    throw new Error("请使用此窗口中的传输记录继续");
+  if (
+    receipt.upload &&
+    (!file || file.name !== receipt.name || file.size !== receipt.size)
+  )
+    throw new Error("请选择名称和大小相同的原文件");
+  if (receipt.upload && !/^[a-f0-9]{64}$/.test(receipt.sha256 || ""))
+    throw new Error("旧记录缺少文件校验信息，请重新上传");
+  if (jobs.filter((job) => job.state !== "done").length >= 20)
+    throw new Error("传输队列最多保留 20 个未完成文件");
+  jobs = [
+    ...jobs.filter(
+      (job, index) => job.state !== "done" || index >= jobs.length - 30,
+    ),
+    { ...receipt, state: "queued", ...(file ? { file } : {}) },
+  ];
+  notify();
+  void pump(receipt.deviceId);
+}
 export function retryPhoneTransfer(id: string) {
   ensureOwner();
   const job = jobs.find((candidate) => candidate.id === id);
@@ -165,6 +208,28 @@ export function dismissPhoneTransfer(id: string) {
   if (job?.state === "running") return;
   jobs = jobs.filter((candidate) => candidate.id !== id);
   notify();
+}
+export function reconcilePhoneTransfers(receipts: PhoneTransfer[]) {
+  ensureOwner();
+  // The phone may have completed an upload before the browser lost its response.
+  for (const receipt of receipts) {
+    const local = jobs.find(
+      (job) => job.id === receipt.id && job.deviceId === receipt.deviceId,
+    );
+    if (
+      receipt.upload &&
+      receipt.state === "done" &&
+      local &&
+      ["error", "cancelled"].includes(local.state)
+    ) {
+      update(local.id, {
+        state: "done",
+        bytes: receipt.size,
+        file: undefined,
+        error: undefined,
+      });
+    }
+  }
 }
 export function usePhoneTransfers() {
   return useSyncExternalStore(

@@ -119,6 +119,7 @@ describe("real phone mirror", () => {
         expect.any(Function),
         expect.any(AbortSignal),
         expect.any(String),
+        expect.objectContaining({ attemptId: expect.any(String) }),
       ),
     );
     expect(

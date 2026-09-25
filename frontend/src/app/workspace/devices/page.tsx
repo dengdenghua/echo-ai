@@ -1,3 +1,4 @@
+import { DeviceTaskSection } from "@/components/device-interconnect/device-task-panel";
 import { useEffect, useState } from "react";
 import {
   useDeviceDirectory,
@@ -179,6 +180,7 @@ export default function DevicesPage() {
               选择一台在线手机，即可操作手机和收发文件。
             </p>
           )}
+          <DeviceTaskSection />
           <details>
             <summary className="cursor-pointer text-sm">全部文件传输</summary>
             <PhoneTransferList />

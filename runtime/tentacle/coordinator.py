@@ -134,6 +134,7 @@ class TentacleCoordinator:
         from .discovery import DeviceDiscovery
 
         self.discovery = DeviceDiscovery()
+        self.transfer_journal_path = app_paths().data_dir / "tentacle" / "transfers.sqlite3"
         self._discovery_host = host
         self.pool = TentaclePool()
         self.telemetry = TelemetryHub()
@@ -173,6 +174,7 @@ class TentacleCoordinator:
             on_screen_frame=self._on_screen_frame,
             on_remote_input=self._on_remote_input,
         )
+        self.ws_server.on_task_workspace = self._on_task_workspace
         self._decision_engine = decision_engine
         self._dashboard_port = dashboard_port
         self._dashboard_host = dashboard_host
@@ -294,6 +296,9 @@ class TentacleCoordinator:
 
     async def stop(self) -> None:
         """停止协调器."""
+        if hasattr(self, "task_workspace"):
+            await self.task_workspace.shutdown()
+            del self.task_workspace
         # 停止 PC 屏幕捕获
         if self.pc_screen_capture is not None:
             await self.pc_screen_capture.stop()
@@ -386,6 +391,23 @@ class TentacleCoordinator:
         if self.remote_input_handler is None:
             return {"success": False, "error": "Remote input not enabled"}
         return await self.remote_input_handler.handle_input(event)
+
+    async def _on_task_workspace(self, source: str, message: dict[str, Any], ws: WebSocketConnection) -> None:
+        from .task_workspace import get_task_workspace
+
+        if self.ws_server._connections.get(source) is not ws:
+            return
+        try:
+            if len(json.dumps(message)) > 16000:
+                raise ValueError("任务请求过大")
+            command = message["method"].removeprefix("task/workspace/")
+            result = await get_task_workspace(self).dispatch(
+                command, message.get("params", {}), actor=f"device:{source}", source=source,
+            )
+            reply = {"jsonrpc": "2.0", "id": message.get("id"), "result": result}
+        except (ValueError, TypeError, PermissionError) as exc:
+            reply = {"jsonrpc": "2.0", "id": message.get("id"), "error": {"code": -32004, "message": str(exc)}}
+        await ws.send(json.dumps(reply, ensure_ascii=False))
 
     async def _on_task_execute(self, request: TaskExecuteRequest, ws: WebSocketConnection) -> None:
         """处理 task/execute —— 手机请求母体决策任务.

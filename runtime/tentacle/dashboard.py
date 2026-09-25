@@ -96,8 +96,11 @@ def create_tentacle_router(
                 required_audience=jwt_audience,
             )
             if identity is not None:
+                request.state.device_workspace_actor = identity.actor_id
                 return
-        if identity_store.verify_api_key(token) is not None:
+        identity = identity_store.verify_api_key(token)
+        if identity is not None:
+            request.state.device_workspace_actor = identity.actor_id
             return
         raise HTTPException(401, "invalid tentacle auth token")
 
@@ -106,6 +109,10 @@ def create_tentacle_router(
     router.include_router(
         create_mirror_router(lambda: coordinator), dependencies=[Depends(_require_http_auth)]
     )
+
+    from .task_workspace_api import create_task_workspace_router
+
+    router.include_router(create_task_workspace_router(lambda: coordinator), dependencies=[Depends(_require_http_auth)])
 
     # 任务历史记录（内存，重启清空）
     _task_history: list[dict[str, Any]] = []

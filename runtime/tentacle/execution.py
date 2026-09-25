@@ -19,8 +19,15 @@ class ActionGrant:
 
     action: str
     constraints: tuple[ValueConstraint, ...] = ()
+    exact_arguments: dict[str, Any] | None = None
 
     def allows(self, action: str, arguments: dict[str, Any]) -> bool:
+        if self.exact_arguments is not None:
+            return (
+                action == self.action
+                and arguments == self.exact_arguments
+                and not any(constraint.validate(arguments) for constraint in self.constraints)
+            )
         return fnmatch(action, self.action) and not any(
             constraint.validate(arguments) for constraint in self.constraints
         )

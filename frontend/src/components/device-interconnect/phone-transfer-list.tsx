@@ -3,10 +3,51 @@ import { phoneRequest } from "./phone-mirror-api";
 import {
   dismissPhoneTransfer,
   pausePhoneTransfer,
+  recoverPhoneTransfer,
+  reconcilePhoneTransfers,
   retryPhoneTransfer,
   usePhoneTransfers,
   type PhoneTransfer,
 } from "./phone-transfers";
+
+function RecoverTransfer({ job }: { job: PhoneTransfer }) {
+  const [error, setError] = useState("");
+  const recover = (file?: File) => {
+    try {
+      recoverPhoneTransfer(job, file);
+      setError("");
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : "恢复失败");
+    }
+  };
+  return (
+    <div className="mt-2 space-y-1">
+      {job.upload ? (
+        <label className="inline-flex cursor-pointer text-blue-700">
+          选择原文件继续传输
+          <input
+            type="file"
+            className="sr-only"
+            aria-label={`选择原文件继续传输：${job.name}`}
+            onChange={(event) => {
+              const file = event.currentTarget.files?.[0];
+              if (file) recover(file);
+              event.currentTarget.value = "";
+            }}
+          />
+        </label>
+      ) : (
+        <button onClick={() => recover()}>重新下载</button>
+      )}
+      <p className="text-[10px] text-slate-500">
+        {job.upload
+          ? "校验原文件后，从手机已确认的位置继续。"
+          : "将从头下载并重新校验文件。"}
+      </p>
+      {error && <p role="alert">{error}</p>}
+    </div>
+  );
+}
 
 export function PhoneTransferList({ deviceId }: { deviceId?: string }) {
   const jobs = usePhoneTransfers().filter(
@@ -23,8 +64,11 @@ export function PhoneTransferList({ deviceId }: { deviceId?: string }) {
         const result = await phoneRequest<{
           jobs: (PhoneTransfer & { updatedAt: number })[];
         }>(deviceId || "all", "transfers", {}, abort.signal);
-        if (!abort.signal.aborted)
-          setRemote(Array.isArray(result.jobs) ? result.jobs : []);
+        if (!abort.signal.aborted) {
+          const receipts = Array.isArray(result.jobs) ? result.jobs : [];
+          reconcilePhoneTransfers(receipts);
+          setRemote(receipts);
+        }
       } catch {
         if (!abort.signal.aborted) setRemote([]);
       }
@@ -64,6 +108,7 @@ export function PhoneTransferList({ deviceId }: { deviceId?: string }) {
                 done: "校验完成",
                 error: "传输失败",
                 cancelled: job.upload ? "已暂停，可续传" : "已取消下载",
+                interrupted: "传输已中断",
               }[job.state]
             }
           </p>
@@ -114,13 +159,21 @@ export function PhoneTransferList({ deviceId }: { deviceId?: string }) {
                   ? "传输失败"
                   : job.state === "cancelled"
                     ? "已暂停"
-                    : Date.now() / 1000 - job.updatedAt > 15
-                      ? "状态待确认"
-                      : "传输中"}
+                    : job.state === "interrupted"
+                      ? "传输已中断，可恢复"
+                      : Date.now() / 1000 - job.updatedAt > 15
+                        ? "状态待确认"
+                        : "传输中"}
             </p>
-            <p className="text-[10px] text-slate-500">
-              其他窗口发起 · 暂停或续传请回到发起窗口
-            </p>
+            {["error", "cancelled", "interrupted"].includes(job.state) ? (
+              <RecoverTransfer job={job} />
+            ) : (
+              job.state === "running" && (
+                <p className="text-[10px] text-slate-500">
+                  其他窗口正在传输；关闭原页面后，约 45 秒可在这里恢复。
+                </p>
+              )
+            )}
           </div>
         ))}
     </section>

@@ -12,6 +12,46 @@ vi.mock("@/core/auth/api", () => ({
 afterEach(() => vi.unstubAllGlobals());
 
 describe("binary phone transfers", () => {
+  it("rejects same-name, same-size but different-content recovery before sending any bytes", async () => {
+    vi.stubGlobal("crypto", webcrypto);
+    const fetch = vi.fn();
+    vi.stubGlobal("fetch", fetch);
+    const file = {
+      name: "a.bin",
+      size: 2,
+      arrayBuffer: async () => new Uint8Array([1, 2]).buffer,
+    } as File;
+    await expect(
+      uploadPhoneFile(
+        "phone",
+        file,
+        vi.fn(),
+        new AbortController().signal,
+        "receipt",
+        { attemptId: "new-window", expectedSha256: "a".repeat(64) },
+      ),
+    ).rejects.toThrow("文件内容不一致");
+    expect(fetch).not.toHaveBeenCalled();
+  });
+
+  it("stops a restored download when the file fingerprint changed", async () => {
+    const fetch = vi.fn(async () => ({
+      ok: true,
+      json: async () => ({ size: 2, sha256: "b".repeat(64) }),
+    }));
+    vi.stubGlobal("fetch", fetch);
+    await expect(
+      downloadPhoneFile(
+        "phone",
+        { name: "a.bin", size: 2 },
+        vi.fn(),
+        new AbortController().signal,
+        "receipt",
+        { attemptId: "new-window", expectedSha256: "a".repeat(64) },
+      ),
+    ).rejects.toThrow("内容已改变");
+    expect(fetch).toHaveBeenCalledTimes(1);
+  });
   it("resumes an acknowledged upload and confirms completion", async () => {
     vi.stubGlobal("crypto", webcrypto);
     const bytes = new Uint8Array(CHUNK_BYTES * 2 + 7).map(

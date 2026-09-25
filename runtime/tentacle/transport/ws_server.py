@@ -230,6 +230,7 @@ class TentacleWebSocketServer:
         self.on_tool_result = on_tool_result
         self.on_heartbeat = on_heartbeat
         self.on_task_execute = on_task_execute
+        self.on_task_workspace = None
         self.on_screen_frame = on_screen_frame
         self.on_remote_input = on_remote_input
         self.on_custom = on_custom  # 未识别方法的兜底钩子（webrtc 信令等自定义消息）
@@ -554,6 +555,8 @@ class TentacleWebSocketServer:
                     await self._handle_screen(ws, msg)
                 elif method == MSG_TASK_EXECUTE:
                     await self._handle_task_execute(ws, msg)
+                elif method.startswith("task/workspace/") and self.on_task_workspace is not None:
+                    await self.on_task_workspace(tentacle_id, msg, ws)
                 elif method == MSG_TOOL_RESULT:
                     await self._handle_tool_result(ws, msg)
                 elif method == "device/call":
