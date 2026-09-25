@@ -24,6 +24,7 @@ from uuid import uuid4
 
 from runtime.core.cerebrum.capability_router import activate_capabilities
 from runtime.core.cerebrum.react_native import require_public_update_on_tool_specs
+from runtime.core.cerebrum.react_prompt_contracts import SKILL_SELECTION_CONTRACT
 from runtime.core.cerebrum.todo_protocol import (
     context_mode,
     render_todo_protocol_guidance,
@@ -592,6 +593,7 @@ def _stream_agentic_fallback_impl(
                 content=_capability_activation_prompt,
             ),
         )
+    messages.insert(0, Message(role="system", content=SKILL_SELECTION_CONTRACT))
     messages.insert(
         0,
         Message(

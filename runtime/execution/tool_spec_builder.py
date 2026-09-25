@@ -33,6 +33,7 @@ PRIORITY_SKILLS: frozenset[str] = frozenset(
         "todo_write",
         "collaboration",
         "search_capabilities",
+        "find_capability",
         "query_capability",
         "use_capability",
         "execute_skill",

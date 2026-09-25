@@ -26,6 +26,9 @@ from runtime.core.cerebrum.react_explicit_reads import (
 from runtime.core.cerebrum.react_guards import _explicit_source_paths
 from runtime.core.cerebrum.react_loop_controls import _long_task_budget_limits
 from runtime.core.cerebrum.react_native import trim_text_protocol_for_native
+from runtime.core.cerebrum.react_prompt_contracts import (
+    SKILL_SELECTION_CONTRACT as _SKILL_SELECTION_CONTRACT,
+)
 from runtime.core.cerebrum.react_resume import _build_resume_context_prompt
 from runtime.core.cerebrum.react_types import REACT_SYSTEM_PROMPT_BASE
 from runtime.core.cerebrum.todo_protocol import (
@@ -254,6 +257,7 @@ def _assemble_early_sections(state: _AssemblyState) -> None:
         and not _is_tool_use_exempt_mode(_wm)
     ):
         state.system_parts.append(_TOOL_USE_CONTRACT)
+        state.system_parts.append(_SKILL_SELECTION_CONTRACT)
 
     # Codebase grounding for code/project chats: the same wiki + source
     # retrieval the planner uses, so interactive chat is grounded the same way

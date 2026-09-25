@@ -729,6 +729,7 @@ def _format_skill_catalog(
         # discover anything, including tools omitted below).
         "todo_write",
         "search_capabilities",
+        "find_capability",
         "query_capability",
         "use_capability",
         "search_skills",

@@ -327,6 +327,7 @@ def _has_unrecovered_beak_failure(steps: list[Any]) -> bool:
         "bb_read",
         "bb_keys",
         "search_capabilities",
+        "find_capability",
         "query_capability",
         "query_skill",
     }

@@ -8,6 +8,7 @@ from .codex_plugin_skills import action_tail, plugin_action_name
 from .registry import Skill, SkillRegistry
 
 CAPABILITY_SKILL_NAMES = [
+    "find_capability",
     "search_capabilities",
     "query_capability",
     "use_capability",
@@ -605,6 +606,28 @@ def _use_capability_for_registry(registry: SkillRegistry):
 
 
 def register_capability_skills(registry: SkillRegistry) -> int:
+    from .find_capability import find_capability_handler
+
+    registry.register(
+        Skill(
+            name="find_capability",
+            summary="Find fallback tools or authoritative standards and workplace requirements.",
+            description=(
+                "能力与规范兜底：工具不匹配、失败，或缺少标准/制度依据时使用。"
+                "query 描述缺少的能力；reason 为 no_match/poor_match/failed；"
+                "failed_capabilities 列出已失败的工具名或插件 ID，避免重复推荐。"
+                "检索本地插件、Skill 和工具；external_query 可提供脱敏后的公开产品/能力关键词，"
+                "以获得官方文档及 GitHub 检索下一步。返回匹配候选和状态，"
+                "purpose=auto/capability/standards/office_policy；standard_family=auto/GB/ISO/ASME/IEC。"
+                "公差、国标、行标等自动转权威标准来源，办公制度转企业文档和适用官方来源，"
+                "返回版本/现行状态/条款核对要求；标准发现不代表合规验证。"
+                "不执行工具、不联网、不安装；后续操作仍走正常授权和工具调用。"
+            ),
+            affinity=["meta", "capability", "discovery"],
+            trusted_source="skill://public/find_capability",
+            handler=find_capability_handler(registry),
+        )
+    )
     registry.register(
         Skill(
             name="search_capabilities",
