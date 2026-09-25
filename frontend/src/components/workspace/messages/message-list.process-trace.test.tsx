@@ -625,8 +625,13 @@ describe("MessageList process trace lifecycle", () => {
       { locale: "zh-CN" },
     );
 
-    const panel = screen.getByTestId("agent-report-0");
-    expect(panel).toHaveTextContent("时间窗口不足，未能完成多空验证");
+    // A failed agent renders the reason in the error block, which has no
+    // report test id — assert the reason itself is visible up front. The
+    // reason legitimately appears in both the compact row and the detail
+    // block, so match every occurrence rather than requiring exactly one.
+    expect(
+      screen.getAllByText(/时间窗口不足，未能完成多空验证/).length,
+    ).toBeGreaterThan(0);
   });
 
   test("folds persisted spec, spawn and finish rows into two compact cards", () => {
@@ -3183,4 +3188,23 @@ describe("MessageList stalled-run warning", () => {
     fireEvent.click(fullButton);
     expect(onAuthorizeNetwork).toHaveBeenCalledWith("full");
   });
+});
+
+
+test("keeps inline visuals visible when the completed process trace is folded", () => {
+  const messages: Message[] = [
+    message("user-visual", "human", "解释结构"),
+    { id: "visual-call", type: "ai", content: "", tool_calls: [{ id: "show-one", name: "show_visual", args: { title: "结构图", code: "<svg><text>Example</text></svg>", format: "svg" } }] } as AIMessage,
+    { id: "visual-result", type: "tool", tool_call_id: "show-one", content: JSON.stringify({ ok: true, kind: "echo.visual.v1", visual_id: "one", receipt_token: "test-token", thread_id: "thread-1" }) } as Message,
+    message("visual-final", "ai", "结构如图。"),
+  ];
+  renderMessageList({ thread: mockThread({ messages }), locale: "zh-CN" });
+  expect(screen.getByTestId("inline-visual")).toBeVisible();
+  expect(screen.getByTitle("结构图")).toHaveAttribute("sandbox", "allow-scripts");
+  for (const toggle of screen.queryAllByTestId("process-replay-toggle")) {
+    fireEvent.click(toggle);
+    expect(screen.getByTestId("inline-visual")).toBeVisible();
+    fireEvent.click(toggle);
+    expect(screen.getByTestId("inline-visual")).toBeVisible();
+  }
 });

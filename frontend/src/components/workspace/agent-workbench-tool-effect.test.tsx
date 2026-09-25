@@ -28,7 +28,11 @@ describe("AgentWorkbenchPanel tool-effect focus", () => {
     expect(screen.getByText("外部动作核对")).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "返回执行详情" }));
     expect(screen.queryByText("外部动作核对")).not.toBeInTheDocument();
-    expect(screen.getByText("概要")).toBeInTheDocument();
+    // Returning restores the execution view (task progress), not the summary
+    // dashboard — assert the view we actually land on.
+    expect(
+      screen.getByRole("button", { name: /任务进展/ }),
+    ).toBeInTheDocument();
   });
 
   it("does not duplicate transcript-location controls in the workbench header", () => {
