@@ -3,6 +3,7 @@ import type {
   DesignCanvasNode,
 } from "@/app/workspace/design/canvas-model";
 import { listDesignWorkflowStages } from "@/app/workspace/design/canvas-model";
+import type { DesignCapabilities } from "./capabilities";
 
 export const DESIGN_CANVAS_CONTEXT_MESSAGE =
   "echo.design.canvas-context" as const;
@@ -182,7 +183,7 @@ export function embeddedDesignChatRoute({
   creationSpace?: string | null;
   parentOrigin?: string | null;
   targetStageNodeId?: string | null;
-  capabilities?: import("./capabilities").DesignCapabilities;
+  capabilities?: DesignCapabilities;
 }): string {
   const id = threadId && threadId !== "new" ? threadId : "new";
   const query = new URLSearchParams({

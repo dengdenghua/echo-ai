@@ -40,7 +40,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
 import { useActiveAgentId } from "@/core/agents/active";
-import { emitAgentChanged, emitOpenSettings, eventBus } from "@/core/events";
+import { emitOpenSettings, eventBus } from "@/core/events";
 import { useI18n } from "@/core/i18n/hooks";
 import {
   useDeleteThread,

@@ -42,7 +42,6 @@ import {
   LibraryIcon,
   ListIcon,
   Loader2Icon,
-  Maximize2Icon,
   MessageSquareIcon,
   MessageSquarePlusIcon,
   MinusIcon,

@@ -5,6 +5,7 @@ import { extractTextFromMessage } from "@/core/messages/utils";
 import type { AgentModeName } from "@/components/workspace/mode-selector";
 import type { useI18n } from "@/core/i18n/hooks";
 import type { ResearchJob } from "@/core/research/api";
+import type { ProjectFullState } from "@/components/workspace/agent-workbench-panel/project-os-tab";
 import type { ReasoningEffort } from "@/core/threads";
 import { swallow } from "@/core/utils/log";
 import { isAbsolutePath } from "@/lib/path-utils";
@@ -397,7 +398,7 @@ export function emptyThreadResearchViewState(
 }
 
 export function resolveActiveProjectMilestone(
-  boundProjectState?: import("@/components/workspace/agent-workbench-panel/project-os-tab").ProjectFullState | null,
+  boundProjectState?: ProjectFullState | null,
   defaultMilestoneId?: string,
 ): { id: string; name: string; status: string; progress?: number } | undefined {
   if (!boundProjectState || !boundProjectState.milestones || boundProjectState.milestones.length === 0) {

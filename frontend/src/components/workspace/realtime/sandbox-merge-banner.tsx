@@ -5,7 +5,6 @@ import {
   DnaIcon,
   GitBranchIcon,
   GitMergeIcon,
-  SparklesIcon,
   XIcon,
 } from "lucide-react";
 import { toast } from "sonner";
