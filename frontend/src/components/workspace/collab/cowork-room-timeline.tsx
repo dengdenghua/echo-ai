@@ -255,6 +255,9 @@ function CoworkRoomTimelineEntryContent({
   const collab = useOptionalCollab();
   const [showAnnotations, setShowAnnotations] = useState(false);
   const [showReactionPicker, setShowReactionPicker] = useState(false);
+  // Must run before the system-message early return below: a hook called after
+  // a conditional return breaks the fixed hook order the renderer relies on.
+  const setDriverMutation = useSetCoworkMemberDriver();
   const refs = message.metadata?.entity_refs ?? [];
   if (isCoworkRoomSystemMessage(message)) {
     const card = getCoworkRoomSystemCard(message) ?? {
@@ -305,7 +308,6 @@ function CoworkRoomTimelineEntryContent({
   );
 
   const threadId = message.room_id || "";
-  const setDriverMutation = useSetCoworkMemberDriver();
   const isDigitalRole =
     participant?.kind === "role" || Boolean(participant?.accountable_owner);
   const isTakeover = participant?.driver === "human";
