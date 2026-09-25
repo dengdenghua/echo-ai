@@ -856,6 +856,15 @@ export function ModelPicker({
           />
           <input
             ref={searchRef}
+            // See settings-dialog: a bare text input invites the browser's
+            // password manager to auto-fill the saved account, which would
+            // then filter the model list by the user's own account name.
+            type="search"
+            name="echo-model-search"
+            autoComplete="off"
+            autoCorrect="off"
+            autoCapitalize="off"
+            spellCheck={false}
             value={query}
             aria-label={searchCopy[0]}
             placeholder={searchCopy[0]}
@@ -877,7 +886,7 @@ export function ModelPicker({
               }
               if (event.key === "Enter") event.preventDefault();
             }}
-            className="min-w-0 flex-1 bg-transparent text-xs outline-none placeholder:text-muted-foreground"
+            className="min-w-0 flex-1 bg-transparent text-xs outline-none placeholder:text-muted-foreground [&::-webkit-search-cancel-button]:hidden [&::-webkit-search-decoration]:hidden"
           />
         </div>
         {engineSource && (

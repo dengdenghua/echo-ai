@@ -315,8 +315,16 @@ export function LocalSkillDirectoryPanel({
           <div className="relative w-full lg:max-w-[560px]">
             <Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
             <Input
+              // Autofill guard: a bare text input gets the saved account
+              // auto-filled by the browser, which then filters the list by it.
+              type="search"
+              name="echo-skill-directory-search"
+              autoComplete="off"
+              autoCorrect="off"
+              autoCapitalize="off"
+              spellCheck={false}
               aria-label={t.unifiedStore.skills.searchAria}
-              className="h-9 border-border bg-background pl-10 text-sm shadow-none"
+              className="h-9 border-border bg-background pl-10 text-sm shadow-none [&::-webkit-search-cancel-button]:hidden [&::-webkit-search-decoration]:hidden"
               placeholder={t.unifiedStore.skills.searchPlaceholder}
               value={query}
               onChange={(event) => setQuery(event.target.value)}

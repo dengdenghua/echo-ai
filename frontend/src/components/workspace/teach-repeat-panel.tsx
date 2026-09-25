@@ -476,12 +476,19 @@ function TemplateLibrary({
         <div className="border-input bg-background flex flex-1 items-center gap-1.5 rounded-lg border px-2 py-1">
           <SearchIcon className="text-muted-foreground size-3.5" />
           <input
-            type="text"
+            // Autofill guard: a bare text input gets the saved account
+            // auto-filled by the browser, which then filters by it.
+            type="search"
+            name="echo-teach-repeat-search"
+            autoComplete="off"
+            autoCorrect="off"
+            autoCapitalize="off"
+            spellCheck={false}
             placeholder={t.teachRepeat.searchWorkflows}
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             aria-label={t.teachRepeat.searchWorkflows}
-            className="w-full bg-transparent text-sm outline-none"
+            className="w-full bg-transparent text-sm outline-none [&::-webkit-search-cancel-button]:hidden [&::-webkit-search-decoration]:hidden"
           />
         </div>
         <button

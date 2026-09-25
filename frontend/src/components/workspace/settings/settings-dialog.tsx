@@ -819,11 +819,25 @@ export function SettingsDialog(props: SettingsDialogProps) {
             <div className="relative mb-2 hidden md:block">
               <SearchIcon className="text-muted-foreground pointer-events-none absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2" />
               <Input
+                // This field only filters the section list, but a bare text
+                // input is indistinguishable from a login field to the
+                // browser's password manager: it auto-fills the saved account
+                // and dispatches an input event, which React turns into a
+                // search term, so opening Settings looks like it "searched for
+                // my account". type=search plus autoComplete=off keeps autofill
+                // out; the cancel decoration is hidden because we render our
+                // own clear button on top of it.
+                type="search"
+                name="echo-settings-search"
+                autoComplete="off"
+                autoCorrect="off"
+                autoCapitalize="off"
+                spellCheck={false}
                 value={settingsQuery}
                 onChange={(event) => setSettingsQuery(event.target.value)}
                 placeholder={t.settings.dialog.searchPlaceholder}
                 aria-label={t.settings.dialog.searchPlaceholder}
-                className="h-9 rounded-lg bg-background pl-8 pr-8 text-ui shadow-none"
+                className="h-9 rounded-lg bg-background pl-8 pr-8 text-ui shadow-none [&::-webkit-search-cancel-button]:hidden [&::-webkit-search-decoration]:hidden"
               />
               {settingsQuery ? (
                 <Button

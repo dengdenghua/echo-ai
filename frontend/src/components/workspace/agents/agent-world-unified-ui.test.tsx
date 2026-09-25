@@ -253,7 +253,8 @@ describe("HUB market shell", () => {
     expect(screen.queryByRole("heading", { name: "开始一项工作" })).toBeNull();
     expect(screen.queryByRole("heading", { name: "常用应用" })).toBeNull();
     expect(
-      screen.getByRole("textbox", {
+      // type=search (autofill guard) makes this a searchbox, not a textbox.
+      screen.getByRole("searchbox", {
         name: "搜索智能体…",
       }),
     ).toBeVisible();

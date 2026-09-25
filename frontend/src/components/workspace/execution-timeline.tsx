@@ -242,7 +242,15 @@ export function ExecutionTimeline() {
         <div className="relative min-w-0 flex-1">
           <SearchIcon className="pointer-events-none absolute left-3 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground" />
           <Input
-            className="h-8 rounded-lg pl-8 text-xs"
+            // Autofill guard: a bare text input gets the saved account
+            // auto-filled by the browser, which then filters by it.
+            type="search"
+            name="echo-execution-timeline-search"
+            autoComplete="off"
+            autoCorrect="off"
+            autoCapitalize="off"
+            spellCheck={false}
+            className="h-8 rounded-lg pl-8 text-xs [&::-webkit-search-cancel-button]:hidden [&::-webkit-search-decoration]:hidden"
             placeholder={t.executionTimeline.searchPlaceholder}
             value={filter}
             onChange={(e) => setFilter(e.target.value)}

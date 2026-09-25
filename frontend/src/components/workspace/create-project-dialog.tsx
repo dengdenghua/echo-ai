@@ -301,8 +301,17 @@ export function CreateProjectDialog({
             {advanced && (
               <div className="p-2 pb-0">
                 <Input
+                  // Autofill guard: a bare text input gets the saved account
+                  // auto-filled by the browser, which then filters by it.
+                  type="search"
+                  name="echo-project-member-search"
+                  autoComplete="off"
+                  autoCorrect="off"
+                  autoCapitalize="off"
+                  spellCheck={false}
                   aria-label={t.createProjectDialog.searchMembers}
                   placeholder={t.createProjectDialog.searchMembers}
+                  className="[&::-webkit-search-cancel-button]:hidden [&::-webkit-search-decoration]:hidden"
                   value={agentSearch}
                   onChange={(event) => setAgentSearch(event.target.value)}
                 />

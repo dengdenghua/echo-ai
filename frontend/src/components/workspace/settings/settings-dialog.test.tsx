@@ -35,6 +35,23 @@ describe("SettingsDialog", () => {
     expect(normalizeSettingsSection("unknown")).toBe("appearance");
   });
 
+  it("keeps browser autofill out of the settings search field", () => {
+    // A bare text input is indistinguishable from a login field to the
+    // browser's password manager: it auto-fills the saved account and fires an
+    // input event, which React turns into a section filter — so opening
+    // Settings looked like it had searched for the signed-in account.
+    renderWithProviders(
+      <SettingsDialog open defaultSection="model" onOpenChange={vi.fn()} />,
+      { locale: "zh-CN" },
+    );
+
+    const search = screen.getByLabelText("搜索设置");
+    expect(search).toHaveAttribute("type", "search");
+    expect(search).toHaveAttribute("autocomplete", "off");
+    expect(search).toHaveAttribute("name", "echo-settings-search");
+    expect(search).toHaveValue("");
+  });
+
   it("exposes browser and desktop automation as independent destinations", () => {
     renderWithProviders(
       <SettingsDialog

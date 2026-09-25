@@ -1,3 +1,4 @@
+import { MailIcon } from "lucide-react";
 import { agentCreationRoute } from "@/core/agents/creation-route";
 /* Implementation note. */
 import { DepartmentScenarios } from "./department-scenarios";
@@ -74,10 +75,6 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ACTIVE_AGENT_KEY, useActiveAgentId } from "@/core/agents/active";
 import { emitAgentChanged } from "@/core/events";
 import { taskWorkspaceRoute } from "@/core/router/task-workspace-route";
-import {
-  taskCollaboratorRouteForLeader,
-  writeTaskCollaboratorPreset,
-} from "@/core/collaboration/task-collaborator-preset";
 import { swallow } from "@/core/utils/log";
 import { serviceErrorMessage } from "@/core/utils/service-error";
 import { useI18n } from "@/core/i18n/hooks";
@@ -162,9 +159,11 @@ const BUILTIN_APP_ICONS = {
   evolution: DnaIcon,
   intelligence: RadioIcon,
   community: CompassIcon,
+  mail: MailIcon,
 } satisfies Record<WorkbenchBuiltinIcon, typeof LayoutGridIcon>;
 
 const BUILTIN_APP_ICON_STYLES = {
+  mail: "bg-rose-500/10 text-rose-600 ring-rose-500/15 dark:text-rose-400",
   projects: "bg-blue-500/10 text-blue-600 ring-blue-500/15 dark:text-blue-400",
   trading:
     "bg-emerald-500/10 text-emerald-600 ring-emerald-500/15 dark:text-emerald-400",
@@ -298,7 +297,6 @@ export function AgentsTab({
   sceneOnly?: boolean;
 }) {
   const { t } = useI18n();
-  const navigate = useNavigate();
   const [installingAll, setInstallingAll] = useState(false);
   const [confirmInstallAll, setConfirmInstallAll] = useState(false);
   const [smartTeamOpen, setSmartTeamOpen] = useState(false);
@@ -1657,12 +1655,20 @@ export function AgentWorldUnified() {
               <div className="relative w-full sm:max-w-[320px]">
                 <SearchIcon className="absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
                 <Input
+                  // Autofill guard: a bare text input gets the saved account
+                  // auto-filled by the browser, which then filters by it.
+                  type="search"
+                  name="echo-agents-search"
+                  autoComplete="off"
+                  autoCorrect="off"
+                  autoCapitalize="off"
+                  spellCheck={false}
                   data-testid="agents-search-input"
                   aria-label={searchPlaceholder}
                   placeholder={searchPlaceholder}
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
-                  className="h-9 rounded-lg border-border-default bg-card pl-8 pr-9 text-ui shadow-none"
+                  className="h-9 rounded-lg border-border-default bg-card pl-8 pr-9 text-ui shadow-none [&::-webkit-search-cancel-button]:hidden [&::-webkit-search-decoration]:hidden"
                 />
                 {searchQuery && (
                   <button

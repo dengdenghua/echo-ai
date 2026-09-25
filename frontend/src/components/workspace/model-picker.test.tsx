@@ -69,7 +69,7 @@ describe("<ModelPicker />", () => {
       ),
     );
     await user.click(screen.getByTestId("model-picker-trigger"));
-    const search = screen.getByRole("textbox", { name: "搜索模型或提供商" });
+    const search = screen.getByRole("searchbox", { name: "搜索模型或提供商" });
     expect(search).toHaveFocus();
     await user.type(search, "ZHIpU 5.3");
     expect(
@@ -92,13 +92,13 @@ describe("<ModelPicker />", () => {
       ),
     );
     await user.click(screen.getByTestId("model-picker-trigger"));
-    await user.type(screen.getByRole("textbox"), "no-such-model");
+    await user.type(screen.getByRole("searchbox"), "no-such-model");
     expect(screen.getByRole("status")).toHaveTextContent("没有匹配的模型");
     await user.keyboard("{Enter}{Escape}");
     expect(onChange).not.toHaveBeenCalled();
     expect(screen.getByTestId("model-picker-trigger")).toHaveFocus();
     await user.click(screen.getByTestId("model-picker-trigger"));
-    expect(screen.getByRole("textbox")).toHaveValue("");
+    expect(screen.getByRole("searchbox")).toHaveValue("");
   });
 
   it("switches Zen and Go catalogs without changing the selected billing source until selection", async () => {

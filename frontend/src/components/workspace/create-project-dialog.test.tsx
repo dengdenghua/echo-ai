@@ -93,7 +93,8 @@ describe("CreateProjectDialog", () => {
         screen.getByRole("button", { name: "同名助手 (planner)" }),
       ).toBeInTheDocument();
       fireEvent.change(
-        screen.getByRole("textbox", { name: "搜索成员名称、标识或能力" }),
+        // type=search (autofill guard) makes this a searchbox, not a textbox.
+        screen.getByRole("searchbox", { name: "搜索成员名称、标识或能力" }),
         { target: { value: "planner-two" } },
       );
       expect(
