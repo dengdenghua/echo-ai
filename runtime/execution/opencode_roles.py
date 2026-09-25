@@ -249,10 +249,18 @@ async def stream_role(
                     profile = await proxy.start()
                     key = profile.scoped_bearer_token
                     shared_provider = {"base_url": profile.base_url}
+                # A tool-free turn reuses the identity's warm engine, so its root
+                # must not be scoped per thread: a per-thread root made every new
+                # conversation pay a full ~5.8s cold start. A tool turn attaches
+                # its own MCP bridge to a throwaway server, which keeps the
+                # thread-scoped root — sharing one root there would let the pool's
+                # one-live-server-per-root rule discard the warm engine on every
+                # tool turn. Session coordinates stay per thread either way.
+                engine_root = root if connection is not None else backend.server_directory(scope)
                 client = await lifetime.enter_async_context(
                     backend.managed_server(
                         backend.executable(),
-                        root,
+                        engine_root,
                         key,
                         model,
                         host_mcp=connection,

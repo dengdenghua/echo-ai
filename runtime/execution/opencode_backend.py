@@ -61,7 +61,13 @@ def _has_unexecuted_tool_markup(text: str) -> bool:
     return False
 
 
-_WARM_IDLE_SECONDS = 120.0
+# How long an unused engine process is kept for the next turn. An idle
+# ``opencode serve`` held 420-496MB RSS on this host (probed 2026-09-25), so
+# this window is a deliberate memory/latency trade rather than a free cache:
+# a cold start costs ~5.8s to the first token, and 10 minutes covers an
+# ordinary "read the answer, think, come back" gap without pinning the engine
+# for a whole session. Measured: 9.4s cold vs 2.3s warm to first token.
+_WARM_IDLE_SECONDS = 600.0
 
 # Native tools the engine must never run. Injected as "ask" (see
 # ``child_environment``) and refused on every ``permission.asked`` event, so the
@@ -253,6 +259,29 @@ def state_directory(scope: TenantScope | None, thread_id: str) -> Path:
     identity = [scope.tenant_id, scope.actor_id] if scope else [None, None]
     digest = hashlib.sha256(json.dumps([*identity, thread_id]).encode()).hexdigest()
     return app_paths().data_dir / "opencode" / digest
+
+
+def server_directory(scope: TenantScope | None) -> Path:
+    """Engine root shared by every thread of one identity.
+
+    The warm pool keys on the state root (``_server_signature``), so a
+    per-thread root made each new conversation pay a full ``opencode serve``
+    cold start. Measured on this host: 1.1-1.4s for the process, 1.2-2.6s for
+    the model catalog, and ~1.8s more on the first request while the provider
+    handshake settled — 9.4s to the first token versus 2.3s once warm. Session
+    coordinates stay per thread in :func:`state_directory`; only the server
+    process and its XDG caches are shared. Nested under ``servers/`` so it can
+    never collide with the per-thread roots already on disk.
+
+    A tool turn deliberately keeps its thread-scoped root: it connects its own
+    MCP bridge into a throwaway server, and the pool's
+    one-live-server-per-root rule would otherwise let it discard the shared
+    engine.
+    """
+
+    identity = [scope.tenant_id, scope.actor_id] if scope else [None, None]
+    digest = hashlib.sha256(json.dumps(identity).encode()).hexdigest()
+    return app_paths().data_dir / "opencode" / "servers" / digest
 
 
 def child_environment(
@@ -474,7 +503,8 @@ async def _start_server(
             await asyncio.sleep(0.1)
         else:
             raise OpenCodeError("OpenCode 启动超时，请检查本地引擎。")
-        await validate_catalog_model(client, model, free_only=not key)
+        if needs_catalog_check(model):
+            await validate_catalog_model(client, model, free_only=not key)
         return process, client
     except BaseException:
         await _stop_server(process, client)
@@ -579,7 +609,8 @@ async def _warm_text_server(
             response = await entry.client.get("/global/health", timeout=1)
             if response.status_code != 200 or not response.json().get("healthy"):
                 raise OpenCodeError("OpenCode 本地引擎连接中断，请重试。")
-            await validate_catalog_model(entry.client, model, free_only=not key)
+            if needs_catalog_check(model):
+                await validate_catalog_model(entry.client, model, free_only=not key)
         yield entry.client
         reusable = getattr(entry.client, "_echo_reusable", True)
     finally:
@@ -645,6 +676,20 @@ async def managed_server(
 
 _PROVIDER_CATALOG_LOAD_TIMEOUT = 10.0
 _PROVIDER_CATALOG_POLL_INTERVAL = 0.4
+
+
+def needs_catalog_check(model: str) -> bool:
+    """Whether a live ``/provider`` read can still reject this selection.
+
+    ``echo-shared`` (the default selection, and every custom model behind it) is
+    declared by Echo's own ``OPENCODE_CONFIG_CONTENT``: the provider block and
+    its single model id are written from the same selection the host is about to
+    send, so membership is guaranteed by construction. The check exists to catch
+    a *stale* Zen choice, and it cannot do that here — it only costs the wait for
+    the whole provider catalog to load, measured at ~1.1s per turn on this host.
+    """
+
+    return native_model(model)[0] != "echo-shared"
 
 
 async def validate_catalog_model(
@@ -767,6 +812,9 @@ async def session_for_thread(client: httpx.AsyncClient, root: Path) -> str:
     response = await client.post("/session", json={"title": "Echo"})
     response.raise_for_status()
     session_id = response.json()["id"]
+    # The session coordinate lives in its own per-thread root, which nothing
+    # else creates any more now that the engine runs from a shared root.
+    mapping.parent.mkdir(parents=True, exist_ok=True)
     temporary = mapping.with_suffix(".tmp")
     temporary.write_text(json.dumps({"session_id": session_id}), encoding="utf-8")
     temporary.replace(mapping)

@@ -16,10 +16,13 @@ from runtime.execution.opencode_backend import (
     MessageEvents,
     OpenCodeError,
     child_environment,
+    needs_catalog_check,
     public_model_error,
     refuse_pending_permissions,
     refuse_permission,
     resolve_zen_model,
+    server_directory,
+    session_for_thread,
     state_directory,
     stream_prompt,
     validate_catalog_model,
@@ -445,6 +448,64 @@ def test_state_is_scoped_to_actor_tenant_and_thread():
     paths = {state_directory(scope, thread) for scope in scopes for thread in ["x", "../../y"]}
     assert len(paths) == 6
     assert all(len(path.name) == 64 for path in paths)
+
+
+def test_engine_root_is_shared_by_threads_and_isolated_between_identities():
+    """A per-thread engine root made every new conversation pay a cold start."""
+
+    scope = TenantScope(tenant_id="one", actor_id="a")
+    others = [
+        TenantScope(tenant_id="one", actor_id="b"),
+        TenantScope(tenant_id="two", actor_id="a"),
+        None,
+    ]
+    root = server_directory(scope)
+    assert server_directory(scope) == root
+    assert all(server_directory(other) != root for other in others)
+    assert len(root.name) == 64
+    # Session coordinates stay per thread and must never land on the engine root,
+    # or one thread's session record would be handed to another thread.
+    threads = [state_directory(scope, thread) for thread in ["x", "y"]]
+    assert threads[0] != threads[1]
+    assert root not in threads
+
+
+def test_only_providers_echo_did_not_declare_pay_the_catalog_gate():
+    """The gate rejects stale Zen picks; ``echo-shared`` cannot be stale.
+
+    Its provider block and model id are written by ``child_environment`` from
+    the same selection the host sends, so the membership check is a tautology
+    that only costs the wait for the whole provider catalog to load.
+    """
+
+    assert not needs_catalog_check("echo-shared/probe-custom")
+    assert needs_catalog_check("big-pickle")
+    assert needs_catalog_check("opencode-go/glm-5.3")
+
+
+@pytest.mark.asyncio
+async def test_session_coordinate_creates_its_own_thread_root(tmp_path):
+    """The engine runs from a shared root, so nothing else creates this one.
+
+    A missing parent directory here failed every turn with FileNotFoundError on
+    ``session.tmp`` once the engine stopped creating per-thread roots.
+    """
+
+    root = tmp_path / "per-thread"
+
+    def handle(request):
+        if request.method == "POST":
+            return httpx.Response(200, json={"id": "ses_regression01"})
+        return httpx.Response(404)
+
+    async with httpx.AsyncClient(
+        transport=httpx.MockTransport(handle), base_url="http://localhost"
+    ) as client:
+        assert await session_for_thread(client, root) == "ses_regression01"
+    assert json.loads((root / "session.json").read_text(encoding="utf-8")) == {
+        "session_id": "ses_regression01"
+    }
+    assert not (root / "session.tmp").exists()
 
 
 def test_host_mcp_is_explicit_and_credentials_stay_out_of_config(tmp_path, monkeypatch):

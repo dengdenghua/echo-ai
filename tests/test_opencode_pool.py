@@ -2,6 +2,7 @@ import asyncio
 from types import SimpleNamespace
 
 from runtime.execution import opencode_backend as backend
+from runtime.safety.auth.scope import TenantScope
 
 
 def test_pool_reuses_isolated_roots_rotates_credentials_and_bounds_idle_processes(
@@ -66,3 +67,60 @@ def test_pool_reuses_isolated_roots_rotates_credentials_and_bounds_idle_processe
 
     asyncio.run(run())
     assert len(stops) == len(starts)
+
+
+def test_one_warm_engine_serves_every_thread_of_an_identity(tmp_path, monkeypatch):
+    """Threads of one identity must share a process; other identities must not.
+
+    Keying the pool on a per-thread root was what made every new conversation
+    pay the full ``opencode serve`` cold start.
+    """
+
+    starts, stops = [], []
+
+    class Client:
+        async def get(self, *args, **kwargs):
+            return SimpleNamespace(status_code=200, json=lambda: {"healthy": True})
+
+    async def start(command, root, key, model, *, shared_provider=None):
+        client = Client()
+        starts.append(root)
+        return SimpleNamespace(returncode=None, terminate=lambda: None), client
+
+    async def stop(process, client):
+        stops.append(client)
+
+    async def validate(*args, **kwargs):
+        pass
+
+    monkeypatch.setattr(backend, "_start_server", start)
+    monkeypatch.setattr(backend, "_stop_server", stop)
+    monkeypatch.setattr(backend, "validate_catalog_model", validate)
+    monkeypatch.setattr(backend, "app_paths", lambda: SimpleNamespace(data_dir=tmp_path))
+    backend._warm_servers.clear()
+
+    actor = TenantScope(tenant_id="acme", actor_id="alice")
+    other = TenantScope(tenant_id="acme", actor_id="mallory")
+
+    async def acquire(root):
+        async with backend.managed_server("opencode", root, None, "big-pickle") as client:
+            return client
+
+    async def run():
+        try:
+            first = await acquire(backend.server_directory(actor))
+            assert starts == [backend.server_directory(actor)]
+            # A different thread resolves the same engine root and reuses it.
+            assert await acquire(backend.server_directory(actor)) is first
+            assert len(starts) == 1
+            assert await acquire(backend.server_directory(other)) is not first
+            assert len(starts) == 2
+        finally:
+            for entry in tuple(backend._warm_servers.values()):
+                if entry.idle_handle:
+                    entry.idle_handle.cancel()
+                await stop(entry.process, entry.client)
+            backend._warm_servers.clear()
+
+    asyncio.run(run())
+    assert len(stops) == len(starts) == 2
