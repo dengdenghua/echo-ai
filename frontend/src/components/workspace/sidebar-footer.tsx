@@ -341,13 +341,13 @@ export function AgentFooter() {
             </span>
             {lock ? (
               <span
-                className="shrink-0 text-2xs uppercase tracking-wider text-muted-foreground/60 group-data-[collapsible=icon]:hidden"
+                className="shrink-0 text-2xs uppercase tracking-wider text-muted-foreground group-data-[collapsible=icon]:hidden"
                 aria-hidden
               >
                 🔒
               </span>
             ) : (
-              <span className="shrink-0 text-muted-foreground/60 group-hover/agent:text-muted-foreground group-data-[collapsible=icon]:hidden">
+              <span className="shrink-0 text-muted-foreground group-hover/agent:text-muted-foreground group-data-[collapsible=icon]:hidden">
                 <svg
                   viewBox="0 0 24 24"
                   className="size-3"

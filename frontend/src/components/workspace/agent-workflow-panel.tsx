@@ -83,7 +83,7 @@ function StepItem({
               step.status === "error" &&
                 "border-destructive/50 bg-destructive/10 text-destructive",
               step.status === "pending" &&
-                "border-muted-foreground/30 text-muted-foreground/50",
+                "border-muted-foreground/30 text-muted-foreground",
             )}
           >
             {step.status === "completed" ? (
@@ -118,7 +118,7 @@ function StepItem({
                     step.status === "running" && "text-chart-1",
                     step.status === "completed" && "text-success",
                     step.status === "error" && "text-destructive",
-                    step.status === "pending" && "text-muted-foreground/50",
+                    step.status === "pending" && "text-muted-foreground",
                   )}
                 />
                 <span
@@ -136,13 +136,13 @@ function StepItem({
                   {step.name}
                 </span>
                 {duration !== null && (
-                  <span className="text-xs text-muted-foreground/60">
+                  <span className="text-xs text-muted-foreground">
                     {duration}s
                   </span>
                 )}
               </div>
               {step.description && (
-                <p className="mt-0.5 break-all text-xs text-muted-foreground/75 line-clamp-2">
+                <p className="mt-0.5 break-all text-xs text-muted-foreground line-clamp-2">
                   {step.description}
                 </p>
               )}
@@ -176,7 +176,7 @@ function StepItem({
             <div className="mt-2 space-y-2 rounded-md border border-border-default bg-muted/30 p-2">
               {step.inputText && (
                 <div className="space-y-1">
-                  <div className="text-xs font-medium uppercase tracking-wide text-muted-foreground/70">
+                  <div className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
                     {t.agentWorkflow.input}
                   </div>
                   <pre className="whitespace-pre-wrap break-all font-mono text-xs text-muted-foreground/85">
@@ -186,7 +186,7 @@ function StepItem({
               )}
               {step.outputText && (
                 <div className="space-y-1">
-                  <div className="text-xs font-medium uppercase tracking-wide text-muted-foreground/70">
+                  <div className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
                     {t.agentWorkflow.result}
                   </div>
                   <pre className="whitespace-pre-wrap break-all font-mono text-xs text-success/85 dark:text-success/85">
@@ -262,7 +262,7 @@ export function AgentWorkflowPanel({
 
       <div className="flex-1 overflow-auto px-3 py-2">
         {steps.length === 0 ? (
-          <div className="flex h-full flex-col items-center justify-center text-muted-foreground/50">
+          <div className="flex h-full flex-col items-center justify-center text-muted-foreground">
             <BotIcon className="mb-2 size-8 opacity-50" />
             <span className="text-xs">{t.agentWorkflow.empty}</span>
           </div>

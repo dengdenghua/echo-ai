@@ -22,12 +22,12 @@ export function PersonaWorkbenchHome({
         <h2 className="mt-3 text-sm font-medium text-foreground/90">
           {preset.workbenchLabel}
         </h2>
-        <p className="mt-1 max-w-64 text-xs leading-5 text-muted-foreground/75">
+        <p className="mt-1 max-w-64 text-xs leading-5 text-muted-foreground">
           {preset.workbenchSummary}
         </p>
 
         <div
-          className="mt-3 flex flex-wrap items-center justify-center gap-x-2 text-xs text-muted-foreground/65"
+          className="mt-3 flex flex-wrap items-center justify-center gap-x-2 text-xs text-muted-foreground"
           aria-label="工作台能力"
         >
           {preset.workbenchLanes.map((lane, index) => (

@@ -78,6 +78,7 @@ import {
   toolResources,
 } from "@/core/automation/references";
 import { MarkdownContent } from "./markdown-content";
+import { InlineVisualMessages } from "./inline-visual";
 import { stripTraceLabelPrefixes } from "./trace-labels";
 import {
   assignTimelineRoles,
@@ -1082,7 +1083,7 @@ export function MessageGroup({
           <button
             key={`${keyPrefix}-phase-${collapsedPhaseId}`}
             type="button"
-            className="flex min-w-0 items-center gap-1.5 py-0.5 text-left text-xs leading-[18px] text-muted-foreground/45 transition-colors hover:text-muted-foreground"
+            className="flex min-w-0 items-center gap-1.5 py-0.5 text-left text-xs leading-[18px] text-muted-foreground transition-colors hover:text-muted-foreground"
             onClick={() => {
               if (!collapsedPhaseId) return;
               if (isLiveTimeline) {
@@ -1205,8 +1206,8 @@ export function MessageGroup({
       // Latest shell execution's live stdout (realtime-adapter mirrors
       // commandExecution.aggregatedOutput into tool_call.args.output).
       const liveExecOutput =
-        item.type === "toolCall" && typeof item.step.args.output === "string"
-          ? item.step.args.output.trim()
+        step.type === "toolCall" && typeof step.args.output === "string"
+          ? step.args.output.trim()
           : "";
       // Show the typewriter output window only while the latest step is
       // actually running; once it settles the window folds back to the row.
@@ -1610,7 +1611,7 @@ export function MessageGroup({
                   ? "text-warning/80 hover:text-warning/80 dark:hover:text-warning"
                   : isAggregatedGroup
                     ? "text-muted-foreground hover:text-foreground"
-                    : "text-muted-foreground/75 hover:text-muted-foreground",
+                    : "text-muted-foreground hover:text-muted-foreground",
               )}
             >
               {isThinking ? (
@@ -1663,7 +1664,7 @@ export function MessageGroup({
                   className="size-4 shrink-0 rounded-sm text-micro"
                 />
               ) : (
-                <ActionIcon className="size-4 shrink-0 text-muted-foreground/75" />
+                <ActionIcon className="size-4 shrink-0 text-muted-foreground" />
               )}
               <span className="flex min-w-0 flex-1 items-center gap-1">
                 <span className="flex items-center gap-1">
@@ -1682,7 +1683,7 @@ export function MessageGroup({
                       <span className="font-medium text-muted-foreground/90">
                         {actionVerb}
                       </span>
-                      <span className="ml-1.5 text-muted-foreground/70">
+                      <span className="ml-1.5 text-muted-foreground">
                         {" "}
                         {actionObject}
                       </span>
@@ -1701,7 +1702,7 @@ export function MessageGroup({
                   isLastOverall &&
                   isCurrentlyThinking &&
                   thinkingElapsedMs > 200 && (
-                    <span className="shrink-0 tabular-nums text-micro text-muted-foreground/40">
+                    <span className="shrink-0 tabular-nums text-micro text-muted-foreground">
                       {t.messageGrouping.thinkingDuration(
                         formatDuration(thinkingElapsedMs),
                       )}
@@ -1711,7 +1712,7 @@ export function MessageGroup({
                   hasStoredDuration &&
                   groupDurationMs > 0 &&
                   !(isLastOverall && isCurrentlyThinking) && (
-                    <span className="shrink-0 tabular-nums text-micro text-muted-foreground/40">
+                    <span className="shrink-0 tabular-nums text-micro text-muted-foreground">
                       {t.messageGrouping.thinkingDuration(
                         formatDuration(groupDurationMs),
                       )}
@@ -1720,7 +1721,7 @@ export function MessageGroup({
                 {(count > 1 || (delegationSummary?.count ?? 0) > 1) &&
                   !isAggregatedGroup &&
                   !groupedTargetSummary && (
-                    <span className="shrink-0 tabular-nums whitespace-nowrap text-mini text-muted-foreground/50">
+                    <span className="shrink-0 tabular-nums whitespace-nowrap text-mini text-muted-foreground">
                       {t.messageGrouping.countItems(
                         delegationSummary?.count ?? count,
                       )}
@@ -1756,7 +1757,7 @@ export function MessageGroup({
                     [item.id]: !current[item.id],
                   }));
                 }}
-                className="shrink-0 p-0.5 text-muted-foreground/55 opacity-0 transition-opacity group-hover/process-row:opacity-100 hover:text-muted-foreground focus-visible:opacity-100"
+                className="shrink-0 p-0.5 text-muted-foreground opacity-0 transition-opacity group-hover/process-row:opacity-100 hover:text-muted-foreground focus-visible:opacity-100"
                 aria-label={
                   expandedThinkingRows[item.id]
                     ? t.agentWorkbenchPages.collapse
@@ -1826,7 +1827,7 @@ export function MessageGroup({
               </CollapsibleContent>
             </Collapsible>
           )}
-          {item.type === "toolCall" && (
+          {(item.type === "toolCall" || item.type === "aggregatedToolGroup") && (
             <Collapsible open={liveExecStreamActive}>
               <CollapsibleContent
                 className="overflow-hidden data-[state=open]:animate-[collapsible-down_150ms_ease-out] data-[state=closed]:animate-[collapsible-up_150ms_ease-out]"
@@ -1853,7 +1854,7 @@ export function MessageGroup({
             </Collapsible>
           )}
           {factSummaryText && (
-            <div className="truncate pb-0.5 pl-3 text-xs leading-[18px] text-muted-foreground/60">
+            <div className="truncate pb-0.5 pl-3 text-xs leading-[18px] text-muted-foreground">
               {factSummaryText}
             </div>
           )}
@@ -1909,10 +1910,11 @@ export function MessageGroup({
       open={processReplayExpanded}
       data-process-mode={codeMode ? "code" : "chat"}
     >
+      <InlineVisualMessages messages={messages} />
       {showProcessReplayDisclosure && (
         <button
           type="button"
-          className="group/process-replay flex min-w-0 items-center gap-1.5 py-0.5 text-left text-xs leading-5 text-muted-foreground/65 transition-colors hover:text-muted-foreground"
+          className="group/process-replay flex min-w-0 items-center gap-1.5 py-0.5 text-left text-xs leading-5 text-muted-foreground transition-colors hover:text-muted-foreground"
           aria-expanded={processReplayExpanded}
           data-testid="process-replay-toggle"
           onClick={() => setProcessReplayOpen((open) => !open)}
@@ -1983,7 +1985,7 @@ export function MessageGroup({
       )}
       {showInterruptedReceipt && (
         <div
-          className="mt-1 text-xs leading-5 text-muted-foreground/70"
+          className="mt-1 text-xs leading-5 text-muted-foreground"
           data-testid="process-interrupted-receipt"
         >
           {t.conversation.interruptedMessage}
@@ -2138,6 +2140,7 @@ interface CoTToolCallStep extends GenericCoTStep<"toolCall"> {
   name: string;
   args: Record<string, unknown>;
   result?: string | Record<string, unknown> | unknown[];
+  resultReceived?: boolean;
   effectReceipt?: NonNullable<
     NonNullable<AIMessage["tool_calls"]>[number]["effectReceipt"]
   >;
@@ -2729,6 +2732,7 @@ function runStateForCurrentStep(
 ): AgentRunState {
   if (stepHasError(step)) return "error";
   if (stepIsWaiting(step)) return "waiting";
+  if (step.type === "toolCall" && step.resultReceived) return "done";
   if (isLoading) return "running";
   return "done";
 }
@@ -3152,6 +3156,11 @@ export function convertToSteps(messages: Message[]): CoTStep[] {
     };
     const toolCallId = toolCall.id;
     if (toolCallId) {
+      // Empty output still acknowledges completion; truthiness of the text
+      // cannot distinguish it from a tool that has not returned yet.
+      step.resultReceived = messages.some(
+        (candidate) => candidate.type === "tool" && candidate.tool_call_id === toolCallId,
+      );
       const toolCallResult = findToolCallResult(toolCallId, messages);
       if (toolCallResult) {
         try {

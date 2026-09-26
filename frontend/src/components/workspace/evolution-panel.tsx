@@ -531,7 +531,7 @@ function ReActVariantsTable({ variants }: { variants: ReActVariantStat[] }) {
                 <td
                   className={cn(
                     "px-2 py-2 text-right tabular-nums",
-                    v.assignments === 0 && "text-muted-foreground/40",
+                    v.assignments === 0 && "text-muted-foreground",
                   )}
                 >
                   {v.assignments === 0

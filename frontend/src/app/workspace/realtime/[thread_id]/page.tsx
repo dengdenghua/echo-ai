@@ -1504,10 +1504,13 @@ function RealtimePageContent({
         : "";
     return (
       !ownerActorId ||
-      currentInviteActor === "anonymous" ||
       ownerActorId === currentInviteActor
     );
   }, [currentInviteActor, currentRoomParticipant, threadIdentityQuery.data]);
+  const canWriteConversation =
+    !collabSessionQuery.data?.room_id ||
+    canManageHumanInvites ||
+    currentRoomParticipant?.role === "member";
   const realtimeRoomParticipant =
     currentRoomParticipant ??
     (canManageHumanInvites
@@ -1977,11 +1980,6 @@ function RealtimePageContent({
       boundProjectState.milestones[0]?.id
     );
   }, [boundProjectState]);
-  const visibleRoomMessages = useMemo(
-    () =>
-      dedupeCoworkRoomMessages(collabSessionQuery.data?.room_messages ?? []),
-    [collabSessionQuery.data?.room_messages],
-  );
   const roomMessageMetadataBySourceId = useMemo(() => {
     const metadataById: Record<string, CoworkRoomMessage["metadata"]> = {};
     for (const message of collabSessionQuery.data?.room_messages ?? []) {
@@ -2102,15 +2100,18 @@ function RealtimePageContent({
         });
       }
 
-      const posted = await postCollabRoomMessageMutation.mutateAsync({
+      const sourceMessageId = message.metadata?.source_message_id ??
+        `thread:${threadId}:${message.seq}`;
+      const existingMessage = collabSessionQuery.data?.room_messages.find(
+        item => item.metadata?.source_message_id === sourceMessageId,
+      );
+      const posted = existingMessage ? { message: existingMessage, seq: existingMessage.seq } : await postCollabRoomMessageMutation.mutateAsync({
         threadId,
         input: {
           text: message.text.trim() || "群聊消息",
           participant_id: currentActorId(),
-          display_name: "我",
-          source_message_id:
-            message.metadata?.source_message_id ??
-            `thread:${threadId}:${message.seq}`,
+          display_name: currentRoomParticipant?.display_name || currentActorId(),
+          source_message_id: sourceMessageId,
         },
       });
       const messageSeq = posted.message?.seq ?? posted.seq;
@@ -2151,6 +2152,8 @@ function RealtimePageContent({
       boundProjectQuery,
       boundProjectState?.project,
       collabSessionQuery.data?.room_id,
+      collabSessionQuery.data?.room_messages,
+      currentRoomParticipant?.display_name,
       collaborationRoomMemberPayload,
       collaborationTeamName,
       effectiveAgentId,
@@ -2188,6 +2191,7 @@ function RealtimePageContent({
   );
   const roomTimelineMessageActions = useMemo(
     () => ({
+      disabled: !canWriteConversation,
       onReply: (message: CoworkRoomMessage) => {
         setReplyTarget(message);
         const quoted = message.text.replace(/\s+/g, " ").trim().slice(0, 160);
@@ -2238,35 +2242,11 @@ function RealtimePageContent({
       boundProjectQuery,
       boundProjectState,
       collabSessionQuery.data?.roster,
+      canWriteConversation,
       defaultProjectMilestoneId,
       openProjectWorkbenchForEntity,
       projectMilestoneOptions,
       threadId,
-    ],
-  );
-  const roomTimelineEntries = useMemo(
-    () =>
-      visibleRoomMessages.map((message) => ({
-        id: `${message.room_id ?? collabSessionQuery.data?.room_id ?? "room"}:${message.seq}`,
-        createdAt: message.ts,
-        content: (
-          <CoworkRoomTimelineEntry
-            message={message}
-            participants={collabSessionQuery.data?.room_participants ?? []}
-            currentParticipantId={currentInviteActor}
-            messageActions={roomTimelineMessageActions}
-            onEntityClick={openProjectWorkbenchForEntity}
-            className="my-1"
-          />
-        ),
-      })),
-    [
-      collabSessionQuery.data?.room_id,
-      collabSessionQuery.data?.room_participants,
-      currentInviteActor,
-      openProjectWorkbenchForEntity,
-      roomTimelineMessageActions,
-      visibleRoomMessages,
     ],
   );
   const prevAgentRef = useRef<string | null>(null);
@@ -2605,6 +2585,39 @@ function RealtimePageContent({
       events: loadModelSwitchEvents(threadId),
     });
   }, [threadId]);
+  const visibleRoomMessages = useMemo(
+    () =>
+      dedupeCoworkRoomMessages(
+        collabSessionQuery.data?.room_messages ?? [],
+        thread.messages.map(message => message.id).filter((id): id is string => Boolean(id)),
+      ),
+    [collabSessionQuery.data?.room_messages, thread.messages],
+  );
+  const roomTimelineEntries = useMemo(
+    () =>
+      visibleRoomMessages.map((message) => ({
+        id: `${message.room_id ?? collabSessionQuery.data?.room_id ?? "room"}:${message.seq}`,
+        createdAt: message.ts,
+        content: (
+          <CoworkRoomTimelineEntry
+            message={message}
+            participants={collabSessionQuery.data?.room_participants ?? []}
+            currentParticipantId={currentInviteActor}
+            messageActions={roomTimelineMessageActions}
+            onEntityClick={openProjectWorkbenchForEntity}
+            className="my-1"
+          />
+        ),
+      })),
+    [
+      collabSessionQuery.data?.room_id,
+      collabSessionQuery.data?.room_participants,
+      currentInviteActor,
+      openProjectWorkbenchForEntity,
+      roomTimelineMessageActions,
+      visibleRoomMessages,
+    ],
+  );
   const modelSwitchTimelineEntries = useMemo<MessageListTimelineEntry[]>(() => {
     const visibleEvents =
       modelSwitchTimeline.threadId === threadId
@@ -3516,7 +3529,7 @@ function RealtimePageContent({
       // The socket may have dropped after the composer rendered but before
       // this click reached the mutation boundary. Returning false tells the
       // composer to preserve the complete draft for the recovered session.
-      if (!thread.readyForMutations) return false;
+      if (!thread.readyForMutations || !canWriteConversation) return false;
       const images = message.images ?? [];
       const attachedFiles = message.files ?? [];
       const browserFiles = [...attachedFiles, ...images];
@@ -3642,6 +3655,7 @@ function RealtimePageContent({
       t,
       thread.messages,
       thread.readyForMutations,
+      canWriteConversation,
       threadId,
       activeAgentId,
       navigate,
@@ -4411,6 +4425,7 @@ function RealtimePageContent({
           active={thread.isLoading}
         >
           <CollaborationRealtimeBridge
+            canWrite={canWriteConversation}
             roomId={collabSessionQuery.data?.room_id}
             threadId={isNewThread ? null : threadId}
             participantId={realtimeParticipantId}
@@ -4479,7 +4494,7 @@ function RealtimePageContent({
                           {connectedChannels.length > 0 && (
                             <div className="flex shrink-0 items-center gap-1">
                               <span className="size-1.5 rounded-full bg-emerald-500" />
-                              <span className="text-mini text-muted-foreground/70">
+                              <span className="text-mini text-muted-foreground">
                                 已连接:{" "}
                                 {connectedChannels
                                   .map((c) => channelDisplayNames[c] || c)
@@ -4804,7 +4819,7 @@ function RealtimePageContent({
                                 ? undefined
                                 : handleAutomationTargetChange
                             }
-                            disabled={researchLoading}
+                            disabled={researchLoading || !canWriteConversation}
                             workDir={effectiveWorkDir}
                             displayAgent={perspectiveComposerAgent}
                             showWorkDirSelector={!embeddedDesignChat}
@@ -4859,7 +4874,9 @@ function RealtimePageContent({
                             autoFocus={isNewThread}
                             defaultValue={composerSeed}
                             placeholder={
-                              isEchoAssistant
+                              !canWriteConversation
+                                ? t.teamMembers.viewerDesc
+                                : isEchoAssistant
                                 ? t.realtime.composer.placeholderEcho
                                 : isProjectCodeMode
                                   ? t.realtime.composer.placeholderCode

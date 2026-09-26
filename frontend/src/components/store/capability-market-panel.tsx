@@ -2325,7 +2325,7 @@ export function CapabilityMarketPanel({
                     {cap.description_zh || cap.description}
                   </p>
                   {cap.author && !isFeaturedView ? (
-                    <p className="mt-0.5 text-[11px] text-muted-foreground/70">
+                    <p className="mt-0.5 text-[11px] text-muted-foreground">
                       作者:{cap.author}
                     </p>
                   ) : null}

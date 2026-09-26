@@ -166,7 +166,7 @@ export function MarketBoard() {
               placeholder="搜索好物、卖家…"
               className={cn(
                 "w-full rounded-md border border-border-default bg-background/60 py-1.5 pl-9 pr-8 text-sm",
-                "placeholder:text-muted-foreground/60 outline-none",
+                "placeholder:text-muted-foreground outline-none",
                 "focus:border-primary/50 focus:ring-2 focus:ring-primary/10",
               )}
             />
@@ -175,7 +175,7 @@ export function MarketBoard() {
                 type="button"
                 onClick={() => setQuery("")}
                 aria-label="清空搜索"
-                className="absolute right-2 top-1/2 -translate-y-1/2 rounded p-0.5 text-muted-foreground/60 hover:text-foreground"
+                className="absolute right-2 top-1/2 -translate-y-1/2 rounded p-0.5 text-muted-foreground hover:text-foreground"
               >
                 <XIcon className="size-3.5" />
               </button>
@@ -280,7 +280,7 @@ export function ListModal({
             onChange={(e) => setTitle(e.target.value)}
             placeholder="一句话好物标题…"
             maxLength={40}
-            className="w-full rounded-md border border-border-default bg-background/60 px-3 py-2 text-sm outline-none placeholder:text-muted-foreground/60 focus:border-primary/50 focus:ring-2 focus:ring-primary/10"
+            className="w-full rounded-md border border-border-default bg-background/60 px-3 py-2 text-sm outline-none placeholder:text-muted-foreground focus:border-primary/50 focus:ring-2 focus:ring-primary/10"
           />
           <label
             htmlFor="market-item-description"
@@ -294,7 +294,7 @@ export function ListModal({
             onChange={(e) => setDesc(e.target.value)}
             placeholder="描述用途、亮点（可选）…"
             rows={3}
-            className="w-full resize-none rounded-md border border-border-default bg-background/60 px-3 py-2 text-sm outline-none placeholder:text-muted-foreground/60 focus:border-primary/50 focus:ring-2 focus:ring-primary/10"
+            className="w-full resize-none rounded-md border border-border-default bg-background/60 px-3 py-2 text-sm outline-none placeholder:text-muted-foreground focus:border-primary/50 focus:ring-2 focus:ring-primary/10"
           />
           <div className="mt-3 grid grid-cols-2 gap-3">
             <div>
@@ -373,7 +373,7 @@ export function ListModal({
               "rounded-md px-4 py-1.5 text-sm font-semibold transition-colors",
               canSubmit
                 ? "bg-rose-500 text-white hover:bg-rose-600"
-                : "cursor-not-allowed bg-muted text-muted-foreground/50",
+                : "cursor-not-allowed bg-muted text-muted-foreground",
             )}
           >
             上架

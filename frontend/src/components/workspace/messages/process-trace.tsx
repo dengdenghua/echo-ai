@@ -226,7 +226,7 @@ export function ProcessTrace({
                 ) : phase.status === "done" ? (
                   <CheckCircle2Icon className="size-3.5 shrink-0 text-success" />
                 ) : (
-                  <CircleIcon className="size-3.5 shrink-0 text-muted-foreground/45" />
+                  <CircleIcon className="size-3.5 shrink-0 text-muted-foreground" />
                 )}
                 <span
                   className={cn(

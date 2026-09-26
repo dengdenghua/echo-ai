@@ -316,7 +316,7 @@ export function AutomationConfiguredTab() {
 
       {subscriptions.length === 0 ? (
         <div className="flex flex-col items-center justify-center rounded-lg border border-dashed border-border-default bg-card/50 py-16 text-center">
-          <CloudIcon className="size-10 text-muted-foreground/60" />
+          <CloudIcon className="size-10 text-muted-foreground" />
           <div className="mt-4 text-sm font-medium text-foreground">
             {t.intelligence.configuredEmptyTitle}
           </div>

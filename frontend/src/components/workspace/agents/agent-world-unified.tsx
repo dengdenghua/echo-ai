@@ -717,7 +717,7 @@ export function AgentsTab({
               className="flex flex-col items-center py-16"
               role="status"
             >
-              <StoreIcon className="text-muted-foreground/30 mb-3 h-10 w-10" />
+              <StoreIcon className="text-muted-foreground mb-3 h-10 w-10" />
               <p className="text-muted-foreground text-sm">
                 {t.agentWorld.noAgentsFound}
               </p>
@@ -1129,13 +1129,13 @@ function PluginsTabContent({ searchQuery }: { searchQuery: string }) {
             </div>
           ) : (
             <div className="rounded-lg border border-dashed border-border bg-muted/10 px-6 py-12 text-center">
-              <PuzzleIcon className="mx-auto mb-3 size-10 text-muted-foreground/30" />
+              <PuzzleIcon className="mx-auto mb-3 size-10 text-muted-foreground" />
               <p className="text-sm text-muted-foreground">
                 {pluginEntries.length === 0
                   ? t.plugins.emptyTitle
                   : t.plugins.noMatches}
               </p>
-              <p className="mt-1 text-ui text-muted-foreground/60">
+              <p className="mt-1 text-ui text-muted-foreground">
                 {pluginEntries.length === 0
                   ? t.plugins.emptyHint
                   : t.plugins.tryDifferentQuery}

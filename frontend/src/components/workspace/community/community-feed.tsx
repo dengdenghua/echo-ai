@@ -629,7 +629,7 @@ export function CommunityPostCard({
               className={cn(
                 "shrink-0 rounded text-mini font-semibold transition-colors",
                 isFollowing
-                  ? "text-muted-foreground/60 hover:text-foreground"
+                  ? "text-muted-foreground hover:text-foreground"
                   : "text-chart-3 hover:text-chart-3/80",
               )}
             >
@@ -638,7 +638,7 @@ export function CommunityPostCard({
           )}
 
           <span className="ml-auto flex shrink-0 items-center gap-0.5 text-xs tabular-nums text-muted-foreground">
-            <HeartIcon className="size-3 text-muted-foreground/60" />
+            <HeartIcon className="size-3 text-muted-foreground" />
             {formatCount(likeCount)}
           </span>
 
@@ -653,7 +653,7 @@ export function CommunityPostCard({
               title={`查看 ${post.title} 的 ${formatCount(commentCount ?? post.commentsCount)} 条评论`}
               className="flex shrink-0 items-center gap-0.5 rounded p-0.5 text-xs tabular-nums text-muted-foreground transition-colors hover:text-foreground"
             >
-              <MessageCircleIcon className="size-3 text-muted-foreground/60" />
+              <MessageCircleIcon className="size-3 text-muted-foreground" />
               {formatCount(commentCount ?? post.commentsCount)}
             </button>
           )}
@@ -668,7 +668,7 @@ export function CommunityPostCard({
                 "shrink-0 rounded p-0.5 transition-colors",
                 isLiked
                   ? "text-chart-3"
-                  : "text-muted-foreground/50 hover:text-chart-3",
+                  : "text-muted-foreground hover:text-chart-3",
               )}
             >
               <HeartIcon
@@ -691,7 +691,7 @@ export function CommunityPostCard({
                 "shrink-0 rounded p-0.5 transition-colors",
                 isFavorite
                   ? "text-amber-500"
-                  : "text-muted-foreground/50 hover:text-amber-500",
+                  : "text-muted-foreground hover:text-amber-500",
               )}
             >
               <StarIcon

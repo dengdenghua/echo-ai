@@ -79,7 +79,7 @@ export function StatusGlyph({
         status === "done" && "text-success",
         status === "warning" && "text-warning",
         status === "error" && "text-destructive",
-        status === "pending" && "text-muted-foreground/45",
+        status === "pending" && "text-muted-foreground",
         status === "waiting_approval" && "text-warning",
         className,
       )}
@@ -100,13 +100,13 @@ export function WorkbenchEmptyPage({
         <div className="workbench-empty-page-icon relative">
           <div className="relative flex size-12 items-center justify-center rounded-lg border border-border bg-card">
             <MonitorIcon
-              className="size-5 text-muted-foreground/60"
+              className="size-5 text-muted-foreground"
               strokeWidth={1.5}
             />
           </div>
         </div>
         <div className="text-sm font-medium text-foreground/90">{title}</div>
-        <p className="workbench-empty-page-description text-xs leading-relaxed text-muted-foreground/70">
+        <p className="workbench-empty-page-description text-xs leading-relaxed text-muted-foreground">
           {description}
         </p>
       </div>
@@ -151,7 +151,7 @@ function SummaryDiffEntryList({
             <span className="min-w-0 flex-1 truncate text-sm text-foreground">
               {basename(entry.title || entry.path)}
             </span>
-            <ChevronRightIcon className="size-3.5 shrink-0 text-muted-foreground/55" />
+            <ChevronRightIcon className="size-3.5 shrink-0 text-muted-foreground" />
           </button>
         </li>
       ))}
@@ -888,7 +888,7 @@ function SummaryAgentRow({ tile }: { tile: AgentTile }) {
           </span>
         )}
       </span>
-      <ChevronRightIcon className="size-3.5 shrink-0 text-muted-foreground/50" />
+      <ChevronRightIcon className="size-3.5 shrink-0 text-muted-foreground" />
       {subtask && (
         <SubtaskHoverPreview
           task={subtask}
@@ -1688,12 +1688,12 @@ export function AgentSummaryPage({
                             </span>
                           </div>
                           {ref.tag && (
-                            <span className="max-w-28 shrink-0 truncate text-xs text-muted-foreground/70">
+                            <span className="max-w-28 shrink-0 truncate text-xs text-muted-foreground">
                               {ref.tag}
                             </span>
                           )}
                           {ref.url && (
-                            <ChevronRightIcon className="size-3.5 shrink-0 text-muted-foreground/35 transition-colors group-hover:text-muted-foreground" />
+                            <ChevronRightIcon className="size-3.5 shrink-0 text-muted-foreground transition-colors group-hover:text-muted-foreground" />
                           )}
                         </>
                       );
@@ -1727,7 +1727,7 @@ export function AgentSummaryPage({
         {/* 空状态 */}
         {isCompletelyEmpty && (
           <div className="flex flex-col items-center justify-center px-4 py-8 text-center">
-            <BotIcon className="mb-2 size-8 text-muted-foreground/50" />
+            <BotIcon className="mb-2 size-8 text-muted-foreground" />
             <p className="text-xs font-medium text-foreground">
               {t.agentWorkbenchPages.dashboardOverview}
             </p>

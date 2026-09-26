@@ -156,7 +156,7 @@ export function SessionSearch({
                     {r.snippet}
                   </div>
                 )}
-                <div className="text-muted-foreground/60 mt-1 text-xs">
+                <div className="text-muted-foreground mt-1 text-xs">
                   {r.message_count} messages
                   {r.created_at
                     ? ` · ${new Date(r.created_at).toLocaleDateString()}`

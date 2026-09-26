@@ -1748,7 +1748,7 @@ export function BrowserPreviewPanel({
           {loading ? (
             <Loader2Icon className="size-8 animate-spin text-primary" />
           ) : (
-            <GlobeIcon className="size-8 text-muted-foreground/60" />
+            <GlobeIcon className="size-8 text-muted-foreground" />
           )}
         </div>
         <div className="max-w-sm">
@@ -2220,7 +2220,7 @@ export function BrowserPreviewPanel({
           <span className="flex min-w-0 items-center gap-1.5">
             <ChevronDownIcon
               className={cn(
-                "text-muted-foreground/70 size-3 shrink-0 transition-transform",
+                "text-muted-foreground size-3 shrink-0 transition-transform",
                 !actionLogExpanded && "-rotate-90",
               )}
             />
@@ -2288,7 +2288,7 @@ export function BrowserPreviewPanel({
               </p>
             )}
             {actionLog.length === 0 ? (
-              <p className="text-muted-foreground/50 py-2 text-center text-xs">
+              <p className="text-muted-foreground py-2 text-center text-xs">
                 {t.browser.noActions}
               </p>
             ) : (
@@ -2331,7 +2331,7 @@ export function BrowserPreviewPanel({
                               {coordinateLabel}
                             </span>
                           )}
-                          <span className="ml-auto shrink-0 font-mono text-xs text-muted-foreground/50">
+                          <span className="ml-auto shrink-0 font-mono text-xs text-muted-foreground">
                             {new Date(
                               entry.timestamp * 1000,
                             ).toLocaleTimeString([], {

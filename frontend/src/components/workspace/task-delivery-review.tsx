@@ -295,7 +295,7 @@ export function TaskDeliveryReview({
               aria-label={`+${totals.added} -${totals.removed}`}
             >
               <span className="text-success">+{totals.added}</span>
-              <span className="mx-1 text-muted-foreground/40"> </span>
+              <span className="mx-1 text-muted-foreground"> </span>
               <span className="text-destructive">-{totals.removed}</span>
             </span>
           )}
@@ -395,7 +395,7 @@ function ChangeEntry({
             aria-expanded={open}
             aria-label={`${open ? "收起" : "展开"} ${change.path} 的差异`}
             onClick={() => setOpen((prev) => !prev)}
-            className="shrink-0 rounded-sm text-muted-foreground/60 transition-colors hover:text-foreground"
+            className="shrink-0 rounded-sm text-muted-foreground transition-colors hover:text-foreground"
           >
             <ChevronRightIcon
               className={cn(
@@ -426,7 +426,7 @@ function ChangeEntry({
         {hasDiff && (
           <span className="shrink-0 font-mono">
             <span className="text-success">+{change.added}</span>
-            <span className="mx-1 text-muted-foreground/40"> </span>
+            <span className="mx-1 text-muted-foreground"> </span>
             <span className="text-destructive">-{change.removed}</span>
           </span>
         )}

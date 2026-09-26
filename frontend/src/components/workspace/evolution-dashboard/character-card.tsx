@@ -39,7 +39,7 @@ function StarRating({ stars, max = 5 }: { stars: number; max?: number }) {
           key={i}
           className={cn(
             "text-sm",
-            i < stars ? "text-yellow-500" : "text-muted-foreground/30",
+            i < stars ? "text-yellow-500" : "text-muted-foreground",
           )}
         >
           ⭐

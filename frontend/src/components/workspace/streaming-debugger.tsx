@@ -146,7 +146,7 @@ function EnabledStreamingDebugger({
             // so it never competes with the composer or the paused-tasks
             // banner (which owns bottom-4 right-4 at z-50 — we sit below it).
             "fixed bottom-1.5 right-1.5 z-[199] flex size-7 items-center justify-center rounded-full",
-            "border border-border-default bg-background/80 text-muted-foreground/70 backdrop-blur-sm",
+            "border border-border-default bg-background/80 text-muted-foreground backdrop-blur-sm",
             "opacity-35 transition-[opacity,color,background-color] duration-fast",
             "hover:opacity-100 hover:text-foreground hover:bg-background",
             "focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring/50",

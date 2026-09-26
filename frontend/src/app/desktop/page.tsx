@@ -741,7 +741,7 @@ export default function DesktopShellPage() {
                 onKeyDown={onKeyDown}
                 placeholder={t.desktop.searchPlaceholder}
                 aria-label={t.desktop.searchPlaceholder}
-                className="min-w-0 flex-1 bg-transparent text-sm font-medium outline-none placeholder:text-muted-foreground/70"
+                className="min-w-0 flex-1 bg-transparent text-sm font-medium outline-none placeholder:text-muted-foreground"
               />
               <button
                 type="button"
@@ -859,19 +859,19 @@ export default function DesktopShellPage() {
             {!itemsError && (
               <>
                 <div className="mt-4 flex items-center gap-2 rounded-2xl border border-white/45 bg-background/60 px-3 py-2">
-                  <SearchIcon className="size-4 shrink-0 text-muted-foreground/70" />
+                  <SearchIcon className="size-4 shrink-0 text-muted-foreground" />
                   <input
                     value={desktopSearch}
                     onChange={(event) => setDesktopSearch(event.target.value)}
                     placeholder={t.desktop.drawer.searchPlaceholder}
                     aria-label={t.desktop.drawer.searchPlaceholder}
-                    className="min-w-0 flex-1 bg-transparent text-sm outline-none placeholder:text-muted-foreground/70"
+                    className="min-w-0 flex-1 bg-transparent text-sm outline-none placeholder:text-muted-foreground"
                   />
                   {desktopSearch && (
                     <button
                       type="button"
                       onClick={() => setDesktopSearch("")}
-                      className="grid size-4 place-items-center rounded-full text-muted-foreground/70 transition hover:text-muted-foreground"
+                      className="grid size-4 place-items-center rounded-full text-muted-foreground transition hover:text-muted-foreground"
                     >
                       <XIcon className="size-3" />
                     </button>
@@ -942,7 +942,7 @@ export default function DesktopShellPage() {
                   {loadingItems ? (
                     <div className="grid h-56 place-items-center">
                       <div className="text-center">
-                        <Loader2Icon className="mx-auto size-8 animate-spin text-muted-foreground/70" />
+                        <Loader2Icon className="mx-auto size-8 animate-spin text-muted-foreground" />
                         <p className="mt-3 text-sm font-medium text-muted-foreground">
                           {t.desktop.loadingItems}
                         </p>
@@ -1033,7 +1033,7 @@ export default function DesktopShellPage() {
                   ) : (
                     <div className="grid h-56 place-items-center rounded-3xl border border-dashed border-border-strong bg-muted/50 text-center">
                       <div>
-                        <SearchIcon className="mx-auto size-8 text-muted-foreground/70" />
+                        <SearchIcon className="mx-auto size-8 text-muted-foreground" />
                         <p className="mt-3 text-sm font-medium text-muted-foreground">
                           {desktopSearch.trim()
                             ? t.desktop.empty.noSearchResults
@@ -1041,7 +1041,7 @@ export default function DesktopShellPage() {
                               ? t.desktop.empty.noDesktopFiles
                               : t.desktop.empty.noFilesInCategory}
                         </p>
-                        <p className="mt-1 text-xs text-muted-foreground/70">
+                        <p className="mt-1 text-xs text-muted-foreground">
                           {desktopSearch.trim()
                             ? t.desktop.empty.tryAnotherKeyword
                             : t.desktop.empty.dropFilesHere}
@@ -1180,7 +1180,7 @@ export default function DesktopShellPage() {
               <button
                 type="button"
                 onClick={() => setShowWidget(false)}
-                className="grid size-5 place-items-center rounded-full text-muted-foreground/70 transition hover:bg-muted hover:text-muted-foreground"
+                className="grid size-5 place-items-center rounded-full text-muted-foreground transition hover:bg-muted hover:text-muted-foreground"
               >
                 <XIcon className="size-3" />
               </button>
@@ -1206,7 +1206,7 @@ export default function DesktopShellPage() {
                     style={{ width: `${systemInfo.cpu.usage}%` }}
                   />
                 </div>
-                <div className="mt-0.5 text-micro text-muted-foreground/70">
+                <div className="mt-0.5 text-micro text-muted-foreground">
                   {systemInfo.cpu.model.split(" ").slice(0, 3).join(" ")} ·{" "}
                   {systemInfo.cpu.cores} {t.desktop.systemWidget.cores}
                 </div>
@@ -1234,11 +1234,11 @@ export default function DesktopShellPage() {
                     style={{ width: `${systemInfo.memory.percent}%` }}
                   />
                 </div>
-                <div className="mt-0.5 text-micro text-muted-foreground/70">
+                <div className="mt-0.5 text-micro text-muted-foreground">
                   {systemInfo.memory.used} / {systemInfo.memory.total} GB
                 </div>
               </div>
-              <div className="text-micro text-muted-foreground/70">
+              <div className="text-micro text-muted-foreground">
                 {t.desktop.systemWidget.uptime(
                   Math.floor(systemInfo.uptime / 60),
                   systemInfo.uptime % 60,

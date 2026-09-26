@@ -223,7 +223,7 @@ export function CreditsCenterDialog({
                             {txn.reason}
                           </span>
                         </p>
-                        <p className="text-mini text-muted-foreground/70">
+                        <p className="text-mini text-muted-foreground">
                           {new Date(txn.createdAt).toLocaleString()}
                         </p>
                       </div>

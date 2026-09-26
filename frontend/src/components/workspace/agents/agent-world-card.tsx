@@ -204,7 +204,7 @@ export function AgentWorldCard({
                 {agent.description}
               </CardDescription>
               {!agent.is_official && (
-                <p className="mt-0.5 truncate text-[11px] text-muted-foreground/75">
+                <p className="mt-0.5 truncate text-[11px] text-muted-foreground">
                   {t.agentWorld.authorPrefix} {agent.author}
                 </p>
               )}

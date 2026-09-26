@@ -161,9 +161,9 @@ export function ScopeSettings({
       </div>
 
       {loading ? (
-        <div className="text-xs text-muted-foreground/60">Loading...</div>
+        <div className="text-xs text-muted-foreground">Loading...</div>
       ) : paths.length === 0 ? (
-        <div className="text-xs text-muted-foreground/60">
+        <div className="text-xs text-muted-foreground">
           {t.scopeSettings.noAuthorized}
         </div>
       ) : (
@@ -178,7 +178,7 @@ export function ScopeSettings({
                 type="button"
                 aria-label={`Remove ${p}`}
                 onClick={() => onRemove(p)}
-                className="shrink-0 rounded p-0.5 text-muted-foreground/60 opacity-0 transition group-hover:opacity-100 group-focus-within:opacity-100 focus:opacity-100 hover:bg-muted hover:text-foreground"
+                className="shrink-0 rounded p-0.5 text-muted-foreground opacity-0 transition group-hover:opacity-100 group-focus-within:opacity-100 focus:opacity-100 hover:bg-muted hover:text-foreground"
               >
                 <XIcon className="size-3" />
               </button>

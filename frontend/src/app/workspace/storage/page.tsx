@@ -2702,7 +2702,7 @@ function LocalDiskView({
                 {item}
               </button>
               {index < items.length - 1 && (
-                <ChevronRightIcon className="mx-0.5 size-3 text-muted-foreground/60" />
+                <ChevronRightIcon className="mx-0.5 size-3 text-muted-foreground" />
               )}
             </span>
           ))}
@@ -3143,7 +3143,7 @@ function SearchResultsView({
                   <div className="mt-0.5 line-clamp-1 text-xs text-muted-foreground">
                     {hit.snippet}
                   </div>
-                  <div className="mt-1 truncate text-xs text-muted-foreground/75">
+                  <div className="mt-1 truncate text-xs text-muted-foreground">
                     {hit.path}
                   </div>
                 </div>

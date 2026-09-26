@@ -1018,7 +1018,7 @@ function BrowserSidePanel({
                     event.stopPropagation();
                     closeTab(tab.id);
                   }}
-                  className="grid size-6 shrink-0 place-items-center rounded-md text-muted-foreground/70 opacity-0 transition-opacity hover:bg-foreground/10 hover:text-foreground group-hover:opacity-100 data-[active=true]:opacity-100"
+                  className="grid size-6 shrink-0 place-items-center rounded-md text-muted-foreground opacity-0 transition-opacity hover:bg-foreground/10 hover:text-foreground group-hover:opacity-100 data-[active=true]:opacity-100"
                   data-active={active}
                   title={t.browser.closeTab}
                 >

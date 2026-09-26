@@ -225,7 +225,7 @@ export function GroupMemberAvatarStack({
       title="群聊成员 · 点击头像查看并行进程，右键 @ 成员"
     >
       <UsersIcon
-        className="size-3 shrink-0 text-muted-foreground/70"
+        className="size-3 shrink-0 text-muted-foreground"
         aria-hidden="true"
       />
       <div
@@ -527,6 +527,7 @@ function ChatInputBoxImpl(props: ChatInputBoxProps) {
               <>
                 <div className="composer-workspace-control">
                 {workspaceControl ?? <WorkDirSelector
+                  threadId={threadId}
                   designSpace={visibleProjectMode === "uxui"}
                   workDir={workDir ?? ""}
                   onWorkDirChange={onWorkDirChange}

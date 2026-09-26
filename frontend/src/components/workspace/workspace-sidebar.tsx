@@ -1,3 +1,4 @@
+import { MailIcon } from "lucide-react";
 import {
   ArrowLeftIcon,
   AppWindowIcon,
@@ -228,6 +229,7 @@ const MODULE_ICONS: Record<string, ComponentType<SVGProps<SVGSVGElement>>> = {
   narrative: BookOpenIcon,
   evolution: DnaIcon,
   community: CompassIcon,
+  mail: MailIcon,
   knowledge: DatabaseIcon,
   "library.apps": AppWindowIcon,
   "library.docs": FileTextIcon,
@@ -1258,7 +1260,7 @@ function EditModulesButton({ onOpen }: { onOpen: () => void }) {
             aria-label={t.sidebar.editModules}
             onClick={onOpen}
             className={cn(
-              "h-7 w-full justify-start text-muted-foreground/65",
+              "h-7 w-full justify-start text-muted-foreground",
               "transition-colors hover:bg-foreground/[0.035] hover:text-foreground",
               "group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:p-0",
             )}
@@ -1266,7 +1268,9 @@ function EditModulesButton({ onOpen }: { onOpen: () => void }) {
             <span className="flex size-6 shrink-0 items-center justify-center">
               <MoreHorizontalIcon className="size-[16px]" />
             </span>
-            <span className="group-data-[collapsible=icon]:hidden">{t.sidebar.editModules}</span>
+            <span className="group-data-[collapsible=icon]:hidden">
+              {t.sidebar.editModules}
+            </span>
           </SidebarMenuButton>
         </SidebarMenuItem>
       </SidebarMenu>
@@ -1330,7 +1334,7 @@ function LocalDatabaseSection({
             <span className="min-w-0 flex-1 truncate text-left group-data-[collapsible=icon]:hidden">
               {title}
             </span>
-            <span className="flex size-5 shrink-0 items-center justify-center text-muted-foreground/70 transition-colors group-hover/nav:text-foreground group-data-[collapsible=icon]:hidden">
+            <span className="flex size-5 shrink-0 items-center justify-center text-muted-foreground transition-colors group-hover/nav:text-foreground group-data-[collapsible=icon]:hidden">
               <ChevronRightIcon
                 className={cn(
                   "size-3.5 transition-transform",
@@ -1426,8 +1430,7 @@ function ProjectFileExplorerView({
       }
     };
     window.addEventListener("echo:workdir-selected", handler);
-    return () =>
-      window.removeEventListener("echo:workdir-selected", handler);
+    return () => window.removeEventListener("echo:workdir-selected", handler);
   }, []);
 
   const resolvedWorkDir =
@@ -1466,7 +1469,7 @@ function ProjectFileExplorerView({
           </button>
           <button
             type="button"
-            className="flex size-8 items-center justify-center rounded-lg text-muted-foreground/75 transition-colors hover:bg-muted/55 hover:text-foreground"
+            className="flex size-8 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-muted/55 hover:text-foreground"
             title={t.codeMode.explorer}
             aria-label={t.codeMode.explorer}
           >
@@ -1577,19 +1580,34 @@ function NavRow({
 }) {
   const [designCanvasVisible, setDesignCanvasVisible] = useState(false);
   useEffect(() => {
-    if (pathname !== "/workspace/design" || item.to !== "/workspace/design") return;
+    if (pathname !== "/workspace/design" || item.to !== "/workspace/design")
+      return;
     const onDesignView = (event: MessageEvent) => {
-      if (event.origin !== window.location.origin || event.data?.type !== "echo:design-view") return;
-      const sourceIsDesign = Array.from(document.querySelectorAll<HTMLIFrameElement>("iframe")).some((frame) => frame.contentWindow === event.source && frame.src.includes("/api/workbench-packages/design/assets/"));
-      if (sourceIsDesign && typeof event.data.canvasVisible === "boolean") setDesignCanvasVisible(event.data.canvasVisible);
+      if (
+        event.origin !== window.location.origin ||
+        event.data?.type !== "echo:design-view"
+      )
+        return;
+      const sourceIsDesign = Array.from(
+        document.querySelectorAll<HTMLIFrameElement>("iframe"),
+      ).some(
+        (frame) =>
+          frame.contentWindow === event.source &&
+          frame.src.includes("/api/workbench-packages/design/assets/"),
+      );
+      if (sourceIsDesign && typeof event.data.canvasVisible === "boolean")
+        setDesignCanvasVisible(event.data.canvasVisible);
     };
     window.addEventListener("message", onDesignView);
     return () => window.removeEventListener("message", onDesignView);
   }, [pathname, item.to]);
-  const active = item.to === "/workspace/design" ? pathname === "/workspace/design" && designCanvasVisible : item.externalUrl
-    ? pathname === "/workspace/web-app" &&
-      new URLSearchParams(search).get("url") === item.externalUrl
-    : isNavRouteActive(pathname, item.to);
+  const active =
+    item.to === "/workspace/design"
+      ? pathname === "/workspace/design" && designCanvasVisible
+      : item.externalUrl
+        ? pathname === "/workspace/web-app" &&
+          new URLSearchParams(search).get("url") === item.externalUrl
+        : isNavRouteActive(pathname, item.to);
   const Icon = item.icon;
 
   const removeWebShortcut = () => {
@@ -1662,7 +1680,7 @@ function NavRow({
           }}
           aria-label={`从侧栏移除 ${item.label}`}
           title={`从侧栏移除 ${item.label}`}
-          className="text-muted-foreground/55 hover:text-destructive md:pointer-events-none md:group-focus-within/menu-item:pointer-events-auto md:group-hover/menu-item:pointer-events-auto"
+          className="text-muted-foreground hover:text-destructive md:pointer-events-none md:group-focus-within/menu-item:pointer-events-auto md:group-hover/menu-item:pointer-events-auto"
         >
           <Trash2Icon />
         </SidebarMenuAction>
@@ -1767,7 +1785,10 @@ function ProjectGroupTrigger({
   hasBoundFolder: boolean;
   boundWorkspacePath?: string;
 }) {
-  const generatedWorkspace = isGeneratedWorkspaceProject(project, boundWorkspacePath);
+  const generatedWorkspace = isGeneratedWorkspaceProject(
+    project,
+    boundWorkspacePath,
+  );
   const displayName = generatedWorkspace ? "任务文件" : project;
   return (
     <Tooltip>
@@ -1782,14 +1803,19 @@ function ProjectGroupTrigger({
         >
           <ProjectGroupIcon hasBoundFolder={hasBoundFolder} />
           <span className="min-w-0 truncate">{displayName}</span>
-          <span
-            className={cn(
-              "ml-auto shrink-0 text-xs text-muted-foreground/60 transition-opacity",
-              deletable && "group-hover/project:opacity-0",
-            )}
-          >
-            {threadCount}
-          </span>
+          {/* Zero-count badges are noise: hide them instead of dimming to a
+              sub-AA contrast. Full muted-foreground keeps non-zero counts
+              legible in both themes (5.1:1 light / 7.0:1 dark). */}
+          {threadCount > 0 ? (
+            <span
+              className={cn(
+                "ml-auto shrink-0 text-xs text-muted-foreground transition-opacity",
+                deletable && "group-hover/project:opacity-0",
+              )}
+            >
+              {threadCount}
+            </span>
+          ) : null}
         </CollapsibleTrigger>
       </TooltipTrigger>
       <TooltipContent
@@ -1802,8 +1828,8 @@ function ProjectGroupTrigger({
           {generatedWorkspace
             ? "此任务自动创建的文件空间"
             : hasBoundFolder
-            ? boundWorkspacePath || "本地目录项目"
-            : "里程碑项目 · 不绑定本地目录"}
+              ? boundWorkspacePath || "本地目录项目"
+              : "里程碑项目 · 不绑定本地目录"}
         </span>
       </TooltipContent>
     </Tooltip>
@@ -1934,7 +1960,7 @@ function ProjectGroup({
                     e.stopPropagation();
                   }}
                   className={cn(
-                    "absolute right-0.5 top-1/2 flex size-8 -translate-y-1/2 items-center justify-center rounded-lg text-muted-foreground/70 opacity-100 transition-[opacity,background-color,color] duration-fast sm:text-muted-foreground/60 sm:opacity-0",
+                    "absolute right-0.5 top-1/2 flex size-8 -translate-y-1/2 items-center justify-center rounded-lg text-muted-foreground opacity-100 transition-[opacity,background-color,color] duration-fast sm:text-muted-foreground sm:opacity-0",
                     "sm:group-hover/project:opacity-100 sm:group-focus-within/project:opacity-100 hover:bg-muted/55 hover:text-foreground focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring/50 data-[state=open]:opacity-100",
                     deleting && "cursor-wait opacity-100",
                   )}
@@ -2051,7 +2077,7 @@ function ProjectGroup({
                       onOpenFiles(thread, project);
                     }}
                     className={cn(
-                      "absolute right-0.5 top-1/2 flex size-8 -translate-y-1/2 items-center justify-center rounded-lg text-muted-foreground/65 opacity-0 transition-[opacity,background-color,color] duration-fast",
+                      "absolute right-0.5 top-1/2 flex size-8 -translate-y-1/2 items-center justify-center rounded-lg text-muted-foreground opacity-0 transition-[opacity,background-color,color] duration-fast",
                       "group-hover/thread:opacity-100 hover:bg-muted/55 hover:text-foreground focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring/50",
                     )}
                   >
@@ -2067,7 +2093,7 @@ function ProjectGroup({
                           e.preventDefault();
                           e.stopPropagation();
                         }}
-                        className="absolute right-8 top-1/2 flex size-8 -translate-y-1/2 items-center justify-center rounded-lg text-muted-foreground/60 opacity-0 transition-opacity hover:bg-muted/40 hover:text-foreground group-hover/thread:opacity-100 focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring/50 data-[state=open]:opacity-100"
+                        className="absolute right-8 top-1/2 flex size-8 -translate-y-1/2 items-center justify-center rounded-lg text-muted-foreground opacity-0 transition-opacity hover:bg-muted/40 hover:text-foreground group-hover/thread:opacity-100 focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring/50 data-[state=open]:opacity-100"
                       >
                         <MoreHorizontalIcon className="size-3.5" />
                       </button>
@@ -2101,7 +2127,7 @@ function ProjectGroup({
               type="button"
               aria-expanded={showAllThreads}
               onClick={() => setShowAllThreads((visible) => !visible)}
-              className="mt-1 flex min-h-8 w-full items-center gap-2 rounded-lg px-3 text-xs text-muted-foreground/75 transition-colors hover:bg-muted/35 hover:text-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+              className="mt-1 flex min-h-8 w-full items-center gap-2 rounded-lg px-3 text-xs text-muted-foreground transition-colors hover:bg-muted/35 hover:text-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
             >
               <ChevronRightIcon
                 className={cn(
@@ -2281,7 +2307,7 @@ function SectionHeader({
           {actions.map((a) => {
             const Icon = a.icon;
             const cls = cn(
-              "flex size-8 shrink-0 items-center justify-center rounded-lg text-muted-foreground/70 transition-colors hover:bg-foreground/[0.035] hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/45",
+              "flex size-8 shrink-0 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-foreground/[0.035] hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/45",
               a.active && "text-foreground",
             );
             if (a.menuItems) {
@@ -2475,10 +2501,7 @@ function ChatsSection({
   });
   useEffect(() => {
     try {
-      window.localStorage.setItem(
-        "echo.sidebar.chats-open",
-        open ? "1" : "0",
-      );
+      window.localStorage.setItem("echo.sidebar.chats-open", open ? "1" : "0");
     } catch (e) {
       swallow(e);
     }
@@ -2607,7 +2630,7 @@ function ChatsSection({
                             e.preventDefault();
                             e.stopPropagation();
                           }}
-                          className="absolute right-0.5 top-1/2 -translate-y-1/2 flex size-8 items-center justify-center rounded-lg text-muted-foreground/60 opacity-0 transition-opacity group-hover/thread:opacity-100 hover:bg-muted/40 hover:text-foreground focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring/50 data-[state=open]:opacity-100"
+                          className="absolute right-0.5 top-1/2 -translate-y-1/2 flex size-8 items-center justify-center rounded-lg text-muted-foreground opacity-0 transition-opacity group-hover/thread:opacity-100 hover:bg-muted/40 hover:text-foreground focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring/50 data-[state=open]:opacity-100"
                         >
                           <MoreHorizontalIcon className="size-3.5" />
                         </button>

@@ -177,7 +177,7 @@ export function WikiPanel() {
               个文件
             </div>
             {projectRoot && (
-              <div className="max-w-80 truncate text-micro text-muted-foreground/75">
+              <div className="max-w-80 truncate text-micro text-muted-foreground">
                 {projectRoot}
               </div>
             )}

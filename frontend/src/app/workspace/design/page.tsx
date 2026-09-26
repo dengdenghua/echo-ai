@@ -1943,7 +1943,7 @@ function AssetsView({
           {visibleArtifacts.length === 0 && !artifactsLoading ? (
             <div className="grid min-h-[420px] place-items-center text-center">
               <div>
-                <ArchiveIcon className="mx-auto size-7 text-muted-foreground/50" />
+                <ArchiveIcon className="mx-auto size-7 text-muted-foreground" />
                 <p className="mt-4 text-sm font-semibold">
                   {query
                     ? "没有匹配的资产"

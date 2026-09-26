@@ -211,7 +211,7 @@ export function VerifyPanel({
         )}
 
         {!result && !running && (
-          <div className="flex flex-col items-center justify-center h-full text-muted-foreground/50">
+          <div className="flex flex-col items-center justify-center h-full text-muted-foreground">
             <ShieldCheckIcon className="size-8 mb-2 opacity-30" />
             <span className="text-xs">{t.codeMode.clickRunChecksToVerify}</span>
             <span className="text-xs mt-1 opacity-60">{workDir}</span>
@@ -219,7 +219,7 @@ export function VerifyPanel({
         )}
 
         {running && !result && (
-          <div className="flex flex-col items-center justify-center h-full text-muted-foreground/50">
+          <div className="flex flex-col items-center justify-center h-full text-muted-foreground">
             <Loader2Icon className="size-8 mb-2 animate-spin opacity-50" />
             <span className="text-xs">{t.codeMode.runningVerification}</span>
           </div>

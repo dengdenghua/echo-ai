@@ -295,7 +295,7 @@ export default function CommunityPage() {
                           placeholder="搜索灵感、作者、标签…"
                           className={cn(
                             "w-full rounded-md border border-border-default bg-background/60 py-1.5 pl-9 pr-8 text-sm",
-                            "placeholder:text-muted-foreground/60 outline-none",
+                            "placeholder:text-muted-foreground outline-none",
                             "focus:border-primary/50 focus:ring-2 focus:ring-primary/10",
                           )}
                         />
@@ -304,7 +304,7 @@ export default function CommunityPage() {
                             type="button"
                             onClick={() => setQuery("")}
                             aria-label="清空搜索"
-                            className="absolute right-2 top-1/2 -translate-y-1/2 rounded p-0.5 text-muted-foreground/60 hover:text-foreground"
+                            className="absolute right-2 top-1/2 -translate-y-1/2 rounded p-0.5 text-muted-foreground hover:text-foreground"
                           >
                             <XIcon className="size-3.5" />
                           </button>
@@ -512,7 +512,7 @@ function SubscriptionPanel({
           订阅 / 关注的作者
         </p>
         {authors.length === 0 ? (
-          <p className="mt-2 text-xs text-muted-foreground/60">
+          <p className="mt-2 text-xs text-muted-foreground">
             还没有订阅的作者，去「推荐」里关注你感兴趣的创作者。
           </p>
         ) : (
@@ -549,7 +549,7 @@ function SubscriptionPanel({
                       className={cn(
                         "rounded px-2 py-0.5 text-mini font-semibold transition-colors",
                         isFollowing
-                          ? "text-muted-foreground/60 hover:text-foreground"
+                          ? "text-muted-foreground hover:text-foreground"
                           : "text-chart-3 hover:text-chart-3/80",
                       )}
                     >
@@ -561,7 +561,7 @@ function SubscriptionPanel({
                       className={cn(
                         "flex items-center gap-1 rounded px-2 py-0.5 text-mini font-semibold transition-colors",
                         isSub
-                          ? "text-muted-foreground/60 hover:text-foreground"
+                          ? "text-muted-foreground hover:text-foreground"
                           : "text-primary hover:text-primary/80",
                       )}
                     >
@@ -636,7 +636,7 @@ function PublishModal({
             onChange={(e) => setTitle(e.target.value)}
             placeholder="一句话标题，让灵感被看见…"
             maxLength={60}
-            className="w-full rounded-md border border-border-default bg-background/60 px-3 py-2 text-sm outline-none placeholder:text-muted-foreground/60 focus:border-primary/50 focus:ring-2 focus:ring-primary/10"
+            className="w-full rounded-md border border-border-default bg-background/60 px-3 py-2 text-sm outline-none placeholder:text-muted-foreground focus:border-primary/50 focus:ring-2 focus:ring-primary/10"
           />
           <label
             htmlFor="community-post-content"
@@ -650,7 +650,7 @@ function PublishModal({
             onChange={(e) => setContent(e.target.value)}
             placeholder="详细描述你的灵感 / 用法（可选）…"
             rows={5}
-            className="w-full resize-none rounded-md border border-border-default bg-background/60 px-3 py-2 text-sm outline-none placeholder:text-muted-foreground/60 focus:border-primary/50 focus:ring-2 focus:ring-primary/10"
+            className="w-full resize-none rounded-md border border-border-default bg-background/60 px-3 py-2 text-sm outline-none placeholder:text-muted-foreground focus:border-primary/50 focus:ring-2 focus:ring-primary/10"
           />
           <label
             htmlFor="community-post-tag"
@@ -665,7 +665,7 @@ function PublishModal({
             onChange={(e) => setTag(e.target.value)}
             placeholder="标签（可选），如：自动化"
             maxLength={12}
-            className="w-full rounded-md border border-border-default bg-background/60 px-3 py-2 text-sm outline-none placeholder:text-muted-foreground/60 focus:border-primary/50 focus:ring-2 focus:ring-primary/10"
+            className="w-full rounded-md border border-border-default bg-background/60 px-3 py-2 text-sm outline-none placeholder:text-muted-foreground focus:border-primary/50 focus:ring-2 focus:ring-primary/10"
           />
           <div className="mt-3">
             <p className="mb-1.5 text-xs text-muted-foreground">选择分类</p>
@@ -708,7 +708,7 @@ function PublishModal({
               "rounded-md px-4 py-1.5 text-sm font-semibold transition-colors",
               canSubmit
                 ? "bg-primary text-primary-foreground hover:bg-primary/90"
-                : "cursor-not-allowed bg-muted text-muted-foreground/50",
+                : "cursor-not-allowed bg-muted text-muted-foreground",
             )}
           >
             发布

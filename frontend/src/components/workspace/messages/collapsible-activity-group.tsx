@@ -132,7 +132,7 @@ function DiffLines({ diffs }: { diffs: unknown }) {
                 : "text-muted-foreground",
           )}
         >
-          <span className="w-4 shrink-0 select-none text-muted-foreground/60">
+          <span className="w-4 shrink-0 select-none text-muted-foreground">
             {row.type === "add" ? "+" : row.type === "del" ? "-" : ""}
           </span>
           <span className="min-w-0 flex-1">{row.text}</span>

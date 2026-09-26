@@ -426,12 +426,12 @@ function EmptyState({
   return (
     <div className="flex flex-1 flex-col items-center justify-center gap-3 px-4 py-12">
       <div className="rounded-lg bg-muted/40 p-4">
-        <NetworkIcon className="text-muted-foreground/40 size-8" />
+        <NetworkIcon className="text-muted-foreground size-8" />
       </div>
       <p className="text-muted-foreground text-sm font-medium">
         {t.a2a.noAgents}
       </p>
-      <p className="text-muted-foreground/60 text-center text-xs leading-relaxed whitespace-pre-line">
+      <p className="text-muted-foreground text-center text-xs leading-relaxed whitespace-pre-line">
         {t.a2a.noAgentsDesc}
       </p>
       {showAction && (

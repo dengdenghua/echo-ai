@@ -28,6 +28,7 @@ import { getBackendBaseURL } from "@/core/config";
 import { useI18n } from "@/core/i18n/hooks";
 import {
   listWorkspaces,
+  getWorkspaceExecutionDirectory,
   type MountType,
   type Workspace,
 } from "@/core/workspace/api";
@@ -39,8 +40,11 @@ import { useAuth } from "@/providers/AuthProvider";
 import { useFeatureFlags } from "@/hooks/use-feature-flags";
 import { useProjects } from "@/core/projects/hooks";
 import { managedWorkdirThreadId, workdirDisplayName } from "./workdir-label";
+import { MountPointDialog } from "./mount-point-dialog";
+import { SharedSpacesDialog } from "./shared-spaces-dialog";
 
 interface WorkDirSelectorProps {
+  threadId?: string;
   workDir: string;
   onWorkDirChange?: (dir: string) => void;
   lockToCurrentThread?: boolean;
@@ -219,6 +223,7 @@ function lockedWorkdirText(locale: string) {
 }
 
 export function WorkDirSelector({
+  threadId,
   workDir,
   onWorkDirChange,
   lockToCurrentThread = false,
@@ -227,7 +232,7 @@ export function WorkDirSelector({
   variant = "default",
   chromeless = false,
   designSpace = false,
-  enableRemoteTab = false,
+  enableRemoteTab = true,
   workspaceId,
   onWorkspaceIdChange,
 }: WorkDirSelectorProps) {
@@ -246,6 +251,8 @@ export function WorkDirSelector({
   const [isPicking, setIsPicking] = useState(false);
   const pickerRequestRef = useRef<AbortController | null>(null);
   const [showMenu, setShowMenu] = useState(false);
+  const [mountOpen, setMountOpen] = useState(false);
+  const [sharedOpen, setSharedOpen] = useState(false);
   // ``browsePath`` drives the in-menu folder browser. When the user
   // hasn't chosen anything yet we seed it from the most recently used
   // directory so the picker isn't pointing at an empty string (which
@@ -423,8 +430,7 @@ export function WorkDirSelector({
     }
   }, []);
 
-  // Load remote workspaces from the registry. Cached at component level so
-  // the second menu open is instant — we don't refetch on every tab switch.
+  // Refresh when opening the menu while keeping the previous list visible.
   const loadRemoteWorkspaces = useCallback(async () => {
     if (!enableRemoteTab || !remoteWorkspaceEnabled) return;
     const canReadRemoteWorkspaces =
@@ -454,29 +460,34 @@ export function WorkDirSelector({
     remoteWorkspaceEnabled,
   ]);
 
-  // When the menu opens with the remote tab enabled, prime the list so
-  // the user isn't staring at an empty state. Subsequent tab switches
-  // reuse the cached list.
+  // Reload once per menu opening; empty/error results must not loop.
   useEffect(() => {
     if (!showMenu || !enableRemoteTab || !remoteWorkspaceEnabled) return;
-    if (remoteWorkspaces.length > 0 || remoteLoading) return;
     void loadRemoteWorkspaces();
   }, [
     showMenu,
     enableRemoteTab,
     remoteWorkspaceEnabled,
-    remoteWorkspaces.length,
-    remoteLoading,
     loadRemoteWorkspaces,
   ]);
 
   const handlePickRemote = useCallback(
-    (workspace: Workspace) => {
-      onWorkspaceIdChange?.(workspace.id);
-      setShowMenu(false);
-      setNoBridgeHint(false);
+    async (workspace: Workspace) => {
+      setRemoteLoading(true);
+      setRemoteError(null);
+      try {
+        const directory = await getWorkspaceExecutionDirectory(workspace.id);
+        applyWorkDir(directory);
+        if (!isWorkDirLocked) onWorkspaceIdChange?.(workspace.id);
+        setShowMenu(false);
+        setNoBridgeHint(false);
+      } catch (error) {
+        setRemoteError(error instanceof Error ? error.message : String(error));
+      } finally {
+        setRemoteLoading(false);
+      }
     },
-    [onWorkspaceIdChange],
+    [applyWorkDir, isWorkDirLocked, onWorkspaceIdChange],
   );
 
   useEffect(() => {
@@ -750,7 +761,7 @@ export function WorkDirSelector({
               value={manualPath}
               onChange={(event) => setManualPath(event.target.value)}
               placeholder={t.codeMode.selectWorkspace}
-              className="min-w-0 flex-1 bg-transparent px-2 py-1.5 font-mono text-xs text-foreground outline-none placeholder:text-muted-foreground/60"
+              className="min-w-0 flex-1 bg-transparent px-2 py-1.5 font-mono text-xs text-foreground outline-none placeholder:text-muted-foreground"
             />
             <button
               type="submit"
@@ -759,7 +770,7 @@ export function WorkDirSelector({
                 "rounded-md px-2.5 py-1.5 text-xs font-medium transition-colors",
                 isAbsolutePath(manualPath)
                   ? "bg-primary text-primary-foreground hover:bg-primary/90"
-                  : "cursor-not-allowed bg-muted text-muted-foreground/45",
+                  : "cursor-not-allowed bg-muted text-muted-foreground",
               )}
             >
               {t.common.confirm}
@@ -953,6 +964,18 @@ export function WorkDirSelector({
           </div>
         )}
 
+        <div className="mb-2 flex flex-wrap gap-2 text-xs">
+          <button type="button" className="rounded-md border px-2 py-1.5" onClick={() => { setShowMenu(false); setMountOpen(true); }}>
+            {locale.startsWith("zh") ? "接入共享目录" : "Connect shared directory"}
+          </button>
+          {threadId && threadId !== "new" && <button type="button" className="rounded-md border px-2 py-1.5" onClick={() => { setShowMenu(false); setSharedOpen(true); }}>
+            {locale.startsWith("zh") ? "追加共享空间 / 同步" : "Attach shared space / sync"}
+          </button>}
+        </div>
+        <p className="mb-2 text-xs text-muted-foreground">
+          {locale.startsWith("zh") ? "选择目录可直接作为项目打开；追加共享空间会保留当前项目，用于双向同步。" : "Select a directory to open it as a project, or attach one for two-way sync with the current project."}
+        </p>
+
         {remoteLoading && remoteWorkspaces.length === 0 ? (
           <div className="flex items-center gap-2 px-2 py-3 text-xs text-muted-foreground">
             <Loader2Icon className="size-3 animate-spin" />
@@ -971,7 +994,8 @@ export function WorkDirSelector({
                 <button
                   key={ws.id}
                   type="button"
-                  onClick={() => handlePickRemote(ws)}
+                  disabled={remoteLoading}
+                  onClick={() => void handlePickRemote(ws)}
                   title={ws.mount_target}
                   className={cn(
                     "flex w-full items-center gap-2 rounded-lg px-1.5 py-1.5 text-left transition-colors",
@@ -1012,7 +1036,7 @@ export function WorkDirSelector({
   // so the user can flip between local-folder and remote-mount entry
   // points. Otherwise we render the local panel as before — no visual
   // change for existing callers.
-  const menuContent = remoteWorkspaceEnabled ? (
+  const menuContent = remoteWorkspaceEnabled && enableRemoteTab ? (
     <div
       className={cn(
         "flex max-h-full flex-col overflow-hidden rounded-lg border border-border-default bg-popover/95 backdrop-blur",
@@ -1111,6 +1135,17 @@ export function WorkDirSelector({
             document.body,
           )
         : null}
+      {remoteWorkspaceEnabled && enableRemoteTab && <MountPointDialog
+        open={mountOpen} onOpenChange={setMountOpen} defaultMountType="local"
+        onCreated={(workspace) => {
+          setRemoteWorkspaces(prev => [...prev.filter(ws => ws.id !== workspace.id), workspace]);
+          setMenuTab("remote");
+          setShowMenu(true);
+        }}
+      />}
+      {remoteWorkspaceEnabled && enableRemoteTab && threadId && threadId !== "new" && <SharedSpacesDialog
+        key={threadId} threadId={threadId} open={sharedOpen} onOpenChange={setSharedOpen}
+      />}
     </div>
   );
 }

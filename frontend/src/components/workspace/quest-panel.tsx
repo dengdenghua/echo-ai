@@ -368,7 +368,7 @@ function PhaseStepper({ currentPhase }: { currentPhase: QuestPhase }) {
                 "flex items-center gap-1.5 rounded-lg px-2.5 py-1 text-xs font-medium transition-colors duration-slow",
                 isActive && "bg-primary/10 text-primary ring-1 ring-primary/30",
                 isComplete && "text-success",
-                isFuture && "text-muted-foreground/40",
+                isFuture && "text-muted-foreground",
               )}
             >
               {isActive ? (
@@ -854,11 +854,11 @@ function QuestStartForm({
           }
         }}
         placeholder="e.g. Add a dark mode toggle to the settings page with persistent preference storage..."
-        className="bg-muted/30 text-foreground placeholder:text-muted-foreground/40 min-h-[80px] w-full resize-none rounded-lg border border-border-default px-3 py-2 text-sm outline-none transition-colors focus:border-primary/40 focus:ring-1 focus:ring-primary/30"
+        className="bg-muted/30 text-foreground placeholder:text-muted-foreground min-h-[80px] w-full resize-none rounded-lg border border-border-default px-3 py-2 text-sm outline-none transition-colors focus:border-primary/40 focus:ring-1 focus:ring-primary/30"
         rows={3}
       />
       <div className="flex items-center justify-between">
-        <span className="text-muted-foreground/50 text-xs">
+        <span className="text-muted-foreground text-xs">
           Ctrl+Enter to start
         </span>
         <button

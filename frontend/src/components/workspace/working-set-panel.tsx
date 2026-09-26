@@ -82,7 +82,7 @@ function FileItem({ file }: { file: WorkingSetFile }) {
       {isEditing ? (
         <PencilIcon className="size-3 shrink-0 text-chart-1" />
       ) : (
-        <FileCodeIcon className="size-3 shrink-0 text-muted-foreground/60" />
+        <FileCodeIcon className="size-3 shrink-0 text-muted-foreground" />
       )}
       <span
         className={cn(
@@ -96,7 +96,7 @@ function FileItem({ file }: { file: WorkingSetFile }) {
         {shortPath}
       </span>
       {file.tokens_estimated > 0 && (
-        <span className="ml-auto shrink-0 text-xs text-muted-foreground/50 tabular-nums">
+        <span className="ml-auto shrink-0 text-xs text-muted-foreground tabular-nums">
           ~
           {file.tokens_estimated > 1000
             ? `${Math.round(file.tokens_estimated / 1000)}k`
@@ -119,7 +119,7 @@ function ThinkingStepIcon({ status }: { status?: ThinkingPlanStepStatus }) {
     );
   }
   return (
-    <CircleIcon className="mt-0.5 size-3 shrink-0 text-muted-foreground/45" />
+    <CircleIcon className="mt-0.5 size-3 shrink-0 text-muted-foreground" />
   );
 }
 
@@ -172,7 +172,7 @@ function ThinkingPlanMini({ plan }: { plan: ThinkingPlanSnapshot }) {
             Thinking progress
           </span>
         </div>
-        <span className="shrink-0 text-xs text-muted-foreground/60 tabular-nums">
+        <span className="shrink-0 text-xs text-muted-foreground tabular-nums">
           {completed}/{steps.length}
         </span>
       </div>
@@ -191,14 +191,14 @@ function ThinkingPlanMini({ plan }: { plan: ThinkingPlanSnapshot }) {
       </div>
       {currentStep && (
         <div className="mt-2 rounded-md bg-muted/40 px-2 py-1.5">
-          <div className="text-xs font-medium uppercase text-muted-foreground/55">
+          <div className="text-xs font-medium uppercase text-muted-foreground">
             Current
           </div>
           <div className="mt-0.5 truncate text-xs" title={currentStep.title}>
             {currentStep.title}
           </div>
           {currentStep.detail && (
-            <div className="mt-0.5 line-clamp-2 text-xs text-muted-foreground/65">
+            <div className="mt-0.5 line-clamp-2 text-xs text-muted-foreground">
               {currentStep.detail}
             </div>
           )}
@@ -214,7 +214,7 @@ function ThinkingPlanMini({ plan }: { plan: ThinkingPlanSnapshot }) {
             <span
               className={cn(
                 "truncate",
-                step.status === "completed" && "text-muted-foreground/60",
+                step.status === "completed" && "text-muted-foreground",
                 step.status === "in_progress" && "font-medium text-foreground",
               )}
               title={step.title}
@@ -266,7 +266,7 @@ export function WorkingSetPanel({
 
       {progressSummary && (
         <div className="border-b border-border-default px-3 py-1.5">
-          <p className="text-xs text-muted-foreground/70 line-clamp-2">
+          <p className="text-xs text-muted-foreground line-clamp-2">
             {progressSummary}
           </p>
         </div>
@@ -276,7 +276,7 @@ export function WorkingSetPanel({
 
       <div className="flex-1 overflow-auto px-3 py-2">
         {files.length === 0 ? (
-          <div className="flex h-full flex-col items-center justify-center text-muted-foreground/50">
+          <div className="flex h-full flex-col items-center justify-center text-muted-foreground">
             <FolderOpenIcon className="mb-2 size-8 opacity-50" />
             <span className="text-xs">{t.workingSet?.empty}</span>
           </div>
@@ -287,7 +287,7 @@ export function WorkingSetPanel({
                 <div className="mb-1 flex items-center gap-1.5 text-xs font-medium uppercase tracking-wide text-chart-1/70 dark:text-chart-1/70">
                   <PencilIcon className="size-2.5" />
                   <span>{t.workingSet?.editing}</span>
-                  <span className="text-muted-foreground/40">
+                  <span className="text-muted-foreground">
                     ({editingFiles.length})
                   </span>
                 </div>
@@ -300,10 +300,10 @@ export function WorkingSetPanel({
             )}
             {readingFiles.length > 0 && (
               <div>
-                <div className="mb-1 flex items-center gap-1.5 text-xs font-medium uppercase tracking-wide text-muted-foreground/50">
+                <div className="mb-1 flex items-center gap-1.5 text-xs font-medium uppercase tracking-wide text-muted-foreground">
                   <EyeIcon className="size-2.5" />
                   <span>{t.workingSet?.reading}</span>
-                  <span className="text-muted-foreground/40">
+                  <span className="text-muted-foreground">
                     ({readingFiles.length})
                   </span>
                 </div>
@@ -320,7 +320,7 @@ export function WorkingSetPanel({
 
       {files.length > 0 && (
         <div className="border-t border-border-default px-3 py-1.5">
-          <div className="flex items-center justify-between text-xs text-muted-foreground/50">
+          <div className="flex items-center justify-between text-xs text-muted-foreground">
             <span>
               {editingFiles.length} {t.workingSet?.editing} ·{" "}
               {readingFiles.length} {t.workingSet?.reading}

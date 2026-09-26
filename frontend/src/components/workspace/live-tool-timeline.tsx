@@ -1561,7 +1561,7 @@ function SearchResultsInline({
           key={`${result.url ?? result.title}-${index}`}
           className="flex min-w-0 items-start gap-2 text-xs leading-5 text-muted-foreground"
         >
-          <span className="w-4 shrink-0 text-right font-mono text-xs text-muted-foreground/70">
+          <span className="w-4 shrink-0 text-right font-mono text-xs text-muted-foreground">
             {index + 1}
           </span>
           {result.url ? (

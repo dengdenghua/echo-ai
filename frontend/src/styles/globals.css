@@ -1089,65 +1089,7 @@
   );
 }
 
-/* ===== 极简液态玻璃（Minimal Liquid Glass）=====
-   设计理念：轻透、克制、无多余装饰。保留毛玻璃质感但大幅降低饱和度，
-   去掉内高光与多层阴影，仅保留极淡的描边与单阴影。 */
-
-/* 主玻璃容器：大面板用 */
-.liquid-glass {
-  background: color-mix(in oklch, var(--card) 40%, transparent);
-  backdrop-filter: blur(20px) saturate(120%);
-  -webkit-backdrop-filter: blur(20px) saturate(120%);
-  border: 0.5px solid color-mix(in oklch, white 20%, transparent);
-  box-shadow: 0 4px 20px -6px color-mix(in oklch, black 8%, transparent);
-}
-.dark .liquid-glass {
-  background: color-mix(in oklch, var(--card) 35%, transparent);
-  border-color: color-mix(in oklch, white 8%, transparent);
-  box-shadow: 0 4px 20px -6px color-mix(in oklch, black 30%, transparent);
-}
-
-/* 次级玻璃：小按钮/搜索框/小组件 */
-.liquid-glass-subtle {
-  background: color-mix(in oklch, var(--card) 45%, transparent);
-  backdrop-filter: blur(16px) saturate(120%);
-  -webkit-backdrop-filter: blur(16px) saturate(120%);
-  border: 0.5px solid color-mix(in oklch, white 15%, transparent);
-  box-shadow: 0 2px 10px -4px color-mix(in oklch, black 6%, transparent);
-}
-.dark .liquid-glass-subtle {
-  background: color-mix(in oklch, var(--card) 40%, transparent);
-  border-color: color-mix(in oklch, white 6%, transparent);
-  box-shadow: 0 2px 10px -4px color-mix(in oklch, black 20%, transparent);
-}
-
-/* Dock 专用：比普通面板稍强一点的存在感 */
-.liquid-glass-dock {
-  background: color-mix(in oklch, var(--card) 42%, transparent);
-  backdrop-filter: blur(24px) saturate(125%);
-  -webkit-backdrop-filter: blur(24px) saturate(125%);
-  border: 0.5px solid color-mix(in oklch, white 22%, transparent);
-  box-shadow: 0 6px 24px -8px color-mix(in oklch, black 12%, transparent);
-}
-.dark .liquid-glass-dock {
-  background: color-mix(in oklch, var(--card) 32%, transparent);
-  border-color: color-mix(in oklch, white 10%, transparent);
-  box-shadow: 0 6px 24px -8px color-mix(in oklch, black 35%, transparent);
-}
-
-/* 应用图标容器：极轻，几乎无阴影 */
-.liquid-glass-icon {
-  background: color-mix(in oklch, var(--card) 55%, transparent);
-  backdrop-filter: blur(12px) saturate(115%);
-  -webkit-backdrop-filter: blur(12px) saturate(115%);
-  border: 0.5px solid color-mix(in oklch, white 18%, transparent);
-  box-shadow: 0 1px 4px -1px color-mix(in oklch, black 5%, transparent);
-}
-.dark .liquid-glass-icon {
-  background: color-mix(in oklch, var(--card) 45%, transparent);
-  border-color: color-mix(in oklch, white 7%, transparent);
-  box-shadow: 0 1px 4px -1px color-mix(in oklch, black 18%, transparent);
-}
+@import "./liquid-glass.css";
 
 @layer base {
   * {

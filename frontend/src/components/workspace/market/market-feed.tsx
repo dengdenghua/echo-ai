@@ -90,7 +90,7 @@ export function MarketCard({
             className={cn(
               "flex min-h-9 min-w-0 items-center justify-center rounded-lg px-2.5 py-1.5 text-xs font-semibold transition-[background-color,transform,box-shadow] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/45 focus-visible:ring-offset-2 active:scale-[0.97] sm:min-h-8 sm:min-w-[5.25rem] sm:px-3",
               item.sold || item.mine
-                ? "cursor-default bg-muted text-muted-foreground/60"
+                ? "cursor-default bg-muted text-muted-foreground"
                 : "bg-rose-500 text-white shadow-sm hover:bg-rose-600 hover:shadow-md",
             )}
           >
@@ -139,9 +139,9 @@ export function MarketGrid({
   if (items.length === 0) {
     return (
       <div className="flex flex-col items-center justify-center gap-2 py-24 text-center">
-        <BadgeCheckIcon className="size-8 text-muted-foreground/40" />
+        <BadgeCheckIcon className="size-8 text-muted-foreground" />
         <p className="text-sm text-muted-foreground">这个分类还没有商品</p>
-        <p className="text-xs text-muted-foreground/60">
+        <p className="text-xs text-muted-foreground">
           去上架一件好物，赚点积分吧
         </p>
       </div>

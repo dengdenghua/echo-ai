@@ -242,7 +242,7 @@ export default function RegisterPage() {
                     {t.registerPage.usernameLabel}
                   </Label>
                   <div className="relative">
-                    <UserCircle2Icon className="pointer-events-none absolute left-4 top-1/2 size-[18px] -translate-y-1/2 text-muted-foreground/50" />
+                    <UserCircle2Icon className="pointer-events-none absolute left-4 top-1/2 size-[18px] -translate-y-1/2 text-muted-foreground" />
                     <Input
                       id="username"
                       type="text"
@@ -260,7 +260,7 @@ export default function RegisterPage() {
                     {t.registerPage.emailLabel}
                   </Label>
                   <div className="relative">
-                    <MailIcon className="pointer-events-none absolute left-4 top-1/2 size-[18px] -translate-y-1/2 text-muted-foreground/50" />
+                    <MailIcon className="pointer-events-none absolute left-4 top-1/2 size-[18px] -translate-y-1/2 text-muted-foreground" />
                     <Input
                       id="email"
                       type="email"
@@ -277,7 +277,7 @@ export default function RegisterPage() {
                     {t.registerPage.passwordLabel}
                   </Label>
                   <div className="relative">
-                    <KeyRoundIcon className="pointer-events-none absolute left-4 top-1/2 size-[18px] -translate-y-1/2 text-muted-foreground/50" />
+                    <KeyRoundIcon className="pointer-events-none absolute left-4 top-1/2 size-[18px] -translate-y-1/2 text-muted-foreground" />
                     <Input
                       id="password"
                       type="password"
@@ -297,7 +297,7 @@ export default function RegisterPage() {
                     {t.registerPage.confirmPasswordLabel}
                   </Label>
                   <div className="relative">
-                    <KeyRoundIcon className="pointer-events-none absolute left-4 top-1/2 size-[18px] -translate-y-1/2 text-muted-foreground/50" />
+                    <KeyRoundIcon className="pointer-events-none absolute left-4 top-1/2 size-[18px] -translate-y-1/2 text-muted-foreground" />
                     <Input
                       id="confirmPassword"
                       type="password"
@@ -332,7 +332,7 @@ export default function RegisterPage() {
             </CardContent>
           </Card>
 
-          <p className="mt-6 text-center text-xs text-muted-foreground/50">
+          <p className="mt-6 text-center text-xs text-muted-foreground">
             © {new Date().getFullYear()} Echo · Powered by EchoOS
           </p>
         </div>

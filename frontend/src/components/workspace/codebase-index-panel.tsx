@@ -224,7 +224,7 @@ function SearchResultCard({
         </div>
       </div>
       {result.context_header && (
-        <div className="mt-1 truncate text-xs text-muted-foreground/70">
+        <div className="mt-1 truncate text-xs text-muted-foreground">
           {result.context_header}
         </div>
       )}
@@ -610,7 +610,7 @@ export default function CodebaseIndexPanel({
                 onKeyDown={handleKeyDown}
                 placeholder={t.codebaseIndex.searchPlaceholder}
                 aria-label={t.codebaseIndex.searchPlaceholder}
-                className="flex-1 border-0 bg-transparent text-xs outline-none placeholder:text-muted-foreground/50 focus-visible:ring-0"
+                className="flex-1 border-0 bg-transparent text-xs outline-none placeholder:text-muted-foreground focus-visible:ring-0"
               />
               {searching && (
                 <Loader2Icon className="size-3 animate-spin text-primary" />
@@ -632,7 +632,7 @@ export default function CodebaseIndexPanel({
             {/* Not indexed notice */}
             {!isIndexed && !isRunning && (
               <div className="flex flex-col items-center gap-2 rounded-lg border border-dashed p-4 text-center text-xs text-muted-foreground">
-                <FileSearchIcon className="size-8 text-muted-foreground/50" />
+                <FileSearchIcon className="size-8 text-muted-foreground" />
                 <div>
                   <div className="font-medium text-foreground">
                     {t.codebaseIndex.notIndexed}
@@ -762,7 +762,7 @@ export default function CodebaseIndexPanel({
               </div>
             ) : (
               <div className="flex flex-col items-center gap-2 py-4 text-muted-foreground">
-                <HardDriveIcon className="size-8 text-muted-foreground/50" />
+                <HardDriveIcon className="size-8 text-muted-foreground" />
                 <div className="text-center">
                   <div className="font-medium text-foreground">
                     {isIndexed

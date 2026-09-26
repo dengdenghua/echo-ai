@@ -1365,7 +1365,7 @@ export function ChatComposer({
       {showProjectIntentSuggestion ? (
         <div
           data-testid="project-intent-suggestion"
-          className="flex items-center gap-2 px-1 pb-1 text-xs text-muted-foreground/75"
+          className="flex items-center gap-2 px-1 pb-1 text-xs text-muted-foreground"
         >
           <FlagIcon
             className="size-3.5 shrink-0 text-rose-600 dark:text-rose-400"
@@ -1387,7 +1387,7 @@ export function ChatComposer({
               type="button"
               data-testid="project-intent-ignore"
               onClick={dismissProjectIntent}
-              className="rounded-md px-2 py-0.5 text-muted-foreground/70 transition-colors hover:bg-muted hover:text-foreground"
+              className="rounded-md px-2 py-0.5 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
             >
               {t.modeIntent.ignore}
             </button>
@@ -1401,7 +1401,7 @@ export function ChatComposer({
         "rounded-2xl border border-border bg-card shadow-[var(--shadow-xs)]",
         "transition-[background-color,border-color,box-shadow] duration-base ease-out",
         "hover:border-border-default",
-        "focus-within:border-primary/40 focus-within:ring-2 focus-within:ring-primary/8",
+        "focus-within:border-primary/50 focus-within:ring-2 focus-within:ring-primary/15 focus-within:shadow-[var(--shadow-elevated)]",
         className,
       )}
     >
@@ -1585,7 +1585,7 @@ export function ChatComposer({
       </div>
       </div>
       {quoteText && (
-        <div data-testid="composer-quote" className="mx-3 mb-2 flex min-w-0 items-center gap-2 border-l-2 border-muted-foreground/20 pl-2 text-xs text-muted-foreground/70">
+        <div data-testid="composer-quote" className="mx-3 mb-2 flex min-w-0 items-center gap-2 border-l-2 border-muted-foreground/20 pl-2 text-xs text-muted-foreground">
           <span className="min-w-0 flex-1 truncate" title={quoteText}>{quoteText}</span>
           <button type="button" data-testid="composer-remove-quote" aria-label={t.conversation.removeQuote}
             onClick={() => setQuoteText("")}
@@ -1674,7 +1674,7 @@ export function ChatComposer({
                 type="button"
                 data-testid="chat-tools-trigger"
                 disabled={isBusy || status === "streaming"}
-                className="relative flex size-[42px] items-center justify-center rounded-lg text-muted-foreground/70 outline-none transition-all duration-base hover:bg-muted/60 hover:text-foreground focus-visible:bg-muted/60 focus-visible:text-foreground focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-45 sm:size-8 active:scale-95"
+                className="relative flex size-[42px] items-center justify-center rounded-lg text-muted-foreground outline-none transition-all duration-base hover:bg-muted/60 hover:text-foreground focus-visible:bg-muted/60 focus-visible:text-foreground focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-45 sm:size-8 active:scale-95"
                 title={toolsMenuTitle}
                 aria-label={toolsMenuLabel}
               >
@@ -2221,7 +2221,7 @@ export function ChatComposer({
                 isDeepResearchMode
                   ? "bg-primary text-primary-foreground hover:bg-primary/90 active:scale-95"
                   : "bg-foreground text-background hover:bg-foreground/90 active:scale-95",
-                "disabled:bg-transparent disabled:text-muted-foreground/50 disabled:cursor-not-allowed disabled:hover:bg-muted/60 disabled:hover:text-muted-foreground",
+                "disabled:bg-transparent disabled:text-muted-foreground disabled:cursor-not-allowed disabled:hover:bg-muted/60 disabled:hover:text-muted-foreground",
               )}
               // A disabled send button should say why it is disabled.
               title={

@@ -21,7 +21,7 @@ export function TaskBrowserStart({ onNavigate, recentPages, children, renderHome
   return (
     <section aria-label="浏览器新标签页" className="mx-auto flex min-h-full w-full max-w-2xl flex-col justify-center px-6 py-12 sm:px-10">
       <div className="mb-6">
-        <GlobeIcon className="mb-4 size-7 text-muted-foreground/70" strokeWidth={1.5} />
+        <GlobeIcon className="mb-4 size-7 text-muted-foreground" strokeWidth={1.5} />
         <h2 className="text-xl font-medium tracking-tight">从这里开始浏览</h2>
         <p className="mt-2 text-sm text-muted-foreground">打开网页、搜索资料，或预览本地服务。</p>
       </div>

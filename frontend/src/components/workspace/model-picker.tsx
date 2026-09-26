@@ -388,7 +388,7 @@ function ReasoningEffortSetting({
   return (
     <div className="mx-1 mt-1 border-t border-border-default pt-1">
       <div className="mb-0.5 flex items-center justify-between px-1">
-        <span className="text-ui font-medium text-muted-foreground/70">
+        <span className="text-ui font-medium text-muted-foreground">
           {title}
         </span>
         <span className="text-ui text-muted-foreground">
@@ -398,7 +398,7 @@ function ReasoningEffortSetting({
         </span>
       </div>
       {mapped && (
-        <div className="mb-1 px-1 text-[11px] text-muted-foreground/70">
+        <div className="mb-1 px-1 text-[11px] text-muted-foreground">
           {t.inputBox.reasoningEffortMapped(
             reasoningEffortLabel(rawCurrent, t),
             reasoningEffortLabel(effective, t),
@@ -497,7 +497,7 @@ function PickerRow({
           {badge}
         </span>
         {right !== undefined && (
-          <span className="shrink-0 text-ui tabular-nums text-muted-foreground/70 transition-colors group-hover/row:text-muted-foreground">
+          <span className="shrink-0 text-ui tabular-nums text-muted-foreground transition-colors group-hover/row:text-muted-foreground">
             {right}
           </span>
         )}

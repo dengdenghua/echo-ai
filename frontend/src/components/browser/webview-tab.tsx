@@ -82,7 +82,9 @@ interface Props {
   renderDevice?: BrowserTab["device"];
 }
 
-const BROWSER_CORE_COMPONENTS: Record<string, ComponentType> = {};
+const BROWSER_CORE_COMPONENTS: Record<string, ComponentType> = {
+  mail: lazy(() => import("@/app/workspace/mail/page")),
+};
 
 /* Implementation note. */
 type CrashInfo = NonNullable<BrowserTab["crash"]>;
@@ -1034,7 +1036,7 @@ function BrowserDesktopHome({
             onKeyDown={onSearchKey}
             placeholder={wt.searchPlaceholder}
             aria-label={wt.searchPlaceholder}
-            className="min-w-0 flex-1 bg-transparent text-lg font-medium text-foreground outline-none placeholder:text-muted-foreground/70"
+            className="min-w-0 flex-1 bg-transparent text-lg font-medium text-foreground outline-none placeholder:text-muted-foreground"
           />
         </div>
         <div

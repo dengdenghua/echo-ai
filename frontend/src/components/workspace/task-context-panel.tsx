@@ -182,10 +182,10 @@ function FileRow({ path }: { path: string }) {
   const dir = path.split(/[/\\]/).slice(0, -1).join("/");
   return (
     <div className="flex items-center gap-1.5 py-0.5">
-      <FolderOpenIcon className="size-2.5 text-muted-foreground/50 shrink-0" />
+      <FolderOpenIcon className="size-2.5 text-muted-foreground shrink-0" />
       <span className="text-xs font-medium truncate">{name}</span>
       {dir && (
-        <span className="text-xs text-muted-foreground/50 truncate">
+        <span className="text-xs text-muted-foreground truncate">
           {dir}
         </span>
       )}

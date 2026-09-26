@@ -117,7 +117,7 @@ function ActivityTraceViewImpl({
                     ) : null}
                   </div>
                   {showStatusText ? (
-                    <span className="shrink-0 pt-0.5 text-xs text-muted-foreground/70">
+                    <span className="shrink-0 pt-0.5 text-xs text-muted-foreground">
                       {statusText(block.status, {
                         running: t.messageGrouping.liveProcessRunning,
                         waiting_approval: t.messageGrouping.liveProcessWaiting,

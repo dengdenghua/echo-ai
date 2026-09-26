@@ -49,13 +49,13 @@ export function DiffView({
 }
 
 const GUTTER_CELL =
-  "w-[1%] min-w-[2.75rem] select-none border-r border-border-subtle px-2 text-right align-top text-muted-foreground/55 tabular-nums";
+  "w-[1%] min-w-[2.75rem] select-none border-r border-border-subtle px-2 text-right align-top text-muted-foreground tabular-nums";
 
 function DiffLine({ row }: { row: DiffRow }) {
   if (row.kind === "hunk") {
     return (
       <tr className="bg-muted/40">
-        <td colSpan={3} className="px-2.5 py-0.5 text-muted-foreground/70">
+        <td colSpan={3} className="px-2.5 py-0.5 text-muted-foreground">
           {row.text}
         </td>
       </tr>
@@ -85,7 +85,7 @@ function DiffLine({ row }: { row: DiffRow }) {
       >
         <span
           aria-hidden="true"
-          className="mr-1.5 inline-block w-2 select-none text-muted-foreground/50"
+          className="mr-1.5 inline-block w-2 select-none text-muted-foreground"
         >
           {isAdd ? "+" : isDel ? "-" : " "}
         </span>

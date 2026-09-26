@@ -161,7 +161,7 @@ export function DiffFileTree({
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             placeholder={t.diffEditor.searchFiles}
-            className="w-full bg-transparent text-xs outline-none placeholder:text-muted-foreground/60"
+            className="w-full bg-transparent text-xs outline-none placeholder:text-muted-foreground"
           />
         </div>
         <button

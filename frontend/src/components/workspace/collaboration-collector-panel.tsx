@@ -682,7 +682,7 @@ export function CollaborationCollectorPanel({
                     (status === "failed" || status === "cancelled") &&
                       "text-destructive",
                     status === "retrying" && "animate-spin text-primary",
-                    status === "waiting" && "text-muted-foreground/45",
+                    status === "waiting" && "text-muted-foreground",
                   )}
                 />
                 <div className="min-w-0 flex-1">
@@ -700,7 +700,7 @@ export function CollaborationCollectorPanel({
                     </p>
                   ) : null}
                   {contextDelivery || sessionCompaction ? (
-                    <p className="mt-0.5 text-mini tabular-nums text-muted-foreground/75">
+                    <p className="mt-0.5 text-mini tabular-nums text-muted-foreground">
                       {contextDelivery
                         ? t.coworkCollab.collectorContextDelivery(
                             contextDelivery.mode,
@@ -788,7 +788,7 @@ export function CollaborationCollectorPanel({
                     aria-label={t.coworkCollab.collectorSteerPlaceholder(
                       displayName,
                     )}
-                    className="min-h-16 w-full resize-y bg-transparent text-xs leading-5 text-foreground outline-none placeholder:text-muted-foreground/65"
+                    className="min-h-16 w-full resize-y bg-transparent text-xs leading-5 text-foreground outline-none placeholder:text-muted-foreground"
                     disabled={steeringBusyChildId === childId}
                     maxLength={20_000}
                     placeholder={t.coworkCollab.collectorSteerPlaceholder(

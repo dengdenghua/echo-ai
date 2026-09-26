@@ -25,18 +25,18 @@ export function FileBreadcrumb({
         className,
       )}
     >
-      <FileIcon className="text-muted-foreground/60 size-3 shrink-0" />
+      <FileIcon className="text-muted-foreground size-3 shrink-0" />
       {dirParts.map((part, i) => (
         <span key={i} className="flex items-center">
-          <span className="text-muted-foreground/60">{part}</span>
-          <ChevronRightIcon className="text-muted-foreground/40 size-2.5" />
+          <span className="text-muted-foreground">{part}</span>
+          <ChevronRightIcon className="text-muted-foreground size-2.5" />
         </span>
       ))}
       <span className="text-primary font-medium">{fileName}</span>
       {onClear && (
         <button
           onClick={onClear}
-          className="text-muted-foreground/40 hover:text-muted-foreground ml-auto"
+          className="text-muted-foreground hover:text-muted-foreground ml-auto"
         >
           <XIcon className="size-3" />
         </button>

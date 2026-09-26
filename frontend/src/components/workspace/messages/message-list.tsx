@@ -3704,8 +3704,8 @@ function TurnLocatorLimitButton({
         "relative z-1 flex size-7 items-center justify-center rounded-full bg-background/80 outline-none transition-all",
         "focus-visible:ring-ring/50 focus-visible:ring-2",
         active
-          ? "text-muted-foreground/40 opacity-60"
-          : "text-muted-foreground/70 opacity-85 hover:bg-muted/55 hover:text-muted-foreground hover:opacity-100",
+          ? "text-muted-foreground opacity-60"
+          : "text-muted-foreground opacity-85 hover:bg-muted/55 hover:text-muted-foreground hover:opacity-100",
       )}
       onClick={onClick}
       title={label}

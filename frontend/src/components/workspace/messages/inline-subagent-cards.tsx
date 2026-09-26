@@ -932,7 +932,7 @@ function AgentIndexBadge({ index, done }: { index: number; done?: boolean }) {
     <span
       className={cn(
         "font-mono text-xs",
-        done ? "text-muted-foreground/60" : "text-muted-foreground/60",
+        done ? "text-muted-foreground" : "text-muted-foreground",
       )}
     >
       {String(index + 1).padStart(2, "0")}
@@ -1005,7 +1005,7 @@ function AgentAvatar({
     <span
       className={cn(
         className,
-        "flex items-center justify-center rounded-md bg-muted text-muted-foreground/70",
+        "flex items-center justify-center rounded-md bg-muted text-muted-foreground",
       )}
     >
       <BotIcon className={large ? "size-4" : "size-[13px]"} />
@@ -1115,7 +1115,7 @@ function KimiStyleSubagentCard({
         <span className="min-w-0 flex-1 truncate text-sm font-medium text-foreground">
           {agent.name}
         </span>
-        <span className="shrink-0 rounded border border-border/50 bg-background/50 px-1 py-0.2 text-[10px] text-muted-foreground/70">
+        <span className="shrink-0 rounded border border-border/50 bg-background/50 px-1 py-0.2 text-[10px] text-muted-foreground">
           我的协作者
         </span>
         <span
@@ -1534,12 +1534,12 @@ export function InlineSubagentCards({
         {/* Header inside the card */}
         {agents.length > 1 && (
           <div className="flex items-center gap-1.5 px-2 py-0.5">
-            <UsersIcon className="size-[13px] text-muted-foreground/60" />
-            <span className="text-xs text-muted-foreground/70">
+            <UsersIcon className="size-[13px] text-muted-foreground" />
+            <span className="text-xs text-muted-foreground">
               {t.message.agentCluster}
             </span>
-            <span className="text-xs text-muted-foreground/40">|</span>
-            <span className="text-xs text-muted-foreground/60">
+            <span className="text-xs text-muted-foreground">|</span>
+            <span className="text-xs text-muted-foreground">
               {t.message.agentProgressSummary(
                 agents.length,
                 doneCount,

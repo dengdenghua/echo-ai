@@ -238,7 +238,7 @@ const MiniSubtaskRow = memo(function MiniSubtaskRow({
               type="button"
               onClick={handleToggleIdentity}
               aria-expanded={showIdentity}
-              className="relative z-10 shrink-0 rounded px-1 py-0.5 text-xs font-medium text-muted-foreground/70 transition-colors hover:bg-muted/60 hover:text-foreground"
+              className="relative z-10 shrink-0 rounded px-1 py-0.5 text-xs font-medium text-muted-foreground transition-colors hover:bg-muted/60 hover:text-foreground"
               title={t.agentWorkbenchPages.roleDescription}
             >
               {showIdentity
@@ -507,7 +507,7 @@ function AgentIdentityCard({
       {/* 角色说明 */}
       {brief && (
         <div className="border-t border-border-subtle px-3 py-2">
-          <div className="mb-1 text-xs font-medium uppercase tracking-wide text-muted-foreground/60">
+          <div className="mb-1 text-xs font-medium uppercase tracking-wide text-muted-foreground">
             {t.agentWorkbenchPages.roleDescription}
           </div>
           <div className="max-h-32 overflow-y-auto whitespace-pre-wrap break-words text-xs leading-5 text-foreground/80">

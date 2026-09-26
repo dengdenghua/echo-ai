@@ -115,7 +115,7 @@ export function SelectionEditor({
           onChange={(e) => setInstruction(e.target.value)}
           onKeyDown={handleKeyDown}
           placeholder={t.selectionEditor.placeholder}
-          className="flex-1 bg-transparent text-sm outline-none placeholder:text-muted-foreground/60 min-w-0"
+          className="flex-1 bg-transparent text-sm outline-none placeholder:text-muted-foreground min-w-0"
           disabled={isLoading}
         />
         {isLoading ? (

@@ -76,7 +76,7 @@ export function CoworkRoomSystemCard({
             <span className="shrink-0 text-[10px] font-medium text-primary">
               {meta.label}
             </span>
-            <span className="text-muted-foreground/45" aria-hidden="true">
+            <span className="text-muted-foreground" aria-hidden="true">
               ·
             </span>
             <h4 className="min-w-0 flex-1 truncate text-xs font-semibold text-foreground">

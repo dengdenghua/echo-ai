@@ -151,7 +151,7 @@ function KanbanColumn({
       <ScrollArea className="flex-1 max-h-[calc(100vh-340px)]">
         <div className="space-y-2 p-2">
           {tasks.length === 0 ? (
-            <div className="flex items-center justify-center py-8 text-xs text-muted-foreground/50">
+            <div className="flex items-center justify-center py-8 text-xs text-muted-foreground">
               {t.taskBoard.noTasks}
             </div>
           ) : (
@@ -208,7 +208,7 @@ type SortDir = "asc" | "desc";
 
 function SortIcon({ active, dir }: { active: boolean; dir: SortDir }) {
   if (!active)
-    return <ArrowUpDownIcon className="size-3 text-muted-foreground/40" />;
+    return <ArrowUpDownIcon className="size-3 text-muted-foreground" />;
   return dir === "asc" ? (
     <ArrowUpIcon className="size-3" />
   ) : (

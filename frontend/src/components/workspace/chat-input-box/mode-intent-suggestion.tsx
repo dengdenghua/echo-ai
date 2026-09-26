@@ -108,7 +108,7 @@ export function ModeIntentSuggestion({
     <div
       data-testid="mode-intent-suggestion"
       className={cn(
-        "flex items-center gap-2 px-1 pb-1 text-xs text-muted-foreground/75",
+        "flex items-center gap-2 px-1 pb-1 text-xs text-muted-foreground",
         className,
       )}
     >
@@ -128,7 +128,7 @@ export function ModeIntentSuggestion({
           type="button"
           data-testid="mode-intent-ignore"
           onClick={handleDismiss}
-          className="rounded-md px-2 py-0.5 text-muted-foreground/70 transition-colors hover:bg-muted hover:text-foreground"
+          className="rounded-md px-2 py-0.5 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
         >
           {t.modeIntent.ignore}
         </button>

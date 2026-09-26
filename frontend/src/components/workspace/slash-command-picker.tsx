@@ -128,7 +128,7 @@ export function SlashCommandPicker({
                     {cmd.argument_hint}
                   </span>
                 )}
-                <span className="ml-auto text-xs text-muted-foreground/70">
+                <span className="ml-auto text-xs text-muted-foreground">
                   {cmd.source}
                 </span>
               </div>

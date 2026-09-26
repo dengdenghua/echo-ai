@@ -54,18 +54,20 @@ export interface CoworkRoomTimelineEntryProps {
 }
 
 /**
- * Remove canonical-thread mirrors and repeated producer messages before room
+ * Remove already-visible thread mirrors and repeated producer messages before room
  * events are mixed into the main conversation timeline. Project OS cards use
  * their own `project-action:*` source ids, so they remain visible.
  */
 export function dedupeCoworkRoomMessages(
   messages: readonly CoworkRoomMessage[],
+  visibleThreadMessageIds: readonly string[] = [],
 ): CoworkRoomMessage[] {
+  const visibleThreadSources = new Set(visibleThreadMessageIds.map(id => `thread:${id}`));
   const seenSourceIds = new Set<string>();
   return messages.filter((message) => {
     const sourceId = message.metadata?.source_message_id?.trim() ?? "";
     if (!sourceId) return true;
-    if (sourceId.startsWith("thread:")) return false;
+    if (visibleThreadSources.has(sourceId)) return false;
     if (seenSourceIds.has(sourceId)) return false;
     seenSourceIds.add(sourceId);
     return true;
@@ -224,7 +226,7 @@ function ReplyReference({
         回复 {author}
       </span>
       {reply.seq ? (
-        <span className="shrink-0 text-muted-foreground/70">
+        <span className="shrink-0 text-muted-foreground">
           · #{reply.seq}
         </span>
       ) : null}
@@ -503,6 +505,7 @@ function CoworkRoomTimelineEntryContent({
                   key={`${reaction.message_id}:${reaction.emoji}`}
                   type="button"
                   aria-label={`${reaction.emoji} ${reaction.count} 人回应`}
+                  disabled={collab?.canWrite === false}
                   onClick={() =>
                     void collab
                       ?.toggleMessageReaction(
@@ -536,6 +539,7 @@ function CoworkRoomTimelineEntryContent({
             <button
               type="button"
               aria-label="添加消息回应"
+              disabled={collab.canWrite === false}
               aria-expanded={showReactionPicker}
               onClick={() => setShowReactionPicker((current) => !current)}
               className="rounded p-1 text-muted-foreground opacity-0 transition hover:bg-muted hover:text-foreground group-hover/msg:opacity-100 focus-visible:opacity-100"
@@ -545,6 +549,7 @@ function CoworkRoomTimelineEntryContent({
             <button
               type="button"
               aria-label={isPinned ? "取消置顶消息" : "置顶消息"}
+              disabled={collab.canWrite === false}
               onClick={() =>
                 void collab
                   .togglePinnedMessage(annotationMessageId)

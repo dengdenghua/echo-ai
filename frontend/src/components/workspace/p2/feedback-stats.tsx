@@ -55,7 +55,7 @@ export function FeedbackStats({
           <span className="text-muted-foreground">{stats.thumbs_down}</span>
         </div>
         {totalMessages > 0 && (
-          <div className="text-muted-foreground/70 text-xs">
+          <div className="text-muted-foreground text-xs">
             {totalMessages} rated
           </div>
         )}

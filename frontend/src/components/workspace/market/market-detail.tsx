@@ -110,7 +110,7 @@ export function MarketDetail({
             className={cn(
               "flex items-center gap-1.5 rounded-lg px-5 py-2 text-sm font-semibold transition-colors",
               item.sold || item.mine
-                ? "cursor-default bg-muted text-muted-foreground/60"
+                ? "cursor-default bg-muted text-muted-foreground"
                 : "bg-rose-500 text-white hover:bg-rose-600",
             )}
           >

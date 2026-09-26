@@ -356,7 +356,7 @@ export function HumanMessageDeliveryStatus({
     <div
       className={cn(
         "mt-1 flex items-center justify-end gap-1.5 text-[11px] leading-4",
-        state === "failed" ? "text-destructive/80" : "text-muted-foreground/70",
+        state === "failed" ? "text-destructive/80" : "text-muted-foreground",
       )}
       data-testid="human-message-delivery-status"
       data-delivery-state={state}
@@ -537,7 +537,7 @@ function SegmentedReasoningPanel({
           },
         })
       }
-      className="group/thinking-row mb-1 flex w-full min-w-0 items-center gap-1.5 rounded-full border border-border/50 bg-muted/40 px-2.5 py-1 text-left text-xs leading-4 text-muted-foreground/70 transition-colors hover:text-muted-foreground hover:border-border"
+      className="group/thinking-row mb-1 flex w-full min-w-0 items-center gap-1.5 rounded-full border border-border/50 bg-muted/40 px-2.5 py-1 text-left text-xs leading-4 text-muted-foreground transition-colors hover:text-muted-foreground hover:border-border"
       data-process-event-id={messageId}
       data-process-event-kind="thinking"
       data-testid="assistant-thinking-event"
@@ -1314,7 +1314,7 @@ function MessageContent_({
           remain available through the process workbench. Legacy persisted
           `run_status=streaming` messages retain the same honest receipt. */}
       {!isCurrentlyStreaming && showInterruptedReceipt && (
-        <div className="mt-2 text-xs leading-5 text-muted-foreground/70">
+        <div className="mt-2 text-xs leading-5 text-muted-foreground">
           {typeof interruptReason === "string" && interruptReason.trim()
             ? `${t.conversation.interruptedMessage}（原因：${interruptReason}）`
             : t.conversation.interruptedMessage}
@@ -1328,7 +1328,7 @@ function MessageContent_({
         </div>
       )}
       {!isCurrentlyStreaming && showCancelledReceipt && (
-        <div className="mt-2 text-xs leading-5 text-muted-foreground/70">
+        <div className="mt-2 text-xs leading-5 text-muted-foreground">
           {t.conversation.cancelledMessage}
         </div>
       )}

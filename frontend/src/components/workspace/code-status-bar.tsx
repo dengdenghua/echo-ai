@@ -167,7 +167,7 @@ export function CodeStatusBar({
                   "flex items-center justify-center rounded-md p-0.5 transition-colors",
                   fastHardTimeout
                     ? "text-destructive hover:text-destructive"
-                    : "text-muted-foreground/60 hover:text-foreground",
+                    : "text-muted-foreground hover:text-foreground",
                 )}
               >
                 {fastHardTimeout ? (
@@ -189,7 +189,7 @@ export function CodeStatusBar({
           <ZapIcon className="size-2.5" />
           {codeMode}
         </span>
-        <span className="text-muted-foreground/50">
+        <span className="text-muted-foreground">
           {modelName || t.codeMode.defaultModel}
         </span>
       </div>

@@ -230,7 +230,7 @@ export function PublicThinkingStatus({
           data-first-response-delayed={firstResponseDelayed ? "true" : "false"}
           data-testid="conversation-activity-pulse"
           className={cn(
-            "my-1.5 ml-11 flex min-w-0 items-center gap-1.5 text-xs leading-4 text-muted-foreground/55",
+            "my-1.5 ml-11 flex min-w-0 items-center gap-1.5 text-xs leading-4 text-muted-foreground",
             className,
           )}
         >
@@ -246,13 +246,13 @@ export function PublicThinkingStatus({
           />
           <span className="shrink-0">{label}</span>
           {detail && (
-            <span className="min-w-0 truncate text-muted-foreground/45">
+            <span className="min-w-0 truncate text-muted-foreground">
               · {detail}
             </span>
           )}
           {elapsed && (
             <span
-              className="shrink-0 tabular-nums text-muted-foreground/45"
+              className="shrink-0 tabular-nums text-muted-foreground"
               data-testid="conversation-activity-elapsed"
             >
               · {elapsed}

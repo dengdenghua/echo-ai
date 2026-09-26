@@ -167,6 +167,7 @@ const BUILTIN_ICON_MAP: Record<WorkbenchBuiltinIcon, LucideIcon> = {
   evolution: DnaIcon,
   intelligence: RssIcon,
   community: CompassIcon,
+  mail: MailIcon,
 };
 
 /** Keep native app tiles distinct without letting the theme's saturated
@@ -179,6 +180,7 @@ const BUILTIN_ICON_TONE: Record<WorkbenchBuiltinIcon, string> = {
   evolution: "from-violet-600/75 to-cyan-500/60",
   intelligence: "from-cyan-600/75 to-blue-500/65",
   community: "from-indigo-600/70 to-violet-500/60",
+  mail: "from-rose-600/70 to-pink-500/60",
 };
 
 const WORKSPACE_DESKTOP_APPS: BrowserDesktopApp[] = WORKBENCH_BUILTIN_APPS.map(
@@ -759,7 +761,7 @@ function MenuItem({
       <Icon className="w-4 h-4 flex-shrink-0" />
       <span className="flex-1 text-left">{label}</span>
       {shortcut && (
-        <span className="text-xs text-muted-foreground/70">{shortcut}</span>
+        <span className="text-xs text-muted-foreground">{shortcut}</span>
       )}
     </button>
   );
@@ -1957,7 +1959,7 @@ export function BrowserHome({
               />
               <ChevronDownIcon
                 className={cn(
-                  "size-3 text-muted-foreground/60 transition-transform group-hover:text-muted-foreground",
+                  "size-3 text-muted-foreground transition-transform group-hover:text-muted-foreground",
                   enginePickerOpen && "rotate-180 text-foreground",
                 )}
               />
@@ -1972,7 +1974,7 @@ export function BrowserHome({
               placeholder={wt.searchPlaceholderFormat(
                 selectedSearchEngine?.name ?? wt.searchEngineFallback,
               )}
-              className="min-w-0 flex-1 bg-transparent text-[15px] font-medium text-foreground outline-none placeholder:text-muted-foreground/60"
+              className="min-w-0 flex-1 bg-transparent text-[15px] font-medium text-foreground outline-none placeholder:text-muted-foreground"
             />
           </div>
 
@@ -2182,7 +2184,7 @@ export function BrowserHome({
                   </button>
                 ))}
               </div>
-              <div className="mt-1.5 text-center text-mini font-medium text-muted-foreground/70">
+              <div className="mt-1.5 text-center text-mini font-medium text-muted-foreground">
                 {bt.commonCategories}
               </div>
 
@@ -2206,7 +2208,7 @@ export function BrowserHome({
                       <button
                         type="button"
                         onClick={() => setOpenAppGroupId(null)}
-                        className="grid size-7 place-items-center rounded-lg text-muted-foreground/70 transition hover:bg-foreground/5 hover:text-foreground"
+                        className="grid size-7 place-items-center rounded-lg text-muted-foreground transition hover:bg-foreground/5 hover:text-foreground"
                       >
                         <X className="size-4" />
                       </button>
@@ -2313,7 +2315,7 @@ export function BrowserHome({
                   ))}
                 </div>
               ) : (
-                <div className="rounded-lg border border-border-subtle/60 px-3 py-4 text-center text-mini text-muted-foreground/70">
+                <div className="rounded-lg border border-border-subtle/60 px-3 py-4 text-center text-mini text-muted-foreground">
                   {scanningLocalServices
                     ? bp.scanLocalServices
                     : bp.noLocalServices}
@@ -2341,7 +2343,7 @@ export function BrowserHome({
                 </div>
                 <div
                   className={cn(
-                    "grid size-7 place-items-center rounded-lg text-muted-foreground/70",
+                    "grid size-7 place-items-center rounded-lg text-muted-foreground",
                   )}
                   title={bt.historyOnly}
                 >
@@ -2354,7 +2356,7 @@ export function BrowserHome({
                 </div>
               )}
               {recentPanelItems.length === 0 && (
-                <div className="rounded-lg border border-border-subtle/60 px-3 py-4 text-center text-mini text-muted-foreground/70">
+                <div className="rounded-lg border border-border-subtle/60 px-3 py-4 text-center text-mini text-muted-foreground">
                   {bt.noRecentVisits}
                 </div>
               )}
@@ -2393,7 +2395,7 @@ export function BrowserHome({
                             <button
                               type="button"
                               onClick={() => handleEdit(widget.id)}
-                              className="grid size-7 place-items-center rounded-lg text-muted-foreground/60 transition hover:bg-foreground/5 hover:text-muted-foreground"
+                              className="grid size-7 place-items-center rounded-lg text-muted-foreground transition hover:bg-foreground/5 hover:text-muted-foreground"
                               title={wt.ctxEditWidget}
                               aria-label={wt.ctxEditWidget}
                             >
@@ -2405,7 +2407,7 @@ export function BrowserHome({
                             onClick={(event) =>
                               handleContext(event, widget.id, "widget")
                             }
-                            className="grid size-7 place-items-center rounded-lg text-muted-foreground/55 opacity-60 transition hover:bg-foreground/5 hover:text-foreground focus-visible:opacity-100 group-hover/widget:opacity-100"
+                            className="grid size-7 place-items-center rounded-lg text-muted-foreground opacity-60 transition hover:bg-foreground/5 hover:text-foreground focus-visible:opacity-100 group-hover/widget:opacity-100"
                             title={`${wt.ctxEditWidget} / ${wt.ctxDelete}`}
                             aria-label={`${wt.ctxEditWidget} / ${wt.ctxDelete}`}
                           >
@@ -2606,7 +2608,7 @@ export function BrowserHome({
                               )}
                               onClick={() => toggleFolder(folder.id)}
                             >
-                              <X className="w-3.5 h-3.5 text-muted-foreground/60 hover:text-muted-foreground" />
+                              <X className="w-3.5 h-3.5 text-muted-foreground hover:text-muted-foreground" />
                             </button>
                           </div>
                           <div className="grid grid-cols-3 gap-1.5">
@@ -2710,7 +2712,7 @@ export function BrowserHome({
               type="button"
               onClick={() => setActivePanel("add")}
               className={cn(
-                "grid size-12 shrink-0 place-items-center rounded-lg border-dashed border border-border-subtle/70 text-muted-foreground/70 transition",
+                "grid size-12 shrink-0 place-items-center rounded-lg border-dashed border border-border-subtle/70 text-muted-foreground transition",
                 "bg-card/50 hover:bg-card/70 hover:text-muted-foreground",
                 compactDesktop && "size-11 rounded-lg",
                 tabletDesktop && "size-11",
@@ -2771,7 +2773,7 @@ export function BrowserHome({
                 })
               }
             >
-              <X className="w-5 h-5 text-muted-foreground/70 hover:text-muted-foreground" />
+              <X className="w-5 h-5 text-muted-foreground hover:text-muted-foreground" />
             </button>
           </div>
           <div className="space-y-4">

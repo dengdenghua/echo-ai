@@ -789,7 +789,7 @@ export function ChannelCredentialDialog({
                           className={cn(
                             "w-full rounded-md border border-border-default bg-background/70",
                             "px-2.5 py-1.5 text-xs font-mono outline-none",
-                            "placeholder:text-muted-foreground/40",
+                            "placeholder:text-muted-foreground",
                             "focus:border-primary/50 focus:ring-2 focus:ring-primary/10",
                             isSecret && "pr-9",
                           )}

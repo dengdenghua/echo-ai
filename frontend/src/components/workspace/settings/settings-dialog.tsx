@@ -1202,7 +1202,7 @@ export function SettingsDialog(props: SettingsDialogProps) {
           }
           title={t.settings.dialog.dragToResize}
           tabIndex={0}
-          className="absolute bottom-0 right-0 z-50 hidden size-5 cursor-nwse-resize items-end justify-end rounded-sm p-1 text-muted-foreground/40 outline-none hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring/60 md:flex"
+          className="absolute bottom-0 right-0 z-50 hidden size-5 cursor-nwse-resize items-end justify-end rounded-sm p-1 text-muted-foreground outline-none hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring/60 md:flex"
         >
           <svg viewBox="0 0 10 10" className="size-2.5" aria-hidden="true">
             <path

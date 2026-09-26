@@ -496,7 +496,7 @@ ${jsContent || "// No JavaScript"}
                     title={t.livePreview.title}
                   />
                 ) : (
-                  <div className="flex h-full min-h-[400px] flex-col items-center justify-center text-muted-foreground/50">
+                  <div className="flex h-full min-h-[400px] flex-col items-center justify-center text-muted-foreground">
                     <MonitorIcon className="size-12 mb-3 opacity-30" />
                     <span className="text-sm">{t.livePreview.empty}</span>
                     <span className="text-xs mt-1 opacity-60">

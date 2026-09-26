@@ -287,7 +287,7 @@ export function CronSettingsPage() {
                     </div>
                   )}
                   {job.last_output && (
-                    <div className="mt-0.5 line-clamp-3 break-all pl-6 font-mono text-mini text-muted-foreground/70">
+                    <div className="mt-0.5 line-clamp-3 break-all pl-6 font-mono text-mini text-muted-foreground">
                       {job.last_output}
                     </div>
                   )}

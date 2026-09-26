@@ -114,7 +114,7 @@ function StatusIcon({
     );
   }
   if (status === "pending") {
-    return <CircleIcon className="size-4 shrink-0 text-muted-foreground/45" />;
+    return <CircleIcon className="size-4 shrink-0 text-muted-foreground" />;
   }
   if (status === "error") {
     return <XCircleIcon className="size-4 shrink-0 text-destructive" />;

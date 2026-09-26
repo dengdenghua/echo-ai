@@ -9,9 +9,9 @@ const PHASE_ICONS: Record<
   { icon: React.ElementType; color: string }
 > = {
   think: { icon: BrainIcon, color: "text-foreground" },
-  act: { icon: PlayIcon, color: "text-muted-foreground/65" },
-  observe: { icon: EyeIcon, color: "text-muted-foreground/65" },
-  repeat: { icon: RepeatIcon, color: "text-muted-foreground/65" },
+  act: { icon: PlayIcon, color: "text-muted-foreground" },
+  observe: { icon: EyeIcon, color: "text-muted-foreground" },
+  repeat: { icon: RepeatIcon, color: "text-muted-foreground" },
 };
 
 export function TAORBadge({

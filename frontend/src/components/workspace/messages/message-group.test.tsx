@@ -730,7 +730,7 @@ describe("MessageGroup reasoning grouping", () => {
     expect(thinkingEvent).not.toHaveTextContent("先扫一遍上下文");
     expect(thinkingEvent).toHaveClass(
       "text-[13px]",
-      "text-muted-foreground/75",
+      "text-muted-foreground",
       "min-h-7",
     );
     expect(thinkingEvent).not.toHaveClass("narrative-progress-row");
@@ -932,7 +932,7 @@ describe("MessageGroup reasoning grouping", () => {
     expect(row).not.toHaveClass("narrative-progress-row", "text-foreground");
     expect(row).toHaveClass(
       "text-[13px]",
-      "text-muted-foreground/75",
+      "text-muted-foreground",
       "min-h-7",
     );
     expect(screen.getByTestId("thinking-row-content")).toHaveAttribute(
@@ -981,7 +981,7 @@ describe("MessageGroup reasoning grouping", () => {
     const reasoningRow = screen.getByTestId("process-timeline-event-thinking");
     const commentaryRow = screen.getByTestId("public-progress-event");
     expect(reasoningRow).toHaveTextContent(sharedText);
-    expect(reasoningRow).toHaveClass("text-[13px]", "text-muted-foreground/75");
+    expect(reasoningRow).toHaveClass("text-[13px]", "text-muted-foreground");
     expect(reasoningRow).not.toHaveClass("narrative-progress-row");
     expect(commentaryRow).toHaveTextContent(sharedText);
     expect(commentaryRow).toHaveClass(
@@ -1017,7 +1017,7 @@ describe("MessageGroup reasoning grouping", () => {
     );
     expect(reasoningTrace).not.toHaveTextContent("Latest trace thought 1.");
     expect(reasoningTrace).toHaveTextContent("Latest trace thought 4.");
-    expect(reasoningTrace).toHaveClass("text-muted-foreground/75");
+    expect(reasoningTrace).toHaveClass("text-muted-foreground");
 
     const opened: CustomEvent[] = [];
     const handleOpen = (event: Event) => opened.push(event as CustomEvent);
@@ -1494,7 +1494,7 @@ describe("MessageGroup reasoning grouping", () => {
       "这个问题需要先确认赛道边界，否则机会点会太泛。",
     );
     expect(reasoning).toHaveTextContent("先拆分候选细分赛道。");
-    expect(reasoning).toHaveClass("text-muted-foreground/75");
+    expect(reasoning).toHaveClass("text-muted-foreground");
     expect(screen.queryByTitle(/过程回放/)).not.toBeInTheDocument();
   });
 

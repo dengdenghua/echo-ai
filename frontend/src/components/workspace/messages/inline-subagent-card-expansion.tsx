@@ -115,7 +115,7 @@ export function InlineSubagentCardExpansion({
           <span className="shrink-0 rounded bg-primary/10 px-1.5 py-0.5 text-[10px] font-semibold text-primary">
             我的第一视角 · 并列协作者
           </span>
-          <span className="text-muted-foreground/50">|</span>
+          <span className="text-muted-foreground">|</span>
           <span className="truncate text-xs text-foreground/90">
             {agent.name || "并列协作者"}
           </span>

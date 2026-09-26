@@ -205,7 +205,7 @@ export function WorkspaceNoteBadge({
               data-note-changes={changedFiles}
               className="flex shrink-0 items-center gap-1.5 font-mono tabular-nums"
             >
-              <span className="text-muted-foreground/70">
+              <span className="text-muted-foreground">
                 {t.workspaceNote.filesCount(numberFormat.format(changedFiles))}
               </span>
               {lineDelta > 0 ? (
@@ -231,7 +231,7 @@ export function WorkspaceNoteBadge({
               )}
             </span>
           ) : null}
-          <ChevronDownIcon className="size-3 shrink-0 text-muted-foreground/70" />
+          <ChevronDownIcon className="size-3 shrink-0 text-muted-foreground" />
         </button>
       </div>
     );
@@ -267,7 +267,7 @@ export function WorkspaceNoteBadge({
               disabled={isLoading}
               title={t.workspaceNote.refresh}
               aria-label={t.workspaceNote.refresh}
-              className="flex size-6 items-center justify-center rounded-md text-muted-foreground/70 transition-colors hover:bg-muted hover:text-foreground disabled:opacity-60"
+              className="flex size-6 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground disabled:opacity-60"
             >
               <RefreshCwIcon className={cn("size-3", isLoading && "animate-spin")} />
             </button>
@@ -276,7 +276,7 @@ export function WorkspaceNoteBadge({
               onClick={onOpenWorkbench}
               title={t.workspaceNote.more ?? "更多选项"}
               aria-label={t.workspaceNote.more ?? "更多选项"}
-              className="flex size-6 items-center justify-center rounded-md text-muted-foreground/70 transition-colors hover:bg-muted hover:text-foreground"
+              className="flex size-6 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
             >
               <MoreHorizontalIcon className="size-3.5" />
             </button>
@@ -285,7 +285,7 @@ export function WorkspaceNoteBadge({
               onClick={() => setExpanded(false)}
               title={t.workspaceNote.collapse}
               aria-label={t.workspaceNote.collapse}
-              className="flex size-6 items-center justify-center rounded-md text-muted-foreground/70 transition-colors hover:bg-muted hover:text-foreground"
+              className="flex size-6 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
             >
               <ChevronUpIcon className="size-3.5" />
             </button>
@@ -313,7 +313,7 @@ export function WorkspaceNoteBadge({
                     : t.workspaceNote.localEnv}
                 </span>
               </span>
-              <InfoIcon className="size-3 shrink-0 text-muted-foreground/50" />
+              <InfoIcon className="size-3 shrink-0 text-muted-foreground" />
             </div>
           ) : null}
 
@@ -344,11 +344,11 @@ export function WorkspaceNoteBadge({
             </div>
             <div>
               {!summary && error ? (
-                <span className="text-xs text-muted-foreground/50 font-mono">
+                <span className="text-xs text-muted-foreground font-mono">
                   —
                 </span>
               ) : changedFiles === 0 ? (
-                <span className="text-xs text-muted-foreground/70 font-mono">
+                <span className="text-xs text-muted-foreground font-mono">
                   {t.workspaceNote.clean}
                 </span>
               ) : (
@@ -366,7 +366,7 @@ export function WorkspaceNoteBadge({
                       </span>
                     </>
                   ) : (
-                    <span className="text-muted-foreground/70">
+                    <span className="text-muted-foreground">
                       {t.workspaceNote.filesCount(numberFormat.format(changedFiles))}
                     </span>
                   )}
@@ -394,7 +394,7 @@ export function WorkspaceNoteBadge({
                 {branchLabel || "—"}
               </span>
               {summary && (summary.ahead > 0 || summary.behind > 0) ? (
-                <span className="shrink-0 text-[11px] font-mono text-muted-foreground/70">
+                <span className="shrink-0 text-[11px] font-mono text-muted-foreground">
                   {t.workspaceNote.aheadBehind(
                     numberFormat.format(summary.ahead),
                     numberFormat.format(summary.behind),
@@ -402,13 +402,13 @@ export function WorkspaceNoteBadge({
                 </span>
               ) : null}
             </div>
-            <ChevronDownIcon className="size-3 shrink-0 text-muted-foreground/60" />
+            <ChevronDownIcon className="size-3 shrink-0 text-muted-foreground" />
           </div>
 
           {summary?.detached ? (
             <p
               data-note-detached-hint="true"
-              className="px-2 pt-0.5 text-[11px] leading-snug text-muted-foreground/60"
+              className="px-2 pt-0.5 text-[11px] leading-snug text-muted-foreground"
             >
               {t.workspaceNote.detachedHint}
             </p>
@@ -429,10 +429,10 @@ export function WorkspaceNoteBadge({
           {/* Pull Request Row */}
           <div
             data-note-pr="unavailable"
-            className="flex items-center justify-between rounded-lg px-2 py-0.5 text-[11px] text-muted-foreground/60"
+            className="flex items-center justify-between rounded-lg px-2 py-0.5 text-[11px] text-muted-foreground"
           >
             <span className="flex items-center gap-1.5">
-              <GitPullRequestIcon className="size-3 shrink-0 text-muted-foreground/60" />
+              <GitPullRequestIcon className="size-3 shrink-0 text-muted-foreground" />
               <span>{t.workspaceNote.pullRequestLabel}</span>
             </span>
             <span title={t.workspaceNote.pullRequestHint}>
@@ -443,7 +443,7 @@ export function WorkspaceNoteBadge({
           {summary && summary.untrackedFiles > 0 ? (
             <p
               data-note-untracked={summary.untrackedFiles}
-              className="px-2 pt-0.5 text-[11px] leading-snug text-muted-foreground/60"
+              className="px-2 pt-0.5 text-[11px] leading-snug text-muted-foreground"
             >
               {t.workspaceNote.trackedOnly}
             </p>
@@ -451,7 +451,7 @@ export function WorkspaceNoteBadge({
           {summary?.diffError ? (
             <p
               data-note-diff-error="true"
-              className="px-2 pt-0.5 text-[11px] leading-snug text-muted-foreground/60"
+              className="px-2 pt-0.5 text-[11px] leading-snug text-muted-foreground"
             >
               {t.workspaceNote.diffUnavailable}
             </p>
@@ -517,7 +517,7 @@ export function WorkspaceNoteBadge({
                 />
               ))
             ) : (
-              <p className="px-2 py-1 text-[11px] leading-snug text-muted-foreground/60">
+              <p className="px-2 py-1 text-[11px] leading-snug text-muted-foreground">
                 {t.workspaceNote.processEmpty}
               </p>
             )}
@@ -603,7 +603,7 @@ function PhaseStatusIcon({ status }: { status: AgentPhaseStatus }) {
     return <Loader2Icon className="size-3.5 shrink-0 animate-spin text-primary" />;
   }
   if (status === "pending") {
-    return <CircleIcon className="size-3.5 shrink-0 text-muted-foreground/40" />;
+    return <CircleIcon className="size-3.5 shrink-0 text-muted-foreground" />;
   }
   if (status === "error") {
     return <XCircleIcon className="size-3.5 shrink-0 text-destructive" />;

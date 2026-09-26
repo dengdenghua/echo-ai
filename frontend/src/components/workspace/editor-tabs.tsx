@@ -121,13 +121,13 @@ export function EditorTabs({
                 <span
                   className={cn(
                     "text-xs font-bold rounded px-0.5 shrink-0",
-                    isActive ? "text-primary" : "text-muted-foreground/60",
+                    isActive ? "text-primary" : "text-muted-foreground",
                   )}
                 >
                   {icon}
                 </span>
               ) : (
-                <FileIcon className="size-3 shrink-0 text-muted-foreground/60" />
+                <FileIcon className="size-3 shrink-0 text-muted-foreground" />
               )}
               <span className="truncate">{tab.label}</span>
               {tab.isDirty && (

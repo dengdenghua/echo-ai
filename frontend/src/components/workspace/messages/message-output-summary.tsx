@@ -897,7 +897,7 @@ export function MessageOutputSummary({
       {summary.verifications.length > 0 && (
         <section aria-label={t.message.verificationRan} className="space-y-2">
           <div className="flex items-center gap-2 text-sm font-semibold text-foreground">
-            <CheckCircle2Icon className="size-4 shrink-0 text-muted-foreground/60" />
+            <CheckCircle2Icon className="size-4 shrink-0 text-muted-foreground" />
             {t.message.verificationRan}
             <span className="rounded-full bg-muted/60 px-1.5 py-0.5 font-mono text-xs font-medium text-muted-foreground">
               {summary.verifications.filter((v) => v.passed).length}/
@@ -972,7 +972,7 @@ export function MessageOutputSummary({
               aria-label={`+${totalAdded} -${totalRemoved}`}
             >
               <span className="text-success">+{totalAdded}</span>
-              <span className="mx-1 text-muted-foreground/40"> </span>
+              <span className="mx-1 text-muted-foreground"> </span>
               <span className="text-destructive">-{totalRemoved}</span>
             </span>
             <button
@@ -1082,7 +1082,7 @@ function ChangeRow({
       >
         <FilePenLineIcon
           className={cn(
-            "shrink-0 text-muted-foreground/70",
+            "shrink-0 text-muted-foreground",
             presentation === "final" ? "size-4" : "size-3.5",
           )}
         />
@@ -1122,7 +1122,7 @@ function ChangeRow({
             aria-label={t.message.changesSummary}
             aria-expanded={open}
             onClick={() => setOpen((prev) => !prev)}
-            className="shrink-0 rounded-sm text-muted-foreground/60 transition-colors hover:text-foreground"
+            className="shrink-0 rounded-sm text-muted-foreground transition-colors hover:text-foreground"
           >
             <ChevronDownIcon
               className={cn(
@@ -1194,7 +1194,7 @@ function HunkDecisionRow({
                 className="inline-flex h-6 items-center gap-1 rounded-md border border-border-default px-2 text-xs font-medium text-destructive transition-colors hover:bg-destructive/10 disabled:cursor-not-allowed disabled:opacity-55 dark:text-destructive"
               >
                 {rejecting && (
-                  <Loader2Icon className="size-3 animate-spin text-muted-foreground/70" />
+                  <Loader2Icon className="size-3 animate-spin text-muted-foreground" />
                 )}
                 {t.message.reject}
               </button>

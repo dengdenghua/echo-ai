@@ -102,7 +102,7 @@ export function ResearchSourcePicker({
             onChange={(event) => setResearchUrlText(event.target.value)}
             disabled={disabled}
             placeholder="https://example.com, https://..."
-            className="min-w-0 flex-1 bg-transparent text-xs outline-none placeholder:text-muted-foreground/75 disabled:opacity-60"
+            className="min-w-0 flex-1 bg-transparent text-xs outline-none placeholder:text-muted-foreground disabled:opacity-60"
           />
         </label>
         <div className="flex items-center gap-2">
@@ -132,7 +132,7 @@ export function ResearchSourcePicker({
           onChange={(event) => setResearchNote(event.target.value)}
           disabled={disabled}
           placeholder={t.chatInputBox.materialNote}
-          className="h-8 min-w-0 border border-border-default bg-background/40 px-2 text-xs outline-none placeholder:text-muted-foreground/75 disabled:opacity-60"
+          className="h-8 min-w-0 border border-border-default bg-background/40 px-2 text-xs outline-none placeholder:text-muted-foreground disabled:opacity-60"
         />
         <div className="flex items-center gap-1">
           <button
@@ -165,14 +165,14 @@ export function ResearchSourcePicker({
           onChange={(event) => setResearchTextTitle(event.target.value)}
           disabled={disabled}
           placeholder={t.chatInputBox.textTitle}
-          className="h-8 min-w-0 border border-border-default bg-background/40 px-2 text-xs outline-none placeholder:text-muted-foreground/75 disabled:opacity-60"
+          className="h-8 min-w-0 border border-border-default bg-background/40 px-2 text-xs outline-none placeholder:text-muted-foreground disabled:opacity-60"
         />
         <input
           value={researchTextBody}
           onChange={(event) => setResearchTextBody(event.target.value)}
           disabled={disabled}
           placeholder={t.chatInputBox.pasteTextMaterial}
-          className="h-8 min-w-0 border border-border-default bg-background/40 px-2 text-xs outline-none placeholder:text-muted-foreground/75 disabled:opacity-60"
+          className="h-8 min-w-0 border border-border-default bg-background/40 px-2 text-xs outline-none placeholder:text-muted-foreground disabled:opacity-60"
         />
         <button
           type="button"

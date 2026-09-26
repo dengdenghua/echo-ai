@@ -819,7 +819,7 @@ export function MentionAutocompletePopup({
           <span>{t.mentions.mentions}</span>
           {mentionQuery && (
             <>
-              <span className="text-muted-foreground/40">|</span>
+              <span className="text-muted-foreground">|</span>
               <span className="text-foreground/70 normal-case tracking-normal font-normal">
                 {mentionQuery}
               </span>
@@ -892,7 +892,7 @@ export function MentionAutocompletePopup({
                   )}
                 </div>
                 {item.value.endsWith(":") && (
-                  <div className="text-muted-foreground/50 text-xs">
+                  <div className="text-muted-foreground text-xs">
                     &rsaquo;
                   </div>
                 )}
@@ -904,7 +904,7 @@ export function MentionAutocompletePopup({
 
       {/* Footer hint */}
       <div className="border-t px-3 py-1">
-        <div className="text-muted-foreground/60 flex items-center gap-3 text-xs">
+        <div className="text-muted-foreground flex items-center gap-3 text-xs">
           <span>
             <kbd className="bg-muted rounded px-1 font-mono text-xs">
               &uarr;&darr;

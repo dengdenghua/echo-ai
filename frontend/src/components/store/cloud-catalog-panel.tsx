@@ -353,7 +353,7 @@ export function CloudCatalogPanel() {
         <div className="space-y-2">
           <div className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
             <Boxes className="size-3.5" /> 插件 / 连接器
-            <span className="ml-1 text-muted-foreground/70">
+            <span className="ml-1 text-muted-foreground">
               {filteredPlugins.length}/{plugins.length}
             </span>
           </div>
@@ -377,7 +377,7 @@ export function CloudCatalogPanel() {
         <div className="space-y-2">
           <div className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
             <Cloud className="size-3.5" /> 技能
-            <span className="ml-1 text-muted-foreground/70">
+            <span className="ml-1 text-muted-foreground">
               {filteredSkills.length}/{skills.length}
             </span>
           </div>

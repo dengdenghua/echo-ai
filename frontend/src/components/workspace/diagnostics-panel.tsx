@@ -101,7 +101,7 @@ export function DiagnosticsPanel({
 
       <div className="flex-1 overflow-auto px-3 py-2 space-y-3">
         {!info ? (
-          <div className="flex items-center justify-center h-full text-muted-foreground/50">
+          <div className="flex items-center justify-center h-full text-muted-foreground">
             <Loader2Icon className="size-6 animate-spin" />
           </div>
         ) : (

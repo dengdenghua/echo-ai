@@ -129,7 +129,7 @@ export function ProjectDecisionsModal({
         <div className="flex-1 overflow-y-auto p-4 space-y-3 min-h-[220px]">
           {filteredDecisions.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-12 text-center text-muted-foreground">
-              <SparklesIcon className="size-8 text-muted-foreground/40 mb-2" />
+              <SparklesIcon className="size-8 text-muted-foreground mb-2" />
               <p className="text-xs">
                 {decisions.length === 0
                   ? "暂无已沉淀的决策，可在并列协作者交付成果时点击「固化为决策」进行记录"
@@ -185,7 +185,7 @@ export function ProjectDecisionsModal({
                   )}
 
                   {item.created_at && (
-                    <div className="text-[10px] text-muted-foreground/60 text-right">
+                    <div className="text-[10px] text-muted-foreground text-right">
                       固化时间：{item.created_at}
                     </div>
                   )}

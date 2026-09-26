@@ -195,10 +195,10 @@ function TraceListItem({
           <span>{formatDuration(totalMs)}</span>
         </div>
       </div>
-      <div className="text-muted-foreground/60 shrink-0 text-xs">
+      <div className="text-muted-foreground shrink-0 text-xs">
         {formatTimestamp(trace.created_at)}
       </div>
-      <ChevronRightIcon className="text-muted-foreground/40 size-3 shrink-0" />
+      <ChevronRightIcon className="text-muted-foreground size-3 shrink-0" />
     </button>
   );
 }
@@ -317,7 +317,7 @@ function SpanDetail({
                     {ev.name}
                   </div>
                   {ev.timestamp && (
-                    <div className="text-muted-foreground/60">
+                    <div className="text-muted-foreground">
                       {formatTimestamp(ev.timestamp)}
                     </div>
                   )}
@@ -503,7 +503,7 @@ export function TraceViewer({ className }: { className?: string }) {
         /* ---- Trace List ---- */
         <div className="flex-1 overflow-auto">
           {traces.length === 0 && !loading && (
-            <div className="text-muted-foreground/50 py-8 text-center text-xs">
+            <div className="text-muted-foreground py-8 text-center text-xs">
               {t.traces.noTraces}
             </div>
           )}

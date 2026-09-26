@@ -278,7 +278,7 @@ export function ChatsDrawer({ open, onOpenChange }: ChatsDrawerProps) {
             aria-label={t.sidebar.navigate}
             className="border-b border-border-subtle px-3 py-3"
           >
-            <div className="mb-1.5 px-1 text-xs font-medium uppercase tracking-wider text-muted-foreground/70">
+            <div className="mb-1.5 px-1 text-xs font-medium uppercase tracking-wider text-muted-foreground">
               {t.sidebar.navigate}
             </div>
             <div className="grid grid-cols-2 gap-1.5">
@@ -322,7 +322,7 @@ export function ChatsDrawer({ open, onOpenChange }: ChatsDrawerProps) {
             </button>
 
             <div className="relative">
-              <SearchIcon className="pointer-events-none absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground/70" />
+              <SearchIcon className="pointer-events-none absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground" />
               <Input
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
@@ -332,19 +332,19 @@ export function ChatsDrawer({ open, onOpenChange }: ChatsDrawerProps) {
             </div>
           </div>
 
-          <div className="mt-3 flex items-center justify-between px-4 text-xs font-medium uppercase tracking-wider text-muted-foreground/70">
+          <div className="mt-3 flex items-center justify-between px-4 text-xs font-medium uppercase tracking-wider text-muted-foreground">
             <span className="flex items-center gap-1.5">
               <MessageSquareIcon className="size-3" />
               {t.sidebar.recentChats}
             </span>
-            <span className="text-xs text-muted-foreground/55">
+            <span className="text-xs text-muted-foreground">
               {filteredThreads.length}
             </span>
           </div>
 
           <div className="mt-1 min-h-0 flex-1 overflow-y-auto px-2 pb-3">
             {filteredThreads.length === 0 ? (
-              <div className="mt-4 rounded-md border border-dashed border-border-default px-3 py-4 text-center text-xs text-muted-foreground/75">
+              <div className="mt-4 rounded-md border border-dashed border-border-default px-3 py-4 text-center text-xs text-muted-foreground">
                 {query.trim()
                   ? t.sidebar.noMatchingChats
                   : t.sidebar.noChatsYet}
@@ -387,7 +387,7 @@ export function ChatsDrawer({ open, onOpenChange }: ChatsDrawerProps) {
                         </span>
                         <span
                           className={cn(
-                            "w-10 shrink-0 overflow-hidden whitespace-nowrap text-right text-xs text-muted-foreground/65 [@media(hover:none)]:mr-6",
+                            "w-10 shrink-0 overflow-hidden whitespace-nowrap text-right text-xs text-muted-foreground [@media(hover:none)]:mr-6",
                             "transition-[width,opacity] group-hover/thread:w-0 group-hover/thread:opacity-0",
                           )}
                         >
@@ -406,7 +406,7 @@ export function ChatsDrawer({ open, onOpenChange }: ChatsDrawerProps) {
                             }}
                             className={cn(
                               "absolute right-1 top-1/2 -translate-y-1/2 flex size-7 items-center justify-center rounded-md outline-none",
-                              "text-muted-foreground/60 opacity-0 transition-opacity [@media(hover:none)]:opacity-100",
+                              "text-muted-foreground opacity-0 transition-opacity [@media(hover:none)]:opacity-100",
                               "hover:bg-muted/60 hover:text-foreground",
                               "focus-visible:bg-muted/60 focus-visible:text-foreground focus-visible:opacity-100",
                               "group-hover/thread:opacity-100 data-[state=open]:opacity-100",

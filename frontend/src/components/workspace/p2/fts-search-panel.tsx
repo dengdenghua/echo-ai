@@ -154,7 +154,7 @@ export function FTSSearchPanel({
                       <div className="truncate text-sm font-medium">
                         {result.title || t.sidebar.newChat}
                       </div>
-                      <div className="text-muted-foreground/60 shrink-0 text-xs">
+                      <div className="text-muted-foreground shrink-0 text-xs">
                         {result.rank.toFixed(1)}
                       </div>
                     </div>
@@ -167,7 +167,7 @@ export function FTSSearchPanel({
                     )}
 
                     {/* Metadata */}
-                    <div className="text-muted-foreground/70 flex items-center gap-3 text-xs">
+                    <div className="text-muted-foreground flex items-center gap-3 text-xs">
                       <span className="flex items-center gap-1">
                         <CalendarIcon className="size-3" />
                         {new Date(result.created_at).toLocaleDateString()}

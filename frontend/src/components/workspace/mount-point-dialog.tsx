@@ -203,7 +203,11 @@ export function MountPointDialog({
 
   const mountOptions = useMemo<Record<string, string>>(() => {
     const opts: Record<string, string> = {};
+    if (fields.filesystemPath?.trim()) opts.filesystem_path = fields.filesystemPath.trim();
     switch (mountType) {
+      case "nfs":
+        if (fields.filesystemPath?.trim()) opts.mount_point = fields.filesystemPath.trim();
+        break;
       case "smb":
         if (fields.username) opts.username = fields.username;
         if (fields.password) opts.password = fields.password;
@@ -220,6 +224,8 @@ export function MountPointDialog({
         if (fields.port) opts.port = fields.port;
         break;
       case "s3":
+        if (fields.endpointUrl) opts.endpoint_url = fields.endpointUrl.trim();
+        if (fields.bucket) opts.bucket = fields.bucket.trim();
         if (fields.accessKey) opts.access_key = fields.accessKey;
         if (fields.secretKey) opts.secret_key = fields.secretKey;
         if (fields.region) opts.region = fields.region;
@@ -233,8 +239,9 @@ export function MountPointDialog({
   const canCreate = useMemo(() => {
     if (!name.trim()) return false;
     if (!builtMountTarget) return false;
+    if (mountType === "nfs" && !fields.filesystemPath?.trim()) return false;
     return true;
-  }, [name, builtMountTarget]);
+  }, [name, builtMountTarget, mountType, fields.filesystemPath]);
 
   const handlePickLocalFolder = async () => {
     const picked = await openNativeFolderPicker(fields.path ?? "");
@@ -362,6 +369,16 @@ export function MountPointDialog({
             </div>
           </div>
 
+          <p className="text-xs text-muted-foreground">
+            先在运行 Echo 的设备上用 CD2 或系统文件共享挂载目录，再选择“本地”并填写挂载路径（例如 Z:\team\project 或 /mnt/team/project）。此处接入已有目录，不会自动安装或启动挂载软件。挂载在另一台电脑上的盘符不能直接使用。
+          </p>
+          {mountType !== "local" && <FieldRow
+            id="workspace-filesystem-path"
+            label={mountType === "nfs" ? "执行设备上的挂载目录（必填）" : "执行设备上的挂载目录（运行项目时需要）"}
+            value={fields.filesystemPath ?? ""}
+            onChange={(value) => updateField("filesystemPath", value)}
+            placeholder="/mnt/team/project 或 Z:\team\project"
+          />}
           <div className="flex flex-col gap-3 rounded-lg border border-border-subtle bg-muted/20 p-3">
             {mountType === "local" && (
               <div className="flex flex-col gap-1.5">
@@ -583,7 +600,7 @@ export function MountPointDialog({
               <code
                 className={cn(
                   "min-w-0 flex-1 truncate font-mono",
-                  !builtMountTarget && "text-muted-foreground/60",
+                  !builtMountTarget && "text-muted-foreground",
                 )}
                 title={builtMountTarget}
               >

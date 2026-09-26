@@ -45,7 +45,7 @@ export function RosterComputerPlaceholder({
             </div>
           </div>
           <div className="mt-4 flex items-start gap-2.5 rounded-lg border border-dashed border-border-default bg-muted/10 px-3 py-3">
-            <MonitorIcon className="mt-0.5 size-4 shrink-0 text-muted-foreground/55" />
+            <MonitorIcon className="mt-0.5 size-4 shrink-0 text-muted-foreground" />
             <div>
               <div className="text-xs font-medium text-foreground">
                 {t.agentWorkbenchPanel.noIndependentProcessActivity}

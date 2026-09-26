@@ -19,7 +19,7 @@ export function ModelSwitchTimelineEntry({
       data-testid="model-switch-timeline-entry"
     >
       <span aria-hidden="true" className="h-px min-w-6 flex-1 bg-border/45" />
-      <span className="max-w-[70%] truncate text-[11px] font-normal tracking-[0.01em] text-muted-foreground/55">
+      <span className="max-w-[70%] truncate text-[11px] font-normal tracking-[0.01em] text-muted-foreground">
         模型已切换为 {modelName}
       </span>
       <span aria-hidden="true" className="h-px min-w-6 flex-1 bg-border/45" />

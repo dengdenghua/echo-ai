@@ -97,7 +97,7 @@ const STATUS_CONFIG = {
     color: "text-success",
     bgColor: "bg-success/5",
   },
-  skipped: { color: "text-muted-foreground/50", bgColor: "bg-muted/10" },
+  skipped: { color: "text-muted-foreground", bgColor: "bg-muted/10" },
 } as const;
 
 // ---------------------------------------------------------------------------
@@ -119,7 +119,7 @@ function StepEditor({
   const toolsNeeded = Array.isArray(step.tools_needed) ? step.tools_needed : [];
   return (
     <div className="group flex items-start gap-2 rounded-lg border border-border-default bg-background p-2.5">
-      <div className="mt-1 cursor-grab text-muted-foreground/40">
+      <div className="mt-1 cursor-grab text-muted-foreground">
         <GripVerticalIcon className="size-3.5" />
       </div>
       <div className="min-w-0 flex-1 space-y-1.5">
@@ -127,7 +127,7 @@ function StepEditor({
           type="text"
           value={step.description}
           onChange={(e) => onUpdate(index, { description: e.target.value })}
-          className="w-full border-0 bg-transparent text-sm outline-none placeholder:text-muted-foreground/40 focus-visible:ring-0"
+          className="w-full border-0 bg-transparent text-sm outline-none placeholder:text-muted-foreground focus-visible:ring-0"
           placeholder="Step description..."
           aria-label={t.executionPlan.stepDescriptionAria}
         />
@@ -161,8 +161,8 @@ function StepEditor({
           </select>
           {toolsNeeded.length > 0 && (
             <div className="flex items-center gap-0.5">
-              <WrenchIcon className="size-2.5 text-muted-foreground/40" />
-              <span className="text-xs text-muted-foreground/60">
+              <WrenchIcon className="size-2.5 text-muted-foreground" />
+              <span className="text-xs text-muted-foreground">
                 {toolsNeeded.join(", ")}
               </span>
             </div>
@@ -173,7 +173,7 @@ function StepEditor({
         type="button"
         aria-label={t.executionPlan.removeStepAria}
         onClick={() => onRemove(index)}
-        className="mt-0.5 rounded p-0.5 text-muted-foreground/40 transition-colors hover:bg-destructive/10 hover:text-destructive focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+        className="mt-0.5 rounded p-0.5 text-muted-foreground transition-colors hover:bg-destructive/10 hover:text-destructive focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
       >
         <Trash2Icon className="size-3" />
       </button>
@@ -238,7 +238,7 @@ function PlanStepRow({
           ) : step.status === "in_progress" ? (
             <Loader2Icon className="size-3.5 animate-spin text-primary" />
           ) : step.status === "skipped" ? (
-            <XIcon className="size-3.5 text-muted-foreground/40" />
+            <XIcon className="size-3.5 text-muted-foreground" />
           ) : (
             <div className="mt-px size-2.5 rounded-lg border-2 border-muted-foreground/30" />
           )}
@@ -247,7 +247,7 @@ function PlanStepRow({
         {/* Content */}
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-2">
-            <span className="text-muted-foreground/40 text-xs font-mono tabular-nums">
+            <span className="text-muted-foreground text-xs font-mono tabular-nums">
               {index + 1}
             </span>
             <span
@@ -257,7 +257,7 @@ function PlanStepRow({
                   "text-muted-foreground line-through",
                 step.status === "in_progress" && "text-foreground font-medium",
                 step.status === "skipped" &&
-                  "text-muted-foreground/50 line-through",
+                  "text-muted-foreground line-through",
                 step.status === "pending" && "text-foreground/80",
               )}
             >
@@ -270,9 +270,9 @@ function PlanStepRow({
         {(toolsNeeded.length > 0 || step.risk !== "low") && (
           <div className="shrink-0">
             {isExpanded ? (
-              <ChevronDownIcon className="size-3 text-muted-foreground/40" />
+              <ChevronDownIcon className="size-3 text-muted-foreground" />
             ) : (
-              <ChevronRightIcon className="size-3 text-muted-foreground/40" />
+              <ChevronRightIcon className="size-3 text-muted-foreground" />
             )}
           </div>
         )}
@@ -294,14 +294,14 @@ function PlanStepRow({
             </span>
           )}
           {/* Duration */}
-          <span className="inline-flex items-center gap-1 text-xs text-muted-foreground/60">
+          <span className="inline-flex items-center gap-1 text-xs text-muted-foreground">
             <DurationIcon className="size-2.5" />
             {durationLabels[step.estimated_duration] ?? durationCfg.label}
           </span>
           {/* Tools */}
           {toolsNeeded.length > 0 && (
             <div className="flex items-center gap-1">
-              <WrenchIcon className="size-2.5 text-muted-foreground/40" />
+              <WrenchIcon className="size-2.5 text-muted-foreground" />
               {toolsNeeded.map((tool) => (
                 <span
                   key={tool}
@@ -715,7 +715,7 @@ export function ExecutionPlanReview({
                 value={rejectReason}
                 onChange={(e) => setRejectReason(e.target.value)}
                 placeholder="(Optional) Explain why or provide alternative instructions..."
-                className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm outline-none placeholder:text-muted-foreground/40 focus:border-primary/30"
+                className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm outline-none placeholder:text-muted-foreground focus:border-primary/30"
                 rows={2}
               />
               <div className="flex items-center gap-2">

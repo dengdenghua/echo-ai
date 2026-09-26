@@ -143,7 +143,7 @@ export function QuickTemplates({ onSelect, className }: QuickTemplatesProps) {
                   <span className="text-sm font-medium text-foreground group-hover:text-primary transition-colors">
                     {template.name}
                   </span>
-                  <ArrowRightIcon className="size-3.5 text-muted-foreground/50 group-hover:text-primary/70 group-hover:translate-x-0.5 transition-all" />
+                  <ArrowRightIcon className="size-3.5 text-muted-foreground group-hover:text-primary/70 group-hover:translate-x-0.5 transition-all" />
                 </div>
                 <p className="text-xs text-muted-foreground mt-0.5 line-clamp-1">
                   {template.description}
@@ -156,7 +156,7 @@ export function QuickTemplates({ onSelect, className }: QuickTemplatesProps) {
 
       {/* Footer hint */}
       <div className="px-3 py-2 border-t border-border-default">
-        <p className="text-xs text-muted-foreground/60 text-center">
+        <p className="text-xs text-muted-foreground text-center">
           {t.quickTemplates.hint}
         </p>
       </div>

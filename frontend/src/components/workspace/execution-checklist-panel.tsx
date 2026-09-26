@@ -192,7 +192,7 @@ function StepIcon({ status }: { status: StepStatus }) {
       <Loader2Icon className="size-4 shrink-0 animate-spin text-info" />
     );
   }
-  return <CircleIcon className="size-4 shrink-0 text-muted-foreground/50" />;
+  return <CircleIcon className="size-4 shrink-0 text-muted-foreground" />;
 }
 
 export function ExecutionChecklistPanel({

@@ -296,7 +296,7 @@ export function TaskCollaboratorControl({
               onKeyDown={(event) => event.stopPropagation()}
               placeholder={t.chatInputBox.collaboratorsSearchPlaceholder}
               aria-label={t.chatInputBox.collaboratorsSearchPlaceholder}
-              className="h-auto min-w-0 flex-1 border-0 bg-transparent p-0 text-xs shadow-none outline-none placeholder:text-muted-foreground/45 focus-visible:ring-0 focus-visible:ring-offset-0"
+              className="h-auto min-w-0 flex-1 border-0 bg-transparent p-0 text-xs shadow-none outline-none placeholder:text-muted-foreground focus-visible:ring-0 focus-visible:ring-offset-0"
             />
           </label>
           {draftAgents.length > 0 && (

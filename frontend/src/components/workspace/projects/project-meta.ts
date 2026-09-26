@@ -84,7 +84,7 @@ export const PRIORITY_TONE: Record<string, string> = {
   P0: "bg-rose-500/15 text-rose-600",
   P1: "bg-amber-500/15 text-amber-600",
   P2: "bg-muted text-muted-foreground",
-  P3: "bg-muted text-muted-foreground/70",
+  P3: "bg-muted text-muted-foreground",
 };
 
 export function statusLabel(status: string | undefined): string {

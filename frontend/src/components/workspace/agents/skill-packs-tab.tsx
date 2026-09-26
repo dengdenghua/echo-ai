@@ -402,7 +402,7 @@ function MatchBox({ compact = false }: { compact?: boolean }) {
             placeholder={t.metaSkills.matchPlaceholder}
             className={cn(
               "w-full border border-border-default bg-background/60 py-2 pl-9 pr-3",
-              "text-sm placeholder:text-muted-foreground/60 outline-none",
+              "text-sm placeholder:text-muted-foreground outline-none",
               "focus:border-primary/50 focus:ring-2 focus:ring-primary/10",
               compact ? "h-9 rounded-full" : "rounded-lg",
             )}
@@ -547,7 +547,7 @@ export function SkillPacksTab({
                 placeholder={t.metaSkills.matchPlaceholder}
                 className={cn(
                   "h-10 w-full rounded-lg border border-border-default bg-background py-1.5 pl-9 pr-3 shadow-[var(--shadow-xs)]",
-                  "text-xs placeholder:text-muted-foreground/60 outline-none",
+                  "text-xs placeholder:text-muted-foreground outline-none",
                   "focus:border-primary/50 focus:ring-2 focus:ring-primary/10",
                 )}
               />
@@ -608,7 +608,7 @@ export function SkillPacksTab({
               placeholder={t.metaSkills.matchPlaceholder}
               className={cn(
                 "w-full rounded-lg border border-border-default bg-background/60 py-2 pl-9 pr-3",
-                "text-sm placeholder:text-muted-foreground/60 outline-none",
+                "text-sm placeholder:text-muted-foreground outline-none",
                 "focus:border-primary/50 focus:ring-2 focus:ring-primary/10",
               )}
             />

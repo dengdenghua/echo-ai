@@ -1,6 +1,14 @@
 import { useMemo, useRef, useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { ArrowDownIcon, BookmarkIcon, ExternalLinkIcon, GitBranchIcon, PencilIcon, SendHorizontalIcon, Share2Icon } from "lucide-react";
+import {
+  ArrowDownIcon,
+  BookmarkIcon,
+  ExternalLinkIcon,
+  GitBranchIcon,
+  PencilIcon,
+  SendHorizontalIcon,
+  Share2Icon,
+} from "lucide-react";
 import { toast } from "sonner";
 import { eventBus } from "@/core/events/event-bus";
 
@@ -142,9 +150,7 @@ function subagentMessages(
 
     const callId = event.id || block.id;
     const output = publicBlockOutput(block);
-    const thought = repairMojibakeText(
-      event.thought?.trim() || event.observation?.trim() || "",
-    );
+    const thought = repairMojibakeText(event.thought?.trim() || "");
     const ai: AIMessage = {
       id: `${block.id}-assistant`,
       type: "ai",
@@ -172,10 +178,7 @@ function subagentMessages(
     };
     process.push(ai);
 
-    if (
-      event.status === "error" ||
-      (output && (event.status !== "running" || settled))
-    ) {
+    if (event.status === "done" || event.status === "error" || settled) {
       const tool: ToolMessage = {
         id: `${block.id}-result`,
         type: "tool",
@@ -229,7 +232,10 @@ export function SubagentProcessView({
     const params = new URLSearchParams();
     if (agent.name) params.set("agent", agent.name);
     if (agent.prompt || agent.task) {
-      params.set("prompt", `针对前序子任务继续推进：\n${agent.prompt || agent.task}\n\n`);
+      params.set(
+        "prompt",
+        `针对前序子任务继续推进：\n${agent.prompt || agent.task}\n\n`,
+      );
     }
     navigate(`/workspace/realtime/new?${params.toString()}`);
     toast.success(`已为 ${agent.codename ?? agent.name} 开启独立对话窗口`);
@@ -302,7 +308,6 @@ export function SubagentProcessView({
 
   // 智能滚动锚点：自动滚动到底部，除非用户主动向上滚动
   const containerRef = useRef<HTMLDivElement>(null);
-  const messagesEndRef = useRef<HTMLDivElement>(null);
   const [autoScroll, setAutoScroll] = useState(true);
   const [showScrollFab, setShowScrollFab] = useState(false);
 
@@ -325,18 +330,17 @@ export function SubagentProcessView({
   // 当有新消息且处于自动滚动模式时，滚动到底部
   useEffect(() => {
     if (autoScroll && agent.status === "running") {
-      messagesEndRef.current?.scrollIntoView({
-        behavior: "smooth",
-        block: "end",
-      });
+      const container = containerRef.current;
+      if (container) container.scrollTop = container.scrollHeight;
     }
   }, [messages, autoScroll, agent.status]);
 
   const handleScrollToBottom = () => {
     setAutoScroll(true);
-    messagesEndRef.current?.scrollIntoView({
+    const container = containerRef.current;
+    container?.scrollTo({
+      top: container.scrollHeight,
       behavior: "smooth",
-      block: "end",
     });
   };
   const isRunning = agent.status === "running";
@@ -360,17 +364,17 @@ export function SubagentProcessView({
   );
 
   return (
-    <div className="relative flex min-h-0 flex-1 flex-col overflow-hidden bg-background">
+    <div className="relative flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden bg-background">
       <div
         ref={containerRef}
-        className="flex min-h-0 flex-1 flex-col overflow-y-auto"
+        className="flex min-h-0 min-w-0 flex-1 flex-col overflow-x-hidden overflow-y-auto overscroll-contain"
       >
-        <div className="mx-auto flex w-full max-w-2xl flex-col">
+        <div className="mx-auto flex w-full min-w-0 max-w-2xl flex-col">
           <ComputerScopeSwitch
             subLabel={`${agent.codename ?? agent.name} · 并列协作者 ${agent.label}`}
             onOpenMain={onOpenMain}
             trailingAction={
-              <div className="flex items-center gap-1.5">
+              <div className="flex flex-wrap items-center gap-1.5 [&>button]:min-h-7 [&>button]:shrink-0 [&>button]:whitespace-nowrap [&_svg]:shrink-0">
                 <button
                   type="button"
                   onClick={handleRecordDecision}
@@ -384,7 +388,9 @@ export function SubagentProcessView({
                   title="将该并列协作者的交付成果作为长项目的核心决策固化沉淀到 Project OS 事实库"
                 >
                   <BookmarkIcon className="size-3" />
-                  <span>{decisionRecorded ? "已固化为决策" : "固化为决策"}</span>
+                  <span>
+                    {decisionRecorded ? "已固化为决策" : "固化为决策"}
+                  </span>
                 </button>
                 <button
                   type="button"
@@ -422,7 +428,7 @@ export function SubagentProcessView({
             </div>
           ) : (
             <div
-              className="space-y-3 px-5 py-4"
+              className="min-w-0 space-y-3 px-3 py-4"
               data-testid="subagent-main-conversation"
             >
               {!summaryOnly && messages.task ? (
@@ -439,7 +445,9 @@ export function SubagentProcessView({
                   codeMode
                 />
               ) : null}
-              {isRunning && messages.process.length === 0 && !messages.answer ? (
+              {isRunning &&
+              messages.process.length === 0 &&
+              !messages.answer ? (
                 <p role="status" className="text-xs text-muted-foreground">
                   正在并行运行，等待并列协作者返回进展…
                 </p>
@@ -451,7 +459,7 @@ export function SubagentProcessView({
                   isLastMessage
                 />
               ) : null}
-              <div ref={messagesEndRef} className="h-4" />
+              <div className="h-4" />
             </div>
           )}
         </div>
@@ -460,18 +468,19 @@ export function SubagentProcessView({
       {/* 底部定向追问/介入栏 */}
       <div
         data-testid="subagent-followup-bar"
-        className="border-t border-border-subtle bg-background/95 p-2.5 backdrop-blur-xs"
+        className="min-w-0 shrink-0 border-t border-border-subtle bg-background/95 p-2.5 backdrop-blur-xs"
       >
         <form
           onSubmit={(e) => handleFollowupSubmit(e, true)}
-          className="mx-auto flex w-full max-w-2xl items-center gap-2"
+          className="mx-auto flex w-full min-w-0 max-w-2xl flex-wrap items-center justify-end gap-2"
         >
           <input
             type="text"
+            aria-label={`向 ${agent.codename ?? agent.name} 发送指令`}
             value={followupText}
             onChange={(e) => setFollowupText(e.target.value)}
             placeholder={`随时打字向并列协作者 ${agent.codename ?? agent.name} 发起对话或发送指令…`}
-            className="flex-1 rounded-md border border-input bg-background/80 px-3 py-1.5 text-xs text-foreground placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-primary"
+            className="min-w-0 flex-[1_1_220px] rounded-md border border-input bg-background/80 px-3 py-1.5 text-xs text-foreground placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-primary"
           />
           <div className="flex items-center gap-1.5 shrink-0">
             <button
@@ -503,7 +512,7 @@ export function SubagentProcessView({
           type="button"
           onClick={handleScrollToBottom}
           className={cn(
-            "absolute bottom-16 right-6 z-10 flex items-center gap-2 rounded-full border border-border-default bg-background px-4 py-2.5 text-sm font-medium shadow-lg transition-all hover:scale-105 hover:shadow-xl",
+            "absolute bottom-28 right-4 z-10 flex items-center gap-2 rounded-full border border-border-default bg-background px-4 py-2.5 text-sm font-medium shadow-lg transition-all hover:scale-105 hover:shadow-xl",
             "animate-in fade-in slide-in-from-bottom-4 duration-300",
           )}
           aria-label={t.agentWorkbenchPanel?.scrollToBottom ?? "滚动到底部"}

@@ -1895,7 +1895,7 @@ export default function ModelSettingsPage() {
                           ) : (
                             <button
                               type="button"
-                              className="min-h-8 rounded-md px-2 text-xs font-medium text-muted-foreground hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                              className="min-h-8 rounded-md border border-border bg-background px-2.5 text-xs font-medium text-foreground shadow-sm transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                               onClick={() =>
                                 handleSetDefault(
                                   customModelPreferredSelection(m),
@@ -1908,7 +1908,7 @@ export default function ModelSettingsPage() {
                           )}
                           <button
                             type="button"
-                            className="min-h-8 rounded-md px-2 text-xs font-medium text-muted-foreground hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                            className="min-h-8 rounded-md border border-border bg-background px-2.5 text-xs font-medium text-foreground shadow-sm transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                             onClick={() => {
                               setShowAdd(false);
                               setEditingModel((current) =>
@@ -1923,7 +1923,7 @@ export default function ModelSettingsPage() {
                           </button>
                           <button
                             type="button"
-                            className="min-h-8 rounded-md px-2 text-xs font-medium text-muted-foreground hover:bg-destructive/5 hover:text-destructive focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                            className="min-h-8 rounded-md border border-border bg-background px-2.5 text-xs font-medium text-muted-foreground shadow-sm transition-colors hover:border-destructive/30 hover:bg-destructive/5 hover:text-destructive focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                             onClick={() => handleDelete(modelId)}
                             aria-label={`${t.common.delete}: ${displayName}`}
                           >
@@ -3221,7 +3221,7 @@ function EditModelForm({
               </label>
               <div className="flex h-9 items-center rounded-md border border-input bg-muted/40 px-3 text-sm">
                 <span className="font-mono">{detectedProvider}</span>
-                <span className="ml-2 text-xs text-muted-foreground/70">
+                <span className="ml-2 text-xs text-muted-foreground">
                   {t.settings.model.providerAutoHint}
                 </span>
               </div>
@@ -3283,7 +3283,7 @@ function EditModelForm({
               <label className="text-xs text-muted-foreground">
                 {t.settings.model.modelList.label}
               </label>
-              <span className="text-xs text-muted-foreground/70">
+              <span className="text-xs text-muted-foreground">
                 {t.settings.model.modelList.hint}
               </span>
             </div>
@@ -3294,7 +3294,7 @@ function EditModelForm({
                   className="flex items-center gap-1.5"
                 >
                   <span
-                    className="w-4 shrink-0 text-right text-xs text-muted-foreground/60 tabular-nums"
+                    className="w-4 shrink-0 text-right text-xs text-muted-foreground tabular-nums"
                     title={
                       idx === 0
                         ? t.settings.model.modelList.label
@@ -3752,7 +3752,7 @@ function AddModelForm({
         <ul className="mt-2 space-y-1.5">
           {models.map((id, idx) => (
             <li key={`add-model-${idx}`} className="flex items-center gap-1.5">
-              <span className="w-4 shrink-0 text-right text-xs text-muted-foreground/60 tabular-nums">
+              <span className="w-4 shrink-0 text-right text-xs text-muted-foreground tabular-nums">
                 {idx === 0 ? "★" : idx === models.length - 1 ? "▴" : "·"}
               </span>
               <Input

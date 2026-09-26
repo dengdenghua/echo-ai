@@ -386,7 +386,7 @@ export function AutomationPictureInPicture({
         onPointerUp={handlePointerUp}
         onPointerCancel={handlePointerUp}
       >
-        <GripHorizontalIcon className="size-3.5 shrink-0 text-muted-foreground/60" />
+        <GripHorizontalIcon className="size-3.5 shrink-0 text-muted-foreground" />
         <AutomationTargetIcon
           target={{ ...target, icon_url: frame?.iconUrl || target.icon_url }}
           className="size-3.5 text-muted-foreground"

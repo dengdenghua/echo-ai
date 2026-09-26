@@ -260,9 +260,9 @@ function AgentKanbanViewImpl({
             aria-expanded={visibilityOpen}
           >
             {visibilityOpen ? (
-              <ChevronDownIcon className="size-3 shrink-0 text-muted-foreground/60" />
+              <ChevronDownIcon className="size-3 shrink-0 text-muted-foreground" />
             ) : (
-              <ChevronRightIcon className="size-3 shrink-0 text-muted-foreground/60" />
+              <ChevronRightIcon className="size-3 shrink-0 text-muted-foreground" />
             )}
             <span className="text-[11px] font-medium text-amber-800 dark:text-amber-300">
               {t.agentWorkbenchPanel.visibilityPanelTitle} ·{" "}
@@ -279,13 +279,13 @@ function AgentKanbanViewImpl({
                   key={`${step.decision_point}:${index}`}
                   className="rounded-md border border-border-subtle bg-background/40 px-2 py-1.5"
                 >
-                  <span className="text-[10px] font-medium text-muted-foreground/60">
+                  <span className="text-[10px] font-medium text-muted-foreground">
                     {t.agentWorkbenchPanel.visibilityStep} {index + 1}
                   </span>
                   <p className="mt-0.5 text-[11px] leading-relaxed text-foreground/75">
                     {step.conclusion}
                   </p>
-                  <p className="mt-0.5 text-[10px] leading-relaxed text-muted-foreground/60">
+                  <p className="mt-0.5 text-[10px] leading-relaxed text-muted-foreground">
                     {step.basis}
                   </p>
                 </div>

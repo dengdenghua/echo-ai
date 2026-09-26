@@ -60,7 +60,7 @@ export function ChangesPanel({ className, onFileClick }: ChangesPanelProps) {
 
       <div className="flex-1 overflow-auto">
         {files.length === 0 ? (
-          <div className="flex h-full flex-col items-center justify-center px-4 text-muted-foreground/50">
+          <div className="flex h-full flex-col items-center justify-center px-4 text-muted-foreground">
             <FileIcon className="mb-2 size-8 opacity-30" />
             <span className="text-xs">{t.changesPanel.empty}</span>
             <span className="mt-1 text-xs opacity-60">
@@ -200,7 +200,7 @@ function ChangeRow({
             {fileName}
           </div>
           {dirPath && (
-            <div className="truncate text-xs text-muted-foreground/60">
+            <div className="truncate text-xs text-muted-foreground">
               {dirPath}
             </div>
           )}
@@ -220,7 +220,7 @@ function ChangeRow({
             void handleRevert();
           }}
           disabled={reverting}
-          className="shrink-0 rounded p-0.5 text-muted-foreground/50 transition-colors hover:bg-destructive/10 hover:text-destructive"
+          className="shrink-0 rounded p-0.5 text-muted-foreground transition-colors hover:bg-destructive/10 hover:text-destructive"
           title={t.codeMode.revertToLastCommit}
         >
           <RotateCcwIcon
@@ -296,10 +296,10 @@ function HunkBlock({
                   line.type === "remove" && "bg-destructive/8",
                 )}
               >
-                <td className="w-10 select-none border-r border-border-subtle px-2 py-0.5 text-right text-muted-foreground/60">
+                <td className="w-10 select-none border-r border-border-subtle px-2 py-0.5 text-right text-muted-foreground">
                   {line.oldLineNumber ?? ""}
                 </td>
-                <td className="w-10 select-none border-r border-border-subtle px-2 py-0.5 text-right text-muted-foreground/60">
+                <td className="w-10 select-none border-r border-border-subtle px-2 py-0.5 text-right text-muted-foreground">
                   {line.newLineNumber ?? ""}
                 </td>
                 <td
@@ -309,7 +309,7 @@ function HunkBlock({
                     line.type === "remove" && "text-destructive",
                   )}
                 >
-                  <span className="mr-2 inline-block w-2 text-muted-foreground/60">
+                  <span className="mr-2 inline-block w-2 text-muted-foreground">
                     {line.type === "add"
                       ? "+"
                       : line.type === "remove"

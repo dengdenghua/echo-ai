@@ -689,7 +689,7 @@ export function UrlBar({ webviewHandle, onOpenExtensions }: Props) {
               if (addressSuggestions.length > 0) setSuggestionsOpen(true);
             }}
             placeholder={ub.searchOrUrl}
-            className="min-w-0 flex-1 bg-transparent px-2 text-sm font-medium outline-none placeholder:text-muted-foreground/65"
+            className="min-w-0 flex-1 bg-transparent px-2 text-sm font-medium outline-none placeholder:text-muted-foreground"
           />
           {canManageSiteData && (
             <div className="relative">
@@ -2073,7 +2073,7 @@ function HistoryDropdown({
                 {isBookmark && (
                   <button
                     onClick={() => onRemoveBookmark(item.url)}
-                    className="grid size-5 shrink-0 place-items-center rounded text-muted-foreground/40 opacity-0 transition-opacity hover:bg-destructive/10 hover:text-destructive group-hover:opacity-100"
+                    className="grid size-5 shrink-0 place-items-center rounded text-muted-foreground opacity-0 transition-opacity hover:bg-destructive/10 hover:text-destructive group-hover:opacity-100"
                     title={ub.removeBookmarkTitle}
                   >
                     <Trash2Icon className="size-3" />

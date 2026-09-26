@@ -98,7 +98,7 @@ export function AgentWelcome({
                   setDraft(getAssistantDisplayName());
                   setRenaming(true);
                 }}
-                className="rounded-md p-1 text-muted-foreground/50 opacity-0 transition-opacity hover:bg-muted/60 hover:text-foreground focus-visible:opacity-100 group-hover:opacity-100"
+                className="rounded-md p-1 text-muted-foreground opacity-0 transition-opacity hover:bg-muted/60 hover:text-foreground focus-visible:opacity-100 group-hover:opacity-100"
               >
                 <PencilIcon className="size-3.5" />
               </button>
@@ -114,7 +114,7 @@ export function AgentWelcome({
             {description}
           </p>
         ) : (
-          <p className="text-muted-foreground/70 max-w-md text-sm leading-relaxed">
+          <p className="text-muted-foreground max-w-md text-sm leading-relaxed">
             Ready for the next turn.
           </p>
         )}

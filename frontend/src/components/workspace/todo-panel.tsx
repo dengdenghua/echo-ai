@@ -122,7 +122,7 @@ function TodoRow({ item, live }: { item: TodoItem; live: boolean }) {
     ) : displayStatus === "in_progress" ? (
       <Loader2Icon className="size-4 shrink-0 animate-spin text-info" />
     ) : (
-      <CircleIcon className="size-4 shrink-0 text-muted-foreground/50" />
+      <CircleIcon className="size-4 shrink-0 text-muted-foreground" />
     );
   const label = item.status === "in_progress" ? item.activeForm : item.content;
 

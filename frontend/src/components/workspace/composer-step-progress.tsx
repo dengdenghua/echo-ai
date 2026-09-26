@@ -123,9 +123,9 @@ export function ComposerStepProgress({
         <PhaseStatusIcon phase={phaseForDisplay} className="size-3.5" />
         <span className="truncate tabular-nums">{label}</span>
         {expanded ? (
-          <ChevronUpIcon aria-hidden="true" className="size-3.5 shrink-0 text-muted-foreground/60" />
+          <ChevronUpIcon aria-hidden="true" className="size-3.5 shrink-0 text-muted-foreground" />
         ) : (
-          <ChevronDownIcon aria-hidden="true" className="size-3.5 shrink-0 text-muted-foreground/60" />
+          <ChevronDownIcon aria-hidden="true" className="size-3.5 shrink-0 text-muted-foreground" />
         )}
       </button>
 

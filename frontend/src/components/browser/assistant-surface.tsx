@@ -183,7 +183,7 @@ export function AssistantSurface({
     <div
       tabIndex={0}
       aria-label="拖动聊天窗口，方向键移动"
-      className="grid h-9 w-5 shrink-0 cursor-grab touch-none place-items-center rounded text-muted-foreground/60 focus-visible:ring-2 focus-visible:ring-ring"
+      className="grid h-9 w-5 shrink-0 cursor-grab touch-none place-items-center rounded text-muted-foreground focus-visible:ring-2 focus-visible:ring-ring"
       onPointerDown={start}
       onPointerMove={move}
       onPointerUp={end}
@@ -408,7 +408,7 @@ export function AssistantSurface({
             type="button"
             aria-label="调整悬浮聊天大小"
             title="拖动调整大小；方向键微调"
-            className="absolute left-1/2 top-0 z-10 grid h-3 w-12 -translate-x-1/2 touch-none cursor-nwse-resize place-items-center rounded-b text-muted-foreground/40 hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring"
+            className="absolute left-1/2 top-0 z-10 grid h-3 w-12 -translate-x-1/2 touch-none cursor-nwse-resize place-items-center rounded-b text-muted-foreground hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring"
             onPointerDown={(event) => start(event, true)}
             onPointerMove={move}
             onPointerUp={end}

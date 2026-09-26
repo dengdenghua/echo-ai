@@ -215,7 +215,7 @@ export function CommunityPostDetail({
               <span className="min-w-0 flex-1 truncate text-sm font-medium">
                 {post.author}
               </span>
-              <span className="shrink-0 text-xs text-muted-foreground/70">
+              <span className="shrink-0 text-xs text-muted-foreground">
                 {formatRelativeTime(post.createdAt)}
               </span>
             </div>
@@ -296,7 +296,7 @@ export function CommunityPostDetail({
                     <div className="min-w-0 flex-1">
                       <div className="flex items-baseline gap-2">
                         <span className="text-xs font-medium">{c.author}</span>
-                        <span className="text-mini text-muted-foreground/60">
+                        <span className="text-mini text-muted-foreground">
                           {formatRelativeTime(c.createdAt)}
                         </span>
                       </div>
@@ -324,7 +324,7 @@ export function CommunityPostDetail({
             placeholder="写下你的评论…"
             className={cn(
               "min-w-0 flex-1 rounded-md border border-border-default bg-background/60 px-3 py-1.5 text-sm outline-none",
-              "placeholder:text-muted-foreground/60",
+              "placeholder:text-muted-foreground",
               "focus:border-primary/50 focus:ring-2 focus:ring-primary/10",
             )}
           />
@@ -337,7 +337,7 @@ export function CommunityPostDetail({
               "shrink-0 rounded-md p-2 transition-colors",
               canSend
                 ? "bg-primary text-primary-foreground hover:bg-primary/90"
-                : "cursor-not-allowed text-muted-foreground/40",
+                : "cursor-not-allowed text-muted-foreground",
             )}
           >
             <SendIcon className="size-3.5" />

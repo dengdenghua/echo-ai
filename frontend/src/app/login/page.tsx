@@ -196,7 +196,7 @@ function EmailLoginForm({ returnTo }: { returnTo: string }) {
           {t.auth.emailLabel}
         </Label>
         <div className="relative">
-          <MailIcon className="pointer-events-none absolute left-4 top-1/2 size-[18px] -translate-y-1/2 text-muted-foreground/50" />
+          <MailIcon className="pointer-events-none absolute left-4 top-1/2 size-[18px] -translate-y-1/2 text-muted-foreground" />
           <Input
             aria-describedby={
               emailError
@@ -240,7 +240,7 @@ function EmailLoginForm({ returnTo }: { returnTo: string }) {
         </Label>
         <div className="flex gap-3">
           <div className="relative flex-1">
-            <KeyRoundIcon className="pointer-events-none absolute left-4 top-1/2 size-[18px] -translate-y-1/2 text-muted-foreground/50" />
+            <KeyRoundIcon className="pointer-events-none absolute left-4 top-1/2 size-[18px] -translate-y-1/2 text-muted-foreground" />
             <Input
               aria-describedby={
                 [
@@ -326,7 +326,7 @@ function EmailLoginForm({ returnTo }: { returnTo: string }) {
         {submitting ? "正在进入 ECHO" : "进入 ECHO"}
         {!submitting && <ArrowRightIcon className="ml-1 size-4" />}
       </Button>
-      <p className="px-1 text-center text-xs leading-relaxed text-muted-foreground/70">
+      <p className="px-1 text-center text-xs leading-relaxed text-muted-foreground">
         {t.auth.terms.emailAutoRegister}
         {t.auth.terms.agreeTo}{" "}
         <Link
@@ -425,7 +425,7 @@ function LocalLoginForm({
               {t.registerPage.usernameLabel}
             </Label>
             <div className="relative">
-              <UserCircle2Icon className="pointer-events-none absolute left-4 top-1/2 size-[18px] -translate-y-1/2 text-muted-foreground/50" />
+              <UserCircle2Icon className="pointer-events-none absolute left-4 top-1/2 size-[18px] -translate-y-1/2 text-muted-foreground" />
               <Input
                 aria-invalid={Boolean(usernameError)}
                 id="local-username"
@@ -453,13 +453,24 @@ function LocalLoginForm({
           </div>
         </>
       )}
+      {passwordOnlyUsername && (
+        <div className="rounded-xl border border-border/50 bg-muted/30 px-4 py-3 text-xs text-muted-foreground/80">
+          用户名：
+          <code className="rounded bg-muted px-1.5 py-0.5 font-mono text-foreground">
+            {passwordOnlyUsername}
+          </code>
+          <span className="ml-2 text-muted-foreground">
+            仅输入密码即可登录
+          </span>
+        </div>
+      )}
       {passwordRequired && (
         <div className="space-y-2.5">
           <Label htmlFor="local-password" className="text-sm font-medium">
             {t.registerPage.passwordLabel}
           </Label>
           <div className="relative">
-            <KeyRoundIcon className="pointer-events-none absolute left-4 top-1/2 size-[18px] -translate-y-1/2 text-muted-foreground/50" />
+            <KeyRoundIcon className="pointer-events-none absolute left-4 top-1/2 size-[18px] -translate-y-1/2 text-muted-foreground" />
             <Input
               aria-invalid={Boolean(passwordError)}
               id="local-password"
@@ -477,7 +488,7 @@ function LocalLoginForm({
             <button
               type="button"
               onClick={() => setShowPassword((prev) => !prev)}
-              className="absolute right-3.5 top-1/2 -translate-y-1/2 rounded-lg p-1 text-muted-foreground/60 transition-colors hover:text-foreground focus:outline-none"
+              className="absolute right-3.5 top-1/2 -translate-y-1/2 rounded-lg p-1 text-muted-foreground transition-colors hover:text-foreground focus:outline-none"
               aria-label={showPassword ? "隐藏密码" : "显示密码"}
               tabIndex={-1}
             >
@@ -536,7 +547,6 @@ function EchoBrand() {
     </div>
   );
 }
-
 
 export default function LoginPage() {
   const navigate = useNavigate();
@@ -616,12 +626,18 @@ export default function LoginPage() {
     let cancelled = false;
     let timer = 0;
     const schedule = (attempt: number) => {
-      timer = window.setTimeout(() => {
-        if (cancelled) return;
-        void Promise.resolve(retryAuth({ quiet: true })).finally(() => {
-          if (!cancelled) schedule(attempt + 1);
-        });
-      }, Math.min(BACKEND_RETRY_BASE_DELAY_MS * 2 ** attempt, BACKEND_RETRY_MAX_DELAY_MS));
+      timer = window.setTimeout(
+        () => {
+          if (cancelled) return;
+          void Promise.resolve(retryAuth({ quiet: true })).finally(() => {
+            if (!cancelled) schedule(attempt + 1);
+          });
+        },
+        Math.min(
+          BACKEND_RETRY_BASE_DELAY_MS * 2 ** attempt,
+          BACKEND_RETRY_MAX_DELAY_MS,
+        ),
+      );
     };
     schedule(0);
     return () => {

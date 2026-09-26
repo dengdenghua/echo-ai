@@ -106,7 +106,7 @@ export function CodeWelcome({
         })}
       </div>
 
-      <p className="text-center text-xs text-muted-foreground/60">
+      <p className="text-center text-xs text-muted-foreground">
         {t.codeWelcome.hint}
       </p>
     </div>

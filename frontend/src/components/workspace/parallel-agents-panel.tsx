@@ -766,12 +766,12 @@ export function ParallelAgentsPanel({ className }: { className?: string }) {
         /* Empty state */
         <div className="flex flex-1 flex-col items-center justify-center gap-3 px-4 py-12">
           <div className="rounded-lg bg-muted/40 p-4">
-            <ZapIcon className="text-muted-foreground/40 size-8" />
+            <ZapIcon className="text-muted-foreground size-8" />
           </div>
           <p className="text-muted-foreground text-sm font-medium">
             {t.parallelAgents.noParallelTasks}
           </p>
-          <p className="text-muted-foreground/60 text-center text-xs leading-relaxed">
+          <p className="text-muted-foreground text-center text-xs leading-relaxed">
             {t.parallelAgents.noParallelTasksHint}
           </p>
         </div>
@@ -883,7 +883,7 @@ export function ParallelAgentsPanel({ className }: { className?: string }) {
                   placeholder={t.parallelAgents.filterAgents}
                   value={filter}
                   onChange={(e) => setFilter(e.target.value)}
-                  className="flex-1 bg-transparent text-xs outline-none placeholder:text-muted-foreground/50"
+                  className="flex-1 bg-transparent text-xs outline-none placeholder:text-muted-foreground"
                 />
               </div>
             </div>
