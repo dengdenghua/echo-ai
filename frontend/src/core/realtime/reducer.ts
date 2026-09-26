@@ -34,16 +34,27 @@ const INTERRUPT_GRACE_MS = 5_000;
 // The naive ``text: it.text + delta`` rebuilds the whole string on
 // EVERY frame — quadratic copying for long outputs (each delta is
 // small, the accumulated text is not). Instead, deltas for a
-// streaming item accumulate in a per-item chunk list (O(1) amortized
+// streaming item accumulate in an immutable chunk chain (O(1)
 // per delta) and are joined ONCE per animation frame when React reads
 // the state. Reads of settled items never pay anything.
 //
-// The buffer is keyed on the item OBJECT: a fresh object (snapshot
-// upsert, turn close, resume merge) has no buffered chunks, and the
-// wire field itself is always complete — so cleanup is automatic, no
-// eviction bookkeeping, and a weak map lets dead entries be GC'd with
-// their items.
-const streamChunks = new WeakMap<Item, string[]>();
+// Each item object owns a persistent buffer version. Appending never consumes
+// the prior version: replay probes and React can safely fold the same state
+// twice. Snapshot/turn-close objects materialize their wire fields. Weak maps
+// let unused versions be collected without explicit eviction bookkeeping.
+interface StreamChunk {
+  readonly previous?: StreamChunk;
+  readonly delta: string;
+}
+const streamChunks = new WeakMap<Item, StreamChunk>();
+
+function joinStreamChunks(tail: StreamChunk): string {
+  const chunks: string[] = [];
+  for (let node: StreamChunk | undefined = tail; node; node = node.previous) {
+    chunks.push(node.delta);
+  }
+  return chunks.reverse().join("");
+}
 // Joined text per item object, memoized: N components reading the same
 // item within one frame share a single join.
 const streamJoined = new WeakMap<Item, string>();
@@ -54,7 +65,10 @@ const streamJoined = new WeakMap<Item, string>();
 // contentIndex; the final text is the concatenation of buckets in
 // ascending index order — mirroring the OpenAI Responses API
 // ``reasoning.content[].index`` ordering.
-const streamReasoningBuckets = new WeakMap<Item, Map<number, string[]>>();
+const streamReasoningBuckets = new WeakMap<
+  Item,
+  ReadonlyMap<number, StreamChunk>
+>();
 const streamReasoningJoined = new WeakMap<Item, string>();
 
 // Text-bearing wire fields that stream via deltas. Used by snapshot
@@ -71,37 +85,28 @@ const STREAM_TEXT_FIELDS: Partial<Record<Item["type"], StreamTextField>> = {
 };
 
 function appendStreamText<T extends Item>(item: T, delta: string): T {
-  let chunks = streamChunks.get(item);
-  if (!chunks) {
-    chunks = [delta];
-  } else {
-    chunks.push(delta);
-  }
   const updated = { ...item } as T;
-  // Move the buffer to the replacement item. The reducer never mutates
-  // Conversation state in place, so the fresh object becomes the sole owner
-  // of the in-flight chunks while the old object can be collected.
-  // CRITICAL: set new mapping BEFORE deleting old one — drift probe (line 573)
-  // folds twice from same base, and delete-then-set loses chunks on second pass.
-  streamChunks.set(updated, chunks);
-  streamChunks.delete(item);
-  streamJoined.delete(item);
+  // React and the replay drift probe can reduce the same base more than
+  // once. Keep the old buffer immutable and readable by every branch.
+  streamChunks.set(updated, { previous: streamChunks.get(item), delta });
   return updated;
 }
 
 // Join reasoning buckets in ascending contentIndex order. Each bucket's
 // chunks are concatenated first, then buckets are concatenated together.
-function joinReasoningBuckets(buckets: Map<number, string[]>): string {
+function joinReasoningBuckets(
+  buckets: ReadonlyMap<number, StreamChunk>,
+): string {
   const indices = Array.from(buckets.keys()).sort((a, b) => a - b);
   let result = "";
   for (const idx of indices) {
     const chunks = buckets.get(idx);
-    if (chunks) result += chunks.join("");
+    if (chunks) result += joinStreamChunks(chunks);
   }
   return result;
 }
 
-// Same buffer-moving semantics as ``appendStreamText``, but buckets the
+// Same immutable append semantics as ``appendStreamText``, but buckets the
 // delta by ``contentIndex`` so interleaved multi-block reasoning streams
 // reconstruct in the correct order.
 function appendReasoningStreamText<T extends Item>(
@@ -109,24 +114,10 @@ function appendReasoningStreamText<T extends Item>(
   delta: string,
   contentIndex: number,
 ): T {
-  let buckets = streamReasoningBuckets.get(item);
-  if (!buckets) {
-    buckets = new Map<number, string[]>();
-    buckets.set(contentIndex, [delta]);
-  } else {
-    let chunks = buckets.get(contentIndex);
-    if (!chunks) {
-      chunks = [delta];
-      buckets.set(contentIndex, chunks);
-    } else {
-      chunks.push(delta);
-    }
-  }
+  const buckets = new Map(streamReasoningBuckets.get(item));
+  buckets.set(contentIndex, { previous: buckets.get(contentIndex), delta });
   const updated = { ...item } as T;
-  // Same ordering fix as appendStreamText: set new mapping before deleting old.
   streamReasoningBuckets.set(updated, buckets);
-  streamReasoningBuckets.delete(item);
-  streamReasoningJoined.delete(item);
   return updated;
 }
 
@@ -148,10 +139,10 @@ export function itemStreamText(item: Item): string {
     return joined;
   }
   const chunks = streamChunks.get(item);
-  if (!chunks || chunks.length === 0) return streamWireText(item);
+  if (!chunks) return streamWireText(item);
   const cached = streamJoined.get(item);
   if (cached !== undefined) return cached;
-  const joined = streamWireText(item) + chunks.join("");
+  const joined = streamWireText(item) + joinStreamChunks(chunks);
   streamJoined.set(item, joined);
   return joined;
 }
@@ -184,17 +175,15 @@ function withMaterializedStreamText(item: Item): Item {
       ...item,
       content: streamWireText(item) + joinReasoningBuckets(buckets),
     } as Item;
-    streamReasoningBuckets.delete(item);
-    streamReasoningJoined.delete(item);
     return materialized;
   }
   const chunks = streamChunks.get(item);
-  if (!chunks || chunks.length === 0) return item;
+  if (!chunks) return item;
   const field = STREAM_TEXT_FIELDS[item.type];
   if (!field) return item;
   return {
     ...item,
-    [field]: streamWireText(item) + chunks.join(""),
+    [field]: streamWireText(item) + joinStreamChunks(chunks),
   } as Item;
 }
 
@@ -246,7 +235,11 @@ export type ConversationEvent =
   | { method: "turn/started"; params: { threadId: string; turn: Turn } }
   | {
       method: "turn/execution/updated";
-      params: { threadId: string; turnId: string; execution: ExecutionSnapshot };
+      params: {
+        threadId: string;
+        turnId: string;
+        execution: ExecutionSnapshot;
+      };
     }
   | {
       method: "turn/completed";
@@ -728,7 +721,10 @@ export function reduce(
       const index = state.turns.findIndex((turn) => turn.id === turnId);
       const turn = state.turns[index];
       if (!turn) return unchanged(state);
-      const execution = mergeExecutionSnapshot(turn.execution, evt.params.execution);
+      const execution = mergeExecutionSnapshot(
+        turn.execution,
+        evt.params.execution,
+      );
       if (execution === turn.execution) return unchanged(state);
       return {
         next: {
@@ -1178,15 +1174,18 @@ function preserveCompletedStreamText(existing: Item, incoming: Item): Item {
   const existingText = streamWireText(withMaterializedStreamText(existing));
   if (!existingText) return merged;
   const snapshotText = streamWireText(merged);
-  // Three prefix relationships — handle each correctly:
+  // A nonempty terminal snapshot is the complete authoritative value, not
+  // another delta. It must repair dropped/corrupted live chunks on replay.
+  if (snapshotText && incoming.status !== "inProgress") return merged;
+  // Prefix relationships for lagging in-progress snapshots:
   //   snapshot ⊇ existing → snapshot is authoritative, use it
   //   existing ⊇ snapshot → snapshot lagged, keep existing (longer) text
-  //   otherwise           → unrelated, keep existing text + snapshot tail
+  //   otherwise           → snapshot corrects/replaces the live draft
   if (snapshotText.startsWith(existingText)) return merged;
   if (existingText.startsWith(snapshotText)) {
     return { ...merged, [field]: existingText } as Item;
   }
-  return { ...merged, [field]: existingText + snapshotText } as Item;
+  return merged;
 }
 
 /**

@@ -40,6 +40,90 @@ function apply(
 }
 
 describe("reducer", () => {
+  it.each(["agentMessage", "reasoning"] as const)(
+    "keeps %s stream buffers immutable across probe and React folds",
+    (type) => {
+      const item = {
+        id: "a",
+        type,
+        status: "inProgress" as const,
+        createdAt: T0_ISO,
+        ...(type === "agentMessage" ? { text: "" } : { content: "" }),
+      } as import("./items").Item;
+      const base = {
+        ...emptyConversation("th"),
+        turns: [{ ...blankTurn("trn-1", "th"), items: [item] }],
+      };
+      const delta = (text: string): ConversationEvent => ({
+        method:
+          type === "agentMessage"
+            ? "item/agentMessage/delta"
+            : "item/reasoning/textDelta",
+        params: { threadId: "th", turnId: "trn-1", itemId: "a", delta: text },
+      });
+      const first = apply(base, delta("前半段"));
+      const probe = apply(first, delta("后半段"));
+      const actual = apply(first, delta("后半段"));
+      expect(itemStreamText(first.turns[0].items[0]!)).toBe("前半段");
+      expect(itemStreamText(probe.turns[0].items[0]!)).toBe("前半段后半段");
+      expect(itemStreamText(actual.turns[0].items[0]!)).toBe("前半段后半段");
+      expect(itemStreamText(base.turns[0].items[0]!)).toBe("");
+    },
+  );
+
+  it("uses the complete snapshot to repair missing text without repeating the answer", () => {
+    const finalText =
+      "产品更新趋势。\n\n更准的睡眠数据能否带来更好的睡眠，还需要验证。";
+    const brokenText = "产品更新趋势。\n\n更准的睡眠数据能否，还需要验证。";
+    const item = {
+      id: "a",
+      type: "agentMessage" as const,
+      status: "inProgress" as const,
+      createdAt: T0_ISO,
+      text: brokenText,
+    };
+    let state = {
+      ...emptyConversation("th"),
+      turns: [{ ...blankTurn("trn-1", "th"), items: [item] }],
+    } as Conversation;
+    const completed: ConversationEvent = {
+      method: "item/completed",
+      params: {
+        threadId: "th",
+        turnId: "trn-1",
+        itemId: "a",
+        item: { ...item, status: "completed", text: finalText },
+      },
+    };
+    for (let retry = 0; retry < 5; retry++) {
+      state = apply(state, completed);
+      expect(itemStreamText(state.turns[0].items[0]!)).toBe(finalText);
+    }
+  });
+
+  it("accepts a shorter final correction and retains intentional repeated words", () => {
+    const item = {
+      id: "a",
+      type: "agentMessage" as const,
+      status: "inProgress" as const,
+      createdAt: T0_ISO,
+      text: "哈哈哈哈 provisional",
+    };
+    const base = {
+      ...emptyConversation("th"),
+      turns: [{ ...blankTurn("trn-1", "th"), items: [item] }],
+    };
+    const result = apply(base, {
+      method: "item/completed",
+      params: {
+        threadId: "th",
+        turnId: "trn-1",
+        item: { ...item, status: "completed", text: "哈哈哈哈" },
+      },
+    });
+    expect(itemStreamText(result.turns[0].items[0]!)).toBe("哈哈哈哈");
+  });
+
   it("turn/started inserts and turn/completed replaces", () => {
     const state = apply(
       emptyConversation("th"),
