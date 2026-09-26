@@ -15,7 +15,7 @@ import threading
 from dataclasses import dataclass
 from typing import Any
 
-from runtime.memory.cowork.async_runner import AsyncWorkRunner
+from runtime.memory.cowork.async_runner import DEFAULT_MAX_CONCURRENCY, AsyncWorkRunner
 from runtime.memory.cowork.async_work import AsyncTask, AsyncWorkStore
 from runtime.memory.cowork.collaboration_store import CollaborationStore
 from runtime.memory.cowork.group_store import GroupStore
@@ -137,7 +137,7 @@ def create_cowork_runtime(
             admission=coordination.admission,
             max_concurrency=_positive_env_int(
                 "ECHO_COWORK_RUNNER_MAX_CONCURRENCY",
-                4,
+                DEFAULT_MAX_CONCURRENCY,
             ),
             max_tasks_per_tick=_positive_env_int(
                 "ECHO_COWORK_RUNNER_MAX_TASKS_PER_TICK",
@@ -146,6 +146,8 @@ def create_cowork_runtime(
         )
     elif not enable_runner:
         runner_reason = "runner disabled by app configuration"
+    coordination.runner_available = lambda: runner is not None and runner.running
+    coordination.task_queued = runner.wake if runner is not None else None
     return CoworkRuntime(
         group_store=group_store,
         async_store=async_store,

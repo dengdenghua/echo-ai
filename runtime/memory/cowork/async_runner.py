@@ -14,10 +14,10 @@ without an LLM and never touches the realtime streaming path.
 from __future__ import annotations
 
 import logging
-import math
 import threading
 from collections.abc import Callable
 from concurrent.futures import ThreadPoolExecutor
+from contextvars import copy_context
 from datetime import UTC, datetime
 from typing import Any
 
@@ -27,6 +27,9 @@ from runtime.memory.cowork.group_store import GroupStore
 from runtime.memory.cowork.nominate import CompetenceStore, tokenize
 
 _LOG = logging.getLogger("echo.cowork.async_runner")
+
+# Model/network waits dominate these tasks; keep the default independent of CPU count.
+DEFAULT_MAX_CONCURRENCY = 16
 
 # execute(task, context) -> result text. ``context`` carries the grant-sliced
 # history, the shared blackboard, and the roster.
@@ -54,7 +57,7 @@ class AsyncWorkRunner:
         admission: Callable[[AsyncTask], bool] | None = None,
         recover_stale_seconds: float = 900.0,
         max_attempts: int = 3,
-        max_concurrency: int = 4,
+        max_concurrency: int = DEFAULT_MAX_CONCURRENCY,
         max_tasks_per_tick: int = 64,
     ) -> None:
         self._store = store
@@ -222,11 +225,11 @@ class AsyncWorkRunner:
         return selected
 
     def _adaptive_worker_count(self, task_count: int) -> int:
-        """Scale gently with backlog instead of spawning one worker per task."""
+        """Use available I/O slots, bounded by the configured worker cap."""
 
         if task_count <= 0:
             return 0
-        return min(self._max_concurrency, max(1, math.ceil(math.sqrt(task_count))))
+        return min(self._max_concurrency, task_count)
 
     def _run_fair_pending(self, *, limit: int | None = None) -> tuple[int, int]:
         tasks = self._fair_pending(limit=limit)
@@ -237,7 +240,8 @@ class AsyncWorkRunner:
             max_workers=concurrency,
             thread_name_prefix="cowork-task",
         ) as pool:
-            ran = sum(1 for completed in pool.map(self.run_one, tasks) if completed)
+            futures = [pool.submit(copy_context().run, self.run_one, task) for task in tasks]
+            ran = sum(1 for future in futures if future.result())
         return ran, concurrency
 
     def recover_stale(self) -> dict[str, int]:
@@ -297,6 +301,11 @@ class AsyncWorkRunner:
             target=self._loop, args=(poll_seconds,), name="cowork-async-runner", daemon=True
         )
         self._thread.start()
+        _LOG.info(
+            "cowork async runner started: max_concurrency=%d, max_tasks_per_tick=%d",
+            self._max_concurrency,
+            self._max_tasks_per_tick,
+        )
 
     def stop(self, timeout: float = 5.0) -> None:
         self._stop.set()
@@ -311,9 +320,45 @@ class AsyncWorkRunner:
         self._wake.set()
 
     def _loop(self, poll_seconds: float) -> None:
-        while not self._stop.is_set():
-            self._wake.wait(timeout=poll_seconds)
-            self._wake.clear()
-            if self._stop.is_set():
-                break
-            self.tick_once()
+        # A persistent pool admits arrivals while existing workers are busy.
+        # tick_once/drain_all intentionally wait for a finite batch (CLI/tests);
+        # using them here used to strand new work behind a 15-minute task even
+        # with three vacant execution slots.
+        pool = ThreadPoolExecutor(max_workers=self._max_concurrency, thread_name_prefix="cowork-task")
+        active = {}
+
+        def completed(future):
+            # Admission-blocked tasks wait for a dependency completion/poll;
+            # immediately waking on False would spin on the same blocked row.
+            if not future.cancelled() and (future.exception() or future.result()):
+                self._wake.set()
+
+        try:
+            while not self._stop.is_set():
+                self._wake.wait(timeout=poll_seconds)
+                self._wake.clear()
+                if self._stop.is_set():
+                    break
+                try:
+                    ran = 0
+                    for task_id, future in list(active.items()):
+                        if future.done():
+                            active.pop(task_id)
+                            ran += bool(future.result())
+                    recovered = self.recover_stale()
+                    for task in self._fair_pending(limit=self._max_tasks_per_tick):
+                        if len(active) >= self._max_concurrency:
+                            break
+                        if task.task_id in active:
+                            continue
+                        future = pool.submit(copy_context().run, self.run_one, task)
+                        active[task.task_id] = future
+                        future.add_done_callback(completed)
+                    self._record_tick_result(
+                        success=True, recovered=recovered, ran_count=ran, concurrency=len(active),
+                    )
+                except Exception as exc:  # noqa: BLE001 — one worker must not kill dispatch
+                    self._record_tick_result(success=False, error=f"{type(exc).__name__}: {exc}")
+                    _LOG.warning("async runner dispatch error: %s", exc, exc_info=True)
+        finally:
+            pool.shutdown(wait=False, cancel_futures=True)

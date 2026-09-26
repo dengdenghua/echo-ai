@@ -12,6 +12,19 @@ from runtime.platform.process.session import current_session
 _service = ContextVar("coordination_service", default=None)
 
 
+def current_group_coordination():
+    """Resolve a real group from host state, never from model-supplied context."""
+    service = _service.get()
+    session = current_session()
+    if service is None or session is None or not session.thread_id:
+        return None
+    task_id = session.metadata.get("_coordination_task_id")
+    thread_id = service.current()["thread_id"] if task_id else session.thread_id
+    if not service.groups.state(thread_id).roster:
+        return None
+    return service
+
+
 @contextmanager
 def coordination_scope(service):
     token = _service.set(service)

@@ -153,6 +153,63 @@ def _call_agent_parallel(
         return _empty_parallel_result(
             "specs is required (list of {agent_id, prompt})",
         )
+    from runtime.execution.tool_engine.coordination_guard import current_group_coordination
+
+    coordination = current_group_coordination()
+    if coordination is not None:
+        from runtime.memory.cowork.coordination import MAX_TASKS_PER_ROOT
+
+        if completion_policy != "all" or quorum is not None or context:
+            raise ValueError(
+                "Durable group delegation supports completion_policy=all without context overrides"
+            )
+        if len(specs) > MAX_TASKS_PER_ROOT:
+            raise ValueError(
+                f"Group delegation accepts at most {MAX_TASKS_PER_ROOT} tasks per batch"
+            )
+        # Group execution uses the durable runner's configured concurrency;
+        # max_workers applies only to the synchronous non-group path below.
+        # Validate the entire batch before enqueueing anything. Do not apply
+        # global-role fallback or silently replace a selected group member.
+        normalized = []
+        for spec in specs:
+            if not isinstance(spec, dict):
+                raise ValueError("each group delegation must be an object")
+            unsupported = set(spec) - {
+                "agent_id",
+                "agent_name",
+                "agent",
+                "role",
+                "name",
+                "prompt",
+                "task",
+                "message",
+            }
+            if unsupported:
+                raise ValueError(
+                    f"Unsupported group task fields: {sorted(unsupported)}; put delivery requirements in prompt"
+                )
+            member = str(
+                spec.get("agent_id")
+                or spec.get("agent_name")
+                or spec.get("agent")
+                or spec.get("role")
+                or spec.get("name")
+                or ""
+            )
+            brief = str(spec.get("prompt") or spec.get("task") or spec.get("message") or "")
+            source = coordination.current()
+            coordination.check_member(source["thread_id"], member)
+            if not brief.strip():
+                raise ValueError("member task prompt is required")
+            normalized.append((member, brief))
+        results = [coordination.delegate_agent(member, brief) for member, brief in normalized]
+        return {
+            "accepted": True,
+            "completed": all(r["completed"] for r in results),
+            "results": results,
+            "guidance": "Tasks are durable; query collaboration list/inbox for results.",
+        }
     policy = str(completion_policy or "all").strip().lower().replace("-", "_")
     if policy == "first":
         policy = "first_completed"

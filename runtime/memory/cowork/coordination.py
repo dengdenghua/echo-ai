@@ -42,6 +42,8 @@ CREATE TABLE IF NOT EXISTS coordination_resources (
 );
 """
 TERMINAL = {"done", "failed", "cancelled"}
+# Total work per root (including nested tasks), independent of running worker slots.
+MAX_TASKS_PER_ROOT = 64
 
 
 def text(value: str, label: str, limit: int = 4000) -> str:
@@ -168,9 +170,9 @@ class CoordinationStore:
                     "SELECT count(*) FROM coordination_context WHERE root_id=? AND task_id<>root_id",
                     (root_id,),
                 ).fetchone()[0]
-                >= 8
+                >= MAX_TASKS_PER_ROOT
             ):
-                raise ValueError("本轮分派已达到 8 项，请先收敛已有工作")
+                raise ValueError(f"本轮分派已达到 {MAX_TASKS_PER_ROOT} 项，请先收敛已有工作")
             conn.execute(
                 "INSERT INTO coordination_tasks VALUES(?,?,?,?,?,'pending',?,'',?,?)",
                 (*values, title, json.dumps(deps), now, now),

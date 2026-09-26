@@ -29,6 +29,28 @@ class CoordinationService:
         self.authorize: Callable[[str, str, str, bool], bool] | None = None
         self.resources: set[str] = {"device:desktop", "browser:control"}
         self.logs_root = None
+        self.runner_available: Callable[[], bool] | None = None
+        self.task_queued: Callable[[], None] | None = None
+
+    def delegate_agent(self, member: str, prompt: str) -> dict[str, Any]:
+        """Compatibility entry for call_agent; acknowledgements are not deliveries."""
+        if not prompt.strip():
+            raise ValueError("member task prompt is required")
+        request_id = "call-agent-" + hashlib.sha256(f"{member}\0{prompt}".encode()).hexdigest()
+        response = self.tool(
+            action="delegate", assignee=member, message=prompt, request_id=request_id
+        )
+        task = response["task"]
+        return {
+            "agent_id": member,
+            "task_id": task["id"],
+            "status": task["status"],
+            "accepted": True,
+            "completed": task["status"] in TERMINAL,
+            "output": task["result"],
+            "task": task,
+            "guidance": GUIDANCE,
+        }
 
     def resource_token(self, task_id: str, resource: str) -> str:
         return self.ledger.owner_token(resource, task_id) or uuid4().hex
@@ -135,6 +157,8 @@ class CoordinationService:
         *,
         policy: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
+        if self.runner_available is not None and not self.runner_available():
+            raise RuntimeError("后台任务执行器暂不可用，请恢复服务后重试")
         self.check_member(thread, member)
         if not isinstance(request_id, str) or not request_id.strip() or len(request_id) > 160:
             raise ValueError("invalid request_id")
@@ -168,6 +192,8 @@ class CoordinationService:
                     )
                     raise
             self.ledger.transition(task_id, "pending")
+            if self.task_queued is not None:
+                self.task_queued()
         return self.ledger.get(task_id) or record
 
     def admission(self, task: Any) -> bool:

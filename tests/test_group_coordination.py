@@ -368,7 +368,7 @@ def test_enqueue_failure_can_retry_same_task_without_duplicate(service, monkeypa
 
 def test_task_count_budget_is_atomic_and_persistent(service):
     parent = task(service, request="root")
-    for i in range(8):
+    for i in range(64):
         service.create_task(
             "group",
             "user",
@@ -377,11 +377,16 @@ def test_task_count_budget_is_atomic_and_persistent(service):
             f"child-{i}",
             policy={"root_id": parent["id"]},
         )
-    with pytest.raises(ValueError, match="8 项"):
+    service = CoordinationService(service.groups, service.ledger.store, service.queue)
+    # Retrying an existing request still works when the root budget is full.
+    service.create_task(
+        "group", "user", "builder", "子任务 0", "child-0", policy={"root_id": parent["id"]}
+    )
+    with pytest.raises(ValueError, match="64 项"):
         service.create_task(
             "group", "user", "builder", "多余任务", "extra", policy={"root_id": parent["id"]}
         )
-    assert len(service.queue.list("group")) == 9
+    assert len(service.queue.list("group")) == 65
 
 
 def test_native_session_without_agent_uses_only_host_bound_identity(service):
@@ -407,3 +412,62 @@ def test_native_session_without_agent_uses_only_host_bound_identity(service):
         pytest.raises(PermissionError, match="identity mismatch"),
     ):
         service.tool("list")
+
+
+@pytest.mark.parametrize("count", [16, 64])
+def test_parallel_group_dispatch_accepts_large_batch_and_rejects_overflow(service, count):
+    from runtime.execution.suckers._delegation_skills_parallel import _call_agent_parallel
+    from runtime.execution.tool_engine.coordination_guard import coordination_scope
+
+    service.groups.append("group", MemberEvent(action="mode", actor="user", mode="cluster"))
+    specs = [{"agent_id": "drafter", "prompt": f"work-{i}"} for i in range(count)]
+    with source(service), coordination_scope(service):
+        with pytest.raises(ValueError, match="at most 64"):
+            _call_agent_parallel([{"agent_id": "drafter", "prompt": str(i)} for i in range(65)])
+        with pytest.raises(PermissionError):
+            _call_agent_parallel([*specs[:-1], {"agent_id": "outsider", "prompt": "invalid"}])
+        assert not service.queue.list("group")
+        result = _call_agent_parallel(specs)
+        assert result["accepted"] and not result["completed"]
+        assert len(result["results"]) == count
+        retry = _call_agent_parallel(specs)
+        assert [r["task_id"] for r in retry["results"]] == [
+            r["task_id"] for r in result["results"]
+        ]
+    assert len(service.queue.list("group")) == count
+
+
+def test_parallel_group_dispatch_validates_all_members_and_nested_calls(service):
+    from runtime.execution.suckers._delegation_skills_parallel import _call_agent_parallel
+    from runtime.execution.tool_engine.coordination_guard import (
+        coordination_scope,
+        current_group_coordination,
+    )
+
+    service.groups.append("group", MemberEvent(action="mode", actor="user", mode="cluster"))
+    with source(service), coordination_scope(service):
+        with pytest.raises(PermissionError):
+            _call_agent_parallel(
+                [
+                    {"agent_id": "drafter", "prompt": "one"},
+                    {"agent_id": "outsider", "prompt": "two"},
+                ]
+            )
+        assert not service.queue.list("group")
+        result = _call_agent_parallel([{"agent_id": "drafter", "prompt": "one"}])
+    child = result["results"][0]["task_id"]
+    with (
+        session_scope(
+            Session(
+                thread_id="child-only",
+                actor="user",
+                agent=SimpleNamespace(agent_id="drafter"),
+                metadata={"_coordination_task_id": child},
+            )
+        ),
+        coordination_scope(service),
+    ):
+        assert current_group_coordination() is service
+        with pytest.raises(PermissionError):
+            _call_agent_parallel([{"agent_id": "outsider", "prompt": "two"}])
+    assert len(service.queue.list("group")) == 1

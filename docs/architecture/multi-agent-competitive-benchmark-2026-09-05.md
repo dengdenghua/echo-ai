@@ -88,7 +88,7 @@ Echo 不是“所有维度都领先”。当前优势集中在**并行群体执�
 
 - `ECHO_COWORK_QUEUE_PER_THREAD_LIMIT`：单个群聊的活动任务上限，默认 512。
 - `ECHO_COWORK_QUEUE_TOTAL_LIMIT`：当前实例共享队列的活动任务上限，默认 4096；若低于单群上限，单群上限会自动收窄到该值。
-- `ECHO_COWORK_RUNNER_MAX_CONCURRENCY`：后台执行器自适应并行的硬上限，默认 4。
+- `ECHO_COWORK_RUNNER_MAX_CONCURRENCY`：后台执行器并行上限，默认 16（2026-09-27 从 4 调整）；有空位时持续补入待办。
 - `ECHO_COWORK_RUNNER_MAX_TASKS_PER_TICK`：一次调度循环最多处理的任务数，默认 64。
 - `ECHO_COWORK_COLLECTOR_RETENTION_SECONDS`：终态 collector 完整结果的保留时长，默认 90 天；设为 `0` 关闭时间归档。
 - `ECHO_COWORK_COLLECTOR_RETENTION_COUNT`：每个协作会话最多保留的未归档终态 collector 数，默认 1000；设为 `0` 关闭数量归档。

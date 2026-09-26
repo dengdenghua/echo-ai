@@ -259,7 +259,7 @@ def test_tick_round_robins_threads_before_returning_to_large_backlog(tmp_path) -
 def test_tick_adapts_concurrency_to_backlog(tmp_path) -> None:
     gs, aw = _setup(tmp_path)
     lock = threading.Lock()
-    two_workers_started = threading.Event()
+    all_workers_started = threading.Event()
     active = 0
     peak = 0
 
@@ -268,9 +268,9 @@ def test_tick_adapts_concurrency_to_backlog(tmp_path) -> None:
         with lock:
             active += 1
             peak = max(peak, active)
-            if active >= 2:
-                two_workers_started.set()
-        assert two_workers_started.wait(timeout=2)
+            if active >= 4:
+                all_workers_started.set()
+        assert all_workers_started.wait(timeout=2)
         with lock:
             active -= 1
         return task.prompt
@@ -280,10 +280,10 @@ def test_tick_adapts_concurrency_to_backlog(tmp_path) -> None:
         aw.assign("t", "w", f"task-{index}", actor="u")
 
     assert runner.tick_once() == 4
-    assert peak == 2
+    assert peak == 4
     status = runner.status()
     assert status["max_concurrency"] == 4
-    assert status["last_concurrency"] == 2
+    assert status["last_concurrency"] == 4
 
 
 def test_tick_once_records_success_health(tmp_path) -> None:
@@ -609,16 +609,22 @@ def test_runtime_applies_configured_collector_retention_on_startup(
     )
 
 
+@pytest.mark.parametrize("configured, expected", [(None, 16), ("2", 2), ("32", 32), ("bad", 16)])
 def test_runtime_reads_queue_and_scheduler_limits_from_environment(
     tmp_path,
     monkeypatch,
+    configured,
+    expected,
 ) -> None:
     from runtime.execution.subagents import get_sub_agent_runner, set_sub_agent_runner
 
     previous_runner = get_sub_agent_runner()
     monkeypatch.setenv("ECHO_COWORK_QUEUE_PER_THREAD_LIMIT", "2")
     monkeypatch.setenv("ECHO_COWORK_QUEUE_TOTAL_LIMIT", "3")
-    monkeypatch.setenv("ECHO_COWORK_RUNNER_MAX_CONCURRENCY", "2")
+    if configured is None:
+        monkeypatch.delenv("ECHO_COWORK_RUNNER_MAX_CONCURRENCY", raising=False)
+    else:
+        monkeypatch.setenv("ECHO_COWORK_RUNNER_MAX_CONCURRENCY", configured)
     monkeypatch.setenv("ECHO_COWORK_RUNNER_MAX_TASKS_PER_TICK", "5")
     set_sub_agent_runner(lambda **_kwargs: "available")
     try:
@@ -626,7 +632,89 @@ def test_runtime_reads_queue_and_scheduler_limits_from_environment(
         status = runtime.status("t")
         assert status["queue_health"]["thread_limit"] == 2
         assert status["queue_health"]["total_limit"] == 3
-        assert status["runner_status"]["max_concurrency"] == 2
+        assert status["runner_status"]["max_concurrency"] == expected
         assert status["runner_status"]["max_tasks_per_tick"] == 5
     finally:
         set_sub_agent_runner(previous_runner)
+
+
+def test_daemon_starts_new_arrival_while_first_task_is_still_running(tmp_path) -> None:
+    gs = GroupStore(tmp_path)
+    for member in ("slow", "fast"):
+        gs.append("t", MemberEvent(action="invite", actor="u", target_id=member))
+    aw = AsyncWorkStore(tmp_path, gs)
+    first_started = threading.Event()
+    second_started = threading.Event()
+    release_first = threading.Event()
+
+    def execute(task, context):
+        if task.assignee == "slow":
+            first_started.set()
+            assert release_first.wait(4)
+        else:
+            second_started.set()
+        return task.assignee + " done"
+
+    runner = AsyncWorkRunner(aw, gs, execute, max_concurrency=2)
+    first = aw.assign("t", "slow", "slow task", actor="u")
+    try:
+        runner.start(poll_seconds=0.02)
+        assert first_started.wait(2)
+        aw.assign("t", "fast", "new independent task", actor="u")
+        runner.wake()
+        assert second_started.wait(2), "new work waited behind the running batch"
+        assert aw.get(first.task_id).status == "working"
+    finally:
+        release_first.set()
+        runner.stop()
+
+
+@pytest.mark.parametrize("concurrency", [None, 32])
+def test_daemon_fills_capacity_and_replenishes_before_other_workers_finish(tmp_path, concurrency):
+    gs, aw = _setup(tmp_path)
+    expected = concurrency or 16
+    kwargs = {} if concurrency is None else {"max_concurrency": concurrency}
+    all_started = threading.Event()
+    next_started = threading.Event()
+    release_one = threading.Event()
+    release_all = threading.Event()
+    all_finished = threading.Event()
+    lock = threading.Lock()
+    started = set()
+    completed = 0
+
+    def execute(task, _context):
+        index = int(task.prompt)
+        with lock:
+            started.add(index)
+            if len(started) == expected:
+                all_started.set()
+        if index == expected:
+            next_started.set()
+        assert (release_one if index == 0 else release_all).wait(15)
+        return task.prompt
+
+    def observe(*_args):
+        nonlocal completed
+        with lock:
+            completed += 1
+            if completed == expected + 1:
+                all_finished.set()
+
+    runner = AsyncWorkRunner(aw, gs, execute, completion_observer=observe, **kwargs)
+    tasks = [aw.assign("t", "w", str(i), actor="u") for i in range(expected + 1)]
+    try:
+        runner.start(poll_seconds=0.02)
+        assert all_started.wait(10), "available worker slots were not filled"
+        assert runner.status()["max_concurrency"] == expected
+        assert not next_started.is_set()
+        assert aw.get(tasks[-1].task_id).status == "pending"
+        release_one.set()
+        assert next_started.wait(5), "free slot waited for the rest of the batch"
+        assert all(aw.get(task.task_id).status == "working" for task in tasks[1:-1])
+    finally:
+        release_one.set()
+        release_all.set()
+        all_finished.wait(10)
+        runner.stop()
+    assert all(aw.get(task.task_id).status == "done" for task in tasks)
