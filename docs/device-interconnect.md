@@ -151,3 +151,41 @@ Android 测试入口：`OctopusMobileClientHandshakeTest`、`MobileRuntimeSecuri
 新增设备绑定的 mirror/frame、mirror/control、exchange_files 通道。OS 桌面手机协同窗口已使用真实画面、点击/滑动/中文输入与双向分块文件传输；移除演示数据。Android 文件通过私有收发目录与系统选择器导入导出，12 KiB 分块、100 MiB 单文件上限、SHA-256 校验、上传续传。
 
 Windows 浏览器 → WSL2 OS 网关 → Android 15 APK 实测通过：原生点击、文本与滚动断言；180,017 字节上传、100,013 字节下载、浏览器 20,037 字节往返一致。当前为 JPEG 低帧率刷新；实体手机、远程云手机、高帧率视频与音频尚未验收或实现。详细报告在手机仓库 `PHONE_MIRROR_ACCEPTANCE.md`。
+
+
+## 2026-09-26：目标核验与跨端结果核对
+
+步骤回执成功现在显示为“步骤已执行”，不会直接当作用户目标已达成。OS、AI 和 Mobile 的跨端任务均显示同一份 `result_review`：未核对、用户确认完成、用户核对尚未完成。用户可在任一已授权入口核对结果；其他入口刷新或重连后读取同一记录。前提仍是接入同一个设备中心。
+
+- 新增 `review_result` 命令，HTTP 与已配对 WebSocket 使用相同的 `id`、`revision`、`outcome` 参数；`outcome` 为 `achieved` 或 `not_achieved`。
+- 仅执行结束且当前没有运行中步骤的任务允许核对。核对绑定实际步骤结果的版本并落盘，记录服务端认证的操作者，忽略客户端伪造身份。旧页面不能覆盖后来核对；丢失响应后重试不会重放设备动作。
+- 核对尚未完成只更新记录，不触发重新执行。人工核对与自动视觉判断分别记录，不混称自动验收通过。
+- Android 本地 GoalVerifier 改为 ACHIEVED / NOT_ACHIEVED / UNVERIFIED。没有截图、模型配置、明确裁决或校验异常时保留待核验；只有明确未完成才在原有预算内修复，预算耗尽后仍读取新结果。
+- 核验结果通过结构化回调传到聊天记录、悬浮提示和任务队列。待核验不显示绿色成功，不进入已验证操作缓存，也不被记入成功反思。子任务结果携带目标核验状态；生成小程序在最后一次视觉修复后重新检查，缺少视觉证据不计为视觉验收通过。
+
+本轮未新增跨设备父任务调度、动态 GUI 规划或公网云部署，也未重跑实体手机／云手机操作验收。自动视觉判断仍依赖截图和模型，不能替代需要外部凭据的结果证明。
+
+验证结果：OS 与 AI 各 11 项后端工作区／HTTP／WebSocket 测试、各 6 项任务面板测试通过；两端 TypeScript、定向 ESLint、Python Ruff 和 Vite 生产构建通过。OS 的 `npm run build` 在 pnpm 要求非交互重装依赖时停止，本轮使用已有依赖执行 `npx vite build` 验证主前端，没有重装依赖或重建未改动的独立工作台。
+
+Android 本轮 59 项定向 JVM 测试通过（GoalVerifier 11、LightweightReAct 11、客户端握手／工作区 10、DefaultAgentService 12、TaskOrchestrator 8、SubAgentTool 7）；`detekt`、`lintDebug` 与 `assembleDebug` 全部通过。lint 沿用原 baseline，保留既有 674 项警告、22 项提示，未修改 baseline。日志：`E:/echo mobile/build/goal-outcome-android-final.txt`；APK：`E:/echo mobile/app/build/outputs/apk/debug/`。该轮验证结束时修改尚未提交或推送。
+
+
+## 2026-09-26：多设备父任务与阶段交接
+
+OS、AI、Mobile 的跨端任务新增“多设备接续”。一条父任务可配置 2 至 8 个有顺序的阶段，每个阶段指定设备与目标；三端读取同一个父任务 ID、当前阶段及前序结果。原有单设备提交方式保持兼容。
+
+执行流程：提交总体目标与阶段 → 仅规划当前阶段 → 确认具体动作 → 执行并保存回执 → 用户核对阶段结果 → 点击“交给下一台设备规划” → 将前序结果摘要交给下一阶段的规划器。新阶段的动作仍需重新确认；最终阶段也保留结果待核验，不能把阶段间交接当作目标自动达成。
+
+- `submit` 新增可选 `stages: [{device_id, task}, ...]`；单阶段内容最多 1024 字，总体目标最多 4096 字。使用阶段列表时由首阶段确定初始目标。
+- `advance` 接收父任务 `id` 和当前 `revision`。仅当前阶段已执行且用户核对 `achieved` 时允许交接；`not_achieved`、旧 revision、执行中及已取消任务均拒绝推进。交接响应丢失后重试返回当前记录，不重复生成或执行前序步骤。
+- 返回增加 `stages`、`stage_index`、`stage_status`、`stage_history`。中间阶段执行结束时父任务为 `awaiting_handoff`；列表展示前序各阶段最近三条结果，`get` 可读取全部保存回执。
+- 每阶段有独立 Procedure 检查点，父任务先原子保存新的阶段指针，再生成计划。服务重启、下一台设备离线或规划失败后，只恢复当前阶段；已完成阶段不会重放。取消父任务阻止后续交接，移除时同时清理各阶段检查点。
+- 手机可读取自己创建或参与阶段的父任务；向另一台设备确认执行仍需对应工具授权。服务端同时检查原任务来源和当前确认者，且每次下发动作重新检查，防止借用电脑创建的任务绕过手机授权。
+- HTTP 与配对 WebSocket 的请求上限统一为 64,000 UTF-8 字节，支持中文阶段内容，并拒绝超限请求。
+
+这里接通的是有序阶段协调，以及基于前序回执的下一阶段规划。尚未接入每个 GUI 动作后的自动观察／修复循环、自动拆分任意自然语言目标、并行依赖图或云实例创建。前序回执是观察数据，不是新指令；文件路径带有来源设备语义，任务协调器不会自行把电脑路径变成手机文件，也尚未新增跨阶段文件 artifact manifest。真实文件交接仍需既有传输工具支持并单独验收。
+
+
+本轮定向验证：OS、AI 各 22 项后端测试、各 9 项任务面板测试；Mobile 客户端握手与工作区 11 项测试，合计 73 项通过。两端 TypeScript、定向 ESLint、Python Ruff、Vite 主前端生产构建通过；Android `detekt`、`lintDebug`、`assembleDebug` 通过，沿用既有 lint baseline。双设备传输层测试通过真实 WebSocket 协议连接两个测试客户端，设备动作结果由测试客户端返回，未进行实体电脑生成文件到实体手机打开的验收。
+
+构建日志：`E:/echo mobile/build/workflow-handoff-android.txt`；APK：`E:/echo mobile/app/build/outputs/apk/debug/`。本次提交包含结果核验、多设备父任务及三端界面；未推送，也未安装第三方 agent 依赖。

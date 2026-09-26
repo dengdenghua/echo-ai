@@ -398,7 +398,7 @@ class TentacleCoordinator:
         if self.ws_server._connections.get(source) is not ws:
             return
         try:
-            if len(json.dumps(message)) > 16000:
+            if len(json.dumps(message, ensure_ascii=False).encode("utf-8")) > 64000:
                 raise ValueError("任务请求过大")
             command = message["method"].removeprefix("task/workspace/")
             result = await get_task_workspace(self).dispatch(

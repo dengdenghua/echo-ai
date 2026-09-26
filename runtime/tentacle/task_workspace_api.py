@@ -17,7 +17,7 @@ def create_task_workspace_router(provider: Callable[[], Any]) -> APIRouter:
         raw = bytearray()
         async for chunk in request.stream():
             raw.extend(chunk)
-            if len(raw) > 16000:
+            if len(raw) > 64000:
                 raise HTTPException(413, "任务请求过大")
         coordinator = provider()
         if coordinator is None:

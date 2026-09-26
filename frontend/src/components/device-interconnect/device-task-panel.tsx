@@ -1,14 +1,20 @@
 import { useEffect, useRef, useState } from "react";
 import { useDeviceDirectory } from "./device-directory";
-import { taskWorkspaceRequest, type DeviceTask } from "./task-workspace-api";
+import { TaskStageEditor, TaskStages } from "./task-stages";
+import {
+  taskWorkspaceRequest,
+  type DeviceTask,
+  type TaskStage,
+} from "./task-workspace-api";
 
 const labels: Record<string, string> = {
   planning: "正在生成计划",
+  awaiting_handoff: "等待阶段交接",
   awaiting_approval: "等待确认",
   running: "正在执行",
   paused: "已暂停",
   interrupted: "已中断",
-  succeeded: "已完成",
+  succeeded: "步骤已执行",
   failed: "执行失败",
   cancelled: "已取消",
   emergency_stopped: "已停止",
@@ -18,6 +24,7 @@ const button = "rounded-lg border px-3 py-1.5 text-xs disabled:opacity-40";
 export function DeviceTaskPanel() {
   const directory = useDeviceDirectory();
   const [tasks, setTasks] = useState<DeviceTask[]>([]);
+  const [stages, setStages] = useState<TaskStage[]>([]);
   const [target, setTarget] = useState("");
   const [text, setText] = useState("");
   const [error, setError] = useState("");
@@ -73,6 +80,7 @@ export function DeviceTaskPanel() {
       await taskWorkspaceRequest(command, args, AbortSignal.timeout(15000));
       if (command === "submit") {
         setText("");
+        setStages([]);
         submission.current = { key: "", id: "" };
       }
       setRefresh((value) => value + 1);
@@ -97,7 +105,7 @@ export function DeviceTaskPanel() {
         className="space-y-2"
         onSubmit={(event) => {
           event.preventDefault();
-          const key = JSON.stringify([target, text]);
+          const key = JSON.stringify([target, text, stages]);
           if (submission.current.key !== key)
             submission.current = {
               key,
@@ -107,26 +115,61 @@ export function DeviceTaskPanel() {
             };
           void perform(
             "submit",
-            { id: submission.current.id, device_id: target, task: text },
+            {
+              id: submission.current.id,
+              task: text,
+              ...(stages.length ? { stages } : { device_id: target }),
+            },
             "submit",
           );
         }}
       >
-        <select
-          disabled={!!busy}
-          aria-label="执行设备"
-          value={target}
-          onChange={(event) => setTarget(event.target.value)}
-          className="w-full rounded-lg border p-2 text-sm"
-        >
-          <option value="">选择执行设备</option>
-          {directory.status?.devices.map((device) => (
-            <option key={device.id} value={device.id} disabled={!device.online}>
-              {device.model || device.id} · {device.platform}
-              {!device.online ? " · 离线" : ""}
-            </option>
-          ))}
-        </select>
+        <label className="flex items-center gap-2 text-sm">
+          <input
+            type="checkbox"
+            checked={stages.length > 0}
+            disabled={!!busy}
+            onChange={(event) =>
+              setStages(
+                event.target.checked
+                  ? [
+                      { device_id: target, task: "" },
+                      { device_id: "", task: "" },
+                    ]
+                  : [],
+              )
+            }
+          />
+          多设备接续
+        </label>
+        {stages.length ? (
+          <TaskStageEditor
+            stages={stages}
+            devices={directory.status?.devices || []}
+            disabled={!!busy}
+            onChange={setStages}
+          />
+        ) : (
+          <select
+            disabled={!!busy}
+            aria-label="执行设备"
+            value={target}
+            onChange={(event) => setTarget(event.target.value)}
+            className="w-full rounded-lg border p-2 text-sm"
+          >
+            <option value="">选择执行设备</option>
+            {directory.status?.devices.map((device) => (
+              <option
+                key={device.id}
+                value={device.id}
+                disabled={!device.online}
+              >
+                {device.model || device.id} · {device.platform}
+                {!device.online ? " · 离线" : ""}
+              </option>
+            ))}
+          </select>
+        )}
         <textarea
           disabled={!!busy}
           aria-label="任务内容"
@@ -141,7 +184,16 @@ export function DeviceTaskPanel() {
           disabled={
             !!busy ||
             !text.trim() ||
-            !directory.status?.devices.some((d) => d.id === target && d.online)
+            (stages.length > 0
+              ? stages.some(
+                  (stage) => !stage.device_id || !stage.task.trim(),
+                ) ||
+                !directory.status?.devices.some(
+                  (d) => d.id === stages[0]?.device_id && d.online,
+                )
+              : !directory.status?.devices.some(
+                  (d) => d.id === target && d.online,
+                ))
           }
         >
           生成执行计划
@@ -188,6 +240,51 @@ export function DeviceTaskPanel() {
                 ? " · 等待当前步骤结束"
                 : ""}
             </p>
+            <TaskStages task={task} />
+            {(task.status === "succeeded" ||
+              task.status === "awaiting_handoff") && (
+              <div className="space-y-2 rounded-lg bg-slate-50 p-3 text-xs">
+                <p>
+                  {task.result_review?.outcome === "achieved"
+                    ? "已由用户确认完成"
+                    : task.result_review?.outcome === "not_achieved"
+                      ? "用户核对：目标尚未完成"
+                      : "结果待确认：步骤已执行，请到目标设备检查实际结果。"}
+                </p>
+                {task.result_review && (
+                  <p className="text-slate-500">
+                    核对人：{task.result_review.reviewed_by}
+                  </p>
+                )}
+                <p className="text-slate-500">
+                  核对只更新结果记录，不会再次执行操作。
+                </p>
+                <div className="flex flex-wrap gap-2">
+                  {(["achieved", "not_achieved"] as const).map((outcome) => (
+                    <button
+                      key={outcome}
+                      className={button}
+                      disabled={
+                        !!busy ||
+                        task.busy ||
+                        task.result_review?.outcome === outcome
+                      }
+                      onClick={() =>
+                        void perform(
+                          "review_result",
+                          { ...args, outcome },
+                          task.id,
+                        )
+                      }
+                    >
+                      {outcome === "achieved"
+                        ? "我已核对，确认完成"
+                        : "我已核对，尚未完成"}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
             {task.steps.length > 0 && (
               <details open={task.status === "awaiting_approval"}>
                 <summary className="cursor-pointer text-xs">
@@ -232,6 +329,19 @@ export function DeviceTaskPanel() {
               </details>
             )}
             <div className="flex flex-wrap gap-2">
+              {task.status === "awaiting_handoff" && (
+                <button
+                  className={button}
+                  disabled={
+                    !!busy ||
+                    task.busy ||
+                    task.result_review?.outcome !== "achieved"
+                  }
+                  onClick={() => void perform("advance", args, task.id)}
+                >
+                  交给下一台设备规划
+                </button>
+              )}
               {["awaiting_approval", "paused", "interrupted"].includes(
                 task.status,
               ) && (
