@@ -267,7 +267,10 @@ pet-sidecar/.godot/
 
 # Root-level preview screenshots (local UI artifacts, never commit)
 /preview*.png
+/*-preview.png
+/*_preview.png
 .pytest-tmp/
+docs/auto/_coverage_tmp/
 
 # Dev-history artifacts kept locally only (not part of the public project)
 docs/archive/

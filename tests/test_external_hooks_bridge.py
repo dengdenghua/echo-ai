@@ -197,7 +197,7 @@ def _write_config(tmp_path: Path, hooks: dict, dialect: str = "codex") -> Path:
 
 
 def _hook_cmd(script: str) -> str:
-    return f"{sys.executable} -c {json.dumps(script)}"
+    return f"{Path(sys.executable).as_posix()} -c {json.dumps(script)}"
 
 
 def test_dispatch_user_prompt_block_via_global_registry(tmp_path: Path) -> None:
@@ -520,7 +520,7 @@ def test_hook_project_dir_injection_is_quoted(tmp_path: Path) -> None:
     """A project_dir containing shell metacharacters must be shlex-quoted,
     so it cannot smuggle commands into the shell=True invocation."""
     marker = tmp_path / "pwned"
-    evil_dir = f"/tmp/innocent; touch {marker}"
+    evil_dir = f"/tmp/innocent; touch {marker.as_posix()}"
     out = run_external_hook(
         "echo ${CLAUDE_PROJECT_DIR}",
         {},
@@ -532,7 +532,7 @@ def test_hook_project_dir_injection_is_quoted(tmp_path: Path) -> None:
 
 def test_hook_plugin_root_injection_is_quoted(tmp_path: Path) -> None:
     marker = tmp_path / "pwned-root"
-    evil_root = f"/tmp/r; touch {marker}"
+    evil_root = f"/tmp/r; touch {marker.as_posix()}"
     out = run_external_hook(
         "echo ${CLAUDE_PLUGIN_ROOT}",
         {},
@@ -544,7 +544,7 @@ def test_hook_plugin_root_injection_is_quoted(tmp_path: Path) -> None:
 
 def test_hook_allowlist_refuses_non_matching_command(tmp_path: Path) -> None:
     marker = tmp_path / "ran"
-    cmd = f"touch {marker}"
+    cmd = f"touch {marker.as_posix()}"
     out = run_external_hook(cmd, {}, allowed_commands=["safe-*"])
     assert not marker.exists(), "non-allowlisted command executed"
     assert out.reason == "hook command not allowed by allowlist"
@@ -552,7 +552,7 @@ def test_hook_allowlist_refuses_non_matching_command(tmp_path: Path) -> None:
 
 def test_hook_allowlist_allows_matching_command(tmp_path: Path) -> None:
     marker = tmp_path / "ran-ok"
-    cmd = f"touch {marker}"
+    cmd = f"touch {marker.as_posix()}"
     out = run_external_hook(cmd, {}, allowed_commands=["touch *"])
     assert marker.exists()
     assert out.exit_code == 0

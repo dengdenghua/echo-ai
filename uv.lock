@@ -9,15 +9,18 @@ resolution-markers = [
     "python_full_version == '3.14.*' and sys_platform == 'emscripten'",
     "python_full_version == '3.14.*' and sys_platform != 'emscripten' and sys_platform != 'win32'",
     "python_full_version == '3.13.*' and sys_platform == 'win32'",
-    "python_full_version == '3.12.*' and sys_platform == 'win32'",
-    "python_full_version < '3.12' and sys_platform == 'win32'",
     "python_full_version == '3.13.*' and sys_platform == 'emscripten'",
-    "python_full_version == '3.12.*' and sys_platform == 'emscripten'",
-    "python_full_version < '3.12' and sys_platform == 'emscripten'",
     "python_full_version == '3.13.*' and sys_platform != 'emscripten' and sys_platform != 'win32'",
+    "python_full_version == '3.12.*' and sys_platform == 'win32'",
+    "python_full_version == '3.12.*' and sys_platform == 'emscripten'",
     "python_full_version == '3.12.*' and sys_platform != 'emscripten' and sys_platform != 'win32'",
+    "python_full_version < '3.12' and sys_platform == 'win32'",
+    "python_full_version < '3.12' and sys_platform == 'emscripten'",
     "python_full_version < '3.12' and sys_platform != 'emscripten' and sys_platform != 'win32'",
 ]
+
+[manifest]
+constraints = [{ name = "anyio", specifier = ">=4.14.2" }]
 
 [[package]]
 name = "a2a-sdk"
@@ -224,7 +227,8 @@ name = "anthropic"
 version = "0.100.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "anyio" },
+    { name = "anyio", version = "4.14.2", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.15'" },
+    { name = "anyio", version = "4.15.1", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.15'" },
     { name = "distro" },
     { name = "docstring-parser" },
     { name = "httpx" },
@@ -240,15 +244,46 @@ wheels = [
 
 [[package]]
 name = "anyio"
-version = "4.13.0"
+version = "4.14.2"
 source = { registry = "https://pypi.org/simple" }
+resolution-markers = [
+    "python_full_version == '3.14.*' and sys_platform == 'win32'",
+    "python_full_version == '3.14.*' and sys_platform == 'emscripten'",
+    "python_full_version == '3.14.*' and sys_platform != 'emscripten' and sys_platform != 'win32'",
+    "python_full_version == '3.13.*' and sys_platform == 'win32'",
+    "python_full_version == '3.13.*' and sys_platform == 'emscripten'",
+    "python_full_version == '3.13.*' and sys_platform != 'emscripten' and sys_platform != 'win32'",
+    "python_full_version == '3.12.*' and sys_platform == 'win32'",
+    "python_full_version == '3.12.*' and sys_platform == 'emscripten'",
+    "python_full_version == '3.12.*' and sys_platform != 'emscripten' and sys_platform != 'win32'",
+    "python_full_version < '3.12' and sys_platform == 'win32'",
+    "python_full_version < '3.12' and sys_platform == 'emscripten'",
+    "python_full_version < '3.12' and sys_platform != 'emscripten' and sys_platform != 'win32'",
+]
 dependencies = [
     { name = "idna" },
-    { name = "typing-extensions", marker = "python_full_version < '3.13'" },
+    { name = "typing-extensions", marker = "python_full_version < '3.13' or python_full_version >= '3.15'" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/19/14/2c5dd9f512b66549ae92767a9c7b330ae88e1932ca57876909410251fe13/anyio-4.13.0.tar.gz", hash = "sha256:334b70e641fd2221c1505b3890c69882fe4a2df910cba14d97019b90b24439dc", size = 231622, upload-time = "2026-03-24T12:59:09.671Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/61/cc/a381afa6efea9f496eff839d4a6a1aed3bfafc7b3ab4b0d1b243a12573dd/anyio-4.14.2.tar.gz", hash = "sha256:cfa139f3ed1a23ee8f88a145ddb5ac7605b8bbfd8592baacd7ce3d8bb4313c7f", size = 260176, upload-time = "2026-07-12T20:29:07.082Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/da/42/e921fccf5015463e32a3cf6ee7f980a6ed0f395ceeaa45060b61d86486c2/anyio-4.13.0-py3-none-any.whl", hash = "sha256:08b310f9e24a9594186fd75b4f73f4a4152069e3853f1ed8bfbf58369f4ad708", size = 114353, upload-time = "2026-03-24T12:59:08.246Z" },
+    { url = "https://files.pythonhosted.org/packages/da/35/f2287558c17e29fafc8ef3daf819bb9834061cfa43bff8014f7df7f63bdc/anyio-4.14.2-py3-none-any.whl", hash = "sha256:9f505dda5ac9f0c8309b5e8bd445a8c2bf7246f3ce950121e45ea15bc41d1494", size = 125813, upload-time = "2026-07-12T20:29:05.763Z" },
+]
+
+[[package]]
+name = "anyio"
+version = "4.15.1"
+source = { registry = "https://pypi.org/simple" }
+resolution-markers = [
+    "python_full_version >= '3.15' and sys_platform == 'win32'",
+    "python_full_version >= '3.15' and sys_platform == 'emscripten'",
+    "python_full_version >= '3.15' and sys_platform != 'emscripten' and sys_platform != 'win32'",
+]
+dependencies = [
+    { name = "idna" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/a9/d2/f4d173e22df740bc37b1db102b386ba719b66e95b0f0d751f556b387e6d2/anyio-4.15.1.tar.gz", hash = "sha256:9f28306018cbd6d329e64a36d58256edff76dd996fe423bc957326e578b82a94", size = 276966, upload-time = "2026-09-05T10:42:39.44Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/12/b8/4bd346e22b28902df4d651910f5242c28d84e4a5c2435ca5c3f797ed7e2e/anyio-4.15.1-py3-none-any.whl", hash = "sha256:6152fdbbf9a77fdec97731721bebf7c4c44f7c29b424b0065826173efc7ed101", size = 132079, upload-time = "2026-09-05T10:42:37.923Z" },
 ]
 
 [[package]]
@@ -1132,6 +1167,352 @@ wheels = [
 ]
 
 [[package]]
+name = "echo-ai-runtime"
+version = "0.1.0"
+source = { editable = "." }
+dependencies = [
+    { name = "cryptography" },
+    { name = "defusedxml" },
+    { name = "packaging" },
+    { name = "pillow" },
+    { name = "pydantic" },
+]
+
+[package.optional-dependencies]
+a2a = [
+    { name = "a2a-sdk" },
+]
+all = [
+    { name = "anthropic" },
+    { name = "bcrypt" },
+    { name = "cryptography" },
+    { name = "etcd3-py" },
+    { name = "fastapi" },
+    { name = "fastembed" },
+    { name = "feedparser" },
+    { name = "httpx" },
+    { name = "insightface" },
+    { name = "mcp" },
+    { name = "opencv-python-headless" },
+    { name = "openpyxl" },
+    { name = "opentelemetry-api" },
+    { name = "opentelemetry-sdk" },
+    { name = "paramiko" },
+    { name = "pillow" },
+    { name = "playwright" },
+    { name = "pyautogui" },
+    { name = "pydantic-settings" },
+    { name = "pyjwt", extra = ["crypto"] },
+    { name = "pypdf" },
+    { name = "python-docx" },
+    { name = "python-multipart" },
+    { name = "python-pptx" },
+    { name = "pyyaml" },
+    { name = "rapidocr-onnxruntime" },
+    { name = "redis" },
+    { name = "reportlab" },
+    { name = "starlette" },
+    { name = "trafilatura" },
+    { name = "tree-sitter" },
+    { name = "tree-sitter-python" },
+    { name = "tree-sitter-typescript" },
+    { name = "uiautomation", marker = "sys_platform == 'win32'" },
+    { name = "uvicorn", extra = ["standard"] },
+    { name = "watchdog" },
+    { name = "yt-dlp" },
+]
+anthropic = [
+    { name = "anthropic" },
+]
+browser = [
+    { name = "playwright" },
+]
+channels = [
+    { name = "cryptography" },
+    { name = "httpx" },
+]
+code-intel = [
+    { name = "tree-sitter" },
+    { name = "tree-sitter-python" },
+    { name = "tree-sitter-typescript" },
+]
+desktop = [
+    { name = "pillow" },
+    { name = "pyautogui" },
+    { name = "pywin32", marker = "sys_platform == 'win32'" },
+    { name = "uiautomation", marker = "sys_platform == 'win32'" },
+    { name = "windows-capture", marker = "sys_platform == 'win32'" },
+]
+desktop-build = [
+    { name = "pyinstaller" },
+]
+desktop-core = [
+    { name = "anthropic" },
+    { name = "cryptography" },
+    { name = "ddgs" },
+    { name = "fastapi" },
+    { name = "httpx" },
+    { name = "openpyxl" },
+    { name = "packaging" },
+    { name = "pydantic" },
+    { name = "pypdf" },
+    { name = "python-docx" },
+    { name = "python-dotenv" },
+    { name = "python-multipart" },
+    { name = "python-pptx" },
+    { name = "pyyaml" },
+    { name = "reportlab" },
+    { name = "starlette" },
+    { name = "uvicorn", extra = ["standard"] },
+]
+dev = [
+    { name = "a2a-sdk" },
+    { name = "av" },
+    { name = "bandit" },
+    { name = "bcrypt" },
+    { name = "httpx2" },
+    { name = "mcp" },
+    { name = "mypy" },
+    { name = "numpy" },
+    { name = "opentelemetry-api" },
+    { name = "opentelemetry-sdk" },
+    { name = "pip-audit" },
+    { name = "playwright" },
+    { name = "pyright" },
+    { name = "pytest" },
+    { name = "pytest-asyncio" },
+    { name = "pytest-cov" },
+    { name = "pytest-timeout" },
+    { name = "ruff" },
+    { name = "tzdata", marker = "sys_platform == 'win32'" },
+]
+discord = [
+    { name = "cryptography" },
+]
+docs = [
+    { name = "mkdocs" },
+    { name = "mkdocs-material" },
+    { name = "pymdown-extensions" },
+]
+extract = [
+    { name = "pypdf" },
+    { name = "trafilatura" },
+]
+hearts-etcd = [
+    { name = "etcd3-py" },
+]
+hearts-redis = [
+    { name = "redis" },
+]
+local-auth = [
+    { name = "bcrypt" },
+]
+mantle-ssh = [
+    { name = "paramiko" },
+]
+mcp = [
+    { name = "mcp" },
+    { name = "pydantic-settings" },
+    { name = "pyjwt", extra = ["crypto"] },
+]
+minimal = [
+    { name = "httpx" },
+    { name = "python-dotenv" },
+]
+office = [
+    { name = "openpyxl" },
+    { name = "pypdf" },
+    { name = "python-docx" },
+    { name = "python-pptx" },
+    { name = "reportlab" },
+]
+reach = [
+    { name = "feedparser" },
+    { name = "httpx" },
+    { name = "yt-dlp" },
+]
+release = [
+    { name = "twine" },
+]
+serve = [
+    { name = "fastapi" },
+    { name = "python-multipart" },
+    { name = "pyyaml" },
+    { name = "starlette" },
+    { name = "uvicorn", extra = ["standard"] },
+]
+skin = [
+    { name = "watchdog" },
+]
+swebench = [
+    { name = "datasets" },
+    { name = "gitpython" },
+    { name = "swebench" },
+]
+tracing = [
+    { name = "opentelemetry-api" },
+    { name = "opentelemetry-sdk" },
+]
+video = [
+    { name = "av" },
+    { name = "faster-whisper" },
+]
+video-gpu = [
+    { name = "onnxruntime-gpu" },
+]
+vision = [
+    { name = "fastembed" },
+    { name = "insightface" },
+    { name = "opencv-python-headless" },
+    { name = "rapidocr-onnxruntime" },
+]
+web = [
+    { name = "ddgs" },
+    { name = "httpx" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "a2a-sdk", marker = "extra == 'a2a'", specifier = ">=1.1.0,<2.0" },
+    { name = "a2a-sdk", marker = "extra == 'dev'", specifier = ">=1.1.0,<2.0" },
+    { name = "anthropic", marker = "extra == 'all'", specifier = ">=0.40,<1.0" },
+    { name = "anthropic", marker = "extra == 'anthropic'", specifier = ">=0.40,<1.0" },
+    { name = "anthropic", marker = "extra == 'desktop-core'", specifier = ">=0.40,<1.0" },
+    { name = "av", marker = "extra == 'dev'", specifier = ">=12.0" },
+    { name = "av", marker = "extra == 'video'", specifier = ">=12.0" },
+    { name = "bandit", marker = "extra == 'dev'", specifier = ">=1.7" },
+    { name = "bcrypt", marker = "extra == 'all'", specifier = ">=4.0" },
+    { name = "bcrypt", marker = "extra == 'dev'", specifier = ">=4.0" },
+    { name = "bcrypt", marker = "extra == 'local-auth'", specifier = ">=4.0" },
+    { name = "cryptography", specifier = ">=50.0.0" },
+    { name = "cryptography", marker = "extra == 'all'", specifier = ">=50.0.0" },
+    { name = "cryptography", marker = "extra == 'channels'", specifier = ">=50.0.0" },
+    { name = "cryptography", marker = "extra == 'desktop-core'", specifier = ">=50.0.0" },
+    { name = "cryptography", marker = "extra == 'discord'", specifier = ">=50.0.0" },
+    { name = "datasets", marker = "extra == 'swebench'", specifier = ">=2.14" },
+    { name = "ddgs", marker = "extra == 'desktop-core'", specifier = ">=9.0" },
+    { name = "ddgs", marker = "extra == 'web'", specifier = ">=9.0" },
+    { name = "defusedxml", specifier = ">=0.7.1" },
+    { name = "etcd3-py", marker = "extra == 'all'", specifier = ">=0.1.6,<0.2" },
+    { name = "etcd3-py", marker = "extra == 'hearts-etcd'", specifier = ">=0.1.6,<0.2" },
+    { name = "fastapi", marker = "extra == 'all'", specifier = ">=0.115,<1.0" },
+    { name = "fastapi", marker = "extra == 'desktop-core'", specifier = ">=0.115,<1.0" },
+    { name = "fastapi", marker = "extra == 'serve'", specifier = ">=0.115,<1.0" },
+    { name = "fastembed", marker = "extra == 'all'", specifier = ">=0.8.0" },
+    { name = "fastembed", marker = "extra == 'vision'", specifier = ">=0.8.0" },
+    { name = "faster-whisper", marker = "extra == 'video'", specifier = ">=1.0.0" },
+    { name = "feedparser", marker = "extra == 'all'", specifier = ">=6.0.11" },
+    { name = "feedparser", marker = "extra == 'reach'", specifier = ">=6.0.11" },
+    { name = "gitpython", marker = "extra == 'swebench'", specifier = ">=3.1.58" },
+    { name = "httpx", marker = "extra == 'all'", specifier = ">=0.27" },
+    { name = "httpx", marker = "extra == 'channels'", specifier = ">=0.27" },
+    { name = "httpx", marker = "extra == 'desktop-core'", specifier = ">=0.27" },
+    { name = "httpx", marker = "extra == 'minimal'", specifier = ">=0.27" },
+    { name = "httpx", marker = "extra == 'reach'", specifier = ">=0.27" },
+    { name = "httpx", marker = "extra == 'web'", specifier = ">=0.27" },
+    { name = "httpx2", marker = "extra == 'dev'", specifier = ">=2.12.0" },
+    { name = "insightface", marker = "extra == 'all'", specifier = ">=1.0.1" },
+    { name = "insightface", marker = "extra == 'vision'", specifier = ">=1.0.1" },
+    { name = "mcp", marker = "extra == 'all'", specifier = ">=2.0.0,<3.0" },
+    { name = "mcp", marker = "extra == 'dev'", specifier = ">=2.0.0,<3.0" },
+    { name = "mcp", marker = "extra == 'mcp'", specifier = ">=2.0.0,<3.0" },
+    { name = "mkdocs", marker = "extra == 'docs'", specifier = ">=1.6" },
+    { name = "mkdocs-material", marker = "extra == 'docs'", specifier = ">=9.5" },
+    { name = "mypy", marker = "extra == 'dev'", specifier = ">=2.1,<2.2" },
+    { name = "numpy", marker = "extra == 'dev'", specifier = ">=1.26,<2.5" },
+    { name = "onnxruntime-gpu", marker = "extra == 'video-gpu'", specifier = ">=1.17" },
+    { name = "opencv-python-headless", marker = "extra == 'all'", specifier = ">=5.0.0.93" },
+    { name = "opencv-python-headless", marker = "extra == 'vision'", specifier = ">=5.0.0.93" },
+    { name = "openpyxl", marker = "extra == 'all'", specifier = ">=3.1.5" },
+    { name = "openpyxl", marker = "extra == 'desktop-core'", specifier = ">=3.1.5" },
+    { name = "openpyxl", marker = "extra == 'office'", specifier = ">=3.1.5" },
+    { name = "opentelemetry-api", marker = "extra == 'all'", specifier = ">=1.25" },
+    { name = "opentelemetry-api", marker = "extra == 'dev'", specifier = ">=1.25" },
+    { name = "opentelemetry-api", marker = "extra == 'tracing'", specifier = ">=1.25" },
+    { name = "opentelemetry-sdk", marker = "extra == 'all'", specifier = ">=1.25" },
+    { name = "opentelemetry-sdk", marker = "extra == 'dev'", specifier = ">=1.25" },
+    { name = "opentelemetry-sdk", marker = "extra == 'tracing'", specifier = ">=1.25" },
+    { name = "packaging", specifier = ">=24.0" },
+    { name = "packaging", marker = "extra == 'desktop-core'", specifier = ">=24.0" },
+    { name = "paramiko", marker = "extra == 'all'", specifier = ">=5.0.0" },
+    { name = "paramiko", marker = "extra == 'mantle-ssh'", specifier = ">=5.0.0" },
+    { name = "pillow", specifier = ">=12.3.0" },
+    { name = "pillow", marker = "extra == 'all'", specifier = ">=12.3.0" },
+    { name = "pillow", marker = "extra == 'desktop'", specifier = ">=11.2" },
+    { name = "pip-audit", marker = "extra == 'dev'", specifier = ">=2.7" },
+    { name = "playwright", marker = "extra == 'all'", specifier = ">=1.48" },
+    { name = "playwright", marker = "extra == 'browser'", specifier = ">=1.48" },
+    { name = "playwright", marker = "extra == 'dev'", specifier = ">=1.48" },
+    { name = "pyautogui", marker = "extra == 'all'", specifier = ">=0.9.54" },
+    { name = "pyautogui", marker = "extra == 'desktop'", specifier = ">=0.9.54" },
+    { name = "pydantic", specifier = ">=2.12.0" },
+    { name = "pydantic", marker = "extra == 'desktop-core'", specifier = ">=2.12.0" },
+    { name = "pydantic-settings", marker = "extra == 'all'", specifier = ">=2.14.2" },
+    { name = "pydantic-settings", marker = "extra == 'mcp'", specifier = ">=2.14.2" },
+    { name = "pyinstaller", marker = "extra == 'desktop-build'", specifier = "==6.16.0" },
+    { name = "pyjwt", extras = ["crypto"], marker = "extra == 'all'", specifier = ">=2.13.0" },
+    { name = "pyjwt", extras = ["crypto"], marker = "extra == 'mcp'", specifier = ">=2.13.0" },
+    { name = "pymdown-extensions", marker = "extra == 'docs'", specifier = ">=11.0.1" },
+    { name = "pypdf", marker = "extra == 'all'", specifier = ">=6.15.0" },
+    { name = "pypdf", marker = "extra == 'desktop-core'", specifier = ">=6.15.0" },
+    { name = "pypdf", marker = "extra == 'extract'", specifier = ">=6.15.0" },
+    { name = "pypdf", marker = "extra == 'office'", specifier = ">=6.15.0" },
+    { name = "pyright", marker = "extra == 'dev'", specifier = ">=1.1.400" },
+    { name = "pytest", marker = "extra == 'dev'", specifier = ">=8.0" },
+    { name = "pytest-asyncio", marker = "extra == 'dev'", specifier = ">=0.24" },
+    { name = "pytest-cov", marker = "extra == 'dev'", specifier = ">=5.0" },
+    { name = "pytest-timeout", marker = "extra == 'dev'", specifier = ">=2.2" },
+    { name = "python-docx", marker = "extra == 'all'", specifier = ">=1.2.0" },
+    { name = "python-docx", marker = "extra == 'desktop-core'", specifier = ">=1.2.0" },
+    { name = "python-docx", marker = "extra == 'office'", specifier = ">=1.2.0" },
+    { name = "python-dotenv", marker = "extra == 'desktop-core'", specifier = ">=1.0" },
+    { name = "python-dotenv", marker = "extra == 'minimal'", specifier = ">=1.0" },
+    { name = "python-multipart", marker = "extra == 'all'", specifier = ">=0.0.31" },
+    { name = "python-multipart", marker = "extra == 'desktop-core'", specifier = ">=0.0.31" },
+    { name = "python-multipart", marker = "extra == 'serve'", specifier = ">=0.0.31" },
+    { name = "python-pptx", marker = "extra == 'all'", specifier = ">=1.0.2" },
+    { name = "python-pptx", marker = "extra == 'desktop-core'", specifier = ">=1.0.2" },
+    { name = "python-pptx", marker = "extra == 'office'", specifier = ">=1.0.2" },
+    { name = "pywin32", marker = "sys_platform == 'win32' and extra == 'desktop'", specifier = ">=308" },
+    { name = "pyyaml", marker = "extra == 'all'", specifier = ">=6.0" },
+    { name = "pyyaml", marker = "extra == 'desktop-core'", specifier = ">=6.0" },
+    { name = "pyyaml", marker = "extra == 'serve'", specifier = ">=6.0" },
+    { name = "rapidocr-onnxruntime", marker = "extra == 'all'", specifier = ">=1.3.0" },
+    { name = "rapidocr-onnxruntime", marker = "extra == 'vision'", specifier = ">=1.3.0" },
+    { name = "redis", marker = "extra == 'all'", specifier = ">=5.0" },
+    { name = "redis", marker = "extra == 'hearts-redis'", specifier = ">=5.0" },
+    { name = "reportlab", marker = "extra == 'all'", specifier = ">=4.4.4" },
+    { name = "reportlab", marker = "extra == 'desktop-core'", specifier = ">=4.4.4" },
+    { name = "reportlab", marker = "extra == 'office'", specifier = ">=4.4.4" },
+    { name = "ruff", marker = "extra == 'dev'", specifier = ">=0.15.12,<0.16" },
+    { name = "starlette", marker = "extra == 'all'", specifier = ">=1.3.1" },
+    { name = "starlette", marker = "extra == 'desktop-core'", specifier = ">=1.3.1" },
+    { name = "starlette", marker = "extra == 'serve'", specifier = ">=1.3.1" },
+    { name = "swebench", marker = "extra == 'swebench'", specifier = ">=2.0" },
+    { name = "trafilatura", marker = "extra == 'all'", specifier = ">=2.0" },
+    { name = "trafilatura", marker = "extra == 'extract'", specifier = ">=2.0" },
+    { name = "tree-sitter", marker = "extra == 'all'", specifier = ">=0.23" },
+    { name = "tree-sitter", marker = "extra == 'code-intel'", specifier = ">=0.23" },
+    { name = "tree-sitter-python", marker = "extra == 'all'", specifier = ">=0.23" },
+    { name = "tree-sitter-python", marker = "extra == 'code-intel'", specifier = ">=0.23" },
+    { name = "tree-sitter-typescript", marker = "extra == 'all'", specifier = ">=0.23" },
+    { name = "tree-sitter-typescript", marker = "extra == 'code-intel'", specifier = ">=0.23" },
+    { name = "twine", marker = "extra == 'release'", specifier = "==7.0.0" },
+    { name = "tzdata", marker = "sys_platform == 'win32' and extra == 'dev'", specifier = ">=2025.1" },
+    { name = "uiautomation", marker = "sys_platform == 'win32' and extra == 'all'", specifier = ">=2.0" },
+    { name = "uiautomation", marker = "sys_platform == 'win32' and extra == 'desktop'", specifier = ">=2.0" },
+    { name = "uvicorn", extras = ["standard"], marker = "extra == 'all'", specifier = ">=0.32" },
+    { name = "uvicorn", extras = ["standard"], marker = "extra == 'desktop-core'", specifier = ">=0.32" },
+    { name = "uvicorn", extras = ["standard"], marker = "extra == 'serve'", specifier = ">=0.32" },
+    { name = "watchdog", marker = "extra == 'all'", specifier = ">=4.0" },
+    { name = "watchdog", marker = "extra == 'skin'", specifier = ">=4.0" },
+    { name = "windows-capture", marker = "sys_platform == 'win32' and extra == 'desktop'", specifier = ">=2.0.1,<3" },
+    { name = "yt-dlp", marker = "extra == 'all'", specifier = ">=2026.8.12" },
+    { name = "yt-dlp", marker = "extra == 'reach'", specifier = ">=2026.8.12" },
+]
+provides-extras = ["minimal", "dev", "tracing", "local-auth", "serve", "desktop-core", "desktop-build", "web", "reach", "extract", "office", "anthropic", "mcp", "a2a", "browser", "desktop", "vision", "video", "video-gpu", "code-intel", "discord", "channels", "mantle-ssh", "hearts-redis", "hearts-etcd", "skin", "swebench", "docs", "release", "all"]
+
+[[package]]
 name = "et-xmlfile"
 version = "2.0.0"
 source = { registry = "https://pypi.org/simple" }
@@ -1636,15 +2017,15 @@ wheels = [
 
 [[package]]
 name = "httpcore2"
-version = "2.9.1"
+version = "2.13.1"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "h11" },
     { name = "truststore" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/39/a8/20ed1ed79cbc2ecdf5301c0968ab7c85547212e2a7bd126ddd2d986e206e/httpcore2-2.9.1.tar.gz", hash = "sha256:4d8acbf8b306f48c9d6046591fd5ba4037d1b1b1000d140fc2c3eab1e9a0c0e2", size = 67089, upload-time = "2026-07-24T09:21:03.867Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/cb/f3/1db7aa2bc2524062192bb0e0323969492d1883152a232fe36eea65f4e35c/httpcore2-2.13.1.tar.gz", hash = "sha256:e0aa977abe17e69a3b820a24542a6fa88702676d83880b8d194dcd18408e5103", size = 68071, upload-time = "2026-09-23T07:47:22.372Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/9f/fb/46c52b781975c335a2bcf1072c7bbc007cbdc8d674217f5ee1daba2c848b/httpcore2-2.9.1-py3-none-any.whl", hash = "sha256:6182472379e855fe4221246a2bb7ecede403bc61c6798062ae1787d051ccde26", size = 82809, upload-time = "2026-07-24T09:21:01.178Z" },
+    { url = "https://files.pythonhosted.org/packages/09/ba/a4568248771ce81957bfb7cc600264a40fbcda092391ee1c415c50be4bea/httpcore2-2.13.1-py3-none-any.whl", hash = "sha256:e1e05d4f25f7d7d496bfb96748f6f4b67657b03da069b3a68c36069f3db73d0a", size = 83423, upload-time = "2026-09-23T07:47:19.365Z" },
 ]
 
 [[package]]
@@ -1688,7 +2069,8 @@ name = "httpx"
 version = "0.28.1"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "anyio" },
+    { name = "anyio", version = "4.14.2", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.15'" },
+    { name = "anyio", version = "4.15.1", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.15'" },
     { name = "certifi" },
     { name = "httpcore" },
     { name = "idna" },
@@ -1700,18 +2082,29 @@ wheels = [
 
 [[package]]
 name = "httpx2"
-version = "2.9.1"
+version = "2.13.1"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "anyio" },
-    { name = "httpcore2" },
+    { name = "anyio", version = "4.14.2", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.15' and sys_platform != 'emscripten'" },
+    { name = "anyio", version = "4.15.1", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.15' and sys_platform != 'emscripten'" },
+    { name = "httpcore2", marker = "sys_platform != 'emscripten'" },
+    { name = "httpx2-jsfetch", marker = "python_full_version >= '3.12' and sys_platform == 'emscripten'" },
     { name = "idna" },
-    { name = "truststore" },
+    { name = "truststore", marker = "sys_platform != 'emscripten'" },
     { name = "typing-extensions", marker = "python_full_version < '3.13'" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/21/14/38128fbafd7e0ed41d874df6c9a653d47c2d111cfe59e2b4ac95161b4abd/httpx2-2.9.1.tar.gz", hash = "sha256:1932a768737e3666291582833da748cc4e563c337cf96706fccc04fa6e58764a", size = 95458, upload-time = "2026-07-24T09:21:04.972Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/d5/44/474bef2a0e9d90f1715d32cb98b0738695ca17ba324095fb2497ed7fbd59/httpx2-2.13.1.tar.gz", hash = "sha256:e48744a19e3af5ee48313d0ce5fe941d5422fae5705ea922a4aabf94d7800dfa", size = 100405, upload-time = "2026-09-23T07:47:23.052Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/13/b8/cfd91c4ab9134d386d48f0b6ac662ff3d4be6efdee59ee1c67ebc3c0487c/httpx2-2.9.1-py3-none-any.whl", hash = "sha256:1820fe14a9ab1107bfeff39259987429450b070ec0ff38cc87eb0d8c97fdc71a", size = 91191, upload-time = "2026-07-24T09:21:02.6Z" },
+    { url = "https://files.pythonhosted.org/packages/d8/9c/6fe8931fd9f381042a9e4c7d5a7b4cbf7016b252bec0c99a49fce42c3326/httpx2-2.13.1-py3-none-any.whl", hash = "sha256:6dff50fabc270ee5fd25d845d0b078ed20564579744d6d962850975996d2f9a4", size = 95597, upload-time = "2026-09-23T07:47:20.995Z" },
+]
+
+[[package]]
+name = "httpx2-jsfetch"
+version = "1.0"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/cd/c4/0e5636363151a2a1795e0a77617168b9ca438e1748ec05fc9b5687f93d64/httpx2_jsfetch-1.0.tar.gz", hash = "sha256:70a0e3eabfef7cce5ad9c629f7d01ca05e418f586646f4ddf14782e4c1454c60", size = 6872, upload-time = "2026-08-07T00:13:07.492Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/9b/43/832f631d32e4f1211caa2ba368317739fe71f0b8530e4c9d15dc454bac2a/httpx2_jsfetch-1.0-py3-none-any.whl", hash = "sha256:cb916b707601e69a07721aabc8f3f6659be3a6893bc1ff5c6f9e02241df2da32", size = 6382, upload-time = "2026-08-07T00:13:06.567Z" },
 ]
 
 [[package]]
@@ -2392,7 +2785,8 @@ name = "mcp"
 version = "2.0.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "anyio" },
+    { name = "anyio", version = "4.14.2", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.15'" },
+    { name = "anyio", version = "4.15.1", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.15'" },
     { name = "httpx2" },
     { name = "jsonschema" },
     { name = "mcp-types" },
@@ -3085,348 +3479,6 @@ wheels = [
     { url = "https://files.pythonhosted.org/packages/1a/b0/413077f6b1153ed3cba361401c6783bbad6114804a000cc22eb71c13e190/numpy-2.4.6-pp311-pypy311_pp73-manylinux_2_27_x86_64.manylinux_2_28_x86_64.whl", hash = "sha256:8ad03c0965fb3c692200e74d458ca28c1dbb4ce96f9a479a8aa041ad5fabca02", size = 16747286, upload-time = "2026-05-18T23:37:06.327Z" },
     { url = "https://files.pythonhosted.org/packages/15/ce/e5ec180bc41812edcd8daeb8639d205622c0e8c02259d8ab25a0201b3c2a/numpy-2.4.6-pp311-pypy311_pp73-win_amd64.whl", hash = "sha256:2803abfebfc990042cd494d8ce2d5f82e9d847af6d35ec486923aa19dbad5e73", size = 12504263, upload-time = "2026-05-18T23:37:09.715Z" },
 ]
-
-[[package]]
-name = "echo-ai-runtime"
-version = "0.1.0"
-source = { editable = "." }
-dependencies = [
-    { name = "cryptography" },
-    { name = "defusedxml" },
-    { name = "packaging" },
-    { name = "pillow" },
-    { name = "pydantic" },
-]
-
-[package.optional-dependencies]
-a2a = [
-    { name = "a2a-sdk" },
-]
-all = [
-    { name = "anthropic" },
-    { name = "bcrypt" },
-    { name = "cryptography" },
-    { name = "etcd3-py" },
-    { name = "fastapi" },
-    { name = "fastembed" },
-    { name = "feedparser" },
-    { name = "httpx" },
-    { name = "insightface" },
-    { name = "mcp" },
-    { name = "opencv-python-headless" },
-    { name = "openpyxl" },
-    { name = "opentelemetry-api" },
-    { name = "opentelemetry-sdk" },
-    { name = "paramiko" },
-    { name = "pillow" },
-    { name = "playwright" },
-    { name = "pyautogui" },
-    { name = "pydantic-settings" },
-    { name = "pyjwt", extra = ["crypto"] },
-    { name = "pypdf" },
-    { name = "python-docx" },
-    { name = "python-multipart" },
-    { name = "python-pptx" },
-    { name = "pyyaml" },
-    { name = "rapidocr-onnxruntime" },
-    { name = "redis" },
-    { name = "reportlab" },
-    { name = "starlette" },
-    { name = "trafilatura" },
-    { name = "tree-sitter" },
-    { name = "tree-sitter-python" },
-    { name = "tree-sitter-typescript" },
-    { name = "uiautomation", marker = "sys_platform == 'win32'" },
-    { name = "uvicorn", extra = ["standard"] },
-    { name = "watchdog" },
-    { name = "yt-dlp" },
-]
-anthropic = [
-    { name = "anthropic" },
-]
-browser = [
-    { name = "playwright" },
-]
-channels = [
-    { name = "cryptography" },
-    { name = "httpx" },
-]
-code-intel = [
-    { name = "tree-sitter" },
-    { name = "tree-sitter-python" },
-    { name = "tree-sitter-typescript" },
-]
-desktop = [
-    { name = "pillow" },
-    { name = "pyautogui" },
-    { name = "uiautomation", marker = "sys_platform == 'win32'" },
-]
-desktop-build = [
-    { name = "pyinstaller" },
-]
-desktop-core = [
-    { name = "anthropic" },
-    { name = "cryptography" },
-    { name = "ddgs" },
-    { name = "fastapi" },
-    { name = "httpx" },
-    { name = "openpyxl" },
-    { name = "packaging" },
-    { name = "pydantic" },
-    { name = "pypdf" },
-    { name = "python-docx" },
-    { name = "python-dotenv" },
-    { name = "python-multipart" },
-    { name = "python-pptx" },
-    { name = "pyyaml" },
-    { name = "reportlab" },
-    { name = "starlette" },
-    { name = "uvicorn", extra = ["standard"] },
-]
-dev = [
-    { name = "a2a-sdk" },
-    { name = "av" },
-    { name = "bandit" },
-    { name = "bcrypt" },
-    { name = "httpx2" },
-    { name = "mcp" },
-    { name = "mypy" },
-    { name = "numpy" },
-    { name = "opentelemetry-api" },
-    { name = "opentelemetry-sdk" },
-    { name = "pip-audit" },
-    { name = "playwright" },
-    { name = "pyright" },
-    { name = "pytest" },
-    { name = "pytest-asyncio" },
-    { name = "pytest-cov" },
-    { name = "pytest-timeout" },
-    { name = "ruff" },
-    { name = "tzdata", marker = "sys_platform == 'win32'" },
-]
-discord = [
-    { name = "cryptography" },
-]
-docs = [
-    { name = "mkdocs" },
-    { name = "mkdocs-material" },
-    { name = "pymdown-extensions" },
-]
-extract = [
-    { name = "pypdf" },
-    { name = "trafilatura" },
-]
-hearts-etcd = [
-    { name = "etcd3-py" },
-]
-hearts-redis = [
-    { name = "redis" },
-]
-local-auth = [
-    { name = "bcrypt" },
-]
-mantle-ssh = [
-    { name = "paramiko" },
-]
-mcp = [
-    { name = "mcp" },
-    { name = "pydantic-settings" },
-    { name = "pyjwt", extra = ["crypto"] },
-]
-minimal = [
-    { name = "httpx" },
-    { name = "python-dotenv" },
-]
-office = [
-    { name = "openpyxl" },
-    { name = "pypdf" },
-    { name = "python-docx" },
-    { name = "python-pptx" },
-    { name = "reportlab" },
-]
-reach = [
-    { name = "feedparser" },
-    { name = "httpx" },
-    { name = "yt-dlp" },
-]
-release = [
-    { name = "twine" },
-]
-serve = [
-    { name = "fastapi" },
-    { name = "python-multipart" },
-    { name = "pyyaml" },
-    { name = "starlette" },
-    { name = "uvicorn", extra = ["standard"] },
-]
-skin = [
-    { name = "watchdog" },
-]
-swebench = [
-    { name = "datasets" },
-    { name = "gitpython" },
-    { name = "swebench" },
-]
-tracing = [
-    { name = "opentelemetry-api" },
-    { name = "opentelemetry-sdk" },
-]
-video = [
-    { name = "av" },
-    { name = "faster-whisper" },
-]
-video-gpu = [
-    { name = "onnxruntime-gpu" },
-]
-vision = [
-    { name = "fastembed" },
-    { name = "insightface" },
-    { name = "opencv-python-headless" },
-    { name = "rapidocr-onnxruntime" },
-]
-web = [
-    { name = "ddgs" },
-    { name = "httpx" },
-]
-
-[package.metadata]
-requires-dist = [
-    { name = "a2a-sdk", marker = "extra == 'a2a'", specifier = ">=1.1.0,<2.0" },
-    { name = "a2a-sdk", marker = "extra == 'dev'", specifier = ">=1.1.0,<2.0" },
-    { name = "anthropic", marker = "extra == 'all'", specifier = ">=0.40,<1.0" },
-    { name = "anthropic", marker = "extra == 'anthropic'", specifier = ">=0.40,<1.0" },
-    { name = "anthropic", marker = "extra == 'desktop-core'", specifier = ">=0.40,<1.0" },
-    { name = "av", marker = "extra == 'dev'", specifier = ">=12.0" },
-    { name = "av", marker = "extra == 'video'", specifier = ">=12.0" },
-    { name = "bandit", marker = "extra == 'dev'", specifier = ">=1.7" },
-    { name = "bcrypt", marker = "extra == 'all'", specifier = ">=4.0" },
-    { name = "bcrypt", marker = "extra == 'dev'", specifier = ">=4.0" },
-    { name = "bcrypt", marker = "extra == 'local-auth'", specifier = ">=4.0" },
-    { name = "cryptography", specifier = ">=50.0.0" },
-    { name = "cryptography", marker = "extra == 'all'", specifier = ">=50.0.0" },
-    { name = "cryptography", marker = "extra == 'channels'", specifier = ">=50.0.0" },
-    { name = "cryptography", marker = "extra == 'desktop-core'", specifier = ">=50.0.0" },
-    { name = "cryptography", marker = "extra == 'discord'", specifier = ">=50.0.0" },
-    { name = "datasets", marker = "extra == 'swebench'", specifier = ">=2.14" },
-    { name = "ddgs", marker = "extra == 'desktop-core'", specifier = ">=9.0" },
-    { name = "ddgs", marker = "extra == 'web'", specifier = ">=9.0" },
-    { name = "defusedxml", specifier = ">=0.7.1" },
-    { name = "etcd3-py", marker = "extra == 'all'", specifier = ">=0.1.6,<0.2" },
-    { name = "etcd3-py", marker = "extra == 'hearts-etcd'", specifier = ">=0.1.6,<0.2" },
-    { name = "fastapi", marker = "extra == 'all'", specifier = ">=0.115,<1.0" },
-    { name = "fastapi", marker = "extra == 'desktop-core'", specifier = ">=0.115,<1.0" },
-    { name = "fastapi", marker = "extra == 'serve'", specifier = ">=0.115,<1.0" },
-    { name = "fastembed", marker = "extra == 'all'", specifier = ">=0.8.0" },
-    { name = "fastembed", marker = "extra == 'vision'", specifier = ">=0.8.0" },
-    { name = "faster-whisper", marker = "extra == 'video'", specifier = ">=1.0.0" },
-    { name = "feedparser", marker = "extra == 'all'", specifier = ">=6.0.11" },
-    { name = "feedparser", marker = "extra == 'reach'", specifier = ">=6.0.11" },
-    { name = "gitpython", marker = "extra == 'swebench'", specifier = ">=3.1.58" },
-    { name = "httpx", marker = "extra == 'all'", specifier = ">=0.27" },
-    { name = "httpx", marker = "extra == 'channels'", specifier = ">=0.27" },
-    { name = "httpx", marker = "extra == 'desktop-core'", specifier = ">=0.27" },
-    { name = "httpx", marker = "extra == 'minimal'", specifier = ">=0.27" },
-    { name = "httpx", marker = "extra == 'reach'", specifier = ">=0.27" },
-    { name = "httpx", marker = "extra == 'web'", specifier = ">=0.27" },
-    { name = "httpx2", marker = "extra == 'dev'", specifier = ">=2.0" },
-    { name = "insightface", marker = "extra == 'all'", specifier = ">=1.0.1" },
-    { name = "insightface", marker = "extra == 'vision'", specifier = ">=1.0.1" },
-    { name = "mcp", marker = "extra == 'all'", specifier = ">=2.0.0,<3.0" },
-    { name = "mcp", marker = "extra == 'dev'", specifier = ">=2.0.0,<3.0" },
-    { name = "mcp", marker = "extra == 'mcp'", specifier = ">=2.0.0,<3.0" },
-    { name = "mkdocs", marker = "extra == 'docs'", specifier = ">=1.6" },
-    { name = "mkdocs-material", marker = "extra == 'docs'", specifier = ">=9.5" },
-    { name = "mypy", marker = "extra == 'dev'", specifier = ">=2.1,<2.2" },
-    { name = "numpy", marker = "extra == 'dev'", specifier = ">=1.26,<2.5" },
-    { name = "onnxruntime-gpu", marker = "extra == 'video-gpu'", specifier = ">=1.17" },
-    { name = "opencv-python-headless", marker = "extra == 'all'", specifier = ">=5.0.0.93" },
-    { name = "opencv-python-headless", marker = "extra == 'vision'", specifier = ">=5.0.0.93" },
-    { name = "openpyxl", marker = "extra == 'all'", specifier = ">=3.1.5" },
-    { name = "openpyxl", marker = "extra == 'desktop-core'", specifier = ">=3.1.5" },
-    { name = "openpyxl", marker = "extra == 'office'", specifier = ">=3.1.5" },
-    { name = "opentelemetry-api", marker = "extra == 'all'", specifier = ">=1.25" },
-    { name = "opentelemetry-api", marker = "extra == 'dev'", specifier = ">=1.25" },
-    { name = "opentelemetry-api", marker = "extra == 'tracing'", specifier = ">=1.25" },
-    { name = "opentelemetry-sdk", marker = "extra == 'all'", specifier = ">=1.25" },
-    { name = "opentelemetry-sdk", marker = "extra == 'dev'", specifier = ">=1.25" },
-    { name = "opentelemetry-sdk", marker = "extra == 'tracing'", specifier = ">=1.25" },
-    { name = "packaging", specifier = ">=24.0" },
-    { name = "packaging", marker = "extra == 'desktop-core'", specifier = ">=24.0" },
-    { name = "paramiko", marker = "extra == 'all'", specifier = ">=5.0.0" },
-    { name = "paramiko", marker = "extra == 'mantle-ssh'", specifier = ">=5.0.0" },
-    { name = "pillow", specifier = ">=12.3.0" },
-    { name = "pillow", marker = "extra == 'all'", specifier = ">=12.3.0" },
-    { name = "pillow", marker = "extra == 'desktop'", specifier = ">=10.0" },
-    { name = "pip-audit", marker = "extra == 'dev'", specifier = ">=2.7" },
-    { name = "playwright", marker = "extra == 'all'", specifier = ">=1.48" },
-    { name = "playwright", marker = "extra == 'browser'", specifier = ">=1.48" },
-    { name = "playwright", marker = "extra == 'dev'", specifier = ">=1.48" },
-    { name = "pyautogui", marker = "extra == 'all'", specifier = ">=0.9.54" },
-    { name = "pyautogui", marker = "extra == 'desktop'", specifier = ">=0.9.54" },
-    { name = "pydantic", specifier = ">=2.12.0" },
-    { name = "pydantic", marker = "extra == 'desktop-core'", specifier = ">=2.12.0" },
-    { name = "pydantic-settings", marker = "extra == 'all'", specifier = ">=2.14.2" },
-    { name = "pydantic-settings", marker = "extra == 'mcp'", specifier = ">=2.14.2" },
-    { name = "pyinstaller", marker = "extra == 'desktop-build'", specifier = "==6.16.0" },
-    { name = "pyjwt", extras = ["crypto"], marker = "extra == 'all'", specifier = ">=2.13.0" },
-    { name = "pyjwt", extras = ["crypto"], marker = "extra == 'mcp'", specifier = ">=2.13.0" },
-    { name = "pymdown-extensions", marker = "extra == 'docs'", specifier = ">=11.0.1" },
-    { name = "pypdf", marker = "extra == 'all'", specifier = ">=6.15.0" },
-    { name = "pypdf", marker = "extra == 'desktop-core'", specifier = ">=6.15.0" },
-    { name = "pypdf", marker = "extra == 'extract'", specifier = ">=6.15.0" },
-    { name = "pypdf", marker = "extra == 'office'", specifier = ">=6.15.0" },
-    { name = "pyright", marker = "extra == 'dev'", specifier = ">=1.1.400" },
-    { name = "pytest", marker = "extra == 'dev'", specifier = ">=8.0" },
-    { name = "pytest-asyncio", marker = "extra == 'dev'", specifier = ">=0.24" },
-    { name = "pytest-cov", marker = "extra == 'dev'", specifier = ">=5.0" },
-    { name = "pytest-timeout", marker = "extra == 'dev'", specifier = ">=2.2" },
-    { name = "python-docx", marker = "extra == 'all'", specifier = ">=1.2.0" },
-    { name = "python-docx", marker = "extra == 'desktop-core'", specifier = ">=1.2.0" },
-    { name = "python-docx", marker = "extra == 'office'", specifier = ">=1.2.0" },
-    { name = "python-dotenv", marker = "extra == 'desktop-core'", specifier = ">=1.0" },
-    { name = "python-dotenv", marker = "extra == 'minimal'", specifier = ">=1.0" },
-    { name = "python-multipart", marker = "extra == 'all'", specifier = ">=0.0.31" },
-    { name = "python-multipart", marker = "extra == 'desktop-core'", specifier = ">=0.0.31" },
-    { name = "python-multipart", marker = "extra == 'serve'", specifier = ">=0.0.31" },
-    { name = "python-pptx", marker = "extra == 'all'", specifier = ">=1.0.2" },
-    { name = "python-pptx", marker = "extra == 'desktop-core'", specifier = ">=1.0.2" },
-    { name = "python-pptx", marker = "extra == 'office'", specifier = ">=1.0.2" },
-    { name = "pyyaml", marker = "extra == 'all'", specifier = ">=6.0" },
-    { name = "pyyaml", marker = "extra == 'desktop-core'", specifier = ">=6.0" },
-    { name = "pyyaml", marker = "extra == 'serve'", specifier = ">=6.0" },
-    { name = "rapidocr-onnxruntime", marker = "extra == 'all'", specifier = ">=1.3.0" },
-    { name = "rapidocr-onnxruntime", marker = "extra == 'vision'", specifier = ">=1.3.0" },
-    { name = "redis", marker = "extra == 'all'", specifier = ">=5.0" },
-    { name = "redis", marker = "extra == 'hearts-redis'", specifier = ">=5.0" },
-    { name = "reportlab", marker = "extra == 'all'", specifier = ">=4.4.4" },
-    { name = "reportlab", marker = "extra == 'desktop-core'", specifier = ">=4.4.4" },
-    { name = "reportlab", marker = "extra == 'office'", specifier = ">=4.4.4" },
-    { name = "ruff", marker = "extra == 'dev'", specifier = ">=0.15.12,<0.16" },
-    { name = "starlette", marker = "extra == 'all'", specifier = ">=1.3.1" },
-    { name = "starlette", marker = "extra == 'desktop-core'", specifier = ">=1.3.1" },
-    { name = "starlette", marker = "extra == 'serve'", specifier = ">=1.3.1" },
-    { name = "swebench", marker = "extra == 'swebench'", specifier = ">=2.0" },
-    { name = "trafilatura", marker = "extra == 'all'", specifier = ">=2.0" },
-    { name = "trafilatura", marker = "extra == 'extract'", specifier = ">=2.0" },
-    { name = "tree-sitter", marker = "extra == 'all'", specifier = ">=0.23" },
-    { name = "tree-sitter", marker = "extra == 'code-intel'", specifier = ">=0.23" },
-    { name = "tree-sitter-python", marker = "extra == 'all'", specifier = ">=0.23" },
-    { name = "tree-sitter-python", marker = "extra == 'code-intel'", specifier = ">=0.23" },
-    { name = "tree-sitter-typescript", marker = "extra == 'all'", specifier = ">=0.23" },
-    { name = "tree-sitter-typescript", marker = "extra == 'code-intel'", specifier = ">=0.23" },
-    { name = "twine", marker = "extra == 'release'", specifier = "==7.0.0" },
-    { name = "tzdata", marker = "sys_platform == 'win32' and extra == 'dev'", specifier = ">=2025.1" },
-    { name = "uiautomation", marker = "sys_platform == 'win32' and extra == 'all'", specifier = ">=2.0" },
-    { name = "uiautomation", marker = "sys_platform == 'win32' and extra == 'desktop'", specifier = ">=2.0" },
-    { name = "uvicorn", extras = ["standard"], marker = "extra == 'all'", specifier = ">=0.32" },
-    { name = "uvicorn", extras = ["standard"], marker = "extra == 'desktop-core'", specifier = ">=0.32" },
-    { name = "uvicorn", extras = ["standard"], marker = "extra == 'serve'", specifier = ">=0.32" },
-    { name = "watchdog", marker = "extra == 'all'", specifier = ">=4.0" },
-    { name = "watchdog", marker = "extra == 'skin'", specifier = ">=4.0" },
-    { name = "yt-dlp", marker = "extra == 'all'", specifier = ">=2026.8.12" },
-    { name = "yt-dlp", marker = "extra == 'reach'", specifier = ">=2026.8.12" },
-]
-provides-extras = ["minimal", "dev", "tracing", "local-auth", "serve", "desktop-core", "desktop-build", "web", "reach", "extract", "office", "anthropic", "mcp", "a2a", "browser", "desktop", "vision", "video", "video-gpu", "code-intel", "discord", "channels", "mantle-ssh", "hearts-redis", "hearts-etcd", "skin", "swebench", "docs", "release", "all"]
 
 [[package]]
 name = "onnx"
@@ -5436,10 +5488,10 @@ resolution-markers = [
     "python_full_version == '3.14.*' and sys_platform == 'emscripten'",
     "python_full_version == '3.14.*' and sys_platform != 'emscripten' and sys_platform != 'win32'",
     "python_full_version == '3.13.*' and sys_platform == 'win32'",
-    "python_full_version == '3.12.*' and sys_platform == 'win32'",
     "python_full_version == '3.13.*' and sys_platform == 'emscripten'",
-    "python_full_version == '3.12.*' and sys_platform == 'emscripten'",
     "python_full_version == '3.13.*' and sys_platform != 'emscripten' and sys_platform != 'win32'",
+    "python_full_version == '3.12.*' and sys_platform == 'win32'",
+    "python_full_version == '3.12.*' and sys_platform == 'emscripten'",
     "python_full_version == '3.12.*' and sys_platform != 'emscripten' and sys_platform != 'win32'",
 ]
 dependencies = [
@@ -5629,7 +5681,8 @@ name = "sse-starlette"
 version = "3.4.2"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "anyio" },
+    { name = "anyio", version = "4.14.2", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.15'" },
+    { name = "anyio", version = "4.15.1", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.15'" },
     { name = "starlette" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/38/82/10cdfab4ab663a6b6bd624d33f55b2cfa41af5105be033a6d5d135a92c5f/sse_starlette-3.4.2.tar.gz", hash = "sha256:2f9a7f51ed84395a0427fb9f66cb1ec11f7899d977a72cbc9070b962a2e14489", size = 35236, upload-time = "2026-05-06T19:42:13.727Z" }
@@ -5642,7 +5695,8 @@ name = "starlette"
 version = "1.5.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "anyio" },
+    { name = "anyio", version = "4.14.2", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.15'" },
+    { name = "anyio", version = "4.15.1", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.15'" },
     { name = "typing-extensions", marker = "python_full_version < '3.13'" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/92/aa/bf8ead9ed9d965a9290d291c4ac2d30ac1ae1f9b05a1a0ffdf1a05ac8ac6/starlette-1.5.0.tar.gz", hash = "sha256:7d5f63a7e4981a9587fc2a0fbc44cfb6cc4c9181d8c26d7e948871ed5da8c3df", size = 2711789, upload-time = "2026-08-08T07:23:16.504Z" }
@@ -5734,10 +5788,10 @@ resolution-markers = [
     "python_full_version == '3.14.*' and sys_platform == 'emscripten'",
     "python_full_version == '3.14.*' and sys_platform != 'emscripten' and sys_platform != 'win32'",
     "python_full_version == '3.13.*' and sys_platform == 'win32'",
-    "python_full_version == '3.12.*' and sys_platform == 'win32'",
     "python_full_version == '3.13.*' and sys_platform == 'emscripten'",
-    "python_full_version == '3.12.*' and sys_platform == 'emscripten'",
     "python_full_version == '3.13.*' and sys_platform != 'emscripten' and sys_platform != 'win32'",
+    "python_full_version == '3.12.*' and sys_platform == 'win32'",
+    "python_full_version == '3.12.*' and sys_platform == 'emscripten'",
     "python_full_version == '3.12.*' and sys_platform != 'emscripten' and sys_platform != 'win32'",
 ]
 dependencies = [
@@ -6185,7 +6239,8 @@ name = "watchfiles"
 version = "1.1.1"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "anyio" },
+    { name = "anyio", version = "4.14.2", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.15'" },
+    { name = "anyio", version = "4.15.1", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.15'" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/c2/c9/8869df9b2a2d6c59d79220a4db37679e74f807c559ffe5265e08b227a210/watchfiles-1.1.1.tar.gz", hash = "sha256:a173cb5c16c4f40ab19cecf48a534c409f7ea983ab8fed0741304a1c0a31b3f2", size = 94440, upload-time = "2025-10-14T15:06:21.08Z" }
 wheels = [
@@ -6333,6 +6388,19 @@ source = { registry = "https://pypi.org/simple" }
 sdist = { url = "https://files.pythonhosted.org/packages/b3/8f/705086c9d734d3b663af0e9bb3d4de6578d08f46b1b101c2442fd9aecaa2/win32_setctime-1.2.0.tar.gz", hash = "sha256:ae1fdf948f5640aae05c511ade119313fb6a30d7eabe25fef9764dca5873c4c0", size = 4867, upload-time = "2024-12-07T15:28:28.314Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/e1/07/c6fe3ad3e685340704d314d765b7912993bcb8dc198f0e7a89382d37974b/win32_setctime-1.2.0-py3-none-any.whl", hash = "sha256:95d644c4e708aba81dc3704a116d8cbc974d70b3bdb8be1d150e36be6e9d1390", size = 4083, upload-time = "2024-12-07T15:28:26.465Z" },
+]
+
+[[package]]
+name = "windows-capture"
+version = "2.0.1"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "numpy" },
+    { name = "opencv-python" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/85/00/326a51bc2b27bc53e2a3e6d0c8f320af7e65f8315fb0d1d149699ca45995/windows_capture-2.0.1.tar.gz", hash = "sha256:2c2b394f4587b067cf520456f7f64c11b00380851b077a4d061fe5356a9a7645", size = 148413, upload-time = "2026-08-08T16:07:07.162Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/6c/02/cdb3c75e60863e94fbd53c2b3607e61af5d464a4f9301e45897fcb08dbfa/windows_capture-2.0.1-cp39-abi3-win_amd64.whl", hash = "sha256:209c2318e2168802b9afd1005e99499639e8835e71a1e188a3ddc77c7ccc3f04", size = 229121, upload-time = "2026-08-08T16:07:04.283Z" },
 ]
 
 [[package]]

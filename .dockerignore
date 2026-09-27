@@ -84,6 +84,12 @@ Dockerfile
 mkdocs.yml
 Makefile
 
+# Root tooling deps, local artifacts and screenshots are never image inputs.
+/node_modules/
+/artifacts/
+/*.log
+/*.png
+
 # Frontend build/dependency output
 frontend/node_modules/
 frontend/build/

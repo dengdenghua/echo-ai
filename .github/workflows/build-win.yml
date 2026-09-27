@@ -25,12 +25,21 @@ jobs:
       ECHO_WINDOWS_TIMESTAMP_URL: http://timestamp.digicert.com
       UV_PYTHON_DOWNLOADS: never
       CI: "true"
+      # Step-level `if:` cannot read the secrets context (GitHub rejects the
+      # whole workflow), so expose only whether the certificate is configured.
+      HAS_WINDOWS_SIGNING: ${{ secrets.WINDOWS_CODE_SIGNING_CERTIFICATE_BASE64 != '' }}
 
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
 
+      - name: Warn that this build is unsigned
+        if: env.HAS_WINDOWS_SIGNING != 'true'
+        shell: pwsh
+        run: |
+          Write-Output "::warning title=Unsigned build::WINDOWS_CODE_SIGNING_CERTIFICATE_BASE64 is not configured; the installer will not be Authenticode-signed and must not be published."
+
       - name: Validate protected Windows signing identity
-        if: ${{ secrets.WINDOWS_CODE_SIGNING_CERTIFICATE_BASE64 != '' }}
+        if: env.HAS_WINDOWS_SIGNING == 'true'
         shell: pwsh
         env:
           CSC_LINK: ${{ secrets.WINDOWS_CODE_SIGNING_CERTIFICATE_BASE64 }}
@@ -406,7 +415,7 @@ jobs:
           }
 
       - name: Verify Authenticode signatures and create commit-bound checksums
-        if: ${{ secrets.WINDOWS_CODE_SIGNING_CERTIFICATE_BASE64 != '' }}
+        if: env.HAS_WINDOWS_SIGNING == 'true'
         shell: pwsh
         run: |
           $releaseRoot = (Resolve-Path "frontend/release").Path
@@ -524,7 +533,7 @@ jobs:
       - name: Upload EXE installer
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
-          name: Echo-Setup-Windows-${{ github.sha }}
+          name: Echo-Setup-Windows-${{ github.sha }}${{ env.HAS_WINDOWS_SIGNING != 'true' && '-UNSIGNED' || '' }}
           path: |
             frontend/release/Echo-Setup-*.exe
             frontend/release/SHA256SUMS
@@ -537,7 +546,7 @@ jobs:
       - name: Upload portable (unpacked)
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
-          name: Echo-Portable-Windows-${{ github.sha }}
+          name: Echo-Portable-Windows-${{ github.sha }}${{ env.HAS_WINDOWS_SIGNING != 'true' && '-UNSIGNED' || '' }}
           path: frontend/release/win-unpacked/**
           if-no-files-found: error
           retention-days: 30
