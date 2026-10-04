@@ -40,9 +40,21 @@ def _is_loopback_host(host: str) -> bool:
         return False
 
 
-def _insecure_bind_error(*, host: str, uds: str | None, require_auth: bool) -> str | None:
+def _insecure_bind_error(
+    *, host: str, uds: str | None, require_auth: bool, local_auth_config: Any = None
+) -> str | None:
     """Describe an unsafe network bind, or return ``None`` when it is safe."""
-    if uds or require_auth or _is_loopback_host(host):
+    if uds or _is_loopback_host(host):
+        return None
+    if local_auth_config is not None and getattr(local_auth_config, "enabled", False):
+        from runtime.adapters.integrations.local_auth.config import credentialed_login_enabled
+
+        if not credentialed_login_enabled(local_auth_config):
+            return (
+                "local_auth on a non-loopback host requires bcrypt hashes for every user, "
+                "a strong jwt_secret, and no password_only_username"
+            )
+    if require_auth:
         return None
     return (
         "control-plane auth is OFF while the server is bound to a "
@@ -602,6 +614,7 @@ def run_serve(
         host=host,
         uds=uds,
         require_auth=require_ui_auth,
+        local_auth_config=cfg.local_auth,
     )
     if bind_error is not None:
         print(c.red(f"security error: {bind_error}"), file=sys.stderr)

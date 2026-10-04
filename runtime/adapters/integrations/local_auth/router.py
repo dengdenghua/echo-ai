@@ -3,7 +3,6 @@ from __future__ import annotations
 import hashlib
 import logging
 import math
-import re
 import threading
 import time
 from collections import OrderedDict, deque
@@ -25,11 +24,10 @@ except ImportError:  # pragma: no cover
 
 from runtime.sensing._fastapi_guard import require_fastapi
 
-from .config import LocalAuthConfig, development_login_enabled, verify_password
+from .config import _USERNAME_RE, LocalAuthConfig, local_login_enabled, verify_password
 
 logger = logging.getLogger(__name__)
 
-_USERNAME_RE = re.compile(r"^[A-Za-z0-9._@\-]{1,64}$")
 _DUMMY_BCRYPT_HASH = "bcrypt:$2b$12$i97XS4XVBLbe1Ipw01D4C.KRRk3TznyetM5gIwNVmEc5gb8LS2Nzi"
 
 
@@ -175,16 +173,14 @@ def create_local_auth_router(
     )
 
     def _require_enabled() -> None:
-        if not development_login_enabled(config):
+        if not local_login_enabled(config):
             raise HTTPException(
                 status_code=503,
-                detail=(
-                    "本地登录仅用于开发环境，当前未启用。"
-                ),
+                detail="本地登录未启用；请配置 bcrypt 用户密码和 JWT 密钥。",
             )
 
     def _check_username(username: str) -> None:
-        if not _USERNAME_RE.match(username):
+        if not _USERNAME_RE.fullmatch(username):
             raise HTTPException(
                 status_code=400,
                 detail="username 只能含字母/数字/._@- · 长度 1-64",
@@ -286,7 +282,11 @@ def create_local_auth_router(
             except ValueError:
                 local_client = False
             origin = request.headers.get("origin")
-            local_origin = not origin or urlsplit(origin).hostname in {"localhost", "127.0.0.1", "::1"}
+            local_origin = not origin or urlsplit(origin).hostname in {
+                "localhost",
+                "127.0.0.1",
+                "::1",
+            }
             if not local_client or not local_origin:
                 raise HTTPException(status_code=403, detail="开发登录仅限本机")
         _check_credentials(body.username, body.password, request)

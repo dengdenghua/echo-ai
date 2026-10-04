@@ -20,10 +20,16 @@ plane because the current store has no tenant ownership columns.
 
 from __future__ import annotations
 
+from contextlib import ExitStack
 from pathlib import Path
 from typing import Any
+from urllib.parse import quote
 
+import httpx
 from fastapi import APIRouter, HTTPException, Request, WebSocket
+from fastapi.responses import StreamingResponse
+from starlette.background import BackgroundTask
+from starlette.concurrency import run_in_threadpool
 
 from runtime.safety.auth.principal import require_operator, resolve_principal
 from runtime.safety.auth.url_guard import check_url
@@ -317,6 +323,7 @@ def create_remote_backends_router(
         return result
 
     @router.websocket("/api/remote-backends/{backend_id}/realtime")
+    @router.websocket("/api/remote-backends/{backend_id}/http/api/realtime")
     async def realtime_proxy(
         backend_id: str,
         ws: WebSocket,
@@ -398,6 +405,102 @@ def create_remote_backends_router(
                 import asyncio
 
                 await asyncio.to_thread(forwarder.close)
+
+    async def proxy_http(
+        backend_id: str,
+        remote_path: str,
+        request: Request,
+    ) -> StreamingResponse:
+        """Transparent API transport for a renderer scoped to one remote host.
+
+        Browser credentials authenticate this gateway only. The registry's
+        remote token is injected server-side; uploads, binary downloads and
+        event streams retain their native representations.
+        """
+        _operator_http(request)
+        _require_flag()
+        backend = registry.get(backend_id)
+        if backend is None:
+            raise HTTPException(404, "remote computer not found")
+        parts = remote_path.split("/")
+        if (
+            parts[0] not in {"api", "v1"}
+            or any(part in {".", ".."} or "\\" in part for part in parts)
+            or (parts[0] == "api" and len(parts) > 1 and parts[1] in {"auth", "remote-backends"})
+        ):
+            raise HTTPException(400, "unsupported remote API path")
+        _assert_safe_backend_url(backend.url, ssh=backend.ssh)
+
+        # Bound buffering before connecting, including chunked multipart input.
+        limit = 64 * 1024 * 1024
+        body = bytearray()
+        async for chunk in request.stream():
+            if len(chunk) > limit - len(body):
+                raise HTTPException(413, "remote request body too large")
+            body.extend(chunk)
+        forwarded = {"accept", "content-type", "if-modified-since", "if-none-match", "range"}
+        headers = {key: value for key, value in request.headers.items() if key.lower() in forwarded}
+        token = registry.auth_token(backend_id)
+        if token:
+            headers["Authorization"] = f"Bearer {token}"
+
+        resources = ExitStack()
+
+        def open_upstream() -> Any:
+            from runtime.safety.auth.url_guard import safe_httpx_stream
+
+            try:
+                connected = resources.enter_context(connect_remote_backend(backend))
+                url = f"{connected.url.rstrip('/')}/{quote(remote_path, safe='/')}"
+                if request.url.query:
+                    url += f"?{request.url.query}"
+                return resources.enter_context(safe_httpx_stream(
+                    request.method,
+                    url,
+                    data=bytes(body),
+                    headers=headers,
+                    timeout=httpx.Timeout(connect=5.0, read=None, write=30.0, pool=5.0),
+                    allow_private=connected.tunnel_active,
+                ))
+            except BaseException:
+                resources.close()
+                raise
+
+        try:
+            upstream = await run_in_threadpool(open_upstream)
+        except ValueError as exc:
+            raise HTTPException(400, "remote URL rejected") from exc
+        except (httpx.HTTPError, SshTunnelError) as exc:
+            registry.update_health(backend_id, status="error", detail=type(exc).__name__)
+            raise HTTPException(502, "remote computer unavailable") from exc
+
+        def stream():
+            try:
+                yield from upstream.iter_raw()
+            finally:
+                resources.close()
+
+        response_headers = {
+            key: value for key, value in upstream.headers.items()
+            if key.lower() in {
+                "accept-ranges", "cache-control", "content-disposition", "content-encoding",
+                "content-length", "content-range", "content-type", "etag", "last-modified",
+            }
+        }
+        response_headers.setdefault("cache-control", "no-store")
+        response_headers["x-accel-buffering"] = "no"
+        return StreamingResponse(
+            stream(), status_code=upstream.status_code, headers=response_headers,
+            background=BackgroundTask(resources.close),
+        )
+
+    for method in ("GET", "HEAD", "POST", "PUT", "PATCH", "DELETE"):
+        router.add_api_route(
+            "/api/remote-backends/{backend_id}/http/{remote_path:path}",
+            proxy_http,
+            methods=[method],
+            operation_id=f"remote_runtime_http_{method.lower()}",
+        )
 
     return router
 

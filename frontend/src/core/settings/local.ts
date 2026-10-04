@@ -1,5 +1,6 @@
 import type { AgentThreadContext, ReasoningEffort } from "../threads";
 import { emitSettingsChanged, eventBus } from "../events";
+import { executionStorageKey } from "../execution-location";
 
 export const DEFAULT_LOCAL_SETTINGS: LocalSettings = {
   notification: {
@@ -179,7 +180,7 @@ function mergeLocalSettings(settings?: Partial<LocalSettings>): LocalSettings {
 }
 
 function getThreadModelStorageKey(threadId: string): string {
-  return `${THREAD_MODEL_KEY_PREFIX}${threadId}`;
+  return executionStorageKey(`${THREAD_MODEL_KEY_PREFIX}${threadId}`);
 }
 
 export function getThreadModelName(threadId: string): string | undefined {
@@ -220,7 +221,7 @@ export function clearThreadModelReferences(modelName: string): number {
   for (let index = 0; index < localStorage.length; index += 1) {
     const key = localStorage.key(index);
     if (
-      key?.startsWith(THREAD_MODEL_KEY_PREFIX) &&
+      key?.startsWith(executionStorageKey(THREAD_MODEL_KEY_PREFIX)) &&
       localStorage.getItem(key) === modelName
     ) {
       keysToRemove.push(key);
@@ -253,7 +254,7 @@ export function getLocalSettings(): LocalSettings {
   if (!isBrowser()) {
     return DEFAULT_LOCAL_SETTINGS;
   }
-  const json = localStorage.getItem(LOCAL_SETTINGS_KEY);
+  const json = localStorage.getItem(executionStorageKey(LOCAL_SETTINGS_KEY));
   try {
     if (json) {
       const settings = JSON.parse(json) as Partial<LocalSettings>;
@@ -284,7 +285,10 @@ export function saveLocalSettings(settings: LocalSettings) {
   if (!isBrowser()) {
     return;
   }
-  localStorage.setItem(LOCAL_SETTINGS_KEY, JSON.stringify(settings));
+  localStorage.setItem(
+    executionStorageKey(LOCAL_SETTINGS_KEY),
+    JSON.stringify(settings),
+  );
   emitSettingsChanged();
 }
 
@@ -293,7 +297,7 @@ export function subscribeLocalSettings(handler: () => void): () => void {
   // Both signals: same-tab event bus + cross-tab storage event.
   const unsubscribe = eventBus.on("settings:changed", handler);
   const storageHandler = (e: StorageEvent) => {
-    if (e.key === LOCAL_SETTINGS_KEY) handler();
+    if (e.key === executionStorageKey(LOCAL_SETTINGS_KEY)) handler();
   };
   window.addEventListener("storage", storageHandler);
   return () => {

@@ -803,19 +803,26 @@ def create_meta_router(
                     "endpoint_verify": "/api/auth/oct/email/login",
                 }
             )
-        from runtime.adapters.integrations.local_auth.config import development_login_enabled
+        from runtime.adapters.integrations.local_auth.config import (
+            development_login_enabled,
+            local_login_enabled,
+        )
 
-        if development_login_enabled(local_auth_config):
+        if local_login_enabled(local_auth_config):
             pw_required = bool(getattr(local_auth_config, "users", {}))
             providers.append(
                 {
                     "id": "local",
-                    "label": "开发者登录",
+                    "label": (
+                        "开发者登录" if development_login_enabled(local_auth_config) else "本地登录"
+                    ),
                     "allow_any_username": bool(
                         getattr(local_auth_config, "allow_any_username", True),
                     ),
                     "password_required": pw_required,
-                    "password_only_username": getattr(local_auth_config, "password_only_username", None),
+                    "password_only_username": getattr(
+                        local_auth_config, "password_only_username", None
+                    ),
                     "endpoint": "/api/auth/local/login",
                 }
             )

@@ -5,14 +5,17 @@ from pathlib import Path
 import pytest
 import yaml
 
+from runtime.adapters.integrations.local_auth.config import LocalAuthConfig, hash_password
 from runtime.cli_serve import _insecure_bind_error
 from runtime.platform.config import ConfigLoadError, load_from_yaml
 
 ROOT = Path(__file__).resolve().parents[1]
+_TEST_BCRYPT_HASH = "bcrypt:$2b$04$mB5pmRT25Iva1xCEXLZNTuwD4q56bnOQkCMBglAl2p5XPHWNTgxci"
+_TEST_JWT_SECRET = "Production!Local9Jwt#Secret2With$Entropy4AndLength"
 
 
 def test_compose_services_bind_control_plane_to_loopback_by_default() -> None:
-    expected = "${ECHO_BIND_IP:-127.0.0.1}:${PORT:-8000}:8000"
+    expected = "${ECHO_BIND_IP:-127.0.0.1}:${PORT:-8310}:8000"
     for filename in ("docker-compose.yml", "docker-compose.full.yml"):
         compose = yaml.safe_load((ROOT / filename).read_text(encoding="utf-8"))
         assert expected in compose["services"]["echo-ai"]["ports"]
@@ -22,8 +25,8 @@ def test_documented_docker_command_does_not_publish_on_all_interfaces() -> None:
     deployment = (ROOT / "docs" / "deployment.md").read_text(encoding="utf-8")
     dockerfile = (ROOT / "Dockerfile").read_text(encoding="utf-8")
 
-    assert "docker run --rm -p 127.0.0.1:8000:8000" in deployment
-    assert "docker run --rm -p 127.0.0.1:8000:8000" in dockerfile
+    assert "docker run --rm -p 127.0.0.1:8310:8000" in deployment
+    assert "docker run --rm -p 127.0.0.1:8310:8000" in dockerfile
     assert "docker run --rm -p 8000:8000" not in deployment
 
 
@@ -35,6 +38,75 @@ def test_example_local_auth_does_not_accept_arbitrary_usernames() -> None:
     assert config["local_auth"]["allowed_usernames"] == []
 
 
+@pytest.mark.parametrize(
+    "local_auth,allowed",
+    [
+        (LocalAuthConfig(enabled=True, allow_any_username=True), False),
+        (LocalAuthConfig(enabled=True, users={"admin": _TEST_BCRYPT_HASH}), False),
+        (
+            LocalAuthConfig(
+                enabled=True,
+                users={"admin": "sha256:" + "a" * 64},
+                jwt_secret=_TEST_JWT_SECRET,
+            ),
+            False,
+        ),
+        (
+            LocalAuthConfig(
+                enabled=True,
+                users={"admin": _TEST_BCRYPT_HASH.replace("$04$", "$00$")},
+                jwt_secret=_TEST_JWT_SECRET,
+            ),
+            False,
+        ),
+        (
+            LocalAuthConfig(
+                enabled=True,
+                users={"invalid user": _TEST_BCRYPT_HASH},
+                jwt_secret=_TEST_JWT_SECRET,
+            ),
+            False,
+        ),
+        (
+            LocalAuthConfig(
+                enabled=True,
+                users={"admin": _TEST_BCRYPT_HASH},
+                jwt_secret=_TEST_JWT_SECRET,
+                password_only_username="admin",
+            ),
+            False,
+        ),
+        (
+            LocalAuthConfig(
+                enabled=True,
+                users={"admin": _TEST_BCRYPT_HASH},
+                jwt_secret=_TEST_JWT_SECRET,
+            ),
+            True,
+        ),
+    ],
+)
+def test_network_bind_requires_usable_local_credentials(
+    local_auth: LocalAuthConfig, allowed: bool
+) -> None:
+    error = _insecure_bind_error(
+        host="0.0.0.0",
+        uds=None,
+        require_auth=True,
+        local_auth_config=local_auth,
+    )
+    assert (error is None) is allowed
+    assert (
+        _insecure_bind_error(
+            host="127.0.0.1",
+            uds=None,
+            require_auth=True,
+            local_auth_config=local_auth,
+        )
+        is None
+    )
+
+
 def test_systemd_baseline_is_authenticated_production_and_loadable(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -43,7 +115,7 @@ def test_systemd_baseline_is_authenticated_production_and_loadable(
         "ECHO_LOCAL_AUTH_JWT_SECRET",
         "Systemd!Release9Jwt#Secret2With$Entropy4AndLength",
     )
-    monkeypatch.setenv("ECHO_ADMIN_PASSWORD_HASH", "sha256:" + "a" * 64)
+    monkeypatch.setenv("ECHO_ADMIN_PASSWORD_HASH", _TEST_BCRYPT_HASH)
 
     config = load_from_yaml(config_path)
 
@@ -52,7 +124,7 @@ def test_systemd_baseline_is_authenticated_production_and_loadable(
     assert config.planner.mock_response is None
     assert config.local_auth.enabled is True
     assert config.local_auth.allow_any_username is False
-    assert config.local_auth.users == {"admin": "sha256:" + "a" * 64}
+    assert config.local_auth.users == {"admin": _TEST_BCRYPT_HASH}
     assert config.local_auth.jwt_expire_seconds == 28_800
     assert config.local_auth.default_roles == ["user", "local", "admin", "operator"]
     assert config.execution.deployment_mode == "production"
@@ -65,7 +137,7 @@ def test_systemd_baseline_fails_closed_without_auth_secret(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     monkeypatch.delenv("ECHO_LOCAL_AUTH_JWT_SECRET", raising=False)
-    monkeypatch.setenv("ECHO_ADMIN_PASSWORD_HASH", "sha256:" + "a" * 64)
+    monkeypatch.setenv("ECHO_ADMIN_PASSWORD_HASH", _TEST_BCRYPT_HASH)
 
     with pytest.raises(ConfigLoadError, match="jwt_secret"):
         load_from_yaml(ROOT / "deploy/systemd-config.yaml")
@@ -105,7 +177,7 @@ def test_k8s_config_is_authenticated_real_and_loadable(
         "ECHO_LOCAL_AUTH_JWT_SECRET",
         "K8s!Release9Jwt#Secret2With$Entropy4AndLength",
     )
-    monkeypatch.setenv("ECHO_ADMIN_PASSWORD_HASH", "sha256:" + "a" * 64)
+    monkeypatch.setenv("ECHO_ADMIN_PASSWORD_HASH", _TEST_BCRYPT_HASH)
     monkeypatch.setenv("REDIS_PASSWORD", "redis-test-password")
 
     config = load_from_yaml(config_path)
@@ -115,7 +187,7 @@ def test_k8s_config_is_authenticated_real_and_loadable(
     assert config.planner.mock_response is None
     assert config.local_auth.enabled is True
     assert config.local_auth.allow_any_username is False
-    assert config.local_auth.users == {"admin": "sha256:" + "a" * 64}
+    assert config.local_auth.users == {"admin": _TEST_BCRYPT_HASH}
     assert config.local_auth.login_max_failures == 5
     assert config.local_auth.login_ip_max_failures == 20
     assert config.local_auth.login_failure_window_seconds == 300
@@ -162,8 +234,6 @@ def test_k8s_admin_login_can_reach_real_admin_control_plane(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
 ) -> None:
-    import hashlib
-
     from fastapi.testclient import TestClient
 
     from runtime.platform.ui.app import create_app
@@ -172,14 +242,16 @@ def test_k8s_admin_login_can_reach_real_admin_control_plane(
     config_path = tmp_path / "config.yaml"
     config_path.write_text(configmap["data"]["config.yaml"], encoding="utf-8")
     password = "K8s-admin-password!9"
-    password_hash = hashlib.sha256(password.encode()).hexdigest()
+    password_hash = hash_password(password)
     monkeypatch.setenv(
         "ECHO_LOCAL_AUTH_JWT_SECRET",
         "K8s!Release9Jwt#Secret2With%Entropy4AndLength",
     )
-    monkeypatch.setenv("ECHO_ADMIN_PASSWORD_HASH", "sha256:" + password_hash)
+    monkeypatch.setenv("ECHO_ADMIN_PASSWORD_HASH", password_hash)
     monkeypatch.setenv("REDIS_PASSWORD", "redis-test-password")
     monkeypatch.setenv("ECHO_DATA_DIR", str(tmp_path / "data"))
+    monkeypatch.setenv("ECHO_ENV", "production")
+    monkeypatch.setenv("ECHO_DEPLOYMENT_MODE", "production")
     config = load_from_yaml(config_path)
 
     with TestClient(
@@ -188,6 +260,12 @@ def test_k8s_admin_login_can_reach_real_admin_control_plane(
             local_auth_config=config.local_auth,
         )
     ) as client:
+        providers = client.get("/api/auth/providers")
+        assert providers.status_code == 200, providers.text
+        assert any(
+            provider["id"] == "local" and provider["password_required"]
+            for provider in providers.json()["providers"]
+        )
         login = client.post(
             "/api/auth/local/login",
             json={"username": "admin", "password": password},

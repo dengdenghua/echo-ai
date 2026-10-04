@@ -1,6 +1,7 @@
 import { getLocalSettings } from "@/core/settings/local";
 import {
   BookOpenIcon,
+  ChevronDownIcon,
   ExternalLinkIcon,
   FileIcon,
   FlagIcon,
@@ -29,6 +30,7 @@ import {
   useMemo,
   useRef,
   useState,
+  type ReactNode,
 } from "react";
 import { toast } from "sonner";
 
@@ -106,8 +108,8 @@ import { FileTree } from "../file-tree";
 /**
  * The main chat composer card: textarea + file attachments + deep-research
  * picker + footer (tools menu, model picker, send/stop). Owns all the
- * draft / image / file / research state. The status strip (workdir/mode
- * selectors) is rendered separately by the parent.
+ * draft / image / file / research state. The parent supplies the status strip
+ * and receives the live guard for switching execution locations.
  */
 export function ChatComposer({
   status,
@@ -143,6 +145,7 @@ export function ChatComposer({
   modelProfileControl = false,
   executionEngine = "echo",
   executionEngineControl,
+  renderStatusStrip,
   onPermissionModeChange,
   onReasoningEffortChange,
   onModelChange,
@@ -150,12 +153,16 @@ export function ChatComposer({
   onModeChange,
   onDeepResearch,
   onSubmit,
+  onQueue,
+  pendingQueuedMessages = false,
   onStop,
   isStopping = false,
   isUploading = false,
   className,
-}: ChatInputBoxProps) {
-  const { t } = useI18n();
+}: ChatInputBoxProps & {
+  renderStatusStrip?: (executionLocationLocked: boolean) => ReactNode;
+}) {
+  const { t, locale } = useI18n();
   const { models } = useModels();
   // Async attachment work must never outlive the conversation that started
   // it. Replace the scope during the route commit so abandoned concurrent
@@ -407,6 +414,20 @@ export function ChatComposer({
     attachmentUploads.isUploading ||
     attachmentUploads.hasFailed;
   const submissionBlocked = !readyForMutations;
+  const executionLocationLocked = Boolean(
+    isBusy ||
+    pendingQueuedMessages ||
+    status === "streaming" ||
+    status === "submitted" ||
+    draft.trim() ||
+    pendingImages.length ||
+    pendingFiles.length ||
+    researchMaterials.length ||
+    researchUrlText.trim() ||
+    researchTextBody.trim() ||
+    researchTextTitle.trim() ||
+    researchNote.trim(),
+  );
   const connectionBlockedLabel =
     connectionPhase === "recovery_error"
       ? t.chatInputBox.connectionRecoveryFailed
@@ -418,12 +439,6 @@ export function ChatComposer({
     () => parseComposerUrls(researchUrlText),
     [researchUrlText],
   );
-  // Only surface the context meter once it's actually filling up — showing
-  // "0%" on an empty thread is just noise. Appears at ≥50% (when compressing
-  // starts to matter), or while a compression is running.
-  const showContextCompressor =
-    maxContextTokens > 0 &&
-    (isCompressingContext || contextTokens / maxContextTokens >= 0.5);
   const sendableDraftText = visibleDraft.trim();
   const enabledPlugins = useMemo(
     () =>
@@ -570,7 +585,7 @@ export function ChatComposer({
     };
   }, [addPendingWorkspaceFile, threadId]);
 
-  const handleSubmit = useCallback(async () => {
+  const handleSubmit = useCallback(async (intent: "send" | "queue" = "send") => {
     const threadScope = composerThreadScopeRef.current;
     const text = draft.trim();
     const sendableText = parseComposerDraft(text).body.trim();
@@ -593,6 +608,27 @@ export function ChatComposer({
         }
       }, 250);
     };
+    if (intent === "queue") {
+      try {
+        if (!onQueue || hasImages || hasFiles || isDeepResearchMode) return;
+        if (!onQueue(text)) {
+          toast.error(
+            locale.startsWith("zh")
+              ? "队列已满或消息过长，请保留草稿后重试"
+              : "Queue is full or the message is too long. Your draft was kept.",
+          );
+          return;
+        }
+        setDraft(
+          activeLongTaskMode
+            ? serializeComposerDraft({ mode: activeLongTaskMode, refs: [], body: "" })
+            : "",
+        );
+      } finally {
+        releaseSubmitLock();
+      }
+      return;
+    }
     // Fast path: client-side slash commands (mode/model/permission/
     // compact/settings) resolve locally with no LLM round-trip.
     // Falls through for anything not handled here.
@@ -739,6 +775,8 @@ export function ChatComposer({
     isDeepResearchMode,
     onDeepResearch,
     onSubmit,
+    onQueue,
+    locale,
     onSwitchPanel,
     parsedResearchUrls,
     researchMaterials,
@@ -1271,7 +1309,7 @@ export function ChatComposer({
     ],
   );
 
-  return (
+  const composer = (
     <div
       data-testid="chat-composer"
       className={cn(
@@ -1934,20 +1972,8 @@ export function ChatComposer({
               )}
             </button>
           ) : null}
-          {/* 上下文压缩指示器 */}
-          {showContextCompressor && (
-            <div className="composer-footer__secondary contents">
-              <ContextCompressor
-                currentTokens={contextTokens}
-                maxTokens={maxContextTokens}
-                isCompressing={isCompressingContext}
-                onCompress={onCompressContext}
-                disabled={isBusy || status === "streaming"}
-              />
-            </div>
-          )}
         </div>
-        <div className="ml-auto flex min-w-0 shrink-0 items-center justify-end gap-1">
+        <div className="ml-auto flex min-w-0 max-w-full flex-wrap items-center justify-end gap-1">
           {responseModeControl ? (
             <div className="composer-footer__response contents">
               {responseModeControl}
@@ -1956,6 +1982,17 @@ export function ChatComposer({
           <div className="composer-footer__secondary contents">
             <EvolutionIndicator compact quiet />
           </div>
+          <ContextCompressor
+            sessionId={threadId}
+            estimated
+            currentTokens={contextTokens}
+            maxTokens={maxContextTokens}
+            isCompressing={isCompressingContext}
+            onCompress={onCompressContext}
+            disabled={
+              isBusy || status === "streaming" || status === "submitted" || submissionBlocked
+            }
+          />
           <div
             data-testid="composer-runtime-controls"
             className="flex min-w-0 max-w-[min(58vw,20rem)] items-center"
@@ -2007,7 +2044,7 @@ export function ChatComposer({
             <>
               <button
                 type="button"
-                onClick={handleSubmit}
+                onClick={() => void handleSubmit()}
                 data-testid="chat-steer-button"
                 disabled={isBusy || submissionBlocked}
                 className="flex size-[42px] items-center justify-center rounded-lg bg-foreground text-background transition-all duration-base hover:bg-foreground/90 active:scale-95 disabled:cursor-wait disabled:opacity-70 sm:size-8"
@@ -2016,6 +2053,42 @@ export function ChatComposer({
               >
                 <SendHorizontalIcon className="size-3.5" />
               </button>
+              {onQueue ? (
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <button
+                      type="button"
+                      data-testid="chat-send-options"
+                      aria-label={locale.startsWith("zh") ? "发送选项" : "Send options"}
+                      className="flex h-[42px] w-6 shrink-0 items-center justify-center rounded-lg hover:bg-muted sm:h-8"
+                    >
+                      <ChevronDownIcon className="size-3.5" />
+                    </button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent side="top" align="end" className="max-w-[calc(100vw-2rem)]">
+                    <DropdownMenuItem
+                      onSelect={() => void handleSubmit()}
+                      disabled={isBusy || submissionBlocked || pendingImages.length > 0 || pendingFiles.length > 0}
+                    >
+                      {locale.startsWith("zh") ? "补充当前任务" : "Steer current task"}
+                    </DropdownMenuItem>
+                    <DropdownMenuItem
+                      onSelect={() => void handleSubmit("queue")}
+                      disabled={isBusy || submissionBlocked || pendingImages.length > 0 || pendingFiles.length > 0 || isDeepResearchMode}
+                    >
+                      <ListTodoIcon className="size-4" />
+                      {locale.startsWith("zh")
+                        ? "排队发送 · 当前任务结束后"
+                        : "Queue after the current task"}
+                    </DropdownMenuItem>
+                    {pendingImages.length > 0 || pendingFiles.length > 0 || isDeepResearchMode ? (
+                      <p className="px-2 py-1 text-xs text-muted-foreground">
+                        {locale.startsWith("zh") ? "排队暂支持纯文本消息" : "Queue currently supports text only"}
+                      </p>
+                    ) : null}
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              ) : null}
               <button
                 type="button"
                 onClick={onStop}
@@ -2065,7 +2138,7 @@ export function ChatComposer({
           ) : (
             <button
               type="button"
-              onClick={handleSubmit}
+              onClick={() => void handleSubmit()}
               data-testid="chat-send-button"
               disabled={
                 (!sendableDraftText &&
@@ -2103,5 +2176,11 @@ export function ChatComposer({
         </div>
       </div>
     </div>
+  );
+  return (
+    <>
+      {composer}
+      {renderStatusStrip?.(executionLocationLocked)}
+    </>
   );
 }

@@ -1,3 +1,5 @@
+import { ExecutionLocationPicker } from "@/components/workspace/execution-location-picker";
+import { executionStorageKey } from "@/core/execution-location";
 import { useHistoryDraft } from "@/core/threads/use-history-draft";
 import { useRemoteGroupAgents } from "@/core/agents/remote-agents";
 import { InviteDialog } from "@/components/workspace/collab/invite-dialog";
@@ -49,6 +51,7 @@ import {
   ArtifactsProvider,
   useArtifacts,
 } from "@/components/workspace/artifacts";
+import { MessageQueuePanel } from "@/components/workspace/message-queue-panel";
 import {
   AgentWorkbenchPanel,
   hasAgentWorkbenchContent,
@@ -325,11 +328,11 @@ function modeLabelFor(
   return t.modes.develop;
 }
 
-const CHAT_WORKDIR_KEY = "chat:workdir:lastUsed";
-const CODE_WORKDIR_KEY = "code:workdir:lastUsed";
-const RECENT_WORKDIRS_KEY = "echo:recentWorkdirs";
+const CHAT_WORKDIR_KEY = executionStorageKey("chat:workdir:lastUsed");
+const CODE_WORKDIR_KEY = executionStorageKey("code:workdir:lastUsed");
+const RECENT_WORKDIRS_KEY = executionStorageKey("echo:recentWorkdirs");
 const AGENT_WORKBENCH_OPEN_KEY = "echo:agent-workbench-open";
-const GROUP_PERSPECTIVE_KEY_PREFIX = "echo:group-perspective:";
+const GROUP_PERSPECTIVE_KEY_PREFIX = executionStorageKey("echo:group-perspective:");
 const MAX_RECENT_WORKDIRS = 6;
 
 type ThreadRouteState = {
@@ -4964,6 +4967,15 @@ function RealtimePageContent({
                             // engine: Codex roles use the server-owned profile;
                             // native roles serialize the thread's model source.
                             modelProfileControl={!embeddedDesignChat}
+                            executionLocationControl={
+                              !embeddedDesignChat
+                                ? (locked) => (
+                                    <ExecutionLocationPicker
+                                      disabled={locked}
+                                    />
+                                  )
+                                : undefined
+                            }
                             executionEngine={selectedExecutionEngine}
                             executionEngineControl={
                               !embeddedDesignChat ? (
@@ -5106,6 +5118,17 @@ function RealtimePageContent({
                             )}
                             onPermissionModeChange={handlePermissionModeChange}
                             onSubmit={handleSubmit}
+                            onQueue={
+                              !embeddedDesignChat && !isGroupConversation && !legacyOnDemandThreadOwnerId
+                                ? thread.messageQueue.enqueue
+                                : undefined
+                            }
+                            messageQueueControl={
+                              <MessageQueuePanel queue={thread.messageQueue} />
+                            }
+                            pendingQueuedMessages={
+                              thread.messageQueue.items.length > 0
+                            }
                             onDeepResearch={handleDeepResearch}
                             allowAgentModes={!embeddedDesignChat}
                             onStop={handleStop}
@@ -5214,6 +5237,7 @@ function RealtimePageContent({
                           activeTab={agentWorkbenchTab}
                           personaId={effectiveAgentId}
                           events={workbenchDisplayEvents}
+                          historyEvents={allToolEvents}
                           progressOutline={progressOutline}
                           userInput={
                             focusedWorkbenchTurnIndex === null

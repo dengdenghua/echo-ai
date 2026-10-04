@@ -153,4 +153,18 @@ describe("hash router shell URL normalization", () => {
 
     expect(spy).toHaveBeenCalledWith("hashchange", normalizeHashRouterShellUrl);
   });
+  test("preserves execution scope when following application links", () => {
+    installHashRouterShellUrlNormalizer();
+    window.history.replaceState(
+      null,
+      "",
+      `${window.location.origin}/?echoRemote=host-a#/workspace/realtime/new`,
+    );
+    window.history.pushState(null, "", "/workspace/agents");
+    expect(window.location.search).toBe("?echoRemote=host-a");
+    window.history.pushState(null, "", "/#/workspace/realtime/remote-thread");
+    expect(window.location.search).toBe("?echoRemote=host-a");
+    expect(window.location.hash).toBe("#/workspace/realtime/remote-thread");
+    window.history.replaceState(null, "", `${window.location.origin}/`);
+  });
 });

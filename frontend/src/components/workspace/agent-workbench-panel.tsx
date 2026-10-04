@@ -52,7 +52,12 @@ import { CoworkCollabBar } from "./cowork-collab-bar";
 import { CollaborationDeliveryRecovery } from "./collaboration-delivery-recovery";
 import type { ExtractedCodeBlocks } from "@/lib/extract-code-blocks";
 import type { StreamdownProps } from "streamdown";
-import type { AgentWorkbenchTabId, DiffEntry } from "./agent-workbench-utils";
+import {
+  diffEntriesFromBlocks,
+  type AgentWorkbenchTabId,
+  type DiffEntry,
+} from "./agent-workbench-utils";
+import { toWorkBlocks } from "./work-blocks";
 import { useAgentWorkbenchI18n } from "./use-agent-workbench-i18n";
 import { AgentDiffPage } from "./agent-workbench-pages";
 import { useAgentWorkbenchSnapshot } from "./agent-workbench-snapshot";
@@ -87,6 +92,7 @@ export type { WorkbenchRosterSeat } from "./agent-workbench-panel/helpers";
 function AgentWorkbenchPanelImpl({
   activeTab,
   events,
+  historyEvents,
   progressOutline,
   userInput,
   groundingSources,
@@ -132,6 +138,7 @@ function AgentWorkbenchPanelImpl({
 }: {
   activeTab?: AgentWorkbenchTabId;
   events: LiveToolEvent[];
+  historyEvents?: LiveToolEvent[];
   /** 「进展」面板的叙事大纲（按 iteration 分组）；缺省时回退为 phase 平铺。 */
   progressOutline?: OutlineRound[];
   userInput?: {
@@ -542,6 +549,13 @@ function AgentWorkbenchPanelImpl({
       : requestedActiveTab === "project" && !projectTabVisible
         ? "agent"
         : requestedActiveTab;
+  const historyDiffEntries = useMemo(
+    () =>
+      historyEvents && effectiveActiveTab === "diff"
+        ? diffEntriesFromBlocks(toWorkBlocks(historyEvents), { latestPerPath: true })
+        : undefined,
+    [effectiveActiveTab, historyEvents],
+  );
   const workbenchTabs: WorkbenchTab[] = useMemo(
     () => [
       ...(mergeProjectHome ? [{
@@ -699,6 +713,7 @@ function AgentWorkbenchPanelImpl({
         onTabClose={handleCloseTab}
         onClose={onClose}
         visibleDiffEntries={visibleDiffEntries}
+        historyDiffEntries={historyDiffEntries}
         threadId={threadId}
         inferredWorkDir={inferredWorkDir}
         browserTabPage={browserTabPage}
@@ -762,7 +777,10 @@ function AgentWorkbenchPanelImpl({
       />
     ) : effectiveActiveTab === "diff" ? (
       <AgentDiffPage
+        key={threadId}
+        threadId={threadId ?? undefined}
         entries={visibleDiffEntries}
+        historyEntries={historyDiffEntries}
         onBackToSummary={() => handleOpenTab("agent")}
       />
     ) : effectiveActiveTab === "terminal" ? (

@@ -1,3 +1,4 @@
+import { executionStorageKey } from "@/core/execution-location";
 import {
   ArrowLeftIcon,
   AppWindowIcon,
@@ -295,8 +296,8 @@ type SidebarFileExplorerTarget = {
   href?: string;
 };
 
-const PROJECTS_KEY = "echo.projects";
-const RECENT_WORKDIRS_KEY = "echo:recentWorkdirs";
+const PROJECTS_KEY = executionStorageKey("echo.projects");
+const RECENT_WORKDIRS_KEY = executionStorageKey("echo:recentWorkdirs");
 const PROJECT_GROUPING_KEY = "echo.sidebar.project-grouping-enabled";
 const PROJECT_THREAD_PREVIEW_LIMIT = 6;
 

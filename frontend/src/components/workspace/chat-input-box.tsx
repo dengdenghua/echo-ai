@@ -115,6 +115,9 @@ export interface ChatInputBoxProps {
    * server profile. */
   executionEngine?: "echo" | "codex" | "opencode";
   executionEngineControl?: ReactNode;
+  /** Execution location sits on the right of the workspace/mode status strip.
+   * Receives the composer guard for unfinished drafts/uploads and live turns. */
+  executionLocationControl?: (locked: boolean) => ReactNode;
   workspaceControl?: ReactNode;
   contextActions?: ReactNode;
   onPermissionModeChange?: (mode: PermissionMode) => void;
@@ -150,6 +153,10 @@ export interface ChatInputBoxProps {
     uploaded?: UploadedFileInfo[];
   }) => void | boolean;
   onStop?: () => void | Promise<void>;
+  /** Text-only follow-up sent after the current turn finishes. */
+  onQueue?: (text: string) => boolean;
+  messageQueueControl?: ReactNode;
+  pendingQueuedMessages?: boolean;
   /** Prevent repeated stop requests while the server acknowledges one. */
   isStopping?: boolean;
   /** True while attachments are being uploaded to the backend. Surfaces
@@ -194,6 +201,7 @@ function ChatInputBoxImpl(props: ChatInputBoxProps) {
     statusTrailing,
     workspaceControl,
     contextActions,
+    executionLocationControl,
   } = props;
 
   const { t } = useI18n();
@@ -261,7 +269,8 @@ function ChatInputBoxImpl(props: ChatInputBoxProps) {
     (showAgentSegment ? 1 : 0) +
     (showWorkDirSegment ? 1 : 0) +
     (showModeSegment ? 1 : 0) +
-    (statusTrailing ? 1 : 0);
+    (statusTrailing ? 1 : 0) +
+    (executionLocationControl ? 1 : 0);
   const showStatusStrip = statusSegmentCount > 0;
 
   return (
@@ -274,99 +283,109 @@ function ChatInputBoxImpl(props: ChatInputBoxProps) {
           onDismiss={onDismissModeIntent}
         />
       ) : null}
-      <ChatComposer {...props} />
-      {showStatusStrip && (
-        <div
-          data-testid="chat-status-strip"
-          data-composer-context-strip={statusTrailing ? undefined : "true"}
-          className="flex min-h-8 flex-wrap items-center gap-x-2 px-2 pt-1.5 text-ui text-muted-foreground"
-        >
-          <div className="inline-flex max-w-full items-center gap-1.5 rounded-lg px-0.5 py-0.5">
-            {showAgentSegment ? (
-              <>
-                <div
-                  className="inline-flex min-w-0 max-w-[124px] items-center gap-1.5 rounded-full px-2 py-1"
-                  title={displayAgentLabel}
-                >
-                  <span className="flex size-4 shrink-0 items-center justify-center overflow-hidden rounded-full bg-muted text-xs font-semibold text-muted-foreground">
-                    {displayAgentAvatar ? (
-                      <img
-                        src={displayAgentAvatar}
-                        alt={displayAgentLabel}
-                        className="size-full object-cover"
+      {props.messageQueueControl}
+      <ChatComposer
+        {...props}
+        renderStatusStrip={(executionLocationLocked) =>
+          showStatusStrip ? (
+            <div
+              data-testid="chat-status-strip"
+              data-composer-context-strip={statusTrailing ? undefined : "true"}
+              className="flex min-h-8 flex-wrap items-center gap-x-2 gap-y-1 px-2 pt-1.5 text-ui text-muted-foreground"
+            >
+              <div className="inline-flex max-w-full items-center gap-1.5 rounded-lg px-0.5 py-0.5">
+                {showAgentSegment ? (
+                  <>
+                    <div
+                      className="inline-flex min-w-0 max-w-[124px] items-center gap-1.5 rounded-full px-2 py-1"
+                      title={displayAgentLabel}
+                    >
+                      <span className="flex size-4 shrink-0 items-center justify-center overflow-hidden rounded-full bg-muted text-xs font-semibold text-muted-foreground">
+                        {displayAgentAvatar ? (
+                          <img
+                            src={displayAgentAvatar}
+                            alt={displayAgentLabel}
+                            className="size-full object-cover"
+                          />
+                        ) : displayAgentIcon ? (
+                          displayAgentIcon
+                        ) : (
+                          displayAgentInitial
+                        )}
+                      </span>
+                      <span className="truncate">{displayAgentLabel}</span>
+                    </div>
+                    {(showWorkDirSegment || showModeSegment) && (
+                      <span
+                        className="h-3 w-px shrink-0 bg-border/35"
+                        aria-hidden="true"
                       />
-                    ) : displayAgentIcon ? (
-                      displayAgentIcon
-                    ) : (
-                      displayAgentInitial
                     )}
-                  </span>
-                  <span className="truncate">{displayAgentLabel}</span>
-                </div>
-                {(showWorkDirSegment || showModeSegment) && (
-                  <span
-                    className="h-3 w-px shrink-0 bg-border/35"
-                    aria-hidden="true"
-                  />
-                )}
-              </>
-            ) : null}
-            {showWorkDirSegment ? (
-              <>
-                <div className="composer-workspace-control">
-                {workspaceControl ?? <WorkDirSelector
-                  designSpace={visibleProjectMode === "uxui"}
-                  workDir={workDir ?? ""}
-                  onWorkDirChange={onWorkDirChange}
-                  lockToCurrentThread={lockWorkDirToThread}
-                  onOpenWorkDirInNewTask={onOpenWorkDirInNewTask}
-                  variant="muted"
-                  chromeless
-                />}
-                </div>
-              </>
-            ) : null}
-            {showModeSegment ? (
-              <>
-                {showWorkDirSegment ? (
-                  <span
-                    className="h-3 w-px shrink-0 bg-border/35"
-                    aria-hidden="true"
-                  />
+                  </>
                 ) : null}
-                <ModeSelector
-                  workDir={workDir ?? ""}
-                  sessionId={threadId ?? "new"}
-                  mode={visibleProjectMode}
-                  labelOverrides={groupProjectModeLabels}
-                  codeModeUnlocked={codeModeUnlocked}
-                  readOnlyHint={projectReadOnlyHint}
-                  chromeless
-                  permissionLabel={permissionLabel}
-                  onModeChange={changeProjectMode}
-                  onUserModeChange={onProjectAgentModeUserChange}
-                  onDetectionChange={onProjectDetectionChange}
-                  onManualOverrideChange={onManualOverrideChange}
-                />
-              </>
-            ) : null}
-            {statusTrailing ? (
-              <>
-                {(showAgentSegment ||
-                  showWorkDirSegment ||
-                  showModeSegment) && (
-                  <span
-                    className="h-3 w-px shrink-0 bg-border/35"
-                    aria-hidden="true"
-                  />
-                )}
-                {statusTrailing}
-              </>
-            ) : null}
-          </div>
-          {contextActions ? <div className="ml-auto flex items-center gap-1">{contextActions}</div> : null}
-        </div>
-      )}
+                {showWorkDirSegment ? (
+                  <>
+                    <div className="composer-workspace-control">
+                    {workspaceControl ?? <WorkDirSelector
+                      designSpace={visibleProjectMode === "uxui"}
+                      workDir={workDir ?? ""}
+                      onWorkDirChange={onWorkDirChange}
+                      lockToCurrentThread={lockWorkDirToThread}
+                      onOpenWorkDirInNewTask={onOpenWorkDirInNewTask}
+                      variant="muted"
+                      chromeless
+                    />}
+                    </div>
+                  </>
+                ) : null}
+                {showModeSegment ? (
+                  <>
+                    {showWorkDirSegment ? (
+                      <span
+                        className="h-3 w-px shrink-0 bg-border/35"
+                        aria-hidden="true"
+                      />
+                    ) : null}
+                    <ModeSelector
+                      workDir={workDir ?? ""}
+                      sessionId={threadId ?? "new"}
+                      mode={visibleProjectMode}
+                      labelOverrides={groupProjectModeLabels}
+                      codeModeUnlocked={codeModeUnlocked}
+                      readOnlyHint={projectReadOnlyHint}
+                      chromeless
+                      permissionLabel={permissionLabel}
+                      onModeChange={changeProjectMode}
+                      onUserModeChange={onProjectAgentModeUserChange}
+                      onDetectionChange={onProjectDetectionChange}
+                      onManualOverrideChange={onManualOverrideChange}
+                    />
+                  </>
+                ) : null}
+                {statusTrailing ? (
+                  <>
+                    {(showAgentSegment ||
+                      showWorkDirSegment ||
+                      showModeSegment) && (
+                      <span
+                        className="h-3 w-px shrink-0 bg-border/35"
+                        aria-hidden="true"
+                      />
+                    )}
+                    {statusTrailing}
+                  </>
+                ) : null}
+              </div>
+              {(executionLocationControl || contextActions) ? (
+                <div className="ml-auto flex min-w-0 max-w-full flex-wrap items-center justify-end gap-x-3 gap-y-1">
+                  {executionLocationControl?.(executionLocationLocked)}
+                  {contextActions ? <div className="flex items-center gap-1">{contextActions}</div> : null}
+                </div>
+              ) : null}
+            </div>
+          ) : null
+        }
+      />
     </>
   );
 }

@@ -35,7 +35,7 @@ pip install -e ".[serve,anthropic,mcp,web,tracing]"
 ```bash
 docker build -t echo-ai .
 
-docker run --rm -p 127.0.0.1:8000:8000 \
+docker run --rm -p 127.0.0.1:8310:8000 \
     -v $(pwd)/data:/data \
     -v echo-resources:/app/resources \
     -v $(pwd)/config.yaml:/etc/echo/config.yaml:ro \
@@ -63,11 +63,32 @@ docker buildx imagetools inspect "$image"
 
 ```bash
 make up                     # 首次只生成 config.yaml/.env 并停止
-# 编辑 config.yaml：启用 oct 或 local_auth；推荐让 jwt_secret/users.admin
-# 分别引用 ${ECHO_LOCAL_AUTH_JWT_SECRET}/${ECHO_ADMIN_PASSWORD_HASH}，
-# 并在 .env 填强随机 secret 与单引号包裹的 bcrypt hash
+# 按下方步骤配置密码登录和密钥后，再执行：
 make up                     # 复核后再次运行才启动容器
 ```
+
+两次运行之间，在 `config.yaml` 的 `local_auth` 中启用密码登录，并把 journal 写到已挂载的 `/data`：
+
+```yaml
+local_auth:
+  enabled: true
+  users:
+    admin: ${ECHO_ADMIN_PASSWORD_HASH}
+  jwt_secret: ${ECHO_LOCAL_AUTH_JWT_SECRET}
+  admin_usernames: [admin]
+journal_file: /data/events.jsonl
+```
+
+把下面两项填入 `.env` 中现有的同名空值。JWT 密钥需有至少 32 个字符；bcrypt 哈希包含 `$`，在 `.env` 中要用单引号包裹。可以用以下命令生成：
+
+```bash
+printf 'Echo!9%s\n' "$(openssl rand -base64 48)"
+docker compose build echo-ai
+docker compose run --rm --no-deps --entrypoint python echo-ai -c \
+  'from getpass import getpass; from runtime.adapters.integrations.local_auth.config import hash_password; print(hash_password(getpass("Admin password: ")))'
+```
+
+`ECHO_LOCAL_AUTH_JWT_SECRET` 填第一条命令的输出，`ECHO_ADMIN_PASSWORD_HASH` 填第二条命令的输出。真实 Claude 调用还需要在 `.env` 设置 `ANTHROPIC_API_KEY`。
 
 即使端口只发布到宿主 `127.0.0.1`，容器内服务仍监听 `0.0.0.0`；因此应用层启动门禁
 要求认证开启。`make up` 不会用未认证的示例配置假装启动成功。
@@ -79,9 +100,9 @@ make up                     # 复核后再次运行才启动容器
 
 ```bash
 make up-full
-# →  Agent    http://localhost:8000/
+# →  Agent    http://localhost:8310/
 # →  Jaeger   http://localhost:16686/
-# →  Grafana  http://localhost:3000/   (admin / configured GRAFANA_PASSWORD)
+# →  Grafana  http://localhost:3311/   (admin / configured GRAFANA_PASSWORD)
 ```
 
 Compose 中 `echo-ai:latest` 仅命名当前本地 build；不会被发布到 GHCR，也不得作为

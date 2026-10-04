@@ -20,6 +20,45 @@ function event(partial: Partial<LiveToolEvent>): LiveToolEvent {
 }
 
 describe("agent workbench diff entries", () => {
+  test("keeps files with the same basename separate and uses the latest history record", () => {
+    const blocks = toWorkBlocks([
+      event({
+        id: "src-old",
+        name: "file_change",
+        input: {
+          changes: [
+            { path: "src/index.ts", diff: "@@ -1 +1 @@\n-old\n+first" },
+          ],
+        },
+      }),
+      event({
+        id: "test-file",
+        name: "file_change",
+        input: {
+          changes: [
+            { path: "tests/index.ts", diff: "@@ -1 +1 @@\n-test\n+updated" },
+          ],
+        },
+      }),
+      event({
+        id: "src-new",
+        name: "file_change",
+        input: {
+          changes: [
+            { path: "src/index.ts", diff: "@@ -1 +1 @@\n-first\n+latest" },
+          ],
+        },
+      }),
+    ]);
+    const entries = diffEntriesFromBlocks(blocks, { latestPerPath: true });
+    expect(entries).toHaveLength(2);
+    expect(
+      entries.find((entry) => entry.path === "src/index.ts")?.text,
+    ).toContain("+latest");
+    expect(
+      entries.find((entry) => entry.path === "tests/index.ts"),
+    ).toBeDefined();
+  });
   test("keeps working files out of final artifacts while preserving their trace", () => {
     expect(isInternalWorkingFilePath("output/final/plan.md")).toBe(true);
     expect(isInternalWorkingFilePath("output/final/research-plan.md")).toBe(

@@ -4,8 +4,8 @@ from __future__ import annotations
 
 import concurrent.futures
 import threading
-import pytest
 
+import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
@@ -21,7 +21,9 @@ def development_environment(monkeypatch):
     monkeypatch.setenv("ECHO_DEPLOYMENT_MODE", "local")
 
 
-@pytest.mark.parametrize("environment,deployment", [("", "local"), ("production", "local"), ("development", "server")])
+@pytest.mark.parametrize(
+    "environment,deployment", [("", "local"), ("production", "local"), ("development", "server")]
+)
 def test_local_login_rejected_outside_development(monkeypatch, environment, deployment):
     monkeypatch.setenv("ECHO_ENV", environment)
     monkeypatch.setenv("ECHO_DEPLOYMENT_MODE", deployment)
@@ -29,6 +31,26 @@ def test_local_login_rejected_outside_development(monkeypatch, environment, depl
     with client:
         response = client.post("/api/auth/local/login", json={"username": "guest"})
         assert response.status_code == 503
+
+
+@pytest.mark.parametrize("environment,deployment", [("production", "production"), ("", "local")])
+def test_password_backed_login_is_available_outside_development(
+    monkeypatch, environment, deployment
+):
+    monkeypatch.setenv("ECHO_ENV", environment)
+    monkeypatch.setenv("ECHO_DEPLOYMENT_MODE", deployment)
+    config = LocalAuthConfig(
+        enabled=True,
+        users={"admin": _TEST_BCRYPT_HASH},
+        jwt_secret="Production!Local9Jwt#Secret2With$Entropy4AndLength",
+    )
+    app = FastAPI()
+    app.include_router(local_auth_router.create_local_auth_router(config=config))
+    with TestClient(app) as client:
+        assert _login(client, "admin", "wrong").status_code == 401
+        response = _login(client, "admin", "correct-password")
+        assert response.status_code == 200, response.text
+        assert response.json()["access_token"]
 
 
 class _Clock:

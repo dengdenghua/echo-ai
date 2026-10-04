@@ -65,6 +65,11 @@ import {
 } from "./realtime-tool-compat";
 import { liveEventIsReportLike } from "./report-deliverable";
 import {
+  useMessageQueue,
+  type MessageQueueControl,
+  type QueuedMessage,
+} from "./use-message-queue";
+import {
   applyCodexComposerModeContext,
   parseCodexComposerModeMarker,
 } from "./codex-composer-mode";
@@ -126,14 +131,21 @@ function newClientMessageId(): string {
 }
 
 export type UseThreadStreamRealtimeResult = readonly [
-  ExposedRealtimeThread & { vitals: StreamVitals },
+  ExposedRealtimeThread & {
+    vitals: StreamVitals;
+    messageQueue: MessageQueueControl;
+  },
   SendMessageFn,
   boolean,
   LiveToolEvent[],
   LiveToolEvent[],
   {
     pendingApprovals: PendingApproval[];
-    resolveApproval: (requestId: string | number, accept: boolean, preparedRoles?: Record<string, string>) => void;
+    resolveApproval: (
+      requestId: string | number,
+      accept: boolean,
+      preparedRoles?: Record<string, string>,
+    ) => void;
     hasMoreTurns: boolean;
     loadOlderTurns: () => Promise<void>;
   },
@@ -1771,7 +1783,7 @@ export function useThreadStreamRealtime(
         }
         // Keep the failed bubble in the timeline and also hand the original
         // draft back to the composer so the user can edit before retrying.
-        if (typeof window !== "undefined") {
+        if (outbound.source !== "queue" && typeof window !== "undefined") {
           void extractImageFiles(files)
             .catch(() => [])
             .then((images) => {
@@ -1823,7 +1835,8 @@ export function useThreadStreamRealtime(
     const pending = pendingOutboundRef.current;
     if (!isSameThreadEpoch(pending, threadEpoch)) return;
     const queued = pending.messages.filter(
-      (message) => message.deliveryState === "queued",
+      (message) =>
+        message.deliveryState === "queued" && message.source !== "queue",
     );
     // Normal UI flow permits only one unacknowledged start. Keep this loop so
     // restored steering rows still preserve FIFO if a reconnect races them.
@@ -1851,7 +1864,7 @@ export function useThreadStreamRealtime(
           message.clientMessageId === clientMessageId &&
           message.deliveryState === "failed",
       );
-      if (!pending) return;
+      if (!pending || pending.source === "queue") return;
       const waitingForFirstTurnReceipt = currentPending.messages.some(
         (message) =>
           message.clientMessageId !== clientMessageId &&
@@ -1906,7 +1919,7 @@ export function useThreadStreamRealtime(
   ]);
 
   const sendMessage = useCallback<SendMessageFn>(
-    (_threadId, message) => {
+    (_threadId, message, ...args) => {
       const sendEpoch = threadEpoch;
       if (!isCurrentThreadEpoch(sendEpoch)) return;
       const rawText = (message?.text ?? "").trim();
@@ -1916,11 +1929,19 @@ export function useThreadStreamRealtime(
       if (!displayText && files.length === 0) return;
       const effectiveThreadId =
         _threadId && _threadId !== "new" ? _threadId : threadId;
+      const queueOptions = (args[0] ?? {}) as {
+        queueItemId?: string;
+        intent?: "start" | "steer";
+      };
+      const intent = queueOptions.intent ?? (runningTurnId ? "steer" : "start");
       const outbound: PendingOutboundMessage = {
-        clientMessageId: newClientMessageId(),
+        clientMessageId: queueOptions.queueItemId ?? newClientMessageId(),
         threadId: effectiveThreadId,
-        intent: runningTurnId ? "steer" : "start",
-        ...(runningTurnId ? { targetTurnId: runningTurnId } : {}),
+        intent,
+        ...(intent === "steer" && runningTurnId
+          ? { targetTurnId: runningTurnId }
+          : {}),
+        ...(queueOptions.queueItemId ? { source: "queue" as const } : {}),
         message: { text: rawText, files },
         displayText,
         createdAt: new Date().toISOString(),
@@ -1945,7 +1966,7 @@ export function useThreadStreamRealtime(
           message: failed,
         });
         setSendErrorForEpoch(sendEpoch, errorMessage);
-        if (typeof window !== "undefined") {
+        if (outbound.source !== "queue" && typeof window !== "undefined") {
           window.dispatchEvent(
             new CustomEvent("echo:send-failed", {
               detail: {
@@ -1981,8 +2002,70 @@ export function useThreadStreamRealtime(
     ],
   );
 
+  const queueFailures = useMemo(
+    () =>
+      new Map(
+        pendingOutboundMessages
+          .filter((item) => item.deliveryState === "failed")
+          .map((item) => [item.clientMessageId, item.error ?? "Send failed"]),
+      ),
+    [pendingOutboundMessages],
+  );
+  const sendQueued = useCallback(
+    (item: QueuedMessage, intent: "start" | "steer") => {
+      sendMessage(
+        threadId,
+        { text: item.text, files: [] },
+        { queueItemId: item.id, intent },
+      );
+    },
+    [sendMessage, threadId],
+  );
+  const discardQueued = useCallback(
+    (id: string) => {
+      const pending = pendingOutboundRef.current;
+      if (
+        !isSameThreadEpoch(pending, threadEpoch) ||
+        !pending.messages.some((item) => item.clientMessageId === id)
+      )
+        return;
+      updateOptimisticMessages(threadEpoch, {
+        type: "remove",
+        clientMessageId: id,
+      });
+      setSendErrorForEpoch(threadEpoch, null);
+    },
+    [setSendErrorForEpoch, threadEpoch, updateOptimisticMessages],
+  );
+  const lastStatus = state.turns.at(-1)?.status;
+  const messageQueue = useMessageQueue({
+    scope: threadId,
+    running: isUiLoading,
+    ready: transportReady,
+    blocked:
+      state.pendingApprovals.length > 0 ||
+      pendingOutboundMessages.length > 0 ||
+      isUploading,
+    interrupted:
+      lastStatus === "interrupted" ||
+      lastStatus === "cancelled" ||
+      lastStatus === "failed" ||
+      lastStatus === "paused",
+    receipts: acknowledgedOutboundIds,
+    failures: queueFailures,
+    send: sendQueued,
+    discard: discardQueued,
+  });
+  const stopWithQueue = useCallback(() => {
+    messageQueue.pause();
+    return stop();
+  }, [messageQueue.pause, stop]);
+  const threadWithQueue = useMemo(
+    () => ({ ...exposedThread, messageQueue, stop: stopWithQueue }),
+    [exposedThread, messageQueue, stopWithQueue],
+  );
   return [
-    exposedThread,
+    threadWithQueue,
     sendMessage,
     isUploading,
     liveToolEvents,

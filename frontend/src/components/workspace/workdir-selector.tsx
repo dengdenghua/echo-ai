@@ -1,3 +1,4 @@
+import { executionStorageKey } from "@/core/execution-location";
 import {
   CheckIcon,
   ChevronDownIcon,
@@ -58,7 +59,7 @@ interface WorkDirSelectorProps {
 }
 
 type FsTreeEntry = components["schemas"]["FsTreeEntry"];
-const RECENT_WORKDIRS_KEY = "echo:recentWorkdirs";
+const RECENT_WORKDIRS_KEY = executionStorageKey("echo:recentWorkdirs");
 const MAX_RECENT_WORKDIRS = 6;
 const MENU_WIDTH = 360;
 const MENU_MARGIN = 12;

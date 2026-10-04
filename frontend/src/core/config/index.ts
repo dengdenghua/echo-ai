@@ -1,4 +1,5 @@
 import { swallow } from "@/core/utils/log";
+import { executionProxyPath } from "@/core/execution-location";
 function getBaseOrigin() {
   if (typeof window !== "undefined") {
     return window.location.origin;
@@ -58,9 +59,7 @@ function getRuntimeBackendBaseURL() {
       window.sessionStorage?.setItem(RUNTIME_BACKEND_PARAM, normalized);
       return normalized;
     }
-    const fromElectron = normalizeBackendBaseURL(
-      window.echo?.backendBaseURL,
-    );
+    const fromElectron = normalizeBackendBaseURL(window.echo?.backendBaseURL);
     if (fromElectron) {
       window.sessionStorage?.setItem(RUNTIME_BACKEND_PARAM, fromElectron);
       return fromElectron;
@@ -84,7 +83,7 @@ function isPackagedDesktopRenderer() {
   );
 }
 
-export function getBackendBaseURL() {
+export function getLocalBackendBaseURL() {
   // The packaged shell owns a secure, standard application origin. HTTP
   // requests stay relative so /api, /api/plugins, and backend media all pass
   // through the main process's fixed loopback proxy without browser CORS.
@@ -120,6 +119,10 @@ export function getBackendBaseURL() {
   }
 
   return "";
+}
+
+export function getBackendBaseURL() {
+  return `${getLocalBackendBaseURL()}${executionProxyPath()}`;
 }
 
 /**
@@ -164,9 +167,11 @@ export function getControlPlaneBaseURL() {
  */
 export function getBackendTransportBaseURL() {
   if (isPackagedDesktopRenderer()) {
-    return normalizeBackendBaseURL(window.echo?.backendBaseURL);
+    return `${normalizeBackendBaseURL(window.echo?.backendBaseURL)}${executionProxyPath()}`;
   }
-  return getBackendBaseURL();
+  const base = getBackendBaseURL();
+  if (base.startsWith("/")) return `${getBaseOrigin()}${base}`;
+  return base;
 }
 
 export function getBackendWebSocketBaseURL() {
@@ -185,6 +190,7 @@ export function getBackendWebSocketBaseURL() {
 }
 
 export function getEchoBaseURL(_isMock?: boolean) {
+  if (executionProxyPath()) return `${getBackendBaseURL()}/api`;
   if (isPackagedDesktopRenderer()) {
     return "/api";
   }

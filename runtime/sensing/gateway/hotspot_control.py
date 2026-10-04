@@ -12,7 +12,7 @@ from urllib.parse import urlsplit
 import httpx
 from fastapi import HTTPException, Request
 
-from runtime.sensing.gateway.codex_hotspot import ROOT, owner_token
+from runtime.sensing.gateway.hotspot_auth import ROOT, owner_token
 
 BASE = "http://127.0.0.1:8322"
 _lock = asyncio.Lock()

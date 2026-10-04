@@ -1,5 +1,5 @@
 import { swallow } from "@/core/utils/log";
-import { getBackendBaseURL } from "@/core/config";
+import { getLocalBackendBaseURL } from "@/core/config";
 
 import type {
   AuthStatus,
@@ -118,7 +118,7 @@ export function currentActorId(): string {
 }
 
 export async function getAuthStatus(): Promise<AuthStatus> {
-  const res = await fetch(`${getBackendBaseURL()}/api/auth/status`);
+  const res = await fetch(`${getLocalBackendBaseURL()}/api/auth/status`);
   if (!res.ok) throw new Error(`Failed to get auth status: ${res.statusText}`);
   return (await res.json()) as AuthStatus;
 }
@@ -140,7 +140,7 @@ export interface AuthProviderInfo {
  * any error so the UI fails closed (show nothing). */
 export async function getAuthProviderInfo(): Promise<AuthProviderInfo[]> {
   try {
-    const res = await fetch(`${getBackendBaseURL()}/api/auth/providers`);
+    const res = await fetch(`${getLocalBackendBaseURL()}/api/auth/providers`);
     if (!res.ok) return [];
     const data = (await res.json()) as {
       providers?: AuthProviderInfo[] | string[];
@@ -164,7 +164,7 @@ export async function getAuthProviders(): Promise<string[]> {
 export async function login(request: LoginRequest): Promise<LoginResponse> {
   const body: Record<string, unknown> = { username: request.username };
   if (request.password) body.password = request.password;
-  const res = await fetch(`${getBackendBaseURL()}/api/auth/local/login`, {
+  const res = await fetch(`${getLocalBackendBaseURL()}/api/auth/local/login`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(body),
@@ -193,7 +193,7 @@ export async function login(request: LoginRequest): Promise<LoginResponse> {
 }
 
 export async function register(request: RegisterRequest): Promise<User> {
-  const res = await fetch(`${getBackendBaseURL()}/api/auth/register`, {
+  const res = await fetch(`${getLocalBackendBaseURL()}/api/auth/register`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(request),
@@ -206,7 +206,7 @@ export async function register(request: RegisterRequest): Promise<User> {
 }
 
 export async function getMe(): Promise<User> {
-  const res = await fetch(`${getBackendBaseURL()}/api/auth/me`, {
+  const res = await fetch(`${getLocalBackendBaseURL()}/api/auth/me`, {
     headers: authHeaders(),
   });
   if (!res.ok) throw new Error(`Failed to get user: ${res.statusText}`);
@@ -214,7 +214,7 @@ export async function getMe(): Promise<User> {
 }
 
 export async function logout(): Promise<void> {
-  await fetch(`${getBackendBaseURL()}/api/auth/logout`, {
+  await fetch(`${getLocalBackendBaseURL()}/api/auth/logout`, {
     method: "POST",
     headers: authHeaders(),
     credentials: "include",
@@ -223,7 +223,7 @@ export async function logout(): Promise<void> {
 }
 
 export async function refreshToken(): Promise<LoginResponse> {
-  const res = await fetch(`${getBackendBaseURL()}/api/auth/refresh`, {
+  const res = await fetch(`${getLocalBackendBaseURL()}/api/auth/refresh`, {
     method: "POST",
     headers: authHeaders(),
   });

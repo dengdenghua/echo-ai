@@ -15,7 +15,7 @@ python -m runtime quickstart --non-interactive --serve
 Open:
 
 ```text
-http://127.0.0.1:8000
+http://127.0.0.1:8310
 ```
 
 The first command creates `config.yaml` if it is missing and runs `doctor`.
@@ -23,10 +23,12 @@ The second command repeats the checks and starts the FastAPI service.
 
 ## Docker
 
+首次 `make up` 只生成 `config.yaml` 和 `.env`。先按 [部署指南](deployment.md) 启用 `local_auth` 或 `oct` 并配置强密钥，再运行一次启动容器。
+
 ```bash
-cp .env.example .env
-cp config.example.yaml config.yaml
-docker compose up -d
+make up
+# 编辑 config.yaml 和 .env，配置认证后：
+make up
 docker compose logs -f echo-ai
 ```
 
@@ -87,8 +89,8 @@ pnpm --dir frontend electron:dev
 
 ```bash
 python -m runtime doctor --config config.yaml
-curl http://127.0.0.1:8000/api/health
-curl http://127.0.0.1:8000/api/status
+curl http://127.0.0.1:8310/api/health
+curl http://127.0.0.1:8310/api/status
 ```
 
 If you do not have an LLM key yet, keep the generated static config and run the

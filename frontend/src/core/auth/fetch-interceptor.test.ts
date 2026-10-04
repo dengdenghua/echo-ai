@@ -1,7 +1,12 @@
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 
 // Dev-style backend base (relative /api through the proxy).
-vi.mock("@/core/config", () => ({ getBackendBaseURL: () => "" }));
+vi.mock("@/core/config", () => ({
+  getBackendBaseURL: () =>
+    new URLSearchParams(window.location.search).has("echoRemote")
+      ? "/api/remote-backends/host-a/http"
+      : "",
+}));
 
 import { installAuthFetchInterceptor } from "./fetch-interceptor";
 
@@ -56,6 +61,35 @@ const authOf = (i = 0): string | null =>
   calls[i]?.headers.get("Authorization") ?? null;
 
 describe("installAuthFetchInterceptor", () => {
+  it("scopes relative runtime requests while keeping auth and registry local", async () => {
+    const original = window.location;
+    Object.defineProperty(window, "location", {
+      configurable: true,
+      value: new URL("http://localhost/?echoRemote=host-a"),
+    });
+    try {
+      sessionStorage.setItem("echo_auth_token", "local-token");
+      await window.fetch("/api/fs/tree?path=%2Fremote");
+      await window.fetch("/api/remote-backends");
+      await window.fetch("/api/auth/me");
+      await window.fetch("/api/remote-backends/host-a/http/api/agents");
+      await window.fetch("https://third-party.test/api/fs/tree");
+      expect(calls.map((call) => call.url)).toEqual([
+        "/api/remote-backends/host-a/http/api/fs/tree?path=%2Fremote",
+        "/api/remote-backends",
+        "/api/auth/me",
+        "/api/remote-backends/host-a/http/api/agents",
+        "https://third-party.test/api/fs/tree",
+      ]);
+      expect(authOf()).toBe("Bearer local-token");
+      expect(authOf(4)).toBeNull();
+    } finally {
+      Object.defineProperty(window, "location", {
+        configurable: true,
+        value: original,
+      });
+    }
+  });
   it("attaches the bearer token to backend /api requests", async () => {
     sessionStorage.setItem("echo_auth_token", "tok123");
     await window.fetch("/api/apps");

@@ -10,7 +10,6 @@ import hmac
 import json
 import logging
 import os
-import secrets
 import uuid
 from pathlib import Path
 
@@ -23,27 +22,13 @@ from runtime.execution.codex_backend.hotspot import (
     SubscriptionAuth,
     stream_codex,
 )
+from runtime.sensing.gateway.hotspot_auth import ROOT, owner_token
 from runtime.sensing.gateway.hotspot_store import HotspotStore
 from runtime.sensing.gateway.workbuddy_bridge import WorkBuddyExecutor
 from runtime.sensing.gateway.workbuddy_bridge import create_app as role_app
 
-ROOT = Path.home() / ".echo" / "codex-hotspot"
 UPSTREAM = "https://chatgpt.com/backend-api/codex/responses"
 MAX_BODY = 2 * 1024 * 1024
-
-
-def owner_token(root: Path) -> str:
-    root.mkdir(parents=True, exist_ok=True)
-    path = root / "owner.token"
-    if not path.exists():
-        try:
-            fd = os.open(path, os.O_CREAT | os.O_EXCL | os.O_WRONLY, 0o600)
-        except FileExistsError:
-            pass
-        else:
-            with os.fdopen(fd, "w") as file:
-                file.write(secrets.token_urlsafe(48))
-    return path.read_text().strip()
 
 
 async def bounded_body(request: Request):

@@ -8,7 +8,7 @@
 生成认证材料：
 
 ```bash
-openssl rand -base64 48
+printf 'Echo!9%s\n' "$(openssl rand -base64 48)"
 python -c 'from getpass import getpass; from runtime.adapters.integrations.local_auth.config import hash_password; print(hash_password(getpass("Admin password: ")))'
 ```
 

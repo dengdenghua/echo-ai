@@ -14,6 +14,8 @@
  * keep the key space from growing unboundedly.
  */
 
+import { executionStorageKey } from "../execution-location";
+
 const DRAFT_KEY_PREFIX = "echo:composer-draft:";
 export const NEW_THREAD_DRAFT_KEY = "__new__";
 const DRAFT_MAX_AGE_MS = 30 * 24 * 60 * 60 * 1000;
@@ -25,7 +27,9 @@ interface DraftEnvelope {
 }
 
 function storageKey(threadId: string | undefined | null): string {
-  return DRAFT_KEY_PREFIX + (threadId?.trim() ? threadId : NEW_THREAD_DRAFT_KEY);
+  return executionStorageKey(
+    DRAFT_KEY_PREFIX + (threadId?.trim() ? threadId : NEW_THREAD_DRAFT_KEY),
+  );
 }
 
 function readDraft(raw: string | null): string | null {
@@ -44,7 +48,8 @@ function readDraft(raw: string | null): string | null {
 function pruneExpiredDrafts(now: number): void {
   for (let i = 0; i < window.localStorage.length; i += 1) {
     const key = window.localStorage.key(i);
-    if (!key || !key.startsWith(DRAFT_KEY_PREFIX)) continue;
+    if (!key || !key.startsWith(executionStorageKey(DRAFT_KEY_PREFIX)))
+      continue;
     const raw = window.localStorage.getItem(key);
     if (!raw) continue;
     try {
@@ -80,7 +85,10 @@ export function saveComposerDraft(
     if (draft) {
       const now = Date.now();
       const envelope: DraftEnvelope = { v: 1, text: draft, savedAt: now };
-      window.localStorage.setItem(storageKey(threadId), JSON.stringify(envelope));
+      window.localStorage.setItem(
+        storageKey(threadId),
+        JSON.stringify(envelope),
+      );
       pruneExpiredDrafts(now);
     } else {
       window.localStorage.removeItem(storageKey(threadId));

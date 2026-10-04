@@ -22,7 +22,7 @@ import { Label } from "@/components/ui/label";
 import { ErrorState } from "@/components/ui/state";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { type AuthProviderInfo, getAuthProviderInfo } from "@/core/auth/api";
-import { getBackendBaseURL } from "@/core/config";
+import { getLocalBackendBaseURL } from "@/core/config";
 import {
   authReturnToFromSearch,
   registerPathWithReturnTo,
@@ -606,7 +606,7 @@ export default function LoginPage() {
   >({});
   useEffect(() => {
     let active = true;
-    fetch(`${getBackendBaseURL()}/api/auth/social/providers`)
+    fetch(`${getLocalBackendBaseURL()}/api/auth/social/providers`)
       .then((response) => (response.ok ? response.json() : null))
       .then((data) => {
         if (active && data?.providers)
@@ -799,7 +799,7 @@ export default function LoginPage() {
                       }
                       onClick={() => {
                         window.location.assign(
-                          `${getBackendBaseURL()}/api/auth/social/${provider}/start?return_to=${encodeURIComponent(returnTo)}`,
+                          `${getLocalBackendBaseURL()}/api/auth/social/${provider}/start?return_to=${encodeURIComponent(returnTo)}`,
                         );
                       }}
                     >

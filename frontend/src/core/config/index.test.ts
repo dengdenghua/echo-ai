@@ -5,6 +5,7 @@ import {
   getBackendTransportBaseURL,
   getBackendWebSocketBaseURL,
   getControlPlaneBaseURL,
+  getLocalBackendBaseURL,
   getEchoBaseURL,
   getPublicAssetURL,
 } from ".";
@@ -121,5 +122,32 @@ describe("backend base URL resolution", () => {
     expect(getBackendBaseURL()).toBe("");
     expect(getEchoBaseURL()).toBe("/api");
     expect(window.sessionStorage.getItem("echoBackend")).toBeNull();
+  });
+
+  test("routes remote HTTP and WebSocket traffic through the local gateway", () => {
+    setLocation(
+      "http://localhost:3310/?echoRemote=host-123#/workspace/realtime/new",
+    );
+    expect(getLocalBackendBaseURL()).toBe("");
+    expect(getBackendBaseURL()).toBe("/api/remote-backends/host-123/http");
+    expect(getEchoBaseURL()).toBe("/api/remote-backends/host-123/http/api");
+    expect(getBackendTransportBaseURL()).toBe(
+      "http://localhost:3310/api/remote-backends/host-123/http",
+    );
+    expect(getBackendWebSocketBaseURL()).toBe(
+      "ws://localhost:3310/api/remote-backends/host-123/http",
+    );
+  });
+
+  test("keeps remote desktop HTTP on the app origin and WS on trusted loopback", () => {
+    setLocation(
+      "echo-app://app/index.html?echoRemote=host-123&echoBackend=https%3A%2F%2Fevil.test#/workspace/realtime/new",
+    );
+    window.echo = { isElectron: true, backendBaseURL: "http://127.0.0.1:8765" };
+    expect(getLocalBackendBaseURL()).toBe("");
+    expect(getBackendBaseURL()).toBe("/api/remote-backends/host-123/http");
+    expect(getBackendTransportBaseURL()).toBe(
+      "http://127.0.0.1:8765/api/remote-backends/host-123/http",
+    );
   });
 });

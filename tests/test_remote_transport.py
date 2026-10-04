@@ -760,6 +760,154 @@ def test_proxy_endpoint_forwards(
     assert mocked_proxy.call_args.kwargs["auth_token"] == "remote-secret"
 
 
+@pytest.fixture
+def http_proxy_backend(client: TestClient, monkeypatch: pytest.MonkeyPatch) -> str:
+    monkeypatch.setenv("ECHO_FF_UI_REMOTE_TRANSPORT", "1")
+    ff.reload()
+    return client.post(
+        "/api/remote-backends",
+        json={"name": "build", "url": "https://build.example.com", "auth_token": "remote-secret"},
+    ).json()["backend"]["id"]
+
+
+def test_transparent_proxy_preserves_binary_upload_query_and_remote_credentials(
+    client: TestClient, http_proxy_backend: str, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import httpx
+
+    captured: dict[str, Any] = {}
+    closed: list[bool] = []
+
+    @contextmanager
+    def stream(method: str, url: str, **kwargs: Any) -> Iterator[Any]:
+        captured.update(method=method, url=url, **kwargs)
+        response = httpx.Response(
+            206, request=httpx.Request(method, url), stream=httpx.ByteStream(b"\x00\xffremote-file"),
+            headers={"content-type": "application/octet-stream", "content-range": "bytes 0-12/13", "set-cookie": "remote-secret=secret", "x-echo-auth-expired": "1"},
+        )
+        try:
+            yield response
+        finally:
+            response.close()
+            closed.append(True)
+
+    monkeypatch.setattr("runtime.safety.auth.url_guard.safe_httpx_stream", stream)
+    response = client.post(
+        f"/api/remote-backends/{http_proxy_backend}/http/api/threads/t/uploads?file=a%2Fb&tag=1&tag=2",
+        content=b"\x00multipart-upload\xff",
+        headers={"Authorization": "Bearer local-secret", "Cookie": "local=secret", "Content-Type": "multipart/form-data; boundary=raw", "Range": "bytes=0-12"},
+    )
+    assert response.status_code == 206
+    assert response.content == b"\x00\xffremote-file"
+    assert response.headers["content-range"] == "bytes 0-12/13"
+    assert "set-cookie" not in response.headers
+    assert "x-echo-auth-expired" not in response.headers
+    assert captured["method"] == "POST"
+    assert captured["url"] == "https://build.example.com/api/threads/t/uploads?file=a%2Fb&tag=1&tag=2"
+    assert captured["data"] == b"\x00multipart-upload\xff"
+    assert captured["headers"]["Authorization"] == "Bearer remote-secret"
+    assert captured["headers"]["range"] == "bytes=0-12"
+    assert "cookie" not in captured["headers"]
+    assert captured["allow_private"] is False
+    assert closed == [True]
+
+
+def test_transparent_proxy_streams_events_without_preconsuming_response(
+    client: TestClient, http_proxy_backend: str, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import httpx
+
+    events: list[str] = []
+
+    class Events(httpx.SyncByteStream):
+        def __iter__(self) -> Iterator[bytes]:
+            events.append("read")
+            yield b"data: first\n\n"
+            yield b"data: second\n\n"
+
+        def close(self) -> None:
+            events.append("closed")
+
+    @contextmanager
+    def stream(method: str, url: str, **kwargs: Any) -> Iterator[Any]:
+        response = httpx.Response(200, stream=Events(), headers={"content-type": "text/event-stream"})
+        assert not response.is_stream_consumed
+        events.append("opened")
+        try:
+            yield response
+        finally:
+            response.close()
+
+    monkeypatch.setattr("runtime.safety.auth.url_guard.safe_httpx_stream", stream)
+    response = client.get(f"/api/remote-backends/{http_proxy_backend}/http/api/files/stream")
+    assert response.content == b"data: first\n\ndata: second\n\n"
+    assert response.headers["x-accel-buffering"] == "no"
+    assert events == ["opened", "read", "closed"]
+
+
+@pytest.mark.parametrize("path", ["assets/file", "api/auth/me", "api/remote-backends", "api/fs/%2e%2e/private", "api/fs/a%5Cb"])
+def test_transparent_proxy_rejects_non_api_auth_and_nested_proxy_paths(
+    client: TestClient, http_proxy_backend: str, path: str,
+) -> None:
+    response = client.get(f"/api/remote-backends/{http_proxy_backend}/http/{path}")
+    assert response.status_code == 400
+
+
+def test_transparent_proxy_preserves_feature_gate(
+    client: TestClient, http_proxy_backend: str, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("ECHO_FF_UI_REMOTE_TRANSPORT", "0")
+    ff.reload()
+    response = client.get(f"/api/remote-backends/{http_proxy_backend}/http/api/health")
+    assert response.status_code == 403
+
+
+def test_transparent_proxy_requires_operator(
+    store_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("ECHO_FF_UI_REMOTE_TRANSPORT", "1")
+    ff.reload()
+    backend = BackendRegistry(store_path).add(name="build", url="https://build.example.com")
+    identities = IdentityStore()
+    identities.add(Identity(actor_id="reader", roles=("user",)), api_key_plaintext="sk-reader")
+    app = FastAPI()
+    app.include_router(create_remote_backends_router(store_path=store_path, identity_store=identities, require_auth=True))
+    with TestClient(app) as secured:
+        route = f"/api/remote-backends/{backend.id}/http/api/health"
+        assert secured.get(route).status_code == 401
+        assert secured.get(route, headers={"Authorization": "Bearer sk-reader"}).status_code == 403
+
+
+def test_transparent_proxy_reports_connection_failure(
+    client: TestClient, http_proxy_backend: str, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import httpx
+
+    def fail(*args: Any, **kwargs: Any) -> Any:
+        raise httpx.ConnectError("offline")
+
+    monkeypatch.setattr("runtime.safety.auth.url_guard.safe_httpx_stream", fail)
+    response = client.get(f"/api/remote-backends/{http_proxy_backend}/http/api/health")
+    assert response.status_code == 502
+    assert client.get("/api/remote-backends").json()["backends"][0]["last_health"] == "error"
+
+
+def test_realtime_proxy_supports_renderer_scoped_base_url(
+    client: TestClient, http_proxy_backend: str, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    captured: dict[str, Any] = {}
+
+    async def relay(backend: RemoteBackend, ws: Any, **kwargs: Any) -> None:
+        captured.update(id=backend.id, **kwargs)
+        await ws.send_json({"jsonrpc": "2.0", "method": "test.remote"})
+        await ws.close()
+
+    monkeypatch.setattr("runtime.sensing.gateway.remote_backends_router.proxy_websocket", relay)
+    with client.websocket_connect(f"/api/remote-backends/{http_proxy_backend}/http/api/realtime") as ws:
+        assert ws.receive_json()["method"] == "test.remote"
+    assert captured == {"id": http_proxy_backend, "auth_token": "remote-secret"}
+
+
 def test_proxy_404_for_unknown_backend(
     client: TestClient,
     monkeypatch: pytest.MonkeyPatch,

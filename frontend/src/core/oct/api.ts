@@ -6,7 +6,7 @@
  * 这是 additive 模块;登录页/消费者切到这里在 ③b。
  */
 import { authHeaders } from "@/core/auth/api";
-import { getBackendBaseURL } from "@/core/config";
+import { getLocalBackendBaseURL } from "@/core/config";
 
 export class OctApiError extends Error {
   readonly status: number;
@@ -66,7 +66,7 @@ async function _request<T>(
   path: string,
   init?: RequestInit & { signal?: AbortSignal },
 ): Promise<T> {
-  const res = await fetch(`${getBackendBaseURL()}${path}`, {
+  const res = await fetch(`${getLocalBackendBaseURL()}${path}`, {
     ...init,
     headers: { ...authHeaders(), ...(init?.headers || {}) },
   });

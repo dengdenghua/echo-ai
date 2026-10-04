@@ -16,6 +16,7 @@ export interface PendingOutboundMessage {
   createdAt: string;
   deliveryState: OutboundDeliveryState;
   error?: string;
+  source?: "queue";
 }
 
 export type OptimisticMessageAction =
@@ -28,6 +29,7 @@ export type OptimisticMessageAction =
     }
   | { type: "transport-ready"; ready: boolean }
   | { type: "acknowledge"; clientMessageIds: ReadonlySet<string> }
+  | { type: "remove"; clientMessageId: string }
   | { type: "reset" };
 
 /**
@@ -82,6 +84,8 @@ export function optimisticMessageReducer(
       // Match the identity discipline the other cases already keep.
       return next.length === state.length ? state : next;
     }
+    case "remove":
+      return state.filter(message => message.clientMessageId !== action.clientMessageId);
     case "reset":
       return state.length === 0 ? state : [];
   }
@@ -140,7 +144,7 @@ export function pendingOutboundToHumanMessage(
     content: pending.displayText,
     additional_kwargs: {
       delivery_state: pending.deliveryState,
-      retryable: pending.deliveryState === "failed",
+      retryable: pending.deliveryState === "failed" && pending.source !== "queue",
       thread_id: pending.threadId,
       created_at: pending.createdAt,
       ...(pending.error ? { delivery_error: pending.error } : {}),

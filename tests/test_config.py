@@ -94,6 +94,27 @@ class TestLoadFromDict:
         assert cfg.name == "test-agent"
         assert cfg.planner.type == "static"  # default
 
+    def test_preset_supplies_defaults_without_overriding_explicit_values(self):
+        cfg = load_from_dict(
+            {
+                "preset": "team",
+                "planner": {"model": "claude-haiku-4-5-20251001"},
+                "budget": {"max_tokens": 1234},
+            }
+        )
+        assert cfg.preset == "team"
+        assert cfg.planner.type == "llm"
+        assert cfg.planner.model == "claude-haiku-4-5-20251001"
+        assert cfg.budget.max_tokens == 1234
+        assert cfg.budget.max_usd == 2.00
+
+        strict = load_from_dict({"preset": "research", "immunity": {"unknown_policy": "reject"}})
+        assert strict.immunity.unknown_policy == "reject"
+
+    def test_unknown_preset_is_rejected(self):
+        with pytest.raises(ConfigLoadError, match="unknown preset"):
+            load_from_dict({"preset": "unknown"})
+
     def test_full_config(self):
         cfg = load_from_dict(
             {

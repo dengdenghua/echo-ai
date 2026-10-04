@@ -1,6 +1,7 @@
+import { executionStorageKey } from "@/core/execution-location";
 import { useEffect, useState } from "react";
 
-const RECENT_WORKDIRS_KEY = "echo:recentWorkdirs";
+const RECENT_WORKDIRS_KEY = executionStorageKey("echo:recentWorkdirs");
 
 function isAbsolutePath(value: string) {
   return value.startsWith("/") || /^[A-Za-z]:[\\/]/.test(value);

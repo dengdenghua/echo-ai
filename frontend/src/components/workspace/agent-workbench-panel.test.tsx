@@ -92,6 +92,11 @@ function listAfterSummaryLabel(label: string): HTMLElement {
 }
 
 describe("<AgentWorkbenchPanel />", () => {
+  test("keeps conversation diff history accessible when the current turn has no tool events", () => {
+    renderWorkbench(<AgentWorkbenchPanel activeTab="diff" events={[]} historyEvents={[event({ id: "old-change", name: "file_change", input: { changes: [{ path: "src/history.ts", op: "update", diff: "@@ -1 +1 @@\n-old\n+new" }] } })]} />);
+    fireEvent.click(screen.getByRole("button", { name: "会话记录", exact: true }));
+    expect(screen.getByTitle("src/history.ts")).toBeInTheDocument();
+  });
   test("reports no workbench content for low-level transport events only", () => {
     expect(
       hasAgentWorkbenchContent([

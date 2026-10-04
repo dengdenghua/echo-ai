@@ -50,4 +50,25 @@ describe("directory picker cancellation", () => {
     });
     await expect(pickLocalDirectory()).resolves.toBeNull();
   });
+  it("never opens this computer's native dialog for a remote runtime", async () => {
+    const original = window.location;
+    Object.defineProperty(window, "location", {
+      configurable: true,
+      value: new URL("http://localhost/?echoRemote=host-a"),
+    });
+    const open = vi.fn();
+    Object.defineProperty(window, "echo", {
+      configurable: true,
+      value: { dialog: { open } },
+    });
+    try {
+      await expect(pickLocalDirectory()).rejects.toThrow("remote folder");
+      expect(open).not.toHaveBeenCalled();
+    } finally {
+      Object.defineProperty(window, "location", {
+        configurable: true,
+        value: original,
+      });
+    }
+  });
 });

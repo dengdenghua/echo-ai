@@ -21,15 +21,18 @@ class TestDockerfile:
     def test_dockerfile_exists(self):
         assert (REPO / "Dockerfile").exists()
 
+    def test_image_installs_configured_auth_and_model_provider(self):
+        text = (REPO / "Dockerfile").read_text(encoding="utf-8")
+        assert "--extra local-auth" in text
+        assert "--extra anthropic" in text
+
     def test_frontend_install_uses_supported_locked_pnpm_flags(self):
         text = (REPO / "Dockerfile").read_text(encoding="utf-8")
 
         assert "pnpm install --frozen-lockfile" in text
         assert "--no-fund" not in text
         assert "frontend/pnpm-workspace.yaml" in text
-        assert (
-            "COPY pet-sidecar/models/echo/echo.fbx /pet-sidecar/models/echo/echo.fbx"
-        ) in text
+        assert ("COPY pet-sidecar/models/echo/echo.fbx /pet-sidecar/models/echo/echo.fbx") in text
         assert (
             "COPY pet-sidecar/models/character_rigged_clean.glb "
             "/pet-sidecar/models/character_rigged_clean.glb"
@@ -303,12 +306,8 @@ class TestDockerCompose:
         for filename in ("docker-compose.yml", "docker-compose.full.yml"):
             doc = yaml.safe_load((REPO / filename).read_text(encoding="utf-8"))
             environment = doc["services"]["echo-ai"]["environment"]
-            assert environment["ECHO_LOCAL_AUTH_JWT_SECRET"] == (
-                "${ECHO_LOCAL_AUTH_JWT_SECRET:-}"
-            )
-            assert environment["ECHO_ADMIN_PASSWORD_HASH"] == (
-                "${ECHO_ADMIN_PASSWORD_HASH:-}"
-            )
+            assert environment["ECHO_LOCAL_AUTH_JWT_SECRET"] == ("${ECHO_LOCAL_AUTH_JWT_SECRET:-}")
+            assert environment["ECHO_ADMIN_PASSWORD_HASH"] == ("${ECHO_ADMIN_PASSWORD_HASH:-}")
             assert environment["ECHO_CLOUD_EDGE_TOKEN_SECRET"] == (
                 "${ECHO_CLOUD_EDGE_TOKEN_SECRET:-}"
             )

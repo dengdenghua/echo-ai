@@ -116,6 +116,15 @@ def _resolve_extends(
 def load_from_dict(data: dict[str, Any]) -> AgentConfig:
     resolved = _interpolate_env(data)
     try:
+        preset = resolved.get("preset")
+        if preset is not None:
+            if not isinstance(preset, str):
+                raise ValueError("preset must be a string or null")
+            from .presets import apply_preset
+
+            # Presets supply defaults; explicit values in this config (including
+            # values inherited through extends) retain the final say.
+            resolved = _deep_merge(apply_preset(preset).model_dump(), resolved)
         return AgentConfig.model_validate(resolved)
     except Exception as e:
         raise ConfigLoadError(f"schema validation failed: {e}") from e

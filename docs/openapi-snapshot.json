@@ -635,6 +635,17 @@
           "label": {
             "title": "Label",
             "type": "string"
+          },
+          "password_only_username": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Password Only Username"
           }
         },
         "required": [
@@ -2705,6 +2716,17 @@
             "title": "Description",
             "type": "string"
           },
+          "display_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Display Name"
+          },
           "model": {
             "anyOf": [
               {
@@ -3292,6 +3314,18 @@
               }
             ],
             "title": "Unsupported Request Fields"
+          },
+          "wire_api": {
+            "anyOf": [
+              {
+                "const": "responses",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Wire Api"
           }
         },
         "required": [
@@ -4011,6 +4045,19 @@
         "title": "DispatchTaskInput",
         "type": "object"
       },
+      "DriverBody": {
+        "properties": {
+          "driver": {
+            "title": "Driver",
+            "type": "string"
+          }
+        },
+        "required": [
+          "driver"
+        ],
+        "title": "DriverBody",
+        "type": "object"
+      },
       "DualHelixShadowRunBody": {
         "properties": {
           "automatic": {
@@ -4716,6 +4763,11 @@
           "kind": {
             "default": "agent",
             "title": "Kind",
+            "type": "string"
+          },
+          "owner": {
+            "default": "",
+            "title": "Owner",
             "type": "string"
           },
           "role": {
@@ -9010,7 +9062,7 @@
     }
   },
   "info": {
-    "title": "echo-ai"
+    "title": "Echo"
   },
   "openapi": "3.1.0",
   "paths": {
@@ -9262,6 +9314,287 @@
         "tags": [
           "a2a"
         ]
+      }
+    },
+    "/api/a2a/hotspot/discover": {
+      "post": {
+        "operationId": "discover_api_a2a_hotspot_discover_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "additionalProperties": true,
+                "title": "Body",
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Discover",
+        "tags": [
+          "a2a"
+        ]
+      }
+    },
+    "/api/a2a/hotspot/enabled": {
+      "post": {
+        "operationId": "enable_api_a2a_hotspot_enabled_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "additionalProperties": true,
+                "title": "Body",
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Enable",
+        "tags": [
+          "a2a"
+        ]
+      }
+    },
+    "/api/a2a/hotspot/local-role": {
+      "post": {
+        "operationId": "local_role_api_a2a_hotspot_local_role_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "anyOf": [
+                  {
+                    "additionalProperties": true,
+                    "type": "object"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Body"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Local Role",
+        "tags": [
+          "a2a"
+        ]
+      }
+    },
+    "/api/a2a/hotspot/members": {
+      "post": {
+        "operationId": "invite_api_a2a_hotspot_members_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "additionalProperties": true,
+                "title": "Body",
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Invite",
+        "tags": [
+          "a2a"
+        ]
+      }
+    },
+    "/api/a2a/hotspot/members/{member}": {
+      "delete": {
+        "operationId": "revoke_api_a2a_hotspot_members__member__delete",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "member",
+            "required": true,
+            "schema": {
+              "title": "Member",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Revoke",
+        "tags": [
+          "a2a"
+        ]
+      }
+    },
+    "/api/a2a/hotspot/status": {
+      "get": {
+        "operationId": "status_api_a2a_hotspot_status_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Status",
+        "tags": [
+          "a2a"
+        ]
+      }
+    },
+    "/api/a2a/published-roles": {
+      "get": {
+        "operationId": "status_api_a2a_published_roles_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Status"
+      },
+      "post": {
+        "operationId": "create_api_a2a_published_roles_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "additionalProperties": true,
+                "title": "Body",
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Create"
       }
     },
     "/api/a2a/rpc": {
@@ -11404,6 +11737,22 @@
           },
           {
             "in": "query",
+            "name": "source",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Source"
+            }
+          },
+          {
+            "in": "query",
             "name": "offset",
             "required": false,
             "schema": {
@@ -11550,6 +11899,62 @@
           }
         },
         "summary": "Api Agent Market Cloud Skill Install Stream",
+        "tags": [
+          "agent-market"
+        ]
+      }
+    },
+    "/api/agent-market/cloud/skills/{name}/manage": {
+      "post": {
+        "operationId": "api_agent_market_skill_manage_api_agent_market_cloud_skills__name__manage_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "name",
+            "required": true,
+            "schema": {
+              "title": "Name",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "additionalProperties": true,
+                "title": "Body",
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Api Agent Market Skill Manage Api Agent Market Cloud Skills  Name  Manage Post",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Api Agent Market Skill Manage",
         "tags": [
           "agent-market"
         ]
@@ -11928,6 +12333,52 @@
         "summary": "Install Enterprise Asset",
         "tags": [
           "agent-market-enterprise"
+        ]
+      }
+    },
+    "/api/agent-market/from-subagent": {
+      "post": {
+        "description": "把子 agent 定义晋升为角色市场岗位（进\"我的安装\"）。\n\n使用过程中没有合适岗位时，运行中造出的子 agent 定义可以用这个\n端点转正：写 profile.jsonc + 生成头像 + SOUL.md，立刻出现在\n已安装角色列表，并且反向自动成为可派发的子 agent（market 桥）。",
+        "operationId": "api_agent_market_from_subagent_api_agent_market_from_subagent_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "additionalProperties": true,
+                "title": "Body",
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Api Agent Market From Subagent Api Agent Market From Subagent Post",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Api Agent Market From Subagent",
+        "tags": [
+          "agent-market"
         ]
       }
     },
@@ -24405,6 +24856,30 @@
         ]
       }
     },
+    "/api/config/opencode/status": {
+      "get": {
+        "operationId": "opencode_status_api_config_opencode_status_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Opencode Status Api Config Opencode Status Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Opencode Status",
+        "tags": [
+          "config",
+          "config"
+        ]
+      }
+    },
     "/api/connectors": {
       "get": {
         "operationId": "list_connectors_api_connectors_get",
@@ -26348,7 +26823,7 @@
     },
     "/api/cowork/{thread_id}/members": {
       "post": {
-        "description": "Reference a canonical agent (or human) from this thread.\n\nRetrying the same add is a successful no-op.  The group stores only the\ncanonical id; it does not clone a role, home, memory, or owner lane.",
+        "description": "Reference a canonical agent (or human, or 数字员工) from this thread.\n\nRetrying the same add is a successful no-op.  The group stores only the\ncanonical id; it does not clone a role, home, memory, or owner lane.\n``kind=\"role\"`` requires ``owner`` — the human who answers for it.",
         "operationId": "invite_member_api_cowork__thread_id__members_post",
         "parameters": [
           {
@@ -26450,6 +26925,70 @@
           }
         },
         "summary": "Remove Member",
+        "tags": [
+          "cowork"
+        ]
+      }
+    },
+    "/api/cowork/{thread_id}/members/{member_id}/driver": {
+      "post": {
+        "description": "接管 / 交还: hand a member's wheel to its AI or to a person.\n\nWhile ``driver=\"human\"`` the member is removed from ``responders`` — the\nAI stands down so no utterance can have two drivers. Takes over a role\nmember only when it has an accountable owner. The event is appended, so\nthe whole takeover history is replayable and auditable.",
+        "operationId": "set_member_driver_api_cowork__thread_id__members__member_id__driver_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "thread_id",
+            "required": true,
+            "schema": {
+              "title": "Thread Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "member_id",
+            "required": true,
+            "schema": {
+              "title": "Member Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DriverBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Set Member Driver Api Cowork  Thread Id  Members  Member Id  Driver Post",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Set Member Driver",
         "tags": [
           "cowork"
         ]
@@ -27088,6 +27627,51 @@
           }
         },
         "summary": "Complete Task",
+        "tags": [
+          "cowork"
+        ]
+      }
+    },
+    "/api/cowork/{thread_id}/trust": {
+      "get": {
+        "description": "闲鱼式成员信任分：交付记录（封签链）+ 接管历史 → 可解释分数。\n\n信号全部来自已封签的事件源（成员时间线、任务审核链），评分权重\n显式暴露在响应里。外包/外部成员进群前先看这一眼。",
+        "operationId": "get_trust_api_cowork__thread_id__trust_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "thread_id",
+            "required": true,
+            "schema": {
+              "title": "Thread Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Get Trust Api Cowork  Thread Id  Trust Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Trust",
         "tags": [
           "cowork"
         ]
@@ -39469,6 +40053,50 @@
         ]
       }
     },
+    "/api/opencode/reasoning-variants": {
+      "get": {
+        "operationId": "api_opencode_reasoning_variants_api_opencode_reasoning_variants_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "model",
+            "required": true,
+            "schema": {
+              "title": "Model",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Api Opencode Reasoning Variants Api Opencode Reasoning Variants Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Api Opencode Reasoning Variants",
+        "tags": [
+          "config"
+        ]
+      }
+    },
     "/api/organizations/topologies": {
       "get": {
         "operationId": "list_topologies_api_organizations_topologies_get",
@@ -42360,6 +42988,30 @@
         ]
       }
     },
+    "/api/projects/portfolio": {
+      "get": {
+        "description": "Cross-project roll-up: every visible project's PM row in one read.\n\nDeclared before ``/api/projects/{project_id}`` so the literal path is\nnot captured by the parameterised route.\n\nOne project's read failure must not blank the whole portfolio: the\nentry is still emitted with ``readable=False`` so the sidebar can show\nthe project instead of silently dropping it.",
+        "operationId": "portfolio_api_projects_portfolio_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Portfolio Api Projects Portfolio Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Portfolio",
+        "tags": [
+          "projectos"
+        ]
+      }
+    },
     "/api/projects/thread-map": {
       "get": {
         "operationId": "thread_project_map_api_projects_thread_map_get",
@@ -44208,6 +44860,278 @@
           }
         },
         "summary": "Ping Backend"
+      }
+    },
+    "/api/remote-backends/{backend_id}/http/{remote_path}": {
+      "delete": {
+        "description": "Transparent API transport for a renderer scoped to one remote host.\n\nBrowser credentials authenticate this gateway only. The registry's\nremote token is injected server-side; uploads, binary downloads and\nevent streams retain their native representations.",
+        "operationId": "remote_runtime_http_delete",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "backend_id",
+            "required": true,
+            "schema": {
+              "title": "Backend Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "remote_path",
+            "required": true,
+            "schema": {
+              "title": "Remote Path",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Proxy Http"
+      },
+      "get": {
+        "description": "Transparent API transport for a renderer scoped to one remote host.\n\nBrowser credentials authenticate this gateway only. The registry's\nremote token is injected server-side; uploads, binary downloads and\nevent streams retain their native representations.",
+        "operationId": "remote_runtime_http_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "backend_id",
+            "required": true,
+            "schema": {
+              "title": "Backend Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "remote_path",
+            "required": true,
+            "schema": {
+              "title": "Remote Path",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Proxy Http"
+      },
+      "head": {
+        "description": "Transparent API transport for a renderer scoped to one remote host.\n\nBrowser credentials authenticate this gateway only. The registry's\nremote token is injected server-side; uploads, binary downloads and\nevent streams retain their native representations.",
+        "operationId": "remote_runtime_http_head",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "backend_id",
+            "required": true,
+            "schema": {
+              "title": "Backend Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "remote_path",
+            "required": true,
+            "schema": {
+              "title": "Remote Path",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Proxy Http"
+      },
+      "patch": {
+        "description": "Transparent API transport for a renderer scoped to one remote host.\n\nBrowser credentials authenticate this gateway only. The registry's\nremote token is injected server-side; uploads, binary downloads and\nevent streams retain their native representations.",
+        "operationId": "remote_runtime_http_patch",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "backend_id",
+            "required": true,
+            "schema": {
+              "title": "Backend Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "remote_path",
+            "required": true,
+            "schema": {
+              "title": "Remote Path",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Proxy Http"
+      },
+      "post": {
+        "description": "Transparent API transport for a renderer scoped to one remote host.\n\nBrowser credentials authenticate this gateway only. The registry's\nremote token is injected server-side; uploads, binary downloads and\nevent streams retain their native representations.",
+        "operationId": "remote_runtime_http_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "backend_id",
+            "required": true,
+            "schema": {
+              "title": "Backend Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "remote_path",
+            "required": true,
+            "schema": {
+              "title": "Remote Path",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Proxy Http"
+      },
+      "put": {
+        "description": "Transparent API transport for a renderer scoped to one remote host.\n\nBrowser credentials authenticate this gateway only. The registry's\nremote token is injected server-side; uploads, binary downloads and\nevent streams retain their native representations.",
+        "operationId": "remote_runtime_http_put",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "backend_id",
+            "required": true,
+            "schema": {
+              "title": "Backend Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "remote_path",
+            "required": true,
+            "schema": {
+              "title": "Remote Path",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Proxy Http"
       }
     },
     "/api/remote-backends/{backend_id}/proxy": {
@@ -47761,6 +48685,300 @@
           }
         },
         "summary": "Replay Template Adaptive"
+      }
+    },
+    "/api/team-gateway/admin/{path}": {
+      "delete": {
+        "operationId": "team_gateway_admin_delete",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "path",
+            "required": true,
+            "schema": {
+              "title": "Path",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Admin",
+        "tags": [
+          "config"
+        ]
+      },
+      "get": {
+        "operationId": "team_gateway_admin_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "path",
+            "required": true,
+            "schema": {
+              "title": "Path",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Admin",
+        "tags": [
+          "config"
+        ]
+      },
+      "post": {
+        "operationId": "team_gateway_admin_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "path",
+            "required": true,
+            "schema": {
+              "title": "Path",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Admin",
+        "tags": [
+          "config"
+        ]
+      },
+      "put": {
+        "operationId": "team_gateway_admin_put",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "path",
+            "required": true,
+            "schema": {
+              "title": "Path",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Admin",
+        "tags": [
+          "config"
+        ]
+      }
+    },
+    "/api/team-gateway/connections": {
+      "get": {
+        "operationId": "list_connections_api_team_gateway_connections_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "List Connections",
+        "tags": [
+          "config"
+        ]
+      }
+    },
+    "/api/team-gateway/connections/{connection_id}": {
+      "delete": {
+        "operationId": "disconnect_api_team_gateway_connections__connection_id__delete",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "connection_id",
+            "required": true,
+            "schema": {
+              "title": "Connection Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Disconnect",
+        "tags": [
+          "config"
+        ]
+      }
+    },
+    "/api/team-gateway/connections/{connection_id}/sync": {
+      "post": {
+        "operationId": "sync_api_team_gateway_connections__connection_id__sync_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "connection_id",
+            "required": true,
+            "schema": {
+              "title": "Connection Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Sync",
+        "tags": [
+          "config"
+        ]
+      }
+    },
+    "/api/team-gateway/join": {
+      "post": {
+        "operationId": "join_api_team_gateway_join_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "additionalProperties": true,
+                "title": "Body",
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Join",
+        "tags": [
+          "config"
+        ]
       }
     },
     "/api/team-invites/{token}": {

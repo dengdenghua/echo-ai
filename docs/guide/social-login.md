@@ -1,9 +1,10 @@
 # Google / GitHub 登录配置
 
-登录页顺序为 Google、GitHub、邮箱验证码。本地登录默认关闭，仅用于开发调试。
+登录页顺序为 Google、GitHub、邮箱验证码。本地登录默认关闭。
 只有后端同时设置 `ECHO_ENV=development`、`ECHO_DEPLOYMENT_MODE=local`，
-并启用 `local_auth.enabled` 时，才显示「开发者登录」且允许本地登录接口。
-正式部署不要设置 `ECHO_ENV=development`；即使误保留 `local_auth.enabled=true`，本地登录也会被拒绝。
+并启用 `local_auth.enabled` 时，才允许无密码开发登录与固定账号快捷登录。
+正式部署可以启用本地登录，但必须为每个账号配置 bcrypt 密码哈希及强 JWT 密钥；
+登录页此时显示「本地登录」。生产环境不要设置 `ECHO_ENV=development`。
 未配置的第三方登录显示「暂未启用」，不会跳到无效授权页。
 
 在运行后端的环境中配置以下变量，重启后生效（不要把密钥提交到 Git）：

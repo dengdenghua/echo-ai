@@ -9,9 +9,10 @@ from pathlib import Path
 import httpx
 from fastapi import Depends, HTTPException, Request
 
-from .codex_hotspot import owner_token
+from .hotspot_auth import owner_token
 from .hotspot_control import require_local_owner
-from .team_gateway import ROOT
+
+ROOT = Path.home() / ".echo" / "team-gateway"
 
 BASE = "http://127.0.0.1:8333"
 _lock = asyncio.Lock()
@@ -86,11 +87,6 @@ def mount_team_control(router, require_admin, connections):
         require_local_owner(request)
         return await connections.disconnect(connection_id)
 
-    @router.api_route(
-        "/api/team-gateway/admin/{path:path}",
-        methods=["GET", "POST", "PUT", "DELETE"],
-        dependencies=[Depends(require_admin)],
-    )
     async def admin(request: Request, path: str):
         require_local_owner(request)
         import re
@@ -106,3 +102,13 @@ def mount_team_control(router, require_admin, connections):
             return await control(request.method, path, body)
         except (httpx.HTTPError, ValueError):
             raise HTTPException(503, "团队网关操作失败") from None
+
+    # One operation per method keeps generated frontend identifiers unique.
+    for method in ("GET", "POST", "PUT", "DELETE"):
+        router.add_api_route(
+            "/api/team-gateway/admin/{path:path}",
+            admin,
+            methods=[method],
+            dependencies=[Depends(require_admin)],
+            operation_id=f"team_gateway_admin_{method.lower()}",
+        )
