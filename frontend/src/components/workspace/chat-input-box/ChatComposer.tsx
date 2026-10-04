@@ -50,13 +50,12 @@ import {
   loadComposerDraft,
   saveComposerDraft,
 } from "@/core/threads/composer-draft";
-import { EvolutionIndicator } from "../evolution-indicator";
 import { ModelPicker, type PickerModel } from "../model-picker";
 import { CoderEngineControl } from "../coder-engine-control";
-import { PreviewRefreshIndicator } from "../preview-refresh-indicator";
 import { tryLocalSlash } from "../local-slash-dispatch";
 import { useSlashTypeahead } from "../use-slash-typeahead";
-import { ContextCompressor } from "../context-compressor";
+import { useContextCompression } from "../use-context-compression";
+import { ComposerOptions } from "./ComposerOptions";
 import { PermissionIndicator } from "../permission-indicator";
 import {
   DropdownMenu,
@@ -183,14 +182,20 @@ export function ChatComposer({
   );
   const quoteStorageKey = `quote:${draftStorageKey ?? "__new__"}`;
   const [quoteState, setQuoteState] = useState(() => ({
-    key: quoteStorageKey, text: loadComposerDraft(quoteStorageKey) ?? "",
+    key: quoteStorageKey,
+    text: loadComposerDraft(quoteStorageKey) ?? "",
   }));
-  const quoteText = quoteState.key === quoteStorageKey
-    ? quoteState.text : (loadComposerDraft(quoteStorageKey) ?? "");
-  const setQuoteText = useCallback((text: string) => {
-    saveComposerDraft(quoteStorageKey, text);
-    setQuoteState({ key: quoteStorageKey, text });
-  }, [quoteStorageKey]);
+  const quoteText =
+    quoteState.key === quoteStorageKey
+      ? quoteState.text
+      : (loadComposerDraft(quoteStorageKey) ?? "");
+  const setQuoteText = useCallback(
+    (text: string) => {
+      saveComposerDraft(quoteStorageKey, text);
+      setQuoteState({ key: quoteStorageKey, text });
+    },
+    [quoteStorageKey],
+  );
   // Restore the stored draft when the composer moves to a different thread
   // (the component is reused across navigation).
   const prevDraftThreadRef = useRef(draftStorageKey);
@@ -334,7 +339,13 @@ export function ChatComposer({
       const detail = (event as CustomEvent<unknown>).detail;
       if (!detail || typeof detail !== "object") return;
       const request = detail as { threadId?: unknown; text?: unknown };
-      if (!threadId || request.threadId !== threadId || typeof request.text !== "string" || !request.text.trim()) return;
+      if (
+        !threadId ||
+        request.threadId !== threadId ||
+        typeof request.text !== "string" ||
+        !request.text.trim()
+      )
+        return;
       setQuoteText(request.text.trim());
       clearTimeout(focusTimer);
       focusTimer = setTimeout(() => textareaRef.current?.focus(), 0);
@@ -442,12 +453,29 @@ export function ChatComposer({
     attachmentUploads.isUploading ||
     attachmentUploads.hasFailed;
   const submissionBlocked = !readyForMutations;
+  const contextProps = {
+    sessionId: threadId,
+    estimated: true,
+    currentTokens: contextTokens,
+    maxTokens: maxContextTokens,
+    isCompressing: isCompressingContext,
+    onCompress: onCompressContext,
+    disabled: Boolean(
+      isBusy ||
+      status === "streaming" ||
+      status === "submitted" ||
+      submissionBlocked,
+    ),
+  };
+  const contextState = useContextCompression(contextProps);
+
   const executionLocationLocked = Boolean(
     isBusy ||
     pendingQueuedMessages ||
     status === "streaming" ||
     status === "submitted" ||
     draft.trim() ||
+    quoteText.trim() ||
     pendingImages.length ||
     pendingFiles.length ||
     researchMaterials.length ||
@@ -570,10 +598,7 @@ export function ChatComposer({
     };
     window.addEventListener("echo:send-failed", handler as EventListener);
     return () => {
-      window.removeEventListener(
-        "echo:send-failed",
-        handler as EventListener,
-      );
+      window.removeEventListener("echo:send-failed", handler as EventListener);
     };
   }, [threadId]);
 
@@ -613,225 +638,240 @@ export function ChatComposer({
     };
   }, [addPendingWorkspaceFile, threadId]);
 
-  const handleSubmit = useCallback(async (intent: "send" | "queue" = "send") => {
-    const threadScope = composerThreadScopeRef.current;
-    let text = draft.trim();
-    const sendableText = parseComposerDraft(text).body.trim();
-    const hasImages = pendingImages.length > 0;
-    const hasFiles = pendingFiles.length > 0;
-    if (
-      (!sendableText && !hasImages && !hasFiles) ||
-      submissionBlocked ||
-      isBusy ||
-      (status === "streaming" && (hasImages || hasFiles))
-    ) {
-      return;
-    }
-    if (submitLockRef.current) return;
-    submitLockRef.current = true;
-    const releaseSubmitLock = () => {
-      window.setTimeout(() => {
-        if (composerThreadScopeRef.current === threadScope) {
-          submitLockRef.current = false;
-        }
-      }, 250);
-    };
-    if (intent === "queue") {
-      try {
-        if (!onQueue || hasImages || hasFiles || isDeepResearchMode) return;
-        if (!onQueue(text)) {
-          toast.error(
-            locale.startsWith("zh")
-              ? "队列已满或消息过长，请保留草稿后重试"
-              : "Queue is full or the message is too long. Your draft was kept.",
-          );
-          return;
-        }
-        setDraft(
-          activeLongTaskMode
-            ? serializeComposerDraft({ mode: activeLongTaskMode, refs: [], body: "" })
-            : "",
-        );
-      } finally {
-        releaseSubmitLock();
+  const handleSubmit = useCallback(
+    async (intent: "send" | "queue" = "send") => {
+      const threadScope = composerThreadScopeRef.current;
+      let text = draft.trim();
+      const sendableText = parseComposerDraft(text).body.trim();
+      const hasImages = pendingImages.length > 0;
+      const hasFiles = pendingFiles.length > 0;
+      if (
+        (!sendableText && !hasImages && !hasFiles) ||
+        submissionBlocked ||
+        isBusy ||
+        (status === "streaming" && (hasImages || hasFiles))
+      ) {
+        return;
       }
-      return;
-    }
-    // Fast path: client-side slash commands (mode/model/permission/
-    // compact/settings) resolve locally with no LLM round-trip.
-    // Falls through for anything not handled here.
-    if (
-      tryLocalSlash(text, {
-        onModeChange: onModeChange ? (mode) => onModeChange(mode) : undefined,
-        // The shared server-side model profile owns its model namespace.
-        onModelChange: modelProfileControl ? undefined : applyNativeModelChange,
-        onPermissionModeChange,
-        onCompact: onCompressContext
-          ? () => {
-              void onCompressContext();
-            }
-          : undefined,
-        onSwitchPanel,
-      })
-    ) {
-      setDraft("");
-      releaseSubmitLock();
-      return;
-    }
-    if (quoteText) {
-      const parsed = parseComposerDraft(text);
-      const quoted = quoteText.split(/\r?\n/).map((line) => `> ${line}`).join("\n");
-      text = serializeComposerDraft({ ...parsed, body: `${parsed.body}\n\n${quoted}` });
-    }
-    if (isDeepResearchMode) {
-      const localFileMaterials = pendingFiles
-        .filter((file) => !file.file)
-        .map((file) => ({
-          kind: "file" as const,
-          title: file.name,
-          path: file.path,
-          notes: file.workDir ? `workspace: ${file.workDir}` : undefined,
-        }));
-      const pendingBrowserFiles = pendingFiles
-        .map((file) => file.file)
-        .filter((file): file is File => file instanceof File);
-      let uploadedFileMaterials: Partial<ResearchMaterial>[] = [];
-      if (pendingBrowserFiles.length > 0) {
-        if (!threadId) {
-          setMaterialError(t.chatInputBox.startThreadBeforeUpload);
-          releaseSubmitLock();
-          return;
-        }
-        setUploadingMaterials(true);
-        setMaterialError(null);
-        try {
-          const result = await uploadFiles(threadId, pendingBrowserFiles);
-          if (composerThreadScopeRef.current !== threadScope) return;
-          uploadedFileMaterials = result.files.map((file) => ({
-            kind: "file" as const,
-            title: file.filename,
-            path: file.path,
-            notes: `uploaded file · ${file.size} bytes`,
-          }));
-        } catch (err) {
-          if (composerThreadScopeRef.current !== threadScope) return;
-          swallow(err);
-          setMaterialError(t.chatInputBox.uploadFailed);
-          releaseSubmitLock();
-          return;
-        } finally {
+      if (submitLockRef.current) return;
+      submitLockRef.current = true;
+      const releaseSubmitLock = () => {
+        window.setTimeout(() => {
           if (composerThreadScopeRef.current === threadScope) {
-            setUploadingMaterials(false);
+            submitLockRef.current = false;
+          }
+        }, 250);
+      };
+      if (intent === "queue") {
+        try {
+          if (!onQueue || hasImages || hasFiles || isDeepResearchMode) return;
+          if (!onQueue(text)) {
+            toast.error(
+              locale.startsWith("zh")
+                ? "队列已满或消息过长，请保留草稿后重试"
+                : "Queue is full or the message is too long. Your draft was kept.",
+            );
+            return;
+          }
+          setDraft(
+            activeLongTaskMode
+              ? serializeComposerDraft({
+                  mode: activeLongTaskMode,
+                  refs: [],
+                  body: "",
+                })
+              : "",
+          );
+        } finally {
+          releaseSubmitLock();
+        }
+        return;
+      }
+      // Fast path: client-side slash commands (mode/model/permission/
+      // compact/settings) resolve locally with no LLM round-trip.
+      // Falls through for anything not handled here.
+      if (
+        tryLocalSlash(text, {
+          onModeChange: onModeChange ? (mode) => onModeChange(mode) : undefined,
+          // The shared server-side model profile owns its model namespace.
+          onModelChange: modelProfileControl
+            ? undefined
+            : applyNativeModelChange,
+          onPermissionModeChange,
+          onCompact: onCompressContext
+            ? () => {
+                void onCompressContext();
+              }
+            : undefined,
+          onSwitchPanel,
+        })
+      ) {
+        setDraft("");
+        releaseSubmitLock();
+        return;
+      }
+      if (quoteText) {
+        const parsed = parseComposerDraft(text);
+        const quoted = quoteText
+          .split(/\r?\n/)
+          .map((line) => `> ${line}`)
+          .join("\n");
+        text = serializeComposerDraft({
+          ...parsed,
+          body: `${parsed.body}\n\n${quoted}`,
+        });
+      }
+      if (isDeepResearchMode) {
+        const localFileMaterials = pendingFiles
+          .filter((file) => !file.file)
+          .map((file) => ({
+            kind: "file" as const,
+            title: file.name,
+            path: file.path,
+            notes: file.workDir ? `workspace: ${file.workDir}` : undefined,
+          }));
+        const pendingBrowserFiles = pendingFiles
+          .map((file) => file.file)
+          .filter((file): file is File => file instanceof File);
+        let uploadedFileMaterials: Partial<ResearchMaterial>[] = [];
+        if (pendingBrowserFiles.length > 0) {
+          if (!threadId) {
+            setMaterialError(t.chatInputBox.startThreadBeforeUpload);
+            releaseSubmitLock();
+            return;
+          }
+          setUploadingMaterials(true);
+          setMaterialError(null);
+          try {
+            const result = await uploadFiles(threadId, pendingBrowserFiles);
+            if (composerThreadScopeRef.current !== threadScope) return;
+            uploadedFileMaterials = result.files.map((file) => ({
+              kind: "file" as const,
+              title: file.filename,
+              path: file.path,
+              notes: `uploaded file · ${file.size} bytes`,
+            }));
+          } catch (err) {
+            if (composerThreadScopeRef.current !== threadScope) return;
+            swallow(err);
+            setMaterialError(t.chatInputBox.uploadFailed);
+            releaseSubmitLock();
+            return;
+          } finally {
+            if (composerThreadScopeRef.current === threadScope) {
+              setUploadingMaterials(false);
+            }
           }
         }
+        if (composerThreadScopeRef.current !== threadScope) return;
+        let result: void | boolean;
+        try {
+          result = await onDeepResearch(
+            appendReferencedFiles(text, pendingFiles),
+            {
+              urls: parsedResearchUrls,
+              materials: [
+                ...researchMaterials
+                  .filter((item) => item.enabled)
+                  .map((item) => item.material),
+                ...localFileMaterials,
+                ...uploadedFileMaterials,
+              ],
+              sourceKinds: researchSources,
+              maxSearches,
+            },
+          );
+        } finally {
+          releaseSubmitLock();
+        }
+        if (composerThreadScopeRef.current !== threadScope) return;
+        if (result !== false) {
+          setQuoteText("");
+          setDraft(
+            activeLongTaskMode
+              ? serializeComposerDraft({
+                  mode: activeLongTaskMode,
+                  refs: [],
+                  body: "",
+                })
+              : "",
+          );
+          setPendingFiles([]);
+        }
+        return;
       }
-      if (composerThreadScopeRef.current !== threadScope) return;
-      let result: void | boolean;
+      const browserUploadFiles = pendingFiles
+        .map((file) => file.file)
+        .filter((file): file is File => file instanceof File);
+      const completedUploads = attachmentUploads.completed();
+      let accepted: void | boolean;
       try {
-        result = await onDeepResearch(
-          appendReferencedFiles(text, pendingFiles),
-          {
-            urls: parsedResearchUrls,
-            materials: [
-              ...researchMaterials
-                .filter((item) => item.enabled)
-                .map((item) => item.material),
-              ...localFileMaterials,
-              ...uploadedFileMaterials,
-            ],
-            sourceKinds: researchSources,
-            maxSearches,
-          },
-        );
+        accepted = onSubmit?.({
+          text: appendReferencedFiles(text, pendingFiles),
+          images: pendingImages.length > 0 ? pendingImages : undefined,
+          files: browserUploadFiles.length > 0 ? browserUploadFiles : undefined,
+          // Already on the server — the send path matches these by filename and
+          // skips re-uploading the same bytes.
+          uploaded: completedUploads.length > 0 ? completedUploads : undefined,
+        });
       } finally {
         releaseSubmitLock();
       }
-      if (composerThreadScopeRef.current !== threadScope) return;
-      if (result !== false) {
-        setQuoteText("");
-        setDraft(
-          activeLongTaskMode
-            ? serializeComposerDraft({
-                mode: activeLongTaskMode,
-                refs: [],
-                body: "",
-              })
-            : "",
-        );
+      // The page performs the same readiness check at the mutation boundary.
+      // If transport readiness changed between render and click, keep every
+      // part of the draft instead of optimistically clearing an unsent message.
+      if (accepted === false) return;
+      setQuoteText("");
+      setDraft(
+        activeLongTaskMode
+          ? serializeComposerDraft({
+              mode: activeLongTaskMode,
+              refs: [],
+              body: "",
+            })
+          : "",
+      );
+      attachmentUploads.reset();
+      if (pendingFiles.length > 0) {
         setPendingFiles([]);
+        if (contextFileInputRef.current) contextFileInputRef.current.value = "";
       }
-      return;
-    }
-    const browserUploadFiles = pendingFiles
-      .map((file) => file.file)
-      .filter((file): file is File => file instanceof File);
-    const completedUploads = attachmentUploads.completed();
-    let accepted: void | boolean;
-    try {
-      accepted = onSubmit?.({
-        text: appendReferencedFiles(text, pendingFiles),
-        images: pendingImages.length > 0 ? pendingImages : undefined,
-        files: browserUploadFiles.length > 0 ? browserUploadFiles : undefined,
-        // Already on the server — the send path matches these by filename and
-        // skips re-uploading the same bytes.
-        uploaded: completedUploads.length > 0 ? completedUploads : undefined,
-      });
-    } finally {
-      releaseSubmitLock();
-    }
-    // The page performs the same readiness check at the mutation boundary.
-    // If transport readiness changed between render and click, keep every
-    // part of the draft instead of optimistically clearing an unsent message.
-    if (accepted === false) return;
-    setQuoteText("");
-    setDraft(
-      activeLongTaskMode
-        ? serializeComposerDraft({
-            mode: activeLongTaskMode,
-            refs: [],
-            body: "",
-          })
-        : "",
-    );
-    attachmentUploads.reset();
-    if (pendingFiles.length > 0) {
-      setPendingFiles([]);
-      if (contextFileInputRef.current) contextFileInputRef.current.value = "";
-    }
-    if (pendingImages.length > 0) {
-      setPendingImages([]);
-      clearPendingImagePreviews();
-    }
-  }, [
-    draft,
-    quoteText,
-    setQuoteText,
-    submissionBlocked,
-    isBusy,
-    status,
-    isDeepResearchMode,
-    onDeepResearch,
-    onSubmit,
-    onQueue,
-    locale,
-    onSwitchPanel,
-    parsedResearchUrls,
-    researchMaterials,
-    researchSources,
-    maxSearches,
-    onModeChange,
-    applyNativeModelChange,
-    modelProfileControl,
-    onPermissionModeChange,
-    onCompressContext,
-    pendingImages,
-    pendingFiles,
-    attachmentUploads,
-    clearPendingImagePreviews,
-    t,
-    threadId,
-    activeLongTaskMode,
-  ]);
+      if (pendingImages.length > 0) {
+        setPendingImages([]);
+        clearPendingImagePreviews();
+      }
+    },
+    [
+      draft,
+      quoteText,
+      setQuoteText,
+      submissionBlocked,
+      isBusy,
+      status,
+      isDeepResearchMode,
+      onDeepResearch,
+      onSubmit,
+      onQueue,
+      locale,
+      onSwitchPanel,
+      parsedResearchUrls,
+      researchMaterials,
+      researchSources,
+      maxSearches,
+      onModeChange,
+      applyNativeModelChange,
+      modelProfileControl,
+      onPermissionModeChange,
+      onCompressContext,
+      pendingImages,
+      pendingFiles,
+      attachmentUploads,
+      clearPendingImagePreviews,
+      t,
+      threadId,
+      activeLongTaskMode,
+    ],
+  );
 
   const addMaterial = useCallback((material: Partial<ResearchMaterial>) => {
     setResearchMaterials((current) => [
@@ -1226,10 +1266,7 @@ export function ChatComposer({
       handler as EventListener,
     );
     return () => {
-      window.removeEventListener(
-        "echo:send-failed",
-        handler as EventListener,
-      );
+      window.removeEventListener("echo:send-failed", handler as EventListener);
       window.removeEventListener(
         "echo:inject-composer-images",
         handler as EventListener,
@@ -1422,127 +1459,144 @@ export function ChatComposer({
         t={t}
       />
       <div className="flex min-w-0 items-start">
-      {composerRefs.length > 0 ? (
-        <div
-          data-testid="composer-capability-rail"
-          className="flex max-w-[45%] shrink-0 items-center gap-1.5 overflow-x-auto pl-3 pt-3 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
-        >
-          {composerRefs.map((ref) => {
-            const key = `${ref.type}:${ref.id}`;
-            const isPlugin = ref.type === "plugin";
-            const isSkill = ref.type === "skill";
-            const label = isPlugin
-              ? (pluginNameById.get(ref.id) ?? ref.id)
-              : isSkill
-                ? ref.id
-                : ref.id === "chrome"
-                  ? "Chrome"
-                  : "Browser";
-            return (
-              <span
-                key={key}
-                data-testid={`composer-capability-${ref.type}-${ref.id}`}
-                className={cn(
-                  "inline-flex h-6 max-w-48 shrink-0 items-center gap-1 rounded-md px-1.5 text-xs font-semibold",
-                  isPlugin &&
-                    "bg-violet-500/10 text-violet-700 dark:text-violet-300",
-                  isSkill && "bg-blue-500/10 text-blue-700 dark:text-blue-300",
-                  ref.type === "surface" &&
-                    "bg-cyan-500/10 text-cyan-700 dark:text-cyan-300",
-                )}
-              >
-                {isPlugin ? (
-                  <PuzzleIcon className="size-3.5" />
-                ) : isSkill ? (
-                  <BookOpenIcon className="size-3.5" />
-                ) : (
-                  <MonitorIcon className="size-3.5" />
-                )}
-                <span className="truncate">{label}</span>
-                <button
-                  type="button"
-                  className="-mr-0.5 grid size-4 shrink-0 place-items-center rounded-sm opacity-60 transition-opacity hover:bg-current/10 hover:opacity-100"
-                  aria-label={t.chatInputBox.removeCapability(label)}
-                  onClick={() => removeCapabilityRef(ref)}
-                >
-                  <XIcon className="size-3" />
-                </button>
-              </span>
-            );
-          })}
-        </div>
-      ) : null}
-      <div className="composer-editor relative min-w-0 flex-1">
-        {activeComposerMode ? (
-          <span
-            data-testid="composer-command-prefix"
-            className={cn(
-              "pointer-events-none absolute left-3 top-2.5 z-10 inline-flex items-center gap-1 text-sm font-bold leading-snug",
-              activeComposerMode === "goal" &&
-                "text-violet-600 dark:text-violet-400",
-              activeComposerMode === "plan" && "text-sky-600 dark:text-sky-400",
-              activeComposerMode === "spec" &&
-                "text-amber-600 dark:text-amber-400",
-              activeComposerMode === "project" &&
-                "text-rose-600 dark:text-rose-400",
-            )}
+        {composerRefs.length > 0 ? (
+          <div
+            data-testid="composer-capability-rail"
+            className="flex max-w-[45%] shrink-0 items-center gap-1.5 overflow-x-auto pl-3 pt-3 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
           >
-            {activeComposerMode === "project" ? (
-              <FlagIcon className="size-4" />
-            ) : activeComposerMode === "goal" ? (
-              <span className="text-[15px] leading-none" aria-hidden="true">
-                🎯
-              </span>
-            ) : activeComposerMode === "plan" ? (
-              <MapIcon className="size-4" />
-            ) : (
-              <ListTodoIcon className="size-4" />
-            )}
-            {activeComposerMode === "project"
-              ? "Milestone"
-              : activeComposerMode === "goal"
-                ? "Goal"
-                : activeComposerMode === "plan"
-                  ? "Plan"
-                  : "Spec"}
-          </span>
+            {composerRefs.map((ref) => {
+              const key = `${ref.type}:${ref.id}`;
+              const isPlugin = ref.type === "plugin";
+              const isSkill = ref.type === "skill";
+              const label = isPlugin
+                ? (pluginNameById.get(ref.id) ?? ref.id)
+                : isSkill
+                  ? ref.id
+                  : ref.id === "chrome"
+                    ? "Chrome"
+                    : "Browser";
+              return (
+                <span
+                  key={key}
+                  data-testid={`composer-capability-${ref.type}-${ref.id}`}
+                  className={cn(
+                    "inline-flex h-6 max-w-48 shrink-0 items-center gap-1 rounded-md px-1.5 text-xs font-semibold",
+                    isPlugin &&
+                      "bg-violet-500/10 text-violet-700 dark:text-violet-300",
+                    isSkill &&
+                      "bg-blue-500/10 text-blue-700 dark:text-blue-300",
+                    ref.type === "surface" &&
+                      "bg-cyan-500/10 text-cyan-700 dark:text-cyan-300",
+                  )}
+                >
+                  {isPlugin ? (
+                    <PuzzleIcon className="size-3.5" />
+                  ) : isSkill ? (
+                    <BookOpenIcon className="size-3.5" />
+                  ) : (
+                    <MonitorIcon className="size-3.5" />
+                  )}
+                  <span className="truncate">{label}</span>
+                  <button
+                    type="button"
+                    className="-mr-0.5 grid size-4 shrink-0 place-items-center rounded-sm opacity-60 transition-opacity hover:bg-current/10 hover:opacity-100"
+                    aria-label={t.chatInputBox.removeCapability(label)}
+                    onClick={() => removeCapabilityRef(ref)}
+                  >
+                    <XIcon className="size-3" />
+                  </button>
+                </span>
+              );
+            })}
+          </div>
         ) : null}
-        <textarea
-          key={`${activeComposerMode ?? "plain"}:${composerRefs
-            .map((ref) => `${ref.type}:${ref.id}`)
-            .join(",")}`}
-          data-testid="chat-composer-input"
-          ref={textareaRef}
-          autoFocus={autoFocus}
-          disabled={isBusy}
-          placeholder={composerRefs.length > 0 ? "" : (placeholder ?? t.inputBox.placeholder)}
-          aria-label={placeholder ?? t.inputBox.placeholder}
-          value={visibleDraft}
-          onChange={(e) => setVisibleDraft(e.target.value)}
-          onKeyDown={onKeyDown}
-          onPaste={handlePasteImages}
-          onDrop={handleDropFiles}
-          onDragOver={(e) => {
-            if (e.dataTransfer?.types?.includes("Files")) e.preventDefault();
-          }}
-          rows={1}
-          className={cn(
-            "min-h-14 max-h-40 w-full resize-none overflow-y-auto bg-transparent pb-2 pt-3 text-ui-body leading-relaxed outline-none [field-sizing:content] placeholder:text-muted-foreground disabled:opacity-60",
-            activeComposerMode === "project"
-              ? "pl-[7.5rem] pr-3"
-              : activeComposerMode
-                ? "pl-[5.25rem] pr-3"
-                : composerRefs.length > 0 ? "pl-1.5 pr-3" : "px-3",
-          )}
-        />
-      </div>
+        <div className="composer-editor relative min-w-0 flex-1">
+          {activeComposerMode ? (
+            <span
+              data-testid="composer-command-prefix"
+              className={cn(
+                "pointer-events-none absolute left-3 top-2.5 z-10 inline-flex items-center gap-1 text-sm font-bold leading-snug",
+                activeComposerMode === "goal" &&
+                  "text-violet-600 dark:text-violet-400",
+                activeComposerMode === "plan" &&
+                  "text-sky-600 dark:text-sky-400",
+                activeComposerMode === "spec" &&
+                  "text-amber-600 dark:text-amber-400",
+                activeComposerMode === "project" &&
+                  "text-rose-600 dark:text-rose-400",
+              )}
+            >
+              {activeComposerMode === "project" ? (
+                <FlagIcon className="size-4" />
+              ) : activeComposerMode === "goal" ? (
+                <span className="text-[15px] leading-none" aria-hidden="true">
+                  🎯
+                </span>
+              ) : activeComposerMode === "plan" ? (
+                <MapIcon className="size-4" />
+              ) : (
+                <ListTodoIcon className="size-4" />
+              )}
+              {activeComposerMode === "project"
+                ? "Milestone"
+                : activeComposerMode === "goal"
+                  ? "Goal"
+                  : activeComposerMode === "plan"
+                    ? "Plan"
+                    : "Spec"}
+            </span>
+          ) : null}
+          <textarea
+            key={`${activeComposerMode ?? "plain"}:${composerRefs
+              .map((ref) => `${ref.type}:${ref.id}`)
+              .join(",")}`}
+            data-testid="chat-composer-input"
+            ref={textareaRef}
+            autoFocus={autoFocus}
+            disabled={isBusy}
+            placeholder={
+              composerRefs.length > 0
+                ? ""
+                : (placeholder ?? t.inputBox.placeholder)
+            }
+            aria-label={placeholder ?? t.inputBox.placeholder}
+            value={visibleDraft}
+            onChange={(e) => setVisibleDraft(e.target.value)}
+            onKeyDown={onKeyDown}
+            onPaste={handlePasteImages}
+            onDrop={handleDropFiles}
+            onDragOver={(e) => {
+              if (e.dataTransfer?.types?.includes("Files")) e.preventDefault();
+            }}
+            rows={1}
+            className={cn(
+              "min-h-14 max-h-40 w-full resize-none overflow-y-auto bg-transparent pb-2 pt-3 text-ui-body leading-relaxed outline-none [field-sizing:content] placeholder:text-muted-foreground disabled:opacity-60",
+              activeComposerMode === "project"
+                ? "pl-[7.5rem] pr-3"
+                : activeComposerMode
+                  ? "pl-[5.25rem] pr-3"
+                  : composerRefs.length > 0
+                    ? "pl-1.5 pr-3"
+                    : "px-3",
+            )}
+          />
+        </div>
       </div>
       {quoteText && (
-        <div data-testid="composer-quote" className="mx-3 mb-2 flex min-w-0 items-center gap-2 border-l-2 border-muted-foreground/20 pl-2 text-xs text-muted-foreground/70">
-          <span className="min-w-0 flex-1 truncate" title={quoteText}>{quoteText}</span>
-          <button type="button" data-testid="composer-remove-quote" aria-label={t.conversation.removeQuote}
+        <div
+          data-testid="composer-quote"
+          className="mx-3 mb-2 flex min-w-0 items-center gap-2 border-l-2 border-muted-foreground/20 pl-2 text-xs text-muted-foreground/70"
+        >
+          <span className="min-w-0 flex-1 truncate" title={quoteText}>
+            {quoteText}
+          </span>
+          <button
+            type="button"
+            data-testid="composer-remove-quote"
+            aria-label={t.conversation.removeQuote}
             onClick={() => setQuoteText("")}
-            className="inline-flex size-5 shrink-0 items-center justify-center rounded-full hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
+            className="inline-flex size-5 shrink-0 items-center justify-center rounded-full hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          >
             <XIcon className="size-3" />
           </button>
         </div>
@@ -1613,8 +1667,8 @@ export function ChatComposer({
           if (imageInputRef.current) imageInputRef.current.value = "";
         }}
       />
-      <div className="composer-footer flex min-h-10 flex-wrap items-center justify-between gap-1 px-2 pb-2 pt-1 sm:gap-2">
-        <div className="flex min-w-0 max-w-full flex-wrap items-center gap-0.5">
+      <div className="composer-footer flex min-h-10 items-center justify-between gap-1 px-2 pb-2 pt-1 sm:gap-2">
+        <div className="flex shrink-0 items-center gap-0.5">
           <DropdownMenu
             open={toolsMenuOpen}
             onOpenChange={(open) => {
@@ -1977,9 +2031,6 @@ export function ChatComposer({
               )}
             </DropdownMenuContent>
           </DropdownMenu>
-          <div className="composer-footer__secondary contents">
-            <PreviewRefreshIndicator />
-          </div>
           {(!isGroupConversation || resolvedPermissionMode !== "default") && (
             <div className="composer-footer__secondary contents">
               <PermissionIndicator
@@ -2020,37 +2071,17 @@ export function ChatComposer({
             </button>
           ) : null}
         </div>
-        <div className="ml-auto flex min-w-0 max-w-full flex-wrap items-center justify-end gap-1">
-          {responseModeControl ? (
-            <div className="composer-footer__response contents">
-              {responseModeControl}
-            </div>
-          ) : null}
-          <div className="composer-footer__secondary contents">
-            <EvolutionIndicator compact quiet />
-          </div>
-          <ContextCompressor
-            sessionId={threadId}
-            estimated
-            currentTokens={contextTokens}
-            maxTokens={maxContextTokens}
-            isCompressing={isCompressingContext}
-            onCompress={onCompressContext}
-            disabled={
-              isBusy || status === "streaming" || status === "submitted" || submissionBlocked
-            }
+        <div className="ml-auto flex min-w-0 items-center justify-end gap-1">
+          <ComposerOptions
+            responseModeControl={responseModeControl}
+            executionEngineControl={executionEngineControl}
+            contextProps={contextProps}
+            contextState={contextState}
           />
           <div
             data-testid="composer-runtime-controls"
             className="flex min-w-0 max-w-[min(58vw,20rem)] items-center"
           >
-            {executionEngineControl}
-            {executionEngineControl ? (
-              <span
-                className="mx-0.5 h-3.5 w-px shrink-0 bg-border/70"
-                aria-hidden="true"
-              />
-            ) : null}
             {modelProfileControl && executionEngine !== "opencode" ? (
               <div className="composer-footer__model min-w-0">
                 <CoderEngineControl
@@ -2106,31 +2137,54 @@ export function ChatComposer({
                     <button
                       type="button"
                       data-testid="chat-send-options"
-                      aria-label={locale.startsWith("zh") ? "发送选项" : "Send options"}
+                      aria-label={
+                        locale.startsWith("zh") ? "发送选项" : "Send options"
+                      }
                       className="flex h-[42px] w-6 shrink-0 items-center justify-center rounded-lg hover:bg-muted sm:h-8"
                     >
                       <ChevronDownIcon className="size-3.5" />
                     </button>
                   </DropdownMenuTrigger>
-                  <DropdownMenuContent side="top" align="end" className="max-w-[calc(100vw-2rem)]">
+                  <DropdownMenuContent
+                    side="top"
+                    align="end"
+                    className="max-w-[calc(100vw-2rem)]"
+                  >
                     <DropdownMenuItem
                       onSelect={() => void handleSubmit()}
-                      disabled={isBusy || submissionBlocked || pendingImages.length > 0 || pendingFiles.length > 0}
+                      disabled={
+                        isBusy ||
+                        submissionBlocked ||
+                        pendingImages.length > 0 ||
+                        pendingFiles.length > 0
+                      }
                     >
-                      {locale.startsWith("zh") ? "补充当前任务" : "Steer current task"}
+                      {locale.startsWith("zh")
+                        ? "补充当前任务"
+                        : "Steer current task"}
                     </DropdownMenuItem>
                     <DropdownMenuItem
                       onSelect={() => void handleSubmit("queue")}
-                      disabled={isBusy || submissionBlocked || pendingImages.length > 0 || pendingFiles.length > 0 || isDeepResearchMode}
+                      disabled={
+                        isBusy ||
+                        submissionBlocked ||
+                        pendingImages.length > 0 ||
+                        pendingFiles.length > 0 ||
+                        isDeepResearchMode
+                      }
                     >
                       <ListTodoIcon className="size-4" />
                       {locale.startsWith("zh")
                         ? "排队发送 · 当前任务结束后"
                         : "Queue after the current task"}
                     </DropdownMenuItem>
-                    {pendingImages.length > 0 || pendingFiles.length > 0 || isDeepResearchMode ? (
+                    {pendingImages.length > 0 ||
+                    pendingFiles.length > 0 ||
+                    isDeepResearchMode ? (
                       <p className="px-2 py-1 text-xs text-muted-foreground">
-                        {locale.startsWith("zh") ? "排队暂支持纯文本消息" : "Queue currently supports text only"}
+                        {locale.startsWith("zh")
+                          ? "排队暂支持纯文本消息"
+                          : "Queue currently supports text only"}
                       </p>
                     ) : null}
                   </DropdownMenuContent>

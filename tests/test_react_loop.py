@@ -6412,9 +6412,11 @@ class _ApprovingApprovalProvider:
 class _UnavailableApprovalProvider:
     def __init__(self) -> None:
         self.requests: list[Any] = []
+        self.timeouts: list[float] = []
 
-    def request(self, req: Any, *, timeout: float = 120.0) -> ApprovalDecision:  # noqa: ARG002
+    def request(self, req: Any, *, timeout: float = 120.0) -> ApprovalDecision:
         self.requests.append(req)
+        self.timeouts.append(timeout)
         return ApprovalDecision(approved=False, reason="connection_lost")
 
 
@@ -6536,9 +6538,11 @@ def test_code_mode_file_write_still_requires_approval(
     assert not (project / "src" / "new.py").exists()
 
 
+@pytest.mark.parametrize("approval_timeout_s", [None, 73.0])
 def test_unavailable_approval_pauses_instead_of_failing_turn(
     tmp_path: Any,
     monkeypatch: Any,
+    approval_timeout_s: float | None,
 ) -> None:
     monkeypatch.setenv("ECHO_DATA_DIR", str(tmp_path))
     project = tmp_path / "project"
@@ -6550,6 +6554,10 @@ def test_unavailable_approval_pauses_instead_of_failing_turn(
             ]
         )
     )
+    if approval_timeout_s is not None:
+        from runtime.platform.config import AgentConfig, BudgetConfig
+
+        stack.config = AgentConfig(budget=BudgetConfig(approval_timeout_s=approval_timeout_s))
     provider = _UnavailableApprovalProvider()
     session = Session(
         agent=_ScopeAgent(),
@@ -6570,6 +6578,7 @@ def test_unavailable_approval_pauses_instead_of_failing_turn(
         )
 
     assert len(provider.requests) == 1
+    assert provider.timeouts == [approval_timeout_s or 600.0]
     assert result is not None
     assert result.terminated_reason == "paused"
     assert any(event["type"] == "react_paused" for event in events)
@@ -8377,6 +8386,33 @@ def test_parallel_actions_emit_one_tool_pair_per_action() -> None:
     assert set(start_ids) == set(end_ids)
     # Batch hint exposed for UI grouping.
     assert all(e.get("parallel_batch_size") == 3 for e in starts)
+
+
+def test_parallel_turn_uses_its_configured_batch_timeout(monkeypatch) -> None:
+    from runtime.core.cerebrum.react_parallel_dispatch import _dispatch_parallel_actions
+    from runtime.platform.config import AgentConfig, BudgetConfig
+
+    observed_timeouts = []
+
+    def dispatch(actions, **kwargs):
+        observed_timeouts.append(kwargs["parallel_batch_timeout_s"])
+        return (yield from _dispatch_parallel_actions(actions, **kwargs))
+
+    monkeypatch.setattr("runtime.core.cerebrum.react_loop._dispatch_parallel_actions", dispatch)
+    stack = _build_stack_with_executor(
+        _ScriptedRouter(
+            [
+                'Thought: read files\nAction:\n'
+                '    read_file({"path": "a"})\n'
+                '    read_file({"path": "b"})\n\nObservation:',
+                "Final Answer: done",
+            ]
+        )
+    )
+    stack.config = AgentConfig(budget=BudgetConfig(parallel_batch_timeout_s=37.0))
+    _, result = _drain(stream_react_loop(stack, _intent("read two"), agent=None, max_iterations=3))
+    assert result is not None and result.success
+    assert observed_timeouts == [37.0]
 
 
 def test_parallel_observation_merges_with_call_indices() -> None:

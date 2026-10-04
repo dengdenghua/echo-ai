@@ -359,6 +359,13 @@ def _phase_6d_dispatch_and_observe(
     router = state.router
     thread_id = state.thread_id
     approval_provider = state.approval_provider
+    budget_config = getattr(getattr(stack, "config", None), "budget", None)
+    approval_timeout_s = float(
+        getattr(budget_config, "approval_timeout_s", None) or 600.0
+    )
+    parallel_batch_timeout_s = float(
+        getattr(budget_config, "parallel_batch_timeout_s", None) or 600.0
+    )
     # Guardian independent review (opt-in): high/critical risk actions get
     # a second opinion from an independent model before escalating to the
     # user. Off by default; budget is per-thread (exhaustion = long-task
@@ -572,6 +579,7 @@ def _phase_6d_dispatch_and_observe(
                 agent=agent,
                 intent=intent,
                 beak_step_sink=executed_beak_steps,
+                parallel_batch_timeout_s=parallel_batch_timeout_s,
             )
             if _parallel_obs is not None:
                 observation = _parallel_obs
@@ -768,7 +776,7 @@ def _phase_6d_dispatch_and_observe(
                                 args_preview=str(_input_preview)[:500] if _input_preview else "",
                                 detail=_approval_detail,
                             ),
-                            timeout=600.0,
+                            timeout=approval_timeout_s,
                         )
                         if not _decision.approved:
                             if _approval_could_not_reach_user(
@@ -927,7 +935,7 @@ def _phase_6d_dispatch_and_observe(
                                 args_preview=(str(_input_preview)[:500] if _input_preview else ""),
                                 detail=_escalation_detail,
                             ),
-                            timeout=600.0,
+                            timeout=approval_timeout_s,
                         )
                         if not _escalation_decision.approved:
                             if _approval_could_not_reach_user(

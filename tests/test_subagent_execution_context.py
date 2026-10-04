@@ -52,7 +52,18 @@ def _parent(workspace, *, deadline=None):
     )
 
 
-def test_bridge_children_have_distinct_identity_and_contend_for_same_file(tmp_path):
+@pytest.mark.parametrize("registered", [False, True])
+def test_bridge_children_have_distinct_identity_and_contend_for_same_file(
+    tmp_path, monkeypatch, registered
+):
+    from runtime.execution.subagents import bridge
+    from runtime.execution.subagents.registry import SubagentDefinition, SubagentRegistry
+
+    definitions = (
+        [SubagentDefinition(name="coder", description="test role", system_prompt="Coder")]
+        if registered else []
+    )
+    monkeypatch.setattr(bridge, "_REGISTRY", SubagentRegistry(definitions))
     parent = _parent(tmp_path)
     children = []
     caller_thread = threading.get_ident()

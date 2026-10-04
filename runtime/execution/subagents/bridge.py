@@ -1840,8 +1840,10 @@ def _dispatch(
             "agent_id": agent_id, "output": "", "success": False,
             "error": "HUB role is no longer installed or runnable; no substitute was spawned.",
         }
+    # A caller-supplied runner already owns execution and its cancellation
+    # scope. Registered definitions and temporary roles must not replace it.
     registry = _REGISTRY
-    if market_role is None and registry is not None and registry.has(agent_id):
+    if market_role is None and runner is None and registry is not None and registry.has(agent_id):
         definition = registry.get(agent_id)
         merged_context: dict[str, Any] = {
             **(context or {}),
@@ -1883,7 +1885,7 @@ def _dispatch(
             timeout_s=timeout_s,
         )
 
-    if market_role is None and is_ephemeral_role(agent_id):
+    if market_role is None and runner is None and is_ephemeral_role(agent_id):
         merged_eph: dict[str, Any] = dict(context or {})
         if (
             use_cheap_model

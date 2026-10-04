@@ -430,6 +430,8 @@ export const jaJP: Translations = {
     insertChromeSurface: "Chrome マーカーを挿入",
     workflow: "ワークフロー",
     deepResearchConfig: "リサーチ設定",
+    conversationOptions: "会話オプション",
+    executionMethod: "実行方式",
     roles: "サブエージェント",
     materials: "資料",
     collapse: "折りたたむ",

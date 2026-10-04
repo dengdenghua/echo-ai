@@ -57,6 +57,7 @@ class _RealtimeGatewaySessionMixin:
     _identity_store: Any
     _require_auth: bool
     _allow_local_workspace_access: bool
+    _local_actor_id: str | None
     _jwt_secret: str | None
     _jwt_issuer: str | None
     _jwt_audience: str | None
@@ -203,6 +204,9 @@ class _RealtimeGatewaySessionMixin:
             with suppress(Exception):
                 await ws.close(code=4401, reason=exc.message)
             return
+        local_principal = actor_id is None and self._local_actor_id is not None
+        if local_principal:
+            actor_id = self._local_actor_id
         # Per-actor connection cap (4429 ≈ HTTP 429). Checked before
         # accept so an over-limit actor never spawns connection state.
         if not self._admit_connection(actor_id):
@@ -219,7 +223,11 @@ class _RealtimeGatewaySessionMixin:
         )
         conn.bind_thread_watch_handler(lambda thread_id: self._watch_thread(thread_id, conn))
         conn.actor_id = actor_id
-        if actor_id is not None and self._identity_store is not None:
+        if local_principal:
+            # Keep the desktop operator in its legacy local namespace; a
+            # similarly named registered account cannot supply its tenant.
+            conn.tenant_id = f"legacy:{actor_id}"
+        elif actor_id is not None and self._identity_store is not None:
             identity = self._identity_store.get(actor_id)
             metadata = getattr(identity, "metadata", None) or {}
             conn.tenant_id = str(metadata.get("tenant_id") or f"legacy:{actor_id}")

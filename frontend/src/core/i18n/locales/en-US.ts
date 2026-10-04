@@ -439,6 +439,8 @@ export const enUS: Translations = {
     insertChromeSurface: "Insert Chrome marker",
     workflow: "Workflow",
     deepResearchConfig: "Research settings",
+    conversationOptions: "Conversation options",
+    executionMethod: "Execution method",
     roles: "Subagents",
     materials: "Materials",
     collapse: "Collapse",

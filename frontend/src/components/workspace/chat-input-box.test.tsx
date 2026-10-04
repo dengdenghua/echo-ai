@@ -328,7 +328,7 @@ describe("<ChatInputBox /> cowork materials", () => {
     expect(onSubmit).not.toHaveBeenCalled();
   });
 
-  it("replaces Inspiration with the response strategy in collaboration", () => {
+  it("keeps collaboration controls in conversation options", () => {
     renderWithProviders(
       <ChatInputBox
         mode="react"
@@ -340,8 +340,13 @@ describe("<ChatInputBox /> cowork materials", () => {
       />,
     );
 
+    expect(screen.queryByTestId("response-mode-control")).toBeNull();
+    expect(screen.getByTestId("model-picker-trigger")).toBeVisible();
+    fireEvent.click(screen.getByTestId("composer-options-trigger"));
     const control = screen.getByTestId("response-mode-control");
-    expect(control.closest(".composer-footer")).toBeInTheDocument();
+    expect(
+      control.closest('[data-testid="composer-options-panel"]'),
+    ).toBeInTheDocument();
     expect(control.closest(".composer-footer__response")).toBeInTheDocument();
     expect(
       screen
@@ -383,7 +388,9 @@ describe("<ChatInputBox /> cowork materials", () => {
     expect(screen.getAllByRole("option")).toHaveLength(2);
     fireEvent.click(screen.getByRole("option", { name: /Design/ }));
 
-    await waitFor(() => expect(onStrategyChange).toHaveBeenLastCalledWith("uxui"));
+    await waitFor(() =>
+      expect(onStrategyChange).toHaveBeenLastCalledWith("uxui"),
+    );
     expect(onSubmit).not.toHaveBeenCalled();
     expect(screen.queryByTestId("group-task-strategy-chip")).toBeNull();
     expect(screen.queryByTestId("group-task-strategy-indicator")).toBeNull();
@@ -496,6 +503,8 @@ describe("<ChatInputBox /> cowork materials", () => {
     expect(within(menu).queryByTestId("group-task-strategy-audit")).toBeNull();
     expect(onBoundStrategyChange).toHaveBeenCalledWith("uxui");
     expect(onProjectCapabilityAction).toHaveBeenCalledTimes(1);
+    fireEvent.keyDown(menu, { key: "Escape" });
+    fireEvent.click(screen.getByTestId("composer-options-trigger"));
     expect(
       screen.getByTestId("bound-project-response-mode"),
     ).toBeInTheDocument();
@@ -525,7 +534,9 @@ describe("<ChatInputBox /> cowork materials", () => {
     expect(screen.getByTitle("Personal space")).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: /^General/ }));
     fireEvent.click(screen.getByRole("option", { name: /Design/ }));
-    await waitFor(() => expect(onGroupTaskStrategyChange).toHaveBeenCalledWith("uxui"));
+    await waitFor(() =>
+      expect(onGroupTaskStrategyChange).toHaveBeenCalledWith("uxui"),
+    );
     expect(screen.queryByTestId("permission-mode-trigger")).toBeNull();
     group.unmount();
 
@@ -1030,9 +1041,7 @@ describe("<ChatInputBox /> cowork materials", () => {
 
     await waitFor(() =>
       expect(onSubmit).toHaveBeenCalledWith({
-        text: expect.stringContaining(
-          "path=src/app.tsx workspace=/repo/echo",
-        ),
+        text: expect.stringContaining("path=src/app.tsx workspace=/repo/echo"),
       }),
     );
   });
@@ -1208,7 +1217,7 @@ describe("<ChatInputBox /> cowork materials", () => {
     expect(onReasoningEffortChange).toHaveBeenCalledWith("xhigh");
   });
 
-  it("shows the context compressor as a persistent input control", () => {
+  it("shows current context usage inside conversation options", () => {
     const { rerender } = renderWithProviders(
       <ChatInputBox
         mode="react"
@@ -1218,6 +1227,8 @@ describe("<ChatInputBox /> cowork materials", () => {
       />,
     );
 
+    expect(screen.queryByTestId("context-usage-trigger")).toBeNull();
+    fireEvent.click(screen.getByTestId("composer-options-trigger"));
     expect(screen.getByLabelText(/Context Usage: 0%/)).toBeInTheDocument();
 
     rerender(
@@ -1230,6 +1241,44 @@ describe("<ChatInputBox /> cowork materials", () => {
     );
 
     expect(screen.getByLabelText(/Context Usage: 10%/)).toBeInTheDocument();
+  });
+
+  it("still compresses automatically while conversation options are closed", async () => {
+    const onCompressContext = vi.fn().mockResolvedValue(undefined);
+    renderWithProviders(
+      <ChatInputBox
+        mode="react"
+        threadId="context-options-closed"
+        contextTokens={950}
+        maxContextTokens={1000}
+        onCompressContext={onCompressContext}
+      />,
+    );
+    expect(screen.queryByTestId("composer-options-panel")).toBeNull();
+    await waitFor(() => expect(onCompressContext).toHaveBeenCalledTimes(1));
+    fireEvent.click(screen.getByTestId("composer-options-trigger"));
+    expect(screen.getByLabelText(/Context Usage: 95%/)).toBeVisible();
+    expect(onCompressContext).toHaveBeenCalledTimes(1);
+  });
+
+  it("keeps execution settings available and returns focus after closing options", async () => {
+    const user = userEvent.setup();
+    const selectEngine = vi.fn();
+    renderWithProviders(
+      <ChatInputBox
+        mode="react"
+        threadId="execution-options"
+        executionEngineControl={<button onClick={selectEngine}>Codex</button>}
+      />,
+    );
+    expect(screen.queryByRole("button", { name: "Codex" })).toBeNull();
+    const options = screen.getByTestId("composer-options-trigger");
+    await user.click(options);
+    await user.click(screen.getByRole("button", { name: "Codex" }));
+    expect(selectEngine).toHaveBeenCalledTimes(1);
+    await user.keyboard("{Escape}");
+    expect(screen.queryByTestId("composer-options-panel")).toBeNull();
+    expect(options).toHaveFocus();
   });
 
   it("submits only enabled URL/text materials", async () => {
@@ -1500,11 +1549,23 @@ describe("<ChatInputBox /> live steering", () => {
   it("queues a text follow-up without steering and clears only an accepted draft", () => {
     const onSubmit = vi.fn();
     const onQueue = vi.fn().mockReturnValue(true);
-    renderWithProviders(<ChatInputBox threadId="queue-composer" status="streaming" onSubmit={onSubmit} onQueue={onQueue} />);
+    renderWithProviders(
+      <ChatInputBox
+        threadId="queue-composer"
+        status="streaming"
+        onSubmit={onSubmit}
+        onQueue={onQueue}
+      />,
+    );
     const input = screen.getByTestId("chat-composer-input");
     fireEvent.change(input, { target: { value: "check the result next" } });
-    fireEvent.pointerDown(screen.getByTestId("chat-send-options"), { button: 0, ctrlKey: false });
-    fireEvent.click(screen.getByRole("menuitem", { name: "Queue after the current task" }));
+    fireEvent.pointerDown(screen.getByTestId("chat-send-options"), {
+      button: 0,
+      ctrlKey: false,
+    });
+    fireEvent.click(
+      screen.getByRole("menuitem", { name: "Queue after the current task" }),
+    );
     expect(onQueue).toHaveBeenCalledWith("check the result next");
     expect(onSubmit).not.toHaveBeenCalled();
     expect(input).toHaveValue("");
@@ -1512,17 +1573,47 @@ describe("<ChatInputBox /> live steering", () => {
 
   it("preserves a rejected queue draft and guards execution location while messages remain", () => {
     const onQueue = vi.fn().mockReturnValue(false);
-    const location = (locked: boolean) => <button type="button" data-testid="queue-location" disabled={locked}>Location</button>;
-    const view = renderWithProviders(<ChatInputBox threadId="queue-rejected" status="streaming" onQueue={onQueue} executionLocationControl={location} />);
+    const location = (locked: boolean) => (
+      <button type="button" data-testid="queue-location" disabled={locked}>
+        Location
+      </button>
+    );
+    const view = renderWithProviders(
+      <ChatInputBox
+        threadId="queue-rejected"
+        status="streaming"
+        onQueue={onQueue}
+        executionLocationControl={location}
+      />,
+    );
     const input = screen.getByTestId("chat-composer-input");
     fireEvent.change(input, { target: { value: "keep this draft" } });
-    fireEvent.pointerDown(screen.getByTestId("chat-send-options"), { button: 0, ctrlKey: false });
-    fireEvent.click(screen.getByRole("menuitem", { name: "Queue after the current task" }));
+    fireEvent.pointerDown(screen.getByTestId("chat-send-options"), {
+      button: 0,
+      ctrlKey: false,
+    });
+    fireEvent.click(
+      screen.getByRole("menuitem", { name: "Queue after the current task" }),
+    );
     expect(input).toHaveValue("keep this draft");
     fireEvent.change(input, { target: { value: "" } });
-    view.rerender(<ChatInputBox threadId="queue-rejected" status="ready" pendingQueuedMessages executionLocationControl={location} />);
+    view.rerender(
+      <ChatInputBox
+        threadId="queue-rejected"
+        status="ready"
+        pendingQueuedMessages
+        executionLocationControl={location}
+      />,
+    );
     expect(screen.getByTestId("queue-location")).toBeDisabled();
-    view.rerender(<ChatInputBox threadId="queue-rejected" status="ready" pendingQueuedMessages={false} executionLocationControl={location} />);
+    view.rerender(
+      <ChatInputBox
+        threadId="queue-rejected"
+        status="ready"
+        pendingQueuedMessages={false}
+        executionLocationControl={location}
+      />,
+    );
     expect(screen.getByTestId("queue-location")).toBeEnabled();
   });
   it("keeps text input sendable while a turn is streaming", () => {
@@ -1593,21 +1684,42 @@ describe("<ChatInputBox /> live steering", () => {
 describe("<ChatInputBox /> connection recovery", () => {
   it("quotes only this conversation while keeping the existing draft unsent", () => {
     const onSubmit = vi.fn();
-    renderWithProviders(<ChatInputBox mode="react" threadId="quote-target" onSubmit={onSubmit} />);
+    renderWithProviders(
+      <ChatInputBox mode="react" threadId="quote-target" onSubmit={onSubmit} />,
+    );
     const input = screen.getByTestId("chat-composer-input");
     fireEvent.change(input, { target: { value: "my unfinished reply" } });
-    fireEvent(window, new CustomEvent("echo:quote-message", { detail: { threadId: "another", text: "private" } }));
+    fireEvent(
+      window,
+      new CustomEvent("echo:quote-message", {
+        detail: { threadId: "another", text: "private" },
+      }),
+    );
     expect(input).toHaveValue("my unfinished reply");
-    fireEvent(window, new CustomEvent("echo:quote-message", { detail: { threadId: "quote-target", text: "line one\nline two" } }));
+    fireEvent(
+      window,
+      new CustomEvent("echo:quote-message", {
+        detail: { threadId: "quote-target", text: "line one\nline two" },
+      }),
+    );
     expect(input).toHaveValue("my unfinished reply");
     expect(screen.getByTestId("composer-quote")).toHaveTextContent("line one");
     fireEvent.click(screen.getByTestId("composer-remove-quote"));
     expect(screen.queryByTestId("composer-quote")).toBeNull();
     expect(input).toHaveValue("my unfinished reply");
-    fireEvent(window, new CustomEvent("echo:quote-message", { detail: { threadId: "quote-target", text: "line one\nline two" } }));
+    fireEvent(
+      window,
+      new CustomEvent("echo:quote-message", {
+        detail: { threadId: "quote-target", text: "line one\nline two" },
+      }),
+    );
     expect(onSubmit).not.toHaveBeenCalled();
     fireEvent.click(screen.getByTestId("chat-send-button"));
-    expect(onSubmit).toHaveBeenCalledWith(expect.objectContaining({ text: "my unfinished reply\n\n> line one\n> line two" }));
+    expect(onSubmit).toHaveBeenCalledWith(
+      expect.objectContaining({
+        text: "my unfinished reply\n\n> line one\n> line two",
+      }),
+    );
     expect(screen.queryByTestId("composer-quote")).toBeNull();
   });
 
@@ -2279,24 +2391,65 @@ describe("<ChatInputBox /> upload on attach", () => {
   });
 
   it("guards runtime switching for draft text and live turns", () => {
-    const locationControl = (locked: boolean) => <button disabled={locked}>Execution location</button>;
-    const view = renderWithProviders(<ChatInputBox threadId="scope-guard" executionLocationControl={locationControl} />);
-    expect(screen.getByRole("button", { name: "Execution location" })).toBeEnabled();
+    const locationControl = (locked: boolean) => (
+      <button disabled={locked}>Execution location</button>
+    );
+    const view = renderWithProviders(
+      <ChatInputBox
+        threadId="scope-guard"
+        executionLocationControl={locationControl}
+      />,
+    );
+    expect(
+      screen.getByRole("button", { name: "Execution location" }),
+    ).toBeEnabled();
     fireEvent.change(textarea(), { target: { value: "unfinished task" } });
-    expect(screen.getByRole("button", { name: "Execution location" })).toBeDisabled();
+    expect(
+      screen.getByRole("button", { name: "Execution location" }),
+    ).toBeDisabled();
     fireEvent.change(textarea(), { target: { value: "" } });
-    expect(screen.getByRole("button", { name: "Execution location" })).toBeEnabled();
-    view.rerender(<ChatInputBox threadId="scope-guard" executionLocationControl={locationControl} status="streaming" />);
-    expect(screen.getByRole("button", { name: "Execution location" })).toBeDisabled();
+    expect(
+      screen.getByRole("button", { name: "Execution location" }),
+    ).toBeEnabled();
+    view.rerender(
+      <ChatInputBox
+        threadId="scope-guard"
+        executionLocationControl={locationControl}
+        status="streaming"
+      />,
+    );
+    expect(
+      screen.getByRole("button", { name: "Execution location" }),
+    ).toBeDisabled();
     // An unavailable remote must not trap an empty composer on that host.
-    view.rerender(<ChatInputBox threadId="scope-guard" executionLocationControl={locationControl} status="error" readyForMutations={false} />);
-    expect(screen.getByRole("button", { name: "Execution location" })).toBeEnabled();
+    view.rerender(
+      <ChatInputBox
+        threadId="scope-guard"
+        executionLocationControl={locationControl}
+        status="error"
+        readyForMutations={false}
+      />,
+    );
+    expect(
+      screen.getByRole("button", { name: "Execution location" }),
+    ).toBeEnabled();
   });
 
   it("guards runtime switching for attachments even with an empty text draft", async () => {
     deferredTransport();
-    renderWithProviders(<ChatInputBox threadId="scope-attachment" executionLocationControl={(locked) => <button disabled={locked}>Execution location</button>} />);
+    renderWithProviders(
+      <ChatInputBox
+        threadId="scope-attachment"
+        executionLocationControl={(locked) => (
+          <button disabled={locked}>Execution location</button>
+        )}
+      />,
+    );
     pasteImage("stay-on-this-host.png");
-    await waitFor(() => expect(screen.getByRole("button", { name: "Execution location" })).toBeDisabled());
+    await waitFor(() =>
+      expect(
+        screen.getByRole("button", { name: "Execution location" }),
+      ).toBeDisabled(),
+    );
   });
 });

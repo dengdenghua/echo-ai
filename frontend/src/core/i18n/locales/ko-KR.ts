@@ -428,6 +428,8 @@ export const koKR: Translations = {
     insertChromeSurface: "Chrome 마커 삽입",
     workflow: "워크플로",
     deepResearchConfig: "리서치 설정",
+    conversationOptions: "대화 옵션",
+    executionMethod: "실행 방식",
     roles: "하위 에이전트",
     materials: "자료",
     collapse: "접기",

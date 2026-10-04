@@ -357,6 +357,8 @@ export interface Translations {
     insertChromeSurface: string;
     workflow: string;
     deepResearchConfig: string;
+    conversationOptions: string;
+    executionMethod: string;
     roles: string;
     materials: string;
     collapse: string;

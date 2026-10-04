@@ -1,5 +1,9 @@
 /** Compact context meter with details available throughout a task. */
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useState } from "react";
+import {
+  useContextCompression,
+  type ContextCompressionState,
+} from "./use-context-compression";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -27,33 +31,35 @@ export interface ContextCompressorProps {
   className?: string;
 }
 
-export function ContextCompressor({
-  sessionId,
+export function ContextCompressor(props: ContextCompressorProps) {
+  const state = useContextCompression(props);
+  return <ContextCompressorControl {...props} state={state} />;
+}
+
+export function ContextCompressorControl({
   estimated = false,
-  currentTokens,
   maxTokens,
   compressThreshold = 0.9,
-  isCompressing = false,
   onCompress,
   disabled = false,
   className,
-}: ContextCompressorProps) {
+  state,
+}: ContextCompressorProps & { state: ContextCompressionState }) {
   const { t, locale } = useI18n();
   const zh = locale.startsWith("zh");
   const [menuOpen, setMenuOpen] = useState(false);
   const [tooltipOpen, setTooltipOpen] = useState(false);
-  const [requesting, setRequesting] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [hasAutoCompressed, setHasAutoCompressed] = useState(false);
-  const autoCompressRef = useRef(false);
-  const inFlight = useRef(false);
-  const generation = useRef(0);
-  const known = Number.isFinite(maxTokens) && maxTokens > 0;
-  const used = Number.isFinite(currentTokens) ? Math.max(0, currentTokens) : 0;
-  const progress = known ? Math.min(used / maxTokens, 1) : 0;
-  const percentage = Math.round(progress * 100);
-  const busy = requesting || isCompressing;
-  const canCompress = known && used > 0 && !!onCompress && !disabled && !busy;
+  const {
+    known,
+    used,
+    progress,
+    percentage,
+    busy,
+    canCompress,
+    hasAutoCompressed,
+    error,
+    requestCompress,
+  } = state;
   const contextLabel = `${t.contextCompressor?.contextUsage ?? "Context Usage"}: ${known ? `${percentage}%` : zh ? "容量未知" : "Unknown capacity"}`;
   const copy = {
     details: zh ? "查看上下文详情" : "View context details",
@@ -71,56 +77,6 @@ export function ContextCompressor({
     compressing: zh ? "正在压缩…" : "Compressing…",
     failed: zh ? "压缩失败，请重试" : "Compression failed. Try again",
   };
-
-  useEffect(() => {
-    generation.current += 1;
-    autoCompressRef.current = false;
-    inFlight.current = false;
-    setHasAutoCompressed(false);
-    setRequesting(false);
-    setError(null);
-    return () => {
-      generation.current += 1;
-    };
-  }, [sessionId]);
-
-  const requestCompress = useCallback(
-    async (automatic = false) => {
-      if (!canCompress || inFlight.current || !onCompress) return;
-      const epoch = generation.current;
-      inFlight.current = true;
-      setRequesting(true);
-      setError(null);
-      try {
-        await onCompress();
-        if (epoch === generation.current && automatic)
-          setHasAutoCompressed(true);
-      } catch (reason) {
-        if (epoch === generation.current)
-          setError(reason instanceof Error ? reason.message : copy.failed);
-      } finally {
-        if (epoch === generation.current) {
-          inFlight.current = false;
-          setRequesting(false);
-        }
-      }
-    },
-    [canCompress, onCompress, copy.failed],
-  );
-
-  useEffect(() => {
-    if (progress < compressThreshold * 0.8) {
-      autoCompressRef.current = false;
-      setHasAutoCompressed(false);
-    } else if (
-      progress >= compressThreshold &&
-      canCompress &&
-      !autoCompressRef.current
-    ) {
-      autoCompressRef.current = true;
-      void requestCompress(true);
-    }
-  }, [sessionId, progress, compressThreshold, canCompress, requestCompress]);
 
   const color =
     progress >= 0.95
@@ -253,7 +209,9 @@ export function ContextCompressor({
             </button>
           </DropdownMenuTrigger>
         </TooltipTrigger>
-        {!menuOpen ? <TooltipContent side="top">{details}</TooltipContent> : null}
+        {!menuOpen ? (
+          <TooltipContent side="top">{details}</TooltipContent>
+        ) : null}
       </Tooltip>
       <DropdownMenuContent
         side="top"

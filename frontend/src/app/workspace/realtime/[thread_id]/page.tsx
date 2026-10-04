@@ -265,7 +265,7 @@ import { currentActorId } from "@/core/auth/api";
 import { canAccessGlobalControlPlane } from "@/core/auth/control-plane-access";
 import { useAuth } from "@/providers/AuthProvider";
 import { usePauseTask, useTasks } from "@/core/tasks/hooks";
-import { isAIMessage, isHumanMessage } from "@/core/api/types";
+import { isAIMessage, isHumanMessage, type Message } from "@/core/api/types";
 import {
   type FileInMessage,
   parseUploadedFiles,

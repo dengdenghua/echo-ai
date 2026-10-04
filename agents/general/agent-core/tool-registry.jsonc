@@ -25,6 +25,8 @@
     "market"
   ],
   "private_skills": [
+    "call_agent",
+    "call_agent_parallel",
     "documents",
     "pdf",
     "presentations",

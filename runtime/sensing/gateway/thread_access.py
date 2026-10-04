@@ -70,6 +70,7 @@ class ThreadAccessResolver:
         team_rooms_router: Any = None,
         identity_store: Any = None,
         allow_anonymous_ownerless: bool = False,
+        local_actor_id: str | None = None,
     ) -> None:
         self._thread_store = thread_store
         self._group_store = group_store
@@ -80,11 +81,19 @@ class ThreadAccessResolver:
         # an owner or tenant.  Keep that compatibility explicit and opt-in so
         # authenticated deployments and every other resolver remain fail-closed.
         self._allow_anonymous_ownerless = bool(allow_anonymous_ownerless)
+        # Only an auth-off desktop application may opt into this reserved
+        # operator namespace. Runtime checks that receive just the actor id
+        # must resolve the same tenant as the websocket connection.
+        self._local_actor_id = _clean(local_actor_id)
 
     def _principal_tenant(self, actor_id: str, tenant_id: str | None) -> str:
         tenant = _clean(tenant_id)
-        if tenant or not actor_id or self._identity_store is None:
+        if tenant:
             return tenant
+        if actor_id and actor_id == self._local_actor_id:
+            return f"legacy:{actor_id}"
+        if not actor_id or self._identity_store is None:
+            return ""
         getter = getattr(self._identity_store, "get", None)
         if not callable(getter):
             return ""

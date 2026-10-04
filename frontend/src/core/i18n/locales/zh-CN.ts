@@ -418,6 +418,8 @@ export const zhCN: Translations = {
     insertChromeSurface: "插入 Chrome 标识",
     workflow: "工作流",
     deepResearchConfig: "调研设置",
+    conversationOptions: "对话选项",
+    executionMethod: "执行方式",
     roles: "子 Agent",
     materials: "材料",
     collapse: "收起",
