@@ -379,6 +379,24 @@ def mount_routers_a(
             _task_runs_exc,
         )
 
+    from runtime.sensing.gateway.assistant_activity_router import create_assistant_activity_router
+
+    app.include_router(
+        create_assistant_activity_router(
+            supervisor=getattr(state, "task_supervisor", None),
+            project_store=project_store,
+            collaboration_store=getattr(ctx.cowork_runtime, "collaboration_store", None),
+            group_store=getattr(ctx.cowork_runtime, "group_store", None),
+            thread_store=ctx.thread_store,
+            team_rooms_router=ctx.team_rooms_router,
+            identity_store=ctx.identity_store,
+            require_auth=ctx.require_auth,
+            jwt_secret=ctx.jwt_secret,
+            jwt_issuer=ctx.jwt_issuer,
+            jwt_audience=ctx.jwt_audience,
+        )
+    )
+
     from runtime.sensing.gateway.verify_router import create_verify_router
 
     app.include_router(

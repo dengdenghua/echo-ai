@@ -51,7 +51,9 @@ import { Suspense, lazy } from "react";
 import { getSettingsUxCopy } from "./settings-ux-copy";
 import AppearanceSettingsPage from "./appearance-settings-page";
 import { CodingToolboxPanel } from "./coding-toolbox-panel";
+import { taskWorkspaceRoute } from "@/core/router/task-workspace-route";
 import type { SettingsSection } from "./settings-sections";
+import type { ToolsIntegrationsTab } from "./tools-integrations-settings-page";
 
 export {
   SETTINGS_SECTIONS,
@@ -89,10 +91,10 @@ const importDesktopAutomation = () =>
   import("@/components/workspace/settings/desktop-automation-settings-page");
 const importConversation = () =>
   import("@/components/workspace/settings/conversation-settings-page");
-const importMcp = () =>
-  import("@/components/workspace/settings/mcp-settings-page").then((mod) => ({
-    default: mod.McpSettingsPage,
-  }));
+const importTools = () =>
+  import("@/components/workspace/settings/tools-integrations-settings-page").then(
+    (mod) => ({ default: mod.ToolsIntegrationsSettingsPage }),
+  );
 
 const AboutSettingsPage = lazy(importAbout);
 const AccountSettingsPage = lazy(importAccount);
@@ -105,7 +107,7 @@ const AutomationSecuritySettingsPage = lazy(importAutomationSecurity);
 const BrowserAutomationSettingsPage = lazy(importBrowserAutomation);
 const DesktopAutomationSettingsPage = lazy(importDesktopAutomation);
 const ConversationSettingsPage = lazy(importConversation);
-const McpSettingsPage = lazy(importMcp);
+const ToolsIntegrationsSettingsPage = lazy(importTools);
 
 // Run every chunk import in parallel the first time the dialog opens.
 // Browsers dedupe the ``import()`` calls against cache, so repeated opens
@@ -129,7 +131,7 @@ function preloadSettingsPages(): void {
     importBrowserAutomation,
     importDesktopAutomation,
     importConversation,
-    importMcp,
+    importTools,
   ].forEach((fn) => {
     fn().catch((e) => {
       swallow(e);
@@ -146,6 +148,7 @@ import { octApi } from "@/core/oct/api";
 
 type SettingsDialogProps = React.ComponentProps<typeof Dialog> & {
   defaultSection?: SettingsSection;
+  defaultToolsTab?: ToolsIntegrationsTab;
 };
 
 // Persist user-chosen dialog size across sessions so we don't reset on every
@@ -193,7 +196,11 @@ function getAccountDisplayName(
 }
 
 export function SettingsDialog(props: SettingsDialogProps) {
-  const { defaultSection = "appearance", ...dialogProps } = props;
+  const {
+    defaultSection = "appearance",
+    defaultToolsTab = "external",
+    ...dialogProps
+  } = props;
   const { open: settingsOpen, onOpenChange: onSettingsOpenChange } = props;
   const { t, locale } = useI18n();
   const settingsUxCopy = getSettingsUxCopy(locale);
@@ -510,6 +517,16 @@ export function SettingsDialog(props: SettingsDialogProps) {
           "mcp",
           "tool",
           "server",
+          "channels",
+          "messages",
+          "telegram",
+          "discord",
+          "slack",
+          "feishu",
+          "渠道",
+          "消息",
+          "飞书",
+          "微信",
           ...t.settings.dialog.sectionKeywords.mcp,
         ],
       },
@@ -1005,6 +1022,10 @@ export function SettingsDialog(props: SettingsDialogProps) {
                     </p>
                   </header>
                   <CodingToolboxPanel
+                    onOpenTask={(path) => {
+                      dialogProps.onOpenChange?.(false);
+                      navigate(taskWorkspaceRoute({ workspacePath: path }));
+                    }}
                     onOpen={(target) => {
                       setActiveSection(
                         target === "tools" ? "tools" : "automationSecurity",
@@ -1020,7 +1041,7 @@ export function SettingsDialog(props: SettingsDialogProps) {
               )}
               {hasSettingsResults && activeSection === "tools" && (
                 <Suspense fallback={<SettingsPageSkeleton />}>
-                  <McpSettingsPage />
+                  <ToolsIntegrationsSettingsPage defaultTab={defaultToolsTab} />
                 </Suspense>
               )}
               {hasSettingsResults && activeSection === "automationSecurity" && (

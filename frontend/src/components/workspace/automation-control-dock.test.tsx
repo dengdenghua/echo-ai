@@ -1,6 +1,6 @@
-import { screen, waitFor } from "@testing-library/react";
+import { act, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { renderWithProviders } from "@/test/harness";
 
@@ -20,8 +20,12 @@ vi.mock("@/core/control-session", () => ({
   setControlSessionState: (...args: unknown[]) =>
     setControlSessionStateMock(...args),
 }));
+vi.mock("./automation-picture-in-picture", () => ({
+  AutomationPictureInPicture: () => null,
+}));
 
 describe("<AutomationControlDock />", () => {
+  afterEach(() => vi.useRealTimers());
   beforeEach(() => {
     getRelayStatusMock.mockReset().mockResolvedValue({
       connected: true,
@@ -105,5 +109,75 @@ describe("<AutomationControlDock />", () => {
 
     await user.click(screen.getByRole("button", { name: "Action receipts" }));
     expect(screen.getAllByText("Clicked Continue")).toHaveLength(2);
+  });
+
+  it("discards status from the previous conversation after switching", async () => {
+    let resolveOld!: (value: unknown) => void;
+    const pending = new Promise((resolve) => {
+      resolveOld = resolve;
+    });
+    const current = getControlSessionReplayMock.getMockImplementation()!();
+    getControlSessionReplayMock.mockImplementation((id) =>
+      id === "thread:old" ? pending : current,
+    );
+    const target = {
+      kind: "browser_tab",
+      source: "browser_relay",
+      id: "42",
+      title: "Dashboard",
+    } as const;
+    const { rerender } = renderWithProviders(
+      <AutomationControlDock threadId="old" target={target} />,
+    );
+    await waitFor(() =>
+      expect(getControlSessionReplayMock).toHaveBeenCalledWith("thread:old"),
+    );
+    rerender(<AutomationControlDock threadId="new" target={target} />);
+    await screen.findByText("Clicked Continue");
+    await act(async () => {
+      resolveOld({
+        session: { status: "paused", paused: true },
+        timeline: { items: [{ id: "old", summary: "Old receipt" }] },
+      });
+      await pending;
+    });
+    expect(screen.queryByText("Old receipt")).not.toBeInTheDocument();
+    expect(screen.getByText("Agent controlling")).toBeVisible();
+  });
+
+  it("does not query the browser relay for a desktop target", async () => {
+    renderWithProviders(
+      <AutomationControlDock
+        threadId="thread-1"
+        target={{
+          kind: "desktop_window",
+          source: "computer",
+          id: "1",
+          title: "Notes",
+        }}
+      />,
+    );
+    await screen.findByText("Clicked Continue");
+    expect(getRelayStatusMock).not.toHaveBeenCalled();
+  });
+
+  it("waits for the current status request before polling again", async () => {
+    vi.useFakeTimers();
+    getControlSessionReplayMock.mockReturnValue(new Promise(() => {}));
+    renderWithProviders(
+      <AutomationControlDock
+        threadId="thread-1"
+        target={{
+          kind: "browser_tab",
+          source: "browser_relay",
+          id: "42",
+          title: "Dashboard",
+        }}
+      />,
+    );
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(7500);
+    });
+    expect(getControlSessionReplayMock).toHaveBeenCalledTimes(1);
   });
 });

@@ -4,12 +4,17 @@ from __future__ import annotations
 
 from types import SimpleNamespace
 
+import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
+from runtime.memory.cowork.collaboration_store import CollaborationStore
+from runtime.memory.cowork.group_store import GroupStore
+from runtime.memory.threads import ThreadStateStore
 from runtime.projectos.model import Milestone, Project, Task
 from runtime.projectos.store import ProjectStore
 from runtime.sensing.gateway.projects_router import create_projects_router
+from runtime.sensing.gateway.team_rooms_router import create_team_rooms_router
 
 
 def _client(tmp_path) -> TestClient:
@@ -40,6 +45,51 @@ class _StaticMilestoneModelRouter:
         )
 
 
+class _RecoverableMilestoneModelRouter(_StaticMilestoneModelRouter):
+    available = False
+
+    def call(self, request):
+        if not self.available:
+            raise RuntimeError("no LLM model configured")
+        return super().call(request)
+
+
+class _SensitiveFailureModelRouter:
+    def call(self, _request):
+        raise RuntimeError("provider rejected Authorization: Bearer sk-private-provider-token")
+
+
+class _EmptyMilestoneModelRouter:
+    def call(self, _request):
+        return SimpleNamespace(text="[]")
+
+
+def _planning_stack(tmp_path, model_router):
+    store = ProjectStore(base_dir=tmp_path / "projects")
+    groups = GroupStore(base_dir=tmp_path / "cowork")
+    collaboration = CollaborationStore(base_dir=tmp_path / "cowork")
+    threads = ThreadStateStore(
+        path=tmp_path / "threads.jsonl",
+        index_enabled=False,
+        search_enabled=False,
+        feedback_enabled=False,
+    )
+    rooms = create_team_rooms_router(state_path=tmp_path / "rooms.json")
+    app = FastAPI()
+    app.include_router(rooms)
+    app.include_router(
+        create_projects_router(
+            store=store,
+            model_router=model_router,
+            group_store=groups,
+            collaboration_store=collaboration,
+            thread_store=threads,
+            team_rooms_router=rooms,
+        )
+    )
+    return TestClient(app), store, groups, collaboration, threads
+
+
 def test_plan_run_report_flow(tmp_path) -> None:
     c = _client(tmp_path)
 
@@ -61,11 +111,17 @@ def test_plan_run_report_flow(tmp_path) -> None:
     assert pid in [p["id"] for p in c.get("/api/projects").json()["projects"]]
 
 
-def test_plan_without_configured_model_can_create_consecutive_projects(tmp_path) -> None:
-    store = ProjectStore(base_dir=tmp_path)
-    app = FastAPI()
-    app.include_router(create_projects_router(store=store, model_router=_UnavailableModelRouter()))
-    client = TestClient(app)
+def test_plan_without_configured_model_returns_retryable_error_without_creating_projects(
+    tmp_path,
+) -> None:
+    client, store, groups, collaboration, threads = _planning_stack(
+        tmp_path, _UnavailableModelRouter()
+    )
+    before = {
+        path: path.read_bytes()
+        for directory in (tmp_path / "projects", groups.base_dir)
+        for path in directory.glob("*.db")
+    }
 
     first = client.post(
         "/api/projects",
@@ -76,21 +132,92 @@ def test_plan_without_configured_model_can_create_consecutive_projects(tmp_path)
         json={"name": "Second project group", "goal": "Ship second"},
     )
 
-    assert first.status_code == second.status_code == 200
-    first_state = first.json()
-    second_state = second.json()
-    assert first_state["milestones"][0]["id"] == "MS1"
-    assert first_state["milestones"][0]["name"] == "deliver"
-    assert second_state["milestones"][0]["id"] == (f"{second_state['project']['id']}:MS1")
-    assert second_state["milestones"][0]["goal"] == "Ship second"
-    assert len(store.list_projects()) == 2
-    assert all(
-        [event["kind"] for event in store.events_for_project(project_id)] == ["project.planned"]
-        for project_id in (
-            first_state["project"]["id"],
-            second_state["project"]["id"],
-        )
+    assert first.status_code == second.status_code == 503
+    assert first.json() == second.json()
+    detail = first.json()["detail"]
+    assert detail["code"] == "PROJECT_PLANNING_UNAVAILABLE"
+    assert detail["retryable"] is True
+    assert "未创建项目" in detail["message"]
+    assert store.list_projects() == []
+    assert store.thread_project_map() == {}
+    assert threads.search() == []
+    assert collaboration.list_session_ids() == []
+    assert client.get("/api/teams").json()["teams"] == []
+    assert all(path.read_bytes() == payload for path, payload in before.items())
+
+
+@pytest.mark.parametrize("endpoint", ["/api/projects", "/api/projects/group"])
+@pytest.mark.parametrize(
+    "model_type",
+    [_UnavailableModelRouter, _SensitiveFailureModelRouter, _EmptyMilestoneModelRouter],
+)
+def test_planning_errors_are_private_and_do_not_create_related_content(
+    tmp_path, endpoint, model_type
+):
+    client, store, groups, collaboration, threads = _planning_stack(tmp_path, model_type())
+    before = {
+        path: path.read_bytes()
+        for directory in (tmp_path / "projects", groups.base_dir)
+        for path in directory.glob("*.db")
+    }
+    response = client.post(endpoint, json={"name": "Launch", "goal": "Ship it"})
+    assert response.status_code == 503
+    detail = response.json()["detail"]
+    assert detail["code"] == "PROJECT_PLANNING_UNAVAILABLE" and detail["retryable"] is True
+    assert "模型" in detail["message"] and "重试" in detail["message"]
+    assert "sk-private" not in response.text and "Authorization" not in response.text
+    assert "RuntimeError" not in response.text and "provider" not in response.text
+    assert store.list_projects() == [] and store.thread_project_map() == {}
+    assert threads.search() == [] and collaboration.list_session_ids() == []
+    assert client.get("/api/teams").json()["teams"] == []
+    assert all(path.read_bytes() == payload for path, payload in before.items())
+
+
+@pytest.mark.parametrize("endpoint", ["/api/projects", "/api/projects/group"])
+def test_planning_can_retry_after_model_recovers_with_real_milestones(tmp_path, endpoint):
+    model = _RecoverableMilestoneModelRouter()
+    client, store, _groups, collaboration, threads = _planning_stack(tmp_path, model)
+    body = {"name": "Recoverable", "goal": "Ship a scoped deliverable"}
+    failed = client.post(endpoint, json=body)
+    assert failed.status_code == 503 and store.list_projects() == []
+    model.available = True
+    recovered = client.post(endpoint, json=body)
+    assert recovered.status_code == 200
+    state = recovered.json()
+    assert [milestone["name"] for milestone in state["milestones"]] == ["Scope", "Deliver"]
+    assert state["milestones"][1]["dependencies"] == [state["milestones"][0]["id"]]
+    assert len(store.list_projects()) == 1
+    project_id = state["project"]["id"]
+    assert all(not store.tasks_for_milestone(milestone["id"]) for milestone in state["milestones"])
+    assert store.events_for_project(project_id)[0]["kind"] == "project.planned"
+    if endpoint.endswith("/group"):
+        assert store.thread_for_project(project_id) == state["thread_id"]
+        assert threads.get(state["thread_id"]) is not None
+        assert collaboration.room_for_session(state["thread_id"])["id"] == state["room"]["id"]
+        assert len(client.get("/api/teams").json()["teams"]) == 1
+    else:
+        assert threads.search() == []
+        assert collaboration.list_session_ids() == [f"project:{project_id}"]
+        assert client.get("/api/teams").json()["teams"] == []
+
+
+@pytest.mark.parametrize("endpoint", ["/api/projects", "/api/projects/group"])
+def test_project_storage_failure_is_not_reported_as_model_failure(tmp_path, endpoint, monkeypatch):
+    client, store, _groups, _collaboration, _threads = _planning_stack(
+        tmp_path, _StaticMilestoneModelRouter()
     )
+
+    def unavailable_storage(*_args, **_kwargs):
+        raise RuntimeError("injected project storage failure")
+
+    monkeypatch.setattr(store, "create_project_plan", unavailable_storage)
+    response = TestClient(client.app, raise_server_exceptions=False).post(
+        endpoint,
+        json={"name": "Storage failure", "goal": "Deliver"},
+    )
+    assert response.status_code == 500
+    assert "PROJECT_PLANNING_UNAVAILABLE" not in response.text
+    assert store.list_projects() == []
 
 
 def test_normal_llm_plan_rewrites_dependencies_across_consecutive_projects(tmp_path) -> None:
@@ -410,9 +537,7 @@ def test_portfolio_endpoint_rolls_up_the_same_projects_as_the_list(tmp_path) -> 
 
     # 与列表接口严格同源：一旦漂移，跨项目汇总就会泄漏或漏掉项目
     assert [row["id"] for row in rows] == listed
-    assert sorted(row["id"] for row in rows) == sorted(
-        c["project"]["id"] for c in created
-    )
+    assert sorted(row["id"] for row in rows) == sorted(c["project"]["id"] for c in created)
 
     row = rows[0]
     assert {
@@ -456,9 +581,7 @@ def test_portfolio_on_empty_store_returns_empty_list(tmp_path) -> None:
 
 def test_portfolio_surfaces_overdue_then_blocked_health(tmp_path) -> None:
     client, store = _client_with_store(tmp_path)
-    created = client.post(
-        "/api/projects", json={"name": "risky", "goal": "risky"}
-    ).json()
+    created = client.post("/api/projects", json={"name": "risky", "goal": "risky"}).json()
     pid = created["project"]["id"]
     ms_id = created["milestones"][0]["id"]
 

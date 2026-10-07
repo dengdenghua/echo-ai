@@ -165,6 +165,7 @@ import {
 import { PlanPanel } from "@/components/workspace/plan-panel";
 import { AutomationSubscriptionPanel } from "@/components/workspace/automation/automation-subscription-panel";
 import { AssistantSettingsMenu } from "@/components/workspace/assistant-settings-menu";
+import { AssistantActivityTrigger } from "@/components/workspace/assistant-activity-trigger";
 import { StreamingDebugger } from "@/components/workspace/streaming-debugger";
 import { ContextCompressionIndicator } from "@/components/workspace/context-compression-indicator";
 import { Welcome } from "@/components/workspace/welcome";
@@ -2144,8 +2145,9 @@ function RealtimePageContent({
         "noopener,noreferrer",
       );
       if (opened) opened.opener = null;
+      else navigate(route);
     },
-    [effectiveAgentId],
+    [effectiveAgentId, navigate],
   );
   useEffect(() => {
     const handler = (event: Event) => {
@@ -4769,6 +4771,7 @@ function RealtimePageContent({
                         <div className="ml-auto flex shrink-0 items-center gap-1">
                           {/* 助理是单聊：不提供加人/协作，也不录制，头部保持极简 */}
                           {headerEchoShare}
+                          <AssistantActivityTrigger />
                           <Button
                             type="button"
                             aria-label="自动化与订阅"

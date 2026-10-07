@@ -32,4 +32,14 @@ describe("active project root", () => {
       JSON.parse(localStorage.getItem("echo:recentWorkdirs") ?? "[]"),
     ).toEqual(["/projects/beta"]);
   });
+
+  it("keeps the task workspace when the outer URL selects a remote computer", () => {
+    window.history.replaceState(
+      null,
+      "",
+      "/?echoRemote=host-a#/workspace/realtime/new?workspace_path=%2Fprojects%2Fisolated",
+    );
+    const { result } = renderHook(() => useActiveProjectRoot());
+    expect(result.current).toBe("/projects/isolated");
+  });
 });

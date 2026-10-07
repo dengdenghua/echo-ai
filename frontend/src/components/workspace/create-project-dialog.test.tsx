@@ -4,6 +4,7 @@ import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { renderWithProviders } from "@/test/harness";
+import type * as ProjectHooks from "@/core/projects/hooks";
 
 const mocks = vi.hoisted(() => ({
   createProject: vi.fn(),
@@ -36,12 +37,9 @@ vi.mock("react-router-dom", async () => {
   return { ...actual, useNavigate: () => mocks.navigate };
 });
 
-vi.mock("@/core/projects/hooks", () => ({
-  DEFAULT_PROJECT_AGENT_ID: "general",
-  useCreateProject: () => ({
-    mutate: mocks.createProject,
-    isPending: false,
-  }),
+vi.mock("@/core/projects/hooks", async (importOriginal) => ({
+  ...(await importOriginal<typeof ProjectHooks>()),
+  useCreateProject: () => ({ mutate: mocks.createProject, isPending: false }),
 }));
 
 vi.mock("@/core/agents", () => ({
@@ -59,6 +57,7 @@ vi.mock("@/components/workspace/sidebar-footer", () => ({
 }));
 
 import { CreateProjectDialog } from "./create-project-dialog";
+import { ProjectCreationRequestError } from "@/core/projects/hooks";
 
 function DialogHarness() {
   const [open, setOpen] = useState(true);
@@ -73,6 +72,153 @@ function DialogHarness() {
 }
 
 describe("CreateProjectDialog", () => {
+  it("blocks a second POST when a disconnected creation has an unknown outcome", async () => {
+    const user = userEvent.setup();
+    renderWithProviders(<DialogHarness />, { locale: "zh-CN" });
+    const name = screen.getByRole("textbox", { name: "项目名称" });
+    await user.type(name, "Maybe saved");
+    await user.click(screen.getByRole("button", { name: "创建项目" }));
+    const callbacks = mocks.createProject.mock.calls[0]?.[1] as {
+      onError: (error: Error) => void;
+    };
+    act(() =>
+      callbacks.onError(
+        new ProjectCreationRequestError(
+          "disconnected",
+          0,
+          "PROJECT_CREATION_OUTCOME_UNKNOWN",
+        ),
+      ),
+    );
+    expect(screen.getByRole("alert")).toHaveTextContent(
+      "连接中断，尚未确认创建结果。请先检查项目列表。",
+    );
+    expect(screen.getByRole("button", { name: "创建项目" })).toBeDisabled();
+    fireEvent.keyDown(name, { key: "Enter" });
+    expect(mocks.createProject).toHaveBeenCalledTimes(1);
+    expect(mocks.navigate).not.toHaveBeenCalled();
+    expect(
+      screen.queryByRole("button", { name: "查看已有对话" }),
+    ).not.toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "取消" }));
+    await user.click(screen.getByRole("button", { name: "reopen" }));
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+    await user.type(
+      screen.getByRole("textbox", { name: "项目名称" }),
+      "Explicit new request",
+    );
+    await user.click(screen.getByRole("button", { name: "创建项目" }));
+    expect(mocks.createProject).toHaveBeenCalledTimes(2);
+  });
+
+  it.each(["zh-CN", "en-US"] as const)(
+    "keeps a 503 draft and visibly permits manual retry in %s",
+    async (locale) => {
+      const user = userEvent.setup();
+      renderWithProviders(<CreateProjectDialog open onOpenChange={vi.fn()} />, {
+        locale,
+      });
+      const name = screen.getByRole("textbox");
+      await user.type(name, "Keep this plan");
+      await user.click(
+        screen.getByRole("button", {
+          name: locale === "zh-CN" ? "创建项目" : "Create project",
+        }),
+      );
+      const callbacks = mocks.createProject.mock.calls[0]?.[1] as {
+        onError: (error: Error) => void;
+      };
+      act(() =>
+        callbacks.onError(
+          new ProjectCreationRequestError(
+            "模型暂不可用",
+            503,
+            "PROJECT_PLANNING_UNAVAILABLE",
+            { retryable: true },
+          ),
+        ),
+      );
+      expect(screen.getByRole("alert")).toHaveTextContent(
+        locale === "zh-CN" ? "未创建项目" : "No project was created",
+      );
+      expect(name).toHaveValue("Keep this plan");
+      const retry = screen.getByRole("button", {
+        name: locale === "zh-CN" ? "重试创建" : "Retry creation",
+      });
+      expect(retry).toBeEnabled();
+      await user.click(retry);
+      expect(mocks.createProject).toHaveBeenCalledTimes(2);
+      expect(mocks.createProject.mock.calls[1]?.[0].name).toBe(
+        "Keep this plan",
+      );
+    },
+  );
+
+  it("blocks duplicate creation after recovery pending and navigates only the retained conversation", async () => {
+    const user = userEvent.setup();
+    renderWithProviders(<DialogHarness />, { locale: "zh-CN" });
+    const name = screen.getByRole("textbox", { name: "项目名称" });
+    await user.type(name, "Already saved");
+    await user.click(screen.getByRole("button", { name: "创建项目" }));
+    const callbacks = mocks.createProject.mock.calls[0]?.[1] as {
+      onError: (error: Error) => void;
+    };
+    act(() =>
+      callbacks.onError(
+        new ProjectCreationRequestError(
+          "incomplete",
+          409,
+          "PROJECT_GROUP_CREATION_RECOVERY_PENDING",
+          { projectId: "P-saved", threadId: "thread/saved" },
+        ),
+      ),
+    );
+    expect(screen.getByRole("alert")).toHaveTextContent(
+      "项目已保存但工作群未完成，请查看已有项目",
+    );
+    expect(screen.getByRole("alert")).toHaveTextContent("P-saved");
+    expect(screen.getByRole("button", { name: "创建项目" })).toBeDisabled();
+    fireEvent.keyDown(name, { key: "Enter" });
+    expect(mocks.createProject).toHaveBeenCalledTimes(1);
+    await user.click(screen.getByRole("button", { name: "查看已有对话" }));
+    expect(mocks.navigate).toHaveBeenCalledWith(
+      "/workspace/realtime/thread%2Fsaved",
+      { state: { openProjectWorkbench: true } },
+    );
+    expect(mocks.createProject).toHaveBeenCalledTimes(1);
+    await user.click(screen.getByRole("button", { name: "reopen" }));
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+    expect(screen.getByRole("textbox", { name: "项目名称" })).toHaveValue("");
+  });
+
+  it("shows a retained project without inventing a conversation when no thread exists", async () => {
+    const user = userEvent.setup();
+    renderWithProviders(<CreateProjectDialog open onOpenChange={vi.fn()} />, {
+      locale: "zh-CN",
+    });
+    await user.type(screen.getByRole("textbox", { name: "项目名称" }), "Saved");
+    await user.click(screen.getByRole("button", { name: "创建项目" }));
+    const callbacks = mocks.createProject.mock.calls[0]?.[1] as {
+      onError: (error: Error) => void;
+    };
+    act(() =>
+      callbacks.onError(
+        new ProjectCreationRequestError(
+          "incomplete",
+          409,
+          "PROJECT_GROUP_CREATION_RECOVERY_PENDING",
+          { projectId: "P-only" },
+        ),
+      ),
+    );
+    expect(screen.getByRole("alert")).toHaveTextContent("已保留项目：P-only");
+    expect(
+      screen.queryByRole("button", { name: "查看已有对话" }),
+    ).not.toBeInTheDocument();
+    expect(mocks.navigate).not.toHaveBeenCalled();
+    expect(screen.getByRole("button", { name: "创建项目" })).toBeDisabled();
+  });
+
   it("searches stable IDs and distinguishes roles with the same display name", async () => {
     const previousAgents = mocks.agentState.agents;
     mocks.agentState.agents = [

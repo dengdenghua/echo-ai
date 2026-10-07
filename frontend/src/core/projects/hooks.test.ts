@@ -33,6 +33,7 @@ vi.mock("../cowork/api", () => ({
 import {
   ensureProjectHome,
   ProjectBindingRequestError,
+  ProjectCreationRequestError,
   useCreateProject,
   useDetachProjectFromGroup,
   usePromoteGroupToProject,
@@ -366,7 +367,7 @@ describe("project home work group", () => {
         name: "失败项目",
         initialAgents: [{ id: "planner" }],
       }),
-    ).rejects.toThrow("Failed to create project: creation failed");
+    ).rejects.toThrow("Project creation failed. Please try again.");
 
     expect(vi.mocked(globalThis.fetch)).toHaveBeenCalledTimes(1);
     expect(vi.mocked(globalThis.fetch)).toHaveBeenCalledWith(
@@ -387,6 +388,198 @@ describe("project home work group", () => {
     expect(mocks.deleteThread).not.toHaveBeenCalled();
     expect(mocks.createThread).not.toHaveBeenCalled();
   });
+
+  test.each(["create", "promote"] as const)(
+    "%s preserves readable planning errors and disables automatic retry",
+    async (kind) => {
+      vi.mocked(globalThis.fetch).mockImplementation(
+        async () =>
+          new Response(
+            JSON.stringify({
+              detail: {
+                code: "PROJECT_PLANNING_UNAVAILABLE",
+                message: "请检查执行模型后重试",
+                retryable: true,
+              },
+            }),
+            { status: 503 },
+          ),
+      );
+      const queryClient = new QueryClient({
+        defaultOptions: { mutations: { retry: 3, retryDelay: 0 } },
+      });
+      const wrapper = ({ children }: PropsWithChildren) =>
+        createElement(QueryClientProvider, { client: queryClient }, children);
+      const { result } = renderHook(
+        () =>
+          kind === "create" ? useCreateProject() : usePromoteGroupToProject(),
+        { wrapper },
+      );
+      const error: unknown = await result.current
+        .mutateAsync({ name: "Plan", goal: "Ship", threadId: "existing" })
+        .catch((failure: unknown) => failure);
+      expect(error).toBeInstanceOf(ProjectCreationRequestError);
+      expect(error).toMatchObject({
+        message: "请检查执行模型后重试",
+        status: 503,
+        code: "PROJECT_PLANNING_UNAVAILABLE",
+        retryable: true,
+        recoveryPending: false,
+      });
+      expect(fetch).toHaveBeenCalledTimes(1);
+      expect(mocks.createThread).not.toHaveBeenCalled();
+    },
+  );
+
+  test.each(["create", "promote"] as const)(
+    "%s refreshes retained work after recovery pending without compensation",
+    async (kind) => {
+      vi.mocked(globalThis.fetch).mockResolvedValue(
+        new Response(
+          JSON.stringify({
+            detail: {
+              code: "PROJECT_GROUP_CREATION_RECOVERY_PENDING",
+              project_id: "P-saved",
+              thread_id: "thread/saved",
+              retryable: true,
+            },
+          }),
+          { status: 409 },
+        ),
+      );
+      const queryClient = new QueryClient({
+        defaultOptions: { mutations: { retry: 3, retryDelay: 0 } },
+      });
+      const invalidate = vi.spyOn(queryClient, "invalidateQueries");
+      const wrapper = ({ children }: PropsWithChildren) =>
+        createElement(QueryClientProvider, { client: queryClient }, children);
+      const { result } = renderHook(
+        () =>
+          kind === "create" ? useCreateProject() : usePromoteGroupToProject(),
+        { wrapper },
+      );
+      const error: unknown = await result.current
+        .mutateAsync({ name: "Saved", goal: "Ship", threadId: "thread/saved" })
+        .catch((failure: unknown) => failure);
+      expect(error).toMatchObject({
+        status: 409,
+        code: "PROJECT_GROUP_CREATION_RECOVERY_PENDING",
+        projectId: "P-saved",
+        threadId: "thread/saved",
+        retryable: false,
+        recoveryPending: true,
+      });
+      for (const key of [
+        "projects",
+        "thread-map",
+        "threads",
+        "assistant-activity",
+      ]) {
+        expect(invalidate).toHaveBeenCalledWith({ queryKey: [key] });
+      }
+      expect(fetch).toHaveBeenCalledTimes(1);
+      expect(mocks.createThread).not.toHaveBeenCalled();
+      expect(mocks.deleteThread).not.toHaveBeenCalled();
+      expect(mocks.ensureRoom).not.toHaveBeenCalled();
+    },
+  );
+
+  test.each([
+    [
+      { detail: "Model temporarily unavailable" },
+      "Model temporarily unavailable",
+    ],
+    [
+      { detail: { provider: "sk-private", stack: "trace" } },
+      "Project creation failed. Please try again.",
+    ],
+    [{ detail: ["sk-private"] }, "Project creation failed. Please try again."],
+    [
+      { detail: "Authorization: Bearer sk-private-provider-token" },
+      "Project creation failed. Please try again.",
+    ],
+  ])(
+    "safely parses legacy strings and unknown error shapes",
+    async (payload, message) => {
+      vi.mocked(globalThis.fetch).mockResolvedValue(
+        new Response(JSON.stringify(payload), { status: 503 }),
+      );
+      const queryClient = new QueryClient();
+      const wrapper = ({ children }: PropsWithChildren) =>
+        createElement(QueryClientProvider, { client: queryClient }, children);
+      const { result } = renderHook(() => useCreateProject(), { wrapper });
+      await expect(
+        result.current.mutateAsync({ name: "Plan" }),
+      ).rejects.toMatchObject({ name: "ProjectCreationRequestError", message });
+    },
+  );
+
+  test("does not expose raw network failures or treat the new route as a recovery thread", async () => {
+    vi.mocked(globalThis.fetch).mockRejectedValue(
+      new Error("provider Authorization: Bearer sk-private"),
+    );
+    const queryClient = new QueryClient({
+      defaultOptions: { mutations: { retry: 3, retryDelay: 0 } },
+    });
+    const invalidate = vi.spyOn(queryClient, "invalidateQueries");
+    const wrapper = ({ children }: PropsWithChildren) =>
+      createElement(QueryClientProvider, { client: queryClient }, children);
+    const { result } = renderHook(() => useCreateProject(), { wrapper });
+    await expect(
+      result.current.mutateAsync({ name: "Plan" }),
+    ).rejects.toMatchObject({
+      status: 0,
+      code: "PROJECT_CREATION_OUTCOME_UNKNOWN",
+      outcomeUnknown: true,
+      retryable: false,
+      message:
+        "Connection interrupted. The creation result is not confirmed. Check the project list first.",
+    });
+    expect(fetch).toHaveBeenCalledTimes(1);
+    for (const key of [
+      "projects",
+      "thread-map",
+      "threads",
+      "assistant-activity",
+    ]) {
+      expect(invalidate).toHaveBeenCalledWith({ queryKey: [key] });
+    }
+    expect(
+      new ProjectCreationRequestError(
+        "saved",
+        409,
+        "PROJECT_GROUP_CREATION_RECOVERY_PENDING",
+        { threadId: "new" },
+      ).threadId,
+    ).toBeNull();
+  });
+
+  test.each([
+    "sk-private invalid JSON",
+    JSON.stringify({ project: { id: "P-saved", name: "Saved" } }),
+  ])(
+    "treats unreadable or incomplete success as an unknown creation outcome",
+    async (body) => {
+      vi.mocked(globalThis.fetch).mockResolvedValue(
+        new Response(body, { status: 200 }),
+      );
+      const queryClient = new QueryClient({
+        defaultOptions: { mutations: { retry: 3, retryDelay: 0 } },
+      });
+      const wrapper = ({ children }: PropsWithChildren) =>
+        createElement(QueryClientProvider, { client: queryClient }, children);
+      const { result } = renderHook(() => useCreateProject(), { wrapper });
+      await expect(
+        result.current.mutateAsync({ name: "Saved" }),
+      ).rejects.toMatchObject({
+        code: "PROJECT_CREATION_OUTCOME_UNKNOWN",
+        outcomeUnknown: true,
+        retryable: false,
+      });
+      expect(fetch).toHaveBeenCalledTimes(1);
+      expect(mocks.createThread).not.toHaveBeenCalled();
+    },
+  );
 
   test("opens project capability on the existing group without starting execution", async () => {
     vi.mocked(globalThis.fetch).mockResolvedValue(

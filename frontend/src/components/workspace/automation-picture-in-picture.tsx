@@ -11,6 +11,7 @@ import {
   type PointerEvent as ReactPointerEvent,
   useCallback,
   useEffect,
+  useMemo,
   useRef,
   useState,
 } from "react";
@@ -22,7 +23,12 @@ import {
   type AutomationTarget,
 } from "@/core/computer/api";
 import { useI18n } from "@/core/i18n/hooks";
+import {
+  executionStorageKey,
+  getRemoteExecutionId,
+} from "@/core/execution-location";
 import { BROWSER_WORKSPACE_ROUTE } from "@/core/workspace/sidebar-routing";
+import { COMPUTER_CONTROL_ROUTE } from "@/core/workspace/utility-destinations";
 import { cn } from "@/lib/utils";
 
 type AutomationPictureInPictureProps = {
@@ -54,7 +60,7 @@ const MIN_HEIGHT = 196;
 const EDGE_GAP = 14;
 
 function placementKey(threadId: string) {
-  return `echo:automation-pip:${threadId || "new"}`;
+  return executionStorageKey(`echo:automation-pip:${threadId || "new"}`);
 }
 
 function defaultPlacement(): Placement {
@@ -117,7 +123,7 @@ async function capturePreviewFrame(
   relayConnected: boolean,
 ): Promise<PreviewFrame> {
   const nativeCapture = window.echo?.desktop.captureAutomationPreview;
-  if (nativeCapture) {
+  if (nativeCapture && !getRemoteExecutionId()) {
     const result = await nativeCapture({
       kind: target.kind,
       id: target.id,
@@ -169,7 +175,7 @@ export function AutomationPictureInPicture({
   const [error, setError] = useState<string | null>(null);
   const [refreshing, setRefreshing] = useState(false);
   const surfaceRef = useRef<HTMLDivElement | null>(null);
-  const inFlightRef = useRef(false);
+  const requestRef = useRef(0);
   const dragRef = useRef<{ offsetX: number; offsetY: number } | null>(null);
 
   const persistPlacement = useCallback(
@@ -190,26 +196,38 @@ export function AutomationPictureInPicture({
     setPlacement(readPlacement(threadId));
     setFrame(null);
     setError(null);
-  }, [target.id, threadId]);
+  }, [target.id, target.kind, threadId]);
 
-  const refresh = useCallback(async () => {
-    if (!open || inFlightRef.current || document.hidden) return;
-    inFlightRef.current = true;
-    setRefreshing(true);
-    try {
-      const next = await capturePreviewFrame(threadId, target, relayConnected);
-      setFrame(next);
-      setError(null);
-    } catch (captureError) {
-      setError(
-        captureError instanceof Error
-          ? captureError.message
-          : String(captureError),
-      );
-    } finally {
-      setRefreshing(false);
-      inFlightRef.current = false;
-    }
+  // Each capture scope owns its in-flight request. A late frame from a closed
+  // preview or previous target must never be shown as the current computer.
+  const refresh = useMemo(() => {
+    let inFlight = false;
+    return async () => {
+      if (!open || inFlight || document.hidden) return;
+      inFlight = true;
+      const request = ++requestRef.current;
+      setRefreshing(true);
+      try {
+        const next = await capturePreviewFrame(
+          threadId,
+          target,
+          relayConnected,
+        );
+        if (request !== requestRef.current) return;
+        setFrame(next);
+        setError(null);
+      } catch (captureError) {
+        if (request !== requestRef.current) return;
+        setError(
+          captureError instanceof Error
+            ? captureError.message
+            : String(captureError),
+        );
+      } finally {
+        inFlight = false;
+        if (request === requestRef.current) setRefreshing(false);
+      }
+    };
   }, [open, relayConnected, target, threadId]);
 
   useEffect(() => {
@@ -224,6 +242,7 @@ export function AutomationPictureInPicture({
     };
     document.addEventListener("visibilitychange", handleVisibility);
     return () => {
+      requestRef.current += 1;
       window.clearInterval(interval);
       document.removeEventListener("visibilitychange", handleVisibility);
     };
@@ -316,7 +335,7 @@ export function AutomationPictureInPicture({
     window.location.hash =
       target.kind === "browser_tab"
         ? BROWSER_WORKSPACE_ROUTE
-        : "/workspace/computer";
+        : COMPUTER_CONTROL_ROUTE;
   };
 
   if (!open || typeof document === "undefined") return null;

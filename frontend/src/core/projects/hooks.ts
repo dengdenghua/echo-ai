@@ -52,6 +52,129 @@ export class ProjectBindingRequestError extends Error {
   }
 }
 
+export class ProjectCreationRequestError extends ProjectBindingRequestError {
+  readonly retryable: boolean;
+  readonly projectId: string | null;
+  readonly threadId: string | null;
+  readonly recoveryPending: boolean;
+  readonly outcomeUnknown: boolean;
+
+  constructor(
+    message: string,
+    status: number,
+    code?: string | null,
+    options: {
+      retryable?: boolean;
+      projectId?: string | null;
+      threadId?: string | null;
+    } = {},
+  ) {
+    super(message, status, code);
+    this.name = "ProjectCreationRequestError";
+    this.recoveryPending =
+      status === 409 && this.code === "PROJECT_GROUP_CREATION_RECOVERY_PENDING";
+    this.outcomeUnknown = this.code === "PROJECT_CREATION_OUTCOME_UNKNOWN";
+    this.retryable =
+      !this.recoveryPending &&
+      !this.outcomeUnknown &&
+      (options.retryable ??
+        (status === 503 && this.code === "PROJECT_PLANNING_UNAVAILABLE"));
+    this.projectId = projectCoordinate(options.projectId);
+    this.threadId = projectCoordinate(options.threadId);
+  }
+}
+
+function projectCoordinate(value: unknown): string | null {
+  if (typeof value !== "string") return null;
+  const coordinate = value.trim();
+  return coordinate !== "new" &&
+    /^[A-Za-z0-9][A-Za-z0-9_.:/-]{0,255}$/.test(coordinate)
+    ? coordinate
+    : null;
+}
+
+function readableCreationMessage(value: unknown): string | null {
+  if (typeof value !== "string") return null;
+  const message = value.trim();
+  if (
+    !message ||
+    message.length > 500 ||
+    /authorization\s*[:=]|bearer\s+\S+|\bsk-[A-Za-z0-9_-]+|api[_ -]?key\s*[:=]|password\s*[:=]|traceback\s*\(/i.test(
+      message,
+    )
+  )
+    return null;
+  return message;
+}
+
+async function projectCreationError(
+  response: Response,
+): Promise<ProjectCreationRequestError> {
+  const fallback = "Project creation failed. Please try again.";
+  let payload: Record<string, unknown> = {};
+  try {
+    const decoded: unknown = await response.json();
+    if (decoded && typeof decoded === "object" && !Array.isArray(decoded)) {
+      payload = decoded as Record<string, unknown>;
+    }
+  } catch {
+    // Raw proxy/provider bodies and status text are never user-facing errors.
+  }
+  const raw = payload.detail ?? payload.message;
+  const detail =
+    raw && typeof raw === "object" && !Array.isArray(raw)
+      ? (raw as Record<string, unknown>)
+      : {};
+  return new ProjectCreationRequestError(
+    readableCreationMessage(detail.message) ??
+      readableCreationMessage(raw) ??
+      fallback,
+    response.status,
+    typeof detail.code === "string" ? detail.code : null,
+    {
+      retryable:
+        typeof detail.retryable === "boolean" ? detail.retryable : undefined,
+      projectId: projectCoordinate(detail.project_id),
+      threadId: projectCoordinate(detail.thread_id),
+    },
+  );
+}
+
+async function fetchProjectCreation(
+  url: string,
+  body: unknown,
+): Promise<{ project: Project; thread_id?: unknown }> {
+  try {
+    const response = await fetch(url, {
+      method: "POST",
+      headers: jsonAuthHeaders(),
+      body: JSON.stringify(body),
+    });
+    if (!response.ok) throw await projectCreationError(response);
+    const payload: unknown = await response.json();
+    if (!payload || typeof payload !== "object" || Array.isArray(payload)) {
+      throw new Error("invalid project creation response");
+    }
+    const result = payload as { project?: Project; thread_id?: unknown };
+    if (
+      !result.project ||
+      !projectCoordinate(result.project.id) ||
+      typeof result.project.name !== "string"
+    ) {
+      throw new Error("invalid created project");
+    }
+    return result as { project: Project; thread_id?: unknown };
+  } catch (error) {
+    if (error instanceof ProjectCreationRequestError) throw error;
+    throw new ProjectCreationRequestError(
+      "Connection interrupted. The creation result is not confirmed. Check the project list first.",
+      0,
+      "PROJECT_CREATION_OUTCOME_UNKNOWN",
+      { retryable: false },
+    );
+  }
+}
+
 export interface ProjectInitialAgent {
   id: string;
   displayName?: string;
@@ -291,6 +414,7 @@ export function useProjects(enabled = true) {
 export function useCreateProject() {
   const qc = useQueryClient();
   return useMutation({
+    retry: false,
     mutationFn: async (data: {
       name: string;
       goal?: string;
@@ -300,25 +424,19 @@ export function useCreateProject() {
     }) => {
       const initialAgents =
         normalizedInitialAgents(data.initialAgents ?? []) ?? [];
-      const res = await fetch(`${BASE()}/group`, {
-        method: "POST",
-        headers: jsonAuthHeaders(),
-        body: JSON.stringify({
-          name: data.name,
-          goal: data.goal?.trim() || data.name,
-          initial_agents: initialAgents.map(projectGroupAgent),
-        }),
+      const state = await fetchProjectCreation(`${BASE()}/group`, {
+        name: data.name,
+        goal: data.goal?.trim() || data.name,
+        initial_agents: initialAgents.map(projectGroupAgent),
       });
-      if (!res.ok) {
-        throw new Error(`Failed to create project: ${res.statusText}`);
-      }
-      const state = (await res.json()) as {
-        project: Project;
-        thread_id: string;
-      };
-      const threadId = state.thread_id?.trim();
+      const threadId = projectCoordinate(state.thread_id);
       if (!threadId) {
-        throw new Error("Failed to create project: missing canonical thread");
+        throw new ProjectCreationRequestError(
+          "The creation result is not confirmed. Check the project list first.",
+          200,
+          "PROJECT_CREATION_OUTCOME_UNKNOWN",
+          { projectId: state.project.id },
+        );
       }
       return {
         project: { ...state.project, execution_thread_id: threadId },
@@ -330,12 +448,33 @@ export function useCreateProject() {
       qc.invalidateQueries({ queryKey: ["thread-map"] });
       qc.invalidateQueries({ queryKey: ["threads"] });
     },
+    onError: (error) => {
+      if (
+        error instanceof ProjectCreationRequestError &&
+        (error.recoveryPending || error.outcomeUnknown)
+      ) {
+        for (const key of [
+          "projects",
+          "thread-map",
+          "threads",
+          "assistant-activity",
+        ]) {
+          void qc.invalidateQueries({ queryKey: [key] });
+        }
+        if (error.threadId) {
+          void qc.invalidateQueries({
+            queryKey: ["project", "by-thread", error.threadId],
+          });
+        }
+      }
+    },
   });
 }
 
 export function usePromoteGroupToProject() {
   const qc = useQueryClient();
   return useMutation({
+    retry: false,
     mutationFn: async ({
       threadId,
       name,
@@ -345,20 +484,11 @@ export function usePromoteGroupToProject() {
       name: string;
       goal: string;
     }) => {
-      const res = await fetch(
+      const result = await fetchProjectCreation(
         `${BASE()}/from-group/${encodeURIComponent(threadId)}`,
-        {
-          method: "POST",
-          headers: jsonAuthHeaders(),
-          body: JSON.stringify({ name, goal, run: false }),
-        },
+        { name, goal, run: false },
       );
-      if (!res.ok) {
-        throw new Error(
-          `Failed to create project from group: ${res.statusText}`,
-        );
-      }
-      return (await res.json()) as { project: Project };
+      return { project: result.project };
     },
     onSuccess: (_result, input) => {
       void qc.invalidateQueries({ queryKey: ["projects"] });
@@ -367,6 +497,24 @@ export function usePromoteGroupToProject() {
       void qc.invalidateQueries({
         queryKey: ["project", "by-thread", input.threadId],
       });
+    },
+    onError: (error, input) => {
+      if (
+        error instanceof ProjectCreationRequestError &&
+        (error.recoveryPending || error.outcomeUnknown)
+      ) {
+        for (const key of [
+          "projects",
+          "thread-map",
+          "threads",
+          "assistant-activity",
+        ]) {
+          void qc.invalidateQueries({ queryKey: [key] });
+        }
+        void qc.invalidateQueries({
+          queryKey: ["project", "by-thread", input.threadId],
+        });
+      }
     },
   });
 }

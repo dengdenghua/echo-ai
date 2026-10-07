@@ -17,6 +17,10 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { useNavigate } from "react-router-dom";
+import {
+  COMPUTER_CONTROL_ROUTE,
+  DESKTOP_ORGANIZER_ROUTE,
+} from "@/core/workspace/utility-destinations";
 
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
@@ -107,7 +111,7 @@ export default function AutomationSettingsPage() {
 
   const openComputerTool = () => {
     window.dispatchEvent(new Event("echo:close-settings"));
-    navigate("/workspace/computer");
+    navigate(COMPUTER_CONTROL_ROUTE);
   };
 
   async function onSave() {
@@ -371,7 +375,7 @@ function LocalToolsSection() {
           type="button"
           variant="outline"
           className="justify-start gap-2"
-          onClick={() => openTool("/workspace/computer")}
+          onClick={() => openTool(COMPUTER_CONTROL_ROUTE)}
         >
           <MonitorIcon className="h-4 w-4" />
           {t.sidebar.navComputer}
@@ -381,7 +385,7 @@ function LocalToolsSection() {
           type="button"
           variant="outline"
           className="justify-start gap-2"
-          onClick={() => openTool("/workspace/desktop-organizer")}
+          onClick={() => openTool(DESKTOP_ORGANIZER_ROUTE)}
         >
           <FolderIcon className="h-4 w-4" />
           {t.sidebar.navDesktopOrganizer}

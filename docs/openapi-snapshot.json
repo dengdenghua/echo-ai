@@ -625,6 +625,201 @@
         "title": "AssignBody",
         "type": "object"
       },
+      "AssistantActivityItem": {
+        "properties": {
+          "agent_ids": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Agent Ids",
+            "type": "array"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "project_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Project Id"
+          },
+          "project_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Project Name"
+          },
+          "reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reason"
+          },
+          "room_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Room Id"
+          },
+          "room_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Room Name"
+          },
+          "run_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Run Id"
+          },
+          "source": {
+            "enum": [
+              "run",
+              "project_task",
+              "collaboration_task"
+            ],
+            "title": "Source",
+            "type": "string"
+          },
+          "state": {
+            "enum": [
+              "working",
+              "attention",
+              "completed"
+            ],
+            "title": "State",
+            "type": "string"
+          },
+          "status": {
+            "title": "Status",
+            "type": "string"
+          },
+          "task_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Task Id"
+          },
+          "thread_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Thread Id"
+          },
+          "title": {
+            "title": "Title",
+            "type": "string"
+          },
+          "updated_at": {
+            "title": "Updated At",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "source",
+          "title",
+          "status",
+          "state",
+          "updated_at"
+        ],
+        "title": "AssistantActivityItem",
+        "type": "object"
+      },
+      "AssistantActivityResponse": {
+        "properties": {
+          "has_more": {
+            "title": "Has More",
+            "type": "boolean"
+          },
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/AssistantActivityItem"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "schema": {
+            "const": "echo.assistant_activity.v1",
+            "default": "echo.assistant_activity.v1",
+            "title": "Schema",
+            "type": "string"
+          },
+          "summary": {
+            "$ref": "#/components/schemas/AssistantActivitySummary"
+          }
+        },
+        "required": [
+          "items",
+          "summary",
+          "has_more"
+        ],
+        "title": "AssistantActivityResponse",
+        "type": "object"
+      },
+      "AssistantActivitySummary": {
+        "properties": {
+          "attention": {
+            "default": 0,
+            "title": "Attention",
+            "type": "integer"
+          },
+          "completed": {
+            "default": 0,
+            "title": "Completed",
+            "type": "integer"
+          },
+          "working": {
+            "default": 0,
+            "title": "Working",
+            "type": "integer"
+          }
+        },
+        "title": "AssistantActivitySummary",
+        "type": "object"
+      },
       "AuthProvider": {
         "additionalProperties": true,
         "properties": {
@@ -8962,6 +9157,28 @@
           "count"
         ],
         "title": "WorkspaceOutputsResponse",
+        "type": "object"
+      },
+      "WorktreeCreateRequest": {
+        "properties": {
+          "path": {
+            "maxLength": 4096,
+            "minLength": 1,
+            "title": "Path",
+            "type": "string"
+          },
+          "revision": {
+            "default": "HEAD",
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Revision",
+            "type": "string"
+          }
+        },
+        "required": [
+          "path"
+        ],
+        "title": "WorktreeCreateRequest",
         "type": "object"
       },
       "_MoveIn": {
@@ -17853,6 +18070,51 @@
         "summary": "Get Unified Asset",
         "tags": [
           "assets"
+        ]
+      }
+    },
+    "/api/assistant/activity": {
+      "get": {
+        "operationId": "activity_api_assistant_activity_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 100,
+              "maximum": 200,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AssistantActivityResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Activity",
+        "tags": [
+          "assistant"
         ]
       }
     },
@@ -35322,6 +35584,171 @@
           }
         },
         "summary": "Api Git Status",
+        "tags": [
+          "fs"
+        ]
+      }
+    },
+    "/api/git/summary": {
+      "get": {
+        "description": "Aggregate the numbers an always-visible workspace note needs.\n\n``/api/git/status`` answers \"which files moved?\"; this answers \"how\nmuch moved, and where does the branch stand?\" in one round-trip, so a\nbadge that polls it stays cheap: branch, dirty-file count, ahead /\nbehind against upstream, and added / removed line totals versus HEAD.\n\nUntracked files are counted in ``changed_files`` but can never\ncontribute line totals — ``git diff`` does not see them. They are\ntherefore reported separately as ``untracked_files``, which is what\nlets a caller tell \"nothing changed\" apart from \"nothing *tracked*\nchanged, but N new files appeared\" instead of reading a bare zero.\n``diff_error`` is reserved for ``git diff`` failing outright.",
+        "operationId": "api_git_summary_api_git_summary_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "path",
+            "required": false,
+            "schema": {
+              "default": ".",
+              "title": "Path",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "thread_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Thread Id"
+            }
+          },
+          {
+            "in": "query",
+            "name": "workspace_path",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Workspace Path"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Api Git Summary Api Git Summary Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Api Git Summary",
+        "tags": [
+          "fs"
+        ]
+      }
+    },
+    "/api/git/worktrees": {
+      "get": {
+        "operationId": "list_worktrees_api_git_worktrees_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "path",
+            "required": true,
+            "schema": {
+              "maxLength": 4096,
+              "minLength": 1,
+              "title": "Path",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response List Worktrees Api Git Worktrees Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "List Worktrees",
+        "tags": [
+          "fs"
+        ]
+      },
+      "post": {
+        "operationId": "create_worktree_api_git_worktrees_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/WorktreeCreateRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Create Worktree Api Git Worktrees Post",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Create Worktree",
         "tags": [
           "fs"
         ]

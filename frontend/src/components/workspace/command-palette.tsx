@@ -38,6 +38,12 @@ import {
 import { emitOpenSettings } from "@/core/events";
 import { useI18n } from "@/core/i18n/hooks";
 import { BROWSER_WORKSPACE_ROUTE } from "@/core/workspace/sidebar-routing";
+import {
+  COMPUTER_CONTROL_ROUTE,
+  DESKTOP_ORGANIZER_ROUTE,
+  MESSAGE_CHANNELS_ROUTE,
+  REFLEX_RULES_ROUTE,
+} from "@/core/workspace/utility-destinations";
 import { useGlobalShortcuts } from "@/hooks/use-global-shortcuts";
 
 export function CommandPalette() {
@@ -138,7 +144,7 @@ export function CommandPalette() {
       },
       {
         id: "channels",
-        to: "/workspace/channels",
+        to: MESSAGE_CHANNELS_ROUTE,
         label: t.channels.title,
         icon: CableIcon,
         keywords: "channel connector messaging",
@@ -167,7 +173,7 @@ export function CommandPalette() {
       },
       {
         id: "desktop-organizer",
-        to: "/workspace/desktop-organizer",
+        to: DESKTOP_ORGANIZER_ROUTE,
         label: t.sidebar.navDesktopOrganizer,
         icon: FolderIcon,
         keywords: "desktop organizer folder",
@@ -175,7 +181,7 @@ export function CommandPalette() {
 
       {
         id: "reflex",
-        to: "/workspace/reflex",
+        to: REFLEX_RULES_ROUTE,
         label: t.reflexPage.pageTitle,
         icon: RadarIcon,
         keywords: "reflex rule monitor",
@@ -189,7 +195,7 @@ export function CommandPalette() {
       },
       {
         id: "computer",
-        to: "/workspace/computer",
+        to: COMPUTER_CONTROL_ROUTE,
         label: t.agentWorkbench.computerView,
         icon: CpuIcon,
         keywords: "computer desktop automation",

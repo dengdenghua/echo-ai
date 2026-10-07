@@ -12,6 +12,7 @@ from typing import Any
 from fastapi import APIRouter, Depends, Request
 
 from runtime import __version__
+from runtime.platform.plugins.host_api import HOST_API_VERSION
 from runtime.platform.process.paths import app_paths, project_root
 
 from ._health_checks import (
@@ -52,6 +53,7 @@ def _runtime_identity() -> dict[str, Any]:
         "name": "echo-ai-runtime",
         "product": "Echo",
         "version": __version__,
+        "hostApiVersion": HOST_API_VERSION,
         "verifiedBundle": False,
     }
     source_id = os.environ.get("ECHO_RUNTIME_SOURCE_ID", "").strip()

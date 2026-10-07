@@ -2877,6 +2877,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/assistant/activity": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Activity */
+        get: operations["activity_api_assistant_activity_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/auth/logout": {
         parameters: {
             query?: never;
@@ -9084,6 +9101,56 @@ export interface paths {
         get: operations["api_git_status_api_git_status_get"];
         put?: never;
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/git/summary": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Api Git Summary
+         * @description Aggregate the numbers an always-visible workspace note needs.
+         *
+         *     ``/api/git/status`` answers "which files moved?"; this answers "how
+         *     much moved, and where does the branch stand?" in one round-trip, so a
+         *     badge that polls it stays cheap: branch, dirty-file count, ahead /
+         *     behind against upstream, and added / removed line totals versus HEAD.
+         *
+         *     Untracked files are counted in ``changed_files`` but can never
+         *     contribute line totals — ``git diff`` does not see them. They are
+         *     therefore reported separately as ``untracked_files``, which is what
+         *     lets a caller tell "nothing changed" apart from "nothing *tracked*
+         *     changed, but N new files appeared" instead of reading a bare zero.
+         *     ``diff_error`` is reserved for ``git diff`` failing outright.
+         */
+        get: operations["api_git_summary_api_git_summary_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/git/worktrees": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Worktrees */
+        get: operations["list_worktrees_api_git_worktrees_get"];
+        put?: never;
+        /** Create Worktree */
+        post: operations["create_worktree_api_git_worktrees_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -16301,6 +16368,77 @@ export interface components {
             /** Prompt */
             prompt: string;
         };
+        /** AssistantActivityItem */
+        AssistantActivityItem: {
+            /** Agent Ids */
+            agent_ids?: string[];
+            /** Id */
+            id: string;
+            /** Project Id */
+            project_id?: string | null;
+            /** Project Name */
+            project_name?: string | null;
+            /** Reason */
+            reason?: string | null;
+            /** Room Id */
+            room_id?: string | null;
+            /** Room Name */
+            room_name?: string | null;
+            /** Run Id */
+            run_id?: string | null;
+            /**
+             * Source
+             * @enum {string}
+             */
+            source: "run" | "project_task" | "collaboration_task";
+            /**
+             * State
+             * @enum {string}
+             */
+            state: "working" | "attention" | "completed";
+            /** Status */
+            status: string;
+            /** Task Id */
+            task_id?: string | null;
+            /** Thread Id */
+            thread_id?: string | null;
+            /** Title */
+            title: string;
+            /** Updated At */
+            updated_at: string;
+        };
+        /** AssistantActivityResponse */
+        AssistantActivityResponse: {
+            /** Has More */
+            has_more: boolean;
+            /** Items */
+            items: components["schemas"]["AssistantActivityItem"][];
+            /**
+             * Schema
+             * @default echo.assistant_activity.v1
+             * @constant
+             */
+            schema: "echo.assistant_activity.v1";
+            summary: components["schemas"]["AssistantActivitySummary"];
+        };
+        /** AssistantActivitySummary */
+        AssistantActivitySummary: {
+            /**
+             * Attention
+             * @default 0
+             */
+            attention: number;
+            /**
+             * Completed
+             * @default 0
+             */
+            completed: number;
+            /**
+             * Working
+             * @default 0
+             */
+            working: number;
+        };
         /** AuthProvider */
         AuthProvider: {
             /** Id */
@@ -19774,6 +19912,16 @@ export interface components {
             files: components["schemas"]["WorkspaceOutputEntry"][];
             /** Thread Id */
             thread_id: string;
+        };
+        /** WorktreeCreateRequest */
+        WorktreeCreateRequest: {
+            /** Path */
+            path: string;
+            /**
+             * Revision
+             * @default HEAD
+             */
+            revision: string;
         };
         /** _MoveIn */
         _MoveIn: {
@@ -25310,6 +25458,37 @@ export interface operations {
                     "application/json": {
                         [key: string]: unknown;
                     };
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    activity_api_assistant_activity_get: {
+        parameters: {
+            query?: {
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AssistantActivityResponse"];
                 };
             };
             /** @description Validation Error */
@@ -37151,6 +37330,109 @@ export interface operations {
         responses: {
             /** @description Successful Response */
             200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    api_git_summary_api_git_summary_get: {
+        parameters: {
+            query?: {
+                path?: string;
+                thread_id?: string | null;
+                workspace_path?: string | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_worktrees_api_git_worktrees_get: {
+        parameters: {
+            query: {
+                path: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    create_worktree_api_git_worktrees_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["WorktreeCreateRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
                 headers: {
                     [name: string]: unknown;
                 };

@@ -1,6 +1,6 @@
 import { fireEvent, waitFor, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { renderWithProviders } from "@/test/harness";
 
@@ -16,6 +16,8 @@ vi.mock("@/providers/AuthProvider", () => ({
 }));
 
 describe("SettingsDialog", () => {
+  afterEach(() => vi.unstubAllGlobals());
+
   beforeEach(() => {
     window.localStorage.removeItem("echo_settings_dialog_size");
     vi.stubGlobal("requestAnimationFrame", (callback: FrameRequestCallback) => {
@@ -33,6 +35,36 @@ describe("SettingsDialog", () => {
     expect(normalizeSettingsSection("automation")).toBe("browserAutomation");
     expect(normalizeSettingsSection("sandbox")).toBe("automationSecurity");
     expect(normalizeSettingsSection("unknown")).toBe("appearance");
+  });
+
+  it("opens the embedded channels subpage from its explicit destination", async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValue({ ok: true, json: async () => [] });
+    vi.stubGlobal("fetch", fetchMock);
+    renderWithProviders(
+      <SettingsDialog
+        open
+        defaultSection="tools"
+        defaultToolsTab="channels"
+        onOpenChange={vi.fn()}
+      />,
+      { locale: "zh-CN" },
+    );
+
+    expect(
+      await screen.findByRole("tab", { name: "消息渠道" }),
+    ).toHaveAttribute("aria-selected", "true");
+    await waitFor(() => {
+      for (const path of ["/api/channels", "/api/agents", "/api/groups"]) {
+        expect(fetchMock).toHaveBeenCalledWith(path, expect.any(Object));
+      }
+    });
+    expect(
+      fetchMock.mock.calls.some(([url]) => String(url).includes("/api/mcp/")),
+    ).toBe(false);
+    expect(screen.queryByRole("tabpanel", { name: "外部工具" })).toBeNull();
+    expect(screen.queryByText("Channel Ops")).toBeNull();
   });
 
   it("exposes browser and desktop automation as independent destinations", () => {

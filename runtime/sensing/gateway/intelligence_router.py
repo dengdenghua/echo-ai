@@ -219,6 +219,78 @@ def _subscription_due(
     )
 
 
+def _next_subscription_check(
+    subscription: dict[str, Any],
+    *,
+    now: datetime | None = None,
+) -> datetime | None:
+    """Earliest due check using the dispatcher's schedule and cooldown rules.
+
+    This is a scheduling estimate, not a promise that the service is online
+    or that a background run will start at that exact instant.
+    """
+    if subscription.get("enabled") is False:
+        return None
+    current = (now or datetime.now(UTC)).astimezone(UTC)
+    last_run = _parse_iso(subscription.get("last_run"))
+    threshold = (
+        max(current, last_run + timedelta(seconds=_cadence_seconds(subscription.get("cadence"))))
+        if last_run is not None
+        else current
+    )
+    if _schedule_ready(subscription, now=threshold):
+        return threshold
+
+    zone = _resolve_timezone(subscription.get("timezone"))
+    local = threshold.astimezone(zone)
+    match = re.fullmatch(
+        r"([01]?\d|2[0-3]):([0-5]\d)",
+        str(subscription.get("schedule_time") or "09:00").strip(),
+    )
+    hour, minute = (int(match[1]), int(match[2])) if match else (9, 0)
+    # At most two months covers the next daily, weekly or monthly window.
+    for offset in range(64):
+        day = local.date() + timedelta(days=offset)
+        wall_time = datetime(day.year, day.month, day.day, hour, minute, tzinfo=zone)
+        candidates = sorted({wall_time.replace(fold=fold).astimezone(UTC) for fold in (0, 1)})
+        candidate = next(
+            (
+                value
+                for value in candidates
+                if value >= threshold and _schedule_ready(subscription, now=value)
+            ),
+            None,
+        )
+        if candidate is None:
+            continue
+        # A nonexistent wall time during a DST jump normalizes forward. Find
+        # the first ready instant in that gap instead of displaying a late time.
+        normalized = candidate.astimezone(zone).replace(tzinfo=None)
+        if normalized != wall_time.replace(tzinfo=None):
+            low = max(threshold, candidate - timedelta(hours=3))
+            if not _schedule_ready(subscription, now=low):
+                high = candidate
+                while (high - low).total_seconds() > 1:
+                    middle = low + (high - low) / 2
+                    if _schedule_ready(subscription, now=middle):
+                        high = middle
+                    else:
+                        low = middle
+                candidate = high.replace(microsecond=0)
+                if not _schedule_ready(subscription, now=candidate):
+                    candidate += timedelta(seconds=1)
+        return candidate
+    return None
+
+
+def _subscription_view(subscription: dict[str, Any], *, now: datetime) -> dict[str, Any]:
+    next_check = _next_subscription_check(subscription, now=now)
+    return {
+        **subscription,
+        "next_check_at": next_check.isoformat() if next_check is not None else None,
+    }
+
+
 def _split_terms(text: str) -> list[str]:
     normalized = text
     for mark in "，。；、\n\t\r,.;:/|()[]{}<>":
@@ -728,7 +800,10 @@ def create_intelligence_router(
     def list_subscriptions(request: Request) -> dict[str, Any]:
         _auth(request)
         data = _read_store(path)
-        return {"subscriptions": data["subscriptions"]}
+        now = datetime.now(UTC)
+        return {
+            "subscriptions": [_subscription_view(item, now=now) for item in data["subscriptions"]]
+        }
 
     @router.post("/api/intelligence/subscriptions/draft")
     def draft_subscription(

@@ -200,7 +200,18 @@ const PLATFORM_CATEGORY_MAP: Record<string, string> = {
 const CATEGORY_ORDER = ["im", "china", "email_sms", "smart_home", "dev_tools"];
 
 export default function ChannelsPage() {
+  return (
+    <WorkspaceContainer mobileNavigation>
+      <WorkspaceBody className="px-4 pb-4">
+        <ChannelsContent />
+      </WorkspaceBody>
+    </WorkspaceContainer>
+  );
+}
+
+export function ChannelsContent({ embedded = false }: { embedded?: boolean }) {
   const { t } = useI18n();
+  const ChannelTitle = embedded ? "h2" : "h1";
   const { confirm, confirmDialog } = useConfirmDialog();
   const [rows, setRows] = useState<ChannelRow[]>([]);
   const [agents, setAgents] = useState<AgentLite[]>([]);
@@ -459,177 +470,197 @@ export default function ChannelsPage() {
   }, [filteredRows, t.channels.categoryOther]);
 
   return (
-    <WorkspaceContainer mobileNavigation>
-      <WorkspaceBody className="px-4 pb-4">
-        <div className="ui-density-stack mx-auto flex w-full max-w-6xl flex-col">
-          {confirmDialog}
-          {/* Implementation note. */}
-          <section className="workspace-panel ui-density-panel">
-            <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
-              <div className="min-w-0">
-                <div className="flex items-center gap-3">
-                  <div className="flex size-10 items-center justify-center rounded-lg bg-primary/10 text-primary ring-1 ring-primary/10">
-                    <MessageCircleIcon className="size-5" />
-                  </div>
-                  <div>
+    <>
+      <div
+        className={cn(
+          "ui-density-stack mx-auto flex w-full flex-col",
+          embedded ? "@container" : "max-w-6xl",
+        )}
+      >
+        {confirmDialog}
+        {/* Implementation note. */}
+        <section className="workspace-panel ui-density-panel">
+          <div
+            className={cn(
+              "flex flex-col gap-4",
+              !embedded && "md:flex-row md:items-end md:justify-between",
+            )}
+          >
+            <div className="min-w-0">
+              <div className="flex items-center gap-3">
+                <div className="flex size-10 items-center justify-center rounded-lg bg-primary/10 text-primary ring-1 ring-primary/10">
+                  <MessageCircleIcon className="size-5" />
+                </div>
+                <div>
+                  {!embedded && (
                     <div className="text-muted-foreground text-xs font-medium uppercase tracking-eyebrow">
                       Channel Ops
                     </div>
-                    <h1 className="text-xl font-semibold tracking-tight">
-                      {t.channels.title}
-                    </h1>
-                  </div>
+                  )}
+                  <ChannelTitle className="text-xl font-semibold tracking-tight">
+                    {t.channels.title}
+                  </ChannelTitle>
                 </div>
-                <p className="mt-3 max-w-2xl text-sm leading-6 text-muted-foreground">
-                  {t.channels.pageDescription}
-                  <span className="ml-1 text-muted-foreground/80">
-                    {t.channels.localDataNote}
-                  </span>
-                </p>
               </div>
+              <p className="mt-3 max-w-2xl text-sm leading-6 text-muted-foreground">
+                {t.channels.pageDescription}
+                <span className="ml-1 text-muted-foreground/80">
+                  {t.channels.localDataNote}
+                </span>
+              </p>
+            </div>
 
-              <div className="grid min-w-[220px] grid-cols-2 gap-2 tabular-nums">
-                <div className="rounded-lg border border-border-default bg-background/62 px-3 py-2">
-                  <div className="text-xs text-muted-foreground">
-                    {t.channels.channelCount(rows.length)}
-                  </div>
-                  <div className="mt-1 text-lg font-semibold">
-                    {rows.length}
-                  </div>
+            <div className="grid min-w-[220px] grid-cols-2 gap-2 tabular-nums">
+              <div className="rounded-lg border border-border-default bg-background/62 px-3 py-2">
+                <div className="text-xs text-muted-foreground">
+                  {t.channels.channelCount(rows.length)}
                 </div>
-                <div className="rounded-lg border border-success/20 bg-success/50/[0.06] px-3 py-2">
-                  <div className="flex items-center gap-1 text-xs text-success">
-                    <span
-                      className={cn(
-                        "inline-block size-1.5 rounded-full",
-                        connectedCount > 0
-                          ? "bg-success"
-                          : "bg-muted-foreground/40",
-                      )}
-                    />
-                    {t.channels.connectedCount(connectedCount)}
-                  </div>
-                  <div className="mt-1 text-lg font-semibold text-success">
-                    {connectedCount}
-                  </div>
+                <div className="mt-1 text-lg font-semibold">{rows.length}</div>
+              </div>
+              <div className="rounded-lg border border-success/20 bg-success/50/[0.06] px-3 py-2">
+                <div className="flex items-center gap-1 text-xs text-success">
+                  <span
+                    className={cn(
+                      "inline-block size-1.5 rounded-full",
+                      connectedCount > 0
+                        ? "bg-success"
+                        : "bg-muted-foreground/40",
+                    )}
+                  />
+                  {t.channels.connectedCount(connectedCount)}
+                </div>
+                <div className="mt-1 text-lg font-semibold text-success">
+                  {connectedCount}
                 </div>
               </div>
             </div>
-          </section>
+          </div>
+        </section>
 
-          {loading && (
-            <LoadingState
-              title={t.channels.loading}
-              variant="skeleton"
-              className="workspace-panel p-5"
-            />
-          )}
+        {loading && (
+          <LoadingState
+            title={t.channels.loading}
+            variant="skeleton"
+            className="workspace-panel p-5"
+          />
+        )}
 
-          {error && (
-            <ErrorState
-              title={t.channels.loadFailed}
-              detail={error}
-              actionLabel={t.channels.retry}
-              onAction={() => void loadAll()}
-              className="workspace-panel"
-            />
-          )}
+        {error && (
+          <ErrorState
+            title={t.channels.loadFailed}
+            detail={error}
+            actionLabel={t.channels.retry}
+            onAction={() => void loadAll()}
+            className="workspace-panel"
+          />
+        )}
 
-          {!loading && !error && rows.length === 0 && (
-            <Empty className="workspace-panel min-h-[260px]">
-              <EmptyHeader>
-                <EmptyMedia variant="icon">
-                  <MessageCircleIcon />
-                </EmptyMedia>
-                <EmptyTitle>{t.channels.noRegistered}</EmptyTitle>
-                <EmptyDescription>
-                  {t.channels.noRegisteredDescription}
-                </EmptyDescription>
-              </EmptyHeader>
-            </Empty>
-          )}
+        {!loading && !error && rows.length === 0 && (
+          <Empty className="workspace-panel min-h-[260px]">
+            <EmptyHeader>
+              <EmptyMedia variant="icon">
+                <MessageCircleIcon />
+              </EmptyMedia>
+              <EmptyTitle>{t.channels.noRegistered}</EmptyTitle>
+              <EmptyDescription>
+                {t.channels.noRegisteredDescription}
+              </EmptyDescription>
+            </EmptyHeader>
+          </Empty>
+        )}
 
-          {!loading && !error && rows.length > 0 && (
-            <>
-              <section className="workspace-panel flex flex-col gap-3 p-3 md:flex-row md:items-center md:justify-between">
-                <div className="relative min-w-0 flex-1">
-                  <SearchIcon className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
-                  <Input
-                    value={query}
-                    onChange={(event) => setQuery(event.target.value)}
-                    placeholder={t.channels.searchPlaceholder}
-                    className="h-10 rounded-lg pl-9"
-                  />
-                </div>
-                <div className="grid shrink-0 grid-cols-3 gap-1 rounded-lg border border-border-default bg-muted/25 p-1">
-                  {[
-                    { value: "all", label: t.channels.filterAll },
-                    { value: "connected", label: t.channels.filterConnected },
-                    { value: "unlinked", label: t.channels.filterUnlinked },
-                  ].map((item) => (
-                    <button
-                      key={item.value}
-                      type="button"
-                      onClick={() => setFilter(item.value as ChannelFilter)}
-                      className={cn(
-                        "h-8 rounded-lg px-3 text-xs font-medium transition-colors",
-                        filter === item.value
-                          ? "bg-background text-foreground shadow-[var(--shadow-xs)]"
-                          : "text-muted-foreground hover:text-foreground",
-                      )}
-                    >
-                      {item.label}
-                    </button>
-                  ))}
-                </div>
-              </section>
-
-              {channelSections.length === 0 ? (
-                <Empty className="workspace-panel min-h-[240px]">
-                  <EmptyHeader>
-                    <EmptyMedia variant="icon">
-                      <SearchIcon />
-                    </EmptyMedia>
-                    <EmptyTitle>{t.channels.noSearchResults}</EmptyTitle>
-                    <EmptyDescription>
-                      {t.channels.noSearchResultsDescription}
-                    </EmptyDescription>
-                  </EmptyHeader>
-                </Empty>
-              ) : (
-                channelSections.map((section) => (
-                  <div key={section.key}>
-                    <h2 className="mb-3 text-sm font-semibold text-muted-foreground">
-                      {section.label}
-                    </h2>
-                    <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-                      {section.items.map((row, index) => (
-                        <ChannelCard
-                          key={row.channel_id || `${row.platform}-${index}`}
-                          row={row}
-                          agents={agents}
-                          groups={groups}
-                          onRequestAssign={() => setAssigningId(row.channel_id)}
-                          onRequestCredential={() =>
-                            setCredPlatform(row.platform)
-                          }
-                          onRequestPairings={() =>
-                            setPairingsForId(row.channel_id)
-                          }
-                          onRequestHealthCheck={() =>
-                            void probeChannel(row.channel_id)
-                          }
-                          probing={probingId === row.channel_id}
-                        />
-                      ))}
-                    </div>
-                  </div>
-                ))
+        {!loading && !error && rows.length > 0 && (
+          <>
+            <section
+              className={cn(
+                "workspace-panel flex flex-col gap-3 p-3",
+                !embedded && "md:flex-row md:items-center md:justify-between",
               )}
-            </>
-          )}
-        </div>
-      </WorkspaceBody>
+            >
+              <div className="relative min-w-0 flex-1">
+                <SearchIcon className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+                <Input
+                  value={query}
+                  onChange={(event) => setQuery(event.target.value)}
+                  placeholder={t.channels.searchPlaceholder}
+                  className="h-10 rounded-lg pl-9"
+                />
+              </div>
+              <div className="grid shrink-0 grid-cols-3 gap-1 rounded-lg border border-border-default bg-muted/25 p-1">
+                {[
+                  { value: "all", label: t.channels.filterAll },
+                  { value: "connected", label: t.channels.filterConnected },
+                  { value: "unlinked", label: t.channels.filterUnlinked },
+                ].map((item) => (
+                  <button
+                    key={item.value}
+                    type="button"
+                    onClick={() => setFilter(item.value as ChannelFilter)}
+                    className={cn(
+                      "h-8 rounded-lg px-3 text-xs font-medium transition-colors",
+                      filter === item.value
+                        ? "bg-background text-foreground shadow-[var(--shadow-xs)]"
+                        : "text-muted-foreground hover:text-foreground",
+                    )}
+                  >
+                    {item.label}
+                  </button>
+                ))}
+              </div>
+            </section>
+
+            {channelSections.length === 0 ? (
+              <Empty className="workspace-panel min-h-[240px]">
+                <EmptyHeader>
+                  <EmptyMedia variant="icon">
+                    <SearchIcon />
+                  </EmptyMedia>
+                  <EmptyTitle>{t.channels.noSearchResults}</EmptyTitle>
+                  <EmptyDescription>
+                    {t.channels.noSearchResultsDescription}
+                  </EmptyDescription>
+                </EmptyHeader>
+              </Empty>
+            ) : (
+              channelSections.map((section) => (
+                <div key={section.key}>
+                  <h2 className="mb-3 text-sm font-semibold text-muted-foreground">
+                    {section.label}
+                  </h2>
+                  <div
+                    className={cn(
+                      "grid gap-4",
+                      embedded
+                        ? "@[32rem]:grid-cols-2"
+                        : "md:grid-cols-2 xl:grid-cols-3",
+                    )}
+                  >
+                    {section.items.map((row, index) => (
+                      <ChannelCard
+                        key={row.channel_id || `${row.platform}-${index}`}
+                        row={row}
+                        agents={agents}
+                        groups={groups}
+                        onRequestAssign={() => setAssigningId(row.channel_id)}
+                        onRequestCredential={() =>
+                          setCredPlatform(row.platform)
+                        }
+                        onRequestPairings={() =>
+                          setPairingsForId(row.channel_id)
+                        }
+                        onRequestHealthCheck={() =>
+                          void probeChannel(row.channel_id)
+                        }
+                        probing={probingId === row.channel_id}
+                      />
+                    ))}
+                  </div>
+                </div>
+              ))
+            )}
+          </>
+        )}
+      </div>
 
       {/* Implementation note. */}
       {pairingsForId &&
@@ -841,7 +872,7 @@ export default function ChannelsPage() {
           )}
         </DialogContent>
       </Dialog>
-    </WorkspaceContainer>
+    </>
   );
 }
 

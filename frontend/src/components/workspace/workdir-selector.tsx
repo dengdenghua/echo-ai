@@ -6,6 +6,7 @@ import {
   DatabaseIcon,
   FolderIcon,
   FolderOpenIcon,
+  GitBranchIcon,
   HardDriveIcon,
   Loader2Icon,
   ServerIcon,
@@ -40,6 +41,7 @@ import { useAuth } from "@/providers/AuthProvider";
 import { useFeatureFlags } from "@/hooks/use-feature-flags";
 import { useProjects } from "@/core/projects/hooks";
 import { managedWorkdirThreadId, workdirDisplayName } from "./workdir-label";
+import { WorktreeDialog } from "./worktree-dialog";
 
 interface WorkDirSelectorProps {
   workDir: string;
@@ -247,6 +249,7 @@ export function WorkDirSelector({
   const [isPicking, setIsPicking] = useState(false);
   const pickerRequestRef = useRef<AbortController | null>(null);
   const [showMenu, setShowMenu] = useState(false);
+  const [worktreeOpen, setWorktreeOpen] = useState(false);
   // ``browsePath`` drives the in-menu folder browser. When the user
   // hasn't chosen anything yet we seed it from the most recently used
   // directory so the picker isn't pointing at an empty string (which
@@ -734,6 +737,16 @@ export function WorkDirSelector({
         )}
 
         {folderPickerCta}
+        {workDir && !designSpace && (onWorkDirChange || onOpenWorkDirInNewTask) && (
+          <button
+            type="button"
+            onClick={() => { setShowMenu(false); setWorktreeOpen(true); }}
+            className="mt-1 flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-xs font-medium text-muted-foreground hover:bg-muted/60 hover:text-foreground"
+          >
+            <GitBranchIcon className="size-3.5 shrink-0" />
+            {locale.startsWith("zh") ? "隔离任务 · Worktrees" : "Isolated tasks · Worktrees"}
+          </button>
+        )}
 
         {noBridgeHint && (
           <div className="mt-2 rounded-md border border-border-default bg-muted/40 px-2 py-1.5 text-xs leading-snug text-muted-foreground">
@@ -1088,6 +1101,15 @@ export function WorkDirSelector({
         <ChevronDownIcon className="size-3 shrink-0 opacity-35 transition-opacity group-hover:opacity-60" />
       </button>
 
+      <WorktreeDialog
+        open={worktreeOpen}
+        onOpenChange={setWorktreeOpen}
+        projectPath={workDir}
+        onOpenTask={(path) => {
+          if (onOpenWorkDirInNewTask) onOpenWorkDirInNewTask(path);
+          else applyWorkDir(path);
+        }}
+      />
       {menuRect && typeof document !== "undefined"
         ? createPortal(
             <div

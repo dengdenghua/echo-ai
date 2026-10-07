@@ -841,6 +841,23 @@ class CollaborationStore(
             ).fetchone()
         return _load(row[0]) if row else None
 
+    def list_session_ids(self, *, limit: int = 500, offset: int = 0) -> list[str]:
+        """Enumerate canonical room/task coordinates without returning private content.
+
+        Consumers must authorize each session before reading its room or tasks.
+        Task-only sessions are included for historical Project OS projections.
+        """
+        bounded_limit = max(1, min(int(limit), 500))
+        bounded_offset = max(0, int(offset))
+        with self._lock, self._connect() as conn:
+            rows = conn.execute(
+                "SELECT session_id FROM collaboration_rooms "
+                "UNION SELECT session_id FROM collaboration_tasks "
+                "ORDER BY session_id LIMIT ? OFFSET ?",
+                (bounded_limit, bounded_offset),
+            ).fetchall()
+        return [str(row[0]) for row in rows]
+
     def room_by_id(self, room_id: str) -> dict[str, Any] | None:
         if not room_id:
             return None
@@ -926,11 +943,17 @@ class CollaborationStore(
         session_id = require_cowork_id(session_id, label="session_id")
         with self._lock, self._connect() as conn:
             rows = conn.execute(
-                "SELECT task_json FROM collaboration_tasks WHERE session_id = ? "
+                "SELECT task_json, created_at, updated_at FROM collaboration_tasks WHERE session_id = ? "
                 "ORDER BY updated_at DESC, created_at DESC",
                 (session_id,),
             ).fetchall()
-        return [item for row in rows if (item := _load(row[0])) is not None]
+        tasks = []
+        for row in rows:
+            if (item := _load(row[0])) is not None:
+                item.setdefault("created_at", str(row[1]))
+                item.setdefault("updated_at", str(row[2]))
+                tasks.append(item)
+        return tasks
 
     def tasks_for_room(self, room_id: str) -> list[dict[str, Any]]:
         if not room_id:

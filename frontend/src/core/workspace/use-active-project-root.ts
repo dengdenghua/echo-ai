@@ -12,9 +12,9 @@ function readActiveProjectRoot(): string | null {
   const hashQuery = window.location.hash.includes("?")
     ? window.location.hash.slice(window.location.hash.indexOf("?") + 1)
     : "";
-  const routePath = new URLSearchParams(
-    window.location.search || hashQuery,
-  ).get("workspace_path");
+  const routePath =
+    new URLSearchParams(hashQuery).get("workspace_path") ??
+    new URLSearchParams(window.location.search).get("workspace_path");
   if (routePath && isAbsolutePath(routePath)) return routePath;
   try {
     const parsed = JSON.parse(

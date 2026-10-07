@@ -55,9 +55,10 @@ export function ExecutionLocationPicker({
       ? "在已连接的电脑运行"
       : "Run on a connected computer",
     cloud: zh ? "云端" : "Cloud",
+    notConfigured: zh ? "未配置" : "Not configured",
     cloudDescription: zh
-      ? "云端任务执行尚未接入"
-      : "Cloud task execution is not connected yet",
+      ? "尚未连接托管平台或云端执行服务"
+      : "No hosted platform or cloud executor connected",
     choose: zh ? "选择电脑" : "Choose computer",
     search: zh ? "搜索远程电脑…" : "Search remote computers…",
     manage: zh ? "管理远程电脑" : "Manage remote computers",
@@ -186,13 +187,6 @@ export function ExecutionLocationPicker({
             </div>
             {!remoteId && <CheckIcon className="size-3.5" />}
           </DropdownMenuItem>
-          <DropdownMenuItem disabled>
-            <CloudIcon className="size-4" />
-            <div>
-              <div>{copy.cloud}</div>
-              <div className="text-xs">{copy.cloudDescription}</div>
-            </div>
-          </DropdownMenuItem>
           <DropdownMenuItem
             disabled={
               !registry.enabled || Boolean(registry.error) || registry.loading
@@ -211,6 +205,20 @@ export function ExecutionLocationPicker({
               </div>
             </div>
             {remoteId && <CheckIcon className="size-3.5" />}
+          </DropdownMenuItem>
+          <DropdownMenuItem disabled>
+            <CloudIcon className="size-4" />
+            <div className="min-w-0 flex-1">
+              <div className="flex items-center justify-between gap-2">
+                <span>{copy.cloud}</span>
+                <span className="rounded bg-muted px-1.5 py-0.5 text-[10px] font-normal">
+                  {copy.notConfigured}
+                </span>
+              </div>
+              <div className="mt-0.5 text-xs leading-5">
+                {copy.cloudDescription}
+              </div>
+            </div>
           </DropdownMenuItem>
           <DropdownMenuSeparator />
           <DropdownMenuItem onSelect={() => setManageOpen(true)}>

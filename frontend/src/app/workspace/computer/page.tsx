@@ -107,6 +107,17 @@ type ScreenshotImageBox = {
 };
 
 export default function ComputerAutomationPage() {
+  return (
+    <WorkspaceContainer mobileNavigation>
+      <WorkspaceBody>
+        <ComputerAutomationSurface />
+      </WorkspaceBody>
+    </WorkspaceContainer>
+  );
+}
+
+/** The control surface owns its effects; its parent owns scrolling and navigation. */
+export function ComputerAutomationSurface() {
   const { t } = useI18n();
   const tc = useCallback(
     (source: string) => t.workspaceComputer[source] ?? source,
@@ -1028,755 +1039,719 @@ export default function ComputerAutomationPage() {
         : tc("Not started");
 
   return (
-    <WorkspaceContainer mobileNavigation>
-      <WorkspaceBody>
-        <div className="mx-auto flex size-full max-w-7xl flex-col gap-4 py-2">
-          <section className="workspace-panel flex flex-col gap-4 p-5">
-            {statusError && (
-              <div
-                role="alert"
-                className="flex items-center justify-between gap-3 rounded-lg border border-destructive/25 bg-destructive/8 px-3 py-2 text-sm"
-              >
-                <span className="min-w-0 text-destructive">{statusError}</span>
-                <Button
-                  size="sm"
-                  variant="outline"
-                  onClick={() => void refreshStatus()}
-                  disabled={busy !== null}
-                >
-                  {tc("Retry")}
-                </Button>
-              </div>
-            )}
-            <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-              <div className="flex items-center gap-3">
-                <div className="flex size-11 items-center justify-center rounded-lg bg-success text-white shadow-[var(--shadow-xs)]">
-                  <MonitorCheckIcon className="size-5" />
-                </div>
-                <div>
-                  <h1 className="text-xl font-semibold tracking-tight">
-                    {tc("Computer assistant")}
-                  </h1>
-                  <p className="text-sm text-muted-foreground">
-                    {tc(
-                      "Let the Agent see and operate this computer. Every step is previewed before you confirm it.",
-                    )}
-                  </p>
-                </div>
-              </div>
-              <div className="flex flex-wrap gap-2">
-                <Button
-                  variant="outline"
-                  onClick={refreshStatus}
-                  disabled={busy !== null}
-                >
-                  <RefreshCwIcon className="size-4" />
-                  {tc("Refresh status")}
-                </Button>
-                <Button onClick={capture} disabled={computerActionDisabled}>
-                  <EyeIcon className="size-4" />
-                  {tc("Capture screen")}
-                </Button>
-              </div>
+    <div className="mx-auto flex size-full max-w-7xl flex-col gap-4 py-2">
+      <section className="workspace-panel flex flex-col gap-4 p-5">
+        {statusError && (
+          <div
+            role="alert"
+            className="flex items-center justify-between gap-3 rounded-lg border border-destructive/25 bg-destructive/8 px-3 py-2 text-sm"
+          >
+            <span className="min-w-0 text-destructive">{statusError}</span>
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => void refreshStatus()}
+              disabled={busy !== null}
+            >
+              {tc("Retry")}
+            </Button>
+          </div>
+        )}
+        <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+          <div className="flex items-center gap-3">
+            <div className="flex size-11 items-center justify-center rounded-lg bg-success text-white shadow-[var(--shadow-xs)]">
+              <MonitorCheckIcon className="size-5" />
             </div>
-
-            <div className="grid gap-3 lg:grid-cols-4">
-              <DeviceStatePanel state={deviceState} />
-              <PermissionGuardPanel
-                hasScreenshot={Boolean(screenshot?.data_url)}
-                hasPreview={Boolean(preview)}
-                leaseState={leaseState}
-                onReleaseLease={releaseLease}
-                releaseDisabled={busy !== null}
-                previewSecondsLeft={previewSecondsLeft}
-              />
-              <CurrentActionPanel action={activeAction} />
-              <ControlSessionPanel
-                evidence={controlEvidence}
-                indicator={controlIndicator}
-                session={computerControlSession}
-              />
+            <div>
+              <h1 className="text-xl font-semibold tracking-tight">
+                {tc("Computer assistant")}
+              </h1>
+              <p className="text-sm text-muted-foreground">
+                {tc(
+                  "Let the Agent see and operate this computer. Every step is previewed before you confirm it.",
+                )}
+              </p>
             </div>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <Button
+              variant="outline"
+              onClick={refreshStatus}
+              disabled={busy !== null}
+            >
+              <RefreshCwIcon className="size-4" />
+              {tc("Refresh status")}
+            </Button>
+            <Button onClick={capture} disabled={computerActionDisabled}>
+              <EyeIcon className="size-4" />
+              {tc("Capture screen")}
+            </Button>
+          </div>
+        </div>
 
-            <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-7">
-              <StatusTile
-                label={tc("Runtime health")}
-                value={getHealthLabel(status?.health, status?.ready, tc)}
-              />
-              <StatusTile
-                label={tc("Confirmation mode")}
-                value={
-                  statusError
-                    ? tc("Unavailable")
-                    : status?.mode
-                      ? tc("Preview, then confirm")
-                      : tc("Checking")
-                }
-              />
-              <StatusTile
-                label={tc("Screen")}
-                value={
-                  status?.screen.width
-                    ? `${status.screen.width} × ${status.screen.height}`
-                    : status?.screen.error || "-"
-                }
-              />
-              <StatusTile
-                label={tc("Cursor position")}
-                value={
-                  status?.screen.cursor_x != null
-                    ? `${status.screen.cursor_x}, ${status.screen.cursor_y}`
-                    : "-"
-                }
-              />
-              <StatusTile
-                label={tc("Computer control")}
-                value={
-                  status?.pyautogui_available ? tc("Ready") : tc("Not ready")
-                }
-              />
-              <StatusTile
-                label={tc("Semantic targeting")}
-                value={
-                  status?.uia_available
-                    ? tc("Ready")
-                    : tc("Available with limits")
-                }
-              />
-              <StatusTile
-                label={tc("Control lease")}
-                value={leaseState.label}
-              />
-            </div>
+        <div className="grid gap-3 lg:grid-cols-4">
+          <DeviceStatePanel state={deviceState} />
+          <PermissionGuardPanel
+            hasScreenshot={Boolean(screenshot?.data_url)}
+            hasPreview={Boolean(preview)}
+            leaseState={leaseState}
+            onReleaseLease={releaseLease}
+            releaseDisabled={busy !== null}
+            previewSecondsLeft={previewSecondsLeft}
+          />
+          <CurrentActionPanel action={activeAction} />
+          <ControlSessionPanel
+            evidence={controlEvidence}
+            indicator={controlIndicator}
+            session={computerControlSession}
+          />
+        </div>
 
-            {status && <RuntimeReadinessPanel status={status} />}
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-7">
+          <StatusTile
+            label={tc("Runtime health")}
+            value={getHealthLabel(status?.health, status?.ready, tc)}
+          />
+          <StatusTile
+            label={tc("Confirmation mode")}
+            value={
+              statusError
+                ? tc("Unavailable")
+                : status?.mode
+                  ? tc("Preview, then confirm")
+                  : tc("Checking")
+            }
+          />
+          <StatusTile
+            label={tc("Screen")}
+            value={
+              status?.screen.width
+                ? `${status.screen.width} × ${status.screen.height}`
+                : status?.screen.error || "-"
+            }
+          />
+          <StatusTile
+            label={tc("Cursor position")}
+            value={
+              status?.screen.cursor_x != null
+                ? `${status.screen.cursor_x}, ${status.screen.cursor_y}`
+                : "-"
+            }
+          />
+          <StatusTile
+            label={tc("Computer control")}
+            value={status?.pyautogui_available ? tc("Ready") : tc("Not ready")}
+          />
+          <StatusTile
+            label={tc("Semantic targeting")}
+            value={
+              status?.uia_available ? tc("Ready") : tc("Available with limits")
+            }
+          />
+          <StatusTile label={tc("Control lease")} value={leaseState.label} />
+        </div>
 
-            {computerUnavailable && status && (
-              <div className="rounded-lg border border-warning/70 bg-warning/5 px-4 py-3 text-sm leading-6 text-warning dark:border-warning/60">
-                <div className="flex items-start gap-2">
-                  <ShieldAlertIcon className="mt-0.5 size-4 shrink-0" />
-                  <div>
-                    <div className="font-medium">
-                      {tc("Local runtime is blocked")}
-                    </div>
-                    <p className="mt-1">
-                      {runtimeState.detail ||
-                        tc(
-                          "The backend is running, but required automation capabilities are not ready. Screenshots, previews, mouse, and keyboard actions are temporarily unavailable.",
-                        )}
-                    </p>
-                    {runtimeState.actions.length ? (
-                      <div className="mt-2 flex flex-wrap gap-1.5">
-                        {runtimeState.actions.map((action) => (
-                          <span
-                            key={action}
-                            className="rounded-md border border-warning/80 px-2 py-0.5 font-mono text-xs"
-                          >
-                            {action}
-                          </span>
-                        ))}
-                      </div>
-                    ) : (
-                      <p className="mt-1 font-mono text-xs">
-                        python -m pip install pyautogui
-                      </p>
+        {status && <RuntimeReadinessPanel status={status} />}
+
+        {computerUnavailable && status && (
+          <div className="rounded-lg border border-warning/70 bg-warning/5 px-4 py-3 text-sm leading-6 text-warning dark:border-warning/60">
+            <div className="flex items-start gap-2">
+              <ShieldAlertIcon className="mt-0.5 size-4 shrink-0" />
+              <div>
+                <div className="font-medium">
+                  {tc("Local runtime is blocked")}
+                </div>
+                <p className="mt-1">
+                  {runtimeState.detail ||
+                    tc(
+                      "The backend is running, but required automation capabilities are not ready. Screenshots, previews, mouse, and keyboard actions are temporarily unavailable.",
                     )}
-                  </div>
-                </div>
-              </div>
-            )}
-          </section>
-
-          <div className="grid min-h-0 flex-1 gap-4 md:grid-cols-[1.35fr_0.95fr]">
-            <section className="workspace-panel flex min-h-0 flex-col overflow-hidden p-4">
-              <div className="mb-3 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                <div>
-                  <h2 className="text-sm font-semibold">
-                    {tc("Screen observation")}
-                  </h2>
-                  <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
-                    {observationMode === "snapshot" &&
-                    screenshot?.created_at ? (
-                      <span>
-                        {new Date(
-                          screenshot.created_at * 1000,
-                        ).toLocaleTimeString()}
-                      </span>
-                    ) : null}
-                    {observationMode === "live" ? (
-                      <>
-                        <span>{liveScreenDetail}</span>
-                        {pcScreenStats?.config?.backend ? (
-                          <span>{pcScreenStats.config.backend}</span>
-                        ) : null}
-                      </>
-                    ) : null}
-                  </div>
-                </div>
-                <div className="flex flex-wrap items-center gap-2">
-                  <div className="inline-flex overflow-hidden rounded-lg border border-border bg-background p-0.5">
-                    <button
-                      type="button"
-                      onClick={() => setObservationMode("snapshot")}
-                      className={cn(
-                        "rounded-lg px-3 py-1.5 text-xs font-medium transition-colors",
-                        observationMode === "snapshot"
-                          ? "bg-primary text-primary-foreground"
-                          : "text-muted-foreground hover:bg-muted",
-                      )}
-                    >
-                      {tc("Snapshot")}
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setObservationMode("live")}
-                      className={cn(
-                        "rounded-lg px-3 py-1.5 text-xs font-medium transition-colors",
-                        observationMode === "live"
-                          ? "bg-primary text-primary-foreground"
-                          : "text-muted-foreground hover:bg-muted",
-                      )}
-                    >
-                      {tc("Live")}
-                    </button>
-                  </div>
-                  {observationMode === "live" ? (
-                    <Button
-                      size="sm"
-                      variant={liveScreenRunning ? "outline" : "default"}
-                      onClick={
-                        liveScreenRunning ? stopLiveScreen : startLiveScreen
-                      }
-                      disabled={busy !== null || computerUnavailable}
-                    >
-                      {liveScreenRunning ? (
-                        <>
-                          <SquareIcon className="size-4" />
-                          {tc("Stop live")}
-                        </>
-                      ) : (
-                        <>
-                          <RadioIcon className="size-4" />
-                          {tc("Start live")}
-                        </>
-                      )}
-                    </Button>
-                  ) : null}
-                </div>
-              </div>
-              <div
-                ref={
-                  observationMode === "live"
-                    ? liveCanvasFrameRef
-                    : screenshotFrameRef
-                }
-                className="relative flex min-h-0 flex-1 items-center justify-center overflow-hidden rounded-lg border border-border bg-muted/30"
-              >
-                {observationMode === "live" ? (
-                  <>
-                    <p id="live-screen-help" className="sr-only">
-                      {tc(
-                        "Click the live screen to select a point. Press Enter to select the center.",
-                      )}
-                    </p>
-                    <canvas
-                      ref={liveCanvasRef}
-                      aria-describedby="live-screen-help"
-                      aria-label={tc("Live computer screen")}
-                      role="button"
-                      tabIndex={0}
-                      className="max-h-full max-w-full cursor-crosshair bg-black object-contain focus:outline-none focus-visible:ring-2 focus-visible:ring-primary"
-                      onClick={selectLiveCanvasPoint}
-                      onKeyDown={(e) => {
-                        if (e.key !== "Enter" && e.key !== " ") return;
-                        e.preventDefault();
-                        const canvas = liveCanvasRef.current;
-                        if (!canvas || !canvas.width || !canvas.height) return;
-                        const cx = Math.floor(canvas.width / 2);
-                        const cy = Math.floor(canvas.height / 2);
-                        setSelectedPoint({ x: cx, y: cy });
-                        setActionKind("click");
-                        setX(String(cx));
-                        setY(String(cy));
-                        addLog({
-                          title: tc("Point selected from live screen"),
-                          detail: `${cx}, ${cy}`,
-                          tone: "ok",
-                        });
-                      }}
-                    />
-                    <ScreenshotActionOverlay
-                      cursor={cursorPoint}
-                      imageBox={liveCanvasBox}
-                      target={visualTarget}
-                    />
-                    {visualTarget && (
-                      <div className="pointer-events-none absolute left-3 top-3 rounded-full border border-border bg-background/90 px-3 py-1 text-xs font-medium shadow-[var(--shadow-xs)]">
-                        {visualTarget.label} · {Math.round(visualTarget.x)},{" "}
-                        {Math.round(visualTarget.y)}
-                      </div>
-                    )}
-                    <div className="pointer-events-none absolute bottom-3 left-3 flex flex-wrap items-center gap-2 rounded-full border border-border bg-background/90 px-3 py-1 text-xs shadow-[var(--shadow-xs)]">
+                </p>
+                {runtimeState.actions.length ? (
+                  <div className="mt-2 flex flex-wrap gap-1.5">
+                    {runtimeState.actions.map((action) => (
                       <span
-                        className={cn(
-                          "size-1.5 rounded-full",
-                          pcStream.isConnected
-                            ? "bg-success"
-                            : pcScreenError
-                              ? "bg-destructive"
-                              : "bg-warning",
-                        )}
-                      />
-                      <span>{liveScreenDetail}</span>
-                    </div>
-                    {pcScreenError ? (
-                      <div className="pointer-events-none absolute inset-x-6 top-6 rounded-lg border border-destructive/30 bg-background/95 px-3 py-2 text-xs leading-5 text-destructive shadow-[var(--shadow-xs)]">
-                        {pcScreenError}
-                      </div>
-                    ) : null}
-                    {!pcStream.frameCount ? (
-                      <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center gap-2 bg-background/70 text-sm text-muted-foreground">
-                        <RadioIcon className="size-7" />
-                        {liveScreenRunning
-                          ? tc("Waiting for the live screen")
-                          : tc(
-                              "Select “Start live” to open the computer view.",
-                            )}
-                      </div>
-                    ) : null}
-                  </>
-                ) : screenshot?.data_url ? (
-                  <>
-                    <p id="screenshot-help" className="sr-only">
-                      {tc(
-                        "Click the screenshot to select a point. Press Enter to select the center.",
-                      )}
-                    </p>
-                    <img
-                      ref={screenshotImageRef}
-                      src={screenshot.data_url}
-                      alt={tc("Current screen screenshot")}
-                      aria-describedby="screenshot-help"
-                      role="button"
-                      tabIndex={0}
-                      className="max-h-full max-w-full cursor-crosshair object-contain focus:outline-none focus-visible:ring-2 focus-visible:ring-primary"
-                      onLoad={measureScreenshotImage}
-                      onClick={selectScreenshotPoint}
-                      onKeyDown={(e) => {
-                        if (e.key !== "Enter" && e.key !== " ") return;
-                        e.preventDefault();
-                        const img = screenshotImageRef.current;
-                        if (!img || !img.naturalWidth || !img.naturalHeight)
-                          return;
-                        const cx = Math.floor(img.naturalWidth / 2);
-                        const cy = Math.floor(img.naturalHeight / 2);
-                        setSelectedPoint({ x: cx, y: cy });
-                        setActionKind("click");
-                        setX(String(cx));
-                        setY(String(cy));
-                        addLog({
-                          title: tc("Point selected from screenshot"),
-                          detail: `${cx}, ${cy}`,
-                          tone: "ok",
-                        });
-                      }}
-                    />
-                    <ScreenshotActionOverlay
-                      cursor={cursorPoint}
-                      imageBox={screenshotImageBox}
-                      target={visualTarget}
-                    />
-                    {visualTarget && (
-                      <div className="pointer-events-none absolute left-3 top-3 rounded-full border border-border bg-background/90 px-3 py-1 text-xs font-medium shadow-[var(--shadow-xs)]">
-                        {visualTarget.label} · {Math.round(visualTarget.x)},{" "}
-                        {Math.round(visualTarget.y)}
-                      </div>
-                    )}
-                  </>
-                ) : (
-                  <div className="flex flex-col items-center gap-2 text-sm text-muted-foreground">
-                    <EyeIcon className="size-7" />
-                    {tc(
-                      "Select “Capture screen” to take a desktop screenshot.",
-                    )}
+                        key={action}
+                        className="rounded-md border border-warning/80 px-2 py-0.5 font-mono text-xs"
+                      >
+                        {action}
+                      </span>
+                    ))}
                   </div>
+                ) : (
+                  <p className="mt-1 font-mono text-xs">
+                    python -m pip install pyautogui
+                  </p>
                 )}
               </div>
-            </section>
+            </div>
+          </div>
+        )}
+      </section>
 
-            <aside className="flex min-h-0 flex-col gap-4">
-              <section className="workspace-panel p-4">
-                <div className="mb-3 flex items-center gap-2">
-                  <ListChecksIcon className="size-4 text-primary" />
-                  <h2 className="text-sm font-semibold">{tc("Task plan")}</h2>
-                </div>
-                <div className="flex flex-col gap-3">
-                  <Textarea
-                    value={goal}
-                    onChange={(e) => setGoal(e.target.value)}
-                    placeholder={tc(
-                      "For example: open Edge and visit https://gemini.google.com",
-                    )}
-                    className="min-h-20"
-                  />
-                  <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-                    <Button
-                      onClick={runAgentLoopPreview}
-                      disabled={computerActionDisabled || !goal.trim()}
-                    >
-                      <PlayIcon className="size-4" />
-                      {tc("Preview agent loop")}
-                    </Button>
-                    <Button
-                      variant="outline"
-                      onClick={planNextActions}
-                      disabled={computerActionDisabled}
-                    >
-                      <ListChecksIcon className="size-4" />
-                      {tc("Observe and plan next step")}
-                    </Button>
-                  </div>
-                  {plan?.suggestions.length ? (
-                    <div className="flex max-h-56 flex-col gap-2 overflow-y-auto pr-1">
-                      {plan.suggestions.map((item) => (
-                        <div
-                          key={item.id}
-                          className={cn(
-                            "rounded-lg border border-border bg-background/70 p-3 transition-colors",
-                            highlightedAction === item.action &&
-                              "border-success/40 bg-success/5 dark:border-success/70",
-                          )}
-                          onMouseEnter={() => setHighlightedAction(item.action)}
-                          onMouseLeave={() => setHighlightedAction(null)}
-                        >
-                          <div className="flex items-start justify-between gap-3">
-                            <div>
-                              <div className="text-sm font-semibold">
-                                {item.title}
-                              </div>
-                              <p className="mt-1 text-xs leading-5 text-muted-foreground">
-                                {item.rationale}
-                              </p>
-                            </div>
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              onClick={() => acceptSuggestion(item)}
-                            >
-                              {tc("Add for confirmation")}
-                            </Button>
-                          </div>
-                          <pre className="mt-2 max-h-24 overflow-auto rounded-lg bg-black/5 p-2 text-xs dark:bg-white/10">
-                            {JSON.stringify(item.action, null, 2)}
-                          </pre>
-                          <MatchedControlSummary action={item.action} />
-                        </div>
-                      ))}
-                    </div>
-                  ) : null}
-                  {selectedPoint && (
-                    <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-                      <Button
-                        variant="outline"
-                        onClick={() => {
-                          setActionKind("click");
-                          setX(String(selectedPoint.x));
-                          setY(String(selectedPoint.y));
-                        }}
-                      >
-                        <MousePointerClickIcon className="size-4" />
-                        {tc("Use selected point")}
-                      </Button>
-                      <Button
-                        onClick={previewSelectedPoint}
-                        disabled={computerActionDisabled}
-                      >
-                        <ShieldAlertIcon className="size-4" />
-                        {tc("Add for confirmation")}
-                      </Button>
-                    </div>
+      <div className="grid min-h-0 flex-1 gap-4 md:grid-cols-[1.35fr_0.95fr]">
+        <section className="workspace-panel flex min-h-0 flex-col overflow-hidden p-4">
+          <div className="mb-3 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <h2 className="text-sm font-semibold">
+                {tc("Screen observation")}
+              </h2>
+              <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+                {observationMode === "snapshot" && screenshot?.created_at ? (
+                  <span>
+                    {new Date(
+                      screenshot.created_at * 1000,
+                    ).toLocaleTimeString()}
+                  </span>
+                ) : null}
+                {observationMode === "live" ? (
+                  <>
+                    <span>{liveScreenDetail}</span>
+                    {pcScreenStats?.config?.backend ? (
+                      <span>{pcScreenStats.config.backend}</span>
+                    ) : null}
+                  </>
+                ) : null}
+              </div>
+            </div>
+            <div className="flex flex-wrap items-center gap-2">
+              <div className="inline-flex overflow-hidden rounded-lg border border-border bg-background p-0.5">
+                <button
+                  type="button"
+                  onClick={() => setObservationMode("snapshot")}
+                  className={cn(
+                    "rounded-lg px-3 py-1.5 text-xs font-medium transition-colors",
+                    observationMode === "snapshot"
+                      ? "bg-primary text-primary-foreground"
+                      : "text-muted-foreground hover:bg-muted",
                   )}
-                </div>
-              </section>
-
-              <section className="workspace-panel p-4">
-                <div className="mb-3 flex items-center gap-2">
-                  <ScanSearchIcon className="size-4 text-primary" />
-                  <h2 className="text-sm font-semibold">
-                    {tc("Vision output")}
-                  </h2>
-                </div>
-                <div className="flex flex-col gap-3">
-                  <div className="flex flex-col gap-2 sm:grid sm:grid-cols-[1fr_auto]">
-                    {visionModels.length > 0 ? (
-                      <Select
-                        value={visionModelId}
-                        onValueChange={setVisionModelId}
-                      >
-                        <SelectTrigger className="w-full">
-                          <SelectValue
-                            placeholder={tc("Select a vision model")}
-                          />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {visionModels.map((model) => (
-                            <SelectItem key={model.id} value={model.id}>
-                              {model.display_name || model.name || model.id}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    ) : (
-                      <Input
-                        value={visionModelId}
-                        onChange={(e) => setVisionModelId(e.target.value)}
-                        placeholder={tc(
-                          "Vision model ID, for example glm-vision",
-                        )}
-                      />
-                    )}
-                    <Button
-                      onClick={askVisionModel}
-                      disabled={
-                        computerActionDisabled ||
-                        !goal.trim() ||
-                        !visionModelId.trim()
-                      }
-                    >
-                      <ScanSearchIcon className="size-4" />
-                      {tc("Run model")}
-                    </Button>
-                  </div>
-                  {visionModels.length > 0 ? (
-                    <div className="flex items-center justify-between rounded-lg border border-border bg-background/70 px-3 py-2 text-xs text-muted-foreground">
-                      <span>
-                        {tc("Current: ")}
-                        {selectedVisionModel?.display_name ||
-                          selectedVisionModel?.name ||
-                          visionModelId}
-                      </span>
-                      <span>
-                        {visionModels.length} {tc("vision models")}
-                      </span>
-                    </div>
+                >
+                  {tc("Snapshot")}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setObservationMode("live")}
+                  className={cn(
+                    "rounded-lg px-3 py-1.5 text-xs font-medium transition-colors",
+                    observationMode === "live"
+                      ? "bg-primary text-primary-foreground"
+                      : "text-muted-foreground hover:bg-muted",
+                  )}
+                >
+                  {tc("Live")}
+                </button>
+              </div>
+              {observationMode === "live" ? (
+                <Button
+                  size="sm"
+                  variant={liveScreenRunning ? "outline" : "default"}
+                  onClick={liveScreenRunning ? stopLiveScreen : startLiveScreen}
+                  disabled={busy !== null || computerUnavailable}
+                >
+                  {liveScreenRunning ? (
+                    <>
+                      <SquareIcon className="size-4" />
+                      {tc("Stop live")}
+                    </>
                   ) : (
-                    <div className="flex items-center justify-between gap-3 rounded-lg border border-warning/30 bg-warning/5 px-3 py-2 text-xs leading-5 text-warning dark:border-warning/60">
-                      <span>
-                        {modelsError
-                          ? tc(
-                              "Could not load the model list. You can enter a model ID manually.",
-                            )
-                          : tc(
-                              "No model is marked supports_vision. Enable vision for a custom model in Settings.",
-                            )}
-                      </span>
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={openModelSettings}
-                      >
-                        {tc("Open model settings")}
-                      </Button>
-                    </div>
+                    <>
+                      <RadioIcon className="size-4" />
+                      {tc("Start live")}
+                    </>
                   )}
-                  <p className="text-xs leading-5 text-muted-foreground">
-                    {tc(
-                      "The current screenshot is sent to the selected vision model. Returned actions still require confirmation.",
+                </Button>
+              ) : null}
+            </div>
+          </div>
+          <div
+            ref={
+              observationMode === "live"
+                ? liveCanvasFrameRef
+                : screenshotFrameRef
+            }
+            className="relative flex min-h-0 flex-1 items-center justify-center overflow-hidden rounded-lg border border-border bg-muted/30"
+          >
+            {observationMode === "live" ? (
+              <>
+                <p id="live-screen-help" className="sr-only">
+                  {tc(
+                    "Click the live screen to select a point. Press Enter to select the center.",
+                  )}
+                </p>
+                <canvas
+                  ref={liveCanvasRef}
+                  aria-describedby="live-screen-help"
+                  aria-label={tc("Live computer screen")}
+                  role="button"
+                  tabIndex={0}
+                  className="max-h-full max-w-full cursor-crosshair bg-black object-contain focus:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+                  onClick={selectLiveCanvasPoint}
+                  onKeyDown={(e) => {
+                    if (e.key !== "Enter" && e.key !== " ") return;
+                    e.preventDefault();
+                    const canvas = liveCanvasRef.current;
+                    if (!canvas || !canvas.width || !canvas.height) return;
+                    const cx = Math.floor(canvas.width / 2);
+                    const cy = Math.floor(canvas.height / 2);
+                    setSelectedPoint({ x: cx, y: cy });
+                    setActionKind("click");
+                    setX(String(cx));
+                    setY(String(cy));
+                    addLog({
+                      title: tc("Point selected from live screen"),
+                      detail: `${cx}, ${cy}`,
+                      tone: "ok",
+                    });
+                  }}
+                />
+                <ScreenshotActionOverlay
+                  cursor={cursorPoint}
+                  imageBox={liveCanvasBox}
+                  target={visualTarget}
+                />
+                {visualTarget && (
+                  <div className="pointer-events-none absolute left-3 top-3 rounded-full border border-border bg-background/90 px-3 py-1 text-xs font-medium shadow-[var(--shadow-xs)]">
+                    {visualTarget.label} · {Math.round(visualTarget.x)},{" "}
+                    {Math.round(visualTarget.y)}
+                  </div>
+                )}
+                <div className="pointer-events-none absolute bottom-3 left-3 flex flex-wrap items-center gap-2 rounded-full border border-border bg-background/90 px-3 py-1 text-xs shadow-[var(--shadow-xs)]">
+                  <span
+                    className={cn(
+                      "size-1.5 rounded-full",
+                      pcStream.isConnected
+                        ? "bg-success"
+                        : pcScreenError
+                          ? "bg-destructive"
+                          : "bg-warning",
                     )}
-                  </p>
-                  <Textarea
-                    value={visionOutput}
-                    onChange={(e) => setVisionOutput(e.target.value)}
-                    placeholder='{"action":"click","x":420,"y":320,"button":"left"}'
-                    className="min-h-24 font-mono text-xs"
                   />
+                  <span>{liveScreenDetail}</span>
+                </div>
+                {pcScreenError ? (
+                  <div className="pointer-events-none absolute inset-x-6 top-6 rounded-lg border border-destructive/30 bg-background/95 px-3 py-2 text-xs leading-5 text-destructive shadow-[var(--shadow-xs)]">
+                    {pcScreenError}
+                  </div>
+                ) : null}
+                {!pcStream.frameCount ? (
+                  <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center gap-2 bg-background/70 text-sm text-muted-foreground">
+                    <RadioIcon className="size-7" />
+                    {liveScreenRunning
+                      ? tc("Waiting for the live screen")
+                      : tc("Select “Start live” to open the computer view.")}
+                  </div>
+                ) : null}
+              </>
+            ) : screenshot?.data_url ? (
+              <>
+                <p id="screenshot-help" className="sr-only">
+                  {tc(
+                    "Click the screenshot to select a point. Press Enter to select the center.",
+                  )}
+                </p>
+                <img
+                  ref={screenshotImageRef}
+                  src={screenshot.data_url}
+                  alt={tc("Current screen screenshot")}
+                  aria-describedby="screenshot-help"
+                  role="button"
+                  tabIndex={0}
+                  className="max-h-full max-w-full cursor-crosshair object-contain focus:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+                  onLoad={measureScreenshotImage}
+                  onClick={selectScreenshotPoint}
+                  onKeyDown={(e) => {
+                    if (e.key !== "Enter" && e.key !== " ") return;
+                    e.preventDefault();
+                    const img = screenshotImageRef.current;
+                    if (!img || !img.naturalWidth || !img.naturalHeight) return;
+                    const cx = Math.floor(img.naturalWidth / 2);
+                    const cy = Math.floor(img.naturalHeight / 2);
+                    setSelectedPoint({ x: cx, y: cy });
+                    setActionKind("click");
+                    setX(String(cx));
+                    setY(String(cy));
+                    addLog({
+                      title: tc("Point selected from screenshot"),
+                      detail: `${cx}, ${cy}`,
+                      tone: "ok",
+                    });
+                  }}
+                />
+                <ScreenshotActionOverlay
+                  cursor={cursorPoint}
+                  imageBox={screenshotImageBox}
+                  target={visualTarget}
+                />
+                {visualTarget && (
+                  <div className="pointer-events-none absolute left-3 top-3 rounded-full border border-border bg-background/90 px-3 py-1 text-xs font-medium shadow-[var(--shadow-xs)]">
+                    {visualTarget.label} · {Math.round(visualTarget.x)},{" "}
+                    {Math.round(visualTarget.y)}
+                  </div>
+                )}
+              </>
+            ) : (
+              <div className="flex flex-col items-center gap-2 text-sm text-muted-foreground">
+                <EyeIcon className="size-7" />
+                {tc("Select “Capture screen” to take a desktop screenshot.")}
+              </div>
+            )}
+          </div>
+        </section>
+
+        <aside className="flex min-h-0 flex-col gap-4">
+          <section className="workspace-panel p-4">
+            <div className="mb-3 flex items-center gap-2">
+              <ListChecksIcon className="size-4 text-primary" />
+              <h2 className="text-sm font-semibold">{tc("Task plan")}</h2>
+            </div>
+            <div className="flex flex-col gap-3">
+              <Textarea
+                value={goal}
+                onChange={(e) => setGoal(e.target.value)}
+                placeholder={tc(
+                  "For example: open Edge and visit https://gemini.google.com",
+                )}
+                className="min-h-20"
+              />
+              <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                <Button
+                  onClick={runAgentLoopPreview}
+                  disabled={computerActionDisabled || !goal.trim()}
+                >
+                  <PlayIcon className="size-4" />
+                  {tc("Preview agent loop")}
+                </Button>
+                <Button
+                  variant="outline"
+                  onClick={planNextActions}
+                  disabled={computerActionDisabled}
+                >
+                  <ListChecksIcon className="size-4" />
+                  {tc("Observe and plan next step")}
+                </Button>
+              </div>
+              {plan?.suggestions.length ? (
+                <div className="flex max-h-56 flex-col gap-2 overflow-y-auto pr-1">
+                  {plan.suggestions.map((item) => (
+                    <div
+                      key={item.id}
+                      className={cn(
+                        "rounded-lg border border-border bg-background/70 p-3 transition-colors",
+                        highlightedAction === item.action &&
+                          "border-success/40 bg-success/5 dark:border-success/70",
+                      )}
+                      onMouseEnter={() => setHighlightedAction(item.action)}
+                      onMouseLeave={() => setHighlightedAction(null)}
+                    >
+                      <div className="flex items-start justify-between gap-3">
+                        <div>
+                          <div className="text-sm font-semibold">
+                            {item.title}
+                          </div>
+                          <p className="mt-1 text-xs leading-5 text-muted-foreground">
+                            {item.rationale}
+                          </p>
+                        </div>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => acceptSuggestion(item)}
+                        >
+                          {tc("Add for confirmation")}
+                        </Button>
+                      </div>
+                      <pre className="mt-2 max-h-24 overflow-auto rounded-lg bg-black/5 p-2 text-xs dark:bg-white/10">
+                        {JSON.stringify(item.action, null, 2)}
+                      </pre>
+                      <MatchedControlSummary action={item.action} />
+                    </div>
+                  ))}
+                </div>
+              ) : null}
+              {selectedPoint && (
+                <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
                   <Button
                     variant="outline"
-                    onClick={groundVisionOutput}
-                    disabled={computerActionDisabled || !visionOutput.trim()}
+                    onClick={() => {
+                      setActionKind("click");
+                      setX(String(selectedPoint.x));
+                      setY(String(selectedPoint.y));
+                    }}
                   >
-                    <ScanSearchIcon className="size-4" />
-                    {tc("Parse and add candidates")}
+                    <MousePointerClickIcon className="size-4" />
+                    {tc("Use selected point")}
                   </Button>
-                </div>
-              </section>
-
-              <section className="workspace-panel p-4">
-                <div className="mb-3 flex items-center gap-2">
-                  <KeyboardIcon className="size-4 text-primary" />
-                  <h2 className="text-sm font-semibold">
-                    {tc("Action preview")}
-                  </h2>
-                </div>
-                <div className="flex flex-col gap-3">
-                  <Select
-                    value={actionKind}
-                    onValueChange={(value) =>
-                      setActionKind(value as ActionKind)
-                    }
-                  >
-                    <SelectTrigger className="w-full">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="click">{tc("Click point")}</SelectItem>
-                      <SelectItem value="move">{tc("Move cursor")}</SelectItem>
-                      <SelectItem value="type">{tc("Type text")}</SelectItem>
-                      <SelectItem value="key">
-                        {tc("Keyboard shortcut")}
-                      </SelectItem>
-                      <SelectItem value="wait">{tc("Wait")}</SelectItem>
-                    </SelectContent>
-                  </Select>
-
-                  {(actionKind === "click" || actionKind === "move") && (
-                    <div className="grid grid-cols-2 gap-2">
-                      <Input
-                        value={x}
-                        onChange={(e) => setX(e.target.value)}
-                        placeholder="x"
-                      />
-                      <Input
-                        value={y}
-                        onChange={(e) => setY(e.target.value)}
-                        placeholder="y"
-                      />
-                    </div>
-                  )}
-                  {actionKind === "type" && (
-                    <Textarea
-                      value={text}
-                      onChange={(e) => setText(e.target.value)}
-                      placeholder={tc("Text to type into the focused control")}
-                      className="min-h-24"
-                    />
-                  )}
-                  {actionKind === "key" && (
-                    <Input
-                      value={keys}
-                      onChange={(e) => setKeys(e.target.value)}
-                      placeholder={tc("ctrl+l or enter")}
-                    />
-                  )}
-                  {actionKind === "wait" && (
-                    <Input
-                      value={waitMs}
-                      onChange={(e) => setWaitMs(e.target.value)}
-                      placeholder={tc("Milliseconds")}
-                    />
-                  )}
-
                   <Button
-                    onClick={previewAction}
+                    onClick={previewSelectedPoint}
                     disabled={computerActionDisabled}
                   >
                     <ShieldAlertIcon className="size-4" />
-                    {tc("Generate confirmation")}
+                    {tc("Add for confirmation")}
                   </Button>
                 </div>
-              </section>
+              )}
+            </div>
+          </section>
 
-              <section className="workspace-panel p-4">
-                <div className="mb-3 flex items-center justify-between gap-2">
-                  <h2 className="text-sm font-semibold">
-                    {tc("Confirmation queue")}
-                  </h2>
-                  {preview && previewSecondsLeft !== null ? (
-                    <CountdownChip secondsLeft={previewSecondsLeft} />
+          <section className="workspace-panel p-4">
+            <div className="mb-3 flex items-center gap-2">
+              <ScanSearchIcon className="size-4 text-primary" />
+              <h2 className="text-sm font-semibold">{tc("Vision output")}</h2>
+            </div>
+            <div className="flex flex-col gap-3">
+              <div className="flex flex-col gap-2 sm:grid sm:grid-cols-[1fr_auto]">
+                {visionModels.length > 0 ? (
+                  <Select
+                    value={visionModelId}
+                    onValueChange={setVisionModelId}
+                  >
+                    <SelectTrigger className="w-full">
+                      <SelectValue placeholder={tc("Select a vision model")} />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {visionModels.map((model) => (
+                        <SelectItem key={model.id} value={model.id}>
+                          {model.display_name || model.name || model.id}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                ) : (
+                  <Input
+                    value={visionModelId}
+                    onChange={(e) => setVisionModelId(e.target.value)}
+                    placeholder={tc("Vision model ID, for example glm-vision")}
+                  />
+                )}
+                <Button
+                  onClick={askVisionModel}
+                  disabled={
+                    computerActionDisabled ||
+                    !goal.trim() ||
+                    !visionModelId.trim()
+                  }
+                >
+                  <ScanSearchIcon className="size-4" />
+                  {tc("Run model")}
+                </Button>
+              </div>
+              {visionModels.length > 0 ? (
+                <div className="flex items-center justify-between rounded-lg border border-border bg-background/70 px-3 py-2 text-xs text-muted-foreground">
+                  <span>
+                    {tc("Current: ")}
+                    {selectedVisionModel?.display_name ||
+                      selectedVisionModel?.name ||
+                      visionModelId}
+                  </span>
+                  <span>
+                    {visionModels.length} {tc("vision models")}
+                  </span>
+                </div>
+              ) : (
+                <div className="flex items-center justify-between gap-3 rounded-lg border border-warning/30 bg-warning/5 px-3 py-2 text-xs leading-5 text-warning dark:border-warning/60">
+                  <span>
+                    {modelsError
+                      ? tc(
+                          "Could not load the model list. You can enter a model ID manually.",
+                        )
+                      : tc(
+                          "No model is marked supports_vision. Enable vision for a custom model in Settings.",
+                        )}
+                  </span>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={openModelSettings}
+                  >
+                    {tc("Open model settings")}
+                  </Button>
+                </div>
+              )}
+              <p className="text-xs leading-5 text-muted-foreground">
+                {tc(
+                  "The current screenshot is sent to the selected vision model. Returned actions still require confirmation.",
+                )}
+              </p>
+              <Textarea
+                value={visionOutput}
+                onChange={(e) => setVisionOutput(e.target.value)}
+                placeholder='{"action":"click","x":420,"y":320,"button":"left"}'
+                className="min-h-24 font-mono text-xs"
+              />
+              <Button
+                variant="outline"
+                onClick={groundVisionOutput}
+                disabled={computerActionDisabled || !visionOutput.trim()}
+              >
+                <ScanSearchIcon className="size-4" />
+                {tc("Parse and add candidates")}
+              </Button>
+            </div>
+          </section>
+
+          <section className="workspace-panel p-4">
+            <div className="mb-3 flex items-center gap-2">
+              <KeyboardIcon className="size-4 text-primary" />
+              <h2 className="text-sm font-semibold">{tc("Action preview")}</h2>
+            </div>
+            <div className="flex flex-col gap-3">
+              <Select
+                value={actionKind}
+                onValueChange={(value) => setActionKind(value as ActionKind)}
+              >
+                <SelectTrigger className="w-full">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="click">{tc("Click point")}</SelectItem>
+                  <SelectItem value="move">{tc("Move cursor")}</SelectItem>
+                  <SelectItem value="type">{tc("Type text")}</SelectItem>
+                  <SelectItem value="key">{tc("Keyboard shortcut")}</SelectItem>
+                  <SelectItem value="wait">{tc("Wait")}</SelectItem>
+                </SelectContent>
+              </Select>
+
+              {(actionKind === "click" || actionKind === "move") && (
+                <div className="grid grid-cols-2 gap-2">
+                  <Input
+                    value={x}
+                    onChange={(e) => setX(e.target.value)}
+                    placeholder="x"
+                  />
+                  <Input
+                    value={y}
+                    onChange={(e) => setY(e.target.value)}
+                    placeholder="y"
+                  />
+                </div>
+              )}
+              {actionKind === "type" && (
+                <Textarea
+                  value={text}
+                  onChange={(e) => setText(e.target.value)}
+                  placeholder={tc("Text to type into the focused control")}
+                  className="min-h-24"
+                />
+              )}
+              {actionKind === "key" && (
+                <Input
+                  value={keys}
+                  onChange={(e) => setKeys(e.target.value)}
+                  placeholder={tc("ctrl+l or enter")}
+                />
+              )}
+              {actionKind === "wait" && (
+                <Input
+                  value={waitMs}
+                  onChange={(e) => setWaitMs(e.target.value)}
+                  placeholder={tc("Milliseconds")}
+                />
+              )}
+
+              <Button onClick={previewAction} disabled={computerActionDisabled}>
+                <ShieldAlertIcon className="size-4" />
+                {tc("Generate confirmation")}
+              </Button>
+            </div>
+          </section>
+
+          <section className="workspace-panel p-4">
+            <div className="mb-3 flex items-center justify-between gap-2">
+              <h2 className="text-sm font-semibold">
+                {tc("Confirmation queue")}
+              </h2>
+              {preview && previewSecondsLeft !== null ? (
+                <CountdownChip secondsLeft={previewSecondsLeft} />
+              ) : null}
+            </div>
+            {preview ? (
+              <div className="flex flex-col gap-3">
+                <div
+                  className={cn(
+                    "rounded-lg border p-3 text-sm",
+                    preview.risk.level === "high"
+                      ? "border-warning/40 bg-warning/5 text-warning"
+                      : "border-border bg-background",
+                  )}
+                >
+                  <div className="font-semibold">
+                    {tc("Risk: ")}
+                    {preview.risk.level}
+                  </div>
+                  <p className="mt-1 leading-6">{preview.risk.reason}</p>
+                  <pre className="mt-2 overflow-auto rounded-lg bg-black/5 p-2 text-xs dark:bg-white/10">
+                    {JSON.stringify(preview.action, null, 2)}
+                  </pre>
+                  <MatchedControlSummary action={preview.action} />
+                  {leaseBlocked ? (
+                    <div className="mt-2 rounded-lg border border-warning/40 bg-warning/5 px-3 py-2 text-xs leading-5 text-warning dark:border-warning/60">
+                      {leaseState.detail}
+                    </div>
                   ) : null}
                 </div>
-                {preview ? (
-                  <div className="flex flex-col gap-3">
-                    <div
-                      className={cn(
-                        "rounded-lg border p-3 text-sm",
-                        preview.risk.level === "high"
-                          ? "border-warning/40 bg-warning/5 text-warning"
-                          : "border-border bg-background",
-                      )}
-                    >
-                      <div className="font-semibold">
-                        {tc("Risk: ")}
-                        {preview.risk.level}
-                      </div>
-                      <p className="mt-1 leading-6">{preview.risk.reason}</p>
-                      <pre className="mt-2 overflow-auto rounded-lg bg-black/5 p-2 text-xs dark:bg-white/10">
-                        {JSON.stringify(preview.action, null, 2)}
-                      </pre>
-                      <MatchedControlSummary action={preview.action} />
-                      {leaseBlocked ? (
-                        <div className="mt-2 rounded-lg border border-warning/40 bg-warning/5 px-3 py-2 text-xs leading-5 text-warning dark:border-warning/60">
-                          {leaseState.detail}
-                        </div>
-                      ) : null}
-                    </div>
-                    <Button
-                      onClick={executePreview}
-                      disabled={
-                        computerActionDisabled || previewExpired || leaseBlocked
-                      }
-                    >
-                      <PlayIcon className="size-4" />
-                      {tc("Confirm and run")}
-                    </Button>
-                  </div>
-                ) : (
-                  <p className="text-sm leading-6 text-muted-foreground">
-                    {tc(
-                      "Mouse and keyboard actions awaiting confirmation appear here. Nothing touches the system before confirmation.",
-                    )}
-                  </p>
+                <Button
+                  onClick={executePreview}
+                  disabled={
+                    computerActionDisabled || previewExpired || leaseBlocked
+                  }
+                >
+                  <PlayIcon className="size-4" />
+                  {tc("Confirm and run")}
+                </Button>
+              </div>
+            ) : (
+              <p className="text-sm leading-6 text-muted-foreground">
+                {tc(
+                  "Mouse and keyboard actions awaiting confirmation appear here. Nothing touches the system before confirmation.",
                 )}
-              </section>
+              </p>
+            )}
+          </section>
 
-              <section className="workspace-panel min-h-0 flex-1 p-4">
-                <h2 className="mb-3 text-sm font-semibold">
-                  {tc("Activity log")}
-                </h2>
-                <div className="flex max-h-72 flex-col gap-2 overflow-y-auto pr-1">
-                  {logs.length === 0 ? (
-                    <Empty className="gap-3 border-0 bg-transparent p-4 shadow-none">
-                      <EmptyHeader>
-                        <EmptyMedia variant="icon">
-                          <ListChecksIcon />
-                        </EmptyMedia>
-                        <EmptyTitle className="text-sm">
-                          {tc("No activity yet")}
-                        </EmptyTitle>
-                      </EmptyHeader>
-                    </Empty>
-                  ) : (
-                    logs.map((item) => (
-                      <div
-                        key={item.id}
-                        className="rounded-lg border border-border bg-background/70 p-3"
-                      >
-                        <div className="flex items-center gap-2 text-sm font-medium">
-                          <CheckCircle2Icon
-                            className={cn(
-                              "size-4",
-                              item.tone === "ok" && "text-success",
-                              item.tone === "warn" && "text-warning",
-                              item.tone === "error" && "text-destructive",
-                            )}
-                          />
-                          {item.title}
-                        </div>
-                        {item.detail && (
-                          <p className="mt-1 break-words text-xs leading-5 text-muted-foreground">
-                            {item.detail}
-                          </p>
+          <section className="workspace-panel min-h-0 flex-1 p-4">
+            <h2 className="mb-3 text-sm font-semibold">{tc("Activity log")}</h2>
+            <div className="flex max-h-72 flex-col gap-2 overflow-y-auto pr-1">
+              {logs.length === 0 ? (
+                <Empty className="gap-3 border-0 bg-transparent p-4 shadow-none">
+                  <EmptyHeader>
+                    <EmptyMedia variant="icon">
+                      <ListChecksIcon />
+                    </EmptyMedia>
+                    <EmptyTitle className="text-sm">
+                      {tc("No activity yet")}
+                    </EmptyTitle>
+                  </EmptyHeader>
+                </Empty>
+              ) : (
+                logs.map((item) => (
+                  <div
+                    key={item.id}
+                    className="rounded-lg border border-border bg-background/70 p-3"
+                  >
+                    <div className="flex items-center gap-2 text-sm font-medium">
+                      <CheckCircle2Icon
+                        className={cn(
+                          "size-4",
+                          item.tone === "ok" && "text-success",
+                          item.tone === "warn" && "text-warning",
+                          item.tone === "error" && "text-destructive",
                         )}
-                      </div>
-                    ))
-                  )}
-                </div>
-              </section>
-            </aside>
-          </div>
-        </div>
-      </WorkspaceBody>
-    </WorkspaceContainer>
+                      />
+                      {item.title}
+                    </div>
+                    {item.detail && (
+                      <p className="mt-1 break-words text-xs leading-5 text-muted-foreground">
+                        {item.detail}
+                      </p>
+                    )}
+                  </div>
+                ))
+              )}
+            </div>
+          </section>
+        </aside>
+      </div>
+    </div>
   );
 }
 

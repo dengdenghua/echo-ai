@@ -26,7 +26,7 @@ export interface EventMap {
   "ui:file-search": void;
   "ui:go-to-line": void;
   "ui:toggle-panel": void;
-  "ui:open-settings": { tab?: string };
+  "ui:open-settings": { tab?: string; toolsTab?: "external" | "channels" };
 
   // 项目相关
   "projects:changed": void;

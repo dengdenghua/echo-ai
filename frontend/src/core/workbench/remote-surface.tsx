@@ -16,7 +16,11 @@ import {
   setRuntimePluginEnabled,
 } from "@/core/agents/agent-world-api";
 import { authHeaders } from "@/core/auth/api";
-import { getBackendBaseURL } from "@/core/config";
+import { getBackendBaseURL, getLocalBackendBaseURL } from "@/core/config";
+import {
+  getRemoteExecutionId,
+  REMOTE_EXECUTION_PARAM,
+} from "@/core/execution-location";
 
 import type { WorkbenchBuiltinApp } from "./apps";
 
@@ -137,6 +141,10 @@ export async function fetchRemoteWorkbenchManifest(
     manifest.id !== packageId ||
     manifest.isolation !== "iframe" ||
     !manifest.entry_url ||
+    typeof manifest.entry_url !== "string" ||
+    !manifest.entry_url.startsWith(
+      `/api/workbench-packages/${encodeURIComponent(packageId)}/assets/`,
+    ) ||
     !Array.isArray(manifest.permissions)
   ) {
     throw new RemoteWorkbenchLoadError(
@@ -255,6 +263,7 @@ export function RemoteWorkbenchSurface({
     initialHostPathRef.current = effectiveHostPath;
     lastFreshTaskRef.current = freshTask;
   }
+  const initialHostPath = initialHostPathRef.current;
 
   useEffect(() => {
     if (!packageId) {
@@ -270,13 +279,14 @@ export function RemoteWorkbenchSurface({
     void (async () => {
       // These reads are independent. Wait for all checks before mounting, but
       // don't add their network latencies together on every mode switch.
-      const [installedResult, runtimeResult, manifestResult] = await Promise.allSettled([
-        fetchCloudInstalled(),
-        app.runtimePlugin
-          ? fetchRuntimePluginStatus(app.runtimePlugin)
-          : Promise.resolve(null),
-        fetchRemoteWorkbenchManifest(packageId, controller.signal),
-      ]);
+      const [installedResult, runtimeResult, manifestResult] =
+        await Promise.allSettled([
+          fetchCloudInstalled(),
+          app.runtimePlugin
+            ? fetchRuntimePluginStatus(app.runtimePlugin)
+            : Promise.resolve(null),
+          fetchRemoteWorkbenchManifest(packageId, controller.signal),
+        ]);
       if (controller.signal.aborted) return;
       try {
         if (installedResult.status === "rejected") throw installedResult.reason;
@@ -426,13 +436,17 @@ export function RemoteWorkbenchSurface({
   const src = useMemo(() => {
     if (!manifest) return "";
     const entry = new URL(
-      manifest.entry_url,
-      getBackendBaseURL() || window.location.origin,
+      `${getBackendBaseURL()}${manifest.entry_url}`,
+      window.location.origin,
     );
-    entry.searchParams.set("echo_host_path", initialHostPathRef.current);
+    const remoteId = getRemoteExecutionId();
+    if (remoteId) entry.searchParams.set(REMOTE_EXECUTION_PARAM, remoteId);
+    const gateway = getLocalBackendBaseURL();
+    if (gateway) entry.searchParams.set("echoBackend", gateway);
+    entry.searchParams.set("echo_host_path", initialHostPath);
     entry.searchParams.set("echo_host_origin", window.location.origin);
     return entry.toString();
-  }, [manifest, freshTask]);
+  }, [manifest, initialHostPath]);
 
   const sendContext = useCallback(() => {
     iframeRef.current?.contentWindow?.postMessage(

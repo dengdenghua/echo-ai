@@ -206,9 +206,9 @@ class CapabilityRegistry:
                 from packaging.specifiers import SpecifierSet
                 from packaging.version import Version
 
-                from runtime import __version__
+                from runtime.platform.plugins.host_api import HOST_API_VERSION
 
-                if Version(__version__) not in SpecifierSet(host_api):
+                if Version(HOST_API_VERSION) not in SpecifierSet(host_api):
                     blockers.append("host_incompatible")
             except (TypeError, ValueError):
                 blockers.append("host_requirement_invalid")

@@ -58,8 +58,9 @@ it("shows three locations with cloud availability and inline connection manageme
     "true",
   );
   expect(
-    screen.getByText("Cloud task execution is not connected yet"),
+    screen.getByText("No hosted platform or cloud executor connected"),
   ).toBeVisible();
+  expect(screen.getByText("Not configured")).toBeVisible();
   await user.click(
     screen.getByRole("menuitem", { name: "Manage remote computers" }),
   );

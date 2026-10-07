@@ -1,5 +1,13 @@
 import { requireArray, serviceErrorMessage } from "@/core/utils/service-error";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  lazy,
+  Suspense,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import {
   AppWindowIcon,
   ChevronRightIcon,
@@ -39,6 +47,7 @@ import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 import { useConfirmDialog } from "@/components/ui/confirm-dialog";
 import { Input } from "@/components/ui/input";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   WorkspaceBody,
   WorkspaceContainer,
@@ -197,6 +206,19 @@ const LIBRARY_KEYS = new Set<LibraryKey>([
 
 const DOCUMENT_PAGE_SIZE = 60;
 const IMAGE_PAGE_SIZE = 96;
+
+const ComputerAutomationSurface = lazy(() =>
+  import("../computer/page").then((module) => ({
+    default: module.ComputerAutomationSurface,
+  })),
+);
+const DesktopOrganizerSurface = lazy(() =>
+  import("../desktop-organizer/page").then((module) => ({
+    default: module.DesktopOrganizerSurface,
+  })),
+);
+
+type ComputerLibraryView = "files" | "control" | "organizer";
 
 function fill(template: string, vars: Record<string, string | number>): string {
   return Object.entries(vars).reduce(
@@ -395,6 +417,84 @@ function _disk(
 }
 
 export default function StoragePage() {
+  const { locale } = useI18n();
+  const zh = locale.startsWith("zh");
+  const [searchParams, setSearchParams] = useSearchParams();
+  const libraryParam = searchParams.get("library");
+  const library = isLibraryKey(libraryParam) ? libraryParam : "computer";
+  const viewParam = searchParams.get("view");
+  const view: ComputerLibraryView =
+    viewParam === "control" || viewParam === "organizer" ? viewParam : "files";
+
+  const changeView = (value: string) => {
+    if (value !== "files" && value !== "control" && value !== "organizer")
+      return;
+    const next = new URLSearchParams(searchParams);
+    next.set("library", "computer");
+    next.set("view", value);
+    setSearchParams(next);
+  };
+
+  return (
+    <WorkspaceContainer className="px-0 pb-0 md:px-0">
+      <WorkspaceBody className="overflow-hidden pt-0">
+        {library === "computer" ? (
+          <Tabs
+            value={view}
+            onValueChange={changeView}
+            className="min-h-0 w-full flex-1 gap-0"
+          >
+            <div className="shrink-0 overflow-x-auto border-b border-border bg-card px-3 py-2">
+              <TabsList
+                aria-label={zh ? "本机功能" : "Local computer views"}
+                className="min-w-max"
+              >
+                <TabsTrigger value="files">{zh ? "文件" : "Files"}</TabsTrigger>
+                <TabsTrigger value="control">
+                  {zh ? "电脑操控" : "Computer control"}
+                </TabsTrigger>
+                <TabsTrigger value="organizer">
+                  {zh ? "桌面整理" : "Desktop organizer"}
+                </TabsTrigger>
+              </TabsList>
+            </div>
+            <TabsContent
+              value={view}
+              className="min-h-0 flex-1 overflow-hidden"
+            >
+              {view === "files" ? (
+                <StorageFilesSurface />
+              ) : (
+                <div className="size-full overflow-x-hidden overflow-y-auto px-3 md:px-4">
+                  <Suspense
+                    fallback={
+                      <p
+                        role="status"
+                        className="p-4 text-sm text-muted-foreground"
+                      >
+                        {zh ? "正在打开…" : "Opening…"}
+                      </p>
+                    }
+                  >
+                    {view === "control" ? (
+                      <ComputerAutomationSurface />
+                    ) : (
+                      <DesktopOrganizerSurface />
+                    )}
+                  </Suspense>
+                </div>
+              )}
+            </TabsContent>
+          </Tabs>
+        ) : (
+          <StorageFilesSurface />
+        )}
+      </WorkspaceBody>
+    </WorkspaceContainer>
+  );
+}
+
+function StorageFilesSurface() {
   const { t } = useI18n();
   const copy = t.storage;
   const [searchParams] = useSearchParams();
@@ -416,6 +516,15 @@ export default function StoragePage() {
   const [isSearching, setIsSearching] = useState(false);
   const [isIndexing, setIsIndexing] = useState(false);
   const didAutoStartRef = useRef(false);
+  const lifecycleRef = useRef({ active: true });
+
+  useEffect(() => {
+    const lifecycle = { active: true };
+    lifecycleRef.current = lifecycle;
+    return () => {
+      lifecycle.active = false;
+    };
+  }, []);
 
   const libraryParam = searchParams.get("library");
   const activeLibrary = isLibraryKey(libraryParam) ? libraryParam : "computer";
@@ -429,6 +538,8 @@ export default function StoragePage() {
   }, [sources]);
 
   const refreshNAS = useCallback(async () => {
+    const lifecycle = lifecycleRef.current;
+    if (!lifecycle.active) return false;
     try {
       // Manifest, policy and sources define whether the knowledge service is
       // usable.  Apps/media are optional capabilities; one unavailable lane
@@ -438,6 +549,7 @@ export default function StoragePage() {
         getNASPolicy(),
         listNASSources(),
       ]);
+      if (!lifecycle.active) return false;
       const [nextApps, nextDocuments, nextImages, nextVideos, nextAlbums] =
         await Promise.allSettled([
           listNASApps(),
@@ -446,6 +558,7 @@ export default function StoragePage() {
           listNASFiles("video"),
           listNASAlbums(),
         ]);
+      if (!lifecycle.active) return false;
       setManifest(nextManifest);
       setPolicy(nextPolicy);
       setSources(nextSources);
@@ -459,6 +572,7 @@ export default function StoragePage() {
       setServiceError(null);
       return true;
     } catch (error) {
+      if (!lifecycle.active) return false;
       setManifest(null);
       setSources([]);
       setApps([]);
@@ -481,7 +595,10 @@ export default function StoragePage() {
   }, [copy]);
 
   const ensureNASService = useCallback(async () => {
+    const lifecycle = lifecycleRef.current;
+    if (!lifecycle.active) return false;
     const startResult = await startNASService();
+    if (!lifecycle.active) return false;
     if (startResult.status === "not_found") {
       setServiceError(copy.service.notFound);
       return false;
@@ -491,23 +608,28 @@ export default function StoragePage() {
       return false;
     }
     for (let attempt = 0; attempt < 20; attempt += 1) {
+      if (!lifecycle.active) return false;
       if (await refreshNAS()) return true;
       await delay(500);
     }
+    if (!lifecycle.active) return false;
     setServiceError(fill(copy.service.notConnected, { url: getNASBaseURL() }));
     return false;
   }, [copy, refreshNAS]);
 
   useEffect(() => {
+    const lifecycle = lifecycleRef.current;
     const init = async () => {
       if (await refreshNAS()) {
         return;
       }
+      if (!lifecycle.active) return;
       if (didAutoStartRef.current) return;
       didAutoStartRef.current = true;
       try {
         await ensureNASService();
       } catch (error) {
+        if (!lifecycle.active) return;
         const isNetworkError =
           error instanceof TypeError &&
           /Failed to fetch|NetworkError|network error/i.test(error.message);
@@ -582,13 +704,17 @@ export default function StoragePage() {
   };
 
   const startIndexing = async () => {
+    const lifecycle = lifecycleRef.current;
     setIsIndexing(true);
     setServiceError(null);
     try {
       const job = await createNASIndexJob();
+      if (!lifecycle.active) return;
       toast.success("扫描任务已开始");
       for (let attempt = 0; attempt < 120; attempt += 1) {
+        if (!lifecycle.active) return;
         const current = await getNASIndexJob(job.job_id);
+        if (!lifecycle.active) return;
         if (current.status === "complete") {
           await refreshNAS();
           toast.success("知识库扫描完成");
@@ -601,6 +727,7 @@ export default function StoragePage() {
       }
       throw new Error("扫描仍在后台运行，可稍后刷新查看结果");
     } catch (error) {
+      if (!lifecycle.active) return;
       const message = error instanceof Error ? error.message : String(error);
       setServiceError(message);
       toast.error(message);
@@ -641,159 +768,150 @@ export default function StoragePage() {
   };
 
   return (
-    <WorkspaceContainer className="px-0 pb-0 md:px-0">
-      <WorkspaceBody className="overflow-hidden pt-0">
-        <div className="flex size-full overflow-hidden">
-          <section className="workspace-panel flex min-h-0 flex-1 overflow-hidden rounded-none border-0 bg-card">
-            <div className="flex min-w-0 flex-1 flex-col overflow-hidden bg-card">
-              {serviceError && (
-                <div
-                  role="alert"
-                  className="flex shrink-0 flex-wrap items-center justify-between gap-3 border-b border-warning/70 bg-warning/5 px-4 py-2 text-xs text-warning"
-                >
-                  <span className="min-w-0 flex-1 break-words">
-                    {serviceError}
-                  </span>
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    className="h-7 shrink-0 rounded-md border-warning/40 bg-card px-3 text-warning hover:bg-warning/10"
-                    onClick={() => void reconnectNAS()}
-                    disabled={isReconnecting}
-                  >
-                    <RefreshCwIcon
-                      className={cn(
-                        "size-3.5",
-                        isReconnecting && "animate-spin",
-                      )}
-                    />
-                    {isReconnecting
-                      ? copy.toolbar.reconnecting
-                      : copy.toolbar.reconnect}
-                  </Button>
-                </div>
-              )}
-
-              {activeLibrary !== "sources" && (
-                <div className="flex shrink-0 items-center justify-end gap-1.5 border-b border-border bg-muted px-3 py-2">
-                  <Button
-                    size="sm"
-                    variant="secondary"
-                    className="h-8 rounded-md bg-card px-2 text-xs shadow-[var(--shadow-xs)]"
-                    onClick={pickFolder}
-                    disabled={isPickingFolder}
-                  >
-                    <FolderPlusIcon className="size-3.5" />
-                    {copy.toolbar.authorize}
-                  </Button>
-                  <Button
-                    size="sm"
-                    variant="secondary"
-                    className="h-8 rounded-md bg-card px-2 text-xs shadow-[var(--shadow-xs)]"
-                    onClick={startIndexing}
-                    disabled={isIndexing || !manifest}
-                  >
-                    <RefreshCwIcon
-                      className={cn("size-3.5", isIndexing && "animate-spin")}
-                    />
-                    {copy.toolbar.scan}
-                  </Button>
-                  <Button
-                    size="sm"
-                    variant="ghost"
-                    className="h-8 rounded-md px-2 text-xs text-muted-foreground"
-                    onClick={() => void togglePrivacy()}
-                    disabled={!manifest}
-                  >
-                    {policy.mode === "privacy" ? (
-                      <LockKeyholeIcon className="size-3.5" />
-                    ) : (
-                      <ServerIcon className="size-3.5" />
-                    )}
-                    {policy.mode === "privacy"
-                      ? copy.toolbar.privacy
-                      : copy.toolbar.efficiency}
-                  </Button>
-                  <span className="ml-1 flex shrink-0 items-center gap-1.5 text-xs text-muted-foreground">
-                    <span
-                      className={cn(
-                        "size-1.5 rounded-full",
-                        manifest ? "bg-success" : "bg-warning",
-                      )}
-                    />
-                    <span>
-                      {manifest ? copy.toolbar.online : copy.toolbar.offline}
-                    </span>
-                  </span>
-                </div>
-              )}
-
-              {activeLibrary === "sources" ? (
-                <SourcesView
-                  sources={sources}
-                  stats={stats}
-                  manifest={manifest}
-                  serviceError={serviceError}
-                  isPickingFolder={isPickingFolder}
-                  isReconnecting={isReconnecting}
-                  onPickFolder={pickFolder}
-                  onReconnect={() => void reconnectNAS()}
-                  onScan={() => void startIndexing()}
-                  onTogglePrivacy={() => void togglePrivacy()}
-                  isIndexing={isIndexing}
-                  policy={policy}
-                  onRemoveSource={removeSource}
+    <div className="flex size-full overflow-hidden">
+      <section className="workspace-panel flex min-h-0 flex-1 overflow-hidden rounded-none border-0 bg-card">
+        <div className="flex min-w-0 flex-1 flex-col overflow-hidden bg-card">
+          {serviceError && (
+            <div
+              role="alert"
+              className="flex shrink-0 flex-wrap items-center justify-between gap-3 border-b border-warning/70 bg-warning/5 px-4 py-2 text-xs text-warning"
+            >
+              <span className="min-w-0 flex-1 break-words">{serviceError}</span>
+              <Button
+                size="sm"
+                variant="outline"
+                className="h-7 shrink-0 rounded-md border-warning/40 bg-card px-3 text-warning hover:bg-warning/10"
+                onClick={() => void reconnectNAS()}
+                disabled={isReconnecting}
+              >
+                <RefreshCwIcon
+                  className={cn("size-3.5", isReconnecting && "animate-spin")}
                 />
-              ) : hasSearchResult ? (
-                <SearchResultsView
-                  hits={hits}
-                  query={query}
-                  setQuery={setQuery}
-                  runSearch={runSearch}
-                  isSearching={isSearching}
-                  manifest={manifest}
-                  message={searchMessage}
-                  libraryLabel={activeMeta.label}
-                  onBack={clearSearchResult}
-                />
-              ) : activeLibrary === "computer" ? (
-                <LocalDiskView
-                  query={query}
-                  setQuery={setQuery}
-                  runSearch={runSearch}
-                  isSearching={isSearching}
-                  manifest={manifest}
-                />
-              ) : activeLibrary === "apps" ? (
-                <AppsView
-                  apps={apps}
-                  query={query}
-                  setQuery={setQuery}
-                  runSearch={runSearch}
-                  isSearching={isSearching}
-                  manifest={manifest}
-                />
-              ) : (
-                <TopicCenterView
-                  documents={documents}
-                  images={images}
-                  videos={videos}
-                  albums={albums}
-                  activeLibrary={activeLibrary}
-                  activeMeta={activeMeta}
-                  query={query}
-                  setQuery={setQuery}
-                  runSearch={runSearch}
-                  isSearching={isSearching}
-                  manifest={manifest}
-                  searchMessage={searchMessage}
-                />
-              )}
+                {isReconnecting
+                  ? copy.toolbar.reconnecting
+                  : copy.toolbar.reconnect}
+              </Button>
             </div>
-          </section>
+          )}
+
+          {activeLibrary !== "sources" && (
+            <div className="flex shrink-0 items-center justify-end gap-1.5 border-b border-border bg-muted px-3 py-2">
+              <Button
+                size="sm"
+                variant="secondary"
+                className="h-8 rounded-md bg-card px-2 text-xs shadow-[var(--shadow-xs)]"
+                onClick={pickFolder}
+                disabled={isPickingFolder}
+              >
+                <FolderPlusIcon className="size-3.5" />
+                {copy.toolbar.authorize}
+              </Button>
+              <Button
+                size="sm"
+                variant="secondary"
+                className="h-8 rounded-md bg-card px-2 text-xs shadow-[var(--shadow-xs)]"
+                onClick={startIndexing}
+                disabled={isIndexing || !manifest}
+              >
+                <RefreshCwIcon
+                  className={cn("size-3.5", isIndexing && "animate-spin")}
+                />
+                {copy.toolbar.scan}
+              </Button>
+              <Button
+                size="sm"
+                variant="ghost"
+                className="h-8 rounded-md px-2 text-xs text-muted-foreground"
+                onClick={() => void togglePrivacy()}
+                disabled={!manifest}
+              >
+                {policy.mode === "privacy" ? (
+                  <LockKeyholeIcon className="size-3.5" />
+                ) : (
+                  <ServerIcon className="size-3.5" />
+                )}
+                {policy.mode === "privacy"
+                  ? copy.toolbar.privacy
+                  : copy.toolbar.efficiency}
+              </Button>
+              <span className="ml-1 flex shrink-0 items-center gap-1.5 text-xs text-muted-foreground">
+                <span
+                  className={cn(
+                    "size-1.5 rounded-full",
+                    manifest ? "bg-success" : "bg-warning",
+                  )}
+                />
+                <span>
+                  {manifest ? copy.toolbar.online : copy.toolbar.offline}
+                </span>
+              </span>
+            </div>
+          )}
+
+          {activeLibrary === "sources" ? (
+            <SourcesView
+              sources={sources}
+              stats={stats}
+              manifest={manifest}
+              serviceError={serviceError}
+              isPickingFolder={isPickingFolder}
+              isReconnecting={isReconnecting}
+              onPickFolder={pickFolder}
+              onReconnect={() => void reconnectNAS()}
+              onScan={() => void startIndexing()}
+              onTogglePrivacy={() => void togglePrivacy()}
+              isIndexing={isIndexing}
+              policy={policy}
+              onRemoveSource={removeSource}
+            />
+          ) : hasSearchResult ? (
+            <SearchResultsView
+              hits={hits}
+              query={query}
+              setQuery={setQuery}
+              runSearch={runSearch}
+              isSearching={isSearching}
+              manifest={manifest}
+              message={searchMessage}
+              libraryLabel={activeMeta.label}
+              onBack={clearSearchResult}
+            />
+          ) : activeLibrary === "computer" ? (
+            <LocalDiskView
+              query={query}
+              setQuery={setQuery}
+              runSearch={runSearch}
+              isSearching={isSearching}
+              manifest={manifest}
+            />
+          ) : activeLibrary === "apps" ? (
+            <AppsView
+              apps={apps}
+              query={query}
+              setQuery={setQuery}
+              runSearch={runSearch}
+              isSearching={isSearching}
+              manifest={manifest}
+            />
+          ) : (
+            <TopicCenterView
+              documents={documents}
+              images={images}
+              videos={videos}
+              albums={albums}
+              activeLibrary={activeLibrary}
+              activeMeta={activeMeta}
+              query={query}
+              setQuery={setQuery}
+              runSearch={runSearch}
+              isSearching={isSearching}
+              manifest={manifest}
+              searchMessage={searchMessage}
+            />
+          )}
         </div>
-      </WorkspaceBody>
-    </WorkspaceContainer>
+      </section>
+    </div>
   );
 }
 
@@ -2136,8 +2254,7 @@ function QuickFileActions({
   };
   const quoteInTask = () => {
     if (!item) return;
-    window.location.hash =
-      "/workspace/realtime/echo-assistant?agent=echo";
+    window.location.hash = "/workspace/realtime/echo-assistant?agent=echo";
     window.setTimeout(() => {
       window.dispatchEvent(
         new CustomEvent("echo:open-file", {
@@ -2247,8 +2364,7 @@ function PreviewPanel({
   const copy = t.storage;
   const Icon = item.icon;
   const quoteInTask = () => {
-    window.location.hash =
-      "/workspace/realtime/echo-assistant?agent=echo";
+    window.location.hash = "/workspace/realtime/echo-assistant?agent=echo";
     window.setTimeout(() => {
       window.dispatchEvent(
         new CustomEvent("echo:open-file", {
@@ -3051,8 +3167,7 @@ function SearchResultsView({
   const quoteSelected = () => {
     const selectedHits = hits.filter((hit) => selectedPaths.has(hit.path));
     if (selectedHits.length === 0) return;
-    window.location.hash =
-      "/workspace/realtime/echo-assistant?agent=echo";
+    window.location.hash = "/workspace/realtime/echo-assistant?agent=echo";
     window.setTimeout(() => {
       selectedHits.forEach((hit) => {
         window.dispatchEvent(

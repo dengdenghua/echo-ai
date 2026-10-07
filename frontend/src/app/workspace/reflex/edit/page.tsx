@@ -240,7 +240,7 @@ export default function ReflexEditorPage() {
           <section className="workspace-panel px-6 py-4">
             <div className="flex items-center gap-3">
               <Button asChild variant="ghost" size="sm">
-                <Link to="/workspace/reflex">
+                <Link to="/workspace/evolution?section=governance&detail=reflex">
                   <ArrowLeftIcon className="mr-2 size-4" />
                   {t.reflexEditor.backButton}
                 </Link>

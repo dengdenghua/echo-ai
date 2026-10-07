@@ -12,7 +12,7 @@ import {
   ShieldAlertIcon,
 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useSearchParams } from "react-router-dom";
 import { toast } from "sonner";
 
 import { swallow } from "@/core/utils/log";
@@ -146,7 +146,13 @@ export default function ObservabilityPage({
   initialTab?: string;
 }) {
   const { t } = useI18n();
-  const tab = normalizeObservabilityTab(initialTab);
+  const [searchParams, setSearchParams] = useSearchParams();
+  const tab = normalizeObservabilityTab(searchParams.get("tab") ?? initialTab);
+  const changeTab = (value: string) => {
+    const params = new URLSearchParams(searchParams);
+    params.set("tab", normalizeObservabilityTab(value));
+    setSearchParams(params, { replace: true });
+  };
   return (
     <WorkspaceContainer mobileNavigation>
       <WorkspaceBody className="px-0 pb-4 sm:px-4">
@@ -199,7 +205,7 @@ export default function ObservabilityPage({
             </div>
           </section>
 
-          <Tabs defaultValue={tab} className="w-full">
+          <Tabs value={tab} onValueChange={changeTab} className="w-full">
             <TabsList className="grid h-auto w-full grid-cols-2 gap-1 p-1 md:grid-cols-4">
               <TabsTrigger value="overview" className="py-2">
                 <ActivityIcon className="mr-1.5 size-3.5" />

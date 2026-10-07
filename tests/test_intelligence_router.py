@@ -1,15 +1,108 @@
 from __future__ import annotations
 
+import json
 from datetime import UTC, datetime
 from pathlib import Path
 
+import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
 from runtime.sensing.gateway.intelligence_router import (
+    _next_subscription_check,
     _subscription_due,
     create_intelligence_router,
 )
+
+
+@pytest.mark.parametrize(
+    ("subscription", "now", "expected"),
+    [
+        (
+            {"cadence": "每天", "schedule_time": "09:00", "timezone": "Asia/Shanghai"},
+            "2026-10-05T00:00:00+00:00",
+            "2026-10-05T01:00:00+00:00",
+        ),
+        (
+            {
+                "cadence": "每周",
+                "schedule_time": "09:00",
+                "schedule_day": "3",
+                "timezone": "Asia/Shanghai",
+            },
+            "2026-10-05T00:00:00+00:00",
+            "2026-10-07T01:00:00+00:00",
+        ),
+        (
+            {
+                "cadence": "每月",
+                "schedule_time": "09:00",
+                "schedule_day": "31",
+                "timezone": "Asia/Shanghai",
+            },
+            "2026-04-01T00:00:00+00:00",
+            "2026-04-30T01:00:00+00:00",
+        ),
+        (
+            {"cadence": "hourly", "last_run": "2026-10-05T00:00:00+00:00"},
+            "2026-10-05T00:30:00+00:00",
+            "2026-10-05T01:00:00+00:00",
+        ),
+        (
+            {
+                "cadence": "每天",
+                "schedule_time": "09:00",
+                "timezone": "Asia/Shanghai",
+                "last_run": "2026-10-04T02:15:00+00:00",
+            },
+            "2026-10-05T00:00:00+00:00",
+            "2026-10-05T02:15:00+00:00",
+        ),
+        (
+            {"cadence": "每天", "schedule_time": "01:30", "timezone": "America/New_York"},
+            "2026-11-01T06:10:00+00:00",
+            "2026-11-01T06:30:00+00:00",
+        ),
+        (
+            {"cadence": "每天", "schedule_time": "02:30", "timezone": "America/New_York"},
+            "2026-03-08T06:55:00+00:00",
+            "2026-03-08T07:00:00+00:00",
+        ),
+        ({"enabled": False}, "2026-10-05T00:00:00+00:00", None),
+    ],
+)
+def test_next_subscription_check_matches_dispatch_rules(subscription, now, expected):
+    current = datetime.fromisoformat(now)
+    result = _next_subscription_check(subscription, now=current)
+    assert (result.isoformat() if result else None) == expected
+    if result is not None:
+        assert _subscription_due(subscription, now=result)
+        if result > current:
+            from datetime import timedelta
+
+            assert not _subscription_due(subscription, now=result - timedelta(seconds=1))
+
+
+def test_list_subscriptions_reports_next_check_without_persisting_it(tmp_path: Path) -> None:
+    path = tmp_path / "intelligence.json"
+    path.write_text(
+        json.dumps(
+            {
+                "subscriptions": [
+                    {"id": "active", "cadence": "hourly"},
+                    {"id": "paused", "enabled": False},
+                ],
+                "reports": [],
+            }
+        )
+    )
+    app = FastAPI()
+    app.include_router(create_intelligence_router(path))
+    response = TestClient(app).get("/api/intelligence/subscriptions")
+    active, paused = response.json()["subscriptions"]
+    assert datetime.fromisoformat(active["next_check_at"]).tzinfo is not None
+    assert paused["next_check_at"] is None
+    assert "next_check_at" not in json.loads(path.read_text())["subscriptions"][0]
 
 
 def test_intelligence_subscriptions_persist(tmp_path: Path) -> None:

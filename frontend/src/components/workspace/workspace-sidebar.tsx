@@ -251,43 +251,6 @@ const COMMUNITY_ROUTES: NavRoute[] = moduleNavRoutes("community");
 
 const STORAGE_LIBRARY_ROUTES: NavRoute[] = moduleNavRoutes("storageLibrary");
 
-// These workbench routes are intentionally kept out of the primary module
-// catalog: they are operational surfaces rather than everyday destinations.
-// They still need a stable entry point so deep links do not become orphaned
-// pages for users who did not already know the URL.
-const WORKSPACE_TOOL_ROUTES: NavRoute[] = [
-  {
-    to: "/workspace/computer",
-    labelKey: "navComputer",
-    icon: AppWindowIcon,
-  },
-  {
-    to: "/workspace/desktop-organizer",
-    labelKey: "navDesktopOrganizer",
-    icon: FolderIcon,
-  },
-  {
-    to: "/workspace/channels",
-    labelKey: "channels",
-    icon: RssIcon,
-  },
-  {
-    to: "/workspace/observability",
-    labelKey: "observability",
-    icon: RssIcon,
-  },
-  {
-    to: "/workspace/diagnostics",
-    labelKey: "diagnostics",
-    icon: ListTodoIcon,
-  },
-  {
-    to: "/workspace/reflex",
-    labelKey: "navReflex",
-    icon: DnaIcon,
-  },
-];
-
 type SidebarFileExplorerTarget = {
   project: string;
   title: string;
@@ -571,24 +534,22 @@ export function WorkspaceSidebar(props: React.ComponentProps<typeof Sidebar>) {
     () => resolveRoutes(STORAGE_LIBRARY_ROUTES),
     [resolveRoutes],
   );
-  const workspaceToolItems = useMemo(
-    () => resolveRoutes(WORKSPACE_TOOL_ROUTES),
-    [resolveRoutes],
-  );
-
   // Settings dialog state
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [settingsHostActivated, setSettingsHostActivated] = useState(false);
   const [moduleEditorOpen, setModuleEditorOpen] = useState(false);
   const [settingsDefaultSection, setSettingsDefaultSection] =
     useState<SettingsSection>("appearance");
+  const [settingsToolsTab, setSettingsToolsTab] = useState<
+    "external" | "channels"
+  >("external");
   const pendingSettingsOpenRef = useRef<number | null>(null);
   const projectPickerRequestRef = useRef<AbortController | null>(null);
   const pendingSettingsFocusRef = useRef<number | null>(null);
   const restoreSettingsFocusRef = useRef(false);
 
   const openSettingsSection = useCallback(
-    (tab?: string) => {
+    (tab?: string, toolsTab?: string) => {
       projectPickerRequestRef.current?.abort();
       const next: SettingsSection = normalizeSettingsSection(tab);
 
@@ -596,6 +557,7 @@ export function WorkspaceSidebar(props: React.ComponentProps<typeof Sidebar>) {
         pendingSettingsOpenRef.current = null;
         setSettingsHostActivated(true);
         setSettingsDefaultSection(next);
+        setSettingsToolsTab(toolsTab === "channels" ? "channels" : "external");
         setSettingsOpen(true);
       };
 
@@ -646,8 +608,15 @@ export function WorkspaceSidebar(props: React.ComponentProps<typeof Sidebar>) {
 
   useEffect(() => {
     if (!routeState || typeof routeState.settingsSection !== "string") return;
-    openSettingsSection(routeState.settingsSection);
-    const { settingsSection: _consumed, ...remainingState } = routeState;
+    openSettingsSection(
+      routeState.settingsSection,
+      routeState.settingsToolsTab,
+    );
+    const {
+      settingsSection: _consumed,
+      settingsToolsTab: _consumedToolsTab,
+      ...remainingState
+    } = routeState;
     navigateSettings(
       { pathname, search },
       { replace: true, state: remainingState },
@@ -658,7 +627,7 @@ export function WorkspaceSidebar(props: React.ComponentProps<typeof Sidebar>) {
   useEvent(
     "ui:open-settings",
     (payload) => {
-      openSettingsSection(payload.tab);
+      openSettingsSection(payload.tab, payload.toolsTab);
     },
     [],
   );
@@ -669,7 +638,12 @@ export function WorkspaceSidebar(props: React.ComponentProps<typeof Sidebar>) {
         event instanceof CustomEvent && typeof event.detail?.tab === "string"
           ? event.detail.tab
           : undefined;
-      openSettingsSection(tab);
+      const toolsTab =
+        event instanceof CustomEvent &&
+        typeof event.detail?.toolsTab === "string"
+          ? event.detail.toolsTab
+          : undefined;
+      openSettingsSection(tab, toolsTab);
     };
     window.addEventListener("echo:open-settings", handler);
     return () => window.removeEventListener("echo:open-settings", handler);
@@ -1194,11 +1168,6 @@ export function WorkspaceSidebar(props: React.ComponentProps<typeof Sidebar>) {
             pathname={pathname}
             search={search}
           />
-          <NavSection
-            items={workspaceToolItems}
-            pathname={pathname}
-            label={resolveLabel("groupTools")}
-          />
           <EditModulesButton onOpen={() => setModuleEditorOpen(true)} />
           {fileExplorerTarget ? (
             <ProjectFileExplorerView
@@ -1247,6 +1216,7 @@ export function WorkspaceSidebar(props: React.ComponentProps<typeof Sidebar>) {
             open={settingsOpen}
             onOpenChange={handleSettingsOpenChange}
             defaultSection={settingsDefaultSection}
+            defaultToolsTab={settingsToolsTab}
           />
         </Suspense>
       ) : null}
@@ -1474,8 +1444,7 @@ function ProjectFileExplorerView({
       }
     };
     window.addEventListener("echo:workdir-selected", handler);
-    return () =>
-      window.removeEventListener("echo:workdir-selected", handler);
+    return () => window.removeEventListener("echo:workdir-selected", handler);
   }, []);
 
   const resolvedWorkDir =
@@ -1560,7 +1529,6 @@ function ProjectFileExplorerView({
 
 export const __testing = {
   SIDEBAR_THREAD_QUERY_PARAMS,
-  WORKSPACE_TOOL_ROUTES,
   buildThreadRunStatusByHref,
   isProjectThreadMode,
   isNavRouteActive,
@@ -1626,19 +1594,34 @@ function NavRow({
 }) {
   const [designCanvasVisible, setDesignCanvasVisible] = useState(false);
   useEffect(() => {
-    if (pathname !== "/workspace/design" || item.to !== "/workspace/design") return;
+    if (pathname !== "/workspace/design" || item.to !== "/workspace/design")
+      return;
     const onDesignView = (event: MessageEvent) => {
-      if (event.origin !== window.location.origin || event.data?.type !== "echo:design-view") return;
-      const sourceIsDesign = Array.from(document.querySelectorAll<HTMLIFrameElement>("iframe")).some((frame) => frame.contentWindow === event.source && frame.src.includes("/api/workbench-packages/design/assets/"));
-      if (sourceIsDesign && typeof event.data.canvasVisible === "boolean") setDesignCanvasVisible(event.data.canvasVisible);
+      if (
+        event.origin !== window.location.origin ||
+        event.data?.type !== "echo:design-view"
+      )
+        return;
+      const sourceIsDesign = Array.from(
+        document.querySelectorAll<HTMLIFrameElement>("iframe"),
+      ).some(
+        (frame) =>
+          frame.contentWindow === event.source &&
+          frame.src.includes("/api/workbench-packages/design/assets/"),
+      );
+      if (sourceIsDesign && typeof event.data.canvasVisible === "boolean")
+        setDesignCanvasVisible(event.data.canvasVisible);
     };
     window.addEventListener("message", onDesignView);
     return () => window.removeEventListener("message", onDesignView);
   }, [pathname, item.to]);
-  const active = item.to === "/workspace/design" ? pathname === "/workspace/design" && designCanvasVisible : item.externalUrl
-    ? pathname === "/workspace/web-app" &&
-      new URLSearchParams(search).get("url") === item.externalUrl
-    : isNavRouteActive(pathname, item.to);
+  const active =
+    item.to === "/workspace/design"
+      ? pathname === "/workspace/design" && designCanvasVisible
+      : item.externalUrl
+        ? pathname === "/workspace/web-app" &&
+          new URLSearchParams(search).get("url") === item.externalUrl
+        : isNavRouteActive(pathname, item.to);
   const Icon = item.icon;
 
   const removeWebShortcut = () => {
@@ -2520,10 +2503,7 @@ function ChatsSection({
   });
   useEffect(() => {
     try {
-      window.localStorage.setItem(
-        "echo.sidebar.chats-open",
-        open ? "1" : "0",
-      );
+      window.localStorage.setItem("echo.sidebar.chats-open", open ? "1" : "0");
     } catch (e) {
       swallow(e);
     }
