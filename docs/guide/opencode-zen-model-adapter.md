@@ -11,8 +11,8 @@ The adapter uses Zen's OpenAI-compatible API at
 2. Open the official Zen dashboard, create an API key, and paste it into the
    plugin connection dialog.
 3. Echo validates the key against Zen's `/models` endpoint, adopts the model
-   ids that endpoint currently serves, and saves the key in the encrypted
-   connector credential store.
+   ids that endpoint currently serves, and saves the key in the
+   encrypted connector credential store.
 4. A secret-free `opencode-zen` entry is hot-registered in the normal model
    dispatcher. Streaming, tool calls, context budgeting, memory, approvals,
    and conversation state continue to be owned by Echo.

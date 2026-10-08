@@ -45,6 +45,7 @@ CHECKS: tuple[DigitalEmployeeCheck, ...] = (
         title="Realtime project-mode employee loop",
         paths=(
             "runtime/sensing/gateway/realtime_cerebrum.py",
+            "runtime/sensing/gateway/_realtime_cerebrum_project_os.py",
             "tests/test_realtime_cerebrum.py",
         ),
         required_terms=(
