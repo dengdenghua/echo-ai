@@ -51,6 +51,11 @@ services:
       OTEL_EXPORTER_OTLP_PROTOCOL: http/protobuf
       OTEL_SERVICE_NAME: echo-ai
       ECHO_LOG_LEVEL: ${ECHO_LOG_LEVEL:-INFO}
+      # /metrics is admin-only when auth is on; the bundled Prometheus below
+      # scrapes it without credentials over the compose network, so this stack
+      # opts in to public metrics.  Set to 0 if the agent port is exposed
+      # beyond localhost and you scrape with an admin API key instead.
+      ECHO_METRICS_PUBLIC: ${ECHO_METRICS_PUBLIC:-1}
     volumes:
       - ./data:/data
       # Named volume is seeded from the image on first use, then preserves
