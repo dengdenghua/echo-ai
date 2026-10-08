@@ -10,7 +10,10 @@ from runtime.safety.auth.identity import IdentityStore
 from runtime.sensing.gateway.workbench_packages_router import create_workbench_packages_router
 
 
-def test_manifest_grants_only_authenticated_package_asset_access(tmp_path):
+def test_manifest_grants_only_authenticated_package_asset_access(tmp_path, monkeypatch):
+    # allow_any_username is a development-only login shortcut.
+    monkeypatch.setenv("ECHO_ENV", "development")
+    monkeypatch.setenv("ECHO_DEPLOYMENT_MODE", "local")
     for name in ("first", "second"):
         root = tmp_path / name
         (root / "dist").mkdir(parents=True)
