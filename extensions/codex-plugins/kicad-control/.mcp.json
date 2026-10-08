@@ -1,0 +1,16 @@
+{
+  "mcpServers": {
+    "kicad": {
+      "command": "D:\\AI\\KiCadAutomation\\.venv\\Scripts\\python.exe",
+      "args": [
+        "D:\\AI\\KiCadAutomation\\kicad_mcp_local.py"
+      ],
+      "startup_timeout_sec": 30.0,
+      "tool_timeout_sec": 60.0,
+      "env": {
+        "KICAD_SYMBOL_DIR": "D:\\Program Files\\KiCad\\10.0\\share\\kicad\\symbols",
+        "PYTHONUTF8": "1"
+      }
+    }
+  }
+}

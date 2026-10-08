@@ -1,0 +1,13 @@
+{
+  "mcpServers": {
+    "solidworks_local": {
+      "command": "D:\\AI\\SolidWorksMCP\\.venv\\Scripts\\python.exe",
+      "args": [
+        "D:\\AI\\SolidWorksMCP\\server.py"
+      ],
+      "env": {
+        "PYTHONUTF8": "1"
+      }
+    }
+  }
+}

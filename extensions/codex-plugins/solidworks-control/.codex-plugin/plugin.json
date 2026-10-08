@@ -1,0 +1,27 @@
+{
+  "name": "solidworks-control",
+  "version": "0.2.0+echo.20260925",
+  "description": "本机 SolidWorks 自动化：声明式建模、文档检查、装配组件、截图、CAD 导出与串行任务控制。",
+  "author": {
+    "name": "Local developer"
+  },
+  "skills": "./skills/",
+  "interface": {
+    "displayName": "SolidWorks 本地控制",
+    "shortDescription": "可靠操作本机 SW：声明式建模、装配检查与 CAD 导出。",
+    "longDescription": "Windows COM 本地控制，全部经同一串行作业队列。新增声明式毫米 JSON 建模：草图与拉伸/切除/抽壳/圆角/倒角，保存前按实测体积与实体数验证。含精确文档、装配干涉与配合检查、副本组件替换、原生依赖复制、CAD 导出、截图预览及 Flow 项目求解与结果导出。阵列与镜像 API 在本机实测无效，工具明确拒绝而非静默产出错误零件；热源/目标编辑入口需完成界面并验证；风扇曲线写入和整机缺失引用恢复尚未完成。任务记录故障保留串行锁，避免重复执行。",
+    "developerName": "Local developer",
+    "category": "Productivity",
+    "capabilities": [
+      "Read",
+      "Write"
+    ],
+    "defaultPrompt": [
+      "按毫米 JSON 计划建模一个新零件并验证体积",
+      "检查当前 SW 装配体和引用路径",
+      "打开 CAD 并导出等轴测预览",
+      "将指定零件导出为新的 STEP 文件"
+    ]
+  },
+  "mcpServers": "./.mcp.json"
+}
