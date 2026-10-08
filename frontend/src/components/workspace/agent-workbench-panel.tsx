@@ -21,6 +21,9 @@ import {
 } from "react";
 
 import { useI18n } from "@/core/i18n/hooks";
+import { useQuery } from "@tanstack/react-query";
+import { coordinationRequest, type CoordinationSnapshot } from "@/core/cowork/coordination";
+import { mergeCoordinatedAgents } from "./agent-workbench-panel/coordinated-agents";
 import {
   artifactDisplayPath,
   normalizeWorkspaceArtifactRef,
@@ -308,7 +311,7 @@ function AgentWorkbenchPanelImpl({
   }, [enableCache, threadId, workbenchSnapshot, events]);
 
   const {
-    agentTiles,
+    agentTiles: eventAgentTiles,
     blocks,
     currentPhase: snapshotCurrentPhase,
     focusedTab,
@@ -317,6 +320,14 @@ function AgentWorkbenchPanelImpl({
     visibleDiffEntries,
     evidence,
   } = activeSnapshot;
+  const coordination = useQuery({
+    queryKey: ["coordination", threadId],
+    queryFn: () => coordinationRequest<CoordinationSnapshot>(threadId!),
+    enabled: Boolean(showDeliveryRecovery && threadId && threadId !== "new"),
+    refetchInterval: 5000,
+    refetchIntervalInBackground: false,
+  });
+  const agentTiles = useMemo(() => mergeCoordinatedAgents(eventAgentTiles, coordination.data?.tasks ?? []), [eventAgentTiles, coordination.data?.tasks]);
   const typedGroundingSources = useMemo<GroundingSource[]>(
     () =>
       evidence

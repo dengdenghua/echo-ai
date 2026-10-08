@@ -1769,6 +1769,7 @@ export interface Translations {
     navCommunity: string;
     navMcp: string;
     navEvolution: string;
+    navMail: string;
     navProjects: string;
     navDesign: string;
     navNarrative: string;

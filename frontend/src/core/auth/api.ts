@@ -99,7 +99,11 @@ export function jsonAuthHeaders(): Record<string, string> {
  * the user isn't signed in or storage is unavailable, returns
  * "anonymous" so downstream callers always get a stable string.
  */
-export function currentActorId(): string {
+export function currentActorId(user?: User | null): string {
+  // Cookie-restored sessions may have no sessionStorage identity. Callers
+  // with AuthProvider state must prefer its authenticated actor.
+  const authenticatedActor = user?.actor_id?.trim() || user?.user_id?.trim();
+  if (authenticatedActor) return authenticatedActor;
   if (!canUseBrowserStorage()) return "anonymous";
   _migrateLegacyLocalStorage();
   try {
@@ -215,11 +219,14 @@ export async function getMe(): Promise<User> {
 }
 
 export async function logout(): Promise<void> {
-  await fetch(`${getBackendBaseURL()}/api/auth/logout`, {
+  const response = await fetch(`${getBackendBaseURL()}/api/auth/logout`, {
     method: "POST",
     headers: authHeaders(),
     credentials: "include",
   });
+  // An expired/invalid session is already rejected by the server. Other
+  // failures must not pretend that server-side revocation succeeded.
+  if (!response.ok && response.status !== 401) throw new Error("退出登录失败，请重试");
   clearAuth();
 }
 

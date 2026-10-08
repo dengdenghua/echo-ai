@@ -62,7 +62,9 @@ export function dedupeCoworkRoomMessages(
   messages: readonly CoworkRoomMessage[],
   visibleThreadMessageIds: readonly string[] = [],
 ): CoworkRoomMessage[] {
-  const visibleThreadSources = new Set(visibleThreadMessageIds.map(id => `thread:${id}`));
+  const visibleThreadSources = new Set(visibleThreadMessageIds.flatMap(id => [
+    `thread:${id}`, `thread:agent:${id}`, `thread:error:${id}`,
+  ]));
   const seenSourceIds = new Set<string>();
   return messages.filter((message) => {
     const sourceId = message.metadata?.source_message_id?.trim() ?? "";
@@ -280,8 +282,9 @@ function CoworkRoomTimelineEntryContent({
   const participant = message.participant_id
     ? participantById.get(message.participant_id)
     : undefined;
+  const suppliedName = message.display_name?.trim();
   const displayName =
-    message.display_name?.trim() ||
+    (suppliedName && !/^(none|null|undefined)$/i.test(suppliedName) ? suppliedName : "") ||
     participantLabel(participant, message.participant_id || "协作成员");
   const own = Boolean(
     currentParticipantId && message.participant_id === currentParticipantId,

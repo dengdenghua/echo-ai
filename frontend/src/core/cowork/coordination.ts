@@ -11,6 +11,7 @@ export interface CoordinationTask {
   dependencies: string[];
   waiting_for: string[];
   background?: boolean;
+  created_at?: number;
 }
 export interface CoordinationMessage {
   id: string;
@@ -22,6 +23,8 @@ export interface CoordinationMessage {
   artifacts: { path: string; version: string; verification: string }[];
 }
 export interface CoordinationSnapshot {
+  recruitment?: { id: string; candidate_id: string; reason: string; prompt: string; status: string; roster: string[] }[];
+  can_manage?: boolean;
   tasks: CoordinationTask[];
   messages: CoordinationMessage[];
   resources: { resource: string; task_id: string; expires_at: number }[];

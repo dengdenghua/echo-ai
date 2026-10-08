@@ -135,6 +135,7 @@ export type UseThreadStreamRealtimeResult = readonly [
   LiveToolEvent[],
   {
     pendingApprovals: PendingApproval[];
+    loadedItemIds: string[];
     resolveApproval: (requestId: string | number, accept: boolean, preparedRoles?: Record<string, string>) => void;
     hasMoreTurns: boolean;
     loadOlderTurns: () => Promise<void>;
@@ -1386,6 +1387,9 @@ export function useThreadStreamRealtime(
   const approvalControls = useMemo(
     () => ({
       pendingApprovals: state.pendingApprovals,
+      // Include items folded into process replay or coalesced by the adapter:
+      // their room projections must not reappear as separate chat bubbles.
+      loadedItemIds: state.turns.flatMap(turn => turn.items.map(item => item.id)),
       resolveApproval,
       // Backwards pagination — thread/resume returns the newest window
       // for large threads; older history pages in on demand.
@@ -1394,6 +1398,7 @@ export function useThreadStreamRealtime(
     }),
     [
       state.pendingApprovals,
+      state.turns,
       resolveApproval,
       state.hasMoreTurns,
       loadOlderTurns,

@@ -1995,7 +1995,7 @@ export const enUS: Translations = {
     confirmDeleteProject: (project: string) =>
       `Threads in project "${project}" will be unclassified but not deleted.`,
     confirmDeleteProjectTitle: "Delete project",
-    confirmDeleteThread: (title: string) => `Delete conversation "${title}"?`,
+    confirmDeleteThread: (title: string) => `Remove "${title}" from your list? Shared chats, projects, files and other members are unaffected. Restore it from Removed.`,
     tools: "Tools",
     navigate: "Navigate",
     backgroundTasks: "Background Tasks",
@@ -2032,6 +2032,7 @@ export const enUS: Translations = {
     navCommunity: "Discover",
     navMcp: "MCP",
     navEvolution: "Evolution",
+    navMail: "Mail",
     navProjects: "Projects",
     navDesign: "Design Canvas",
     navNarrative: "Narrative Studio",
@@ -2090,7 +2091,7 @@ export const enUS: Translations = {
     // Project + chat list actions
     deleteProjectTooltip: "Delete project",
     deleteProjectFailed: "Failed to delete project. Please try again.",
-    deleteThreadTooltip: "Delete chat",
+    deleteThreadTooltip: "Remove from my list",
     actionSort: "Sort",
     actionNewProject: "Choose project folder",
     projectPickerFailed:
@@ -8805,7 +8806,7 @@ Strategy:
       "Manage permissions for human collaborators; AI members are still maintained in team configuration.",
     ownerDesc: "Manage members, invitations, and task permissions",
     memberDesc: "Can initiate AI tasks and participate in collaboration",
-    viewerDesc: "Can view progress and send messages",
+    viewerDesc: "Read-only: you can view messages and progress",
     permissionsUpdated: "Member permissions updated",
     updatePermissionsFailed: "Failed to update member permissions",
     memberRemoved: "Member removed",

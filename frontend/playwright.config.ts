@@ -26,6 +26,8 @@ export default defineConfig({
   // belong to playwright.full.config.ts and must never leak into this lane.
   testMatch: [
     "chat.spec.ts",
+    "inline-visual.spec.ts",
+    "subagent-layout.spec.ts",
     "mobile-smoke.spec.ts",
     "stream-timeline-narrative.spec.ts",
     "workflow-editor.spec.ts",
@@ -48,7 +50,18 @@ export default defineConfig({
   projects: [
     {
       name: "chromium",
-      use: { ...devices["Desktop Chrome"] },
+      use: {
+        ...devices["Desktop Chrome"],
+        launchOptions: {
+          args: [
+            "--disable-gpu",
+            "--disable-lcd-text",
+            "--font-render-hinting=none",
+            "--disable-font-subpixel-positioning",
+            "--force-color-profile=srgb",
+          ],
+        },
+      },
     },
     {
       name: "firefox",

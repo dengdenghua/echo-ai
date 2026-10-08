@@ -2,6 +2,7 @@ import { MessageSquareTextIcon } from "lucide-react";
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
@@ -591,6 +592,11 @@ export function ClarificationQuestionnaire({
         <DialogContent className="max-h-[85vh] overflow-y-auto sm:max-w-2xl">
           <DialogHeader>
             <DialogTitle>{payload.title ?? "完善需求"}</DialogTitle>
+            <DialogDescription className="text-xs text-muted-foreground">
+              {paged
+                ? `共 ${payload.questions.length} 题 · 逐题填写需求`
+                : "请核对或修改需求问卷"}
+            </DialogDescription>
           </DialogHeader>
           {form}
         </DialogContent>

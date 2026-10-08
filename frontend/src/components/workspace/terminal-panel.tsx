@@ -7,7 +7,8 @@ import { WebLinksAddon } from "@xterm/addon-web-links";
 import { TerminalIcon, XIcon, RotateCcwIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { swallow } from "@/core/utils/log";
-import { getToken } from "@/core/auth/api";
+import { authHeaders, getToken } from "@/core/auth/api";
+import { openAuthenticatedWebSocket } from "@/core/auth/websocket";
 import { getBackendBaseURL, getBackendWebSocketBaseURL } from "@/core/config";
 import { useI18n } from "@/core/i18n/hooks";
 import "@xterm/xterm/css/xterm.css";
@@ -25,6 +26,15 @@ function terminalShellLabel(platform: string): string {
   return "shell";
 }
 
+// The bearer token travels in Sec-WebSocket-Protocol (openAuthenticatedWebSocket),
+// never in the URL, where it would leak into proxy/access logs and history.
+function terminalSocketURL(wsBase: string, sessionId: string, cwd?: string) {
+  const params = new URLSearchParams();
+  if (cwd) params.set("cwd", cwd);
+  const query = params.size ? `?${params.toString()}` : "";
+  return `${wsBase}/api/terminal/ws/${sessionId}${query}`;
+}
+
 export function TerminalPanel({
   sessionId,
   cwd,
@@ -36,6 +46,7 @@ export function TerminalPanel({
   const termRef = useRef<Terminal | null>(null);
   const wsRef = useRef<WebSocket | null>(null);
   const fitRef = useRef<FitAddon | null>(null);
+  const restartTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [connected, setConnected] = useState(false);
   const [hasOutput, setHasOutput] = useState(false);
   const [connectionError, setConnectionError] = useState(false);
@@ -43,15 +54,8 @@ export function TerminalPanel({
   const connect = useCallback(() => {
     if (wsRef.current?.readyState === WebSocket.OPEN) return;
 
-    const wsBase = getBackendWebSocketBaseURL();
-    const params = new URLSearchParams();
-    if (cwd) params.set("cwd", cwd);
-    const token = getToken();
-    if (token) params.set("token", token);
-    const query = params.size ? `?${params.toString()}` : "";
-    const url = `${wsBase}/api/terminal/ws/${sessionId}${query}`;
-
-    const ws = new WebSocket(url);
+    const url = terminalSocketURL(getBackendWebSocketBaseURL(), sessionId, cwd);
+    const ws = openAuthenticatedWebSocket(url, getToken());
     wsRef.current = ws;
 
     ws.onopen = () => {
@@ -136,6 +140,11 @@ export function TerminalPanel({
 
     return () => {
       ro.disconnect();
+      // A pending restart must not reopen a shell socket after unmount.
+      if (restartTimerRef.current !== null) {
+        clearTimeout(restartTimerRef.current);
+        restartTimerRef.current = null;
+      }
       wsRef.current?.close();
       wsRef.current = null;
       term.dispose();
@@ -148,14 +157,23 @@ export function TerminalPanel({
     wsRef.current?.close();
     const base = getBackendBaseURL();
     try {
-      await fetch(`${base}/api/terminal/kill/${sessionId}`, { method: "POST" });
+      await fetch(`${base}/api/terminal/kill/${sessionId}`, {
+        method: "POST",
+        headers: authHeaders(),
+      });
     } catch (e) {
       swallow(e);
     }
-    termRef.current?.clear();
+    // Unmounted while the kill request was in flight: nothing to restart.
+    if (!termRef.current) return;
+    termRef.current.clear();
     setHasOutput(false);
     setConnectionError(false);
-    setTimeout(connect, 300);
+    if (restartTimerRef.current !== null) clearTimeout(restartTimerRef.current);
+    restartTimerRef.current = setTimeout(() => {
+      restartTimerRef.current = null;
+      connect();
+    }, 300);
   }, [sessionId, connect]);
 
   return (
@@ -218,4 +236,4 @@ export function TerminalPanel({
   );
 }
 
-export const __testing = { terminalShellLabel };
+export const __testing = { terminalShellLabel, terminalSocketURL };

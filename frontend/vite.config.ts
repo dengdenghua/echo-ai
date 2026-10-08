@@ -8,6 +8,12 @@ import { fileURLToPath } from "url";
 import { createRequire } from "module";
 import path from "path";
 import fs from "fs";
+import { devSettings, devInstancePlugin } from "./scripts/dev-instance.mjs";
+
+const devInstance = devSettings(
+  fileURLToPath(new URL("..", import.meta.url)),
+  "ai",
+);
 
 import { WEB_BUILD_DEDUPLICATED_PET_ASSETS } from "./config/public-asset-dedup";
 
@@ -58,7 +64,7 @@ function omitDuplicatePetAssetsFromWebBuild(): Plugin {
 
 const gatewayTarget =
   process.env.ECHO_INTERNAL_GATEWAY_BASE_URL ||
-  `http://127.0.0.1:${process.env.GATEWAY_PORT || "8310"}`;
+  `http://127.0.0.1:${devInstance.ports.backend}`;
 
 function packageNameFromNodeModule(id: string): string | null {
   const normalized = id.replace(/\\/g, "/");
@@ -180,6 +186,7 @@ export default defineConfig({
     __VITE_VERSION__: JSON.stringify(vitePackage.version),
   },
   plugins: [
+    devInstancePlugin("ai"),
     omitDuplicatePetAssetsFromWebBuild(),
     ...(process.env.ECHO_BUILD_TRACE === "1" ? [buildTracePlugin()] : []),
     react(),
@@ -198,9 +205,15 @@ export default defineConfig({
       : []),
   ],
   resolve: {
-    // CodeMirror facets depend on singleton state/view identities. Transitive
-    // language packages may resolve newer copies and break deletion rendering.
-    dedupe: ["@codemirror/state", "@codemirror/view"],
+    dedupe: [
+      "react",
+      "react-dom",
+      "react/jsx-runtime",
+      "react/jsx-dev-runtime",
+      "@tanstack/react-query",
+      "@codemirror/state",
+      "@codemirror/view",
+    ],
     alias: [
       {
         find: "@",
@@ -248,13 +261,15 @@ export default defineConfig({
     // PORT is honoured so a supervisor that assigns a free port (the IDE
     // preview pane) can run alongside a dev server already holding 3310.
     // FRONTEND_PORT stays the explicit override and wins.
-    port: parseInt(process.env.FRONTEND_PORT || process.env.PORT || "3310"),
-    host: "0.0.0.0",
+    port: devInstance.ports.frontend,
+    // This server proxies privileged backend APIs. Network exposure must
+    // be an explicit deployment choice, even when the backend is loopback.
+    host: process.env.FRONTEND_HOST || "127.0.0.1",
     proxy: proxyConfig,
   },
   preview: {
-    port: parseInt(process.env.FRONTEND_PORT || process.env.PORT || "3310"),
-    host: "0.0.0.0",
+    port: devInstance.ports.frontend,
+    host: process.env.FRONTEND_HOST || "127.0.0.1",
     proxy: proxyConfig,
   },
   build: {
@@ -320,6 +335,10 @@ export default defineConfig({
   },
   test: {
     environment: "jsdom",
+    // 488 files run in parallel on CI; a whole test can legitimately take
+    // longer than the 5s default when workers contend for CPU. A gate that
+    // fails at random teaches everyone to ignore red, so leave headroom.
+    testTimeout: 15_000,
     // Streamdown imports KaTeX CSS. Keep it in Vite's transform pipeline
     // instead of asking Node's ESM loader to execute the stylesheet.
     // CodeMirror must also use Vite's singleton resolution in component tests.

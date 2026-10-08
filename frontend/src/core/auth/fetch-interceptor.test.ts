@@ -4,6 +4,7 @@ import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 vi.mock("@/core/config", () => ({ getBackendBaseURL: () => "" }));
 
 import { installAuthFetchInterceptor } from "./fetch-interceptor";
+import { updateCoderModelProfile } from "../coder/api";
 
 const calls: Array<{
   url: string;
@@ -29,7 +30,7 @@ const mockFetch = vi.fn((input: RequestInfo | URL, init?: RequestInit) => {
   nextStatus = 200;
   nextAuthExpired = false;
   return Promise.resolve(
-    new Response(null, {
+    new Response("{}", {
       status,
       headers: authExpired ? { "X-Echo-Auth-Expired": "1" } : {},
     }),
@@ -56,6 +57,14 @@ const authOf = (i = 0): string | null =>
   calls[i]?.headers.get("Authorization") ?? null;
 
 describe("installAuthFetchInterceptor", () => {
+  it("preserves cookie authentication when saving a model after browser restart", async () => {
+    // A restored HttpOnly cookie session has no JS-readable bearer token.
+    await updateCoderModelProfile({ source: "follow_system", model: "deepseek-chat" });
+    const request = calls[0]!;
+    expect(new URL(request.url, window.location.href).origin).toBe(window.location.origin);
+    expect(request.credentials).toBe("include");
+    expect(authOf()).toBeNull();
+  });
   it("attaches the bearer token to backend /api requests", async () => {
     sessionStorage.setItem("echo_auth_token", "tok123");
     await window.fetch("/api/apps");

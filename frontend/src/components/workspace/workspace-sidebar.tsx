@@ -1,4 +1,5 @@
 import { MailIcon } from "lucide-react";
+import { RemovedThreadsButton } from "./removed-threads-button";
 import {
   ArrowLeftIcon,
   AppWindowIcon,
@@ -108,9 +109,14 @@ import {
 import { getAPIClient } from "@/core/api";
 import { pickLocalDirectory } from "@/core/workspace/pick-local-directory";
 import { useI18n } from "@/core/i18n/hooks";
-import { type Project, useProjects, useThreadMap } from "@/core/projects/hooks";
 import {
-  useDeleteThread,
+  type Project,
+  useDeleteProject,
+  useProjects,
+  useThreadMap,
+} from "@/core/projects/hooks";
+import {
+  useThreadListVisibility,
   useRenameThread,
   useThreads,
 } from "@/core/threads/hooks";
@@ -368,6 +374,7 @@ function projectThreadsForPreview<T>(
 type ProjectOsSidebarIndex = {
   projectNames: string[];
   projectNameByThreadId: Map<string, string>;
+  projectIdByName: Map<string, string>;
   threads: ThreadSummary[];
 };
 
@@ -390,6 +397,7 @@ function buildProjectOsSidebarIndex(
   const durableThreads: ThreadSummary[] = [];
   const durableThreadIds = new Set<string>();
   const projectNameByThreadId = new Map<string, string>();
+  const projectIdByName = new Map<string, string>();
   const projectNames: string[] = [];
   const seenProjectNames = new Set<string>();
 
@@ -399,6 +407,7 @@ function buildProjectOsSidebarIndex(
     if (!seenProjectNames.has(projectName)) {
       seenProjectNames.add(projectName);
       projectNames.push(projectName);
+      projectIdByName.set(projectName, project.id);
     }
 
     const mappedThreadIds = Object.entries(threadProjectMap)
@@ -440,6 +449,7 @@ function buildProjectOsSidebarIndex(
   return {
     projectNames,
     projectNameByThreadId,
+    projectIdByName,
     // Put durable entries first so the project home cannot fall behind the
     // compact six-thread preview after a reload.
     threads: [
@@ -662,6 +672,7 @@ export function WorkspaceSidebar(props: React.ComponentProps<typeof Sidebar>) {
   );
   const { data: projectOsProjects = [] } = useProjects();
   const { data: threadProjectMap = {} } = useThreadMap();
+  const deleteProjectMutation = useDeleteProject();
 
   const mergedConversationRaw = (() => {
     const m = new Map<string, AgentThread>();
@@ -973,37 +984,32 @@ export function WorkspaceSidebar(props: React.ComponentProps<typeof Sidebar>) {
       userProjects.includes(p) ||
       projectOsSidebar.projectNames.includes(p),
   );
-  // Local workspace folders keep the existing "unclassify" action. A Project
-  // OS record is server-owned and must not be silently treated as local-only.
-  const projectOsNames = new Set(projectOsSidebar.projectNames);
-  const deletableProjects = new Set(
-    projectOrder.filter((project) => !projectOsNames.has(project)),
-  );
+  const deletableProjects = new Set(projectOrder);
   const [deletingProject, setDeletingProject] = useState<string | null>(null);
 
   const deleteProject = async (project: string) => {
     const threadIds = threadIdsByProject[project] ?? [];
     const next = readUserProjects().filter((p) => p !== project);
-
-    if (threadIds.length === 0) {
-      writeUserProjects(next);
-      setUserProjects(next);
-      window.dispatchEvent(new Event("echo:projects-changed"));
-      return;
-    }
+    const serverProjectId = projectOsSidebar.projectIdByName.get(project);
 
     setDeletingProject(project);
     try {
-      await Promise.all(
-        threadIds.map((threadId) =>
-          apiClient.threads.updateState(threadId, {
-            metadata: { project: "", workspace_path: "" },
-          }),
-        ),
-      );
+      if (serverProjectId) {
+        await deleteProjectMutation.mutateAsync(serverProjectId);
+      }
+      if (threadIds.length > 0) {
+        await Promise.all(
+          threadIds.map((threadId) =>
+            apiClient.threads.updateState(threadId, {
+              metadata: { project: "", workspace_path: "" },
+            }),
+          ),
+        );
+      }
       writeUserProjects(next);
       setUserProjects(next);
       emitProjectsChanged();
+      window.dispatchEvent(new Event("echo:projects-changed"));
       queryClient.setQueriesData(
         { queryKey: ["threads", "search"], exact: false },
         (oldData: AgentThread[] | undefined) => {
@@ -1023,6 +1029,10 @@ export function WorkspaceSidebar(props: React.ComponentProps<typeof Sidebar>) {
           );
         },
       );
+      void queryClient.invalidateQueries({ queryKey: ["projects"] });
+      void queryClient.invalidateQueries({ queryKey: ["thread-map"] });
+      void queryClient.invalidateQueries({ queryKey: ["portfolio"] });
+      toast.success("项目已成功移除");
     } catch (error) {
       swallow(error);
       toast.error(t.sidebar.deleteProjectFailed);
@@ -1902,7 +1912,7 @@ function ProjectGroup({
     orderedThreads,
     showAllThreads,
   );
-  const deleteThread = useDeleteThread();
+  const deleteThread = useThreadListVisibility();
   const { mutate: renameThread } = useRenameThread();
   const navigate = useNavigate();
   const { confirm, confirmDialog } = useConfirmDialog();
@@ -1920,13 +1930,19 @@ function ProjectGroup({
   const handleDeleteThread = async (thread: ThreadSummary) => {
     const ok = await confirm({
       title: t.sidebar.deleteThreadTooltip,
+      confirmLabel: t.sidebar.deleteThreadTooltip,
+      destructive: false,
       description: t.sidebar.confirmDeleteThread(thread.title),
     });
     if (!ok) return;
-    deleteThread.mutate({ threadId: thread.id });
-    if (pathname === thread.href) {
-      void navigate(PRIMARY_WORKSPACE_ROUTE);
-    }
+    deleteThread.mutate(
+      { threadId: thread.id },
+      {
+        onSuccess: () => {
+          if (pathname === thread.href) void navigate(PRIMARY_WORKSPACE_ROUTE);
+        },
+      },
+    );
   };
   const handleDeleteProject = async (project: string) => {
     const ok = await confirm({
@@ -2509,7 +2525,7 @@ function ChatsSection({
   useEffect(() => {
     if (activeWorkspaceThreadIdFromPathname(pathname)) setOpen(true);
   }, [pathname]);
-  const deleteThread = useDeleteThread();
+  const deleteThread = useThreadListVisibility();
   const { mutate: renameThread } = useRenameThread();
   const navigate = useNavigate();
   const { confirm, confirmDialog } = useConfirmDialog();
@@ -2531,13 +2547,19 @@ function ChatsSection({
     async (thread: ThreadSummary) => {
       const ok = await confirm({
         title: tr.sidebar.deleteThreadTooltip,
+      confirmLabel: tr.sidebar.deleteThreadTooltip,
+      destructive: false,
         description: tr.sidebar.confirmDeleteThread(thread.title),
       });
       if (!ok) return;
-      deleteThread.mutate({ threadId: thread.id });
-      if (pathname === thread.href) {
-        void navigate(PRIMARY_WORKSPACE_ROUTE);
-      }
+      deleteThread.mutate(
+        { threadId: thread.id },
+        {
+          onSuccess: () => {
+            if (pathname === thread.href) void navigate(PRIMARY_WORKSPACE_ROUTE);
+          },
+        },
+      );
     },
     [confirm, deleteThread, navigate, pathname, tr],
   );
@@ -2661,6 +2683,7 @@ function ChatsSection({
             </ul>
           ))}
       </SidebarGroup>
+      <RemovedThreadsButton />
       <Dialog
         open={threadToRename !== null}
         onOpenChange={(nextOpen) => {

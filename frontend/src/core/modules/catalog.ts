@@ -7,6 +7,7 @@
 import type { ModuleDescriptor, ModuleGroup, ModuleSection } from "./types";
 
 export const MODULE_CATALOG: ModuleDescriptor[] = [
+  { id: "mail", to: "/workspace/mail", labelKey: "navMail", group: "workspace", section: "chatCapability", removable: true },
   // ─── 工作台核心 ────────────────────────────────────────────
   {
     id: "hr",

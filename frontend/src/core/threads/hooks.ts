@@ -8,6 +8,7 @@ import type { LiveToolEvent } from "@/components/workspace/live-tool-timeline";
 
 import type { AgentThread, AgentThreadState } from "./types";
 import { threadVisibleInPersonaHistory } from "./persona-history";
+import { threadDeleteErrorMessage } from "./errors";
 import { useThreadStreamRealtime } from "./use-thread-stream-realtime";
 import { isPrimaryPersonaAgentId } from "@/core/agents/persona-policy";
 
@@ -435,14 +436,42 @@ export function useDeleteThread() {
       // so the call is pure double-delete bug.
       await apiClient.threads.delete(threadId);
     },
-    onError(_error, _variables, context) {
+    onError(error, _variables, context) {
       for (const [queryKey, data] of context?.previousThreads ?? []) {
         queryClient.setQueryData(queryKey, data);
       }
-      toast.error("删除对话失败，已恢复列表");
+      toast.error(threadDeleteErrorMessage(error), { duration: 8000 });
     },
     onSettled() {
       void queryClient.invalidateQueries({ queryKey: ["threads", "search"] });
+    },
+  });
+}
+
+/** Personal list preference only; never call the shared thread DELETE API. */
+export function useThreadListVisibility() {
+  const queryClient = useQueryClient();
+  const apiClient = getAPIClient();
+  return useMutation({
+    mutationFn: ({ threadId, hidden = true }: { threadId: string; hidden?: boolean }) =>
+      apiClient.threads.setListVisibility(threadId, hidden),
+    onSuccess(_data, { threadId, hidden = true }) {
+      // Invalidate after persistence; a failed request leaves every list intact.
+      void queryClient.invalidateQueries({ queryKey: ["threads", "search"] });
+      toast.success(hidden ? "已从我的列表移除，群聊和项目数据已保留" : "已恢复到我的列表", {
+        duration: 8000,
+        ...(hidden ? { action: {
+          label: "撤销",
+          onClick: () => {
+            void apiClient.threads.setListVisibility(threadId, false).then(() => {
+              void queryClient.invalidateQueries({ queryKey: ["threads", "search"] });
+            }).catch(() => toast.error("恢复失败，请在已移除列表中重试"));
+          },
+        } } : {}),
+      });
+    },
+    onError() {
+      toast.error("列表更新失败，请重试。群聊和项目数据未改变。");
     },
   });
 }

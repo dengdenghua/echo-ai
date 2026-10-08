@@ -222,7 +222,7 @@ export function GroupMemberAvatarStack({
         "inline-flex items-center gap-1.5 rounded-full bg-muted/30 px-2 py-0.5 text-xs text-muted-foreground",
         className,
       )}
-      title="群聊成员 · 点击头像查看并行进程，右键 @ 成员"
+      title="群聊成员 · 点击 AI 查看进程，点击真人或右键头像提及"
     >
       <UsersIcon
         className="size-3 shrink-0 text-muted-foreground"
@@ -250,10 +250,14 @@ export function GroupMemberAvatarStack({
               key={`${member.name}-${idx}`}
               type="button"
               className="relative inline-flex size-5 shrink-0 items-center justify-center overflow-hidden rounded-full border border-background bg-muted text-[10px] font-semibold text-muted-foreground transition-transform hover:z-10 hover:scale-125 hover:border-primary/60 focus:outline-none focus:ring-1 focus:ring-primary"
-              title={`${name} · 点击查看并行进程，右键 @ 成员`}
-              aria-label={`查看 ${name} 并行进程（右键 @ 提及）`}
+              title={member.kind === "human" ? `提及 ${name}` : `${name} · 点击查看并行进程，右键 @ 成员`}
+              aria-label={member.kind === "human" ? `提及 ${name}` : `查看 ${name} 并行进程（右键 @ 提及）`}
               onClick={(e) => {
                 e.preventDefault();
+                if (member.kind === "human") {
+                  eventBus.emit("composer:insert-mention", { text: mentionText });
+                  return;
+                }
                 emitAgentWorkbenchFocus({
                   agentId: member.name,
                   agent: {
@@ -261,7 +265,7 @@ export function GroupMemberAvatarStack({
                     name,
                     role: member.name,
                     avatar: avatarUrl || undefined,
-                    status: "running",
+                    status: "waiting",
                     task: "",
                   },
                   tab: "agent",
@@ -319,6 +323,10 @@ export function GroupMemberAvatarStack({
                     key={`${member.name}-${idx}`}
                     className="flex cursor-pointer items-center justify-between gap-2 px-2 py-1.5"
                     onClick={() => {
+                      if (member.kind === "human") {
+                        eventBus.emit("composer:insert-mention", { text: mentionText });
+                        return;
+                      }
                       emitAgentWorkbenchFocus({
                         agentId: member.name,
                         agent: {
@@ -326,7 +334,7 @@ export function GroupMemberAvatarStack({
                           name,
                           role: member.name,
                           avatar: avatarUrl || undefined,
-                          status: "running",
+                          status: "waiting",
                           task: "",
                         },
                         tab: "agent",
@@ -341,7 +349,7 @@ export function GroupMemberAvatarStack({
                     }}
                   >
                     <span className="truncate font-medium">{name}</span>
-                    <span className="text-[10px] text-muted-foreground">查看进程</span>
+                    <span className="text-[10px] text-muted-foreground">{member.kind === "human" ? "提及成员" : "查看进程"}</span>
                   </DropdownMenuItem>
                 );
               })}

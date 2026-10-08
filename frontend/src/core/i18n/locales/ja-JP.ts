@@ -1971,8 +1971,7 @@ export const jaJP: Translations = {
     confirmDeleteProject: (project: string) =>
       `プロジェクト「${project}」内のスレッドは削除されず、分類が解除されます。`,
     confirmDeleteProjectTitle: "プロジェクトを削除",
-    confirmDeleteThread: (title: string) =>
-      `チャット「${title}」を削除しますか?`,
+    confirmDeleteThread: (title: string) => `「${title}」を自分の一覧から非表示にしますか？チャット、プロジェクト、ファイル、他のメンバーには影響しません。後で復元できます。`,
     tools: "ツール",
     navigate: "ナビゲーション",
     backgroundTasks: "バックグラウンドタスク",
@@ -2010,6 +2009,7 @@ export const jaJP: Translations = {
     navCommunity: "コミュニティ",
     navMcp: "MCP",
     navEvolution: "自己進化",
+    navMail: "メール",
     navProjects: "プロジェクト",
     navDesign: "デザインキャンバス",
     navNarrative: "物語工房",
@@ -2070,7 +2070,7 @@ export const jaJP: Translations = {
     deleteProjectTooltip: "プロジェクトを削除",
     deleteProjectFailed:
       "プロジェクトの削除に失敗しました。もう一度お試しください。",
-    deleteThreadTooltip: "チャットを削除",
+    deleteThreadTooltip: "自分の一覧から非表示",
     actionSort: "並べ替え",
     actionNewProject: "プロジェクトフォルダを選択",
     projectPickerFailed:
@@ -8776,7 +8776,7 @@ export const jaJP: Translations = {
       "人間の協力者の権限を管理。AI メンバーはチーム設定で引き続き管理します。",
     ownerDesc: "メンバー、招待、タスク権限を管理",
     memberDesc: "AI タスクを発行しコラボに参加可能",
-    viewerDesc: "進捗を閲覧しメッセージを送信可能",
+    viewerDesc: "閲覧のみ：メッセージと進捗を確認できます",
     permissionsUpdated: "メンバー権限を更新しました",
     updatePermissionsFailed: "メンバー権限の更新に失敗しました",
     memberRemoved: "メンバーを削除しました",

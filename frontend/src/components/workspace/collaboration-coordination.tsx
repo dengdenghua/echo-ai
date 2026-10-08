@@ -7,6 +7,8 @@ import {
 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { LinkedFileReference } from "./messages/linked-file-reference";
+import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
+import { Button } from "@/components/ui/button";
 
 import {
   coordinationRequest,
@@ -77,6 +79,10 @@ function CoordinationPanel({
       coordinationRequest(threadId, suffix, body),
     onSuccess: (_data, variables) => {
       void client.invalidateQueries({ queryKey: key });
+      if (variables.suffix.startsWith("/recruitment/")) {
+        void client.invalidateQueries({ queryKey: ["cowork"] });
+        void client.invalidateQueries({ queryKey: ["collaboration"] });
+      }
       if (variables.suffix === "/tasks") {
         setPrompt("");
         setDependencies([]);
@@ -92,8 +98,10 @@ function CoordinationPanel({
     (m) => m.kind === "handoff" && m.state === "pending",
   );
   const failed = tasks.filter(task => task.status === "failed");
+  const delivered = tasks.filter(task => task.background === true && task.status === "done");
+  const proposal = data?.can_manage ? data.recruitment?.find(item => ["pending", "inviting"].includes(item.status)) : undefined;
   const blockers = (data?.messages ?? []).filter(m => m.kind !== "handoff" && m.kind !== "message" && m.state === "pending");
-  const hasAttention = active.length > 0 || pending.length > 0 || failed.length > 0 || blockers.length > 0 || (data?.resources.length ?? 0) > 0;
+  const hasAttention = Boolean(proposal) || delivered.length > 0 || active.length > 0 || pending.length > 0 || failed.length > 0 || blockers.length > 0 || (data?.resources.length ?? 0) > 0;
   const memberName = (id: string) =>
     members.find((m) => m.id === id)?.name ?? id;
   const taskName = (id: string) =>
@@ -118,6 +126,24 @@ function CoordinationPanel({
       className="mt-2 rounded-lg border border-border/60 bg-background text-xs"
       aria-label="任务协作"
     >
+      {proposal && <Dialog open>
+        <DialogContent showCloseButton={false} onEscapeKeyDown={event => event.preventDefault()} onInteractOutside={event => event.preventDefault()}>
+          <DialogTitle>人才缺口 · 邀请成员审批</DialogTitle>
+          <DialogDescription>优先使用群内成员。请核对以下缺口；同意后，该候选人才会加入当前群聊及其关联项目，并执行列出的任务。</DialogDescription>
+          <div className="max-h-[50vh] space-y-3 overflow-auto text-sm">
+            <p><strong>现有成员：</strong>{proposal.roster.map(memberName).join("、")}</p>
+            <p><strong>能力缺口：</strong>{proposal.reason}</p>
+            <p><strong>全局候选：</strong>{memberName(proposal.candidate_id)}</p>
+            <p className="whitespace-pre-wrap"><strong>拟承担任务：</strong>{proposal.prompt}</p>
+            <p className="text-muted-foreground">加入后可读取本群共享历史与项目上下文；私聊内容不会共享。</p>
+          </div>
+          {change.isError && <p role="alert" className="text-sm text-destructive">{change.error.message}</p>}
+          <div className="flex justify-end gap-2">
+            <Button variant="outline" disabled={change.isPending || proposal.status === "inviting"} onClick={() => change.mutate({ suffix: `/recruitment/${proposal.id}`, body: { accept: false } })}>不同意</Button>
+            <Button disabled={change.isPending} onClick={() => change.mutate({ suffix: `/recruitment/${proposal.id}`, body: { accept: true } })}>{proposal.status === "inviting" ? "继续已批准的邀请" : "同意邀请并安排任务"}</Button>
+          </div>
+        </DialogContent>
+      </Dialog>}
       <button
         type="button"
         className="flex w-full items-center gap-2 px-3 py-2 text-muted-foreground hover:text-foreground"
@@ -131,6 +157,7 @@ function CoordinationPanel({
             active.length ? `${active.length} 项进行中` : "",
             pending.length ? `${pending.length} 项待交接` : "",
             failed.length ? `${failed.length} 项失败待查看` : "",
+            delivered.length ? `${delivered.length} 项已交付` : "",
             blockers.length ? `${blockers.length} 项阻塞待处理` : "",
           ].filter(Boolean).join(" · ") || (query.isError ? "协作记录暂不可用" : (data?.resources.length ?? 0) > 0 ? "协作资源使用中" : "协作记录")}
         </span>

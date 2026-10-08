@@ -150,6 +150,18 @@ describe("<MarkdownContent /> web links", () => {
     expect(window.location.hash).toBe("#/browser");
   });
 
+  it("renders citation-labelled links as source badges", () => {
+    renderMarkdown("[citation:官方发布说明](https://example.com/notes)");
+
+    // The prompt asks the model for the `citation:` label prefix; the renderer
+    // strips it and shows the bare title inside the source badge.
+    expect(screen.getByText("官方发布说明")).toBeTruthy();
+    expect(screen.queryByText("citation:官方发布说明")).toBeNull();
+    expect(
+      screen.getByRole("link", { name: /官方发布说明/ }).getAttribute("href"),
+    ).toBe("https://example.com/notes");
+  });
+
   it("opens generated office links in the artifact workbench", () => {
     let opened: OpenArtifactDetail | null = null;
     const openArtifact = (event: Event) => {

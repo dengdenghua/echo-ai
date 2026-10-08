@@ -1,3 +1,4 @@
+import { MailIcon } from "lucide-react";
 import {
   AppWindowIcon,
   FileImageIcon,
@@ -44,6 +45,7 @@ const WORKBENCH_ICONS: Record<WorkbenchBuiltinApp["icon"], LucideIcon> = {
   evolution: SparklesIcon,
   intelligence: GlobeIcon,
   community: AppWindowIcon,
+  mail: MailIcon,
 };
 
 const WORKBENCH_COLORS: Record<WorkbenchBuiltinApp["icon"], string> = {
@@ -54,6 +56,7 @@ const WORKBENCH_COLORS: Record<WorkbenchBuiltinApp["icon"], string> = {
   evolution: "from-violet-500 to-indigo-600",
   intelligence: "from-indigo-500 to-cyan-500",
   community: "from-sky-500 to-blue-600",
+  mail: "from-rose-500 to-pink-600",
 };
 
 function workbenchDesktopApp(app: WorkbenchBuiltinApp): DesktopApp {

@@ -254,8 +254,14 @@ html:has(.echo-login-shell) {
   gap: 18px;
   translate: -50% 0;
   color: #8b94aa;
-  font-size: 8px;
-  letter-spacing: 0.18em;
+  font-size: 11px;
+  letter-spacing: 0.16em;
+}
+
+@media (max-width: 960px) {
+  .echo-login-header-nav {
+    display: none;
+  }
 }
 
 .echo-login-header-nav i {
@@ -336,8 +342,8 @@ html:has(.echo-login-shell) {
 
 .echo-login-brand-copy small {
   color: #aeb8ce;
-  font-size: 9px;
-  letter-spacing: 0.3em;
+  font-size: 11px;
+  letter-spacing: 0.24em;
 }
 
 .echo-login-header-status {
@@ -345,8 +351,8 @@ html:has(.echo-login-shell) {
   align-items: center;
   gap: 9px;
   color: #77839c;
-  font-size: 9px;
-  letter-spacing: 0.2em;
+  font-size: 11px;
+  letter-spacing: 0.16em;
 }
 
 .echo-login-header-status span {
@@ -384,7 +390,7 @@ html:has(.echo-login-shell) {
   align-items: center;
   gap: 8px;
   color: #8e9fe0;
-  font-size: 10px;
+  font-size: 11px;
   letter-spacing: 0.2em;
 }
 
@@ -392,9 +398,9 @@ html:has(.echo-login-shell) {
   justify-content: center;
   width: 100%;
   color: #8da7ff;
-  font-size: 8px;
-  letter-spacing: 0.38em;
-  text-indent: 0.38em;
+  font-size: 11px;
+  letter-spacing: 0.3em;
+  text-indent: 0.3em;
   text-shadow: 0 0 14px rgba(141, 167, 255, 0.5);
 }
 
@@ -521,7 +527,7 @@ html:has(.echo-login-shell) {
   border: 1px solid rgba(149, 172, 255, 0.3);
   border-radius: 50%;
   color: #aabaff;
-  font-size: 7px;
+  font-size: 9px;
   background: radial-gradient(
     circle,
     rgba(69, 87, 160, 0.42),
@@ -533,15 +539,15 @@ html:has(.echo-login-shell) {
 .echo-login-continuum strong {
   margin-top: 11px;
   color: #b8c1d7;
-  font-size: 7px;
+  font-size: 9px;
   font-weight: 450;
   letter-spacing: 0.16em;
 }
 
 .echo-login-continuum small {
   margin-top: 5px;
-  color: #657189;
-  font-size: 8px;
+  color: #9aa5bd;
+  font-size: 12px;
   white-space: nowrap;
 }
 
@@ -675,7 +681,7 @@ html:has(.echo-login-shell) {
 
 .echo-login-footer {
   margin: 20px 0 0;
-  color: #5f697e;
+  color: #77839c;
   font-size: 8px;
   letter-spacing: 0.13em;
   text-align: center;

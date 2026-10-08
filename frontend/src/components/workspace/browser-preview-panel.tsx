@@ -67,6 +67,8 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 
+import { LIVE_PREVIEW_SANDBOX, normalizePreviewUrl } from "./browser-preview-url";
+
 // ---------------------------------------------------------------------------
 // Types
 // ---------------------------------------------------------------------------
@@ -306,20 +308,6 @@ function presetForViewport(
     return target.width === width && target.height === height;
   });
   return match ?? null;
-}
-
-function normalizePreviewUrl(url: string): string {
-  const trimmed = url.trim();
-  if (!trimmed) return "";
-  if (/^https?:\/\//i.test(trimmed)) return trimmed;
-  if (
-    /^(localhost|127\.0\.0\.1|0\.0\.0\.0|\[::1\]|::1)(:\d+)?(\/|$)/i.test(
-      trimmed,
-    )
-  ) {
-    return `http://${trimmed}`;
-  }
-  return "";
 }
 
 function browserTabDeviceForPreset(
@@ -2013,6 +2001,7 @@ export function BrowserPreviewPanel({
                     pageInfo.title || livePreviewUrl || "Live browser preview"
                   }
                   className="size-full border-0 bg-background"
+                  sandbox={LIVE_PREVIEW_SANDBOX}
                   onLoad={() => setLiveFrameLoaded(true)}
                   allow="clipboard-read; clipboard-write; fullscreen"
                   referrerPolicy="no-referrer-when-downgrade"

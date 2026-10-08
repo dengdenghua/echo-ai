@@ -112,6 +112,7 @@ const ObservabilityPage = lazy(
 const KnowledgePage = lazy(() => import("./app/workspace/knowledge/page"));
 const DevicesPage = lazy(() => import("./app/workspace/devices/page"));
 const StoragePage = lazy(() => import("./app/workspace/storage/page"));
+const MailPage = lazy(() => import("./app/workspace/mail/page"));
 const WorkspaceWebAppPage = lazy(() => import("./app/workspace/web-app/page"));
 // Reflex monitor + YAML editor. See app/workspace/reflex/page.tsx.
 const ReflexEditorPage = lazy(() => import("./app/workspace/reflex/edit/page"));
@@ -304,6 +305,7 @@ export function AppRouter() {
                   path="paper-trading"
                   element={<Navigate to="/workspace/agents" replace />}
                 />
+                <Route path="mail" element={<MailPage />} />
                 <Route path="web-app" element={<WorkspaceWebAppPage />} />
                 <Route
                   path="replay"

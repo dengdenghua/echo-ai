@@ -93,6 +93,12 @@ import { ACCOUNT_FREE_TOKEN, getToken } from "@/core/auth/api";
 import { CAPABILITY_SURFACE_QUERY_KEY } from "@/core/plugins/use-capability-surface";
 import { cn } from "@/lib/utils";
 
+import {
+  openExternalAuthPopup,
+  openExternalAuthTab,
+  safeExternalAuthUrl,
+} from "./external-auth-url";
+
 // 统一「插件」市场 —— 所有外部能力(WorkBuddy MCP 服务、Codex 插件、注册表插件)统一叫插件。
 // 一个市场统一管理:安装→技能/MCP,连接→认证编排,插件直接就绪。
 // 数据来自后端 /api/capabilities(见 runtime/sensing/gateway/capability_router.py)。
@@ -673,13 +679,17 @@ export function ConnectDialog({
           setDeviceFlow(res.device_flow);
           const uri = res.device_flow.verification_uri;
           if (uri) {
-            const popup = window.open(
-              uri,
-              "echo-device-flow",
-              "popup=yes,width=560,height=720",
-            );
-            if (!popup)
-              setMessage("已复制授权地址,请手动打开(浏览器拦截了弹窗)。");
+            if (!safeExternalAuthUrl(uri)) {
+              setMessage("授权地址不是 http(s) 链接,已拒绝打开。");
+            } else {
+              const popup = openExternalAuthPopup(
+                uri,
+                "echo-device-flow",
+                "popup=yes,width=560,height=720",
+              );
+              if (!popup)
+                setMessage("已复制授权地址,请手动打开(浏览器拦截了弹窗)。");
+            }
           }
           if (
             operationEpochRef.current === operationEpoch &&
@@ -939,10 +949,8 @@ export function ConnectDialog({
                 size="sm"
                 variant="secondary"
                 className="h-7 px-2 text-xs"
-                onClick={() =>
-                  deviceFlow.verification_uri &&
-                  window.open(deviceFlow.verification_uri, "_blank")
-                }
+                disabled={!safeExternalAuthUrl(deviceFlow.verification_uri)}
+                onClick={() => openExternalAuthTab(deviceFlow.verification_uri)}
               >
                 打开授权页
               </Button>
@@ -1976,7 +1984,11 @@ export function CapabilityMarketPanel({
       );
       return;
     }
-    const popup = window.open(
+    if (!safeExternalAuthUrl(authorize_url)) {
+      setError("授权地址不是 http(s) 链接,已拒绝打开");
+      return;
+    }
+    const popup = openExternalAuthPopup(
       authorize_url,
       "echo-mcp-oauth",
       "popup=yes,width=560,height=720",

@@ -54,7 +54,8 @@ export async function getWorkspace(id: string): Promise<Workspace> {
     headers: authHeaders(),
   });
   await assertOk(res, "Failed to load workspace");
-  return parseJson<Workspace>(res);
+  const data = await parseJson<Workspace | { workspace: Workspace }>(res);
+  return "workspace" in data ? data.workspace : data;
 }
 
 export async function createWorkspace(
@@ -66,7 +67,8 @@ export async function createWorkspace(
     body: JSON.stringify(params),
   });
   await assertOk(res, "Failed to create workspace");
-  return parseJson<Workspace>(res);
+  const data = await parseJson<Workspace | { workspace: Workspace }>(res);
+  return "workspace" in data ? data.workspace : data;
 }
 
 export async function deleteWorkspace(id: string): Promise<void> {
@@ -188,7 +190,8 @@ export async function checkHealth(
     },
   );
   await assertOk(res, "Workspace health check failed");
-  return parseJson<WorkspaceHealth>(res);
+  const data = await parseJson<WorkspaceHealth & { ok?: boolean }>(res);
+  return { healthy: data.healthy ?? data.ok ?? false, detail: data.detail };
 }
 
 // Re-export for callers that want a single import site.
@@ -203,3 +206,24 @@ export type {
   WorkspaceHealth,
   WorkspaceMember,
 } from "./types";
+
+export async function getWorkspaceExecutionDirectory(
+  workspaceId: string,
+): Promise<string> {
+  const res = await fetch(
+    `${BASE()}/${encodeURIComponent(workspaceId)}/execution-directory`,
+    { headers: authHeaders() },
+  );
+  await assertOk(res, "Workspace directory unavailable");
+  const data = await parseJson<{
+    ready: boolean;
+    filesystem_path: string | null;
+    detail?: string;
+  }>(res);
+  if (!data.ready || !data.filesystem_path)
+    throw new Error(
+      data.detail ||
+        "Mount the shared workspace on the executing Echo device first.",
+    );
+  return data.filesystem_path;
+}

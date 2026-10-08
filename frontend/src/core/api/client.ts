@@ -40,6 +40,17 @@ function warnOnStubResponse(method: string, path: string, value: unknown) {
   }
 }
 
+export class EchoAPIError extends Error {
+  constructor(
+    message: string,
+    public readonly status: number,
+    public readonly detail: unknown,
+  ) {
+    super(message);
+    this.name = "EchoAPIError";
+  }
+}
+
 export class EchoClient {
   private baseUrl: string;
   private getToken?: () => string | null;
@@ -125,8 +136,20 @@ export class EchoClient {
     const resp = await fetch(this._resolveUrl(path), init);
     if (!resp.ok) {
       const text = await resp.text().catch(() => "");
-      throw new Error(
+      let detail: unknown = text;
+      try {
+        const payload: unknown = JSON.parse(text);
+        detail =
+          payload && typeof payload === "object" && "detail" in payload
+            ? payload.detail
+            : payload;
+      } catch {
+        // Preserve HTTP status even when a proxy returns a non-JSON error.
+      }
+      throw new EchoAPIError(
         `${method} ${path} failed: ${resp.status}${text ? ` - ${text}` : ""}`,
+        resp.status,
+        detail,
       );
     }
     if (resp.status === 204) return undefined as T;
@@ -169,6 +192,9 @@ export class EchoClient {
     delete: (threadId: string): Promise<void> =>
       this.delete<void>(`/threads/${threadId}`),
 
+    setListVisibility: (threadId: string, hidden: boolean): Promise<{ thread_id: string; hidden: boolean }> =>
+      this.put(`/threads/${encodeURIComponent(threadId)}/list-visibility`, { hidden }),
+
     getState: <T = Record<string, unknown>>(
       threadId: string,
     ): Promise<ThreadState<T>> =>
@@ -198,7 +224,10 @@ export class EchoClient {
       threadId: string,
       body?: { provider?: string; force?: boolean },
     ): Promise<SessionTitleSnapshot> =>
-      this.post<SessionTitleSnapshot>(`/threads/${threadId}/title/refresh`, body ?? {}),
+      this.post<SessionTitleSnapshot>(
+        `/threads/${threadId}/title/refresh`,
+        body ?? {},
+      ),
 
     forkThread: (
       threadId: string,

@@ -18,11 +18,26 @@ import {
 } from "@/components/ui/dialog";
 import { useAuth } from "@/providers/AuthProvider";
 import { cn } from "@/lib/utils";
+import { StaticEchoCosmos } from "./StaticEchoCosmos";
 import "./browser-start-page.css";
 
 const CUSTOM_WALLPAPER_KEY = "echo.browser.start.custom-wallpaper.v1";
-const WALLPAPER_KEY = "echo.browser.start.wallpaper.v1";
-const WALLPAPERS = [
+const WALLPAPER_KEY_V2 = "echo.browser.start.wallpaper.v2";
+const WALLPAPER_KEY_LEGACY = "echo.browser.start.wallpaper.v1";
+
+export interface WallpaperOption {
+  id: string;
+  name: string;
+  url?: string;
+  isCosmos?: boolean;
+}
+
+const WALLPAPERS: readonly WallpaperOption[] = [
+  {
+    id: "echo-cosmos",
+    name: "回响星域 (官方)",
+    isCosmos: true,
+  },
   {
     id: "ocean",
     name: "星海",
@@ -80,9 +95,14 @@ export function BrowserStartPage({
   const [appQuery, setAppQuery] = useState("");
   const [wallpaper, setWallpaper] = useState(() => {
     try {
-      return localStorage.getItem(WALLPAPER_KEY) || "ocean";
+      const v2 = localStorage.getItem(WALLPAPER_KEY_V2);
+      if (v2) return v2;
+      const custom = localStorage.getItem(CUSTOM_WALLPAPER_KEY);
+      const v1 = localStorage.getItem(WALLPAPER_KEY_LEGACY);
+      if (v1 === "custom" && custom) return "custom";
+      return "echo-cosmos";
     } catch {
-      return "ocean";
+      return "echo-cosmos";
     }
   });
   const uploadRef = useRef<HTMLInputElement>(null);
@@ -113,7 +133,7 @@ export function BrowserStartPage({
       img.onload = () => {
         try {
           localStorage.setItem(CUSTOM_WALLPAPER_KEY, url);
-          localStorage.setItem(WALLPAPER_KEY, "custom");
+          localStorage.setItem(WALLPAPER_KEY_V2, "custom");
           setCustomWallpaper(url);
           setWallpaper("custom");
         } catch { setUploadError("本地存储空间不足，请选择更小的图片。"); }
@@ -123,11 +143,11 @@ export function BrowserStartPage({
     };
     reader.readAsDataURL(file);
   };
-  const wallpaperOptions = customWallpaper
+  const wallpaperOptions: WallpaperOption[] = customWallpaper
     ? [...WALLPAPERS, { id: "custom", name: "自定义", url: customWallpaper }]
-    : WALLPAPERS;
-  const image =
-    wallpaperOptions.find((item) => item.id === wallpaper) ?? WALLPAPERS[0];
+    : [...WALLPAPERS];
+  const image: WallpaperOption =
+    wallpaperOptions.find((item) => item.id === wallpaper) ?? WALLPAPERS[0]!;
   const visibleApps = apps.filter((app) =>
     `${app.name} ${app.description}`
       .toLowerCase()
@@ -136,7 +156,7 @@ export function BrowserStartPage({
   const chooseWallpaper = (id: string) => {
     setWallpaper(id);
     try {
-      localStorage.setItem(WALLPAPER_KEY, id);
+      localStorage.setItem(WALLPAPER_KEY_V2, id);
     } catch {
       /* Session preference still works. */
     }
@@ -151,14 +171,20 @@ export function BrowserStartPage({
       className="browser-start-page"
       style={{ display: active ? undefined : "none" }}
     >
-      <img
-        className="browser-start-wallpaper"
-        src={image.url}
-        alt=""
-        fetchPriority="high"
-        decoding="async"
-        draggable={false}
-      />
+      {image.isCosmos ? (
+        <StaticEchoCosmos />
+      ) : image.url ? (
+        <img
+          className="browser-start-wallpaper"
+          src={image.url}
+          alt=""
+          fetchPriority="high"
+          decoding="async"
+          draggable={false}
+        />
+      ) : (
+        <StaticEchoCosmos />
+      )}
       <header className="browser-start-header">
         <button
           type="button"
@@ -338,7 +364,13 @@ export function BrowserStartPage({
                       aria-pressed={image.id === item.id}
                       onClick={() => chooseWallpaper(item.id)}
                     >
-                      <img src={item.url} alt="" />
+                      {item.isCosmos ? (
+                        <span className="browser-start-wallpaper-preview-cosmos" />
+                      ) : item.url ? (
+                        <img src={item.url} alt="" />
+                      ) : (
+                        <span className="browser-start-wallpaper-preview-cosmos" />
+                      )}
                       <span>{item.name}</span>
                     </button>
                   ))}

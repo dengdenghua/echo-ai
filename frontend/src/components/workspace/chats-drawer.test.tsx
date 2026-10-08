@@ -13,11 +13,18 @@ const { useThreadsMock } = vi.hoisted(() => ({
 
 vi.mock("@/core/threads/hooks", () => ({
   useThreads: (...args: unknown[]) => useThreadsMock(...args),
-  useDeleteThread: () => ({ isPending: false, mutate: vi.fn() }),
+  useThreadListVisibility: () => ({ isPending: false, mutate: vi.fn() }),
   useRenameThread: () => ({ isPending: false, mutate: vi.fn() }),
 }));
 
 describe("ChatsDrawer", () => {
+  it("offers a persistent removed-list recovery surface", async () => {
+    const user = userEvent.setup();
+    renderWithProviders(<ChatsDrawer open onOpenChange={vi.fn()} />, { locale: "zh-CN" });
+    await user.click(screen.getByRole("button", { name: "已移除", exact: true }));
+    expect(await screen.findByText("没有已移除的对话")).toBeVisible();
+    expect(useThreadsMock).toHaveBeenCalledWith(expect.objectContaining({ hidden_only: true }));
+  });
   beforeEach(() => {
     vi.clearAllMocks();
     window.localStorage.setItem("echo.active-agent", "installed_researcher");

@@ -797,18 +797,9 @@ function RealtimePageContent({
     searchParams.get("creative_project")?.trim() || "";
   const embeddedDesignStageNodeId =
     searchParams.get("design_stage")?.trim() || "";
-  const embeddedDesignParentOrigin = useMemo(() => {
-    const value = searchParams.get("design_parent_origin")?.trim();
-    if (!value) return window.location.origin;
-    try {
-      const parsed = new URL(value);
-      return parsed.protocol === "http:" || parsed.protocol === "https:"
-        ? parsed.origin
-        : window.location.origin;
-    } catch {
-      return window.location.origin;
-    }
-  }, [searchParams]);
+  // Design Canvas lives in this application. A query parameter must never
+  // authorize an unrelated embedding website to inject or receive chat data.
+  const embeddedDesignParentOrigin = window.location.origin;
   const [embeddedDesignContext, setEmbeddedDesignContext] =
     useState<DesignCanvasAgentContext | null>(null);
   const designCapabilities = useMemo(() => parseDesignCapabilities(
@@ -840,6 +831,9 @@ function RealtimePageContent({
   const initialPrompt = useMemo(() => {
     return searchParams.get("prompt") ?? "";
   }, [searchParams]);
+  // The /new route stays mounted during the first turn, even after onStart
+  // clears isNewThread. Keep its private destination until metadata takes over.
+  const privateConversation = searchParams.get("private") === "1" || threadIdentityQuery.data?.metadata?.private_conversation === true;
   const requestedAgentName = (searchParams.get("agent") ?? "").trim();
   const queryAgentName = canonicalAgentId(requestedAgentName);
   const routeAgentName = useMemo(() => {
@@ -863,7 +857,7 @@ function RealtimePageContent({
   const requestedTaskAgentId =
     routeAgentName || (queryAgentName === "echo" ? "" : queryAgentName);
   const activeAgentId = isNewThread
-    ? isPrimaryPersonaAgentId(requestedTaskAgentId)
+    ? (privateConversation && requestedTaskAgentId) || isPrimaryPersonaAgentId(requestedTaskAgentId)
       ? requestedTaskAgentId
       : primaryPersonaAgentIdOrDefault(storedActiveAgentId)
     : requestedTaskAgentId || storedActiveAgentId || "general";
@@ -887,6 +881,7 @@ function RealtimePageContent({
   const resolvedThreadOwnerAgentId =
     threadOwnerAgentId || hintedThreadOwnerAgentId;
   const legacyOnDemandThreadOwnerId =
+    !privateConversation &&
     !isNewThread &&
     resolvedThreadOwnerAgentId &&
     resolvedThreadOwnerAgentId !== "echo" &&
@@ -1067,6 +1062,11 @@ function RealtimePageContent({
     applyTaskCollaboratorPreset({ leaderId: team.leaderId, collaboratorIds: team.members.map(member => member.name), mode: "cluster" });
   }, [isNewThread, applyTaskCollaboratorPreset]);
   useEffect(() => {
+    if (privateConversation) {
+      setSelectedCollaboratorIds([]);
+      setTeamModeIntent("chat");
+      return;
+    }
     const storedPreset = consumeTaskCollaboratorPreset();
     if (storedPreset) {
       applyTaskCollaboratorPreset(storedPreset);
@@ -1080,7 +1080,7 @@ function RealtimePageContent({
     window.addEventListener(TASK_COLLABORATOR_PRESET_EVENT, handler);
     return () =>
       window.removeEventListener(TASK_COLLABORATOR_PRESET_EVENT, handler);
-  }, [applyTaskCollaboratorPreset]);
+  }, [applyTaskCollaboratorPreset, privateConversation]);
   useEffect(() => {
     if (
       embeddedDesignChat ||
@@ -1286,8 +1286,9 @@ function RealtimePageContent({
     return roster;
   }, [composerDisplayAgent, effectiveAgentId, selectedCollaborators]);
   const collaborationEnabled =
-    !embeddedDesignChat && selectedCollaborators.length > 0;
+    !privateConversation && !embeddedDesignChat && selectedCollaborators.length > 0;
   const visibleCollaborationRoster = useMemo(() => {
+    if (privateConversation) return [];
     const primary =
       collaborationEnabled || savedCollaborationRoster.length === 0
         ? collaborationRoster
@@ -1309,6 +1310,7 @@ function RealtimePageContent({
       coworkCollaborationProfiles,
     );
   }, [
+    privateConversation,
     collaborationEnabled,
     collaborationRoster,
     coworkCollaborationProfiles,
@@ -1338,6 +1340,7 @@ function RealtimePageContent({
   const visibleCollaborationEnabled =
     !embeddedDesignChat && visibleCollaborationRoster.length > 1;
   const isGroupConversation =
+    !privateConversation &&
     !embeddedDesignChat &&
     !isEchoAssistant &&
     (visibleCollaborationEnabled ||
@@ -1473,7 +1476,7 @@ function RealtimePageContent({
     boundProjectQuery.data?.project.name ||
     firstString(threadIdentityQuery.data?.values?.title, initialPrompt) ||
     t.collab.defaultTeamName;
-  const currentInviteActor = currentActorId();
+  const currentInviteActor = currentActorId(user);
   const currentRoomParticipant = useMemo(
     () =>
       (collabSessionQuery.data?.room_participants ?? []).find((participant) => {
@@ -2109,8 +2112,8 @@ function RealtimePageContent({
         threadId,
         input: {
           text: message.text.trim() || "群聊消息",
-          participant_id: currentActorId(),
-          display_name: currentRoomParticipant?.display_name || currentActorId(),
+          participant_id: currentInviteActor,
+          display_name: currentRoomParticipant?.display_name || currentInviteActor,
           source_message_id: sourceMessageId,
         },
       });
@@ -2153,6 +2156,7 @@ function RealtimePageContent({
       boundProjectState?.project,
       collabSessionQuery.data?.room_id,
       collabSessionQuery.data?.room_messages,
+      currentInviteActor,
       currentRoomParticipant?.display_name,
       collaborationRoomMemberPayload,
       collaborationTeamName,
@@ -2268,7 +2272,7 @@ function RealtimePageContent({
     // footer drifts to a random task collaborator
     // because "echo" is filtered out of switcherAgents.
     if (selectedAgent === "echo") return;
-    if (!isPrimaryPersonaAgentId(selectedAgent)) {
+    if (!privateConversation && !isPrimaryPersonaAgentId(selectedAgent)) {
       const leaderId = primaryPersonaAgentIdOrDefault(activeAgentId);
       const preset: TaskCollaboratorPreset = {
         leaderId,
@@ -2289,6 +2293,7 @@ function RealtimePageContent({
     // 保证左下角 AgentFooter（只订阅 eventBus agent:changed）能立即同步，
     // 不再出现仅写 localStorage/发 window CustomEvent 导致两边角色不一致。
     // source: "system" 表示这是路由/URL 驱动的同步，不触发 navigate 循环。
+    if (privateConversation) return;
     emitAgentChanged(selectedAgent, "system");
     try {
       window.dispatchEvent(
@@ -2305,6 +2310,7 @@ function RealtimePageContent({
     isNewThread,
     navigate,
     queryAgentName,
+    privateConversation,
     routeAgentName,
   ]);
   useEffect(() => {
@@ -2477,6 +2483,7 @@ function RealtimePageContent({
           // Collaboration context describes the roster and its leader; the
           // current first-person viewpoint is deliberately last so it remains
           // the actual executor for this turn without mutating that roster.
+          private_conversation: privateConversation,
           agent_name: mainPerspectiveAgentId,
           execution_engine: selectedExecutionEngine,
         },
@@ -2522,6 +2529,7 @@ function RealtimePageContent({
       automationTarget,
       clearSidebarThreadStatus,
       collaborationContext,
+      privateConversation,
       commitThreadRoute,
       embeddedDesignChat,
       embeddedDesignContext,
@@ -2589,9 +2597,9 @@ function RealtimePageContent({
     () =>
       dedupeCoworkRoomMessages(
         collabSessionQuery.data?.room_messages ?? [],
-        thread.messages.map(message => message.id).filter((id): id is string => Boolean(id)),
+        realtimeApprovals.loadedItemIds ?? thread.messages.map(message => message.id).filter((id): id is string => Boolean(id)),
       ),
-    [collabSessionQuery.data?.room_messages, thread.messages],
+    [collabSessionQuery.data?.room_messages, realtimeApprovals.loadedItemIds, thread.messages],
   );
   const roomTimelineEntries = useMemo(
     () =>
@@ -4243,6 +4251,8 @@ function RealtimePageContent({
     />
   );
   const headerTitle = !isEchoAssistant ? (
+    <div className="flex min-w-0 items-center gap-2">
+    {privateConversation && <span className="shrink-0 rounded bg-muted px-2 py-0.5 text-xs text-muted-foreground">与 {perspectiveDisplayAgent?.display_name || mainPerspectiveAgentId} 私聊</span>}
     <ThreadTitle
       threadId={threadId}
       thread={thread}
@@ -4252,6 +4262,7 @@ function RealtimePageContent({
         isGroupConversation && "w-full max-w-full",
       )}
     />
+    </div>
   ) : null;
   const headerRunStatus = (
     <RunDurationBadge
@@ -4260,7 +4271,7 @@ function RealtimePageContent({
     />
   );
   const headerHumanInvite =
-    !isEchoAssistant && canManageHumanInvites ? (
+    !privateConversation && !isEchoAssistant && canManageHumanInvites ? (
       <GroupHumanInviteButton
         renderDialog={false}
         roomId={resolvedHumanInviteRoomId}
@@ -4292,7 +4303,7 @@ function RealtimePageContent({
     coworkCollaborationProfiles,
   );
   const headerMemberControl =
-    !isEchoAssistant && canManageHumanInvites ? (
+    !privateConversation && !isEchoAssistant && canManageHumanInvites ? (
       <TaskCollaboratorControl
         agents={allTaskCollaboratorAgents}
         selectedAgents={selectedCollaborators}

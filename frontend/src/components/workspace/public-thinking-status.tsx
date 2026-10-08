@@ -236,12 +236,12 @@ export function PublicThinkingStatus({
         >
           <span
             className={cn(
-              "inline-block size-1 shrink-0 rounded-full animate-pulse",
+              "inline-block size-1.5 shrink-0 rounded-full animate-pulse transition-all duration-base",
               phase === "slow" || firstResponseDelayed
-                ? "bg-warning/50"
+                ? "bg-warning ring-2 ring-warning/25"
                 : phase === "disconnected"
-                  ? "bg-destructive/50"
-                  : "bg-muted-foreground/40",
+                  ? "bg-destructive ring-2 ring-destructive/25"
+                  : "bg-primary ring-2 ring-primary/20",
             )}
           />
           <span className="shrink-0">{label}</span>

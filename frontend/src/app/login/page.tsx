@@ -57,6 +57,29 @@ function isValidEmail(raw: string): boolean {
   return /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(raw.trim());
 }
 
+function GoogleIcon({ className }: { className?: string }) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" aria-hidden="true">
+      <path
+        fill="#4285F4"
+        d="M23.745 12.27c0-.7-.06-1.4-.19-2.07H12v4.51h6.6c-.29 1.52-1.14 2.8-2.4 3.65v3.03h3.88c2.27-2.09 3.665-5.17 3.665-9.12z"
+      />
+      <path
+        fill="#34A853"
+        d="M12 24c3.24 0 5.95-1.08 7.93-2.91l-3.88-3.03c-1.08.72-2.45 1.16-4.05 1.16-3.12 0-5.77-2.1-6.72-4.93H1.27v3.12C3.25 21.31 7.31 24 12 24z"
+      />
+      <path
+        fill="#FBBC05"
+        d="M5.28 14.29c-.25-.72-.38-1.49-.38-2.29s.13-1.57.38-2.29V6.58H1.27C.46 8.2 0 10.04 0 12s.46 3.8 1.27 5.42l4.01-3.13z"
+      />
+      <path
+        fill="#EA4335"
+        d="M12 4.75c1.77 0 3.35.61 4.6 1.8l3.42-3.42C17.95 1.19 15.24 0 12 0 7.31 0 3.25 2.69 1.27 6.58l4.01 3.13c.95-2.83 3.6-4.96 6.72-4.96z"
+      />
+    </svg>
+  );
+}
+
 function EmailLoginForm({ returnTo }: { returnTo: string }) {
   const navigate = useNavigate();
   const { emailLogin, startAccountFreeMode } = useAuth();
@@ -362,9 +385,12 @@ function LocalLoginForm({
   const [username, setUsername] = useState(() => {
     if (passwordOnlyUsername) return "";
     try {
-      return localStorage.getItem("echo:last_local_username") || "";
+      return (
+        localStorage.getItem("echo:last_local_username") ||
+        (passwordRequired ? "" : "guest")
+      );
     } catch {
-      return "";
+      return passwordRequired ? "" : "guest";
     }
   });
   const [password, setPassword] = useState("");
@@ -418,11 +444,13 @@ function LocalLoginForm({
       {!passwordOnlyUsername && (
         <>
           <div className="rounded-xl border border-border/50 bg-muted/30 px-4 py-3 text-xs text-muted-foreground/80">
-            {t.loginPage.localBanner}
+            {passwordRequired
+              ? t.loginPage.localBanner
+              : "访客模式：输入任意用户名或昵称即可直接建立账号并进入系统。"}
           </div>
           <div className="space-y-2.5">
             <Label htmlFor="local-username" className="text-sm font-medium">
-              {t.registerPage.usernameLabel}
+              {passwordRequired ? t.registerPage.usernameLabel : "访客用户名 / 昵称"}
             </Label>
             <div className="relative">
               <UserCircle2Icon className="pointer-events-none absolute left-4 top-1/2 size-[18px] -translate-y-1/2 text-muted-foreground" />
@@ -435,7 +463,11 @@ function LocalLoginForm({
                   setUsernameError(null);
                   setLoginError(null);
                 }}
-                placeholder={t.registerPage.usernamePlaceholder}
+                placeholder={
+                  passwordRequired
+                    ? t.registerPage.usernamePlaceholder
+                    : "输入任意用户名，例如 guest 或您的昵称"
+                }
                 autoComplete="username"
                 className="echo-login-input h-12 rounded-xl border-border/60 bg-card/50 pl-11 text-base transition-colors focus:border-primary/40 focus:bg-card aria-invalid:border-destructive aria-invalid:focus:border-destructive aria-invalid:focus-visible:ring-destructive/25"
               />
@@ -526,7 +558,11 @@ function LocalLoginForm({
         className="echo-login-primary-button h-12 w-full rounded-xl text-base font-medium transition-all"
         disabled={submitting}
       >
-        {submitting ? "正在进入 ECHO" : "进入 ECHO"}
+        {submitting
+          ? "正在进入 ECHO"
+          : !passwordRequired
+            ? "以访客身份进入 ECHO"
+            : "进入 ECHO"}
         {!submitting && <ArrowRightIcon className="ml-1 size-4" />}
       </Button>
     </form>
@@ -728,25 +764,25 @@ export default function LoginPage() {
             <div>
               <span>01</span>
               <strong>MEMORY</strong>
-              <small>它记住</small>
+              <small>记住</small>
             </div>
             <i />
             <div>
               <span>02</span>
               <strong>UNDERSTAND</strong>
-              <small>它理解</small>
+              <small>理解</small>
             </div>
             <i />
             <div>
               <span>03</span>
               <strong>ACT</strong>
-              <small>它行动</small>
+              <small>行动</small>
             </div>
             <i />
             <div>
               <span>04</span>
               <strong>GROW</strong>
-              <small>它与你共同成长</small>
+              <small>共同成长</small>
             </div>
           </div>
         </section>
@@ -760,49 +796,35 @@ export default function LoginPage() {
               <CardTitle className="text-2xl font-medium tracking-tight">
                 进入 ECHO
               </CardTitle>
-              <CardDescription className="text-[15px] text-muted-foreground/80">
+              <CardDescription className="text-[15px] text-muted-foreground">
                 选择一种方式，登录你的 ECHO 账号
               </CardDescription>
             </CardHeader>
             <CardContent className="px-8 pb-7 pt-0">
-              {!backendUnavailable && providersReady && (
+              {!backendUnavailable && providersReady && (socialProviders.google || socialProviders.github) && (
                 <div className="mb-5 space-y-3">
-                  {(["google", "github"] as const).map((provider) => (
-                    <Button
-                      key={provider}
-                      variant="outline"
-                      className="relative h-12 w-full justify-center gap-3 rounded-xl text-sm font-medium transition-colors hover:bg-accent"
-                      disabled={!socialProviders[provider]}
-                      title={
-                        !socialProviders[provider]
-                          ? "此登录方式尚未启用"
-                          : undefined
-                      }
-                      onClick={() => {
-                        window.location.assign(
-                          `${getBackendBaseURL()}/api/auth/social/${provider}/start?return_to=${encodeURIComponent(returnTo)}`,
-                        );
-                      }}
-                    >
-                      {provider === "github" ? (
-                        <GithubIcon className="size-5" />
-                      ) : (
-                        <span
-                          aria-hidden="true"
-                          className="text-xl font-bold text-blue-600"
-                        >
-                          G
-                        </span>
-                      )}
-                      使用 {provider === "google" ? "Google" : "GitHub"}{" "}
-                      账号继续
-                      {!socialProviders[provider] && (
-                        <span className="ml-auto text-xs font-normal text-muted-foreground">
-                          暂未启用
-                        </span>
-                      )}
-                    </Button>
-                  ))}
+                  {(["google", "github"] as const)
+                    .filter((provider) => socialProviders[provider])
+                    .map((provider) => (
+                      <Button
+                        key={provider}
+                        variant="outline"
+                        className="relative h-12 w-full justify-center gap-3 rounded-xl text-sm font-medium transition-colors hover:bg-accent"
+                        onClick={() => {
+                          window.location.assign(
+                            `${getBackendBaseURL()}/api/auth/social/${provider}/start?return_to=${encodeURIComponent(returnTo)}`,
+                          );
+                        }}
+                      >
+                        {provider === "github" ? (
+                          <GithubIcon className="size-5" />
+                        ) : (
+                          <GoogleIcon className="size-5" />
+                        )}
+                        使用 {provider === "google" ? "Google" : "GitHub"}{" "}
+                        账号继续
+                      </Button>
+                    ))}
                   {new URLSearchParams(location.search).has("social_error") && (
                     <p role="alert" className="text-sm text-destructive">
                       第三方登录未完成，请重试或使用邮箱登录。
@@ -810,7 +832,7 @@ export default function LoginPage() {
                   )}
                   <div className="flex items-center gap-3 pt-2 text-xs text-muted-foreground">
                     <span className="h-px flex-1 bg-border" />
-                    或使用其他邮箱
+                    或使用账号登录
                     <span className="h-px flex-1 bg-border" />
                   </div>
                 </div>
@@ -830,29 +852,31 @@ export default function LoginPage() {
               ) : hasOct && localProvider ? (
                 <Tabs
                   defaultValue={
-                    localProvider.password_only_username ? "local" : "email"
+                    !localProvider.password_required ||
+                    localProvider.password_only_username
+                      ? "local"
+                      : "email"
                   }
                   className="w-full"
                 >
                   <TabsList className="mb-6 grid h-11 w-full grid-cols-2 rounded-xl bg-muted/50 p-1">
-                    <TabsTrigger
-                      value="email"
-                      className="rounded-lg text-sm font-medium data-[state=active]:bg-card data-[state=active]:shadow-sm"
-                    >
-                      邮箱登录
-                    </TabsTrigger>
                     <TabsTrigger
                       value="local"
                       className="rounded-lg text-sm font-medium data-[state=active]:bg-card data-[state=active]:shadow-sm"
                     >
                       {localProvider.password_only_username
                         ? t.registerPage.passwordLabel
-                        : (localProvider.label ?? "本地账户")}
+                        : !localProvider.password_required
+                          ? "访客模式"
+                          : (localProvider.label ?? "本地账户")}
+                    </TabsTrigger>
+                    <TabsTrigger
+                      value="email"
+                      className="rounded-lg text-sm font-medium data-[state=active]:bg-card data-[state=active]:shadow-sm"
+                    >
+                      邮箱登录
                     </TabsTrigger>
                   </TabsList>
-                  <TabsContent value="email" className="mt-0">
-                    <EmailLoginForm returnTo={returnTo} />
-                  </TabsContent>
                   <TabsContent value="local" className="mt-0">
                     <LocalLoginForm
                       passwordOnlyUsername={
@@ -863,6 +887,9 @@ export default function LoginPage() {
                       }
                       returnTo={returnTo}
                     />
+                  </TabsContent>
+                  <TabsContent value="email" className="mt-0">
+                    <EmailLoginForm returnTo={returnTo} />
                   </TabsContent>
                 </Tabs>
               ) : hasOct ? (

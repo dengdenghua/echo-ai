@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Echo 子进程侧栏预览</title>
+    <style>
+      body { margin: 0; padding: 16px; background: #f5f5f6; }
+      #preview-controls { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; margin-bottom: 16px; font: 14px system-ui, sans-serif; }
+      #preview-controls select { padding: 5px 8px; border: 1px solid #ccc; border-radius: 6px; background: white; }
+      #root { display: flex; justify-content: center; }
+      #root > [data-testid="panel"] { margin-left: 0 !important; max-width: 100%; height: calc(100dvh - 100px) !important; min-height: 400px; background: white; }
+    </style>
+  </head>
+  <body>
+    <div id="preview-controls">
+      <strong>子进程侧栏预览</strong>
+      <label>宽度 <select id="width"><option>320</option><option selected>400</option><option>640</option></select> px</label>
+      <label>状态 <select id="status"><option value="done">已完成</option><option value="running">运行中</option></select></label>
+      <span>演示数据</span>
+    </div>
+    <div id="root"></div>
+    <script type="module">
+      import { renderPanel } from './fixtures/subagent-layout.tsx';
+      const width = document.getElementById('width');
+      const status = document.getElementById('status');
+      const render = () => renderPanel(Number(width.value), status.value === 'running');
+      width.addEventListener('change', render);
+      status.addEventListener('change', render);
+      render();
+    </script>
+  </body>
+</html>

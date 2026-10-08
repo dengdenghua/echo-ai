@@ -133,13 +133,20 @@ export const coderUpstreamUpdateQueryKey = [
   "upstream-update",
 ] as const;
 
+export class CoderAPIError extends Error {
+  constructor(message: string, public readonly status: number) {
+    super(message);
+    this.name = "CoderAPIError";
+  }
+}
+
 async function responseError(response: Response, fallback: string) {
   const payload = (await response.json().catch(() => null)) as {
     detail?: unknown;
     message?: unknown;
   } | null;
   const detail = payload?.detail ?? payload?.message;
-  return new Error(typeof detail === "string" ? detail : fallback);
+  return new CoderAPIError(typeof detail === "string" ? detail : fallback, response.status);
 }
 
 export async function getCoderAccount(
@@ -309,31 +316,13 @@ export async function getCoderModelProfile(
   return normalizeModelProfile(await response.json());
 }
 
-function getCoderMutationBaseURL(): string {
-  const configured = getBackendBaseURL();
-  if (configured || !import.meta.env.DEV || typeof window === "undefined") {
-    return configured;
-  }
-
-  // Dev pages share localhost's HTTP/1.1 connection pool with several SSE
-  // streams. Use the equivalent loopback host for small control-plane writes
-  // so a model selection cannot sit behind those long-lived connections.
-  const { protocol, hostname, port } = window.location;
-  const alternateHost =
-    hostname === "localhost"
-      ? "127.0.0.1"
-      : hostname === "127.0.0.1"
-        ? "localhost"
-        : null;
-  if (!alternateHost) return configured;
-  return `${protocol}//${alternateHost}${port ? `:${port}` : ""}`;
-}
-
 export async function updateCoderModelProfile(
   input: UpdateCoderModelProfile,
 ): Promise<CoderModelProfile> {
   const response = await fetch(
-    `${getCoderMutationBaseURL()}/api/coder/codex/model-profile`,
+    // Keep reads and writes on the same origin: cookie-backed sessions cannot
+    // authenticate an alternate localhost/127.0.0.1 host.
+    `${getBackendBaseURL()}/api/coder/codex/model-profile`,
     {
       method: "PUT",
       headers: jsonAuthHeaders(),
@@ -373,7 +362,7 @@ export async function getCoderUpstreamUpdate(
 
 export async function checkCoderUpstreamUpdate(): Promise<CoderUpstreamUpdate> {
   const response = await fetch(
-    `${getCoderMutationBaseURL()}/api/coder/codex/upstream-update/check`,
+    `${getBackendBaseURL()}/api/coder/codex/upstream-update/check`,
     { method: "POST", headers: authHeaders() },
   );
   if (!response.ok) {
@@ -389,7 +378,7 @@ export async function approveCoderUpstreamUpdate(
   version: string,
 ): Promise<CoderUpstreamUpdate> {
   const response = await fetch(
-    `${getCoderMutationBaseURL()}/api/coder/codex/upstream-update/approve`,
+    `${getBackendBaseURL()}/api/coder/codex/upstream-update/approve`,
     {
       method: "POST",
       headers: jsonAuthHeaders(),

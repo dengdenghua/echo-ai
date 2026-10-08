@@ -1,6 +1,31 @@
 import { describe, expect, it } from "vitest";
 
-import { getStreamErrorMessage, publicExecutionErrorMessage } from "./errors";
+import {
+  getStreamErrorMessage,
+  publicExecutionErrorMessage,
+  threadDeleteErrorMessage,
+} from "./errors";
+import { EchoAPIError } from "../api/client";
+
+it.each([
+  ["THREAD_PROJECT_BOUND", "项目"],
+  ["THREAD_TURN_ACTIVE", "停止任务"],
+  ["THREAD_ASYNC_WORK_ACTIVE", "后台协作任务"],
+  ["THREAD_ROOM_LINKED", "工作群"],
+  ["THREAD_GROUP_LINKED", "工作群"],
+])("explains delete conflict %s", (code, explanation) => {
+  expect(
+    threadDeleteErrorMessage(new EchoAPIError("raw request", 409, { code })),
+  ).toContain(explanation);
+});
+
+it("does not expose raw server diagnostics in deletion errors", () => {
+  const message = threadDeleteErrorMessage(
+    new EchoAPIError("private stack", 500, "private stack"),
+  );
+  expect(message).toContain("对话已保留");
+  expect(message).not.toContain("private stack");
+});
 
 it("renders nested historical tool-catalog failures without transport JSON", () => {
   const wrapped = JSON.stringify({
@@ -19,15 +44,20 @@ it("renders nested historical tool-catalog failures without transport JSON", () 
 
 it.each([
   "http_400: Error from provider (Console): Upstream request failed: Model is unavailable.",
-  JSON.stringify({ message: JSON.stringify({ error: { code: "model_not_found" } }) }),
+  JSON.stringify({
+    message: JSON.stringify({ error: { code: "model_not_found" } }),
+  }),
 ])("explains unavailable models in saved and live failures", (error) => {
   const expected = "所选模型当前不可用，请在输入框选择其他模型后重试。";
   expect(publicExecutionErrorMessage(error)).toBe(expected);
-  expect(getStreamErrorMessage(new Error(error), "network failure")).toBe(expected);
+  expect(getStreamErrorMessage(new Error(error), "network failure")).toBe(
+    expected,
+  );
 });
 
 it("distinguishes Zen engine restrictions from unavailable models", () => {
-  const message = "http_400: Error from provider (Console): OpenCode's free tier can only be used in OpenCode";
+  const message =
+    "http_400: Error from provider (Console): OpenCode's free tier can only be used in OpenCode";
   expect(publicExecutionErrorMessage(message)).toBe(
     "当前 Zen 免费模型仅支持 OpenCode 引擎，请在输入框切换引擎后重试。",
   );

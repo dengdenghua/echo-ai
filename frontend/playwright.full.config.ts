@@ -10,6 +10,7 @@ const frontendPort = process.env.FRONTEND_PORT || "13000";
 const backendPort = process.env.GATEWAY_PORT || "18000";
 const backendHost = process.env.GATEWAY_HOST || "127.0.0.1";
 const backendBase = `http://${backendHost}:${backendPort}`;
+const backendConfig = process.env.ECHO_E2E_CONFIG || "config.e2e.yaml";
 const configDir = dirname(fileURLToPath(import.meta.url));
 const repoRoot = resolve(configDir, "..");
 const rawE2eStateRoot =
@@ -49,6 +50,7 @@ const backendEnv = [
   `ECHO_INTERNAL_GATEWAY_BASE_URL=${backendBase}`,
   `ECHO_HOME=\"${e2eStateRoot}\"`,
   `ECHO_DATA_DIR=\"${e2eDataDir}\"`,
+  `ECHO_CHANNEL_STATE=\"${join(e2eDataDir, "channel_state.json")}\"`,
 ].join(" ");
 const withBackendEnv = (command: string) =>
   `cross-env ${backendEnv} ${command}`;
@@ -77,6 +79,10 @@ if (!reuseServers && !e2eStateRootIsDisposable) {
 const prepareStateCommand = reuseServers
   ? ""
   : `${withBackendEnv("node frontend/e2e/prepare-full-stack-state.mjs")} && `;
+const seedCollaborationCommand =
+  process.env.ECHO_E2E_COLLAB === "1" && !reuseServers
+    ? `${withBackendEnv(`${pythonBin} frontend/e2e/seed-collaboration.py`)} && `
+    : "";
 
 /**
  * Full-stack Playwright configuration.
@@ -116,8 +122,8 @@ export default defineConfig({
 
   webServer: [
     {
-      command: `${prepareStateCommand}${withBackendEnv(
-        `${pythonBin} -m runtime serve --config config.e2e.yaml --host ${backendHost} --port ${backendPort}`,
+      command: `${prepareStateCommand}${seedCollaborationCommand}${withBackendEnv(
+        `${pythonBin} -m runtime serve --config "${backendConfig}" --host ${backendHost} --port ${backendPort}`,
       )}`,
       url: `${backendBase}/api/status`,
       cwd: repoRoot,
