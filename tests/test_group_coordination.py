@@ -414,6 +414,36 @@ def test_native_session_without_agent_uses_only_host_bound_identity(service):
         service.tool("list")
 
 
+def test_group_call_agent_queues_real_roster_and_returns_one_durable_receipt(service):
+    from runtime.execution.suckers._delegation_skills_agent import _call_agent
+    from runtime.execution.tool_engine.coordination_guard import coordination_scope
+
+    service.groups.append("group", MemberEvent(action="mode", actor="user", mode="cluster"))
+    with source(service), coordination_scope(service):
+        parent = service.current()
+        with pytest.raises(PermissionError, match="available members"):
+            _call_agent("outsider", "分析")
+        assert service.queue.list("group") == []
+        queued = _call_agent("drafter", "分析")
+        assert queued["accepted"] and not queued["completed"]
+        assert queued["output"] == ""
+        assert _call_agent("drafter", "分析")["task_id"] == queued["task_id"]
+    runner = AsyncWorkRunner(
+        service.queue, service.groups, lambda *_: "真实交付", admission=service.admission
+    )
+    assert runner.run_one(service.queue.get(queued["task_id"]))
+    # Re-open the ledger and reconcile as a reconnect would do.
+    reopened = CoordinationService(service.groups, service.ledger.store, service.queue)
+    reopened.snapshot("group")
+    reopened.snapshot("group")
+    receipt = reopened.ledger.inbox(parent["id"])
+    assert len(receipt) == 1 and "真实交付" in receipt[0]["body"]
+    with source(service):
+        result = reopened.tool("inbox")
+        assert result["tasks"][0]["parent_task_id"] == parent["id"]
+        assert result["tasks"][0]["status"] == "done"
+
+
 @pytest.mark.parametrize("count", [16, 64])
 def test_parallel_group_dispatch_accepts_large_batch_and_rejects_overflow(service, count):
     from runtime.execution.suckers._delegation_skills_parallel import _call_agent_parallel
@@ -471,3 +501,73 @@ def test_parallel_group_dispatch_validates_all_members_and_nested_calls(service)
         with pytest.raises(PermissionError):
             _call_agent_parallel([{"agent_id": "outsider", "prompt": "two"}])
     assert len(service.queue.list("group")) == 1
+
+
+@pytest.mark.parametrize("accept", [False, True])
+def test_recruitment_requires_explicit_decision_and_is_idempotent(service, monkeypatch, accept):
+    from runtime.memory.cowork.recruitment import review
+
+    monkeypatch.setattr(
+        "runtime.execution.suckers.delegation_skills._allowed_agent_ids", lambda: {"expert"}
+    )
+    service.groups.append("group", MemberEvent(action="mode", actor="user", mode="cluster"))
+    with source(service):
+        proposal = service.tool(
+            "propose_member",
+            assignee="expert",
+            reason="群内无光学工程师",
+            message="复核光学设计",
+            request_id="gap",
+        )
+    identifier = proposal["proposal_id"]
+    assert service.groups.state("group").member("expert") is None
+    assert not service.queue.list("group")
+    assert "policy" not in service.snapshot("group")["recruitment"][0]
+    invitations = []
+
+    def invite(member):
+        invitations.append(member)
+        service.groups.append("group", MemberEvent(action="invite", actor="user", target_id=member))
+
+    with pytest.raises(KeyError):
+        review(service, "private", identifier, "user", accept, invite)
+    assert review(service, "group", identifier, "user", accept, invite)["status"] == (
+        "approved" if accept else "rejected"
+    )
+    review(service, "group", identifier, "user", accept, invite)
+    assert invitations == (["expert"] if accept else [])
+    assert len(service.queue.list("group")) == int(accept)
+
+
+def test_recruitment_http_requires_group_management_permission(service, monkeypatch):
+    from fastapi import APIRouter, HTTPException
+
+    from runtime.sensing.gateway._cowork_coordination import mount_coordination_routes
+
+    monkeypatch.setattr(
+        "runtime.execution.suckers.delegation_skills._allowed_agent_ids", lambda: {"expert"}
+    )
+    with source(service):
+        proposal = service.tool(
+            "propose_member", assignee="expert", reason="缺少专长", message="校核", request_id="gap"
+        )
+
+    def deny(*_):
+        raise HTTPException(403, "cannot manage")
+
+    router = APIRouter()
+    invites = []
+    mount_coordination_routes(
+        router,
+        service,
+        SimpleNamespace(require_owned_thread=deny),
+        SimpleNamespace(),
+        lambda *_: invites.append(True),
+    )
+    app = FastAPI()
+    app.include_router(router)
+    response = TestClient(app).post(
+        f"/api/collab/group/coordination/recruitment/{proposal['proposal_id']}",
+        json={"accept": True},
+    )
+    assert response.status_code == 403 and not invites and not service.queue.list("group")

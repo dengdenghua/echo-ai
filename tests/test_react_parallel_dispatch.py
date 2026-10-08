@@ -5,6 +5,7 @@ from __future__ import annotations
 import logging
 import threading
 import time
+from contextlib import suppress
 from types import SimpleNamespace
 from typing import Any
 
@@ -65,14 +66,12 @@ def _warm_up_dispatch() -> None:
     keeps the deadline contract meaningful while staying out of any
     measured window.
     """
-    try:
+    with suppress(Exception):
         _dispatch(
             ['read_file({"path":"warm1"})', 'read_file({"path":"warm2"})'],
             _executor("read_file"),
             timeout_s=5.0,
         )
-    except Exception:  # noqa: BLE001 — warmup must never fail collection
-        pass
 
 
 _warm_up_dispatch()

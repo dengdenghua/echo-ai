@@ -48,6 +48,7 @@ from runtime.execution.arms.safe_rm import SafeRmConfig, SafeRmProtector
 from runtime.execution.arms.shell_state import ShellEnvState
 from runtime.execution.arms.shell_state_manager import ShellStateManager
 from runtime.platform.process.sliding_window_limiter import SlidingWindowLimiter
+from runtime.safety.auth.websocket import accepted_auth_subprotocol, websocket_bearer_token
 from runtime.safety.env_scrub import scrub_credential_env
 
 _logger = logging.getLogger(__name__)
@@ -433,13 +434,9 @@ def mount_terminal_routes(
         if auth_header.lower().startswith("bearer "):
             token = auth_header[7:].strip()
         if token is None:
-            try:
-                subproto = ws.headers.get("sec-websocket-protocol") or ""
-            except Exception:  # noqa: BLE001
-                subproto = ""
-            parts = [p.strip() for p in subproto.split(",") if p.strip()]
-            if len(parts) >= 2 and parts[0].lower() == "bearer":
-                token = parts[1]
+            # Browser clients send ``bearer.b64, <base64url(token)>``
+            # (``bearer, <token>`` for older builds); never a URL query.
+            token = websocket_bearer_token(ws)
         if not token:
             if require_auth:
                 raise PermissionError("missing terminal auth token")
@@ -517,7 +514,9 @@ def mount_terminal_routes(
             with suppress(Exception):
                 await ws.close(code=4401, reason=str(exc))
             return
-        await ws.accept()
+        # A browser that offered auth subprotocols fails the handshake unless
+        # the server selects one; echo only the non-secret marker.
+        await ws.accept(subprotocol=accepted_auth_subprotocol(ws))
         # Bound _sessions growth: free shells abandoned by clients that
         # disconnected without calling /api/terminal/kill. Never touches the
         # session we're about to (re)connect to.

@@ -49,6 +49,14 @@ _DANGER_PATTERNS: tuple[tuple[str, str], ...] = (
 
 _SCANNED_SUFFIXES = {".md", ".sh", ".bash", ".zsh", ".py", ".js", ".ts", ".rb", ".pl", ".ps1"}
 
+# The spec's naming rule: lowercase letters, digits, hyphens and
+# underscores, at most 64 characters, and the frontmatter ``name`` must
+# equal the folder name.  Enforcing it only on *installs* would let the
+# shipped catalogue drift away from the standard it advertises, so
+# :func:`lint_skill_catalog` runs the same check over a whole tree.
+SKILL_NAME_MAX_CHARS = 64
+SKILL_NAME_RE = re.compile(r"^[a-z0-9][a-z0-9_-]*$")
+
 
 @dataclass
 class SafetyFinding:
@@ -72,13 +80,18 @@ class InstallResult:
         return bool(self.findings)
 
 
-def validate_skill_dir(skill_dir: Path) -> tuple[bool, str, str, str]:
+def validate_skill_dir(
+    skill_dir: Path, *, check_folder_name: bool = True
+) -> tuple[bool, str, str, str]:
     """Check a folder is an agentskills.io-conformant skill.
 
     Returns ``(ok, name, description, error)``. Conformance = a ``SKILL.md``
     with non-empty ``name`` and ``description`` frontmatter (the spec's only
     required fields). Extra frontmatter keys (``license``, ``enabled``,
     ``allowed-tools``, ...) are tolerated.
+
+    ``check_folder_name=False`` is only for validating a downloaded repo
+    root before staging it under its declared name. Installs validate again.
     """
     skill_md = skill_dir / "SKILL.md"
     if not skill_md.is_file():
@@ -94,7 +107,51 @@ def validate_skill_dir(skill_dir: Path) -> tuple[bool, str, str, str]:
         return False, "", "", "SKILL.md frontmatter missing required 'name'"
     if not description:
         return False, name, "", "SKILL.md frontmatter missing required 'description'"
+    if len(name) > SKILL_NAME_MAX_CHARS:
+        return (
+            False,
+            name,
+            description,
+            (f"SKILL.md 'name' is {len(name)} chars; the spec caps it at {SKILL_NAME_MAX_CHARS}"),
+        )
+    if not SKILL_NAME_RE.fullmatch(name):
+        return (
+            False,
+            name,
+            description,
+            (f"SKILL.md 'name' {name!r} must be lowercase letters, digits, hyphens or underscores"),
+        )
+    if check_folder_name and name != skill_dir.name:
+        return (
+            False,
+            name,
+            description,
+            (f"SKILL.md 'name' ({name}) must match the folder name ({skill_dir.name})"),
+        )
     return True, name, description, ""
+
+
+def lint_skill_catalog(root: Path) -> list[str]:
+    """Conformance problems for every skill folder under ``root``.
+
+    Reuses :func:`validate_skill_dir` on purpose: a shipped skill and an
+    installed one must never disagree about what "conformant" means.
+    Folders without a ``SKILL.md`` are not skills (``__pycache__``,
+    scratch dirs) and are skipped rather than reported.
+    """
+    catalog = Path(root)
+    if not catalog.is_dir():
+        return [f"skill catalog root not found: {catalog}"]
+    problems: list[str] = []
+    for entry in sorted(catalog.iterdir()):
+        if not entry.is_dir() or entry.name.startswith((".", "__")):
+            continue
+        if not (entry / "SKILL.md").is_file():
+            continue
+        ok, _name, _description, error = validate_skill_dir(entry)
+        if not ok:
+            problems.append(f"{entry.name}: {error}")
+    return problems
 
 
 def scan_skill_safety(skill_dir: Path) -> list[SafetyFinding]:
@@ -263,7 +320,19 @@ def install_from_source(
     root = Path(dest_root) if dest_root is not None else default_catalog_dir()
     with tempfile.TemporaryDirectory(prefix="echo-skill-") as td:
         try:
-            skill_dir = resolve_skill_source(source, Path(td) / "clone")
+            clone_dir = Path(td) / "clone"
+            skill_dir = resolve_skill_source(source, clone_dir)
+            if skill_dir == clone_dir:
+                # The clone directory is transport storage, not the skill's
+                # declared name. Validate that name before using it as a path.
+                ok, name, _description, error = validate_skill_dir(
+                    skill_dir, check_folder_name=False
+                )
+                if not ok:
+                    return InstallResult(ok=False, error=error)
+                staged = Path(td) / "staged" / name
+                shutil.copytree(skill_dir, staged)
+                skill_dir = staged
         except (ValueError, RuntimeError, OSError) as exc:
             return InstallResult(ok=False, error=f"fetch failed: {exc}")
         return install_skill(

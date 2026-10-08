@@ -155,11 +155,56 @@ def claim_task(
     return task, claim_id
 
 
+def _task_parents_runnable(
+    store: Any, conn: Any, milestone_id: str, scope: TenantScope | None
+) -> bool:
+    row = conn.execute(
+        "SELECT doc, project_id FROM milestones WHERE id=?", (milestone_id,)
+    ).fetchone()
+    milestone = _milestone_from_doc(str(row[0])) if row else None
+    project = store._project_doc_for_scope(conn, str(row[1]), scope) if row else None
+    if (
+        milestone is None
+        or milestone.status not in {"active", "in_progress"}
+        or project is None
+        or project.status in _NON_RUNNABLE_PROJECT_STATUSES
+    ):
+        return False
+    assert_project_not_deleting(conn, project.id)
+    return True
+
+
+def heartbeat_task_claim(
+    store: Any,
+    task_id: str,
+    claim_id: str,
+    *,
+    stale_before: float,
+    scope: TenantScope | None = None,
+) -> bool:
+    """Renew a live generation; expired or stopped work cannot revive itself."""
+    task_id = _require_id(task_id, label="task_id")
+    claim_id = _require_id(claim_id, label="task_claim_id")
+    with store._lock, store._conn() as conn:
+        conn.execute("BEGIN IMMEDIATE")
+        loaded = _task_row_for_scope(store, conn, task_id, scope)
+        if loaded is None or loaded[0].status != "running":
+            return False
+        if not _task_parents_runnable(store, conn, loaded[1], scope):
+            return False
+        updated = conn.execute(
+            "UPDATE task_claims SET claimed_at=? WHERE task_id=? AND claim_id=? AND claimed_at>?",
+            (time.time(), task_id, claim_id, float(stale_before)),
+        )
+        return updated.rowcount == 1
+
+
 def finalize_task_claim(
     store: Any,
     task: Task,
     claim_id: str,
     *,
+    stale_before: float | None = None,
     scope: TenantScope | None = None,
 ) -> tuple[Task | None, bool]:
     """Persist a claimed result only while its opaque fencing token still wins."""
@@ -175,10 +220,22 @@ def finalize_task_claim(
             return None, False
         current, milestone_id = loaded
         claim_row = conn.execute(
-            "SELECT claim_id FROM task_claims WHERE task_id=?",
+            "SELECT claim_id, claimed_at FROM task_claims WHERE task_id=?",
             (candidate.id,),
         ).fetchone()
         if claim_row is None or str(claim_row[0]) != safe_claim_id or current.status != "running":
+            return current, False
+        if stale_before is not None and float(claim_row[1]) <= stale_before:
+            return current, False
+        if not _task_parents_runnable(store, conn, milestone_id, scope):
+            # Retire this generation without accepting any late output or QA.
+            current.status = "blocked"
+            current.qa_verdict = {"approved": False, "reason": "parent execution stopped"}
+            conn.execute(
+                "UPDATE tasks SET doc=? WHERE id=?",
+                (json.dumps(current.to_dict(), ensure_ascii=False), current.id),
+            )
+            conn.execute("DELETE FROM task_claims WHERE task_id=?", (current.id,))
             return current, False
         if candidate.milestone_id != milestone_id:
             raise ValueError("task is already attached to another milestone")
@@ -587,9 +644,20 @@ class ProjectClaimStoreMixin:
         task: Task,
         claim_id: str,
         *,
+        stale_before: float | None = None,
         scope: TenantScope | None = None,
     ) -> tuple[Task | None, bool]:
-        return finalize_task_claim(self, task, claim_id, scope=scope)
+        return finalize_task_claim(self, task, claim_id, stale_before=stale_before, scope=scope)
+
+    def heartbeat_task_claim(
+        self,
+        task_id: str,
+        claim_id: str,
+        *,
+        stale_before: float,
+        scope: TenantScope | None = None,
+    ) -> bool:
+        return heartbeat_task_claim(self, task_id, claim_id, stale_before=stale_before, scope=scope)
 
     def orphan_stale_task_claims(
         self,

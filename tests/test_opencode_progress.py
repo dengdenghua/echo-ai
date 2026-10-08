@@ -4,12 +4,31 @@ from runtime.execution.subagents import opencode_progress as progress
 def test_member_events_keep_role_call_and_failure_identity(monkeypatch):
     queued = []
     emitted = []
-    monkeypatch.setattr(progress, "_emit_sub_tool_event", lambda kind, **kw: queued.append((kind, kw)))
+    monkeypatch.setattr(
+        progress, "_emit_sub_tool_event", lambda kind, **kw: queued.append((kind, kw))
+    )
     callback = progress.progress_emitter("aoi", {"event_emitter": emitted.append})
-    callback({"type": "tool_start", "tool_name": "search", "tool_call_id": "call-1", "input_preview": "sleep"})
-    callback({"type": "tool_end", "tool_name": "search", "tool_call_id": "call-1", "success": False, "output_preview": "failed"})
+    callback(
+        {
+            "type": "tool_start",
+            "tool_name": "search",
+            "tool_call_id": "call-1",
+            "input_preview": "sleep",
+        }
+    )
+    callback(
+        {
+            "type": "tool_end",
+            "tool_name": "search",
+            "tool_call_id": "call-1",
+            "success": False,
+            "output_preview": "failed",
+        }
+    )
     assert [event["type"] for event in emitted] == ["sub_tool_start", "sub_tool_end"]
-    assert all(event["agent_id"] == "aoi" and event["tool_call_id"] == "call-1" for event in emitted)
+    assert all(
+        event["agent_id"] == "aoi" and event["tool_call_id"] == "call-1" for event in emitted
+    )
     assert emitted[-1]["status"] == "failed"
     assert queued[-1][1]["is_error"] is True
 

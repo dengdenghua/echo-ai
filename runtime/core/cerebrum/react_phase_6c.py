@@ -604,9 +604,7 @@ def _phase_6c_parse_and_guard(
                     "iteration": i + 1,
                 }
             else:
-                consecutive_format_violations = (
-                    state.iteration.consecutive_format_violations + 1
-                )
+                consecutive_format_violations = state.iteration.consecutive_format_violations + 1
                 state.iteration.consecutive_format_violations = consecutive_format_violations
                 _plain_answer_can_finish = bool(
                     text
@@ -733,7 +731,9 @@ def _phase_6c_parse_and_guard(
                             state.emit.terminated_reason = "guard_impasse"
                             steps.append(step)
                             return _LoopControl.BREAK
-                        consecutive_format_violations = state.iteration.consecutive_format_violations = 0
+                        consecutive_format_violations = (
+                            state.iteration.consecutive_format_violations
+                        ) = 0
                         step.observation = (
                             (((step.observation or "") + "\n\n") if step.observation else "")
                             + f"[{_guard_label}]\n"
@@ -747,7 +747,9 @@ def _phase_6c_parse_and_guard(
                             )
                         )
                     if _guard_hit is not None:
-                        consecutive_format_violations = state.iteration.consecutive_format_violations = 0
+                        consecutive_format_violations = (
+                            state.iteration.consecutive_format_violations
+                        ) = 0
                         maybe_final = state.parse.maybe_final = None
                     elif text and not maybe_final:
                         # Guarded plain prose is a valid final answer even when

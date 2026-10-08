@@ -11,6 +11,7 @@ from pathlib import Path
 from typing import Any
 
 from runtime.execution.artifact_contracts import HandoffRecorder
+from runtime.execution.environment import environment_for_workspace
 from runtime.execution.request import (
     ExecutionDeadlineExceeded,
     ExecutionRequest,
@@ -52,6 +53,12 @@ class RealtimeExecutionContext:
         metadata = project_tool_session_metadata(
             {key: value for key, value in context.items() if key != "metadata"}
         )
+        from runtime.memory.cowork.delivery import current_delivery
+
+        delivery = current_delivery()
+        if delivery is not None:
+            metadata.update(delivery["policy"].get("metadata", {}))
+            metadata["_coordination_delivery_parent"] = delivery["parent"]["id"]
         actor = getattr(turn.params, "owner_actor_id", None)
         tenant = getattr(turn.params, "tenant_id", None)
         if bool(actor) != bool(tenant):
@@ -104,6 +111,7 @@ class RealtimeExecutionContext:
         if metadata.get("_read_only_turn_enforced"):
             permissions = replace(permissions, writable_roots=())
         task = ExecutionTask(
+            environment=environment_for_workspace(turn.execution_workspace_path),
             task_id=turn.id,
             thread_id=turn.thread_id,
             actor_id=actor,

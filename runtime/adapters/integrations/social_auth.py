@@ -243,14 +243,14 @@ def create_social_auth_router(
                 )
             )
         now = int(time.time())
-        claims = {"sub": actor, "iat": now, "exp": now + 604800, "provider": provider}
+        claims = {"sub": actor, "iat": now, "exp": now + 28_800, "provider": provider}
         if jwt_issuer:
             claims["iss"] = jwt_issuer
         if jwt_audience:
             claims["aud"] = jwt_audience
         response = RedirectResponse(f"{origin}/#{flow['return_to']}", status_code=303)
         set_session_cookie(
-            response, request, encode_jwt_hs256(claims, secret=jwt_secret), max_age=604800
+            response, request, encode_jwt_hs256(claims, secret=jwt_secret), max_age=28_800
         )
         response.delete_cookie("echo_oauth_flow", path="/api/auth/social")
         response.headers["Cache-Control"] = "no-store"

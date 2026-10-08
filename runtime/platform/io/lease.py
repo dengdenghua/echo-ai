@@ -211,6 +211,9 @@ class LeaseStore:
             else ""
         )
         with self._lock, self._connect() as conn:
+            # Different LeaseStore instances/processes must not both observe
+            # an empty slot before either inserts its exclusive lease.
+            conn.execute("BEGIN IMMEDIATE")
             if kind == "exclusive":
                 query = (
                     f"SELECT {_LEASE_COLUMNS} FROM file_leases "  # nosec B608 — _LEASE_COLUMNS is a constant; values use ?

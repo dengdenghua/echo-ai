@@ -19,6 +19,15 @@ GUIDANCE = (
     "按需回复模式不自动招募其他 AI；群内只汇报阻塞、交接和最终结果。"
     "执行前查 inbox；多步桌面或浏览器操作先 reserve，120 秒内 renew，保存后 release。"
     "当前工作结束时 complete 并提供真实结果；ack 仅表示接收，不代表验证通过。"
+    "分派只能选 members 中 executable=true 的成员，不能用全局角色库替换群成员。"
+    "delegate/call_agent 返回 pending/working 仅表示已排队或执行中，不是结果。"
+    "独立模块可连续分派，后台会并行执行；用 list 查询状态与结果、inbox 接收回执，"
+    "等所需成员任务进入终态并核对 result 后再综合，不要重复派发同一任务。"
+    "独立任务应一次分派，不要等上一位结束再安排下一位。成员执行中可先结束当前回复，"
+    "简短告知正在并行处理；系统会在这批任务结束后自动让原队长接续验收汇总。"
+    "已排队/执行中是正常等待，不是执行失败；无需用户点击分享来交付。"
+    "只有现有成员确有能力缺口时才检索全局候选；用 propose_member 提供 reason、assignee、"
+    "message、request_id 申请邀请。必须等用户在弹窗同意后才能加入群聊与项目执行。"
 )
 
 
@@ -31,6 +40,24 @@ class CoordinationService:
         self.logs_root = None
         self.runner_available: Callable[[], bool] | None = None
         self.task_queued: Callable[[], None] | None = None
+        from .delivery import CoordinationDelivery
+
+        self.delivery = CoordinationDelivery(self)
+
+    def members(self, thread: str) -> list[dict[str, Any]]:
+        result = []
+        for seat in self.groups.state(thread).roster:
+            executable = (
+                seat.kind != "human"
+                and seat.driver == "ai"
+                and not seat.muted
+                and seat.role != "observer"
+                and seat.identity_problem() is None
+            )
+            result.append(
+                {"id": seat.id, "name": seat.id, "kind": seat.kind, "executable": executable}
+            )
+        return result
 
     def delegate_agent(self, member: str, prompt: str) -> dict[str, Any]:
         """Compatibility entry for call_agent; acknowledgements are not deliveries."""
@@ -73,7 +100,10 @@ class CoordinationService:
             or seat.role == "observer"
             or seat.identity_problem() is not None
         ):
-            raise PermissionError("member is unavailable or not authorized to execute")
+            available = ", ".join(m["id"] for m in self.members(thread) if m["executable"])
+            raise PermissionError(
+                f"member is unavailable or not authorized to execute; available members: {available}"
+            )
         return seat
 
     def check_running(self) -> None:
@@ -87,13 +117,30 @@ class CoordinationService:
 
     def finish(self, task_id: str, status: str, result: str = "") -> None:
         record = self.ledger.get(task_id)
+        changed = bool(record and record["status"] not in TERMINAL)
         if record and record["status"] not in TERMINAL:
             self.ledger.transition(task_id, status, result[:32000])
+        record = self.ledger.get(task_id)
+        parent_id = self.ledger.context(task_id).get("parent_task_id") if record else None
+        if record and record["status"] in TERMINAL and parent_id and self.ledger.get(parent_id):
+            # Derive receipts from the persisted outcome. Repeated completion
+            # callbacks and reconnect reconciliation publish exactly once.
+            self.ledger.send(
+                message_id=f"result:{task_id}",
+                source_id=task_id,
+                target_id=parent_id,
+                kind="message" if record["status"] == "done" else "blocker",
+                body=(
+                    f"{record['member_id']} · {record['status']} · {task_id}\n" + record["result"]
+                )[:12000],
+            )
         # Active handlers still own call:<resource> and prevent early unlock.
         for resource in self.resources:
             token = self.ledger.owner_token(resource, task_id)
             if token:
                 self.ledger.release(resource, token)
+        if changed and parent_id:
+            self.delivery.notify(record["thread_id"])
 
     def sync(self, thread: str) -> None:
         foreground = []
@@ -102,11 +149,7 @@ class CoordinationService:
             task = queued.get(record["id"])
             if task is None and record["status"] not in TERMINAL:
                 foreground.append(record)
-            if (
-                task is not None
-                and task.status in {"pending", "working", *TERMINAL}
-                and record["status"] not in TERMINAL
-            ):
+            if task is not None and task.status in {"pending", "working", *TERMINAL}:
                 if task.status in TERMINAL:
                     self.finish(task.task_id, task.status, task.result or "")
                 elif record["status"] != task.status or record["result"] != (task.result or ""):
@@ -140,9 +183,16 @@ class CoordinationService:
                 if (by_id.get(d) or self.ledger.get(d) or {}).get("status") != "done"
             ]
             task["background"] = bool(contexts.get(task["id"], {}).get("background"))
+            task["parent_task_id"] = contexts.get(task["id"], {}).get("parent_task_id")
             if task["waiting_for"] and task["status"] == "pending":
                 task["status"] = "waiting"
         data["mode"] = self.groups.state(thread).mode
+        data["members"] = self.members(thread)
+        from .recruitment import proposals
+
+        data["recruitment"] = [
+            {k: v for k, v in p.items() if k != "policy"} for p in proposals(self, thread)
+        ]
         data["guidance"] = GUIDANCE
         return data
 
@@ -228,7 +278,9 @@ class CoordinationService:
         session = current_session()
         if session is None or not session.thread_id:
             raise PermissionError("collaboration requires a bound group execution session")
-        trusted_id = session.metadata.get("_coordination_task_id")
+        trusted_id = session.metadata.get("_coordination_task_id") or session.metadata.get(
+            "_coordination_delivery_parent"
+        )
         bound = self.ledger.get(str(trusted_id)) if trusted_id else None
         if trusted_id and bound is None:
             raise PermissionError("host coordination task is unavailable")
@@ -285,24 +337,34 @@ class CoordinationService:
         assignee: str = "",
         dependencies: list | None = None,
         resource: str = "",
+        reason: str = "",
     ) -> dict[str, Any]:
         """Coordinate existing authorized group work. IDs never grant access.
 
-        action: list, inbox, send, blocker, handoff, ack, delegate, complete,
+        action: list, inbox, send, blocker, handoff, ack, delegate, complete, propose_member,
         reserve, renew, release. Reserve a listed resource before a multi-step
         device workflow; renew within 120 seconds and release after saving.
         send/handoff/blocker require target_task_id, message, stable request_id.
         handoff artifacts: [{path, version, verification}]. ack requires message_id.
         delegate requires assignee, message, request_id; dependencies are task IDs.
         It starts work only in cluster/swarm modes, within the user's current request.
+        propose_member requires assignee, reason (capability gap in existing members),
+        message (proposed assignment), request_id. It only opens a user approval
+        dialog; it does not invite, grant access or execute the candidate.
         """
         source = self.current(title)
         thread, task_id = source["thread_id"], source["id"]
+        if current_session().metadata.get("_coordination_delivery_parent") and action not in {
+            "list", "inbox", "ack",
+        }:
+            raise PermissionError("自动交付只验收现有结果；追加工作请由用户发起")
         if action == "list":
+            snapshot = self.snapshot(thread)
+            self.delivery.observe(source, current_session().turn_id)
             return {
                 "current_task_id": task_id,
                 "available_resources": sorted(self.resources),
-                **self.snapshot(thread),
+                **snapshot,
             }
         if source["status"] in TERMINAL and action not in {"inbox", "ack", "release", "complete"}:
             raise PermissionError("当前协作任务已结束，请在新的任务中继续")
@@ -322,8 +384,15 @@ class CoordinationService:
                 "message": "已占用，操作结束后释放" if acquired else "资源正在使用，请等待释放",
             }
         if action == "inbox":
+            snapshot = self.snapshot(thread)
+            self.delivery.observe(source, current_session().turn_id)
             return {
                 "current_task_id": task_id,
+                "tasks": [
+                    task
+                    for task in snapshot["tasks"]
+                    if task.get("parent_task_id") == task_id
+                ],
                 "messages": self.ledger.inbox(task_id),
                 "guidance": GUIDANCE,
             }
@@ -360,6 +429,10 @@ class CoordinationService:
                     policy=policy,
                 )
             }
+        if action == "propose_member":
+            from .recruitment import propose
+
+            return propose(self, source, assignee, reason, message, request_id)
         if action not in {"send", "handoff", "blocker"}:
             raise ValueError("unsupported collaboration action")
         target = self.ledger.get(target_task_id)

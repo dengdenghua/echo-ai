@@ -41,6 +41,59 @@ def test_password_only_requires_hashed_account():
         LocalAuthConfig(enabled=True, allow_any_username=True, password_only_username="owner")
 
 
+@pytest.mark.parametrize("mode", ["production", "shared", "server", "commercial"])
+def test_deployed_password_accounts_require_credentials(monkeypatch, mode):
+    monkeypatch.setenv("ECHO_ENV", "production")
+    monkeypatch.setenv("ECHO_DEPLOYMENT_MODE", mode)
+    config = LocalAuthConfig(
+        enabled=True,
+        allow_any_username=True,
+        users={"admin": hash_password("admin-test-password")},
+        jwt_secret="Test!9ProductionAccountsRequireCredentials123",
+    )
+    app = FastAPI()
+    app.include_router(create_local_auth_router(config=config))
+    with TestClient(app, client=("192.0.2.1", 50000)) as client:
+        for body in [
+            {"username": "admin"},
+            {"username": "admin", "password": "wrong"},
+            {"username": "stranger", "password": "admin-test-password"},
+        ]:
+            assert client.post("/api/auth/local/login", json=body).status_code == 401
+        login = client.post(
+            "/api/auth/local/login",
+            json={"username": "admin", "password": "admin-test-password"},
+        )
+    assert login.status_code == 200
+    assert login.json()["access_token"]
+
+
+@pytest.mark.parametrize(
+    "users,secret",
+    [
+        ({}, None),
+        ({}, "Strong!9TestJwtSecretWithLength123456"),
+        ({"admin": "sha256:" + "a" * 64}, None),
+    ],
+)
+def test_deployed_login_cannot_fall_back_to_passwordless_or_unsigned(monkeypatch, users, secret):
+    monkeypatch.setenv("ECHO_ENV", "production")
+    monkeypatch.setenv("ECHO_DEPLOYMENT_MODE", "shared")
+    app = FastAPI()
+    app.include_router(
+        create_local_auth_router(
+            config=LocalAuthConfig(
+                enabled=True,
+                allow_any_username=True,
+                users=users,
+                jwt_secret=secret,
+            )
+        )
+    )
+    with TestClient(app) as client:
+        assert client.post("/api/auth/local/login", json={"username": "admin"}).status_code == 503
+
+
 def test_config_loader_preserves_bcrypt_salt(monkeypatch):
     from runtime.platform.config.loader import _interpolate_env
 

@@ -49,6 +49,7 @@ from runtime.sensing.gateway._device_flow_models import (
     DeviceFlowCancelResponse,
     DeviceFlowResponse,
 )
+from runtime.sensing.gateway._untrusted_content import untrusted_content_headers
 from runtime.sensing.gateway.model_catalog_refresh import ModelCatalogRefreshLoop
 
 
@@ -327,10 +328,14 @@ def create_capability_router(
         if icon_path is None or not icon_path.is_file():
             raise HTTPException(404, f"capability icon not found: {cid}")
         media_type = mimetypes.guess_type(icon_path.name)[0] or "application/octet-stream"
+        # Marketplace icons are third-party files (often SVG) on the API origin.
         return FileResponse(
             str(icon_path),
             media_type=media_type,
-            headers={"Cache-Control": "public, max-age=86400"},
+            headers={
+                "Cache-Control": "public, max-age=86400",
+                **untrusted_content_headers(media_type),
+            },
         )
 
     @router.post("/api/capabilities/{cid}/install")

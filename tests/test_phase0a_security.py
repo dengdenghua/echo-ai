@@ -20,6 +20,37 @@ from runtime.sensing.gateway.agent_trace_router import (  # noqa: E402
 from runtime.sensing.gateway.media_router import create_media_router  # noqa: E402
 
 
+@pytest.mark.parametrize("override", ["", "0", "65536", "-1", "8765x", "８７６５"])
+def test_serve_rejects_invalid_device_port_before_startup(tmp_path, monkeypatch, capsys, override):
+    from runtime.cli_serve import run_serve
+
+    config = tmp_path / "config.yaml"
+    config.write_text("name: isolated\nplanner:\n  type: static\n", encoding="utf-8")
+    monkeypatch.setenv("ECHO_TENTACLE_WS_PORT", override)
+    assert run_serve(config_path=config, host="127.0.0.1", port=8000, color=False) == 2
+    assert "ECHO_TENTACLE_WS_PORT" in capsys.readouterr().err
+
+
+def test_serve_device_port_override_does_not_rewrite_config(tmp_path, monkeypatch):
+    import runtime.cli_serve as serve
+
+    config = tmp_path / "config.yaml"
+    content = "name: isolated\nplanner:\n  type: static\ntentacle:\n  ws_port: 8765\n"
+    config.write_text(content, encoding="utf-8")
+    monkeypatch.setenv("ECHO_TENTACLE_WS_PORT", "28765")
+    monkeypatch.setattr(serve, "_port_held", lambda *_: False)
+    seen = []
+
+    def stop_before_execution(cfg):
+        seen.append(cfg.tentacle.ws_port)
+        return "test stops before any execution environment is started", {}
+
+    monkeypatch.setattr(serve, "_prepare_execution_security", stop_before_execution)
+    assert serve.run_serve(config_path=config, host="127.0.0.1", port=8000, color=False) == 2
+    assert seen == [28765]
+    assert config.read_text(encoding="utf-8") == content
+
+
 def _store() -> IdentityStore:
     store = IdentityStore()
     store.add(Identity(actor_id="alice"), api_key_plaintext="sk-alice")
@@ -42,6 +73,30 @@ def test_serve_refuses_network_bind_without_auth(tmp_path: Path, capsys) -> None
     config = tmp_path / "config.yaml"
     config.write_text(
         "name: phase0a\nplanner:\n  type: static\n",
+        encoding="utf-8",
+    )
+
+    assert (
+        run_serve(
+            config_path=config,
+            host="0.0.0.0",
+            port=8000,
+            learn_interval_s=0,
+            color=False,
+        )
+        == 2
+    )
+    assert "security error" in capsys.readouterr().err
+
+
+def test_serve_refuses_network_bind_with_passwordless_local_auth(tmp_path: Path, capsys) -> None:
+    from runtime.cli import run_serve
+
+    config = tmp_path / "config.yaml"
+    config.write_text(
+        "name: phase0a\nplanner:\n  type: static\n"
+        "local_auth:\n  enabled: true\n  allow_any_username: true\n"
+        "  jwt_secret: '0123456789abcdef0123456789ABCDEF!'\n",
         encoding="utf-8",
     )
 

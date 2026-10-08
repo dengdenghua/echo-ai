@@ -542,6 +542,10 @@ class RealtimeGateway(_RealtimeGatewaySessionMixin):
         from refilling the consecutive-wake budget (only human input
         resets dsh ``spentWakes``).
         """
+        from ._realtime_cowork_delivery import maybe_deliver
+
+        if await maybe_deliver(self, thread_id):
+            return
         if thread_id in self._active_turn_threads:
             return
         conn = self._watching_connection(thread_id)
@@ -931,6 +935,12 @@ class RealtimeGateway(_RealtimeGatewaySessionMixin):
             return turn
         finally:
             claim.release()
+
+            from ._realtime_cowork_delivery import delivery_service
+
+            delivery = delivery_service(self)
+            if delivery is not None:
+                delivery.notify(thread_id)
 
 
 # Type re-exports for runtime authors.

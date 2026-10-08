@@ -25,7 +25,7 @@ except ImportError:  # pragma: no cover
 
 from runtime.sensing._fastapi_guard import require_fastapi
 
-from .config import LocalAuthConfig, development_login_enabled, verify_password
+from .config import LocalAuthConfig, local_login_enabled, verify_password
 
 logger = logging.getLogger(__name__)
 
@@ -175,10 +175,10 @@ def create_local_auth_router(
     )
 
     def _require_enabled() -> None:
-        if not development_login_enabled(config):
+        if not local_login_enabled(config):
             raise HTTPException(
                 status_code=503,
-                detail=("本地登录仅用于开发环境，当前未启用。"),
+                detail="账号登录未配置；部署环境需密码账号和强 JWT 密钥，快捷登录仅限本地开发。",
             )
 
     def _check_username(username: str) -> None:
@@ -385,7 +385,15 @@ def create_local_auth_router(
     @router.post("/logout", status_code=204, response_class=Response, response_model=None)
     def logout(request: Request, response: Response):
         from runtime.safety.auth.principal import clear_session_cookie
+        from runtime.safety.auth.session_revocation import revoke_request_session
 
+        revoke_request_session(
+            request,
+            identity_store,
+            secret=config.jwt_secret,
+            issuer=config.jwt_issuer,
+            audience=config.jwt_audience,
+        )
         clear_session_cookie(response, request)
 
     @router.get("/whoami", response_model=WhoamiResponse)

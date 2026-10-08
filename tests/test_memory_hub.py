@@ -188,3 +188,38 @@ def test_format_records_for_prompt_renders_concise_source_tags() -> None:
     assert rendered.startswith("RELEVANT LONG-TERM MEMORY:")
     assert "[project/fact/user_store]" in rendered
     assert "Use pytest before claiming runtime changes are complete." in rendered
+
+
+def test_format_records_for_prompt_grades_awareness() -> None:
+    """Injected memory carries its provenance grade, not just its scope.
+
+    A fact the user asserted themselves is ``high``; a model-authored or
+    unverified note is ``low``. Both stay input rather than instruction, which
+    the legend states once per block instead of once per line.
+    """
+    asserted = MemoryRecord(
+        id="1",
+        kind="fact",
+        content="The staging cluster is called blue-green.",
+        source="user_store",
+        scope="project",
+        memory_type="user_preference",
+        assurance="user_asserted",
+    )
+    inferred = MemoryRecord(
+        id="2",
+        kind="fact",
+        content="The release captain may prefer Fridays.",
+        source="planner",
+        scope="project",
+        assurance="unverified",
+    )
+
+    rendered = format_records_for_prompt([asserted, inferred])
+
+    assert "AWARENESS: high = user-asserted" in rendered
+    assert "- high | [project/fact/user_store]" in rendered
+    assert "- low | [project/fact/planner]" in rendered
+    # The grade is a prefix, so the existing source tags stay intact.
+    assert "[user_preference/user_asserted]" in rendered
+    assert "[unclassified/unverified]" in rendered

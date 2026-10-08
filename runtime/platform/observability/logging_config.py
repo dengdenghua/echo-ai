@@ -35,6 +35,19 @@ _NOISY_LOGGERS = (
 )
 
 
+class _RedactingFormatter(logging.Formatter):
+    """Keep the configured text layout while scrubbing the rendered output."""
+
+    def __init__(self, fmt: str) -> None:
+        super().__init__(fmt)
+        from runtime.platform.observability.redactor import Redactor
+
+        self._redactor = Redactor()
+
+    def format(self, record: logging.LogRecord) -> str:
+        return self._redactor.redact(super().format(record))
+
+
 def configure_logging() -> None:
     """Apply project-wide logging configuration.
 
@@ -78,5 +91,5 @@ def _build_formatter(fmt: str) -> logging.Formatter:
 
             return StructuredFormatter(redact=True)
         except Exception:  # pragma: no cover - defensive: never fail logging setup
-            return logging.Formatter(_DEFAULT_FORMAT)
-    return logging.Formatter(fmt)
+            return _RedactingFormatter(_DEFAULT_FORMAT)
+    return _RedactingFormatter(fmt)

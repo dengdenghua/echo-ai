@@ -993,9 +993,7 @@ def _format_openai_http_error(
             "或在模型选择里切换到可用模型。",
             compatibility_events,
         )
-    if status_code == 403 and (
-        "freetiererror" in lower or "free tier can only be used" in lower
-    ):
+    if status_code == 403 and ("freetiererror" in lower or "free tier can only be used" in lower):
         # OpenCode answers this for its free catalog when the caller is not the
         # OpenCode client itself. Saying "invalid API key" here sent operators
         # hunting for a credential problem that does not exist.

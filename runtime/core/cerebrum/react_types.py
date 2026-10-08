@@ -74,7 +74,7 @@ Observation: <由系统填入,每个观察会标 [n/N tool_name]>
 
 ## 卡住时的退出
 
-- **不可逆操作**(rm -rf / push --force / drop db / 发真实频道) → Final Answer 描述影响并请求用户确认,不要赌
+- **不可逆操作**(rm -rf / push --force / drop db / 发真实频道) → 见 <irreversible-action>: 先列清具体受影响路径,再请用户确认; 未获下一条回复许可前不得执行
 - 同一路径连续 2 轮 tool 失败 → 停止重复，按 <skill-selection> 检查可行替代；确需用户选择或已无可行路径时报告具体卡点
 - 与其硬挤一个似是而非的答案,不如诚实报告"卡住了"
 

@@ -151,20 +151,22 @@ async def broadcast_authorized_team_sockets(
         with contextlib.suppress(ConnectionError, TimeoutError, OSError, RuntimeError):
             await _dispatch(socket, owner_loop, close=True)
 
-    dead: list[str] = []
+    dead: list[tuple[str, WebSocket]] = []
     for participant_id, socket, owner_loop in authorized:
         if (exclude and participant_id == exclude) or (include and participant_id != include):
             continue
         try:
             await _dispatch(socket, owner_loop, close=False)
         except (ConnectionError, TimeoutError, OSError, RuntimeError):
-            dead.append(participant_id)
+            dead.append((participant_id, socket))
     if dead:
         with lock:
             current_room = live_sockets.get(team_id)
             current_loops = socket_loops.get(team_id)
             if current_room:
-                for participant_id in dead:
+                for participant_id, failed_socket in dead:
+                    if current_room.get(participant_id) is not failed_socket:
+                        continue
                     current_room.pop(participant_id, None)
                     if current_loops:
                         current_loops.pop(participant_id, None)
@@ -483,7 +485,9 @@ async def team_room_ws(ctx: TeamRoomWsContext, ws: WebSocket, team_id: str) -> N
     except Exception as exc:
         auth_error = str(getattr(exc, "detail", None) or exc or "unauthorized")
 
-    await ws.accept()
+    from runtime.safety.auth.websocket import accepted_auth_subprotocol
+
+    await ws.accept(subprotocol=accepted_auth_subprotocol(ws))
     if auth_error is not None:
         await ws.send_json({"type": "error", "message": auth_error})
         await ws.close(code=4401)
@@ -928,11 +932,12 @@ async def team_room_ws(ctx: TeamRoomWsContext, ws: WebSocket, team_id: str) -> N
         floor_broadcast: TeamRoomWire | None = None
         with lock:
             room = live_sockets.get(team_id)
-            if room and room.get(participant_id) is ws:
+            owns_presence = bool(room and room.get(participant_id) is ws)
+            if owns_presence and room is not None:
                 room.pop(participant_id, None)
                 socket_loops.get(team_id, {}).pop(participant_id, None)
             current = teams.get(team_id)
-            if current is not None:
+            if current is not None and owns_presence:
                 left_at = _now()
                 participants = [
                     p.model_copy(

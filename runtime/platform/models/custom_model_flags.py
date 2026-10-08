@@ -60,18 +60,14 @@ def model_supports_tool_use(model: str, base_url: str | None = None) -> bool:
     return not (isinstance(entry, dict) and entry.get("supports_tool_use") is False)
 
 
-def model_omits_sampling_parameters(
-    model: str, base_url: str | None = None
-) -> bool:
+def model_omits_sampling_parameters(model: str, base_url: str | None = None) -> bool:
     """Return whether sampling knobs must be omitted for this model."""
 
     entry = custom_model_entry_for(model, base_url)
     return bool(entry.get("omit_sampling_parameters")) if isinstance(entry, dict) else False
 
 
-def model_is_openai_compat_endpoint(
-    model: str, base_url: str | None = None
-) -> bool:
+def model_is_openai_compat_endpoint(model: str, base_url: str | None = None) -> bool:
     """Whether ``model`` maps to an operator-added OpenAI-compatible endpoint.
 
     Operator endpoints are the ones declared in ``custom_models.json`` that
@@ -106,9 +102,7 @@ def model_supports_vision(model: str) -> bool | None:
     return None
 
 
-def custom_model_supports_thinking(
-    model: str, base_url: str | None = None
-) -> bool:
+def custom_model_supports_thinking(model: str, base_url: str | None = None) -> bool:
     """Operator-declared thinking capability for a custom model.
 
     This is the single source of truth for the thinking channel on custom

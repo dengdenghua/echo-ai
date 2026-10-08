@@ -25,21 +25,33 @@ Prometheus's default scrape config hits ``/metrics`` directly (no
 ``/api`` prefix). The UI app already mounts every other observability
 endpoint under ``/api``, so we add an alias for symmetry without
 forcing operators to rewrite their scrape config.
+
+Access
+------
+With shared authentication enabled (``require_auth``) every endpoint
+requires an ``admin`` principal (API key / JWT / session), because the
+registry leaks usage and topology details.  Deployments whose scraper
+cannot authenticate opt in explicitly with ``public=True`` or the
+``ECHO_METRICS_PUBLIC=1`` environment variable.  With auth disabled
+(local single-user) the endpoints stay open as before.
 """
 
 from __future__ import annotations
 
 import json
+import os
 from typing import Any
 
 try:
-    from fastapi import APIRouter
+    from fastapi import APIRouter, Depends, Request
     from fastapi.responses import JSONResponse, PlainTextResponse, Response
 
     FASTAPI_AVAILABLE = True
 except ImportError:  # pragma: no cover
     FASTAPI_AVAILABLE = False
     APIRouter = None  # type: ignore[assignment, misc]
+    Depends = None  # type: ignore[assignment, misc]
+    Request = Any  # type: ignore[assignment, misc]
     Response = None  # type: ignore[assignment, misc]
     PlainTextResponse = None  # type: ignore[assignment, misc]
     JSONResponse = None  # type: ignore[assignment, misc]
@@ -47,9 +59,23 @@ except ImportError:  # pragma: no cover
 from runtime.sensing._fastapi_guard import require_fastapi
 
 _PROM_CONTENT_TYPE = "text/plain; version=0.0.4; charset=utf-8"
+METRICS_PUBLIC_ENV = "ECHO_METRICS_PUBLIC"
 
 
-def create_metrics_router(*, registry: Any = None) -> Any:
+def _env_public() -> bool:
+    return os.environ.get(METRICS_PUBLIC_ENV, "").strip().lower() in {"1", "true", "yes", "on"}
+
+
+def create_metrics_router(
+    *,
+    registry: Any = None,
+    identity_store: Any = None,
+    require_auth: bool = False,
+    jwt_secret: str | None = None,
+    jwt_issuer: str | None = None,
+    jwt_audience: str | None = None,
+    public: bool | None = None,
+) -> Any:
     """Build the FastAPI router exposing process metrics.
 
     Parameters
@@ -58,15 +84,39 @@ def create_metrics_router(*, registry: Any = None) -> Any:
         Optional ``MetricsRegistry`` instance. When ``None`` (default),
         the global registry from ``runtime.platform.observability.metrics.get_registry()``
         is used so any code that emits via the global gets reflected here.
+    require_auth / identity_store / jwt_*:
+        The app's shared auth settings; when auth is on an ``admin``
+        principal is required.
+    public:
+        Explicit opt-in to unauthenticated scraping even with auth on.
+        ``None`` reads ``ECHO_METRICS_PUBLIC``.
     """
     require_fastapi(__name__)
+
+    is_public = _env_public() if public is None else bool(public)
+    gate_enabled = bool(require_auth) and not is_public
+
+    def _require_metrics_access(request: Request) -> None:
+        if not gate_enabled:
+            return
+        from runtime.safety.auth import require_roles
+
+        require_roles(
+            request,
+            identity_store,
+            True,
+            ("admin",),
+            jwt_secret=jwt_secret,
+            jwt_issuer=jwt_issuer,
+            jwt_audience=jwt_audience,
+        )
 
     from runtime.platform.observability.metrics import get_registry as _global_registry
 
     def _resolve():
         return registry if registry is not None else _global_registry()
 
-    router = APIRouter(tags=["metrics"])
+    router = APIRouter(tags=["metrics"], dependencies=[Depends(_require_metrics_access)])
 
     # Use ``response_class=PlainTextResponse`` to tell FastAPI "this
     # endpoint returns plain text" without forcing it to generate a
@@ -78,7 +128,7 @@ def create_metrics_router(*, registry: Any = None) -> Any:
         response_class=PlainTextResponse,
     )
     def prometheus_scrape():
-        """Prometheus scrape endpoint. Plain text, no auth."""
+        """Prometheus scrape endpoint. Plain text; admin-only when auth is on."""
         body = _resolve().render_prometheus()
         return PlainTextResponse(content=body, media_type=_PROM_CONTENT_TYPE)
 

@@ -10,7 +10,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from ._write_skills_common import _DEFAULT_MAX_BYTES, _ensure_sandbox
+from ._write_skills_common import _DEFAULT_MAX_BYTES, _ensure_sandbox, file_change_entry
 
 
 def _write_text_file(
@@ -31,7 +31,8 @@ def _write_text_file(
     resolved, err = _ensure_sandbox(path, sandbox_dir)
     if err:
         return {"error": err}
-    if resolved.exists() and not overwrite:
+    existed = resolved.exists()
+    if existed and not overwrite:
         return {
             "error": "exists · pass overwrite=True to replace",
             "path": str(resolved),
@@ -61,6 +62,7 @@ def _write_text_file(
         )
     else:
         result["verified"] = True
+        result["file_changes"] = [file_change_entry(resolved, "update" if existed else "create")]
     return result
 
 
@@ -81,6 +83,7 @@ def _append_text_file(
     resolved, err = _ensure_sandbox(path, sandbox_dir)
     if err:
         return {"error": err}
+    existed = resolved.exists()
     try:
         resolved.parent.mkdir(parents=True, exist_ok=True)
         with resolved.open("ab") as f:
@@ -107,6 +110,7 @@ def _append_text_file(
         )
     else:
         result["verified"] = True
+        result["file_changes"] = [file_change_entry(resolved, "update" if existed else "create")]
     return result
 
 
@@ -179,6 +183,7 @@ def _edit_text_file(
         )
     else:
         result["verified"] = True
+        result["file_changes"] = [file_change_entry(resolved, "update")]
     return result
 
 
@@ -293,6 +298,7 @@ def _edit_file(
         )
     else:
         result["verified"] = True
+        result["file_changes"] = [file_change_entry(resolved, "update")]
     return result
 
 
@@ -392,4 +398,5 @@ def _multi_edit_file(
         )
     else:
         result["verified"] = True
+        result["file_changes"] = [file_change_entry(resolved, "update")]
     return result

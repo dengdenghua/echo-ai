@@ -11,7 +11,6 @@ from __future__ import annotations
 
 import base64
 import subprocess
-from contextlib import suppress
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -518,13 +517,15 @@ def _check_lease_conflict_or_acquire(
     exists, auto-acquire (or renew) the lease so the write is
     protected against concurrent writers.
 
-    If ``lease_store`` is None or ``holder_id`` is empty, this is a
-    no-op — the write proceeds without lease protection (back-compat
-    for callers that haven't adopted leases yet).
+    A missing holder never bypasses an existing lease. Legacy writes without
+    a holder remain possible only when nobody has reserved the file.
     """
-    if ctx.lease_store is None or not holder_id:
+    if ctx.lease_store is None:
         return
-    existing = ctx.lease_store.get_by_path(workspace_id, file_path)
+    try:
+        existing = ctx.lease_store.get_by_path(workspace_id, file_path)
+    except Exception as exc:
+        raise HTTPException(503, "file lease service unavailable; write was not performed") from exc
     if existing is not None and existing.holder_id != holder_id:
         raise HTTPException(
             409,
@@ -537,9 +538,11 @@ def _check_lease_conflict_or_acquire(
                 "lease_id": existing.lease_id,
             },
         )
+    if not holder_id:
+        return
     # Auto-acquire (or renew-in-place for the same holder) so the
     # write is exclusive for the lease TTL window.
-    with suppress(Exception):  # noqa: BLE001 — lease acquisition must not block the write
+    try:
         ctx.lease_store.acquire(
             workspace_id=workspace_id,
             file_path=file_path,
@@ -547,6 +550,12 @@ def _check_lease_conflict_or_acquire(
             ttl_seconds=1800,
             kind="exclusive",
         )
+    except Exception as exc:
+        from runtime.platform.io.lease import LeaseConflictError
+
+        if isinstance(exc, LeaseConflictError):
+            raise HTTPException(409, "file lease is held by another writer") from exc
+        raise HTTPException(503, "file lease service unavailable; write was not performed") from exc
 
 
 def _broadcast_file_written(

@@ -16,7 +16,9 @@ def test_workspace_mirror_uses_registered_device_and_session():
         host="127.0.0.1", port=0, dashboard_port=None, auth_token="device-test-secret"
     )
     identities = IdentityStore()
-    identities.add(Identity(actor_id="operator"), api_key_plaintext="operator-test-secret")
+    identities.add(
+        Identity(actor_id="operator", roles=("operator",)), api_key_plaintext="operator-test-secret"
+    )
     app = FastAPI()
     app.include_router(create_tentacle_router(coordinator, identity_store=identities))
     headers = {"Authorization": "Bearer operator-test-secret"}

@@ -875,12 +875,16 @@ def _stream_react_loop_impl(
         state.iteration.current_phase = _current_phase
         state.iteration.consecutive_same_failed_actions = _consecutive_same_failed_actions
         state.iteration.last_failed_action_fingerprint = _last_failed_action_fingerprint
-        state.iteration.green_verification_convergence_active = _green_verification_convergence_active
+        state.iteration.green_verification_convergence_active = (
+            _green_verification_convergence_active
+        )
         state.iteration.green_convergence_todo_used = _green_convergence_todo_used
         state.iteration.result_handoff_ready = _result_handoff_ready
         state.iteration.last_public_update_key = _last_public_update_key
         state.iteration.saw_successful_code_write = _saw_successful_code_write
-        state.iteration.clean_verification_rounds_after_write = _clean_verification_rounds_after_write
+        state.iteration.clean_verification_rounds_after_write = (
+            _clean_verification_rounds_after_write
+        )
         state.iteration.quiet_evidence_steps = _quiet_evidence_steps
         _loop_ctrl = yield from _phase_6d_dispatch_and_observe(
             state,
@@ -903,12 +907,16 @@ def _stream_react_loop_impl(
         _force_convergence_next = state.iteration.force_convergence_next
         _consecutive_same_failed_actions = state.iteration.consecutive_same_failed_actions
         _last_failed_action_fingerprint = state.iteration.last_failed_action_fingerprint
-        _green_verification_convergence_active = state.iteration.green_verification_convergence_active
+        _green_verification_convergence_active = (
+            state.iteration.green_verification_convergence_active
+        )
         _green_convergence_todo_used = state.iteration.green_convergence_todo_used
         _result_handoff_ready = state.iteration.result_handoff_ready
         _last_public_update_key = state.iteration.last_public_update_key
         _saw_successful_code_write = state.iteration.saw_successful_code_write
-        _clean_verification_rounds_after_write = state.iteration.clean_verification_rounds_after_write
+        _clean_verification_rounds_after_write = (
+            state.iteration.clean_verification_rounds_after_write
+        )
         _quiet_evidence_steps = state.iteration.quiet_evidence_steps
         if _loop_ctrl is _LoopControl.RETURN_NONE:
             return None
@@ -947,9 +955,13 @@ def _stream_react_loop_impl(
         state.iteration.force_convergence_next = _force_convergence_next
         state.iteration.terminal_convergence_active = _terminal_convergence_active
         state.emit.final_delta_emitted_this_iteration = _final_delta_emitted_this_iteration
-        state.iteration.green_verification_convergence_active = _green_verification_convergence_active
+        state.iteration.green_verification_convergence_active = (
+            _green_verification_convergence_active
+        )
         state.iteration.green_convergence_todo_used = _green_convergence_todo_used
-        state.iteration.clean_verification_rounds_after_write = _clean_verification_rounds_after_write
+        state.iteration.clean_verification_rounds_after_write = (
+            _clean_verification_rounds_after_write
+        )
         state.emit.final_answer = final_answer
         state.emit.terminated_reason = terminated_reason
         state.iteration.evidence_convergence_active = _evidence_convergence_active
@@ -965,9 +977,13 @@ def _stream_react_loop_impl(
         )
         maybe_final = state.parse.maybe_final
         _force_convergence_next = state.iteration.force_convergence_next
-        _green_verification_convergence_active = state.iteration.green_verification_convergence_active
+        _green_verification_convergence_active = (
+            state.iteration.green_verification_convergence_active
+        )
         _green_convergence_todo_used = state.iteration.green_convergence_todo_used
-        _clean_verification_rounds_after_write = state.iteration.clean_verification_rounds_after_write
+        _clean_verification_rounds_after_write = (
+            state.iteration.clean_verification_rounds_after_write
+        )
         final_answer = state.emit.final_answer
         terminated_reason = state.emit.terminated_reason
         _final_delta_emitted_this_iteration = state.emit.final_delta_emitted_this_iteration

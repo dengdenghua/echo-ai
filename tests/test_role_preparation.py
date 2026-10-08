@@ -21,18 +21,29 @@ def _agent(ids=None):
 
 
 def _registry(**changes):
-    item = {"id": "mail", "source": "connector", "installed": True,
-            "enabled": True, "auth_mode": "token", **changes}
+    item = {
+        "id": "mail",
+        "source": "connector",
+        "installed": True,
+        "enabled": True,
+        "auth_mode": "token",
+        **changes,
+    }
     return Mock(get=Mock(return_value=item), status=Mock(return_value={"connected": True}))
 
 
-@pytest.mark.parametrize("changes,state", [
-    ({"installed": False}, "install"), ({"enabled": False}, "disabled"),
-    ({"permission_review_required": True}, "permissions"),
-    ({"permission_active": False}, "permissions"),
-    ({"source": "codex_plugin"}, "unknown"), ({"id": "mail-extra"}, "unknown"),
-    ({"auth_mode": "none"}, "configured"),
-])
+@pytest.mark.parametrize(
+    "changes,state",
+    [
+        ({"installed": False}, "install"),
+        ({"enabled": False}, "disabled"),
+        ({"permission_review_required": True}, "permissions"),
+        ({"permission_active": False}, "permissions"),
+        ({"source": "codex_plugin"}, "unknown"),
+        ({"id": "mail-extra"}, "unknown"),
+        ({"auth_mode": "none"}, "configured"),
+    ],
+)
 def test_configuration_checks_precede_credentials(changes, state):
     registry = _registry(**changes)
     assert inspect_connector("mail", registry)["state"] == state
@@ -63,9 +74,11 @@ async def test_repair_is_rechecked_and_never_performed_by_preparation():
 async def test_scope_comes_from_turn_and_cannot_inherit_other_session(actor, tenant):
     registry = _registry()
     seen = []
+
     def status(_cid):
         seen.append(current_capability_scope())
         return {"connected": True}
+
     registry.status.side_effect = status
     other = TenantScope(tenant_id="other", actor_id="bob")
     with use_capability_scope(other):

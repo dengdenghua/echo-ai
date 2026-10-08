@@ -237,7 +237,9 @@ def test_install_plan_resolves_nested_marketplace_dependencies(
 
         @staticmethod
         def get(connector_id: str):
-            return SimpleNamespace(cli={}, mcp_servers={}) if connector_id == "root-package" else None
+            return (
+                SimpleNamespace(cli={}, mcp_servers={}) if connector_id == "root-package" else None
+            )
 
     monkeypatch.setattr(CloudCatalog, "__init__", lambda self, *args, **kwargs: None)
     monkeypatch.setattr(

@@ -127,13 +127,17 @@ def test_only_task_prompt_instructions_are_loaded_from_trusted_roots(monkeypatch
     assert "Instructions for frontend-ui-engineering" not in explicit
 
     manual = compose_role_instructions(
-        agent, context=context(mode="manual", skills=["presentations"]),
-        goal="@skill:presentations 制作网页", registry=registry()
+        agent,
+        context=context(mode="manual", skills=["presentations"]),
+        goal="@skill:presentations 制作网页",
+        registry=registry(),
     )
     assert manual.count("Instructions for presentations") == 1
     picker = compose_role_instructions(
-        agent, context=context(mode="manual", skills=["presentations"]),
-        goal="制作演示", registry=registry()
+        agent,
+        context=context(mode="manual", skills=["presentations"]),
+        goal="制作演示",
+        registry=registry(),
     )
     assert picker.count("Instructions for presentations") == 1
 

@@ -25,6 +25,11 @@ from typing import Any
 from fastapi import File, Form, HTTPException, Query, Request, UploadFile
 from starlette.responses import FileResponse
 
+from runtime.platform.io.file_coordination import (
+    FileCoordinationConflict,
+    coordinate_file_mutations,
+)
+
 from ._fs_router_diff import (
     _DiffApplyConflict,
     _DiffFormatError,
@@ -554,17 +559,29 @@ def register_endpoints(router: Any, ctx: _FsContext) -> None:
                 )
             payload = content.encode("utf-8")
             try:
-                try:
-                    current = await backend.read_file(rel_path)
-                except FileNotFoundError:
-                    current = b""
-                current_bytes = (
-                    bytes(current)
-                    if isinstance(current, (bytes, bytearray))
-                    else str(current).encode("utf-8")
+                from runtime.platform.process.paths import app_paths
+                from runtime.workspace.execution_directory import execution_directory
+
+                probe = execution_directory(ws)
+                lock_path = (
+                    Path(probe["filesystem_path"]) / rel_path.lstrip("/\\")
+                    if probe["ready"]
+                    else app_paths().data_dir / "remote-files" / ws.id / rel_path.lstrip("/\\")
                 )
-                _assert_expected_content(current_bytes, expected_sha256)
-                await backend.write_file(rel_path, payload)
+                with coordinate_file_mutations([lock_path]):
+                    try:
+                        current = await backend.read_file(rel_path)
+                    except FileNotFoundError:
+                        current = b""
+                    current_bytes = (
+                        bytes(current)
+                        if isinstance(current, (bytes, bytearray))
+                        else str(current).encode("utf-8")
+                    )
+                    _assert_expected_content(current_bytes, expected_sha256)
+                    await backend.write_file(rel_path, payload)
+            except FileCoordinationConflict as exc:
+                raise HTTPException(409, str(exc)) from exc
             except HTTPException:
                 raise
             except Exception as exc:  # noqa: BLE001 — backend error
@@ -600,10 +617,17 @@ def register_endpoints(router: Any, ctx: _FsContext) -> None:
             else None,
         )
         try:
-            await asyncio.to_thread(file_path.parent.mkdir, parents=True, exist_ok=True)
-            current = await asyncio.to_thread(file_path.read_bytes) if file_path.exists() else b""
-            _assert_expected_content(current, expected_sha256)
-            await asyncio.to_thread(file_path.write_text, content, encoding="utf-8")
+
+            def write_local():
+                with coordinate_file_mutations([file_path]):
+                    file_path.parent.mkdir(parents=True, exist_ok=True)
+                    current = file_path.read_bytes() if file_path.exists() else b""
+                    _assert_expected_content(current, expected_sha256)
+                    file_path.write_text(content, encoding="utf-8")
+
+            await asyncio.to_thread(write_local)
+        except FileCoordinationConflict as exc:
+            raise HTTPException(409, str(exc)) from exc
         except OSError as exc:
             raise HTTPException(
                 500,
@@ -645,42 +669,35 @@ def register_endpoints(router: Any, ctx: _FsContext) -> None:
             raise HTTPException(404, f"file not found: {file_path}")
 
         try:
-            current = (
-                file_path.read_text(encoding="utf-8", errors="replace")
-                if file_path.exists()
-                else ""
-            )
-            reverted = _reverse_unified_diff(current, diff_text)
+            with coordinate_file_mutations([file_path]):
+                current = (
+                    file_path.read_text(encoding="utf-8", errors="replace")
+                    if file_path.exists()
+                    else ""
+                )
+                reverted = _reverse_unified_diff(current, diff_text)
+                deleted = body.get("delete_empty") is True and reverted == ""
+                if deleted:
+                    if file_path.exists():
+                        file_path.unlink()
+                else:
+                    file_path.parent.mkdir(parents=True, exist_ok=True)
+                    file_path.write_text(reverted, encoding="utf-8")
+        except FileCoordinationConflict as exc:
+            raise HTTPException(409, str(exc)) from exc
         except _DiffFormatError as exc:
             raise HTTPException(400, str(exc)) from exc
         except _DiffApplyConflict as exc:
             raise HTTPException(409, str(exc)) from exc
         except OSError as exc:
-            raise HTTPException(500, f"failed to read file: {exc}") from exc
-
-        delete_empty = body.get("delete_empty") is True
-        try:
-            if delete_empty and reverted == "":
-                if file_path.exists():
-                    file_path.unlink()
-                return {
-                    "success": True,
-                    "reverted": True,
-                    "path": str(file_path),
-                    "bytes": 0,
-                    "deleted": True,
-                }
-            file_path.parent.mkdir(parents=True, exist_ok=True)
-            file_path.write_text(reverted, encoding="utf-8")
-        except OSError as exc:
-            raise HTTPException(500, f"failed to write file: {exc}") from exc
+            raise HTTPException(500, f"failed to revert file: {exc}") from exc
 
         return {
             "success": True,
             "reverted": True,
             "path": str(file_path),
             "bytes": len(reverted.encode("utf-8")),
-            "deleted": False,
+            "deleted": deleted,
         }
 
     @router.post("/api/fs/revert")
@@ -742,17 +759,20 @@ def register_endpoints(router: Any, ctx: _FsContext) -> None:
                 f"path {file_path} is not inside workspace {cwd_path}",
             ) from None
         try:
-            proc = subprocess.run(
-                ["git", "checkout", "--", str(file_path)],
-                capture_output=True,
-                text=True,
-                cwd=str(cwd_path),
-                timeout=10.0,
-                shell=False,
-            )
+            with coordinate_file_mutations([file_path]):
+                proc = subprocess.run(
+                    ["git", "checkout", "--", str(file_path)],
+                    capture_output=True,
+                    text=True,
+                    cwd=str(cwd_path),
+                    timeout=10.0,
+                    shell=False,
+                )
             if proc.returncode != 0:
                 raise HTTPException(500, f"git checkout failed: {proc.stderr.strip()}")
             return {"reverted": True, "path": str(file_path)}
+        except FileCoordinationConflict as exc:
+            raise HTTPException(409, str(exc)) from exc
         except FileNotFoundError:
             raise HTTPException(503, "git not found") from None
         except subprocess.TimeoutExpired:

@@ -497,7 +497,7 @@ def _format_role_catalog(*, query: str = "", limit: int | None = None) -> str:
         roles.items(),
         key=lambda item: (
             -(100 if item[0].casefold() in query_lower else 0)
-            -(50 if item[1].display_name.casefold() in query_lower else 0),
+            - (50 if item[1].display_name.casefold() in query_lower else 0),
             item[0],
         ),
     )

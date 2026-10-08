@@ -29,6 +29,191 @@ def _setup(tmp_path):
     return gs, aw
 
 
+@pytest.mark.parametrize("raises", [False, True])
+def test_parent_cancellation_retires_claim_without_result_or_failure(tmp_path, raises):
+    from runtime.safety.approval.cancellation import (
+        CancellationSource,
+        current_cancellation_token,
+        scoped_cancellation,
+    )
+
+    gs, aw = _setup(tmp_path)
+    parent = CancellationSource()
+    observed = []
+    task = aw.assign("t", "worker", "work", actor="user")
+
+    def execute(_task, _context):
+        parent.cancel(reason="caller stopped")
+        assert current_cancellation_token().is_cancelled
+        assert aw.get(task.task_id).status == "cancelled"
+        if raises:
+            raise RuntimeError("late provider error")
+        return "late output"
+
+    runner = AsyncWorkRunner(aw, gs, execute, completion_observer=lambda *a: observed.append(a))
+    with scoped_cancellation(parent.token):
+        assert runner.run_one(task)
+    assert aw.get(task.task_id).result == "caller stopped"
+    assert gs.blackboard_snapshot("t") == {}
+    assert observed == []
+    assert parent._callbacks == []
+
+
+def test_parallel_cowork_inherits_parent_context_and_cancellation(tmp_path):
+    from contextvars import ContextVar
+
+    from runtime.safety.approval.cancellation import (
+        CancellationSource,
+        current_cancellation_token,
+        scoped_cancellation,
+    )
+
+    gs, aw = _setup(tmp_path)
+    parent = CancellationSource()
+    marker = ContextVar("test_execution_context", default="missing")
+    tasks = [aw.assign("t", "worker", str(i), actor="user") for i in range(2)]
+    barrier = threading.Barrier(2)
+
+    def execute(_task, _context):
+        assert marker.get() == "caller"
+        barrier.wait(timeout=3)
+        parent.cancel(reason="stop parallel work")
+        assert current_cancellation_token().is_cancelled
+        return "discarded"
+
+    runner = AsyncWorkRunner(aw, gs, execute)
+    token = marker.set("caller")
+    try:
+        with scoped_cancellation(parent.token):
+            assert runner.drain_all() == 2
+    finally:
+        marker.reset(token)
+    assert all(aw.get(t.task_id).status == "cancelled" for t in tasks)
+    assert gs.blackboard_snapshot("t") == {}
+
+
+def test_cancelled_parent_does_not_claim_pending_work(tmp_path):
+    from runtime.safety.approval.cancellation import CancellationSource, scoped_cancellation
+
+    gs, aw = _setup(tmp_path)
+    task = aw.assign("t", "worker", "work", actor="user")
+    parent = CancellationSource()
+    parent.cancel()
+    with scoped_cancellation(parent.token):
+        assert not AsyncWorkRunner(aw, gs, lambda *_: pytest.fail("ran")).run_one(task)
+    assert aw.get(task.task_id).attempts == 0
+    assert aw.get(task.task_id).status == "pending"
+
+
+def test_obsolete_parent_cannot_cancel_replacement_claim(tmp_path):
+    from runtime.safety.approval.cancellation import CancellationSource, scoped_cancellation
+
+    gs, aw = _setup(tmp_path)
+    task = aw.assign("t", "worker", "work", actor="user")
+    parent = CancellationSource()
+
+    def execute(_task, _context):
+        assert aw.recover_stale_working(max_age_seconds=0)["requeued"] == 1
+        assert aw.claim_execution(task.task_id).attempts == 2
+        parent.cancel(reason="obsolete parent")
+        return "obsolete"
+
+    with scoped_cancellation(parent.token):
+        assert AsyncWorkRunner(aw, gs, execute).run_one(task)
+    assert aw.get(task.task_id).status == "working"
+    assert aw.complete(task.task_id, "replacement", expected_attempt=2)
+
+
+@pytest.mark.parametrize("late_failure", [False, True])
+def test_reclaimed_task_rejects_old_worker_result_and_failure(tmp_path, late_failure):
+    gs, aw = _setup(tmp_path)
+    observed = []
+    task = aw.assign("t", "worker", "work", actor="user")
+
+    def execute(claim, _context):
+        assert claim.attempts == 1
+        assert aw.recover_stale_working(max_age_seconds=0)["requeued"] == 1
+        replacement = aw.claim_execution(task.task_id)
+        assert replacement.attempts == 2
+        assert not aw.heartbeat(task.task_id, expected_attempt=claim.attempts)
+        if late_failure:
+            raise RuntimeError("obsolete failure")
+        return "obsolete result"
+
+    runner = AsyncWorkRunner(
+        aw, gs, execute, completion_observer=lambda *args: observed.append(args)
+    )
+    assert runner.run_one(task)
+    current = aw.get(task.task_id)
+    assert current.status == "working" and current.attempts == 2
+    assert current.result is None
+    assert gs.blackboard_snapshot("t") == {}
+    assert observed == []
+    assert aw.complete(task.task_id, "new result", expected_attempt=2)
+    assert list(gs.blackboard_snapshot("t").values()) == ["new result"]
+
+
+def test_runner_heartbeats_active_claim(tmp_path, monkeypatch):
+    gs, aw = _setup(tmp_path)
+    renewed = threading.Event()
+    real_heartbeat = aw.heartbeat
+
+    def heartbeat(task_id, *, expected_attempt):
+        result = real_heartbeat(task_id, expected_attempt=expected_attempt)
+        renewed.set()
+        return result
+
+    monkeypatch.setattr(aw, "heartbeat", heartbeat)
+    task = aw.assign("t", "worker", "long work", actor="user")
+
+    def execute(claim, _context):
+        # Simulate a long-running claim without a long wall-clock test.
+        with sqlite3.connect(aw._db) as conn:
+            conn.execute("UPDATE async_tasks SET updated_at='2000-01-01T00:00:00+00:00'")
+        assert renewed.wait(3)
+        assert aw.recover_stale_working(max_age_seconds=10)["requeued"] == 0
+        return "done"
+
+    assert AsyncWorkRunner(aw, gs, execute, recover_stale_seconds=0.15).run_one(task)
+    assert aw.get(task.task_id).status == "done"
+
+
+def test_heartbeat_failure_cancels_execution_without_publishing(tmp_path, monkeypatch):
+    from runtime.safety.approval.cancellation import current_cancellation_token
+
+    gs, aw = _setup(tmp_path)
+    observed = []
+    task = aw.assign("t", "worker", "work", actor="user")
+
+    def unavailable(*args, **kwargs):
+        raise OSError("database unavailable")
+
+    monkeypatch.setattr(aw, "heartbeat", unavailable)
+
+    def execute(_task, _context):
+        cancelled = threading.Event()
+        unlink = current_cancellation_token().on_cancelled(lambda _reason: cancelled.set())
+        try:
+            assert cancelled.wait(3)
+            current_cancellation_token().throw_if_cancelled()
+        finally:
+            unlink()
+        pytest.fail("continued after lost claim")
+
+    runner = AsyncWorkRunner(
+        aw,
+        gs,
+        execute,
+        recover_stale_seconds=0.15,
+        completion_observer=lambda *args: observed.append(args),
+    )
+    assert runner.run_one(task)
+    assert gs.blackboard_snapshot("t") == {}
+    assert observed == []
+    # The unavailable claim is left for the existing stale-work recovery path.
+    assert aw.get(task.task_id).status == "working"
+
+
 def test_runner_executes_and_posts_to_board(tmp_path) -> None:
     gs, aw = _setup(tmp_path)
     seen = {}
@@ -284,6 +469,88 @@ def test_tick_adapts_concurrency_to_backlog(tmp_path) -> None:
     status = runner.status()
     assert status["max_concurrency"] == 4
     assert status["last_concurrency"] == 4
+
+
+def test_daemon_starts_new_arrival_while_first_task_is_still_running(tmp_path) -> None:
+    gs = GroupStore(tmp_path)
+    for member in ("slow", "fast"):
+        gs.append("t", MemberEvent(action="invite", actor="u", target_id=member))
+    aw = AsyncWorkStore(tmp_path, gs)
+    first_started = threading.Event()
+    second_started = threading.Event()
+    release_first = threading.Event()
+
+    def execute(task, context):
+        if task.assignee == "slow":
+            first_started.set()
+            assert release_first.wait(4)
+        else:
+            second_started.set()
+        return task.assignee + " done"
+
+    runner = AsyncWorkRunner(aw, gs, execute, max_concurrency=2)
+    first = aw.assign("t", "slow", "slow task", actor="u")
+    try:
+        runner.start(poll_seconds=0.02)
+        assert first_started.wait(2)
+        aw.assign("t", "fast", "new independent task", actor="u")
+        runner.wake()
+        assert second_started.wait(2), "new work waited behind the running batch"
+        assert aw.get(first.task_id).status == "working"
+    finally:
+        release_first.set()
+        runner.stop()
+
+
+@pytest.mark.parametrize("concurrency", [None, 32])
+def test_daemon_fills_capacity_and_replenishes_before_other_workers_finish(tmp_path, concurrency):
+    gs, aw = _setup(tmp_path)
+    expected = concurrency or 16
+    kwargs = {} if concurrency is None else {"max_concurrency": concurrency}
+    all_started = threading.Event()
+    next_started = threading.Event()
+    release_one = threading.Event()
+    release_all = threading.Event()
+    all_finished = threading.Event()
+    lock = threading.Lock()
+    started = set()
+    completed = 0
+
+    def execute(task, _context):
+        index = int(task.prompt)
+        with lock:
+            started.add(index)
+            if len(started) == expected:
+                all_started.set()
+        if index == expected:
+            next_started.set()
+        assert (release_one if index == 0 else release_all).wait(15)
+        return task.prompt
+
+    def observe(*_args):
+        nonlocal completed
+        with lock:
+            completed += 1
+            if completed == expected + 1:
+                all_finished.set()
+
+    runner = AsyncWorkRunner(aw, gs, execute, completion_observer=observe, **kwargs)
+    tasks = [aw.assign("t", "w", str(i), actor="u") for i in range(expected + 1)]
+    try:
+        runner.start(poll_seconds=0.02)
+        assert all_started.wait(10), "available worker slots were not filled"
+        assert runner.status()["max_concurrency"] == expected
+        assert not next_started.is_set()
+        assert aw.get(tasks[-1].task_id).status == "pending"
+        release_one.set()
+        assert next_started.wait(5), "free slot waited for the rest of the batch"
+        assert all(aw.get(task.task_id).status == "working" for task in tasks[1:-1])
+    finally:
+        release_one.set()
+        release_all.set()
+        all_finished.wait(10)
+        runner.stop()
+    assert all(aw.get(task.task_id).status == "done" for task in tasks)
 
 
 def test_tick_once_records_success_health(tmp_path) -> None:
@@ -636,85 +903,3 @@ def test_runtime_reads_queue_and_scheduler_limits_from_environment(
         assert status["runner_status"]["max_tasks_per_tick"] == 5
     finally:
         set_sub_agent_runner(previous_runner)
-
-
-def test_daemon_starts_new_arrival_while_first_task_is_still_running(tmp_path) -> None:
-    gs = GroupStore(tmp_path)
-    for member in ("slow", "fast"):
-        gs.append("t", MemberEvent(action="invite", actor="u", target_id=member))
-    aw = AsyncWorkStore(tmp_path, gs)
-    first_started = threading.Event()
-    second_started = threading.Event()
-    release_first = threading.Event()
-
-    def execute(task, context):
-        if task.assignee == "slow":
-            first_started.set()
-            assert release_first.wait(4)
-        else:
-            second_started.set()
-        return task.assignee + " done"
-
-    runner = AsyncWorkRunner(aw, gs, execute, max_concurrency=2)
-    first = aw.assign("t", "slow", "slow task", actor="u")
-    try:
-        runner.start(poll_seconds=0.02)
-        assert first_started.wait(2)
-        aw.assign("t", "fast", "new independent task", actor="u")
-        runner.wake()
-        assert second_started.wait(2), "new work waited behind the running batch"
-        assert aw.get(first.task_id).status == "working"
-    finally:
-        release_first.set()
-        runner.stop()
-
-
-@pytest.mark.parametrize("concurrency", [None, 32])
-def test_daemon_fills_capacity_and_replenishes_before_other_workers_finish(tmp_path, concurrency):
-    gs, aw = _setup(tmp_path)
-    expected = concurrency or 16
-    kwargs = {} if concurrency is None else {"max_concurrency": concurrency}
-    all_started = threading.Event()
-    next_started = threading.Event()
-    release_one = threading.Event()
-    release_all = threading.Event()
-    all_finished = threading.Event()
-    lock = threading.Lock()
-    started = set()
-    completed = 0
-
-    def execute(task, _context):
-        index = int(task.prompt)
-        with lock:
-            started.add(index)
-            if len(started) == expected:
-                all_started.set()
-        if index == expected:
-            next_started.set()
-        assert (release_one if index == 0 else release_all).wait(15)
-        return task.prompt
-
-    def observe(*_args):
-        nonlocal completed
-        with lock:
-            completed += 1
-            if completed == expected + 1:
-                all_finished.set()
-
-    runner = AsyncWorkRunner(aw, gs, execute, completion_observer=observe, **kwargs)
-    tasks = [aw.assign("t", "w", str(i), actor="u") for i in range(expected + 1)]
-    try:
-        runner.start(poll_seconds=0.02)
-        assert all_started.wait(10), "available worker slots were not filled"
-        assert runner.status()["max_concurrency"] == expected
-        assert not next_started.is_set()
-        assert aw.get(tasks[-1].task_id).status == "pending"
-        release_one.set()
-        assert next_started.wait(5), "free slot waited for the rest of the batch"
-        assert all(aw.get(task.task_id).status == "working" for task in tasks[1:-1])
-    finally:
-        release_one.set()
-        release_all.set()
-        all_finished.wait(10)
-        runner.stop()
-    assert all(aw.get(task.task_id).status == "done" for task in tasks)

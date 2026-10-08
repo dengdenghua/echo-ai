@@ -483,6 +483,7 @@ def mount_routers_b(
                 "task_supervisor": getattr(state, "task_supervisor", None),
                 "allow_client_auto_approve": _allow_approval_bypass,
                 "allow_local_workspace_access": ctx.allow_local_workspace_access,
+                "team_rooms_router": ctx.team_rooms_router,
                 "cowork_group_store": (
                     getattr(ctx.cowork_runtime, "group_store", None)
                     if ctx.cowork_runtime is not None
@@ -518,6 +519,7 @@ def mount_routers_b(
         # writer guard must still consult the same durable deletion fences.
         _realtime_runtime._thread_store = ctx.thread_store  # noqa: SLF001
         _realtime_runtime._project_store = ctx.project_store  # noqa: SLF001
+        _realtime_runtime._cowork_coordination = getattr(ctx.cowork_runtime, "coordination", None)
 
         _realtime_gateway = RealtimeGateway(
             runtime=_realtime_runtime,

@@ -221,6 +221,7 @@ class CerebrumRuntime:
         task_supervisor: Any = None,
         session_titles: Any = None,
         cowork_context_engine: Any = None,
+        team_rooms_router: Any = None,
     ) -> None:
         """Wire a CerebrumRuntime onto an existing echo stack.
 
@@ -275,6 +276,7 @@ class CerebrumRuntime:
         self._trace_store = trace_store
         self._task_supervisor = task_supervisor
         self._cowork_group_store = cowork_group_store
+        self._team_rooms_router = team_rooms_router
         self._collaboration_store = collaboration_store
         self._project_store = project_store
         self._project_os_hooks = dict(project_os_hooks or {})

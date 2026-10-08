@@ -20,7 +20,7 @@ from typing import Any, Literal
 
 try:
     from fastapi import APIRouter, HTTPException, Query, Request
-    from fastapi.responses import FileResponse, HTMLResponse
+    from fastapi.responses import HTMLResponse
     from pydantic import BaseModel
 
     FASTAPI_AVAILABLE = True
@@ -30,7 +30,6 @@ except ImportError:  # pragma: no cover
     HTTPException = None  # type: ignore[assignment, misc]
     Query = None  # type: ignore[assignment, misc]
     Request = None  # type: ignore[assignment, misc]
-    FileResponse = None  # type: ignore[assignment, misc]
     HTMLResponse = None  # type: ignore[assignment, misc]
     BaseModel = object  # type: ignore[assignment, misc]
 
@@ -39,6 +38,7 @@ from runtime.execution.misc.office_preview import render_office_preview
 from runtime.platform.io.atomic import AtomicWriteError, _cross_process_lock
 from runtime.platform.runtime_policy.workspaces import WorkspaceManager
 from runtime.sensing._fastapi_guard import require_fastapi
+from runtime.sensing.gateway._untrusted_content import untrusted_file_response
 
 if FASTAPI_AVAILABLE:
 
@@ -109,9 +109,9 @@ def create_workspaces_router(
     def _auth(request: Request) -> str | None:
         if require_auth and identity_store is None:
             raise HTTPException(401, "auth required")
-        from runtime.sensing.gateway.openai_gateway_router import _resolve_actor
+        from runtime.safety.auth.principal import resolve_principal
 
-        return _resolve_actor(
+        principal = resolve_principal(
             request,
             identity_store,
             require_auth,
@@ -119,6 +119,12 @@ def create_workspaces_router(
             jwt_issuer=jwt_issuer,
             jwt_audience=jwt_audience,
         )
+        if principal is not None:
+            request.state.workspace_principal = principal
+        return principal.actor_id if principal is not None else None
+
+    def _principal(request: Request) -> Any:
+        return getattr(getattr(request, "state", None), "workspace_principal", None)
 
     def _require_thread_access(request: Request, thread_id: str) -> str | None:
         actor = _auth(request)
@@ -129,10 +135,20 @@ def create_workspaces_router(
             if actor is not None:
                 raise HTTPException(404, f"thread not found: {thread_id}")
             return actor
-        metadata = thread.get("metadata") or {}
-        owner = metadata.get("owner_actor_id")
-        if actor is not None and owner and owner != actor:
-            raise HTTPException(404, f"thread not found: {thread_id}")
+        metadata = thread.get("metadata") if isinstance(thread.get("metadata"), dict) else {}
+        owner = metadata.get("owner_actor_id") or metadata.get("actor_id")
+        if actor is not None:
+            # Mirrors uploads_router: a tenant mismatch is never visible, and an
+            # ownerless legacy thread cannot be attributed to any caller, so
+            # only an admin may open it (otherwise every login could read it).
+            principal = _principal(request)
+            tenant = str(getattr(principal, "tenant_id", "") or "").strip()
+            stored_tenant = str(metadata.get("tenant_id") or "").strip()
+            if tenant and stored_tenant and stored_tenant != tenant:
+                raise HTTPException(404, f"thread not found: {thread_id}")
+            is_admin = "admin" in (getattr(principal, "roles", None) or ())
+            if owner != actor and not (not owner and is_admin):
+                raise HTTPException(404, f"thread not found: {thread_id}")
         return actor
 
     def _info(thread_id: str) -> dict[str, Any]:
@@ -398,7 +414,15 @@ def create_workspaces_router(
                     "X-Content-Type-Options": "nosniff",
                 },
             )
-        return FileResponse(str(target), filename=target.name if download else None)
+        # Agent-written outputs share the API origin: sandbox them so an
+        # injected ``report.svg``/``.html`` cannot script the app. HTML keeps
+        # script in an opaque origin for the interactive preview.
+        return untrusted_file_response(
+            str(target),
+            filename=target.name if download else None,
+            download=download,
+            allow_scripts=True,
+        )
 
     @router.get("/api/threads/{thread_id}/outputs/{artifact_path:path}")
     def api_thread_workspace_output_file(

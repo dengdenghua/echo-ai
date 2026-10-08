@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import contextlib
+import inspect
 import json
 import logging
 import os
@@ -736,9 +737,15 @@ def create_channels_router(
             raise HTTPException(400, f"body read failed: {e}") from e
 
         headers = {k.lower(): v for k, v in request.headers.items()}
+        webhook_kwargs: dict[str, Any] = {"body": body, "headers": headers}
+        # Platforms that cannot sign webhooks may carry an operator shared
+        # secret on the URL; only adapters that opt in receive the query.
+        with contextlib.suppress(TypeError, ValueError):
+            if "query" in inspect.signature(channel.handle_webhook).parameters:
+                webhook_kwargs["query"] = dict(request.query_params)
 
         try:
-            result = channel.handle_webhook(body=body, headers=headers)
+            result = channel.handle_webhook(**webhook_kwargs)
         except NotImplementedError as e:
             raise HTTPException(400, str(e)) from e
         except ValueError as e:

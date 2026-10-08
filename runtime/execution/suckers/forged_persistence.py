@@ -167,28 +167,29 @@ def _build_composite_handler_with_templates(
                         call_args.setdefault("_prev", outputs[f"n{i - 1}"])
                 # Safety chokepoint. A forged composite calls each sub-skill's
                 # handler DIRECTLY (not via executor.execute_step), so EVERY
-                # pre-execution gate — capability-permission, injection-taint,
-                # immunity, file-safety — is bypassed. A tainted turn (or a
-                # denied / untrusted / credential-targeting sub-skill) could
-                # otherwise be laundered through a low-risk-named composite.
-                # Re-apply the shared gate sequence per sub-skill, fail-closed
-                # (defer_taint_if_handled=False: the approval gate reviewed the
-                # OUTER composite, not this inner skill).
+                # pre-execution stage — override stripping, host/read-only
+                # contracts, approval, capability-permission, injection-taint,
+                # immunity, sandbox/scope injection, file-safety — would be
+                # bypassed, laundering a risky sub-skill through a low-risk
+                # composite name. Re-run the shared inner-dispatch pipeline per
+                # sub-skill, fail-closed: the approval gate reviewed the OUTER
+                # composite, not this inner skill.
                 from runtime.execution.tool_engine.skill_gate import (
-                    gate_inner_dispatch,
+                    prepare_inner_dispatch,
                 )
 
-                _block = gate_inner_dispatch(
+                _prepared = prepare_inner_dispatch(
                     skill,
                     call_args,
                     caller="forged_composite",
                 )
-                if _block is not None:
+                if _prepared.block is not None:
                     success = False
                     failed_at = i
-                    error_type = _block.error_type
-                    error_msg = _block.message
+                    error_type = _prepared.block.error_type
+                    error_msg = _prepared.block.message
                     break
+                call_args = _prepared.args
                 from runtime.execution.tool_engine.coordination_guard import invoke_coordinated
 
                 outputs[f"n{i}"] = invoke_coordinated(skill, call_args)

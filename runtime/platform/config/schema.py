@@ -111,6 +111,9 @@ class MCPServerConfigEntry(BaseModel):
     command: str = ""
     args: list[str] = Field(default_factory=list)
     env: dict[str, str] = Field(default_factory=dict)
+    cwd: str | None = None
+    timeout_ms: int = Field(default=30_000, gt=0)
+    connect_timeout_ms: int = Field(default=10_000, gt=0)
     # http/sse transport (remote/hosted server)
     transport: Literal["stdio", "http", "sse"] = "stdio"
     url: str = ""
@@ -360,7 +363,7 @@ class OctConfig(BaseModel):
     llm_timeout_seconds: float = Field(default=120.0, ge=1.0, le=600.0)
     mock_mode: bool = False
     jwt_secret: str | None = Field(default=None, min_length=32)
-    jwt_expire_seconds: int = Field(default=2_592_000, gt=0)
+    jwt_expire_seconds: int = Field(default=28_800, gt=0)
     jwt_issuer: str = "echo-ai"
     admin_emails: list[str] = Field(default_factory=list)
 
@@ -388,7 +391,7 @@ class LocalAuthConfig(BaseModel):
     login_lockout_seconds: float = Field(default=60.0, gt=0, le=86_400)
     login_rate_limit_max_entries: int = Field(default=10_000, ge=1, le=1_000_000)
     jwt_secret: str | None = Field(default=None, min_length=32)
-    jwt_expire_seconds: int = Field(default=604_800, gt=0)
+    jwt_expire_seconds: int = Field(default=28_800, gt=0)
     jwt_issuer: str = "echo-ai"
     jwt_audience: str | None = None
     actor_prefix: str = "local:"

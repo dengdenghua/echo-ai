@@ -19,7 +19,7 @@ from contextlib import suppress
 from typing import Any
 from uuid import uuid4
 
-from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Request
 
 from runtime.memory.cowork.async_work import AsyncWorkQueueFullError
 from runtime.memory.cowork.group import (
@@ -348,7 +348,12 @@ def create_cowork_group_router(
         return decision.can_write if write else decision.can_read
 
     coordination.authorize = _coordination_authorized
-    mount_coordination_routes(router, coordination, access, runtime)
+    mount_coordination_routes(
+        router, coordination, access, runtime,
+        invite=lambda thread, member, request: invite_member(
+            thread, InviteBody(target_id=member), request,
+        ),
+    )
 
     @router.get("/api/cowork/{thread_id}")
     def get_group(thread_id: str, until_seq: int | None = None) -> dict[str, Any]:
@@ -1316,6 +1321,13 @@ def create_cowork_group_router(
         _require_room_member(room_id, request)
         return room_id
 
+    async def _broadcast_social_change(room_id: str, thread_id: str, reason: str) -> None:
+        from .collaboration_events import broadcast_thread_update
+
+        await broadcast_thread_update(
+            team_rooms_router, room_id=room_id, thread_id=thread_id, reason=reason,
+        )
+
     @router.get("/api/collab/{thread_id}/reactions")
     def list_message_reactions(thread_id: str, request: Request) -> dict[str, Any]:
         room_id = _annotation_room_id(thread_id, request)
@@ -1330,6 +1342,7 @@ def create_cowork_group_router(
         thread_id: str,
         body: ReactionBody,
         request: Request,
+        background_tasks: BackgroundTasks,
     ) -> dict[str, Any]:
         room_id = _annotation_room_id(thread_id, request)
         participant_id = str(_actor(request) or "anonymous").strip() or "anonymous"
@@ -1340,6 +1353,7 @@ def create_cowork_group_router(
             participant_id=participant_id,
             emoji=body.emoji,
         )
+        background_tasks.add_task(_broadcast_social_change, room_id, thread_id, "reaction")
         return {"ok": True, "reaction": reaction}
 
     @router.get("/api/collab/{thread_id}/pinned-messages")
@@ -1356,6 +1370,7 @@ def create_cowork_group_router(
         thread_id: str,
         body: PinMessageBody,
         request: Request,
+        background_tasks: BackgroundTasks,
     ) -> dict[str, Any]:
         room_id = _annotation_room_id(thread_id, request)
         participant_id = str(_actor(request) or "anonymous").strip() or "anonymous"
@@ -1365,6 +1380,7 @@ def create_cowork_group_router(
             message_id=body.message_id,
             participant_id=participant_id,
         )
+        background_tasks.add_task(_broadcast_social_change, room_id, thread_id, "pin")
         return {"ok": True, "pin": pin}
 
     @router.get("/api/collab/{thread_id}/annotations")
@@ -1381,6 +1397,7 @@ def create_cowork_group_router(
         thread_id: str,
         body: AnnotationBody,
         request: Request,
+        background_tasks: BackgroundTasks,
     ) -> dict[str, Any]:
         room_id = _annotation_room_id(thread_id, request)
         author_id, author = _annotation_author(
@@ -1396,6 +1413,7 @@ def create_cowork_group_router(
             author=author,
             body=body.body,
         )
+        background_tasks.add_task(_broadcast_social_change, room_id, thread_id, "annotation")
         return {"ok": True, "annotation": annotation}
 
     @router.patch(
@@ -1407,8 +1425,9 @@ def create_cowork_group_router(
         annotation_id: str,
         body: AnnotationResolvedBody,
         request: Request,
+        background_tasks: BackgroundTasks,
     ) -> dict[str, Any]:
-        _annotation_room_id(thread_id, request)
+        room_id = _annotation_room_id(thread_id, request)
         annotation = _collaboration_store().set_annotation_resolved(
             thread_id,
             annotation_id,
@@ -1416,6 +1435,7 @@ def create_cowork_group_router(
         )
         if annotation is None:
             raise HTTPException(404, "annotation not found")
+        background_tasks.add_task(_broadcast_social_change, room_id, thread_id, "annotation")
         return {"ok": True, "annotation": annotation}
 
     @router.delete(
@@ -1426,10 +1446,12 @@ def create_cowork_group_router(
         thread_id: str,
         annotation_id: str,
         request: Request,
+        background_tasks: BackgroundTasks,
     ) -> dict[str, Any]:
-        _annotation_room_id(thread_id, request)
+        room_id = _annotation_room_id(thread_id, request)
         if not _collaboration_store().delete_annotation(thread_id, annotation_id):
             raise HTTPException(404, "annotation not found")
+        background_tasks.add_task(_broadcast_social_change, room_id, thread_id, "annotation")
         return {"ok": True}
 
     @router.post(
@@ -1441,8 +1463,9 @@ def create_cowork_group_router(
         annotation_id: str,
         body: AnnotationReplyBody,
         request: Request,
+        background_tasks: BackgroundTasks,
     ) -> dict[str, Any]:
-        _annotation_room_id(thread_id, request)
+        room_id = _annotation_room_id(thread_id, request)
         author_id, author = _annotation_author(
             request,
             display_name=body.display_name,
@@ -1457,6 +1480,7 @@ def create_cowork_group_router(
         )
         if reply is None:
             raise HTTPException(404, "annotation not found")
+        background_tasks.add_task(_broadcast_social_change, room_id, thread_id, "annotation")
         return {"ok": True, "reply": reply}
 
     @router.post("/api/collab/{thread_id}/room", dependencies=[Depends(_owner_dep)])
@@ -1591,6 +1615,7 @@ def create_cowork_group_router(
         thread_id: str,
         body: RoomMessageBody,
         request: Request,
+        background_tasks: BackgroundTasks,
     ) -> dict[str, Any]:
         """Write a line into the session's linked Team Room transcript.
 
@@ -1653,6 +1678,7 @@ def create_cowork_group_router(
                     sender_kind=sender_kind,
                     sender_driver=sender_driver,
                 )
+        background_tasks.add_task(_broadcast_social_change, room_id, thread_id, "message")
         return {"ok": True, "room_id": room_id, "seq": seq, "message": message}
 
     @router.post(

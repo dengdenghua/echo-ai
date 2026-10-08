@@ -69,14 +69,20 @@ def test_decomposition_repairs_bad_dependency_once():
     from runtime.projectos.llm_hooks import llm_decompose_tasks
 
     seen = []
-    responses = iter([
-        '[{"goal":"Draft"},{"goal":"Review","depends_on":["missing"]}]',
-        '[{"id":"T1","goal":"Draft"},{"id":"T2","goal":"Review","depends_on":["T1"]}]',
-    ])
+    responses = iter(
+        [
+            '[{"goal":"Draft"},{"goal":"Review","depends_on":["missing"]}]',
+            '[{"id":"T1","goal":"Draft"},{"id":"T2","goal":"Review","depends_on":["T1"]}]',
+        ]
+    )
+
     def call(request):
         seen.append(request)
         return SimpleNamespace(text=next(responses))
-    tasks = llm_decompose_tasks(SimpleNamespace(call=call))(Milestone(id="M", name="M", goal="deliver"))
+
+    tasks = llm_decompose_tasks(SimpleNamespace(call=call))(
+        Milestone(id="M", name="M", goal="deliver")
+    )
     assert len(seen) == 2
     assert tasks[1].depends_on == [tasks[0].id]
     assert "failed validation" in seen[1].messages[0].content
@@ -86,9 +92,11 @@ def test_decomposition_repair_is_bounded():
     from runtime.projectos.llm_hooks import llm_decompose_tasks
 
     seen = []
+
     def call(request):
         seen.append(request)
         return SimpleNamespace(text='[{"id":"T1","goal":"Draft","depends_on":["T1"]}]')
+
     with pytest.raises(ValueError, match="自动修正后仍无效"):
         llm_decompose_tasks(SimpleNamespace(call=call))(Milestone(id="M", name="M", goal="deliver"))
     assert len(seen) == 2
@@ -214,7 +222,9 @@ def test_local_project_worker_keeps_absent_tenant_identity(monkeypatch):
     from runtime.execution.host_boundary import create_host_execution_boundary
     from runtime.platform.process.session import session_scope
 
-    boundary = create_host_execution_boundary(task_id="local-project", thread_id="local-thread", goal="verify", timeout_s=60)
+    boundary = create_host_execution_boundary(
+        task_id="local-project", thread_id="local-thread", goal="verify", timeout_s=60
+    )
 
     def execute(_agent, _prompt, **kwargs):
         session = kwargs["session"]
@@ -224,7 +234,10 @@ def test_local_project_worker_keeps_absent_tenant_identity(monkeypatch):
 
     monkeypatch.setattr("runtime.execution.subagents.call_subagent", execute)
     with session_scope(boundary.session):
-        assert subagent_execute_task(
-            Task(id="T", milestone_id="M", type="analysis", goal="verify"),
-            {"thread_id": "local-thread", "tenant_id": "", "owner_id": ""},
-        ) == "verified"
+        assert (
+            subagent_execute_task(
+                Task(id="T", milestone_id="M", type="analysis", goal="verify"),
+                {"thread_id": "local-thread", "tenant_id": "", "owner_id": ""},
+            )
+            == "verified"
+        )

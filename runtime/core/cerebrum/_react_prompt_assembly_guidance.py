@@ -705,8 +705,10 @@ def _assemble_tool_sections(state: _AssemblyState) -> None:
         from runtime.core.cerebrum.design_capabilities import design_instructions
 
         design = design_instructions(
-            state.intent.normalized_goal, context=state.user_context,
-            registry=state.executor.registry, agent=state.agent,
+            state.intent.normalized_goal,
+            context=state.user_context,
+            registry=state.executor.registry,
+            agent=state.agent,
         )
         if design:
             state.volatile_parts.append(design)

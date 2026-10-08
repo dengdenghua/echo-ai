@@ -1129,7 +1129,9 @@ def _phase_6e_guards_and_step_emit(
                     "explicitly instead of burning the iteration budget",
                     _guard_label,
                 )
-                state.emit.final_answer = _guard_impasse_final_answer(_guard_label, _guard_message, steps)
+                state.emit.final_answer = _guard_impasse_final_answer(
+                    _guard_label, _guard_message, steps
+                )
                 state.emit.terminated_reason = "guard_impasse"
                 steps.append(step)
                 return _LoopControl.BREAK

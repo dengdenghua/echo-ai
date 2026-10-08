@@ -36,7 +36,10 @@ def _coordinator() -> SimpleNamespace:
 
 def _store() -> IdentityStore:
     store = IdentityStore()
-    store.add(Identity(actor_id="alice"), api_key_plaintext="sk-alice")
+    store.add(Identity(actor_id="alice", roles=("admin",)), api_key_plaintext="sk-alice")
+    store.add(Identity(actor_id="olga", roles=("operator",)), api_key_plaintext="sk-olga")
+    # Open-signup (OCT/social/local) accounts carry no control-plane role.
+    store.add(Identity(actor_id="mallory", roles=("user",)), api_key_plaintext="sk-mallory")
     return store
 
 
@@ -101,3 +104,40 @@ def test_default_require_auth_is_enabled() -> None:
     assert r.status_code == 401
     r2 = client.get("/api/tentacle/stats", headers={"Authorization": "Bearer sk-alice"})
     assert r2.status_code == 200
+
+
+_CONTROL_ENDPOINTS = [
+    ("/api/tentacle/devices", "get"),
+    ("/api/tentacle/task", "post"),
+    ("/api/tentacle/devices/dev-1/screenshot", "get"),
+    ("/api/tentacle/pc-screen/start", "post"),
+    ("/api/tentacle/remote-input", "post"),
+    ("/api/tentacle/task-workspace/list", "post"),
+    ("/api/tentacle/devices/dev-1/mirror/status", "post"),
+]
+
+
+@pytest.mark.parametrize("path, method", _CONTROL_ENDPOINTS)
+def test_plain_user_is_forbidden_from_control_plane(path: str, method: str) -> None:
+    client = _client(require_auth=True, store=_store())
+    kwargs = {"json": {}} if method == "post" else {}
+    resp = getattr(client, method)(path, headers={"Authorization": "Bearer sk-mallory"}, **kwargs)
+    assert resp.status_code == 403, f"{method.upper()} {path} must require admin/operator"
+
+
+@pytest.mark.parametrize("key", ["sk-alice", "sk-olga"])
+def test_admin_and_operator_pass_role_gate(key: str) -> None:
+    client = _client(require_auth=True, store=_store())
+    headers = {"Authorization": f"Bearer {key}"}
+    assert client.get("/api/tentacle/devices", headers=headers).status_code == 200
+    # Past the gate: the stub coordinator has no remote input handler (400, not 401/403).
+    resp = client.post("/api/tentacle/remote-input", json={}, headers=headers)
+    assert resp.status_code == 400
+
+
+def test_role_gate_is_inert_when_auth_disabled() -> None:
+    client = _client(require_auth=False, store=_store())
+    assert client.get("/api/tentacle/devices").status_code == 200
+    assert (
+        client.get("/api/tentacle/devices", headers={"Authorization": "Bearer sk-mallory"})
+    ).status_code == 200

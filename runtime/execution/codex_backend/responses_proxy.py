@@ -21,8 +21,8 @@ import os
 import re
 import secrets
 import time
-from collections.abc import Callable, Mapping, Sequence
-from contextlib import nullcontext, suppress
+from collections.abc import Callable, Iterator, Mapping, Sequence
+from contextlib import aclosing, nullcontext, suppress
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Literal, Protocol, cast
@@ -33,12 +33,16 @@ from cryptography.exceptions import InvalidTag
 from cryptography.hazmat.primitives.ciphers.aead import AESGCM
 
 from runtime.execution.codex_backend._response_events import (
+    ResponsesTextStream,
+)
+from runtime.execution.codex_backend._response_events import (
     _responses_sse as _responses_sse,
 )
 from runtime.platform.models.llm import (
     Message,
     ModelRequest,
     ModelResponse,
+    ModelStreamEvent,
     ToolSpec,
     normalize_reasoning_effort,
     thinking_budget_for_effort,
@@ -46,6 +50,7 @@ from runtime.platform.models.llm import (
 from runtime.platform.models.provider_errors import ModelProviderHTTPError
 from runtime.platform.process.session import Session, session_scope
 
+from ._model_stream import model_events
 from ._security_support import (
     CodexSecurityError,
     _ensure_private_directory,
@@ -361,7 +366,25 @@ class ScopedResponsesProxy:
             self._handlers.add(task)
         self._writers.add(writer)
         try:
-            status, headers, payload = await self._process_http(reader, writer)
+            await self._serve_connection(reader, writer)
+        finally:
+            self._writers.discard(writer)
+            if task is not None:
+                self._handlers.discard(task)
+            writer.close()
+            with suppress(ConnectionError, OSError, RuntimeError):
+                await writer.wait_closed()
+
+    async def _serve_connection(
+        self,
+        reader: asyncio.StreamReader,
+        writer: asyncio.StreamWriter,
+    ) -> None:
+        try:
+            result = await self._process_http(reader, writer)
+            if result is None:  # live SSE was already written
+                return
+            status, headers, payload = result
         except _RequestRejected as exc:
             status, headers, payload = (
                 exc.status,
@@ -385,23 +408,14 @@ class ScopedResponsesProxy:
                 trace.tb_lineno if trace else 0,
             )
             status, headers, payload = _provider_failure_response(exc)
-        try:
+        with suppress(ConnectionError, OSError, RuntimeError):
             await _write_http_response(writer, status, headers, payload)
-        except (ConnectionError, OSError, RuntimeError):  # expected: client disconnected early
-            pass
-        finally:
-            self._writers.discard(writer)
-            if task is not None:
-                self._handlers.discard(task)
-            writer.close()
-            with suppress(ConnectionError, OSError, RuntimeError):
-                await writer.wait_closed()
 
     async def _process_http(
         self,
         reader: asyncio.StreamReader,
         writer: asyncio.StreamWriter,
-    ) -> tuple[int, dict[str, str], bytes]:
+    ) -> tuple[int, dict[str, str], bytes] | None:
         peer = writer.get_extra_info("peername")
         if not isinstance(peer, tuple) or str(peer[0]) not in {"127.0.0.1", "::1"}:
             raise _RequestRejected(403, "Loopback access required")
@@ -446,6 +460,13 @@ class ScopedResponsesProxy:
                 if len(encoded) > _MAX_RESPONSE_BYTES:
                     raise ResponsesProxyError("Echo compacted response exceeded the proxy limit")
                 result = 200, {"Content-Type": "application/json"}, encoded
+            elif payload.get("stream") is not False and callable(
+                getattr(self._router, "call_stream", None)
+            ):
+                async with self._call_lock:
+                    result = await self._stream_router(request, projections, writer)
+                self._complete_request(fingerprint, result)
+                return None
             else:
                 async with self._call_lock:
                     response = await asyncio.to_thread(self._call_router, request)
@@ -562,6 +583,120 @@ class ScopedResponsesProxy:
         if not isinstance(response, ModelResponse):
             raise ResponsesProxyError("Echo model router returned an invalid response")
         return response
+
+    def _router_events(self, request: ModelRequest) -> Iterator[ModelStreamEvent]:
+        scope = (
+            session_scope(self._trusted_session)
+            if self._trusted_session is not None
+            else nullcontext()
+        )
+        with scope:
+            yield from self._router.call_stream(request)  # type: ignore[attr-defined]
+
+    async def _stream_router(
+        self,
+        request: ModelRequest,
+        projections: Mapping[str, _ToolProjection],
+        writer: asyncio.StreamWriter,
+    ) -> tuple[int, dict[str, str], bytes]:
+        headers = {
+            "Content-Type": "text/event-stream",
+            "Cache-Control": "no-cache",
+            "X-Accel-Buffering": "no",
+        }
+        stream = ResponsesTextStream(
+            model_response_to_responses(
+                ModelResponse(text=""), model=self.scope.model, projections=projections
+            )
+        )
+        created = stream.start()
+        chunks: list[bytes] = []
+        size = 0
+        started = False
+        disconnected = False
+        requested_at = time.perf_counter()
+        first_text_at: float | None = None
+
+        async def send(data: bytes) -> None:
+            nonlocal started, disconnected, size
+            if not data:
+                return
+            if not started:
+                data = created + data
+            size += len(data)
+            if size > _MAX_RESPONSE_BYTES:
+                raise ResponsesProxyError("Echo streamed response exceeded the proxy limit")
+            chunks.append(data)
+            if not disconnected:
+                try:
+                    if not started:
+                        head = (
+                            "HTTP/1.1 200 OK\r\nConnection: close\r\n"
+                            + "".join(f"{key}: {value}\r\n" for key, value in headers.items())
+                            + "\r\n"
+                        )
+                        writer.write(head.encode("ascii"))
+                    writer.write(data)
+                    await writer.drain()
+                except (ConnectionError, OSError, RuntimeError):
+                    # Finish and cache the same invocation for a transport
+                    # retry; never charge/invoke the model a second time.
+                    disconnected = True
+            started = True
+
+        try:
+            async with aclosing(model_events(lambda: self._router_events(request))) as events:
+                async for event in events:
+                    if not isinstance(event, ModelStreamEvent):
+                        raise ResponsesProxyError("Invalid model stream event")
+                    if event.type == "text_delta":
+                        await send(stream.delta(event.delta))
+                        if event.delta and first_text_at is None:
+                            first_text_at = time.perf_counter()
+                            logging.getLogger(__name__).info(
+                                "Codex proxy first text thread_id=%s turn_id=%s first_text_ms=%.1f",
+                                self.scope.thread_id,
+                                self.scope.turn_id,
+                                (first_text_at - requested_at) * 1000,
+                            )
+                    elif event.type == "done":
+                        if not isinstance(event.final, ModelResponse):
+                            raise ResponsesProxyError("Model stream has no final response")
+                        await send(
+                            stream.finish(
+                                model_response_to_responses(
+                                    event.final, model=self.scope.model, projections=projections
+                                )
+                            )
+                        )
+                        break
+                else:
+                    raise ResponsesProxyError("Model stream ended without completion")
+        except Exception as exc:
+            if not started:
+                raise
+            logging.getLogger(__name__).warning(
+                "Codex proxy stream interrupted thread_id=%s turn_id=%s error_type=%s",
+                self.scope.thread_id,
+                self.scope.turn_id,
+                type(exc).__name__,
+            )
+            # Headers/content have already been sent. End with a sanitized SSE
+            # failure, never a second HTTP response or a false completion.
+            failure = stream.emit(
+                "response.failed",
+                response={
+                    **stream.response,
+                    "status": "failed",
+                    "error": {"code": "server_error", "message": "Model stream interrupted"},
+                },
+            )
+            chunks.append(failure)
+            if not disconnected:
+                with suppress(ConnectionError, OSError, RuntimeError):
+                    writer.write(failure)
+                    await writer.drain()
+        return 200, headers, b"".join(chunks)
 
     def _compact_response(
         self,

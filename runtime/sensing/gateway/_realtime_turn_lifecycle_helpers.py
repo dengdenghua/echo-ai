@@ -118,72 +118,79 @@ _COORDINATION_TOOL_NAMES = frozenset(
 )
 
 
+def _coordination_item_evidence(item: Any) -> tuple[bool, bool]:
+    """Distinguish an accepted durable task from a delivered member result."""
+    if getattr(item, "status", None) != ItemStatus.COMPLETED or getattr(item, "error", None):
+        return False, False
+    if getattr(item, "type", None) == ItemType.SUBAGENT:
+        return True, True
+    name = str(getattr(item, "tool", "") or getattr(item, "command", ""))
+    name = name.rsplit("__", 1)[-1]
+    if name == ItemMarker.SUBAGENT_FINISHED.value:
+        return True, True
+    if name not in _COORDINATION_TOOL_NAMES | {"collaboration"}:
+        return False, False
+    value = getattr(item, "result", None) or getattr(item, "aggregated_output", "")
+    # MCP engines may wrap the same JSON tool result in text content blocks.
+    for _ in range(5):
+        if isinstance(value, str):
+            try:
+                value = json.loads(value)
+            except (ValueError, TypeError):
+                break
+        elif isinstance(value, dict) and value.get("isError"):
+            return False, False
+        elif isinstance(value, dict) and isinstance(value.get("content"), list):
+            value = value["content"]
+        elif isinstance(value, list):
+            value = next(
+                (v.get("text") for v in value if isinstance(v, dict) and v.get("type") == "text"),
+                None,
+            )
+        else:
+            break
+    if isinstance(value, dict):
+        if value.get("success") is False or value.get("ok") is False or value.get("error"):
+            return False, False
+        if name == "collaboration":
+            current = value.get("current_task_id")
+            records = (
+                [value["task"]]
+                if isinstance(value.get("task"), dict)
+                else [
+                    task
+                    for task in value.get("tasks", [])
+                    if current and task.get("parent_task_id") == current
+                ]
+            )
+            return bool(records), bool(records) and all(
+                task.get("status") == "done" and bool(task.get("result")) for task in records
+            )
+        if value.get("accepted") is True:
+            records = value.get("results") or [value]
+            return True, all(
+                record.get("status") == "done" and bool(record.get("output")) for record in records
+            )
+    return (True, True) if name in _COORDINATION_TOOL_NAMES else (False, False)
+
+
 def _turn_has_cowork_coordination_evidence(turn: Turn) -> bool:
-    """Return whether an orchestrated turn actually delegated member work.
-
-    Coordinator prose and todo lists are intentions, not execution evidence.
-    Accept only a successfully completed delegation tool or member lifecycle
-    record.  This keeps a TL from satisfying the durable execution contract by
-    merely saying that work was assigned.
-    """
-
-    for item in turn.items:
-        item_type = getattr(item, "type", None)
-        status = getattr(item, "status", None)
-        if status != ItemStatus.COMPLETED:
-            continue
-        if item_type == ItemType.SUBAGENT:
-            if not str(getattr(item, "error", "") or "").strip():
-                return True
-            continue
-        if item_type == ItemType.MCP_TOOL_CALL:
-            tool = str(getattr(item, "tool", "") or "").strip()
-            if tool == ItemMarker.SUBAGENT_FINISHED.value:
-                return True
-            if (
-                tool in _COORDINATION_TOOL_NAMES
-                and not str(getattr(item, "error", "") or "").strip()
-            ):
-                return True
-            continue
-        if item_type == ItemType.COMMAND_EXECUTION:
-            command = str(getattr(item, "command", "") or "").strip()
-            if command in _COORDINATION_TOOL_NAMES:
-                return True
-    return False
+    return any(_coordination_item_evidence(item)[0] for item in turn.items)
 
 
 def _turn_has_cowork_delivery_evidence(turn: Turn) -> bool:
-    """Require a coordinator answer after the last successful delegation."""
-
-    last_coordination_index = -1
+    """Require actual member results followed by a coordinator answer."""
+    last_delivery = -1
     for index, item in enumerate(turn.items):
-        item_type = getattr(item, "type", None)
-        status = getattr(item, "status", None)
-        if status != ItemStatus.COMPLETED:
-            continue
-        if item_type == ItemType.SUBAGENT and not str(getattr(item, "error", "") or "").strip():
-            last_coordination_index = index
-        elif item_type == ItemType.MCP_TOOL_CALL:
-            tool = str(getattr(item, "tool", "") or "").strip()
-            if tool == ItemMarker.SUBAGENT_FINISHED.value or (
-                tool in _COORDINATION_TOOL_NAMES
-                and not str(getattr(item, "error", "") or "").strip()
-            ):
-                last_coordination_index = index
-        elif (
-            item_type == ItemType.COMMAND_EXECUTION
-            and str(getattr(item, "command", "") or "").strip() in _COORDINATION_TOOL_NAMES
-        ):
-            last_coordination_index = index
-    if last_coordination_index < 0:
-        return False
-    return any(
+        delegated, delivered = _coordination_item_evidence(item)
+        if delegated:
+            last_delivery = index if delivered else -1
+    return last_delivery >= 0 and any(
         getattr(item, "type", None) == ItemType.AGENT_MESSAGE
         and getattr(item, "status", None) == ItemStatus.COMPLETED
         and getattr(item, "message_kind", None) == "answer"
         and bool(str(getattr(item, "text", "") or "").strip())
-        for item in turn.items[last_coordination_index + 1 :]
+        for item in turn.items[last_delivery + 1 :]
     )
 
 
@@ -430,6 +437,8 @@ def _sync_cowork_orchestration_run(
     }.get(status_value)
     if target is None:
         return
+    if target == "completed" and turn.outcome_reason == "completed_with_background":
+        target = "waiting"
     store = _collaboration_store(runtime)
     transition = getattr(store, "transition_collaboration_run", None)
     if not callable(transition):
@@ -986,12 +995,23 @@ def _persist_cowork_user_message(
     if not room_id or not callable(append_message):
         return None
     participant_id = str(actor_id or "anonymous").strip() or "anonymous"
+    display_name = participant_id
+    participant_lookup = getattr(
+        getattr(runtime, "_team_rooms_router", None), "get_room_participant", None
+    )
+    if callable(participant_lookup):
+        with contextlib.suppress(Exception):
+            participant = participant_lookup(room_id, participant_id)
+            if isinstance(participant, dict):
+                display_name = str(participant.get("display_name") or participant_id)
     source_message_id = f"thread:{item_id}"
     reply_to = context.get("cowork_reply_to")
     reply_metadata = dict(reply_to) if isinstance(reply_to, dict) and reply_to else None
     message_metadata: dict[str, Any] = {
         "source_message_id": source_message_id,
         "message_type": "message",
+        "sender_kind": "human",
+        "sender_driver": "human",
     }
     if reply_metadata:
         message_metadata["reply_to"] = {
@@ -1005,7 +1025,7 @@ def _persist_cowork_user_message(
             room_id=room_id,
             text=text,
             participant_id=participant_id,
-            display_name="我",
+            display_name=display_name,
             metadata=message_metadata,
         )
         context.setdefault("cowork_room_message_seq", int(seq))

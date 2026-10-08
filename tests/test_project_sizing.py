@@ -9,24 +9,46 @@ from runtime.projectos.sizing_policy import PROJECT_SIZING_POLICY
 
 @pytest.mark.parametrize(
     "sessions,stages,explicit,expected",
-    [(False, False, False, "task"), (False, True, False, "task"),
-     (True, False, False, "task"), (True, True, False, "project"),
-     (False, False, True, "project")],
+    [
+        (False, False, False, "task"),
+        (False, True, False, "task"),
+        (True, False, False, "task"),
+        (True, True, False, "project"),
+        (False, False, True, "project"),
+    ],
 )
-def test_project_requires_both_duration_and_management_evidence(sessions, stages, explicit, expected):
+def test_project_requires_both_duration_and_management_evidence(
+    sessions, stages, explicit, expected
+):
     payload = {
-        "name": "交付", "scope": "完成交付", "milestones": ["交付"],
-        "budget": "不适用", "staffing": [{"role": "执行", "responsibilities": "交付", "count": 1}],
-        "sizing": "project", "requires_multiple_work_sessions": sessions,
-        "requires_stage_management": stages, "explicit_project_request": explicit,
+        "name": "交付",
+        "scope": "完成交付",
+        "milestones": ["交付"],
+        "budget": "不适用",
+        "staffing": [{"role": "执行", "responsibilities": "交付", "count": 1}],
+        "sizing": "project",
+        "requires_multiple_work_sessions": sessions,
+        "requires_stage_management": stages,
+        "explicit_project_request": explicit,
     }
+
     def call(request):
         if PROJECT_SIZING_POLICY not in request.messages[0].content:
-            return SimpleNamespace(text=json.dumps({"ready": False, "blocking_questions": ["交付目标是什么？"], "reason": "需求不足"}))
+            return SimpleNamespace(
+                text=json.dumps(
+                    {
+                        "ready": False,
+                        "blocking_questions": ["交付目标是什么？"],
+                        "reason": "需求不足",
+                    }
+                )
+            )
         return SimpleNamespace(text=json.dumps(payload))
 
     router = SimpleNamespace(call=call)
-    result = prepare_proposal(router, model="test", goal="完成交付", leader="eve", candidates=[], previous={})
+    result = prepare_proposal(
+        router, model="test", goal="完成交付", leader="eve", candidates=[], previous={}
+    )
     assert result["sizing"] == expected
     if expected == "task":
         rendered = ProjectProposal.model_validate(result).render({})

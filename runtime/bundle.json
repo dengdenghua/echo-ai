@@ -1,0 +1,310 @@
+{
+  "schema": "echo.runtime_bundle.v1",
+  "bundleId": "echo-runtime",
+  "version": "0.2.0",
+  "root": "..",
+  "platforms": [
+    "any"
+  ],
+  "runtimes": {
+    "python": ">=3.10"
+  },
+  "entrypoints": {
+    "cli": "runtime.cli:main",
+    "serve": "runtime.cli_serve:run_serve"
+  },
+  "resourceRoots": [
+    {
+      "path": "runtime/execution/all_skills",
+      "kind": "skill-catalog",
+      "expand": "dirs"
+    },
+    {
+      "path": "skills/public",
+      "kind": "skill-catalog",
+      "expand": "dirs"
+    },
+    {
+      "path": "prompts",
+      "kind": "prompt-assets",
+      "expand": "files",
+      "include": [
+        "*.yaml"
+      ]
+    }
+  ],
+  "resources": [
+    {
+      "path": "runtime/execution/all_skills/academic-paper-expert",
+      "kind": "skill-catalog",
+      "sha256": "sha256:6071a252708bac64efcbef5deed64d828e0d42b9ada2bedb7d4feb4f1aafc979"
+    },
+    {
+      "path": "runtime/execution/all_skills/ad-creative",
+      "kind": "skill-catalog",
+      "sha256": "sha256:68aa72419a4add189df6bfaab7ce22ff66d7fdab7d92bce636f38f03b5778c6e"
+    },
+    {
+      "path": "runtime/execution/all_skills/agent-generator",
+      "kind": "skill-catalog",
+      "sha256": "sha256:8181a2e570beabd04cf8a8d6e930e3a3ff6d8fae6cca6cbad255dfebb253ae23"
+    },
+    {
+      "path": "runtime/execution/all_skills/auto-stat-test",
+      "kind": "skill-catalog",
+      "sha256": "sha256:8716a8240294a168073ceeefe835ab919dcc124ff27b7d0136fb80a032f295ee"
+    },
+    {
+      "path": "runtime/execution/all_skills/backend-building",
+      "kind": "skill-catalog",
+      "sha256": "sha256:a1002f804305345b7af05c66c91c5e68230d1dafa216a5d493659d04a8ec0c4a"
+    },
+    {
+      "path": "runtime/execution/all_skills/browser-testing-with-devtools",
+      "kind": "skill-catalog",
+      "sha256": "sha256:dd65c34ea2369daafd22a41a754b46b00c00280229806170383c8f04ae48aead"
+    },
+    {
+      "path": "runtime/execution/all_skills/browser-use",
+      "kind": "skill-catalog",
+      "sha256": "sha256:722501cb9eecdc92e7377b4e4f294ad0e76e9f69293637c20d24d789f8dcdd6b"
+    },
+    {
+      "path": "runtime/execution/all_skills/chart-image",
+      "kind": "skill-catalog",
+      "sha256": "sha256:491eb28f26677c83270a8f5802ab9b66932070282f8fe182ea83610c264933f2"
+    },
+    {
+      "path": "runtime/execution/all_skills/cn-finance-data",
+      "kind": "skill-catalog",
+      "sha256": "sha256:7f816f4b71adda32a9932f898f570d7601e16f6268148a440bb4b3cbd2225b67"
+    },
+    {
+      "path": "runtime/execution/all_skills/code-quality",
+      "kind": "skill-catalog",
+      "sha256": "sha256:699f1eb8b6711e86e16dd3d881ca183466c6803f6515260ea6d31b68e2fac88c"
+    },
+    {
+      "path": "runtime/execution/all_skills/code-vuln-audit",
+      "kind": "skill-catalog",
+      "sha256": "sha256:fdb8d24ba0bd39be3da3e1d6aab7394519d46741f636ccfc670899f2dceeb0f8"
+    },
+    {
+      "path": "runtime/execution/all_skills/competitive-seo-intel",
+      "kind": "skill-catalog",
+      "sha256": "sha256:de37009b87df2ff41b61382db00654ebf2c765a282caadef27c4ad90fb58afa1"
+    },
+    {
+      "path": "runtime/execution/all_skills/creative-comfyui-workflow",
+      "kind": "skill-catalog",
+      "sha256": "sha256:6d5e92da627188966a92800fb1250e84721d97ff3b8e365669f6935987da9c69"
+    },
+    {
+      "path": "runtime/execution/all_skills/creative-ecommerce-images",
+      "kind": "skill-catalog",
+      "sha256": "sha256:62fc5818b6cbf28d14d8b5ed7d3483e2748ed3f82d8cdcb2cc054f3b5580ba3f"
+    },
+    {
+      "path": "runtime/execution/all_skills/creative-microdrama-writer",
+      "kind": "skill-catalog",
+      "sha256": "sha256:c96da60a4eda75b7edbaba54e2129dd86404299ab5810236880d73fa0d419e2b"
+    },
+    {
+      "path": "runtime/execution/all_skills/creative-storyboard-assets",
+      "kind": "skill-catalog",
+      "sha256": "sha256:708138c733863dbcf98ffb55e57fca6c39dd0a1d3cc112377dfe9450acbc986e"
+    },
+    {
+      "path": "runtime/execution/all_skills/creative-video-editor",
+      "kind": "skill-catalog",
+      "sha256": "sha256:2169d117202c98ca8bcf3e1cd1e305cc0c021c444ba55fce3613d5574c50b0c4"
+    },
+    {
+      "path": "runtime/execution/all_skills/creative-visual-direction",
+      "kind": "skill-catalog",
+      "sha256": "sha256:2b41b9ae6eb8dbfac4b88c794601aa0aac405fada0a1b97c4ae1ce90a95400ea"
+    },
+    {
+      "path": "runtime/execution/all_skills/deep-research",
+      "kind": "skill-catalog",
+      "sha256": "sha256:2b19d7c3bff57c40395a3492dcc115738e6f83b5e60f6e889e26184f7fce30c1"
+    },
+    {
+      "path": "runtime/execution/all_skills/documents",
+      "kind": "skill-catalog",
+      "sha256": "sha256:a3e660df8644c027f659e92863ebc0ff9a60fdd232995fedbf7bca0130a5ec17"
+    },
+    {
+      "path": "runtime/execution/all_skills/email-manager",
+      "kind": "skill-catalog",
+      "sha256": "sha256:4c9686d88ef373665302c239eadb02f629bb207b424d32b7e349edf12c7f2ecb"
+    },
+    {
+      "path": "runtime/execution/all_skills/equity-research",
+      "kind": "skill-catalog",
+      "sha256": "sha256:5f5a75109c825f81eb75727caffd584ab50ef6cdb4f0bbfcb771a222a3509777"
+    },
+    {
+      "path": "runtime/execution/all_skills/frontend-ui-engineering",
+      "kind": "skill-catalog",
+      "sha256": "sha256:a7708d4097fa6d63638b81b9913271a2b8c789c4d22f5db6982291184f179554"
+    },
+    {
+      "path": "runtime/execution/all_skills/general-writer",
+      "kind": "skill-catalog",
+      "sha256": "sha256:4f506c40be091cbee39770a5a4eae30f7f44342dc1af8e51718a2c82299e0301"
+    },
+    {
+      "path": "runtime/execution/all_skills/okr-planner",
+      "kind": "skill-catalog",
+      "sha256": "sha256:ed44aa0937c7e2bd5680852035a672ea2f073a8dc771e28562e422b0b63ac589"
+    },
+    {
+      "path": "runtime/execution/all_skills/paper-writing",
+      "kind": "skill-catalog",
+      "sha256": "sha256:70a52dbb439522bb78bf30e4f562ad98517ebfddcc0b0eb387043ca509541fc3"
+    },
+    {
+      "path": "runtime/execution/all_skills/pdf",
+      "kind": "skill-catalog",
+      "sha256": "sha256:d0717ace90966e1824fd6576446fb42be334e46007dfc426b254da81bd9ca245"
+    },
+    {
+      "path": "runtime/execution/all_skills/plugin-creator",
+      "kind": "skill-catalog",
+      "sha256": "sha256:4488f9c69ecf8e12ef2fcccc0e41c412030cba76cd895d2a88cb4af21ba879c7"
+    },
+    {
+      "path": "runtime/execution/all_skills/presentations",
+      "kind": "skill-catalog",
+      "sha256": "sha256:77fe2ae6b7c4e6dffde5c40b08103fa182ae213c3c4faa3527db484a62fdda9e"
+    },
+    {
+      "path": "runtime/execution/all_skills/pricing-advisor",
+      "kind": "skill-catalog",
+      "sha256": "sha256:d6123ebe4f6a98dbb835a26f62a3cea1a90e1e83c55d2e4d689e09ad0bc23113"
+    },
+    {
+      "path": "runtime/execution/all_skills/project-delivery-review",
+      "kind": "skill-catalog",
+      "sha256": "sha256:e43ced16a1be757ccb952c90218a018823519dc9f3f673634437a012420ff222"
+    },
+    {
+      "path": "runtime/execution/all_skills/project-initiation",
+      "kind": "skill-catalog",
+      "sha256": "sha256:ac9db0e1b70e299e5077d827d4532824e2705ee792b5ce45533522072f75c102"
+    },
+    {
+      "path": "runtime/execution/all_skills/project-retrospective",
+      "kind": "skill-catalog",
+      "sha256": "sha256:a0670a5f6e5710809e234ae7319856078d3dd1f026ad4a1133f3b9a0f4031da5"
+    },
+    {
+      "path": "runtime/execution/all_skills/seedance-video-generate",
+      "kind": "skill-catalog",
+      "sha256": "sha256:e6c114a72712877657caab0939fd670f3bf3ba362c098383354365389af862f3"
+    },
+    {
+      "path": "runtime/execution/all_skills/seedream-image-generate",
+      "kind": "skill-catalog",
+      "sha256": "sha256:7934e127abc66266c302ade96675497cfeb993f9b0f7974c8fdbfd7da78dbc6f"
+    },
+    {
+      "path": "runtime/execution/all_skills/seo-audit",
+      "kind": "skill-catalog",
+      "sha256": "sha256:b5adc996b84190fe26fc1c46217737ae62859842babe6f64b4f686260d84e842"
+    },
+    {
+      "path": "runtime/execution/all_skills/skill-creator",
+      "kind": "skill-catalog",
+      "sha256": "sha256:60e469b15fd5ac6d8732922915d19a3062cac2ce90cb2278ad9ed067a8745c98"
+    },
+    {
+      "path": "runtime/execution/all_skills/spreadsheets",
+      "kind": "skill-catalog",
+      "sha256": "sha256:7279b2c9d8b47a6d79ce783051b440c421e4c8b15af0e2936991e160bf352b8d"
+    },
+    {
+      "path": "runtime/execution/all_skills/stock-research-report-expert",
+      "kind": "skill-catalog",
+      "sha256": "sha256:a47a211727b2f5abf2dddafe2b220217e111759ef0b6ad8571f8366f2d0f0cc4"
+    },
+    {
+      "path": "runtime/execution/all_skills/test-driven-dev",
+      "kind": "skill-catalog",
+      "sha256": "sha256:0df730ce8ce7c2673916aeb7d55b33457f2234ff87865d2737fe548242359668"
+    },
+    {
+      "path": "runtime/execution/all_skills/typescript-best-practices",
+      "kind": "skill-catalog",
+      "sha256": "sha256:1d4ba1c5eda03dfdc6ba0f9827b8de346a90be52b872da04ad40984cd01402c4"
+    },
+    {
+      "path": "runtime/execution/all_skills/webapp-building",
+      "kind": "skill-catalog",
+      "sha256": "sha256:e839d92d10fe7a446c91c44f8a5a15bf402fe7fe0d785d98bfd44685ff64ca8d"
+    },
+    {
+      "path": "runtime/execution/all_skills/westock-data",
+      "kind": "skill-catalog",
+      "sha256": "sha256:3b39ce51218b7674e719f19d0e5d132fe33d36155caed09839001fcdb12dbb50"
+    },
+    {
+      "path": "runtime/execution/all_skills/work-report-expert",
+      "kind": "skill-catalog",
+      "sha256": "sha256:e879c3515de9a5b394dc930f4c792099568a777fd208c9a6fe677ec6d10d5f56"
+    },
+    {
+      "path": "skills/public/code-quality",
+      "kind": "skill-catalog",
+      "sha256": "sha256:40bd1e2927d7026f57e05deffd7aae04797504019484a29af9da4635106cb455"
+    },
+    {
+      "path": "skills/public/typescript-best-practices",
+      "kind": "skill-catalog",
+      "sha256": "sha256:cce4e4b03a7e67ab51c0308e05b17324ec0349e1276007855462f5b5d7e64161"
+    },
+    {
+      "path": "prompts/agent_reminder.yaml",
+      "kind": "prompt-assets",
+      "sha256": "sha256:467229372dc65d0e7883d371b030bf819657de568e41516cd6a016d33f703e04"
+    },
+    {
+      "path": "prompts/planner_base.yaml",
+      "kind": "prompt-assets",
+      "sha256": "sha256:d80daf3f11f0c8f548408b71f6fb854f9f35131edf79501b3b38981c958376af"
+    },
+    {
+      "path": "prompts/prompt_merge.yaml",
+      "kind": "prompt-assets",
+      "sha256": "sha256:24361264a964ae59c8dafb4c50081d685a8ecc4942ec3e1377db9c9bf296ac69"
+    },
+    {
+      "path": "prompts/prompt_mutator.yaml",
+      "kind": "prompt-assets",
+      "sha256": "sha256:480457efc0b5ef2206b3ba64350f9b4ef2fd6ce78bc7168b8211b56e93cc4065"
+    },
+    {
+      "path": "prompts/query_rewrite.yaml",
+      "kind": "prompt-assets",
+      "sha256": "sha256:a6ea2e178aabc8ccc08109fd7f5373fdd6574daeaa604b43b137ebf283963ed1"
+    },
+    {
+      "path": "prompts/research_gap_analysis.yaml",
+      "kind": "prompt-assets",
+      "sha256": "sha256:2957568989b8c8ffb8082c98b4c8eae657ce3b2529f8f67fca1df69befea604a"
+    },
+    {
+      "path": "prompts/research_with_citations.yaml",
+      "kind": "prompt-assets",
+      "sha256": "sha256:b27558930ccbb7d7ce047bbb2ca03702101de3d4548f3bc20dcfa2356e000814"
+    }
+  ],
+  "managedOverride": [],
+  "retired": [],
+  "provenance": {
+    "note": "Populated by the release build; intentionally empty in the source tree.",
+    "gitHead": "",
+    "builtAt": ""
+  }
+}

@@ -29,6 +29,7 @@ from runtime.platform.plugins.bundled.comfyui_bridge.workflow_diagnostics import
 )
 from runtime.platform.process.paths import app_paths
 from runtime.platform.process.state import SQLiteBackend, StateStore
+from runtime.sensing.gateway._untrusted_content import untrusted_file_response
 from runtime.sensing.gateway.comfyui_manager import (
     cancel_manager_job,
     list_managed_models,
@@ -447,7 +448,9 @@ def create_design_studio_router(
     )
 
     @router.post("/capabilities/resolve")
-    async def resolve_capabilities(body: DesignCapabilityRequest, request: Request) -> dict[str, Any]:
+    async def resolve_capabilities(
+        body: DesignCapabilityRequest, request: Request
+    ) -> dict[str, Any]:
         from runtime.core.cerebrum.design_capabilities import resolve_design_plan
         from runtime.memory.journal.journal_context import journal_context
 
@@ -464,7 +467,9 @@ def create_design_studio_router(
                 source = str(getattr(skill, "trusted_source", ""))
                 if not source.startswith("plugin://"):
                     continue
-                if not set(getattr(skill, "affinity", [])).intersection({"design", "image", "video", "audio"}):
+                if not set(getattr(skill, "affinity", [])).intersection(
+                    {"design", "image", "video", "audio"}
+                ):
                     continue
                 plugin_id = source.removeprefix("plugin://").split("/", 1)[0]
                 item = plugins.setdefault(plugin_id, {"id": plugin_id, "available": False})
@@ -721,9 +726,13 @@ def create_design_studio_router(
         root = _creative_skill_dir(skill_id)
         items: list[dict[str, str]] = []
         total_bytes = 0
-        for path in sorted(root.rglob("*"), key=lambda p: (
-            p.relative_to(root).as_posix() != "SKILL.md", p.relative_to(root).as_posix(),
-        )):
+        for path in sorted(
+            root.rglob("*"),
+            key=lambda p: (
+                p.relative_to(root).as_posix() != "SKILL.md",
+                p.relative_to(root).as_posix(),
+            ),
+        ):
             if (
                 not path.is_file()
                 or path.is_symlink()
@@ -958,7 +967,8 @@ def create_design_studio_router(
         target = directory / safe_name
         if not target.is_file() or target.is_symlink():
             raise HTTPException(404, "asset not found")
-        return FileResponse(target)
+        # User-uploaded asset (may be SVG/HTML) served from the API origin.
+        return untrusted_file_response(target)
 
     @router.post("/projects/{project_id}/assets")
     async def upload_project_assets(
@@ -1024,7 +1034,7 @@ def create_design_studio_router(
         target = _project_asset_dir(project_id) / artifact_id / filename
         if not target.is_file() or target.is_symlink():
             raise HTTPException(404, "asset not found")
-        return FileResponse(target)
+        return untrusted_file_response(target)
 
     @router.get("/comfyui/status")
     async def comfyui_status() -> dict[str, Any]:

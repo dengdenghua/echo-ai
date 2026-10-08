@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import time
 from collections.abc import AsyncIterator, Callable, Mapping
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -305,6 +306,7 @@ class CodexExecutionSession:
         if self._start_attempted:
             raise CodexBackendStateError("Codex execution session can only be started once")
         self._start_attempted = True
+        startup_at = time.perf_counter()
         try:
             process_backend = self._effective_process_backend()
             context = self._security.prepare(
@@ -336,6 +338,7 @@ class CodexExecutionSession:
                 host_env=self.request.host_env,
             )
             self._context = context
+            prepared_at = time.perf_counter()
             if self.request.source_codex_home is not None:
                 self._auth_seeded = self._security.seed_auth_from_codex_home(
                     context,
@@ -371,6 +374,7 @@ class CodexExecutionSession:
                 client_kwargs["dynamic_tool_handler"] = self.request.dynamic_tool_handler
             self._client = self._client_factory(config, **client_kwargs)
             await self._start_client()
+            client_ready_at = time.perf_counter()
 
             config_response = await self._request_pre_turn(
                 "config/read",
@@ -379,6 +383,7 @@ class CodexExecutionSession:
             if not isinstance(config_response, Mapping):
                 raise ProtocolError("config/read response must be a JSON object")
             context.validate_effective_config(cast(Mapping[str, object], config_response))
+            config_ready_at = time.perf_counter()
 
             binding = self._security.read_server_binding(
                 context,
@@ -386,6 +391,7 @@ class CodexExecutionSession:
             )
             inner_thread_id = await self._restore_or_create_thread(context, binding)
             self._inner_thread_id = inner_thread_id
+            thread_ready_at = time.perf_counter()
 
             turn_params = _turn_extra_params(context.turn_start_security_overrides())
             if self.request.tool_free or self.request.host_tools_only:
@@ -427,6 +433,19 @@ class CodexExecutionSession:
             )
             if callable(bind_dynamic_scope):
                 bind_dynamic_scope(thread_id=inner_thread_id, turn_id=inner_turn_id)
+            turn_ready_at = time.perf_counter()
+            _logger.info(
+                "Codex startup timing thread_id=%s turn_id=%s prepare_ms=%.1f "
+                "client_ms=%.1f config_ms=%.1f thread_ms=%.1f turn_ms=%.1f total_ms=%.1f",
+                self.request.outer_thread_id,
+                self.request.outer_turn_id,
+                (prepared_at - startup_at) * 1000,
+                (client_ready_at - prepared_at) * 1000,
+                (config_ready_at - client_ready_at) * 1000,
+                (thread_ready_at - config_ready_at) * 1000,
+                (turn_ready_at - thread_ready_at) * 1000,
+                (turn_ready_at - startup_at) * 1000,
+            )
             return self
         except BaseException:
             await self._release(suppress_errors=True)

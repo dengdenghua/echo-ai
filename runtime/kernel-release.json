@@ -1,0 +1,110 @@
+{
+  "schema": "echo.kernel-release.v1",
+  "manifestVersion": "1.0.0",
+  "authority": "echo-ai",
+  "scope": "selected shared cross-device and safety sources; not the entire runtime or a signed bundle",
+  "deviceProtocolVersion": "1.0",
+  "securityContractVersion": "1.1.0",
+  "securityContractSha256": "ac36ef035e25d28e89f901ef7e21a51628409557dda2ad81bb082ad760f1c7c9",
+  "sharedSources": [
+    {
+      "path": "runtime/tentacle/contract.py",
+      "sha256": "1d95254f94a5b7dea399284e27a58f60bc979b5a0629f13607761771d949ec39"
+    },
+    {
+      "path": "runtime/tentacle/transport/device_protocol.py",
+      "sha256": "eb692d8bf5375b4694be3ba07ce7dbaa6810f7a40b2e4c735a818cddb458b555"
+    },
+    {
+      "path": "runtime/tentacle/task_workspace.py",
+      "sha256": "57b3a2b95f854d8b24ddb3f20deef15392885d8dc96dda07500fff5b5e36b998"
+    },
+    {
+      "path": "runtime/tentacle/task_workspace_api.py",
+      "sha256": "c1b0c699dadd68d4930d698bb2b3e09f11742b724b591271f2a5ecfbd3328a07"
+    },
+    {
+      "path": "runtime/tentacle/procedure.py",
+      "sha256": "05129ce12eac200643b8af718dddd5e1ebe1dd9bb297e388b549cd7c4ea871a2"
+    },
+    {
+      "path": "runtime/tentacle/transfer_journal.py",
+      "sha256": "34d3b2ee4de9d282ff57677e5cfb29500811f9faf65223fb05b1b322c2e8111a"
+    },
+    {
+      "path": "runtime/tentacle/device_client.py",
+      "sha256": "b1e9a0fc7f6f02358ed43b61b85e12f749d1605fb3dd49cae4ee470977bd6560"
+    },
+    {
+      "path": "runtime/platform/observability/logging_config.py",
+      "sha256": "f699af7fe513450ab4e095e21cc5d0d1c297bfeccaaeac7b7df69d0f4ff951bd"
+    },
+    {
+      "path": "runtime/platform/observability/structured_logging.py",
+      "sha256": "c7905d62c98a45b82dff7801f24b4c030e5a38cd1e063275ba5f19a3e4d95c38"
+    }
+  ],
+  "profiles": {
+    "ai": {
+      "owner": "echo-ai",
+      "reason": "Reviewed product-specific execution, receipt, peer credential, sandbox and principal adapters; not overwritten from the shared authority.",
+      "sources": [
+        {
+          "path": "runtime/execution/request.py",
+          "sha256": "1c6898ca19a8abd8c75d93683e33e4910223fbd3166afc0bd530dbebb50fe1d8"
+        },
+        {
+          "path": "runtime/tentacle/execution.py",
+          "sha256": "328c8023a3d5b09bb20a20611273dcd574a7003dea2a80d1d8cb540016a59224"
+        },
+        {
+          "path": "runtime/tentacle/transport/ws_server.py",
+          "sha256": "8a40cdee3094f976786cab03d5dd00c6b2921c6e7a31098aa6512dfaa60a44db"
+        },
+        {
+          "path": "runtime/safety/sandboxing/sandbox.py",
+          "sha256": "6903e9db6bd03b0e38c28f28cbf1a8dc435d929cdf6ef5cdb1098759d49aa494"
+        },
+        {
+          "path": "runtime/safety/auth/principal.py",
+          "sha256": "bb251dc1fe0fb9d54e73bfcf643536d56efae8109b8f7a1cc8e9bf83f2dfdbca"
+        },
+        {
+          "path": "runtime/platform/process/streaming.py",
+          "sha256": "3fae0548be34d598bb18d123cce6fafdc580c5784fbe04a9dde3cdab9078329b"
+        }
+      ]
+    },
+    "os": {
+      "owner": "echo-os",
+      "reason": "Reviewed product-specific execution, receipt, peer credential, sandbox and principal adapters; not overwritten from the shared authority.",
+      "sources": [
+        {
+          "path": "runtime/execution/request.py",
+          "sha256": "c3ab8d4beb4c6649fe994ba45e050e9a063d0da327465df4242ba6334fde905e"
+        },
+        {
+          "path": "runtime/tentacle/execution.py",
+          "sha256": "328c8023a3d5b09bb20a20611273dcd574a7003dea2a80d1d8cb540016a59224"
+        },
+        {
+          "path": "runtime/tentacle/transport/ws_server.py",
+          "sha256": "071180e9e023a25c38c8472fea99905d75fdfc491c1074261c64a1e5d2b0ef8b"
+        },
+        {
+          "path": "runtime/safety/sandboxing/sandbox.py",
+          "sha256": "3a1c5a92ccdce35100e8253c882b9f8b27d3ccab75c546af3ec4fd5b809c42fb"
+        },
+        {
+          "path": "runtime/safety/auth/principal.py",
+          "sha256": "a50d76e07dd56df905241d0d9070eef95a812af68b31411c5ea9c55669d06543"
+        },
+        {
+          "path": "runtime/platform/process/streaming.py",
+          "sha256": "667857018ca3fcb2dc9b71ee2df74e7b841f130a0f090a6bc1e55f91813c7eca"
+        }
+      ]
+    }
+  },
+  "revision": "sha256:26342e4634dd0d3d215e07daf33a951b4fdb2ee988078e5afac3a3392c4c9c2d"
+}

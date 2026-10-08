@@ -140,7 +140,9 @@ class CapabilityRegistry:
         dependencies: list[dict[str, Any]] = []
         blockers: list[str] = []
         if item.get("ownership_state") == "needs_adapter":
-            blockers.append("需要先配置 Echo 可用的服务地址与客户端身份；当前包含第三方宿主专用配置")
+            blockers.append(
+                "需要先配置 Echo 可用的服务地址与客户端身份；当前包含第三方宿主专用配置"
+            )
         visited_dependencies: set[str] = set()
         visiting_dependencies: set[str] = set()
 

@@ -535,10 +535,16 @@ def _register_mcp_server(
         url=entry.url,
         headers=dict(entry.headers),
         sandbox_dir=entry.sandbox_dir,
+        cwd=entry.cwd,
+        timeout_ms=entry.timeout_ms,
     )
     client: MCPClient
     try:
-        client = HttpMCPClient(config) if is_remote else PersistentStdioMCPClient(config)
+        client = (
+            HttpMCPClient(config)
+            if is_remote
+            else PersistentStdioMCPClient(config, connect_timeout_ms=entry.connect_timeout_ms)
+        )
     except MCPClientError:
         return None
     except OSError:

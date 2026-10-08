@@ -358,6 +358,16 @@ def call_subagent(
     """
     agent_id = agent_id or role or name
     prompt = prompt or task or message or query
+    # Pipelines and other composite tools must obey the same group roster as
+    # direct delegation. Tool arguments cannot grant global candidate access.
+    from runtime.execution.tool_engine.coordination_guard import current_group_coordination
+    from runtime.memory.cowork.delivery import current_delivery
+
+    if current_delivery() is not None:
+        raise PermissionError("自动交付阶段仅验收已有成员结果，不得重新派发任务")
+    coordination = current_group_coordination()
+    if coordination is not None:
+        coordination.check_member(coordination.current()["thread_id"], agent_id)
     if not agent_id:
         return {
             "agent_id": agent_id,

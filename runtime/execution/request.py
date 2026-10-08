@@ -11,7 +11,7 @@ from __future__ import annotations
 import math
 import time
 from collections.abc import Iterator
-from contextlib import contextmanager
+from contextlib import contextmanager, nullcontext
 from contextvars import ContextVar
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Literal
@@ -20,6 +20,7 @@ if TYPE_CHECKING:
     from runtime.safety.approval.approval_gate import ApprovalProvider
 
 from runtime.execution.artifact_contracts import ArtifactContract
+from runtime.execution.environment import ExecutionEnvironment
 from runtime.platform.process.scope import ExecutionScope, execution_scope_ceiling
 
 
@@ -73,6 +74,8 @@ class ExecutionTask:
     approval_provider: ApprovalProvider | None = None
     server_auto_approve: bool = False
     authorization_intent: str = ""
+    environment: ExecutionEnvironment | None = None
+    allowed_tools: frozenset[str] | None = None
 
     def __post_init__(self) -> None:
         if not self.task_id or not self.thread_id:
@@ -101,9 +104,23 @@ def current_execution_request() -> ExecutionRequest | None:
 
 @contextmanager
 def execution_request_scope(request: ExecutionRequest) -> Iterator[None]:
+    from runtime.execution.lifecycle import get_execution_lifecycle
+
+    lifecycle = get_execution_lifecycle()
+    current = _CURRENT_REQUEST.get()
+    track = lifecycle is not None and (
+        current is None
+        or current.task.task_id != request.task.task_id
+        or current.task.execution_engine != request.task.execution_engine
+    )
     token = _CURRENT_REQUEST.set(request)
     try:
-        with execution_scope_ceiling(request.task.permissions):
+        with (
+            lifecycle.invoke(request) if lifecycle is not None and track else nullcontext(),
+            execution_scope_ceiling(request.task.permissions),
+        ):
+            if request.task.environment is not None:
+                request.task.environment.check(request.task.permissions)
             yield
     finally:
         _CURRENT_REQUEST.reset(token)

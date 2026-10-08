@@ -4,8 +4,12 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import pytest
+
 from runtime.memory.skills_lib.agentskills import (
+    SKILL_NAME_MAX_CHARS,
     install_skill,
+    lint_skill_catalog,
     scan_skill_safety,
     validate_skill_dir,
 )
@@ -60,6 +64,55 @@ def test_validate_rejects_missing_required_fields(tmp_path: Path) -> None:
     d = _write_skill(tmp_path, "noDesc", frontmatter="name: noDesc")
     ok, _n, _d, err = validate_skill_dir(d)
     assert not ok and "description" in err
+
+
+def test_validate_rejects_name_that_disagrees_with_the_folder(tmp_path: Path) -> None:
+    # The spec requires the frontmatter name to equal the containing folder.
+    # Without this the index, the loader and the on-disk layout can each
+    # disagree about what a skill is called.
+    d = _write_skill(tmp_path, "pdf", frontmatter="name: pdf-tools\ndescription: handle PDFs")
+    ok, _n, _d, err = validate_skill_dir(d)
+    assert not ok and "must match the folder name" in err
+
+
+def test_validate_rejects_non_lowercase_name(tmp_path: Path) -> None:
+    d = _write_skill(tmp_path, "Pdf", frontmatter="name: Pdf\ndescription: handle PDFs")
+    ok, _n, _d, err = validate_skill_dir(d)
+    assert not ok and "lowercase" in err
+
+
+def test_validate_rejects_overlong_name(tmp_path: Path) -> None:
+    name = "a" * (SKILL_NAME_MAX_CHARS + 1)
+    d = _write_skill(tmp_path, name, frontmatter=f"name: {name}\ndescription: too long")
+    ok, _n, _d, err = validate_skill_dir(d)
+    assert not ok and str(SKILL_NAME_MAX_CHARS) in err
+
+
+def test_validate_strips_yaml_quotes_around_name(tmp_path: Path) -> None:
+    # Shipped skills write ``name: "code-quality"``; the raw value used to keep
+    # its quotes and then fail the folder-name comparison.
+    d = _write_skill(
+        tmp_path, "code-quality", frontmatter='name: "code-quality"\ndescription: "quality gates"'
+    )
+    ok, name, desc, err = validate_skill_dir(d)
+    assert ok and name == "code-quality" and desc == "quality gates" and err == ""
+
+
+def test_lint_skill_catalog_accepts_the_shipped_catalog() -> None:
+    catalog = Path(__file__).resolve().parents[1] / "runtime" / "execution" / "all_skills"
+    assert lint_skill_catalog(catalog) == []
+
+
+def test_lint_skill_catalog_reports_a_nonconformant_folder(tmp_path: Path) -> None:
+    _write_skill(tmp_path, "good", frontmatter="name: good\ndescription: fine")
+    _write_skill(tmp_path, "bad", frontmatter="name: different\ndescription: off")
+    (tmp_path / "not-a-skill").mkdir()
+
+    problems = lint_skill_catalog(tmp_path)
+
+    assert len(problems) == 1
+    assert problems[0].startswith("bad:")
+    assert "must match the folder name" in problems[0]
 
 
 # ── safety scan (the differentiator) ─────────────────────────────────
@@ -168,6 +221,55 @@ def test_install_from_source_unrecognized(tmp_path: Path) -> None:
     result = install_from_source("not-a-path-or-url", tmp_path / "all_skills")
     assert not result.ok
     assert "fetch failed" in result.error
+
+
+@pytest.mark.parametrize("name", ["example-skill", "clone"])
+def test_install_remote_root_skill_uses_declared_name(tmp_path: Path, monkeypatch, name) -> None:
+    import runtime.memory.skills_lib.agentskills as ag
+
+    def fake_clone(url, branch, dest):
+        dest.mkdir(parents=True)
+        (dest / "SKILL.md").write_text(
+            f"---\nname: {name}\ndescription: Example\n---\n", encoding="utf-8"
+        )
+
+    monkeypatch.setattr(ag, "_git_clone", fake_clone)
+    catalog = tmp_path / "catalog"
+    result = ag.install_from_source("https://github.com/example/repo", catalog)
+    assert result.ok
+    assert (catalog / name / "SKILL.md").is_file()
+
+
+@pytest.mark.parametrize("name", ["../escape", "/absolute", "bad/name", "Uppercase"])
+def test_remote_root_skill_rejects_unsafe_name_before_staging(tmp_path, monkeypatch, name) -> None:
+    import runtime.memory.skills_lib.agentskills as ag
+
+    def fake_clone(url, branch, dest):
+        dest.mkdir(parents=True)
+        (dest / "SKILL.md").write_text(
+            f"---\nname: {name}\ndescription: Example\n---\n", encoding="utf-8"
+        )
+
+    monkeypatch.setattr(ag, "_git_clone", fake_clone)
+    catalog = tmp_path / "catalog"
+    result = ag.install_from_source("https://github.com/example/repo", catalog)
+    assert not result.ok
+    assert not catalog.exists()
+
+
+def test_remote_root_skill_still_runs_safety_scan(tmp_path, monkeypatch) -> None:
+    import runtime.memory.skills_lib.agentskills as ag
+
+    def fake_clone(url, branch, dest):
+        dest.mkdir(parents=True)
+        (dest / "SKILL.md").write_text(
+            "---\nname: dangerous\ndescription: Example\n---\nrm -rf /home\n", encoding="utf-8"
+        )
+
+    monkeypatch.setattr(ag, "_git_clone", fake_clone)
+    result = ag.install_from_source("https://github.com/example/repo", tmp_path / "catalog")
+    assert not result.ok
+    assert result.dangerous
 
 
 def test_resolve_github_tree_url(tmp_path: Path, monkeypatch) -> None:

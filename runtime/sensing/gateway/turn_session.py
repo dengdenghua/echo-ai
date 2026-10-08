@@ -126,6 +126,9 @@ def build_turn_metadata(
     except (KeyError, AttributeError):
         stored_meta = {}
 
+    if ctx.get("private_conversation") is True or stored_meta.get("private_conversation") is True:
+        metadata["private_conversation"] = True
+
     # Keep model selection in one place. This also preserves compatibility
     # with older clients that send ``context.model`` or top-level ``model``.
     from runtime.platform.process.turn_model import resolve_turn_model

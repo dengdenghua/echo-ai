@@ -36,17 +36,34 @@ def progress_emitter(role_id, context):
             output = str(event.get("output_preview") or "")
             failed = kind == "tool_end" and event.get("success") is not True
             _emit_sub_tool_event(
-                sub_kind, role_id=role_id,
+                sub_kind,
+                role_id=role_id,
                 tool_call=SimpleNamespace(id=call_id, name=name, input=args),
-                iteration=0, output=output if kind == "tool_end" else None, is_error=failed,
+                iteration=0,
+                output=output if kind == "tool_end" else None,
+                is_error=failed,
             )
-            _safe_ctx_emit(emitter, {
-                "type": sub_kind, "agent_id": role_id, "round": 0,
-                "skill": name, "tool_call_id": call_id,
-                "args": args, "execution_engine": "opencode",
-                "status": "started",
-                "args_preview": event.get("input_preview") or "",
-                **({"status": "failed" if failed else "success", "output_preview": output[:1000]}
-                   if kind == "tool_end" else {}),
-            })
+            _safe_ctx_emit(
+                emitter,
+                {
+                    "type": sub_kind,
+                    "agent_id": role_id,
+                    "round": 0,
+                    "skill": name,
+                    "tool_call_id": call_id,
+                    "args": args,
+                    "execution_engine": "opencode",
+                    "status": "started",
+                    "args_preview": event.get("input_preview") or "",
+                    **(
+                        {
+                            "status": "failed" if failed else "success",
+                            "output_preview": output[:1000],
+                        }
+                        if kind == "tool_end"
+                        else {}
+                    ),
+                },
+            )
+
     return emit

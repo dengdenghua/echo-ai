@@ -422,8 +422,7 @@ def _phase_6d_dispatch_and_observe(
     _budget_cfg = getattr(getattr(stack, "config", None), "budget", None)
     _approval_timeout_s = (
         float(_budget_cfg.approval_timeout_s)
-        if _budget_cfg is not None
-        and getattr(_budget_cfg, "approval_timeout_s", None) is not None
+        if _budget_cfg is not None and getattr(_budget_cfg, "approval_timeout_s", None) is not None
         else 600.0
     )
     _parallel_batch_timeout_s = (
@@ -1269,12 +1268,12 @@ def _phase_6d_dispatch_and_observe(
 
         _evidence_convergence_became_active = False
         if _evidence_convergence_active is None and tool_action_requested:
-            _evidence_convergence_active = (
-                state.iteration.evidence_convergence_active
-            ) = read_only_evidence_convergence(
-                goal=intent.normalized_goal,
-                steps=steps + [step],
-                read_only=_read_only_turn,
+            _evidence_convergence_active = state.iteration.evidence_convergence_active = (
+                read_only_evidence_convergence(
+                    goal=intent.normalized_goal,
+                    steps=steps + [step],
+                    read_only=_read_only_turn,
+                )
             )
             if _evidence_convergence_active is not None:
                 _evidence_convergence_became_active = True
@@ -1325,7 +1324,9 @@ def _phase_6d_dispatch_and_observe(
             _quiet_evidence_steps.append(step)
             # Keep prompts bounded when a provider repeatedly inspects new
             # files without producing a checkpoint of its own.
-            _quiet_evidence_steps = state.iteration.quiet_evidence_steps = _quiet_evidence_steps[-4:]
+            _quiet_evidence_steps = state.iteration.quiet_evidence_steps = _quiet_evidence_steps[
+                -4:
+            ]
         _quiet_evidence_due = _quiet_evidence_checkpoint_due(_quiet_evidence_steps)
         _model_result_update = ""
         if _observed_result_checkpoint and maybe_final is None:

@@ -309,6 +309,43 @@ def test_workspace_routes_require_auth_and_respect_thread_owner(
     assert other.status_code == 404
 
 
+def test_workspace_ownerless_legacy_thread_is_admin_only(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.chdir(tmp_path)
+    store, keys = _store_with_actors()
+    store.add(Identity(actor_id="root", roles=("admin",)), api_key_plaintext="sk-test-root")
+    thread_store = ThreadStateStore()
+    thread_store.ensure_thread("ownerless", metadata={}, values={"title": "Legacy"})
+    thread_store.ensure_thread("legacy-owned", metadata={"actor_id": "alice"}, values={})
+    app = FastAPI()
+    app.include_router(
+        create_workspaces_router(
+            workspace_root=tmp_path / "workspaces",
+            thread_store=thread_store,
+            identity_store=store,
+            require_auth=True,
+        )
+    )
+    client = TestClient(app)
+
+    assert (
+        client.get("/api/workspaces/ownerless", headers=_bearer(keys["alice"])).status_code == 404
+    )
+    assert (
+        client.get("/api/workspaces/ownerless", headers=_bearer("sk-test-root")).status_code == 200
+    )
+    # The pre-``owner_actor_id`` field still identifies the owner.
+    assert (
+        client.get("/api/workspaces/legacy-owned", headers=_bearer(keys["alice"])).status_code
+        == 200
+    )
+    assert (
+        client.get("/api/workspaces/legacy-owned", headers=_bearer(keys["bob"])).status_code == 404
+    )
+
+
 def test_upload_routes_require_auth_and_respect_thread_owner(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -410,6 +447,8 @@ def test_local_auth_jwt_reaches_control_and_auth_aware_routes(
 ) -> None:
     from runtime.adapters.integrations.local_auth.config import LocalAuthConfig
 
+    monkeypatch.setenv("ECHO_ENV", "development")
+    monkeypatch.setenv("ECHO_DEPLOYMENT_MODE", "local")
     monkeypatch.chdir(tmp_path)
     app = create_app(
         cocoloop_require_auth=True,
@@ -458,6 +497,8 @@ def test_local_auth_jwt_audience_is_issued_and_enforced(
 ) -> None:
     from runtime.adapters.integrations.local_auth.config import LocalAuthConfig
 
+    monkeypatch.setenv("ECHO_ENV", "development")
+    monkeypatch.setenv("ECHO_DEPLOYMENT_MODE", "local")
     monkeypatch.chdir(tmp_path)
     app = create_app(
         cocoloop_require_auth=True,

@@ -292,7 +292,11 @@ def isolated_worktree_scope(
             readable_roots=(path, *task.permissions.readable_roots),
             writable_roots=(path,),
         )
-        scoped_task = replace(task, permissions=permissions)
+        scoped_task = replace(
+            task,
+            permissions=permissions,
+            environment=replace(task.environment, workspace=path) if task.environment else None,
+        )
         metadata = {
             **parent.metadata,
             "workspace_path": str(path),

@@ -417,6 +417,16 @@ class AsyncWorkStore:
             ).rowcount
         return int(updated or 0)
 
+    def cancel_claim(self, task_id: str, *, expected_attempt: int, reason: str) -> bool:
+        """Cancel only this worker's generation, never a replacement attempt."""
+        return self._set_status(
+            task_id,
+            "cancelled",
+            result=reason,
+            expected_status="working",
+            expected_attempt=expected_attempt,
+        )
+
     def _set_status(
         self,
         task_id: str,
@@ -424,6 +434,7 @@ class AsyncWorkStore:
         *,
         result: str | None = None,
         expected_status: str | None = None,
+        expected_attempt: int | None = None,
     ) -> bool:
         task_id = require_cowork_id(task_id, label="task_id")
         if status not in _STATUSES:
@@ -437,6 +448,9 @@ class AsyncWorkStore:
         else:
             where = "WHERE task_id=? AND status=?"
             params = (status, result, _now(), task_id, expected_status)
+        if expected_attempt is not None:
+            where += " AND attempts=?"
+            params = (*params, expected_attempt)
         with cowork_storage_write_lock(self._db.parent), self._lock, self._connect() as conn:
             self._ensure_schema(conn)
             conn.execute("BEGIN IMMEDIATE")
@@ -456,6 +470,10 @@ class AsyncWorkStore:
 
     def claim(self, task_id: str) -> bool:
         """A runner takes the task (pending → working). False if not pending."""
+        return self.claim_execution(task_id) is not None
+
+    def claim_execution(self, task_id: str) -> AsyncTask | None:
+        """Atomically return the claimed generation, never a later worker's claim."""
         task_id = require_cowork_id(task_id, label="task_id")
         with cowork_storage_write_lock(self._db.parent), self._lock, self._connect() as conn:
             self._ensure_schema(conn)
@@ -465,7 +483,7 @@ class AsyncWorkStore:
                 (task_id,),
             ).fetchone()
             if row is None:
-                return False
+                return None
             self._assert_thread_writable(conn, str(row[0]))
             cur = conn.execute(
                 "UPDATE async_tasks SET status='working', updated_at=?, "
@@ -473,9 +491,39 @@ class AsyncWorkStore:
                 "WHERE task_id=? AND status='pending'",
                 (_now(), task_id),
             )
-            return cur.rowcount > 0
+            if not cur.rowcount:
+                return None
+            return self._row_to_task(
+                conn.execute("SELECT * FROM async_tasks WHERE task_id=?", (task_id,)).fetchone()
+            )
 
-    def complete(self, task_id: str, result: str, *, blackboard_key: str | None = None) -> bool:
+    def heartbeat(self, task_id: str, *, expected_attempt: int) -> bool:
+        task_id = require_cowork_id(task_id, label="task_id")
+        with cowork_storage_write_lock(self._db.parent), self._lock, self._connect() as conn:
+            self._ensure_schema(conn)
+            conn.execute("BEGIN IMMEDIATE")
+            row = conn.execute(
+                "SELECT thread_id FROM async_tasks WHERE task_id=?", (task_id,)
+            ).fetchone()
+            if row is None:
+                return False
+            self._assert_thread_writable(conn, str(row[0]))
+            return (
+                conn.execute(
+                    "UPDATE async_tasks SET updated_at=? WHERE task_id=? AND status='working' AND attempts=?",
+                    (_now(), task_id, expected_attempt),
+                ).rowcount
+                > 0
+            )
+
+    def complete(
+        self,
+        task_id: str,
+        result: str,
+        *,
+        blackboard_key: str | None = None,
+        expected_attempt: int | None = None,
+    ) -> bool:
         """Mark done and post the result to the group's shared blackboard,
         attributed to the assignee — so the whole thread sees the output."""
         task_id = require_cowork_id(task_id, label="task_id")
@@ -490,7 +538,9 @@ class AsyncWorkStore:
                 return False
             task = self._row_to_task(row)
             self._assert_thread_writable(conn, task.thread_id)
-            if task.status != "working":
+            if task.status != "working" or (
+                expected_attempt is not None and task.attempts != expected_attempt
+            ):
                 return False
             conn.execute(
                 "UPDATE async_tasks SET status='done', result=?, updated_at=? "
@@ -507,7 +557,7 @@ class AsyncWorkStore:
             )
             return True
 
-    def fail(self, task_id: str, error: str) -> bool:
+    def fail(self, task_id: str, error: str, *, expected_attempt: int | None = None) -> bool:
         task_id = require_cowork_id(task_id, label="task_id")
         error = _normalize_async_text(error, label="error")
         return self._set_status(
@@ -515,6 +565,7 @@ class AsyncWorkStore:
             "failed",
             result=error,
             expected_status="working",
+            expected_attempt=expected_attempt,
         )
 
     def recover_stale_working(

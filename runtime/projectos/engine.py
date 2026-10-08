@@ -22,6 +22,7 @@ from contextlib import suppress
 from typing import Any
 from uuid import uuid4
 
+from runtime.execution.claim_guard import ExecutionClaimGuard
 from runtime.projectos._default_plan import (
     stub_decompose_tasks as stub_decompose_tasks,
 )
@@ -763,154 +764,198 @@ class ProjectEngine:
                 continue
             task, claim_id = claim
 
-            # Operator reassignment wins; otherwise pick a concrete group member
-            # or fallback role for this execution. Assignment happens after the
-            # atomic claim so an injected assigner is also called only once.
-            #
-            # A human node is not an AI member, so the phase's agent allow-list
-            # does not govern it and the assigner must not touch it: filling in
-            # an agent id would both mislabel the node in the workbench and hand
-            # it to the executor it must never reach. Whoever claims it as a
-            # person (run_task_human) is the one that fills assigned_agent.
-            try:
-                allowed = ms.spec.get("phase_agents")
-                if task.team_mode not in TEAM_MODES_HUMAN:
-                    if (
-                        allowed is not None
-                        and task.assigned_agent
-                        and task.assigned_agent not in allowed
-                    ):
-                        raise ValueError("assigned agent is not authorized for this phase")
-                    task.assigned_agent = task.assigned_agent or self._assign(task)
-                    if allowed is not None and task.assigned_agent not in allowed:
-                        raise ValueError("selected agent is not authorized for this phase")
-            except Exception as exc:  # noqa: BLE001 — assignment is an injected hook
-                task.output = f"assignment error: {_error_text(exc)}"
-                if task.attempts >= MAX_TASK_ATTEMPTS:
-                    task.status = "failed"
-                    event = f"task_failed_assignment:{task.id}"
-                else:
-                    task.status = "pending"
-                    event = f"task_assignment_error_retry:{task.id}"
-                self._commit_task_claim(task, claim_id, event, events)
-                continue
-            context = {}
-            execution_started = False
-            try:
-                # A review outage does not invalidate an already produced
-                # deliverable. Retry QA without repeating task side effects.
-                if not (task.qa_verdict or {}).get("review_error"):
-                    context_tasks = [task if item.id == task.id else item for item in tasks]
-                    context = self._context(project, ms, context_tasks)
-                    context["task_id"] = task.id
-                    execution_started = True
-                    if task.team_mode in TEAM_MODES_HUMAN:
-                        runner = self._run_task_human
-                        if runner is None:
-                            # Fail closed. Nobody can claim human work yet, so the
-                            # node blocks and says so. Letting an agent run it
-                            # would pass QA and then be sealed into the delivery
-                            # fingerprint, i.e. an AI impersonating the human
-                            # whose signature the acceptance gate relies on.
-                            task.status = "blocked"
-                            task.output = HUMAN_NODE_UNCLAIMED
-                            self._commit_task_claim(
-                                task, claim_id, f"task_awaiting_human:{task.id}", events
-                            )
-                            continue
-                        task.output = runner(task, context)
-                        # A human run consumes no provider tokens, so this
-                        # context has no usage to report.
-                        context["_usage_seen"] = True
-                    elif task.team_mode in TEAM_MODES_AI and self._run_task_team is not None:
-                        task.output = self._run_task_team(task, context)
-                    else:
-                        task.output = self._execute(task, context)
-                    if ms.spec.get("ai_budget_usd") is not None and not context.get("_usage_seen"):
-                        context["record_project_usage"]({})
-            except Exception as exc:  # noqa: BLE001 — one task failing must not kill the loop
-                if (
-                    execution_started
-                    and ms.spec.get("ai_budget_usd") is not None
-                    and not context.get("_usage_seen")
-                ):
-                    from runtime.projectos.governance import record_usage
+            def renew(task_id: str = task.id, claim_id: str = claim_id) -> bool:
+                return self.store.heartbeat_task_claim(
+                    task_id,
+                    claim_id,
+                    stale_before=time.time() - self._task_claim_timeout_seconds,
+                )
 
-                    record_usage(self.store, project.id, {}, task_id=task.id, milestone_id=ms.id)
-                task.output = f"error: {type(exc).__name__}: {exc}"
-                if current_cancellation_token().is_cancelled:
-                    task.status = "pending"
-                    self._commit_task_claim(task, claim_id, f"task_interrupted:{task.id}", events)
-                    current_cancellation_token().throw_if_cancelled()
-                if task.attempts >= MAX_TASK_ATTEMPTS:
-                    task.status = "failed"
-                    event = f"task_failed:{task.id}"
-                else:
-                    task.status = "pending"
-                    event = f"task_error_retry:{task.id}"
-                self._commit_task_claim(task, claim_id, event, events)
-                continue
-            if current_cancellation_token().is_cancelled:
-                task.status = "pending"
-                task.qa_verdict = {
-                    "approved": False,
-                    "review_error": True,
-                    "reason": "执行已停止，原产物待质量检查",
-                }
-                self._commit_task_claim(task, claim_id, f"task_interrupted:{task.id}", events)
-                current_cancellation_token().throw_if_cancelled()
-            try:
-                verdict = self._qa(task, ms)
-            except Exception as exc:  # noqa: BLE001 — QA is an injected hook
-                task.qa_verdict = {
-                    "approved": False,
-                    "review_error": True,
-                    "reason": f"qa error: {_error_text(exc)}",
-                }
-                if task.attempts >= MAX_TASK_ATTEMPTS:
-                    task.status = "failed"
-                    event = f"task_failed_qa_error:{task.id}"
-                else:
-                    task.status = "pending"
-                    event = f"task_qa_error_retry:{task.id}"
-                self._commit_task_claim(task, claim_id, event, events)
-                continue
-            if current_cancellation_token().is_cancelled:
-                task.status = "pending"
-                task.qa_verdict = {
-                    "approved": False,
-                    "review_error": True,
-                    "reason": "质量检查期间已停止，待重新检查",
-                }
-                self._commit_task_claim(task, claim_id, f"task_interrupted:{task.id}", events)
-                current_cancellation_token().throw_if_cancelled()
-            task.qa_verdict = verdict
-            if verdict.get("approved"):
-                task.status = "done"
-                # Review chain: only the human paths sign a delivery. The AI
-                # path is explicitly stamped "ai_auto" with an empty reviewer —
-                # an AI verdict can never be presented as a human approval.
-                if task.team_mode == "human":
-                    task.review_mode = "human_run"
-                    task.reviewed_by = (
-                        str(
-                            (task.output or {}).get("completed_by")
-                            if isinstance(task.output, dict)
-                            else ""
-                        ).strip()
-                        or "human"
-                    )
-                else:
-                    task.review_mode = "ai_auto"
-                    task.reviewed_by = ""
-                event = f"task_done:{task.id}"
-            elif task.attempts >= MAX_TASK_ATTEMPTS:
+            guard = ExecutionClaimGuard(
+                renew,
+                interval_s=min(5.0, self._task_claim_timeout_seconds / 3),
+            )
+            with guard.scope():
+                self._run_claimed_task(project, ms, tasks, task, claim_id, events, guard)
+
+    def _run_claimed_task(
+        self,
+        project: Project,
+        ms: Milestone,
+        tasks: list[Task],
+        task: Task,
+        claim_id: str,
+        events: list[str],
+        guard: ExecutionClaimGuard,
+    ) -> None:
+        from runtime.safety.approval.cancellation import current_cancellation_token
+
+        def commit(task: Task, claim_id: str, event: str, events: list[str]) -> bool:
+            if guard.claim_lost:
+                # Preserve durable state only; never publish the abandoned output.
+                current = self.store.get_task(task.id)
+                if current is not None:
+                    current.status = "blocked"
+                    current.qa_verdict = {
+                        "approved": False,
+                        "reason": "execution claim lost; recovery required",
+                    }
+                    self.store.finalize_task_claim(current, claim_id)
+                events.append(f"task_stale_result_ignored:{task.id}")
+                return False
+            return self._commit_task_claim(task, claim_id, event, events)
+
+        # Operator reassignment wins; otherwise pick a concrete group member
+        # or fallback role for this execution. Assignment happens after the
+        # atomic claim so an injected assigner is also called only once.
+        #
+        # A human node is not an AI member, so the phase's agent allow-list
+        # does not govern it and the assigner must not touch it: filling in
+        # an agent id would both mislabel the node in the workbench and hand
+        # it to the executor it must never reach. Whoever claims it as a
+        # person (run_task_human) is the one that fills assigned_agent.
+        try:
+            guard.checkpoint()
+            allowed = ms.spec.get("phase_agents")
+            if task.team_mode not in TEAM_MODES_HUMAN:
+                if (
+                    allowed is not None
+                    and task.assigned_agent
+                    and task.assigned_agent not in allowed
+                ):
+                    raise ValueError("assigned agent is not authorized for this phase")
+                task.assigned_agent = task.assigned_agent or self._assign(task)
+                if allowed is not None and task.assigned_agent not in allowed:
+                    raise ValueError("selected agent is not authorized for this phase")
+        except Exception as exc:  # noqa: BLE001 — assignment is an injected hook
+            task.output = f"assignment error: {_error_text(exc)}"
+            if task.attempts >= MAX_TASK_ATTEMPTS:
                 task.status = "failed"
-                event = f"task_failed_qa:{task.id}"
+                event = f"task_failed_assignment:{task.id}"
             else:
-                task.status = "pending"  # QA rejected → retry next tick
-                event = f"task_rejected:{task.id}"
-            self._commit_task_claim(task, claim_id, event, events)
+                task.status = "pending"
+                event = f"task_assignment_error_retry:{task.id}"
+            commit(task, claim_id, event, events)
+            current_cancellation_token().throw_if_cancelled()
+            return
+        context = {}
+        execution_started = False
+        try:
+            guard.checkpoint()
+            # A review outage does not invalidate an already produced
+            # deliverable. Retry QA without repeating task side effects.
+            if not (task.qa_verdict or {}).get("review_error"):
+                context_tasks = [task if item.id == task.id else item for item in tasks]
+                context = self._context(project, ms, context_tasks)
+                context["task_id"] = task.id
+                execution_started = True
+                if task.team_mode in TEAM_MODES_HUMAN:
+                    runner = self._run_task_human
+                    if runner is None:
+                        # Fail closed. Nobody can claim human work yet, so the
+                        # node blocks and says so. Letting an agent run it
+                        # would pass QA and then be sealed into the delivery
+                        # fingerprint, i.e. an AI impersonating the human
+                        # whose signature the acceptance gate relies on.
+                        task.status = "blocked"
+                        task.output = HUMAN_NODE_UNCLAIMED
+                        commit(task, claim_id, f"task_awaiting_human:{task.id}", events)
+                        return
+                    task.output = runner(task, context)
+                    # A human run consumes no provider tokens, so this
+                    # context has no usage to report.
+                    context["_usage_seen"] = True
+                elif task.team_mode in TEAM_MODES_AI and self._run_task_team is not None:
+                    task.output = self._run_task_team(task, context)
+                else:
+                    task.output = self._execute(task, context)
+                if ms.spec.get("ai_budget_usd") is not None and not context.get("_usage_seen"):
+                    context["record_project_usage"]({})
+        except Exception as exc:  # noqa: BLE001 — one task failing must not kill the loop
+            if (
+                execution_started
+                and ms.spec.get("ai_budget_usd") is not None
+                and not context.get("_usage_seen")
+            ):
+                from runtime.projectos.governance import record_usage
+
+                record_usage(self.store, project.id, {}, task_id=task.id, milestone_id=ms.id)
+            task.output = f"error: {type(exc).__name__}: {exc}"
+            if current_cancellation_token().is_cancelled:
+                task.status = "pending"
+                commit(task, claim_id, f"task_interrupted:{task.id}", events)
+                current_cancellation_token().throw_if_cancelled()
+            if task.attempts >= MAX_TASK_ATTEMPTS:
+                task.status = "failed"
+                event = f"task_failed:{task.id}"
+            else:
+                task.status = "pending"
+                event = f"task_error_retry:{task.id}"
+            commit(task, claim_id, event, events)
+            return
+        if current_cancellation_token().is_cancelled:
+            task.status = "pending"
+            task.qa_verdict = {
+                "approved": False,
+                "review_error": True,
+                "reason": "执行已停止，原产物待质量检查",
+            }
+            commit(task, claim_id, f"task_interrupted:{task.id}", events)
+            current_cancellation_token().throw_if_cancelled()
+        try:
+            guard.checkpoint()
+            verdict = self._qa(task, ms)
+        except Exception as exc:  # noqa: BLE001 — QA is an injected hook
+            task.qa_verdict = {
+                "approved": False,
+                "review_error": True,
+                "reason": f"qa error: {_error_text(exc)}",
+            }
+            if task.attempts >= MAX_TASK_ATTEMPTS:
+                task.status = "failed"
+                event = f"task_failed_qa_error:{task.id}"
+            else:
+                task.status = "pending"
+                event = f"task_qa_error_retry:{task.id}"
+            commit(task, claim_id, event, events)
+            current_cancellation_token().throw_if_cancelled()
+            return
+        if current_cancellation_token().is_cancelled:
+            task.status = "pending"
+            task.qa_verdict = {
+                "approved": False,
+                "review_error": True,
+                "reason": "质量检查期间已停止，待重新检查",
+            }
+            commit(task, claim_id, f"task_interrupted:{task.id}", events)
+            current_cancellation_token().throw_if_cancelled()
+        task.qa_verdict = verdict
+        if verdict.get("approved"):
+            task.status = "done"
+            # Review chain: only the human paths sign a delivery. The AI
+            # path is explicitly stamped "ai_auto" with an empty reviewer —
+            # an AI verdict can never be presented as a human approval.
+            if task.team_mode == "human":
+                task.review_mode = "human_run"
+                task.reviewed_by = (
+                    str(
+                        (task.output or {}).get("completed_by")
+                        if isinstance(task.output, dict)
+                        else ""
+                    ).strip()
+                    or "human"
+                )
+            else:
+                task.review_mode = "ai_auto"
+                task.reviewed_by = ""
+            event = f"task_done:{task.id}"
+        elif task.attempts >= MAX_TASK_ATTEMPTS:
+            task.status = "failed"
+            event = f"task_failed_qa:{task.id}"
+        else:
+            task.status = "pending"  # QA rejected → retry next tick
+            event = f"task_rejected:{task.id}"
+        commit(task, claim_id, event, events)
 
     def _commit_task_claim(
         self,
@@ -919,7 +964,9 @@ class ProjectEngine:
         event: str,
         events: list[str],
     ) -> bool:
-        _current, committed = self.store.finalize_task_claim(task, claim_id)
+        _current, committed = self.store.finalize_task_claim(
+            task, claim_id, stale_before=time.time() - self._task_claim_timeout_seconds
+        )
         if committed:
             events.append(event)
         else:
@@ -1062,7 +1109,7 @@ class ProjectEngine:
             thread_id = self.store.thread_for_project(project.id) or ""
         except (AttributeError, TypeError, ValueError):
             thread_id = ""
-        context = {
+        context: dict[str, Any] = {
             "project_id": project.id,
             "project_goal": project.goal,
             "owner_id": project.owner_id,

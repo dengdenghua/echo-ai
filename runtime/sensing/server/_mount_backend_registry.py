@@ -8,6 +8,8 @@ the same underlying SFTP/HTTP connection pool).
 
 from __future__ import annotations
 
+from urllib.parse import unquote, urlsplit
+
 from ._mount_backend_local import LocalMountBackend
 from ._mount_backend_nfs import NfsMountBackend
 from ._mount_backend_s3 import S3MountBackend
@@ -77,13 +79,57 @@ class MountBackendRegistry:
         mount_options: dict,
     ) -> MountBackend:
         opts = dict(mount_options or {})
-        # LocalMountBackend / NfsMountBackend take the root path as the
-        # first positional arg; the others use keyword-only connection
-        # params. Mount_target is the connection string / path. Use
-        # issubclass so subclasses of the local/nfs backends also get
-        # the positional-arg treatment.
-        if issubclass(cls, LocalMountBackend) or issubclass(cls, NfsMountBackend):
+        # Runtime-local filesystem mapping is metadata, not adapter credentials.
+        opts.pop("filesystem_path", None)
+        # Local paths are positional; NFS and remote adapters use keyword
+        # arguments. Preserve this behavior for adapter subclasses.
+        if issubclass(cls, LocalMountBackend):
             return cls(mount_target, **opts)
+        if issubclass(cls, NfsMountBackend):
+            if "://" not in mount_target:
+                opts.setdefault("mount_point", mount_target)
+            if not opts.get("mount_point"):
+                raise ValueError("NFS requires an existing OS mount_point on this Echo runtime")
+            return cls(**opts)
+        if "://" in mount_target:
+            target = urlsplit(mount_target)
+            if target.username or target.password or target.query or target.fragment:
+                raise ValueError(
+                    "Mount URLs must not contain credentials, query strings or fragments"
+                )
+            parts = unquote(target.path).strip("/").split("/")
+            if issubclass(cls, WebdavMountBackend):
+                if target.scheme not in {"https", "http"}:
+                    raise ValueError("WebDAV requires an HTTP(S) URL")
+                opts.setdefault("base_url", mount_target)
+            elif issubclass(cls, SftpMountBackend):
+                if target.scheme != "sftp":
+                    raise ValueError("SFTP requires an sftp:// URL")
+                opts.setdefault("host", target.hostname)
+                opts.setdefault("port", target.port or 22)
+                opts.setdefault("root_path", unquote(target.path) or "/")
+            elif issubclass(cls, SmbMountBackend):
+                if target.scheme != "smb":
+                    raise ValueError("SMB requires an smb:// URL")
+                opts.setdefault("host", target.hostname)
+                opts.setdefault("share", parts[0])
+                opts.setdefault("root_path", "/".join(parts[1:]))
+            elif issubclass(cls, S3MountBackend):
+                if target.scheme == "s3":
+                    opts.setdefault("bucket", target.hostname)
+                    opts.setdefault("root_path", unquote(target.path).strip("/"))
+                elif target.scheme in {"http", "https"}:
+                    opts.setdefault("endpoint_url", f"{target.scheme}://{target.netloc}")
+                    opts.setdefault("bucket", parts[0])
+                    opts.setdefault("root_path", "/".join(parts[1:]))
+                else:
+                    raise ValueError("S3 requires an s3:// or HTTP(S) endpoint URL")
+        if issubclass(cls, SftpMountBackend):
+            username = opts.pop("username", None)
+            if username is not None:
+                opts.setdefault("user", username)
+            if "port" in opts:
+                opts["port"] = int(opts["port"])
         return cls(**opts)
 
 

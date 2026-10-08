@@ -264,7 +264,34 @@ def _make_teams(body: dict[str, Any]) -> Any:
         app_id=_require(body, "app_id"),
         app_password=_require(body, "app_password"),
         channel_id=str(body.get("channel_id", "teams")),
+        **_teams_auth_overrides(body),
     )
+
+
+def _csv(body: dict[str, Any], key: str) -> tuple[str, ...]:
+    raw = body.get(key)
+    if isinstance(raw, str):
+        items = raw.split(",")
+    elif isinstance(raw, (list, tuple)):
+        items = [str(x) for x in raw]
+    else:
+        return ()
+    return tuple(item.strip() for item in items if str(item).strip())
+
+
+def _teams_auth_overrides(body: dict[str, Any]) -> dict[str, Any]:
+    """Optional sovereign-cloud overrides; defaults cover public Azure."""
+    overrides: dict[str, Any] = {}
+    hosts = _csv(body, "allowed_service_url_hosts")
+    if hosts:
+        overrides["allowed_service_url_hosts"] = hosts
+    issuers = _csv(body, "token_issuers")
+    if issuers:
+        overrides["token_issuers"] = issuers
+    metadata_url = _optional(body, "openid_metadata_url")
+    if metadata_url:
+        overrides["openid_metadata_url"] = metadata_url
+    return overrides
 
 
 def _make_line(body: dict[str, Any]) -> Any:
@@ -284,6 +311,7 @@ def _make_homeassistant(body: dict[str, Any]) -> Any:
         ha_url=_require(body, "ha_url"),
         long_lived_token=_require(body, "long_lived_token"),
         channel_id=str(body.get("channel_id", "homeassistant")),
+        webhook_secret=_optional(body, "webhook_secret") or "",
     )
 
 
@@ -295,6 +323,7 @@ def _make_bluebubbles(body: dict[str, Any]) -> Any:
         api_key=_require(body, "api_key"),
         password=_optional(body, "password") or "",
         channel_id=str(body.get("channel_id", "bluebubbles")),
+        webhook_secret=_optional(body, "webhook_secret") or "",
     )
 
 
@@ -324,6 +353,8 @@ def _make_google_chat(body: dict[str, Any]) -> Any:
     return GoogleChatChannel(
         service_account_key=_require(body, "service_account_key"),
         channel_id=str(body.get("channel_id", "google_chat")),
+        verification_audience=_optional(body, "verification_audience") or "",
+        webhook_secret=_optional(body, "webhook_secret") or "",
     )
 
 
@@ -343,6 +374,7 @@ def _make_open_webui(body: dict[str, Any]) -> Any:
         base_url=_require(body, "base_url"),
         api_key=_require(body, "api_key"),
         channel_id=str(body.get("channel_id", "open_webui")),
+        webhook_secret=_optional(body, "webhook_secret") or "",
     )
 
 

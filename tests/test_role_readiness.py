@@ -16,7 +16,10 @@ def _handler(*args, **kwargs):
 def _catalog():
     registry = SkillRegistry()
     for name in ["call_agent", "web_search", "ad-creative"]:
-        registry.register(Skill(name=name, trusted_source="test://readiness", handler=_handler), verify_tests=False)
+        registry.register(
+            Skill(name=name, trusted_source="test://readiness", handler=_handler),
+            verify_tests=False,
+        )
     registry.disable("web_search")
     registry.disable("ad-creative")
     return registry
@@ -49,7 +52,10 @@ def test_disabled_canonical_skill_cannot_appear_ready_through_alias():
 
 def test_tenant_owned_skill_is_not_disclosed_in_shared_catalog():
     skills = SkillRegistry()
-    skills.register(Skill(name="private", tenant_id="other", trusted_source="test://private", handler=_handler), verify_tests=False)
+    skills.register(
+        Skill(name="private", tenant_id="other", trusted_source="test://private", handler=_handler),
+        verify_tests=False,
+    )
     result = inspect_role_registration(
         SimpleNamespace(agent_id="test", extra_skills=["private"]), skills
     )
@@ -59,9 +65,12 @@ def test_tenant_owned_skill_is_not_disclosed_in_shared_catalog():
 
 @pytest.mark.parametrize("names", [[], ["call_agent"]])
 def test_missing_registry_is_unknown_even_without_additional_skills(names):
-    assert inspect_role_registration(
-        SimpleNamespace(agent_id="test", extra_skills=names), None
-    )["status"] == "unknown"
+    assert (
+        inspect_role_registration(SimpleNamespace(agent_id="test", extra_skills=names), None)[
+            "status"
+        ]
+        == "unknown"
+    )
 
 
 def test_readiness_http_contract_and_registry_unavailability():

@@ -43,6 +43,7 @@ from ._agents_helpers import (
     _to_detail_wire,
     _to_wire,
 )
+from ._untrusted_content import untrusted_content_headers
 from .agents_models import (
     AgentDetailWire,
     AgentVisualsWire,
@@ -543,10 +544,11 @@ When making changes, first read the surrounding code.
         ):
             p = visuals_dir / f"{view}.{ext}"
             if p.is_file():
+                # Agent-authored visuals may be SVG: sandbox if opened top-level.
                 return FileResponse(
                     str(p),
                     media_type=mime,
-                    headers={"Cache-Control": "no-store"},
+                    headers={"Cache-Control": "no-store", **untrusted_content_headers(mime)},
                 )
         reference = visuals_dir / "reference.png"
         if reference.is_file():
@@ -643,10 +645,11 @@ When making changes, first read the surrounding code.
         ):
             p = agent_dir / f"avatar.{ext}"
             if p.is_file():
+                # Unauthenticated and possibly SVG: sandbox if opened top-level.
                 return FileResponse(
                     str(p),
                     media_type=mime,
-                    headers={"Cache-Control": "no-store"},
+                    headers={"Cache-Control": "no-store", **untrusted_content_headers(mime)},
                 )
         raise HTTPException(404, f"no avatar for agent: {agent_id}")
 

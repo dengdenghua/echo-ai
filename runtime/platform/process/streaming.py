@@ -17,9 +17,13 @@ platform tier where both can import it without crossing layers.
 
 from __future__ import annotations
 
+import codecs
 import contextlib
+import locale
 import os
+import re
 import subprocess
+import sys
 import threading
 import time
 from collections.abc import Callable, Mapping
@@ -27,6 +31,52 @@ from pathlib import Path
 from typing import Any
 
 _EXECUTION_POLICY_SCHEMA = "echo.execution_policy.v1"
+
+
+def _child_text_encoding(argv: list[str], env: Mapping[str, str] | None) -> str:
+    """Infer Python stdio settings; native programs retain the system codec."""
+    executable = Path(argv[0]).name.lower() if argv else ""
+    is_python = executable == Path(sys.executable).name.lower() or bool(
+        re.fullmatch(r"python(?:\d+(?:\.\d+)*)?(?:w)?(?:\.exe)?", executable)
+    )
+    if not is_python:
+        return locale.getencoding()
+    ignore_environment = False
+    utf8_mode: str | None = None
+    index = 1
+    while index < len(argv):
+        option = argv[index]
+        if option in {"-c", "-m", "--", "-"} or not option.startswith("-"):
+            break
+        if option == "-X":
+            index += 1
+            setting = argv[index] if index < len(argv) else ""
+        elif option.startswith("-X"):
+            setting = option[2:]
+        else:
+            setting = ""
+            if option == "-W":
+                index += 1
+            elif not option.startswith("--") and any(flag in option[1:] for flag in "EI"):
+                ignore_environment = True
+        if setting == "utf8":
+            utf8_mode = "1"
+        elif setting.startswith("utf8="):
+            utf8_mode = setting.partition("=")[2]
+        index += 1
+    environment = os.environ if env is None else env
+    if ignore_environment:
+        environment = {}
+    explicit = environment.get("PYTHONIOENCODING", "").split(":", 1)[0]
+    if explicit:
+        try:
+            return codecs.lookup(explicit).name
+        except LookupError:
+            # Keep the child's startup error readable if its setting is invalid.
+            pass
+    if (utf8_mode if utf8_mode is not None else environment.get("PYTHONUTF8")) == "1":
+        return "utf-8"
+    return locale.getencoding()
 
 
 def execution_policy_result_snapshot(
@@ -210,6 +260,7 @@ def stream_run(
     timeout: float | None,
     cwd: str | None = None,
     env: Mapping[str, str] | None = None,
+    encoding: str | None = None,
     output_cap_bytes: int = 200_000,
     on_timeout: Callable[[subprocess.Popen[str]], None] | None = None,
     sandbox_dir: str | None = None,
@@ -220,6 +271,9 @@ def stream_run(
     thread_id: str = "",
 ) -> dict[str, Any]:
     """Run ``argv`` as a subprocess, streaming output as it arrives.
+
+    ``encoding`` explicitly sets the child output/input codec. Otherwise Python
+    flags/environment are inferred and native programs use the system codec.
 
     Returns a dict with ``stdout``, ``stderr``, ``exit_code``,
     ``timed_out``, ``stdout_truncated``, ``stderr_truncated``. Callers
@@ -234,6 +288,7 @@ def stream_run(
     """
     output_cap_bytes = _coerce_nonnegative_int(output_cap_bytes, 200_000)
     timeout_value = None if timeout is None or float(timeout) <= 0 else float(timeout)
+    output_argv = list(argv)
     run_cwd = cwd
     run_env = dict(env) if env is not None else None
     sandbox_backend = "direct"
@@ -423,6 +478,8 @@ def stream_run(
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
             text=True,
+            encoding=encoding or _child_text_encoding(output_argv, run_env),
+            errors="replace",
             cwd=run_cwd,
             env=run_env,
             bufsize=1,

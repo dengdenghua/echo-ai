@@ -24,7 +24,10 @@ from uuid import uuid4
 
 from runtime.core.cerebrum.capability_router import activate_capabilities
 from runtime.core.cerebrum.react_native import require_public_update_on_tool_specs
-from runtime.core.cerebrum.react_prompt_contracts import SKILL_SELECTION_CONTRACT
+from runtime.core.cerebrum.react_prompt_contracts import (
+    STATIC_TURN_CONTRACTS,
+    irreversible_turn_note_for,
+)
 from runtime.core.cerebrum.todo_protocol import (
     context_mode,
     render_todo_protocol_guidance,
@@ -564,8 +567,10 @@ def _stream_agentic_fallback_impl(
     from runtime.core.cerebrum.design_capabilities import design_instructions
 
     _design_prompt = design_instructions(
-        intent.normalized_goal, context=_intent_user_context,
-        registry=getattr(stack.executor, "registry", None), agent=agent,
+        intent.normalized_goal,
+        context=_intent_user_context,
+        registry=getattr(stack.executor, "registry", None),
+        agent=agent,
     )
     if _design_prompt:
         messages.insert(0, Message(role="system", content=_design_prompt))
@@ -593,7 +598,28 @@ def _stream_agentic_fallback_impl(
                 content=_capability_activation_prompt,
             ),
         )
-    messages.insert(0, Message(role="system", content=SKILL_SELECTION_CONTRACT))
+    # Output/turn contracts shared verbatim with the text-protocol prompt
+    # assembly (`runtime/core/cerebrum/_react_prompt_assembly_sections.py`).
+    # This native tool-call path builds its own prompt from scratch, so it
+    # used to deliver *none* of them: the deliverable section, citation
+    # routing, the destructive-action confirmation gate and the skill
+    # selection order silently did not apply to every natively-routed turn.
+    # Importing the same byte-stable tuple is the fix; the block has no
+    # per-turn inputs, so it stays prompt-cache safe.
+    messages.insert(
+        0,
+        Message(
+            role="system",
+            content="\n".join(STATIC_TURN_CONTRACTS),
+        ),
+    )
+    # Turn A of the two-turn irreversible-action protocol. Per-turn and
+    # volatile, so it is its own message and never merged into the static
+    # block above.
+    _irreversible_note = irreversible_turn_note_for(intent.normalized_goal)
+    if _irreversible_note:
+        messages.insert(0, Message(role="system", content=_irreversible_note))
+
     messages.insert(
         0,
         Message(

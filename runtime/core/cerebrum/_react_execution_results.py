@@ -148,6 +148,42 @@ def _command_from_tool_step(beak_step: Step, output: dict[str, Any]) -> str:
     return ""
 
 
+_FILE_CHANGE_OPS = frozenset({"create", "update", "delete"})
+# A single tool call that reports more changes than this is summarised by the
+# bridge rather than enumerated; the cap also keeps one event bounded.
+_FILE_CHANGE_CAP = 200
+
+
+def _lift_file_changes(output: dict[str, Any]) -> list[dict[str, Any]]:
+    """Project a tool result's ``file_changes`` onto the tool_end event.
+
+    Handlers that performed the write report the fact themselves, so the
+    bridge never has to infer "this turn changed X" from prose or from a
+    re-parsed unified diff. Shape: ``{path, op}`` with
+    ``op in {create, update, delete}``.
+    """
+
+    raw = output.get("file_changes")
+    if not isinstance(raw, list):
+        return []
+    lifted: list[dict[str, Any]] = []
+    for entry in raw[:_FILE_CHANGE_CAP]:
+        if not isinstance(entry, dict):
+            continue
+        path = entry.get("path")
+        op = entry.get("op")
+        if not isinstance(path, str) or not path.strip():
+            continue
+        if op not in _FILE_CHANGE_OPS:
+            continue
+        item: dict[str, Any] = {"path": path, "op": op}
+        diff = entry.get("diff")
+        if isinstance(diff, str) and diff.strip():
+            item["diff"] = diff
+        lifted.append(item)
+    return lifted
+
+
 def _tool_event_extras_from_beak_step(
     beak_step: Step | None,
     tool_name: str,
@@ -194,6 +230,9 @@ def _tool_event_extras_from_beak_step(
     diff = output.get("diff_preview") or output.get("diff")
     if isinstance(diff, str) and diff.strip():
         extras["diff"] = diff
+    file_changes = _lift_file_changes(output)
+    if file_changes:
+        extras["file_changes"] = file_changes
 
     command = _command_from_tool_step(beak_step, output)
     kind = _VERIFICATION_TOOL_KINDS.get(tool_name)

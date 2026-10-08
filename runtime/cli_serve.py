@@ -585,6 +585,18 @@ def run_serve(
     c = _Colors(color)
     try:
         cfg = load_from_yaml(config_path)
+        # Development launchers isolate device listeners without rewriting a
+        # user-owned config. Explicit overrides are validated before use.
+        ws_port_override = os.environ.get("ECHO_TENTACLE_WS_PORT")
+        if ws_port_override is not None:
+            if not ws_port_override.isascii() or not ws_port_override.isdecimal():
+                raise ConfigLoadError("ECHO_TENTACLE_WS_PORT must be a TCP port")
+            ws_port = int(ws_port_override)
+            if not 1 <= ws_port <= 65535:
+                raise ConfigLoadError("ECHO_TENTACLE_WS_PORT must be between 1 and 65535")
+            cfg = cfg.model_copy(
+                update={"tentacle": cfg.tentacle.model_copy(update={"ws_port": ws_port})}
+            )
     except ConfigLoadError as e:
         print(c.red(f"config error: {e}"), file=sys.stderr)
         return 2
@@ -598,10 +610,21 @@ def run_serve(
         .strip()
         .lower()
     )
+    # Passwordless local_auth (allow_any_username / a bare username allowlist)
+    # hands anyone who can reach the port a JWT, so it does not make a
+    # network bind safe; only OCT or password-backed local_auth does.
+    local_auth_cfg = getattr(cfg, "local_auth", None)
+    bind_auth = bool(
+        getattr(getattr(cfg, "oct", None), "enabled", False)
+        or (
+            getattr(local_auth_cfg, "enabled", False)
+            and getattr(local_auth_cfg, "password_required", False)
+        )
+    )
     bind_error = _insecure_bind_error(
         host=host,
         uds=uds,
-        require_auth=require_ui_auth,
+        require_auth=bind_auth,
     )
     if bind_error is not None:
         print(c.red(f"security error: {bind_error}"), file=sys.stderr)

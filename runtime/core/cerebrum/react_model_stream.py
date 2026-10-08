@@ -21,8 +21,6 @@ import uuid
 from collections.abc import Callable, Generator
 from typing import Any
 
-from runtime.platform.models.context_snapshot import record_request_context
-
 from runtime.core.cerebrum.react_context import (
     _compress_context,
     _estimate_messages_tokens,
@@ -52,6 +50,7 @@ from runtime.core.cerebrum.react_parsing import (
     extract_streamable_thought,
 )
 from runtime.core.cerebrum.react_types import _safe_react_error_message
+from runtime.platform.models.context_snapshot import record_request_context
 from runtime.platform.models.llm import (
     LLMResponseFormatError,
     Message,
@@ -355,7 +354,8 @@ def _phase_6b_model_stream(
                 require_tool_use=(
                     _native_mode
                     and _evidence_convergence_active is None
-                    and not _iteration_recovery_mode and not _terminal_convergence_active
+                    and not _iteration_recovery_mode
+                    and not _terminal_convergence_active
                     and _zero_action_rounds > 0
                 ),
             )
@@ -410,7 +410,9 @@ def _phase_6b_model_stream(
                 _elapsed = _now - _throughput_started_at
                 state.iteration.throughput_last_emit = _now
                 return {
-                    "type": "throughput", "chars": chars, "elapsed_ms": int(_elapsed * 1000),
+                    "type": "throughput",
+                    "chars": chars,
+                    "elapsed_ms": int(_elapsed * 1000),
                     "chars_per_sec": (chars / _elapsed if _elapsed > 0 else 0.0),
                 }
 
@@ -420,7 +422,10 @@ def _phase_6b_model_stream(
                 return state["chars"]
 
             for evt in _iter_model_stream_with_deadline(
-                router, req, _iteration_timeout, _visible_started,
+                router,
+                req,
+                _iteration_timeout,
+                _visible_started,
                 # Normal rounds: any streamed thinking token is liveness, so a
                 # deep-reasoning model is never judged slow while it is still
                 # emitting. Evidence-convergence rounds keep the strict

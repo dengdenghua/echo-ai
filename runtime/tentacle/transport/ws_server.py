@@ -212,6 +212,7 @@ class TentacleWebSocketServer:
         on_custom: Callable[[str | None, dict[str, Any], WebSocketConnection], Awaitable[None]]
         | None = None,
         auth_token: str | None = None,
+        action_executor: Any = None,
     ) -> None:
         self.host = host
         self.port = port
@@ -225,6 +226,8 @@ class TentacleWebSocketServer:
         self.auth_token = (
             auth_token if auth_token is not None else os.environ.get("ECHO_TENTACLE_TOKEN") or None
         )
+        self.is_per_device_auth: bool = False
+        self.action_executor: Any = action_executor
         self.on_device_hello = on_device_hello
         self.on_device_disconnect = on_device_disconnect
         self.on_tool_result = on_tool_result
@@ -606,6 +609,19 @@ class TentacleWebSocketServer:
     async def _handle_peer_call(
         self, ws: WebSocketConnection, msg: dict[str, Any], source: str
     ) -> None:
+        if self._connections.get(source) is not ws:
+            return
+        if (
+            not self.is_per_device_auth
+            and os.environ.get("ECHO_ALLOW_INSECURE_SHARED_TOKEN_PEER_CALLS") != "1"
+        ):
+            await self._send_error(
+                ws,
+                msg.get("id"),
+                -32098,
+                "Peer tool access requires per-device credentials; shared token pairing does not authorize peer control",
+            )
+            return
         params = msg.get("params", {})
         target, tool = params.get("target_device_id"), params.get("tool")
         args = params.get("args", {})
@@ -614,8 +630,6 @@ class TentacleWebSocketServer:
         )
         if not isinstance(tool, str) or tool not in granted or not isinstance(args, dict):
             await self._send_error(ws, msg.get("id"), -32099, "Peer tool access is not granted")
-            return
-        if self._connections.get(source) is not ws:
             return
         timeout = params.get("timeout_ms", 15000)
         if type(timeout) is not int or not 1 <= timeout <= 60000:
@@ -629,9 +643,25 @@ class TentacleWebSocketServer:
             timeout_ms=timeout,
             trace_id=f"device:{source}",
         )
-        # The destination still enforces its advertised/local tool policy. Use
-        # a server-generated id so a peer cannot spoof another outstanding call.
-        result = await self.send_tool_execute(target, call, timeout_ms=timeout)
+        # Use the coordinator's executor so peer calls respect device leases
+        # and produce the same receipts/telemetry as host-driven actions.
+        pool = getattr(self.action_executor, "pool", None)
+        if pool is not None:
+            lease = pool.lock_holder(target)
+            if lease is not None and not lease.is_expired and lease.owner != f"device:{source}":
+                await self._send_error(
+                    ws, msg.get("id"), -32016, "Device lease is held by another task"
+                )
+                return
+            target_device = pool.get(target)
+            if target_device is not None:
+                result = await self.action_executor.execute(
+                    target_device, call, lease_owner=f"device:{source}"
+                )
+            else:
+                result = await self.send_tool_execute(target, call, timeout_ms=timeout)
+        else:
+            result = await self.send_tool_execute(target, call, timeout_ms=timeout)
         with contextlib.suppress(Exception):
             await ws.send(
                 json.dumps({"jsonrpc": "2.0", "id": msg.get("id"), "result": result.to_dict()})
@@ -885,7 +915,9 @@ class TentacleWebSocketServer:
         if not isinstance(formats, list) or any(not isinstance(value, str) for value in formats):
             await self._send_error(ws, msg_id, -32602, "Invalid frame formats")
             return
-        self.pc_screen_subscribers[tentacle_id] = tuple(value for value in formats if value in {"h264", "jpeg"})
+        self.pc_screen_subscribers[tentacle_id] = tuple(
+            value for value in formats if value in {"h264", "jpeg"}
+        )
         await ws.send(
             json.dumps(
                 {

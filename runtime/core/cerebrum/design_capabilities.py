@@ -84,9 +84,13 @@ def design_preferences(value: Any) -> dict[str, Any]:
         "mode": "manual" if value.get("mode") == "manual" else "auto",
         "skills": _ids(value.get("skills")),
         "plugins": _ids(value.get("plugins")),
-        **{key: value[key] for key in ("image_model", "video_model")
-           if isinstance(value.get(key), str) and 0 < len(value[key]) <= 128
-           and not any(ord(char) < 32 for char in value[key])},
+        **{
+            key: value[key]
+            for key in ("image_model", "video_model")
+            if isinstance(value.get(key), str)
+            and 0 < len(value[key]) <= 128
+            and not any(ord(char) < 32 for char in value[key])
+        },
     }
 
 
@@ -155,7 +159,9 @@ def resolve_design_plan(
     for kind in ("image", "video"):
         chosen = prefs.get(f"{kind}_model")
         if chosen and (chosen not in catalog[kind]["models"] or not catalog[kind]["available"]):
-            blockers.append(f"所选{ '图片' if kind == 'image' else '视频' }模型不可用，请重新选择或检查生成服务配置")
+            blockers.append(
+                f"所选{'图片' if kind == 'image' else '视频'}模型不可用，请重新选择或检查生成服务配置"
+            )
     advice_only = bool(
         re.search(r"^\s*(?:如何|怎么|为什么|介绍|解释|what\b|how\b|why\b)", goal, re.I)
     )
@@ -243,7 +249,11 @@ def design_priority(goal: str, context: Any, registry: Any) -> list[str]:
 
 
 def design_instructions(
-    goal: str, *, context: Any, registry: Any, agent: Any = None,
+    goal: str,
+    *,
+    context: Any,
+    registry: Any,
+    agent: Any = None,
     goal_skills_loaded: bool = False,
 ) -> str:
     if not is_design_context(context):
@@ -259,7 +269,9 @@ def design_instructions(
     for kind in ("image", "video"):
         chosen = plan["preferences"].get(f"{kind}_model")
         if chosen:
-            parts.append(f"用户指定 {kind} 生成模型：{chosen}；调用 generate_{kind} 时使用该 model，不得擅自替换。")
+            parts.append(
+                f"用户指定 {kind} 生成模型：{chosen}；调用 generate_{kind} 时使用该 model，不得擅自替换。"
+            )
     if plan["warnings"]:
         parts.append("；".join(plan["warnings"]))
     # Automatic matches advertise capabilities; their bodies are loaded through
@@ -275,9 +287,12 @@ def design_instructions(
         explicit = set(parse_input_mentions(goal).skills)
         explicit.update(re.findall(r"(?<![\w-])\$([A-Za-z0-9][A-Za-z0-9_-]{0,127})", goal))
         manual = set(plan["preferences"]["skills"]) if plan["mode"] == "manual" else set()
-        eager = [name for name in plan["skills"]
-                 if (name in manual or name in explicit)
-                 and not (goal_skills_loaded and name in explicit)]
+        eager = [
+            name
+            for name in plan["skills"]
+            if (name in manual or name in explicit)
+            and not (goal_skills_loaded and name in explicit)
+        ]
         # Explicit goal skills are assembled once by the role composer. Manual
         # picker selections retain eager loading through the same trusted resolver.
         body = resolve_explicit_skill_instructions(

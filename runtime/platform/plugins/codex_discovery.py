@@ -22,7 +22,7 @@ from runtime.platform.plugins.publisher_provenance import (
     SIGNATURE_RELATIVE_PATH,
     verify_plugin_publisher_provenance,
 )
-from runtime.platform.process.paths import project_root
+from runtime.platform.process.paths import app_paths, project_root
 
 _PROVENANCE_IGNORED_DIRS = frozenset({".git", ".pytest_cache", "__pycache__", "node_modules"})
 _PROVENANCE_MAX_FILES = 2048
@@ -85,6 +85,7 @@ def _default_plugin_roots() -> list[Path]:
     return [
         root / ".echo" / "plugins" / "codex",
         Path.home() / ".echo" / "plugins" / "codex",
+        app_paths().codex_plugins_path,
     ]
 
 

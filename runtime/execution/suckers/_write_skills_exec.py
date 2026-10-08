@@ -81,26 +81,102 @@ _READ_ONLY_GIT_SUBCOMMANDS: frozenset[str] = frozenset(
 )
 
 
-def _is_read_only_git_argv(argv: list[str]) -> bool:
-    """True when ``argv`` is ``git <read-only subcommand>``.
+# Global options (before the subcommand) that are safe to keep. Anything
+# else — notably ``-C`` (would override the injected root), ``-c k=v`` /
+# ``--config-env`` (``core.fsmonitor`` / ``core.pager`` run commands),
+# ``--git-dir`` / ``--work-tree`` / ``--exec-path`` — disqualifies the
+# rewrite (fail closed: the command then stays sandbox-confined).
+_READ_ONLY_GIT_GLOBAL_FLAGS: frozenset[str] = frozenset(
+    {
+        "--no-pager",
+        "--no-optional-locks",
+        "--no-replace-objects",
+        "--literal-pathspecs",
+        "--glob-pathspecs",
+        "--noglob-pathspecs",
+        "--icase-pathspecs",
+    }
+)
+# Subcommand long options that write files, run external commands or read
+# paths outside the repository. Matched by PREFIX because git accepts any
+# unambiguous abbreviation (``--outp=x`` == ``--output=x``).
+_FORBIDDEN_GIT_LONG_OPTIONS: tuple[str, ...] = (
+    "output",
+    "ext-diff",
+    "textconv",
+    "no-index",
+    "contents",
+    "open-files-in-pager",
+    "upload-pack",
+    "exec",
+    "exec-path",
+    "config",
+    "config-env",
+    "git-dir",
+    "work-tree",
+    "namespace",
+    "orderfile",
+)
 
-    Tolerates git's global options before the subcommand: ``-C <dir>`` /
-    ``-c <k=v>`` (value-taking) and bare flags like ``--no-pager`` /
-    ``--paginate``. Unknown subcommands return False, so they stay confined.
+
+def _forbidden_git_option(tok: str) -> bool:
+    if tok == "--":
+        return False
+    if tok.startswith("--"):
+        name = tok[2:].split("=", 1)[0]
+        return bool(name) and any(opt.startswith(name) for opt in _FORBIDDEN_GIT_LONG_OPTIONS)
+    # Short options may be bundled (``-nO``): ``-O`` is ``grep``'s
+    # open-in-pager (runs a command) and ``diff``'s orderfile (reads a path).
+    return tok.startswith("-") and "O" in tok[1:]
+
+
+def _is_read_only_git_argv(argv: list[str]) -> bool:
+    """True when ``argv`` is ``git <read-only subcommand>`` with no option
+    that could execute a command, write a file, or reach outside the repo.
+
+    Only a small allowlist of bare global flags (``--no-pager`` …) may
+    precede the subcommand; value-taking globals (``-C`` / ``-c``) and
+    unknown globals return False. Dangerous subcommand options
+    (``--output``, ``--ext-diff``, ``--no-index``, ``-O`` …) also return
+    False. Unknown subcommands return False, so they stay confined.
     """
     if not argv or argv[0] not in {"git", "git.exe"}:
         return False
     i = 1
     while i < len(argv):
         tok = argv[i]
-        if tok in {"-C", "-c"} and i + 1 < len(argv):
-            i += 2
-            continue
         if tok.startswith("-"):
+            if tok not in _READ_ONLY_GIT_GLOBAL_FLAGS:
+                return False
             i += 1
             continue
-        return tok in _READ_ONLY_GIT_SUBCOMMANDS
+        if tok not in _READ_ONLY_GIT_SUBCOMMANDS:
+            return False
+        return not any(_forbidden_git_option(arg) for arg in argv[i + 1 :])
     return False
+
+
+def _git_rewrite_root_readable(root: Path) -> bool:
+    """Whether the bound turn's execution scope may READ ``root``.
+
+    The rewrite moves git's working directory outside the sandbox workdir,
+    so it needs the same read authorization a read skill would: the root
+    must sit under the scope's readable roots and pass the sensitive-path /
+    user denylist guard. No bound session → no authority → no rewrite.
+    """
+    try:
+        from runtime.platform.process.scope import resolve_execution_scope
+        from runtime.platform.process.session import current_session
+        from runtime.safety.auth.path_guard import check_path
+
+        session = current_session()
+        if session is None:
+            return False
+        if not resolve_execution_scope(session).allows_read(root):
+            return False
+        return bool(check_path(root).allow)
+    except Exception:  # noqa: BLE001 - fail closed: the command stays confined
+        return False
 
 
 def _read_only_git_rewrite(
@@ -116,7 +192,9 @@ def _read_only_git_rewrite(
     sandbox root while git's working directory is the requested root, so
     sandboxed inspection of the real repo works without relaxing write
     confinement. Returns ``None`` when no rewrite applies (not read-only git,
-    no sandbox, or the cwd is already inside the sandbox).
+    no sandbox, the cwd is already inside the sandbox, or the turn's scope
+    does not authorize reading the requested root — the rewrite must never
+    be a way around ``_ensure_sandbox``).
     """
     if not sandbox_dir or not cwd or not _is_read_only_git_argv(argv):
         return None
@@ -130,6 +208,8 @@ def _read_only_git_rewrite(
         return None
     if root == work or root.is_relative_to(work):
         # Already inside the sandbox — no rewrite needed.
+        return None
+    if not _git_rewrite_root_readable(root):
         return None
     return ["git", "-C", str(root), *argv[1:]], None
 
@@ -251,19 +331,22 @@ def _exec_shell(
 def _resolved_allow_network(explicit: bool | None) -> bool:
     """Resolve the effective ``allow_network`` for a shell exec.
 
-    Precedence:
-      1. Explicit caller value (tool arg ``allow_network``) — wins.
-      2. The bound Session's declared ``sandbox_policy.networkAccess`` —
-         the turn explicitly opted into network access.
-      3. Fallback ``False`` — sandbox default is network DENIED.
+    The ONLY source that can grant network is the bound Session's declared
+    ``sandbox_policy.networkAccess`` (the user's sandbox setting, or the
+    approval-backed sandbox escalation that stamps it for one rerun).
+    An explicit caller value can only NARROW that (``False`` denies); an
+    explicit ``True`` never widens past the session policy — the tool arg
+    is model-reachable, and ``allow_network`` is stripped from model input
+    by ``MODEL_FORBIDDEN_ARGS`` as well. Fallback ``False`` — sandbox
+    default is network DENIED.
 
     ``scope.network_policy`` is deliberately NOT consulted: it defaults to
     "allow" outside plan mode (it governs browser/remote-exec surfaces, not
     the confined shell), so reading it here would flip the default from
     denied to allowed and effectively escape the sandbox's network policy.
     """
-    if explicit is not None:
-        return bool(explicit)
+    if explicit is False:
+        return False
     try:
         from runtime.platform.process.session import current_session
 
@@ -286,13 +369,13 @@ def _resolved_egress_allow_common(explicit: bool | None) -> bool:
     user picks it from the sandbox settings page ("常用域名"), never by
     hand-maintaining hosts.
 
-    Precedence:
-      1. Explicit caller value (tool arg) — wins.
-      2. The bound Session's declared ``sandbox_policy.egressAllowCommon``.
-      3. Fallback ``False`` — a denied sandbox allows only inference.
+    Like ``allow_network``, only the bound Session's declared
+    ``sandbox_policy.egressAllowCommon`` can grant this tier; an explicit
+    caller value can only narrow it (``False``). Fallback ``False`` — a
+    denied sandbox allows only inference.
     """
-    if explicit is not None:
-        return bool(explicit)
+    if explicit is False:
+        return False
     try:
         from runtime.platform.process.session import current_session
 

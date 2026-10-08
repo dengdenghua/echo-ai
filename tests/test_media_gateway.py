@@ -20,7 +20,9 @@ def configured(monkeypatch):
         return httpx.Response(200, json={"id": "task-1", "status": "queued"})
 
     factory = httpx.Client
-    monkeypatch.setattr(gateway.httpx, "Client", lambda **kw: factory(transport=httpx.MockTransport(handle), **kw))
+    monkeypatch.setattr(
+        gateway.httpx, "Client", lambda **kw: factory(transport=httpx.MockTransport(handle), **kw)
+    )
     return calls
 
 
@@ -50,7 +52,9 @@ def test_task_selection_overrides_agent_argument(configured, monkeypatch):
     from runtime.platform.process.session import Session, session_scope
 
     monkeypatch.setenv("ECHO_IMAGE_MODELS", "selected-image")
-    with session_scope(Session(metadata={"design_capabilities": {"image_model": "selected-image"}})):
+    with session_scope(
+        Session(metadata={"design_capabilities": {"image_model": "selected-image"}})
+    ):
         result = media._generate_image("海报", model="image-default")
     assert result["model"] == "selected-image"
 

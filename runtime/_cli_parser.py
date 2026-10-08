@@ -48,6 +48,7 @@ _CLI_COMMANDS = frozenset(
         "bb",
         "plugins",
         "guard-health",
+        "bundle",
     }
 )
 
@@ -824,6 +825,38 @@ def _build_parser() -> argparse.ArgumentParser:
     )
     guardp.add_argument(
         "--tuning-threshold", type=int, default=20, help="min hits to consider for tuning"
+    )
+
+    bundlep = sub.add_parser(
+        "bundle",
+        help="Inspect, verify and provision the kernel supply contract (runtime/bundle.json).",
+    )
+    bundle_sub = bundlep.add_subparsers(dest="bundle_op")
+    bundlep.add_argument(
+        "--manifest",
+        type=Path,
+        default=None,
+        help="path to bundle.json (default: runtime/bundle.json)",
+    )
+    bundle_sub.add_parser("show", help="Print the declared bundle identity and resources.")
+    bundle_sub.add_parser("verify", help="Check every declared resource digest in the tree.")
+    bundle_sub.add_parser("stamp", help="Print the stamp this bundle currently renders to.")
+    bundle_sub.add_parser("sync", help="Recompute resource digests from resourceRoots.")
+    bundle_provision = bundle_sub.add_parser(
+        "provision", help="Idempotently materialise the bundle into a target directory."
+    )
+    bundle_provision.add_argument("target", type=Path, help="install root to bring up to date")
+    bundle_provision.add_argument(
+        "--stamp",
+        type=Path,
+        default=None,
+        help="stamp path (default: <target>/.echo-bundle-stamp)",
+    )
+    bundle_provision.add_argument(
+        "--dry-run", action="store_true", help="plan only; do not touch the target"
+    )
+    bundle_provision.add_argument(
+        "--force", action="store_true", help="ignore a matching stamp and re-plan"
     )
 
     return parser

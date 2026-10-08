@@ -125,3 +125,15 @@ def _parse_command(command: str | list[str]) -> tuple[list[str] | None, str | No
             "are already returned separately, so redirection is unnecessary.",
         )
     return argv, None
+
+
+def file_change_entry(path: str, op: str) -> dict[str, str]:
+    """One ``file_changes`` entry, in the shape the realtime bridge consumes.
+
+    The bridge promotes these to a ``FileChangeItem`` directly (no prose
+    parsing, no unified-diff re-parse), so the *fact* of "this handler wrote
+    this file" comes from the code that performed the write. Formats are owned
+    by deterministic code; the model is not asked to narrate them.
+    """
+
+    return {"path": str(path), "op": op}

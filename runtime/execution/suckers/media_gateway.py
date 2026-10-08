@@ -14,15 +14,32 @@ def model_catalog() -> dict:
     result = {}
     for kind in ("image", "video"):
         default = os.environ.get(f"ECHO_{kind.upper()}_MODEL", "").strip()
-        models = list(dict.fromkeys(x.strip() for x in [default, *os.environ.get(f"ECHO_{kind.upper()}_MODELS", "").split(",")] if x.strip()))
-        result[kind] = {"default": default or None, "models": models, "available": not bool(configuration_error(kind))}
+        models = list(
+            dict.fromkeys(
+                x.strip()
+                for x in [default, *os.environ.get(f"ECHO_{kind.upper()}_MODELS", "").split(",")]
+                if x.strip()
+            )
+        )
+        result[kind] = {
+            "default": default or None,
+            "models": models,
+            "available": not bool(configuration_error(kind)),
+        }
     return result
 
 
 def configuration_error(kind: str) -> str:
     base = os.environ.get("ECHO_MEDIA_BASE_URL", "").strip()
     parsed = urlparse(base)
-    if parsed.scheme not in {"http", "https"} or not parsed.netloc or parsed.username or parsed.password or parsed.query or parsed.fragment:
+    if (
+        parsed.scheme not in {"http", "https"}
+        or not parsed.netloc
+        or parsed.username
+        or parsed.password
+        or parsed.query
+        or parsed.fragment
+    ):
         return "Echo 生成服务地址未配置或无效"
     if not os.environ.get("ECHO_MEDIA_API_KEY", "").strip():
         return "Echo 生成服务凭据未配置"
@@ -38,7 +55,14 @@ def generate(kind: str, prompt: str, *, model: str | None = None, task_id: str =
     if error:
         return {"ok": False, "error": error}
     default = os.environ[f"ECHO_{kind.upper()}_MODEL"].strip()
-    allowed = {default, *(x.strip() for x in os.environ.get(f"ECHO_{kind.upper()}_MODELS", "").split(",") if x.strip())}
+    allowed = {
+        default,
+        *(
+            x.strip()
+            for x in os.environ.get(f"ECHO_{kind.upper()}_MODELS", "").split(",")
+            if x.strip()
+        ),
+    }
     from runtime.platform.process.session import current_session
 
     session = current_session()
@@ -53,21 +77,41 @@ def generate(kind: str, prompt: str, *, model: str | None = None, task_id: str =
         if kind != "video":
             return {"ok": False, "error": "unsupported_media_task"}
         path = "/videos/" + quote(task_id, safe="")
-    payload = {"model": chosen, "prompt": prompt, **{k: v for k, v in parameters.items() if v is not None}}
+    payload = {
+        "model": chosen,
+        "prompt": prompt,
+        **{k: v for k, v in parameters.items() if v is not None},
+    }
     try:
         with httpx.Client(timeout=120, follow_redirects=False) as client:
             headers = {"Authorization": f"Bearer {os.environ['ECHO_MEDIA_API_KEY']}"}
-            response = client.get(base + path, headers=headers) if task_id else client.post(base + path, headers=headers, json=payload)
+            response = (
+                client.get(base + path, headers=headers)
+                if task_id
+                else client.post(base + path, headers=headers, json=payload)
+            )
             response.raise_for_status()
             data = response.json()
     except (httpx.HTTPError, ValueError):
         # Never automatically repeat a possibly billed creation request.
-        return {"ok": False, "error": "Echo 生成服务请求失败，请检查服务任务记录后再重试", "task_id": task_id or None}
+        return {
+            "ok": False,
+            "error": "Echo 生成服务请求失败，请检查服务任务记录后再重试",
+            "task_id": task_id or None,
+        }
     if not isinstance(data, dict):
         return {"ok": False, "error": "Echo 生成服务返回格式无效"}
     if kind == "image":
         images = data.get("data", [])
-        urls = [item["url"] for item in images if isinstance(item, dict) and isinstance(item.get("url"), str)] if isinstance(images, list) else []
+        urls = (
+            [
+                item["url"]
+                for item in images
+                if isinstance(item, dict) and isinstance(item.get("url"), str)
+            ]
+            if isinstance(images, list)
+            else []
+        )
         if not urls:
             return {"ok": False, "error": "Echo 图片服务未返回图片 URL"}
         return {"ok": True, "provider": "echo", "model": chosen, "url": urls[0], "urls": urls}
@@ -75,4 +119,10 @@ def generate(kind: str, prompt: str, *, model: str | None = None, task_id: str =
     identifier = data.get("task_id") or data.get("id") or task_id
     if not identifier and not result.get("video_url") and not result.get("url"):
         return {"ok": False, "error": "Echo 视频服务未返回任务或视频 URL"}
-    return {"ok": data.get("status") not in {"failed", "cancelled", "canceled"}, "provider": "echo", "model": chosen, "task_id": identifier, **result}
+    return {
+        "ok": data.get("status") not in {"failed", "cancelled", "canceled"},
+        "provider": "echo",
+        "model": chosen,
+        "task_id": identifier,
+        **result,
+    }

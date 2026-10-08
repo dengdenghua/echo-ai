@@ -1831,6 +1831,61 @@ def test_agentic_code_prompt_asserts_real_tool_availability():
     assert "Do not claim tools are unavailable" in system_text
 
 
+def _native_system_text(goal: str, *, mode: str = "code") -> str:
+    """Joined system messages the native tool loop actually sent."""
+
+    class Router:
+        def __init__(self):
+            self.requests = []
+
+        def call_stream(self, request):
+            self.requests.append(request)
+            yield ModelStreamEvent(type="text_delta", delta="done")
+            yield ModelStreamEvent(type="done", final=ModelResponse(text="done"))
+
+    router = Router()
+    intent = ParsedIntent(
+        raw=goal,
+        intent_type="task",
+        normalized_goal=goal,
+        user_context={"conversation_id": "native-contracts", "metadata": {"mode": mode}},
+    )
+    list(stream_agentic_fallback(_stack(router), intent, _agent(), model="mock"))
+    return "\n".join(
+        str(message.content) for message in router.requests[0].messages if message.role == "system"
+    )
+
+
+def test_native_tool_loop_carries_the_static_turn_contracts() -> None:
+    """The native loop writes its own prompt, so it must import the contracts.
+
+    It used to build every system message inline and never consulted
+    ``react_prompt_assembly``, which meant the deliverable section, citation
+    routing, destructive-action gate and skill-selection order were absent
+    from every natively-routed turn.
+    """
+    system_text = _native_system_text("list the files in this repo")
+
+    assert "<deliverable-contract>" in system_text
+    assert "<citation-placement>" in system_text
+    assert "<irreversible-action>" in system_text
+    assert "<skill-selection>" in system_text
+
+
+def test_native_tool_loop_marks_turn_a_only_for_destructive_requests() -> None:
+    # Turn A: the request itself is not permission, so the note is injected.
+    destructive = _native_system_text("删除 dist 目录下的所有旧构建产物")
+    assert "<irreversible-action-status>" in destructive
+
+    # Asking *about* the same command is not asking for it.
+    explanatory = _native_system_text("解释一下 rm -rf 会对仓库造成什么影响")
+    assert "<irreversible-action-status>" not in explanatory
+
+    # Ordinary work is never gated.
+    ordinary = _native_system_text("list the files in this repo")
+    assert "<irreversible-action-status>" not in ordinary
+
+
 def test_agentic_stream_prompts_for_user_decision_at_round_cap(monkeypatch):
     monkeypatch.setattr(tool_bridge, "MAX_TOOL_ROUNDS", 2)
 

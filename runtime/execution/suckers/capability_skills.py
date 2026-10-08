@@ -489,6 +489,13 @@ def _coerce_args(args: Any) -> dict[str, Any]:
 
 
 def _resolve_action(registry: SkillRegistry, entry: dict[str, Any], action: str) -> str:
+    """Resolve ``action`` to one of the capability's OWN registered actions.
+
+    Only names listed in ``entry["registered_actions"]`` are eligible. An
+    arbitrary registry skill name (``exec_shell``, ``write_text_file`` …) is
+    never accepted just because it exists — otherwise any capability id
+    would become a generic dispatcher for every registered tool.
+    """
     raw = action.strip()
     if not raw:
         return ""
@@ -503,7 +510,7 @@ def _resolve_action(registry: SkillRegistry, entry: dict[str, Any], action: str)
         tail = action_tail(name)
         if tail.lower() == lowered and registry.has(name):
             return name
-    return raw if registry.has(raw) else ""
+    return ""
 
 
 def _use_capability_for_registry(registry: SkillRegistry):
@@ -539,7 +546,20 @@ def _use_capability_for_registry(registry: SkillRegistry):
         entry = _find_capability(registry, cap_id)
         if entry is None:
             return _missing_capability(registry, cap_id)
-        resolved = _resolve_action(registry, entry, _as_text(action))
+        requested_action = _as_text(action).strip()
+        resolved = _resolve_action(registry, entry, requested_action)
+        if requested_action and not resolved:
+            return {
+                "ok": False,
+                "capability_id": entry.get("id"),
+                "action": requested_action,
+                "registered_actions": entry.get("registered_actions") or [],
+                "error": (
+                    f"action {requested_action!r} is not a registered action of capability "
+                    f"{entry.get('id')!r}; choose one of registered_actions. Other registered "
+                    "skills must be invoked directly as tools, not through use_capability."
+                ),
+            }
         if not resolved:
             return {
                 "ok": True,
@@ -562,27 +582,28 @@ def _use_capability_for_registry(registry: SkillRegistry):
             call_args["request"] = request
         # Safety chokepoint. This meta-skill dispatches to the inner handler
         # DIRECTLY (not via executor.execute_step), so EVERY pre-execution
-        # gate the executor enforces — capability-permission, injection-taint,
-        # immunity, file-safety — is bypassed. A tainted / denied / untrusted /
-        # credential-targeting inner action could otherwise be laundered
-        # through this low-risk-named meta-skill. Re-apply the shared gate
-        # sequence here, fail-closed (defer_taint_if_handled=False: the
-        # single-action approval gate reviewed use_capability, NOT this inner
-        # tool).
-        from runtime.execution.tool_engine.skill_gate import gate_inner_dispatch
+        # stage the executor runs would otherwise be bypassed: override
+        # stripping, host/read-only contracts, approval risk policy,
+        # capability-permission, injection-taint, immunity, sandbox/scope
+        # injection and the credential-file denylist. A risky inner action
+        # could then be laundered through this low-risk-named meta-skill.
+        # Re-apply the shared pipeline, fail-closed: the single-action
+        # approval gate reviewed use_capability, NOT this inner tool.
+        from runtime.execution.tool_engine.skill_gate import prepare_inner_dispatch
 
-        _block = gate_inner_dispatch(
+        prepared = prepare_inner_dispatch(
             skill,
             call_args,
             caller=f"use_capability:{entry.get('id')}",
         )
-        if _block is not None:
+        if prepared.block is not None:
             return {
                 "ok": False,
                 "capability_id": entry.get("id"),
                 "action": resolved,
-                "error": _block.message,
+                "error": prepared.block.message,
             }
+        call_args = prepared.args
         try:
             from runtime.execution.tool_engine.coordination_guard import invoke_coordinated
 
@@ -600,6 +621,7 @@ def _use_capability_for_registry(registry: SkillRegistry):
             "capability_name": entry.get("display_name") or entry.get("id"),
             "action": resolved,
             "result": result,
+            **({"stripped_overrides": list(prepared.stripped)} if prepared.stripped else {}),
         }
 
     return _use_capability
