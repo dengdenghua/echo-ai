@@ -625,6 +625,56 @@
         "title": "AssignBody",
         "type": "object"
       },
+      "AssistBody": {
+        "properties": {
+          "account_id": {
+            "maxLength": 64,
+            "title": "Account Id",
+            "type": "string"
+          },
+          "action": {
+            "enum": [
+              "summary",
+              "draft"
+            ],
+            "title": "Action",
+            "type": "string"
+          },
+          "draft": {
+            "default": "",
+            "maxLength": 20000,
+            "title": "Draft",
+            "type": "string"
+          },
+          "folder": {
+            "default": "inbox",
+            "enum": [
+              "inbox",
+              "sent"
+            ],
+            "title": "Folder",
+            "type": "string"
+          },
+          "instruction": {
+            "default": "",
+            "maxLength": 4000,
+            "title": "Instruction",
+            "type": "string"
+          },
+          "message_id": {
+            "default": "",
+            "maxLength": 64,
+            "title": "Message Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "action",
+          "account_id"
+        ],
+        "title": "AssistBody",
+        "type": "object"
+      },
       "AuthProvider": {
         "additionalProperties": true,
         "properties": {
@@ -2435,6 +2485,27 @@
         "title": "CompleteBody",
         "type": "object"
       },
+      "ConnectBody": {
+        "properties": {
+          "email": {
+            "maxLength": 254,
+            "title": "Email",
+            "type": "string"
+          },
+          "password": {
+            "format": "password",
+            "title": "Password",
+            "type": "string",
+            "writeOnly": true
+          }
+        },
+        "required": [
+          "email",
+          "password"
+        ],
+        "title": "ConnectBody",
+        "type": "object"
+      },
       "ConstitutionProfileResponse": {
         "properties": {
           "available": {
@@ -4067,6 +4138,72 @@
         "title": "DispatchTaskInput",
         "type": "object"
       },
+      "DraftBody": {
+        "properties": {
+          "account_id": {
+            "maxLength": 64,
+            "title": "Account Id",
+            "type": "string"
+          },
+          "body": {
+            "default": "",
+            "maxLength": 100000,
+            "title": "Body",
+            "type": "string"
+          },
+          "id": {
+            "default": "",
+            "maxLength": 64,
+            "pattern": "^[a-zA-Z0-9-]*$",
+            "title": "Id",
+            "type": "string"
+          },
+          "reply_message_id": {
+            "default": "",
+            "maxLength": 1000,
+            "title": "Reply Message Id",
+            "type": "string"
+          },
+          "source_account_id": {
+            "default": "",
+            "maxLength": 64,
+            "title": "Source Account Id",
+            "type": "string"
+          },
+          "source_folder": {
+            "default": "inbox",
+            "enum": [
+              "inbox",
+              "sent"
+            ],
+            "title": "Source Folder",
+            "type": "string"
+          },
+          "source_id": {
+            "default": "",
+            "maxLength": 64,
+            "title": "Source Id",
+            "type": "string"
+          },
+          "subject": {
+            "default": "",
+            "maxLength": 500,
+            "title": "Subject",
+            "type": "string"
+          },
+          "to": {
+            "default": "",
+            "maxLength": 5000,
+            "title": "To",
+            "type": "string"
+          }
+        },
+        "required": [
+          "account_id"
+        ],
+        "title": "DraftBody",
+        "type": "object"
+      },
       "DriverBody": {
         "properties": {
           "driver": {
@@ -4347,6 +4484,34 @@
           "recorded"
         ],
         "title": "FeedbackPostResponse",
+        "type": "object"
+      },
+      "FlagsBody": {
+        "properties": {
+          "read": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Read"
+          },
+          "starred": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Starred"
+          }
+        },
+        "title": "FlagsBody",
         "type": "object"
       },
       "FromGroupBody": {
@@ -4639,6 +4804,27 @@
             "type": "string"
           }
         },
+        "type": "object"
+      },
+      "GoogleClientBody": {
+        "properties": {
+          "client_id": {
+            "maxLength": 500,
+            "title": "Client Id",
+            "type": "string"
+          },
+          "client_secret": {
+            "format": "password",
+            "title": "Client Secret",
+            "type": "string",
+            "writeOnly": true
+          }
+        },
+        "required": [
+          "client_id",
+          "client_secret"
+        ],
+        "title": "GoogleClientBody",
         "type": "object"
       },
       "GrantBody": {
@@ -6117,6 +6303,234 @@
         "title": "MoveThreadBody",
         "type": "object"
       },
+      "NodeAdvertisement": {
+        "properties": {
+          "label": {
+            "maxLength": 120,
+            "title": "Label",
+            "type": "string"
+          },
+          "node_id": {
+            "maxLength": 64,
+            "minLength": 1,
+            "title": "Node Id",
+            "type": "string"
+          },
+          "roles": {
+            "items": {
+              "type": "string"
+            },
+            "maxItems": 256,
+            "minItems": 1,
+            "title": "Roles",
+            "type": "array"
+          },
+          "workspace_ids": {
+            "items": {
+              "type": "string"
+            },
+            "maxItems": 256,
+            "title": "Workspace Ids",
+            "type": "array"
+          }
+        },
+        "required": [
+          "node_id",
+          "label",
+          "workspace_ids",
+          "roles"
+        ],
+        "title": "NodeAdvertisement",
+        "type": "object"
+      },
+      "NodeArtifact": {
+        "properties": {
+          "baseline_sha256": {
+            "anyOf": [
+              {
+                "pattern": "^[a-f0-9]{64}$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Baseline Sha256"
+          },
+          "content": {
+            "maxLength": 12582912,
+            "title": "Content",
+            "type": "string"
+          },
+          "path": {
+            "maxLength": 1024,
+            "title": "Path",
+            "type": "string"
+          },
+          "sha256": {
+            "pattern": "^[a-f0-9]{64}$",
+            "title": "Sha256",
+            "type": "string"
+          }
+        },
+        "required": [
+          "path",
+          "sha256",
+          "content"
+        ],
+        "title": "NodeArtifact",
+        "type": "object"
+      },
+      "NodeClaim": {
+        "properties": {
+          "attempt": {
+            "default": 0,
+            "minimum": 0.0,
+            "title": "Attempt",
+            "type": "integer"
+          },
+          "instance_id": {
+            "maxLength": 64,
+            "minLength": 1,
+            "title": "Instance Id",
+            "type": "string"
+          },
+          "node_id": {
+            "maxLength": 64,
+            "minLength": 1,
+            "title": "Node Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "node_id",
+          "instance_id"
+        ],
+        "title": "NodeClaim",
+        "type": "object"
+      },
+      "NodeResult": {
+        "properties": {
+          "artifacts": {
+            "items": {
+              "$ref": "#/components/schemas/NodeArtifact"
+            },
+            "maxItems": 32,
+            "title": "Artifacts",
+            "type": "array"
+          },
+          "attempt": {
+            "default": 0,
+            "minimum": 0.0,
+            "title": "Attempt",
+            "type": "integer"
+          },
+          "error": {
+            "default": "",
+            "maxLength": 4000,
+            "title": "Error",
+            "type": "string"
+          },
+          "input_sha256": {
+            "anyOf": [
+              {
+                "pattern": "^[a-f0-9]{64}$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Input Sha256"
+          },
+          "instance_id": {
+            "maxLength": 64,
+            "minLength": 1,
+            "title": "Instance Id",
+            "type": "string"
+          },
+          "node_id": {
+            "maxLength": 64,
+            "minLength": 1,
+            "title": "Node Id",
+            "type": "string"
+          },
+          "output": {
+            "default": "",
+            "maxLength": 64000,
+            "title": "Output",
+            "type": "string"
+          },
+          "success": {
+            "title": "Success",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "node_id",
+          "instance_id",
+          "success"
+        ],
+        "title": "NodeResult",
+        "type": "object"
+      },
+      "NodeTaskRequest": {
+        "properties": {
+          "goal": {
+            "maxLength": 32000,
+            "minLength": 1,
+            "title": "Goal",
+            "type": "string"
+          },
+          "node_ids": {
+            "items": {
+              "type": "string"
+            },
+            "maxItems": 16,
+            "minItems": 1,
+            "title": "Node Ids",
+            "type": "array"
+          },
+          "output_files": {
+            "items": {
+              "type": "string"
+            },
+            "maxItems": 32,
+            "title": "Output Files",
+            "type": "array"
+          },
+          "request_id": {
+            "maxLength": 128,
+            "minLength": 1,
+            "title": "Request Id",
+            "type": "string"
+          },
+          "role": {
+            "title": "Role",
+            "type": "string"
+          },
+          "timeout_s": {
+            "default": 900,
+            "maximum": 3600.0,
+            "minimum": 5.0,
+            "title": "Timeout S",
+            "type": "integer"
+          },
+          "workspace_id": {
+            "title": "Workspace Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "request_id",
+          "workspace_id",
+          "node_ids",
+          "goal",
+          "role"
+        ],
+        "title": "NodeTaskRequest",
+        "type": "object"
+      },
       "Part": {
         "allOf": [
           {
@@ -6794,6 +7208,19 @@
         "title": "RecoverBody",
         "type": "object"
       },
+      "RecruitmentDecision": {
+        "properties": {
+          "accept": {
+            "title": "Accept",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "accept"
+        ],
+        "title": "RecruitmentDecision",
+        "type": "object"
+      },
       "RejectTeamJoinRequest": {
         "properties": {
           "reason": {
@@ -7219,6 +7646,80 @@
           }
         },
         "title": "ScorecardGapQueueBody",
+        "type": "object"
+      },
+      "SendBody": {
+        "properties": {
+          "account_id": {
+            "maxLength": 64,
+            "title": "Account Id",
+            "type": "string"
+          },
+          "body": {
+            "default": "",
+            "maxLength": 100000,
+            "title": "Body",
+            "type": "string"
+          },
+          "id": {
+            "default": "",
+            "maxLength": 64,
+            "pattern": "^[a-zA-Z0-9-]*$",
+            "title": "Id",
+            "type": "string"
+          },
+          "reply_message_id": {
+            "default": "",
+            "maxLength": 1000,
+            "title": "Reply Message Id",
+            "type": "string"
+          },
+          "request_id": {
+            "maxLength": 64,
+            "minLength": 16,
+            "pattern": "^[a-zA-Z0-9-]+$",
+            "title": "Request Id",
+            "type": "string"
+          },
+          "source_account_id": {
+            "default": "",
+            "maxLength": 64,
+            "title": "Source Account Id",
+            "type": "string"
+          },
+          "source_folder": {
+            "default": "inbox",
+            "enum": [
+              "inbox",
+              "sent"
+            ],
+            "title": "Source Folder",
+            "type": "string"
+          },
+          "source_id": {
+            "default": "",
+            "maxLength": 64,
+            "title": "Source Id",
+            "type": "string"
+          },
+          "subject": {
+            "default": "",
+            "maxLength": 500,
+            "title": "Subject",
+            "type": "string"
+          },
+          "to": {
+            "default": "",
+            "maxLength": 5000,
+            "title": "To",
+            "type": "string"
+          }
+        },
+        "required": [
+          "account_id",
+          "request_id"
+        ],
+        "title": "SendBody",
         "type": "object"
       },
       "SendMessageConfiguration": {
@@ -7855,6 +8356,25 @@
             "type": "string"
           }
         },
+        "type": "object"
+      },
+      "TaskAction": {
+        "properties": {
+          "action": {
+            "enum": [
+              "pause",
+              "resume",
+              "cancel",
+              "apply"
+            ],
+            "title": "Action",
+            "type": "string"
+          }
+        },
+        "required": [
+          "action"
+        ],
+        "title": "TaskAction",
         "type": "object"
       },
       "TaskApprovalDecisionRequest": {
@@ -9089,6 +9609,36 @@
           }
         },
         "title": "VideoWatchRequest",
+        "type": "object"
+      },
+      "VisualReceipt": {
+        "properties": {
+          "detail": {
+            "default": "",
+            "maxLength": 1000,
+            "title": "Detail",
+            "type": "string"
+          },
+          "receipt_token": {
+            "maxLength": 128,
+            "minLength": 16,
+            "title": "Receipt Token",
+            "type": "string"
+          },
+          "status": {
+            "enum": [
+              "rendered",
+              "error"
+            ],
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "receipt_token",
+          "status"
+        ],
+        "title": "VisualReceipt",
         "type": "object"
       },
       "VisualSnapshotBody": {
@@ -22915,6 +23465,65 @@
         ]
       }
     },
+    "/api/collab/{thread_id}/coordination/recruitment/{proposal_id}": {
+      "post": {
+        "operationId": "review_recruitment_api_collab__thread_id__coordination_recruitment__proposal_id__post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "thread_id",
+            "required": true,
+            "schema": {
+              "title": "Thread Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "proposal_id",
+            "required": true,
+            "schema": {
+              "title": "Proposal Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RecruitmentDecision"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Review Recruitment",
+        "tags": [
+          "cowork"
+        ]
+      }
+    },
     "/api/collab/{thread_id}/coordination/tasks": {
       "post": {
         "operationId": "create_task_api_collab__thread_id__coordination_tasks_post",
@@ -35209,6 +35818,577 @@
         ]
       }
     },
+    "/api/execution/invocations": {
+      "get": {
+        "operationId": "invocations_api_execution_invocations_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Invocations",
+        "tags": [
+          "execution"
+        ]
+      }
+    },
+    "/api/execution/invocations/{run_id}/cancel": {
+      "post": {
+        "operationId": "cancel_invocation_api_execution_invocations__run_id__cancel_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "run_id",
+            "required": true,
+            "schema": {
+              "title": "Run Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Cancel Invocation",
+        "tags": [
+          "execution"
+        ]
+      }
+    },
+    "/api/execution/nodes": {
+      "get": {
+        "operationId": "nodes_api_execution_nodes_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "workspace_id",
+            "required": true,
+            "schema": {
+              "title": "Workspace Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Nodes",
+        "tags": [
+          "execution"
+        ]
+      },
+      "post": {
+        "operationId": "advertise_api_execution_nodes_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/NodeAdvertisement"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Advertise",
+        "tags": [
+          "execution"
+        ]
+      }
+    },
+    "/api/execution/nodes/{node_id}/pending": {
+      "get": {
+        "operationId": "pending_api_execution_nodes__node_id__pending_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "node_id",
+            "required": true,
+            "schema": {
+              "title": "Node Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Pending",
+        "tags": [
+          "execution"
+        ]
+      }
+    },
+    "/api/execution/tasks": {
+      "get": {
+        "operationId": "tasks_api_execution_tasks_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Tasks",
+        "tags": [
+          "execution"
+        ]
+      },
+      "post": {
+        "operationId": "submit_api_execution_tasks_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/NodeTaskRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Submit",
+        "tags": [
+          "execution"
+        ]
+      }
+    },
+    "/api/execution/tasks/{run_id}": {
+      "get": {
+        "operationId": "task_api_execution_tasks__run_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "run_id",
+            "required": true,
+            "schema": {
+              "title": "Run Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Task",
+        "tags": [
+          "execution"
+        ]
+      }
+    },
+    "/api/execution/tasks/{run_id}/actions": {
+      "post": {
+        "operationId": "action_api_execution_tasks__run_id__actions_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "run_id",
+            "required": true,
+            "schema": {
+              "title": "Run Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TaskAction"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Action",
+        "tags": [
+          "execution"
+        ]
+      }
+    },
+    "/api/execution/tasks/{run_id}/artifacts/{index}": {
+      "get": {
+        "operationId": "download_api_execution_tasks__run_id__artifacts__index__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "run_id",
+            "required": true,
+            "schema": {
+              "title": "Run Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "index",
+            "required": true,
+            "schema": {
+              "title": "Index",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Download",
+        "tags": [
+          "execution"
+        ]
+      }
+    },
+    "/api/execution/tasks/{run_id}/claim": {
+      "post": {
+        "operationId": "claim_api_execution_tasks__run_id__claim_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "run_id",
+            "required": true,
+            "schema": {
+              "title": "Run Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/NodeClaim"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Claim",
+        "tags": [
+          "execution"
+        ]
+      }
+    },
+    "/api/execution/tasks/{run_id}/heartbeat": {
+      "post": {
+        "operationId": "heartbeat_api_execution_tasks__run_id__heartbeat_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "run_id",
+            "required": true,
+            "schema": {
+              "title": "Run Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/NodeClaim"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Heartbeat",
+        "tags": [
+          "execution"
+        ]
+      }
+    },
+    "/api/execution/tasks/{run_id}/input": {
+      "post": {
+        "operationId": "input_snapshot_api_execution_tasks__run_id__input_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "run_id",
+            "required": true,
+            "schema": {
+              "title": "Run Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/NodeClaim"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Input Snapshot",
+        "tags": [
+          "execution"
+        ]
+      }
+    },
+    "/api/execution/tasks/{run_id}/result": {
+      "post": {
+        "operationId": "result_api_execution_tasks__run_id__result_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "run_id",
+            "required": true,
+            "schema": {
+              "title": "Run Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/NodeResult"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Result",
+        "tags": [
+          "execution"
+        ]
+      }
+    },
     "/api/feature-flags": {
       "get": {
         "description": "List every registered feature flag with its resolved value.\n\nRead-only; mutations happen via env vars or\n``data/feature_flags.json``. Frontend should treat this as\na one-shot fetch on app load (re-fetch on settings change).\n\nResponse\n--------\n``{ \"flags\": [ { name, value, source, default,\ndescription, experimental, primary_env, legacy_env }, ... ] }``",
@@ -39553,6 +40733,587 @@
         "summary": "Api Lsp References",
         "tags": [
           "lsp"
+        ]
+      }
+    },
+    "/api/mailbox/accounts": {
+      "get": {
+        "operationId": "accounts_api_mailbox_accounts_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Accounts",
+        "tags": [
+          "mailbox"
+        ]
+      },
+      "post": {
+        "operationId": "connect_api_mailbox_accounts_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ConnectBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Connect",
+        "tags": [
+          "mailbox"
+        ]
+      }
+    },
+    "/api/mailbox/accounts/{account_id}": {
+      "delete": {
+        "operationId": "disconnect_api_mailbox_accounts__account_id__delete",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "account_id",
+            "required": true,
+            "schema": {
+              "title": "Account Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Disconnect",
+        "tags": [
+          "mailbox"
+        ]
+      }
+    },
+    "/api/mailbox/accounts/{account_id}/messages": {
+      "get": {
+        "operationId": "messages_api_mailbox_accounts__account_id__messages_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "account_id",
+            "required": true,
+            "schema": {
+              "title": "Account Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "folder",
+            "required": false,
+            "schema": {
+              "default": "inbox",
+              "enum": [
+                "inbox",
+                "sent"
+              ],
+              "title": "Folder",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 50,
+              "title": "Limit",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Messages",
+        "tags": [
+          "mailbox"
+        ]
+      }
+    },
+    "/api/mailbox/accounts/{account_id}/messages/{message_id}": {
+      "get": {
+        "operationId": "message_api_mailbox_accounts__account_id__messages__message_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "account_id",
+            "required": true,
+            "schema": {
+              "title": "Account Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "message_id",
+            "required": true,
+            "schema": {
+              "title": "Message Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "folder",
+            "required": false,
+            "schema": {
+              "default": "inbox",
+              "enum": [
+                "inbox",
+                "sent"
+              ],
+              "title": "Folder",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Message",
+        "tags": [
+          "mailbox"
+        ]
+      },
+      "patch": {
+        "operationId": "flags_api_mailbox_accounts__account_id__messages__message_id__patch",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "account_id",
+            "required": true,
+            "schema": {
+              "title": "Account Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "message_id",
+            "required": true,
+            "schema": {
+              "title": "Message Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "folder",
+            "required": false,
+            "schema": {
+              "default": "inbox",
+              "enum": [
+                "inbox",
+                "sent"
+              ],
+              "title": "Folder",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/FlagsBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Flags",
+        "tags": [
+          "mailbox"
+        ]
+      }
+    },
+    "/api/mailbox/assist": {
+      "post": {
+        "operationId": "assist_api_mailbox_assist_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AssistBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Assist",
+        "tags": [
+          "mailbox"
+        ]
+      }
+    },
+    "/api/mailbox/drafts": {
+      "get": {
+        "operationId": "drafts_api_mailbox_drafts_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Drafts",
+        "tags": [
+          "mailbox"
+        ]
+      },
+      "post": {
+        "operationId": "save_draft_api_mailbox_drafts_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DraftBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Save Draft",
+        "tags": [
+          "mailbox"
+        ]
+      }
+    },
+    "/api/mailbox/google/config": {
+      "get": {
+        "operationId": "google_config_api_mailbox_google_config_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Google Config",
+        "tags": [
+          "mailbox"
+        ]
+      },
+      "put": {
+        "operationId": "set_google_config_api_mailbox_google_config_put",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GoogleClientBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Set Google Config",
+        "tags": [
+          "mailbox"
+        ]
+      }
+    },
+    "/api/mailbox/google/flows/{flow_id}": {
+      "delete": {
+        "operationId": "cancel_google_api_mailbox_google_flows__flow_id__delete",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "flow_id",
+            "required": true,
+            "schema": {
+              "title": "Flow Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Cancel Google",
+        "tags": [
+          "mailbox"
+        ]
+      },
+      "get": {
+        "operationId": "google_status_api_mailbox_google_flows__flow_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "flow_id",
+            "required": true,
+            "schema": {
+              "title": "Flow Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Google Status",
+        "tags": [
+          "mailbox"
+        ]
+      }
+    },
+    "/api/mailbox/google/start": {
+      "post": {
+        "operationId": "google_start_api_mailbox_google_start_post",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Google Start",
+        "tags": [
+          "mailbox"
+        ]
+      }
+    },
+    "/api/mailbox/send": {
+      "post": {
+        "operationId": "send_api_mailbox_send_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SendBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Send",
+        "tags": [
+          "mailbox"
         ]
       }
     },
@@ -51058,7 +52819,7 @@
     },
     "/api/team-gateway/admin/{path}": {
       "delete": {
-        "operationId": "admin_api_team_gateway_admin__path__get",
+        "operationId": "team_gateway_admin_delete",
         "parameters": [
           {
             "in": "path",
@@ -51096,7 +52857,7 @@
         ]
       },
       "get": {
-        "operationId": "admin_api_team_gateway_admin__path__get",
+        "operationId": "team_gateway_admin_get",
         "parameters": [
           {
             "in": "path",
@@ -51134,7 +52895,7 @@
         ]
       },
       "post": {
-        "operationId": "admin_api_team_gateway_admin__path__get",
+        "operationId": "team_gateway_admin_post",
         "parameters": [
           {
             "in": "path",
@@ -51172,7 +52933,7 @@
         ]
       },
       "put": {
-        "operationId": "admin_api_team_gateway_admin__path__get",
+        "operationId": "team_gateway_admin_put",
         "parameters": [
           {
             "in": "path",
@@ -53037,6 +54798,59 @@
         ]
       }
     },
+    "/api/tentacle/devices/{device_id}/mirror/{operation}": {
+      "post": {
+        "operationId": "invoke_api_tentacle_devices__device_id__mirror__operation__post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "device_id",
+            "required": true,
+            "schema": {
+              "title": "Device Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "operation",
+            "required": true,
+            "schema": {
+              "title": "Operation",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Invoke Api Tentacle Devices  Device Id  Mirror  Operation  Post",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Invoke",
+        "tags": [
+          "tentacle"
+        ]
+      }
+    },
     "/api/tentacle/devices/{tentacle_id}": {
       "get": {
         "operationId": "device_detail_api_tentacle_devices__tentacle_id__get",
@@ -53376,6 +55190,29 @@
           }
         },
         "summary": "Device Telemetry",
+        "tags": [
+          "tentacle"
+        ]
+      }
+    },
+    "/api/tentacle/discovery": {
+      "get": {
+        "operationId": "discovery_status_api_tentacle_discovery_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Discovery Status Api Tentacle Discovery Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Discovery Status",
         "tags": [
           "tentacle"
         ]
@@ -54179,6 +56016,50 @@
           }
         },
         "summary": "Submit Task",
+        "tags": [
+          "tentacle"
+        ]
+      }
+    },
+    "/api/tentacle/task-workspace/{command}": {
+      "post": {
+        "operationId": "invoke_api_tentacle_task_workspace__command__post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "command",
+            "required": true,
+            "schema": {
+              "title": "Command",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Invoke Api Tentacle Task Workspace  Command  Post",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Invoke",
         "tags": [
           "tentacle"
         ]
@@ -55432,6 +57313,62 @@
         ]
       }
     },
+    "/api/visuals/{visual_id}/receipt": {
+      "post": {
+        "operationId": "receipt_api_visuals__visual_id__receipt_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "visual_id",
+            "required": true,
+            "schema": {
+              "title": "Visual Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/VisualReceipt"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": {
+                    "type": "boolean"
+                  },
+                  "title": "Response Receipt Api Visuals  Visual Id  Receipt Post",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Receipt",
+        "tags": [
+          "visuals"
+        ]
+      }
+    },
     "/api/wiki/ask": {
       "post": {
         "operationId": "api_wiki_ask_api_wiki_ask_post",
@@ -56500,6 +58437,51 @@
           }
         },
         "summary": "Get Workspace",
+        "tags": [
+          "workspace-api"
+        ]
+      }
+    },
+    "/api/workspaces/{workspace_id}/execution-directory": {
+      "get": {
+        "description": "Resolve the directory on this backend, subject to existing workspace ACLs.",
+        "operationId": "get_execution_directory_api_workspaces__workspace_id__execution_directory_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "workspace_id",
+            "required": true,
+            "schema": {
+              "title": "Workspace Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Get Execution Directory Api Workspaces  Workspace Id  Execution Directory Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Execution Directory",
         "tags": [
           "workspace-api"
         ]
