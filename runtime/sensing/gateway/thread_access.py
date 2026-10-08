@@ -97,6 +97,23 @@ class ThreadAccessResolver:
             tenant = _clean(metadata.get("tenant_id"))
         return tenant or (f"legacy:{actor_id}" if identity is not None else "")
 
+    def _is_admin(self, actor_id: str, roles: Any) -> bool:
+        """Admin/operator check from caller-supplied roles, else the identity store."""
+        if roles is None and actor_id and self._identity_store is not None:
+            getter = getattr(self._identity_store, "get", None)
+            if callable(getter):
+                try:
+                    roles = getattr(getter(actor_id), "roles", None)
+                except Exception:  # noqa: BLE001 - authorization fails closed
+                    roles = None
+        if isinstance(roles, str):
+            roles = (roles,)
+        try:
+            normalized = {_clean(role).lower() for role in (roles or ())}
+        except TypeError:
+            return False
+        return bool(normalized.intersection({"admin", "operator"}))
+
     def _thread(self, thread_id: str) -> dict[str, Any] | None:
         getter = getattr(self._thread_store, "get", None)
         if not callable(getter):
@@ -219,6 +236,8 @@ class ThreadAccessResolver:
         thread_id: str,
         actor_id: str | None,
         tenant_id: str | None = None,
+        *,
+        roles: Any = None,
     ) -> ThreadAccessDecision:
         actor = _clean(actor_id)
         tenant = self._principal_tenant(actor, tenant_id)
@@ -230,13 +249,23 @@ class ThreadAccessResolver:
         owner = _clean(metadata.get("owner_actor_id") or metadata.get("actor_id"))
         stored_tenant = _clean(metadata.get("tenant_id"))
 
-        # Existing owner-only paths historically allow an ownerless legacy
-        # thread in an actor-local namespace.  A room-derived grant is stricter:
-        # both sides must carry the exact same non-empty tenant id.
-        tenant_matches = bool(
-            tenant
-            and (stored_tenant == tenant or (not stored_tenant and tenant.startswith("legacy:")))
+        # A tenantless legacy row matches a ``legacy:`` principal only when it
+        # provably belongs to that actor.  Every local/OCT/social login without
+        # tenant metadata lands in ``legacy:<actor>``, so an *ownerless*
+        # tenantless row would otherwise be manageable by any logged-in user.
+        # Those rows are admin/operator-only in authenticated deployments; auth-off
+        # runtimes (``allow_anonymous_ownerless``) keep the historical grant.
+        # A room-derived grant is stricter still: both sides must carry the
+        # exact same non-empty tenant id.
+        legacy_match = bool(
+            not stored_tenant
+            and tenant.startswith("legacy:")
+            and (
+                (owner and owner == actor)
+                or (not owner and (self._allow_anonymous_ownerless or self._is_admin(actor, roles)))
+            )
         )
+        tenant_matches = bool(tenant and (stored_tenant == tenant or legacy_match))
         can_manage = bool(actor and tenant_matches and (not owner or owner == actor))
         if can_manage:
             return ThreadAccessDecision(
