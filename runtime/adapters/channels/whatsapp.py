@@ -8,6 +8,7 @@ import time
 from datetime import datetime
 from typing import Any
 
+from ._webhook_auth import secrets_match
 from .base import Attachment, Channel, InboundMessage, OutboundMessage, _sanitize_url
 
 try:
@@ -207,7 +208,7 @@ class WhatsAppChannel(Channel):
     ) -> str:
         if mode != "subscribe":
             raise WhatsAppSignatureError(f"unexpected hub.mode: {mode!r}")
-        if token != self._verify_token:
+        if not secrets_match(token, self._verify_token):
             raise WhatsAppSignatureError("hub.verify_token mismatch")
         return challenge
 

@@ -6,6 +6,7 @@ import time
 from datetime import datetime
 from typing import Any
 
+from ._webhook_auth import check_webhook_secret
 from .base import Channel, InboundMessage, OutboundMessage, _sanitize_url
 
 try:
@@ -33,6 +34,7 @@ class HomeAssistantChannel(Channel):
         long_lived_token: str,
         channel_id: str = "homeassistant",
         http_client: Any = None,
+        webhook_secret: str = "",
     ) -> None:
         if not ha_url:
             raise ValueError("ha_url required")
@@ -40,6 +42,15 @@ class HomeAssistantChannel(Channel):
             raise ValueError("long_lived_token required")
         self._ha_url = ha_url.rstrip("/")
         self._long_lived_token = long_lived_token
+        # Optional shared secret for inbound webhooks (this platform does not
+        # sign them).  When set it is required: X-Echo-Webhook-Secret header,
+        # Authorization: Bearer <secret>, or ?webhook_secret= on the URL.
+        self._webhook_secret = webhook_secret or ""
+        if not self._webhook_secret:
+            logger.warning(
+                "homeassistant.inbound.unauthenticated: set webhook_secret to authenticate webhooks",
+                extra={"channel": channel_id},
+            )
         self.channel_id = channel_id
         self._http = http_client
         self.send_log: list[OutboundMessage] = []
@@ -147,7 +158,9 @@ class HomeAssistantChannel(Channel):
         *,
         body: bytes,
         headers: dict[str, str],
+        query: dict[str, str] | None = None,
     ) -> InboundMessage | dict[str, Any] | None:
+        check_webhook_secret(self._webhook_secret, headers=headers, query=query)
         try:
             payload = json.loads(body.decode("utf-8"))
         except (json.JSONDecodeError, UnicodeDecodeError) as e:

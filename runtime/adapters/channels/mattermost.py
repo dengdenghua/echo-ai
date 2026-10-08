@@ -6,6 +6,7 @@ import time
 from datetime import datetime
 from typing import Any
 
+from ._webhook_auth import secrets_match
 from .base import Attachment, Channel, InboundMessage, OutboundMessage, _sanitize_url
 
 logger = logging.getLogger(__name__)
@@ -288,7 +289,7 @@ class MattermostChannel(Channel):
             raise ValueError("payload not an object")
 
         token = payload.get("token") or ""
-        if token != self._bot_token:
+        if not secrets_match(token, self._bot_token):
             raise MattermostSignatureError("token mismatch")
 
         text = payload.get("text")

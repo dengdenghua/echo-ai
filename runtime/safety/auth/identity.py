@@ -9,11 +9,27 @@ import logging
 import os
 import threading
 import time
+import uuid
+from collections import OrderedDict
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
+from .session_revocation import SessionRevocations
+
 ANONYMOUS_ACTOR = "anonymous"
+
+# Bounded memo of API-key verification outcomes, keyed by a per-process keyed
+# fingerprint of the presented token (never the token itself).  Without it every
+# request -- and every *invalid* bearer -- runs PBKDF2 (200k iterations) against
+# every stored key.  A cached miss is only trusted while the key set is
+# unchanged; a cached hit is re-checked against the live hash table.
+_VERIFY_CACHE_MAX = 2048
+_VERIFY_CACHE_PEPPER = os.urandom(32)
+
+
+def _token_fingerprint(plaintext: str) -> bytes:
+    return hmac.new(_VERIFY_CACHE_PEPPER, plaintext.encode("utf-8"), hashlib.sha256).digest()
 
 
 @dataclass(frozen=True)
@@ -28,6 +44,10 @@ class IdentityStore:
         self._by_hash: dict[str, Identity] = {}
         self._by_actor: dict[str, Identity] = {}
         self._lock = threading.RLock()
+        # fingerprint -> (stored hash | None for a miss, key-set generation)
+        self._verify_cache: OrderedDict[bytes, tuple[str | None, int]] = OrderedDict()
+        self._key_generation = 0
+        self._session_revocations = SessionRevocations()
 
     def add(
         self,
@@ -56,6 +76,7 @@ class IdentityStore:
                 ):
                     raise ValueError("api key hash collision with an existing identity")
                 self._by_hash[h] = identity
+                self._key_generation += 1  # invalidates cached misses
 
             self._by_actor[identity.actor_id] = identity
 
@@ -65,16 +86,42 @@ class IdentityStore:
             if identity is None:
                 return False
             self._by_hash = {h: idn for h, idn in self._by_hash.items() if idn.actor_id != actor_id}
+            self._key_generation += 1
             return True
 
     def verify_api_key(self, plaintext: str) -> Identity | None:
         if not plaintext:
             return None
+        fingerprint = _token_fingerprint(plaintext)
         with self._lock:
-            for stored, identity in self._by_hash.items():
-                if _verify_plaintext_against_hash(plaintext, stored):
-                    return identity
-            return None
+            cached = self._verify_cache.get(fingerprint)
+            if cached is not None:
+                stored, generation = cached
+                if stored is not None and stored in self._by_hash:
+                    self._verify_cache.move_to_end(fingerprint)
+                    return self._by_hash[stored]
+                if stored is None and generation == self._key_generation:
+                    self._verify_cache.move_to_end(fingerprint)
+                    return None
+            generation = self._key_generation
+            candidates = list(self._by_hash.items())
+        # PBKDF2 runs outside the lock so one slow verification cannot stall
+        # every other request's authentication.
+        match: tuple[str, Identity] | None = None
+        for stored, identity in candidates:
+            if _verify_plaintext_against_hash(plaintext, stored):
+                match = (stored, identity)
+                break
+        with self._lock:
+            if match is not None and match[0] not in self._by_hash:
+                match = None  # key removed while verifying
+            self._verify_cache[fingerprint] = (match[0] if match else None, generation)
+            self._verify_cache.move_to_end(fingerprint)
+            while len(self._verify_cache) > _VERIFY_CACHE_MAX:
+                self._verify_cache.popitem(last=False)
+            if match is None:
+                return None
+            return self._by_hash.get(match[0], match[1])
 
     def verify_jwt(
         self,
@@ -95,6 +142,8 @@ class IdentityStore:
                 required_audience=required_audience,
             )
         except JWTError:
+            return None
+        if self._session_revocations.contains(token):
             return None
         sub = claims.get("sub")
         if not isinstance(sub, str) or not sub:
@@ -120,6 +169,12 @@ class IdentityStore:
         }
         meta.setdefault("synthesized_from_jwt", True)
         return Identity(actor_id=sub, roles=roles, metadata=meta)
+
+    def revoke_jwt(self, token: str, **verification: Any) -> bool:
+        if self.verify_jwt(token, **verification) is None:
+            return False
+        self._session_revocations.add(token)
+        return True
 
     def get(self, actor_id: str) -> Identity | None:
         with self._lock:
@@ -201,6 +256,7 @@ class DurableIdentityStore(IdentityStore):
     def __init__(self, path: str | Path) -> None:
         super().__init__()
         self._path = Path(path)
+        self._session_revocations = SessionRevocations(self._path.with_suffix(".revocations.db"))
         self._log = logging.getLogger(__name__)
         self._load()
 
@@ -373,6 +429,9 @@ def encode_jwt_hs256(
 ) -> str:
     if not secret:
         raise ValueError("secret must be non-empty")
+    # Separate logins must remain distinct even within the same second, so
+    # revoking one session never revokes a freshly issued replacement.
+    claims = {"jti": uuid.uuid4().hex, **claims}
     header = {"alg": "HS256", "typ": "JWT", **(header_extra or {})}
     header_b = _b64url_encode(
         json.dumps(header, separators=(",", ":"), sort_keys=True).encode("utf-8")

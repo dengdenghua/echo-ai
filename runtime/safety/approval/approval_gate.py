@@ -178,6 +178,16 @@ def is_dangerous_tool(tool_name: str) -> bool:
     return any(tool_name.startswith(prefix) for prefix in DANGEROUS_PREFIXES)
 
 
+# Tools that execute model-authored code without being named like a shell.
+_CODE_EXECUTION_TOOLS: frozenset[str] = frozenset({"ipython", "workflow"})
+# Meta-skills that dispatch to a model-chosen inner tool.
+_META_DISPATCH_TOOLS: frozenset[str] = frozenset({"use_capability", "execute_skill"})
+# Media generators that write output files to the workspace.
+_MEDIA_GENERATION_TOOLS: frozenset[str] = frozenset(
+    {"generate_image", "generate_video", "generate_speech", "generate_sound_effects"}
+)
+
+
 def assess_approval_risk(
     tool_name: str,
     args_preview: str = "",
@@ -227,6 +237,19 @@ def assess_approval_risk(
     # Command execution — incl. background / renamed aliases that the
     # bare ``exec_shell`` check missed (a prompt-injected agent can route
     # a shell through any of these).
+    if name in _CODE_EXECUTION_TOOLS:
+        # Not shells, but they run model-authored code: ``ipython`` executes
+        # Python in-process; ``workflow`` runs a model-written orchestration
+        # script in a worker subprocess.
+        bump("high", "code_execution")
+    if name in _META_DISPATCH_TOOLS:
+        # Meta-skills dispatch to an arbitrary inner tool chosen by the
+        # model. The inner target can't be resolved reliably from a
+        # truncated, model-controlled args preview, so the outer call is
+        # rated as dangerous as the worst thing it can dispatch.
+        bump("high", "meta_dispatch")
+    if name in _MEDIA_GENERATION_TOOLS:
+        bump("medium", "media_generation_write")
     if name in {
         "exec_shell",
         "shell_command",
