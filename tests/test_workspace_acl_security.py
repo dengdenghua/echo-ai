@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import ipaddress
 from pathlib import Path
 
 from fastapi import FastAPI
@@ -9,17 +10,24 @@ from fastapi.testclient import TestClient
 
 from runtime.platform import feature_flags as ff
 from runtime.platform.io.lease import LeaseStore
-from runtime.safety.auth import Identity, IdentityStore
+from runtime.safety.auth import Identity, IdentityStore, url_guard
 from runtime.safety.auth.scope import TenantScope
 from runtime.sensing.gateway.workspace_api_router import create_workspace_api_router
-from runtime.sensing.server.mount_backend import LocalMountBackend, MountBackendRegistry
+from runtime.sensing.server.mount_backend import (
+    LocalMountBackend,
+    MountBackend,
+    MountBackendRegistry,
+)
 from runtime.workspace import WorkspaceStore
 
 
 def _client(tmp_path: Path) -> tuple[TestClient, WorkspaceStore, IdentityStore]:
     store = WorkspaceStore(db_path=tmp_path / "workspaces.db")
     identity_store = IdentityStore()
-    identity_store.add(Identity(actor_id="alice"), api_key_plaintext="sk-alice")
+    # Creating a server-local mount is operator-only; alice stays the owner.
+    identity_store.add(
+        Identity(actor_id="alice", roles=("operator",)), api_key_plaintext="sk-alice"
+    )
     identity_store.add(Identity(actor_id="bob"), api_key_plaintext="sk-bob")
     registry = MountBackendRegistry()
     registry.register("local", LocalMountBackend)
@@ -140,7 +148,7 @@ def test_workspace_acl_rejects_cross_tenant_membership(tmp_path: Path, monkeypat
         store = WorkspaceStore(db_path=tmp_path / "workspaces.db")
         identities = IdentityStore()
         identities.add(
-            Identity(actor_id="alice", metadata={"tenant_id": "tenant-a"}),
+            Identity(actor_id="alice", roles=("operator",), metadata={"tenant_id": "tenant-a"}),
             api_key_plaintext="sk-alice",
         )
         identities.add(
@@ -195,6 +203,137 @@ def test_workspace_acl_rejects_cross_tenant_membership(tmp_path: Path, monkeypat
             ).status_code
             == 404
         )
+    finally:
+        ff._SPECS.clear()
+        ff._SPECS.update(original_specs)
+        ff._SNAPSHOT = original_snapshot
+        ff._FILE_PATH = original_file
+
+
+class _ProbeBackend(MountBackend):
+    """Remote-style backend that records every probe."""
+
+    probes: list[dict] = []
+
+    def __init__(self, **options) -> None:
+        self.options = options
+
+    async def test_connection(self) -> bool:
+        _ProbeBackend.probes.append(self.options)
+        return True
+
+    async def read_file(self, path: str) -> bytes:
+        raise NotImplementedError
+
+    async def write_file(self, path: str, content: bytes) -> None:
+        raise NotImplementedError
+
+    async def list_dir(self, path: str, depth: int = 1) -> list:
+        raise NotImplementedError
+
+    async def stat(self, path: str):
+        raise NotImplementedError
+
+    async def mkdir(self, path: str) -> None:
+        raise NotImplementedError
+
+    async def remove(self, path: str) -> None:
+        raise NotImplementedError
+
+
+def _mount_client(tmp_path: Path) -> tuple[TestClient, WorkspaceStore]:
+    store = WorkspaceStore(db_path=tmp_path / "workspaces.db")
+    identities = IdentityStore()
+    identities.add(Identity(actor_id="mallory"), api_key_plaintext="sk-mallory")
+    identities.add(Identity(actor_id="root", roles=("admin",)), api_key_plaintext="sk-root")
+    registry = MountBackendRegistry()
+    registry.register("local", LocalMountBackend)
+    registry.register("nfs", _ProbeBackend)
+    registry.register("webdav", _ProbeBackend)
+    app = FastAPI()
+    app.include_router(
+        create_workspace_api_router(
+            workspace_store=store,
+            lease_store=LeaseStore(db_path=tmp_path / "leases.db"),
+            registry=registry,
+            identity_store=identities,
+            require_auth=True,
+        )
+    )
+    return TestClient(app), store
+
+
+def test_server_local_mounts_require_admin_or_operator(tmp_path: Path, monkeypatch) -> None:
+    original_specs = dict(ff._SPECS)
+    original_snapshot = ff._SNAPSHOT
+    original_file = ff._FILE_PATH
+    monkeypatch.setenv("ECHO_FF_UI_REMOTE_WORKSPACE", "1")
+    ff.reload()
+    # Remote mounts by ordinary users must resolve to a public address.
+    monkeypatch.setattr(
+        url_guard, "_resolve_all", lambda _host: [ipaddress.ip_address("93.184.216.34")]
+    )
+    _ProbeBackend.probes = []
+    try:
+        client, store = _mount_client(tmp_path)
+        mallory = {"Authorization": "Bearer sk-mallory"}
+        secret = tmp_path / "server-secret"
+        secret.mkdir()
+        denied_bodies = [
+            {"mount_type": "local", "mount_target": str(secret)},
+            {"mount_type": "nfs", "mount_target": str(secret)},
+            {
+                "mount_type": "nfs",
+                "mount_target": "nfs://host/export",
+                "mount_options": {"mount_point": str(secret)},
+            },
+            {
+                "mount_type": "webdav",
+                "mount_target": "https://dav.example.test/share",
+                "mount_options": {"filesystem_path": str(secret)},
+            },
+            {
+                "mount_type": "webdav",
+                "mount_target": "https://dav.example.test/share",
+                "mount_options": {"allowed_write_roots": [str(secret)]},
+            },
+        ]
+        for body in denied_bodies:
+            response = client.post(
+                "/api/workspaces",
+                headers=mallory,
+                json={"name": "grab", "owner_id": "mallory", **body},
+            )
+            assert response.status_code == 403, body
+        # Rejected before probing or persisting anything.
+        assert _ProbeBackend.probes == []
+        assert store.list_workspaces() == []
+
+        # Ordinary users can still create genuinely remote workspaces.
+        remote = client.post(
+            "/api/workspaces",
+            headers=mallory,
+            json={
+                "name": "remote",
+                "owner_id": "mallory",
+                "mount_type": "webdav",
+                "mount_target": "https://dav.example.test/share",
+            },
+        )
+        assert remote.status_code == 200
+
+        # Admins may map runtime-local directories.
+        admin = client.post(
+            "/api/workspaces",
+            headers={"Authorization": "Bearer sk-root"},
+            json={
+                "name": "local",
+                "owner_id": "root",
+                "mount_type": "local",
+                "mount_target": str(secret),
+            },
+        )
+        assert admin.status_code == 200
     finally:
         ff._SPECS.clear()
         ff._SPECS.update(original_specs)

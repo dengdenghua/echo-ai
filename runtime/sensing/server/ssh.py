@@ -9,6 +9,12 @@ from pathlib import Path
 from typing import Any
 
 from runtime.adapters.instrumentation import trace_stage
+from runtime.sensing.server._ssh_host_keys import (
+    configure_host_key_verification,
+    default_managed_known_hosts_path,
+    host_key_error_hint,
+    normalize_fingerprint,
+)
 from runtime.sensing.server._ssh_security import paramiko_disabled_algorithms
 
 from .local import BackendAudit, LocalBackend, Sandbox
@@ -35,6 +41,9 @@ class SshBackend(LocalBackend):
         connect_timeout: int = 10,
         strict_host_key_checking: bool = True,
         known_hosts_file: str | Path | None = None,
+        trust_on_first_use: bool = False,
+        host_key_fingerprint: str | None = None,
+        managed_known_hosts_file: str | Path | None = None,
         env: dict[str, str] | None = None,
         extra_ssh_args: list[str] | None = None,
         use_paramiko: bool = False,
@@ -60,8 +69,23 @@ class SshBackend(LocalBackend):
         self.password = password
         self.timeout_seconds = timeout_seconds
         self.connect_timeout = connect_timeout
+        if host_key_fingerprint and not use_paramiko:
+            raise ValueError(
+                "host_key_fingerprint requires use_paramiko=True "
+                "(for the ssh CLI, pin the key in known_hosts_file instead)",
+            )
         self.strict_host_key_checking = strict_host_key_checking
         self.known_hosts_file = Path(known_hosts_file) if known_hosts_file else None
+        # ``strict_host_key_checking=False`` used to accept any key on every
+        # connection. It now means trust-on-first-use: the first key is
+        # persisted to the runtime-managed known_hosts and enforced afterwards.
+        self.trust_on_first_use = bool(trust_on_first_use) or not strict_host_key_checking
+        self.host_key_fingerprint = (
+            normalize_fingerprint(host_key_fingerprint) if host_key_fingerprint else None
+        )
+        self.managed_known_hosts_file = (
+            Path(managed_known_hosts_file) if managed_known_hosts_file else None
+        )
         self.env = dict(env or {})
         self.extra_ssh_args = list(extra_ssh_args or [])
         self.use_paramiko = use_paramiko
@@ -178,23 +202,25 @@ class SshSandbox(Sandbox):
         args += ["-o", "ServerAliveInterval=15"]
         args += ["-o", "ServerAliveCountMax=3"]
         args += ["-o", "BatchMode=yes"]  # Implementation note.
-        if not m.strict_host_key_checking:
-            # Opt-in MITM window · operators that disable strict checking
-            # should know they lose host-key pinning. The paired
-            # ``UserKnownHostsFile=/dev/null`` ensures no lingering key
-            # entry points at a spoofed host on next connect.
+        if m.trust_on_first_use:
+            # Explicit opt-in: accept an unknown host once, persist its key to
+            # the runtime-managed known_hosts, reject any later key change.
+            managed = m.managed_known_hosts_file or default_managed_known_hosts_path()
+            with contextlib.suppress(OSError):
+                managed.parent.mkdir(parents=True, exist_ok=True)
             _logger.warning(
-                "ssh_backend %s:%d · strict_host_key_checking is DISABLED "
-                "(host key is not pinned; susceptible to MITM on first "
-                "connection). Set strict_host_key_checking=True in the "
-                "backend config to require a pre-populated known_hosts.",
+                "ssh_backend %s:%d · trust_on_first_use enabled; an unknown host key "
+                "is accepted once and pinned in %s",
                 m.host,
                 m.port,
+                managed,
             )
-            args += ["-o", "StrictHostKeyChecking=no"]
-            args += ["-o", "UserKnownHostsFile=/dev/null"]
-        elif m.known_hosts_file is not None:
-            args += ["-o", f"UserKnownHostsFile={m.known_hosts_file}"]
+            args += ["-o", "StrictHostKeyChecking=accept-new"]
+            args += ["-o", f"UserKnownHostsFile={managed}"]
+        else:
+            args += ["-o", "StrictHostKeyChecking=yes"]
+            if m.known_hosts_file is not None:
+                args += ["-o", f"UserKnownHostsFile={m.known_hosts_file}"]
         if m.identity_file is not None:
             args += ["-i", str(m.identity_file)]
             args += ["-o", "IdentitiesOnly=yes"]
@@ -242,27 +268,16 @@ class SshSandbox(Sandbox):
         m = self.backend
         if self._paramiko_client is None:
             client = paramiko.SSHClient()
-            if m.strict_host_key_checking:
-                if m.known_hosts_file is not None:
-                    client.load_host_keys(str(m.known_hosts_file))
-                else:
-                    client.load_system_host_keys()
-                client.set_missing_host_key_policy(paramiko.RejectPolicy())
-            else:
-                # Opt-in MITM window · same rationale as the CLI
-                # backend above. Load known_hosts when provided so at
-                # least a pre-pinned host still fails loudly on
-                # mismatch · only truly unknown hosts auto-add.
-                _logger.warning(
-                    "ssh_backend %s:%d (paramiko) · strict_host_key_checking is "
-                    "DISABLED (host key not pinned; MITM possible on first "
-                    "connection)",
-                    m.host,
-                    m.port,
-                )
-                if m.known_hosts_file is not None:
-                    client.load_host_keys(str(m.known_hosts_file))
-                client.set_missing_host_key_policy(paramiko.AutoAddPolicy())  # nosec B507 — reached only when the operator explicitly disabled strict host key checking; warning logged above
+            configure_host_key_verification(
+                client,
+                paramiko,
+                host=m.host,
+                port=m.port,
+                known_hosts_file=m.known_hosts_file,
+                trust_on_first_use=m.trust_on_first_use,
+                fingerprint=m.host_key_fingerprint,
+                managed_known_hosts_file=m.managed_known_hosts_file,
+            )
             connect_kwargs: dict[str, Any] = {
                 "hostname": m.host,
                 "port": m.port,
@@ -278,7 +293,15 @@ class SshSandbox(Sandbox):
             if m.password is not None:
                 connect_kwargs["password"] = m.password
                 connect_kwargs["allow_agent"] = False
-            client.connect(**connect_kwargs)
+            try:
+                client.connect(**connect_kwargs)
+            except Exception as exc:
+                hint = host_key_error_hint(exc, host=m.host, port=m.port)
+                with contextlib.suppress(Exception):
+                    client.close()
+                if hint is not None:
+                    raise paramiko.SSHException(hint) from exc
+                raise
             self._paramiko_client = client
 
         client = self._paramiko_client
