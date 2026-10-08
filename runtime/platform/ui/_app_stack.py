@@ -359,6 +359,22 @@ def wire_stack(
             set_default_thread_store(thread_store)
         except Exception:  # noqa: BLE001 — skill module optional
             pass
+
+        def _close_thread_store(store: ThreadStateStore = thread_store) -> None:
+            # Release the FTS5 search.db connection (Windows keeps the file
+            # locked while it is open) and drop the process-global skill
+            # reference so it cannot outlive this app.
+            try:
+                from runtime.execution.suckers import history_skill
+
+                if history_skill._DEFAULT_STORE is store:  # noqa: SLF001
+                    history_skill.set_default_thread_store(None)
+            except Exception:  # noqa: BLE001 — skill module optional
+                pass
+            with contextlib.suppress(Exception):
+                store.close()
+
+        app.router.add_event_handler("shutdown", _close_thread_store)
         # Defer: feed stack.config.mcp_servers into the mcp_router
         # factory so the router owns the initial-seed logic instead
         # of doing it twice (once here, once inside the factory).

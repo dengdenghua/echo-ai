@@ -325,3 +325,21 @@ class TestThreadStoreSearchPersistence:
         results = store2.search_threads("persistent")
         assert len(results) == 1
         assert results[0].thread_id == thread_id
+
+
+def test_close_releases_search_db_handle(tmp_path: Path) -> None:
+    """close() must drop the SQLite handle so search.db can be deleted.
+
+    On Windows an open connection keeps the file locked (WinError 32), which
+    breaks temp-dir cleanup and any rotate/move of the sessions tree.
+    """
+    store = ThreadStateStore(per_agent_base=tmp_path, search_enabled=True)
+    store.create(values={"messages": [{"role": "user", "content": "hello"}]})
+    search_db = tmp_path / "data" / "sessions" / "search.db"
+    assert search_db.exists()
+
+    store.close()
+    store.close()  # idempotent
+
+    search_db.unlink()
+    assert not search_db.exists()

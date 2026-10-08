@@ -61,7 +61,7 @@ CHECKS: tuple[RepoContextCheck, ...] = (
         paths=(
             "runtime/sensing/gateway/agents_router.py",
             "agents/_shared/AGENTS.md",
-            "agents/coder/agent-core/AGENTS.md",
+            "agents/kane/agent-core/AGENTS.md",
             "docs/adr/009-okf-knowledge-substrate.md",
         ),
         required_terms=(
