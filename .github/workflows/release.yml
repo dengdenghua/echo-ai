@@ -127,6 +127,21 @@ jobs:
           fi
           echo "windows_run_id=${windows_run_id}" >> "${GITHUB_OUTPUT}"
 
+          security_response="$(gh api --method GET \
+            "repos/${GITHUB_REPOSITORY}/actions/workflows/runtime-security-contract.yml/runs" \
+            -f head_sha="${GITHUB_SHA}" \
+            -f status=success \
+            -F per_page=100)"
+          security_run_id="$(jq -r --arg sha "${GITHUB_SHA}" \
+            '[.workflow_runs[] | select(.head_sha == $sha and .status == "completed" and .conclusion == "success")] | sort_by(.run_started_at) | last | .id // empty' \
+            <<<"${security_response}")"
+          if [[ -z "${security_run_id}" ]]; then
+            echo "::error::No successful runtime-security-contract workflow exists for ${GITHUB_SHA}."
+            echo "::error::The release requires the same-commit runtime security contract on Linux and Windows."
+            exit 1
+          fi
+          echo "security_run_id=${security_run_id}" >> "${GITHUB_OUTPUT}"
+
       - name: Download same-SHA behavioral evidence
         uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
         with:

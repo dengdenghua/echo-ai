@@ -1,0 +1,438 @@
+{
+  "schema": "echo.runtime-security-contract.v1",
+  "contractId": "echo-runtime-safety",
+  "version": "1.1.0",
+  "profiles": {
+    "echo-ai-runtime": {
+      "product": "ai",
+      "peerCredentialIssuance": "not-implemented",
+      "extensions": [
+        "receipt-telemetry"
+      ],
+      "note": "The standalone runtime denies shared-token peer calls by default. Tests set per-device mode in memory; this is not a device credential issuance or pairing implementation."
+    },
+    "echo-os": {
+      "product": "os",
+      "peerCredentialIssuance": "appliance-managed",
+      "extensions": [
+        "appliance-device-auth"
+      ],
+      "note": "The appliance production wrapper installs its per-device hello authentication. This contract exercises the runtime dispatch boundary with in-memory devices, not real enrollment."
+    }
+  },
+  "testFiles": [
+    "tests/test_runtime_diagnostics_auth.py",
+    "tests/test_logging_redaction_fields.py",
+    "tests/test_peer_execution_boundary.py",
+    "tests/test_image_generation_command.py",
+    "tests/test_sandbox_platform_contract.py"
+  ],
+  "cases": [
+    {
+      "id": "diagnostics.operator-boundary",
+      "guarantee": "Authenticated diagnostics reject missing/invalid credentials and non-operators.",
+      "tests": {
+        "ai": {
+          "node": "tests/test_runtime_diagnostics_auth.py::test_diagnostics_reject_anonymous_invalid_and_nonoperator",
+          "minVariants": 3
+        },
+        "os": {
+          "node": "tests/test_runtime_diagnostics_auth.py::test_diagnostics_reject_anonymous_invalid_and_nonoperator",
+          "minVariants": 3
+        }
+      }
+    },
+    {
+      "id": "diagnostics.operator-access",
+      "guarantee": "Operators retain diagnostic access.",
+      "tests": {
+        "ai": {
+          "node": "tests/test_runtime_diagnostics_auth.py::test_diagnostics_allow_operator",
+          "minVariants": 3
+        },
+        "os": {
+          "node": "tests/test_runtime_diagnostics_auth.py::test_diagnostics_allow_operator",
+          "minVariants": 3
+        }
+      }
+    },
+    {
+      "id": "diagnostics.fail-closed",
+      "guarantee": "Missing identity stores cannot authorize detailed diagnostics.",
+      "tests": {
+        "ai": {
+          "node": "tests/test_runtime_diagnostics_auth.py::test_diagnostics_fail_closed_without_identity_store",
+          "minVariants": 1
+        },
+        "os": {
+          "node": "tests/test_runtime_diagnostics_auth.py::test_diagnostics_fail_closed_without_identity_store",
+          "minVariants": 1
+        }
+      }
+    },
+    {
+      "id": "health.minimum-public",
+      "guarantee": "Authenticated public health returns only minimal metadata without reading runtime state.",
+      "tests": {
+        "ai": {
+          "node": "tests/test_runtime_diagnostics_auth.py::test_authenticated_public_health_never_reads_runtime_state",
+          "minVariants": 1
+        },
+        "os": {
+          "node": "tests/test_runtime_diagnostics_auth.py::test_authenticated_public_health_never_reads_runtime_state",
+          "minVariants": 1
+        }
+      }
+    },
+    {
+      "id": "health.local-compatibility",
+      "guarantee": "Authentication-off local health and diagnostics retain existing behavior.",
+      "tests": {
+        "ai": {
+          "node": "tests/test_runtime_diagnostics_auth.py::test_local_health_and_diagnostics_keep_existing_behavior",
+          "minVariants": 1
+        },
+        "os": {
+          "node": "tests/test_runtime_diagnostics_auth.py::test_local_health_and_diagnostics_keep_existing_behavior",
+          "minVariants": 1
+        }
+      }
+    },
+    {
+      "id": "logging.structured-fields",
+      "guarantee": "Structured messages, nested extras, context and tracebacks redact recognized synthetic credentials without mutating records or primitive types.",
+      "tests": {
+        "ai": {
+          "node": "tests/test_logging_redaction_fields.py::test_json_redacts_message_nested_extras_context_and_traceback",
+          "minVariants": 1
+        },
+        "os": {
+          "node": "tests/test_logging_redaction_fields.py::test_json_redacts_message_nested_extras_context_and_traceback",
+          "minVariants": 1
+        }
+      }
+    },
+    {
+      "id": "logging.explicit-opt-out",
+      "guarantee": "Explicitly constructed redact=False formatters retain their documented opt-out.",
+      "tests": {
+        "ai": {
+          "node": "tests/test_logging_redaction_fields.py::test_explicitly_unredacted_structured_formatter_keeps_compatibility",
+          "minVariants": 1
+        },
+        "os": {
+          "node": "tests/test_logging_redaction_fields.py::test_explicitly_unredacted_structured_formatter_keeps_compatibility",
+          "minVariants": 1
+        }
+      }
+    },
+    {
+      "id": "logging.text-fields",
+      "guarantee": "Configured text formatters redact rendered messages, custom fields and tracebacks while preserving layout.",
+      "tests": {
+        "ai": {
+          "node": "tests/test_logging_redaction_fields.py::test_plain_formatter_preserves_custom_layout_and_redacts_exception",
+          "minVariants": 1
+        },
+        "os": {
+          "node": "tests/test_logging_redaction_fields.py::test_plain_formatter_preserves_custom_layout_and_redacts_exception",
+          "minVariants": 1
+        }
+      }
+    },
+    {
+      "id": "logging.ordinary-text",
+      "guarantee": "Ordinary text logs retain their existing layout.",
+      "tests": {
+        "ai": {
+          "node": "tests/test_logging_redaction_fields.py::test_plain_formatter_keeps_ordinary_text_unchanged",
+          "minVariants": 1
+        },
+        "os": {
+          "node": "tests/test_logging_redaction_fields.py::test_plain_formatter_keeps_ordinary_text_unchanged",
+          "minVariants": 1
+        }
+      }
+    },
+    {
+      "id": "logging.configuration",
+      "guarantee": "JSON configuration uses full-field redaction.",
+      "tests": {
+        "ai": {
+          "node": "tests/test_logging_redaction_fields.py::test_json_configuration_uses_full_payload_redaction",
+          "minVariants": 1
+        },
+        "os": {
+          "node": "tests/test_logging_redaction_fields.py::test_json_configuration_uses_full_payload_redaction",
+          "minVariants": 1
+        }
+      }
+    },
+    {
+      "id": "peer.shared-token-denied",
+      "guarantee": "Shared pairing tokens alone cannot authorize directed peer execution.",
+      "tests": {
+        "ai": {
+          "node": "tests/test_peer_execution_boundary.py::test_shared_pairing_token_does_not_authorize_peer_execution",
+          "minVariants": 1
+        },
+        "os": {
+          "node": "tests/test_peer_execution_boundary.py::test_shared_pairing_token_does_not_authorize_peer_execution",
+          "minVariants": 1
+        }
+      }
+    },
+    {
+      "id": "peer.current-connection",
+      "guarantee": "A replaced source connection cannot issue peer calls.",
+      "tests": {
+        "ai": {
+          "node": "tests/test_peer_execution_boundary.py::test_replaced_connection_cannot_issue_peer_calls",
+          "minVariants": 1
+        },
+        "os": {
+          "node": "tests/test_peer_execution_boundary.py::test_replaced_connection_cannot_issue_peer_calls",
+          "minVariants": 1
+        }
+      }
+    },
+    {
+      "id": "peer.explicit-override-grants",
+      "guarantee": "The explicit legacy shared-token override still requires directed tool grants.",
+      "tests": {
+        "ai": {
+          "node": "tests/test_peer_execution_boundary.py::test_explicit_shared_token_override_still_requires_tool_grant",
+          "minVariants": 1
+        },
+        "os": {
+          "node": "tests/test_peer_execution_boundary.py::test_explicit_shared_token_override_still_requires_tool_grant",
+          "minVariants": 1
+        }
+      }
+    },
+    {
+      "id": "peer.foreign-lease",
+      "guarantee": "Foreign live device leases block execution before receipts or transport calls.",
+      "tests": {
+        "ai": {
+          "node": "tests/test_peer_execution_boundary.py::test_foreign_device_lease_blocks_before_execution",
+          "minVariants": 1
+        },
+        "os": {
+          "node": "tests/test_peer_execution_boundary.py::test_foreign_device_lease_blocks_before_execution",
+          "minVariants": 1
+        }
+      }
+    },
+    {
+      "id": "peer.executor-receipts",
+      "guarantee": "Authorized registered targets execute through the device executor with an owned lease and an execution receipt.",
+      "tests": {
+        "ai": {
+          "node": "tests/test_peer_execution_boundary.py::test_authorized_peer_uses_device_executor_and_records_owned_lease",
+          "minVariants": 1
+        },
+        "os": {
+          "node": "tests/test_peer_execution_boundary.py::test_authorized_peer_uses_device_executor_and_records_owned_lease",
+          "minVariants": 1
+        }
+      }
+    },
+    {
+      "id": "image.literal-arguments",
+      "guarantee": "Hostile prompts and quoted placeholders remain literal argv values.",
+      "tests": {
+        "ai": {
+          "node": "tests/test_image_generation_command.py::test_command_template_passes_hostile_prompt_literally",
+          "minVariants": 5
+        },
+        "os": {
+          "node": "tests/test_image_generation_command.py::test_legacy_quoted_template_keeps_user_values_as_literal_arguments",
+          "minVariants": 4
+        }
+      }
+    },
+    {
+      "id": "image.no-shell",
+      "guarantee": "Image command execution uses argv and shell=False, preserving the prompt environment.",
+      "tests": {
+        "ai": {
+          "node": "tests/test_image_generation_command.py::test_command_template_runs_without_shell",
+          "minVariants": 1
+        },
+        "os": {
+          "node": "tests/test_image_generation_command.py::test_legacy_quoted_template_keeps_user_values_as_literal_arguments",
+          "minVariants": 4
+        }
+      }
+    },
+    {
+      "id": "image.batch-boundary",
+      "guarantee": "Windows batch wrappers reject cmd metacharacters before execution, while clean legacy arguments remain usable.",
+      "tests": {
+        "ai": {
+          "node": "tests/test_image_generation_command.py::test_windows_batch_wrapper_refuses_cmd_metacharacters",
+          "minVariants": 1
+        },
+        "os": {
+          "node": "tests/test_image_generation_command.py::test_windows_batch_wrapper_rejects_metacharacters_before_start",
+          "minVariants": 1
+        }
+      }
+    },
+    {
+      "id": "sandbox.utf8-output-budget",
+      "guarantee": "Sandboxed Python output uses UTF-8 and respects a byte budget without splitting a character.",
+      "tests": {
+        "ai": {
+          "node": "tests/test_sandbox_platform_contract.py::test_unicode_capture_preserves_utf8_byte_limit",
+          "minVariants": 1
+        },
+        "os": {
+          "node": "tests/test_sandbox_platform_contract.py::test_unicode_capture_preserves_utf8_byte_limit",
+          "minVariants": 1
+        }
+      }
+    },
+    {
+      "id": "sandbox.explicit-python-child-encoding",
+      "guarantee": "Direct streaming of Python stdout respects explicit PYTHONIOENCODING.",
+      "tests": {
+        "ai": {
+          "node": "tests/test_sandbox_platform_contract.py::test_stream_capture_respects_explicit_child_encoding",
+          "minVariants": 1
+        },
+        "os": {
+          "node": "tests/test_sandbox_platform_contract.py::test_stream_capture_respects_explicit_child_encoding",
+          "minVariants": 1
+        }
+      }
+    },
+    {
+      "id": "sandbox.direct-probe-executable",
+      "guarantee": "The platform direct-backend probe actually launches an available harmless executable.",
+      "tests": {
+        "ai": {
+          "node": "tests/test_sandbox_platform_contract.py::test_direct_probe_uses_an_available_executable",
+          "minVariants": 1
+        },
+        "os": {
+          "node": "tests/test_sandbox_platform_contract.py::test_direct_probe_uses_an_available_executable",
+          "minVariants": 1
+        }
+      }
+    },
+    {
+      "id": "sandbox.protected-system-write-root",
+      "guarantee": "An additional write root overlapping a platform-defined protected system directory is rejected.",
+      "tests": {
+        "ai": {
+          "node": "tests/test_sandbox_platform_contract.py::test_additional_system_write_authority_is_rejected",
+          "minVariants": 1
+        },
+        "os": {
+          "node": "tests/test_sandbox_platform_contract.py::test_additional_system_write_authority_is_rejected",
+          "minVariants": 1
+        }
+      }
+    },
+    {
+      "id": "sandbox.seatbelt-private-root-profile",
+      "guarantee": "A read-only Seatbelt profile grants only the exact private write root and /dev/null, with network denied.",
+      "tests": {
+        "ai": {
+          "node": "tests/test_sandbox_platform_contract.py::test_read_only_seatbelt_profile_grants_only_exact_private_root",
+          "minVariants": 1
+        },
+        "os": {
+          "node": "tests/test_sandbox_platform_contract.py::test_read_only_seatbelt_profile_grants_only_exact_private_root",
+          "minVariants": 1
+        }
+      }
+    },
+    {
+      "id": "sandbox.auto-fallback-no-broker",
+      "guarantee": "Auto fallback with no available hard backend refuses execution without an approval broker.",
+      "tests": {
+        "ai": {
+          "node": "tests/test_sandbox_platform_contract.py::test_auto_fallback_refuses_without_approval_broker",
+          "minVariants": 1
+        },
+        "os": {
+          "node": "tests/test_sandbox_platform_contract.py::test_auto_fallback_refuses_without_approval_broker",
+          "minVariants": 1
+        }
+      }
+    },
+    {
+      "id": "sandbox.auto-fallback-consent",
+      "guarantee": "A rejected auto fallback has no file effect; an approved fallback executes only after the broker decision.",
+      "tests": {
+        "ai": {
+          "node": "tests/test_sandbox_platform_contract.py::test_auto_fallback_requires_broker_decision",
+          "minVariants": 2
+        },
+        "os": {
+          "node": "tests/test_sandbox_platform_contract.py::test_auto_fallback_requires_broker_decision",
+          "minVariants": 2
+        }
+      }
+    },
+    {
+      "id": "sandbox.python-utf8-flags",
+      "guarantee": "Python stdout is decoded as UTF-8 for the listed -X utf8/-Xutf8 command-line forms, including -E/-I combinations.",
+      "tests": {
+        "ai": {
+          "node": "tests/test_sandbox_platform_contract.py::test_stream_capture_respects_python_utf8_flags",
+          "minVariants": 4
+        },
+        "os": {
+          "node": "tests/test_sandbox_platform_contract.py::test_stream_capture_respects_python_utf8_flags",
+          "minVariants": 4
+        }
+      }
+    },
+    {
+      "id": "sandbox.native-codec",
+      "guarantee": "Native executable codec selection ignores Python-specific environment encoding flags.",
+      "tests": {
+        "ai": {
+          "node": "tests/test_sandbox_platform_contract.py::test_native_codec_ignores_python_environment",
+          "minVariants": 1
+        },
+        "os": {
+          "node": "tests/test_sandbox_platform_contract.py::test_native_codec_ignores_python_environment",
+          "minVariants": 1
+        }
+      }
+    },
+    {
+      "id": "sandbox.explicit-stream-codec",
+      "guarantee": "An explicit stream encoding decodes known raw child bytes independently of inferred defaults.",
+      "tests": {
+        "ai": {
+          "node": "tests/test_sandbox_platform_contract.py::test_stream_explicit_codec_decodes_raw_child_bytes",
+          "minVariants": 1
+        },
+        "os": {
+          "node": "tests/test_sandbox_platform_contract.py::test_stream_explicit_codec_decodes_raw_child_bytes",
+          "minVariants": 1
+        }
+      }
+    },
+    {
+      "id": "sandbox.macos-protected-write-roots",
+      "guarantee": "The listed macOS system paths cannot gain additional write authority.",
+      "tests": {
+        "ai": {
+          "node": "tests/test_sandbox_platform_contract.py::test_macos_system_paths_cannot_gain_additional_write_authority",
+          "minVariants": 1
+        },
+        "os": {
+          "node": "tests/test_sandbox_platform_contract.py::test_macos_system_paths_cannot_gain_additional_write_authority",
+          "minVariants": 1
+        }
+      }
+    }
+  ]
+}

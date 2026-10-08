@@ -867,6 +867,12 @@ def test_tag_release_requires_same_sha_evidence_before_build_and_push() -> None:
     assert '[[ -z "${ci_run_id}" ]]' in lookup
     assert '[[ -z "${windows_run_id}" ]]' in lookup
     assert "windows_run_id=${windows_run_id}" in lookup
+    assert "actions/workflows/runtime-security-contract.yml/runs" in lookup
+    assert '[[ -z "${security_run_id}" ]]' in lookup
+    assert (
+        'select(.head_sha == $sha and .status == "completed" and .conclusion == "success")'
+        in lookup
+    )
     assert "exit 1" in lookup
     assert gate_job["outputs"]["windows-run-id"] == (
         "${{ steps.evidence-run.outputs.windows_run_id }}"
