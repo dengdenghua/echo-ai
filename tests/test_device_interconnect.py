@@ -25,6 +25,8 @@ TOKEN = "test-device-token-not-a-production-credential"
 
 @pytest_asyncio.fixture
 async def hub(monkeypatch):
+    # This wire fixture intentionally exercises legacy shared-token pairing.
+    monkeypatch.setenv("ECHO_ALLOW_INSECURE_SHARED_TOKEN_PEER_CALLS", "1")
     monkeypatch.setenv(
         "ECHO_DEVICE_PEER_GRANTS",
         json.dumps(

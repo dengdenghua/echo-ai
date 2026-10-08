@@ -44,7 +44,9 @@ flowchart LR
 
 远程访问网关健康且设备监听已启用时，邀请会使用 `wss://<网关域名>/api/appliance/device-link/ws`，沿用 HTTPS 网关，不需要把 8765 端口暴露到公网。Tailscale 私网网关要求客户端已加入可访问的网络；设备协议不会自动配置 VPN 或开通云主机。
 
-**独立 Echo AI：** 沿用现有 Tentacle 启动入口，设置 `ECHO_TENTACLE_TOKEN`。设备可以连接 LAN `ws://<中枢内网IP>:8765`，或经过支持 WebSocket Upgrade 的 HTTPS 反向代理连接 `/api/tentacle/device/ws`。后者位于 Tentacle Dashboard 路由所在 HTTP 服务；必须实际启动该路由并配置 TLS。未配置设备认证时，HTTP 网关设备入口拒绝接入。独立 AI 的共享令牌模式没有 OS 的逐设备撤销能力。
+**独立 Echo AI：** 沿用现有 Tentacle 启动入口，设置 `ECHO_TENTACLE_TOKEN`。设备可以连接 LAN `ws://<中枢内网IP>:8765`，或经过支持 WebSocket Upgrade 的 HTTPS 反向代理连接 `/api/tentacle/device/ws`。后者位于 Tentacle Dashboard 路由所在 HTTP 服务；必须实际启动该路由并配置 TLS。未配置设备认证时，HTTP 网关设备入口拒绝接入。
+
+独立 Echo AI 主应用默认启用逐设备凭据（`ECHO_TENTACLE_PER_DEVICE_AUTH`，默认开启；实现见 `runtime/tentacle/device_credentials.py`）：管理员/运维为每个设备分别创建一次性配对邀请，首次 `device/hello` 后绑定该设备 ID，可单独撤销（断开在线连接，旧令牌无法重连）或轮换，与 OS 的逐设备撤销能力一致。为兼容旧客户端，`ECHO_TENTACLE_ALLOW_SHARED_TOKEN` 默认开启，`ECHO_TENTACLE_TOKEN` 共享令牌仍可连接，但共享令牌连接不能发起设备间调用（`device/call` 一律拒绝），也不能占用已配对的设备 ID；共享令牌本身无法按设备撤销，只能整体更换。设为 `ECHO_TENTACLE_ALLOW_SHARED_TOKEN=0` 后只接受逐设备凭据；设为 `ECHO_TENTACLE_PER_DEVICE_AUTH=0` 则退回纯共享令牌模式，此时没有逐设备撤销能力。邀请与撤销接口见 echo-ai 的 `docs/tentacle-device-credentials.md`。
 
 仅需要协议开发联调时，可在 AI/OS 仓库虚拟环境中启动最小中枢（不包含对话模型和完整产品界面）：
 
