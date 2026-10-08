@@ -6,7 +6,6 @@ import base64
 import hashlib
 import os
 import secrets
-import sqlite3
 import time
 from collections import OrderedDict
 from pathlib import Path
@@ -16,6 +15,7 @@ import httpx
 from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import RedirectResponse
 
+from runtime.platform.io.sqlite import connect_closing
 from runtime.safety.auth.identity import Identity, encode_jwt_hs256
 from runtime.safety.auth.principal import set_session_cookie
 
@@ -64,7 +64,7 @@ def create_social_auth_router(
     flows: OrderedDict[str, dict] = OrderedDict()
     database = Path(data_dir) / "social-identities.sqlite3"
     database.parent.mkdir(parents=True, exist_ok=True)
-    with sqlite3.connect(database) as db:
+    with connect_closing(database) as db:
         db.execute(
             "CREATE TABLE IF NOT EXISTS users (actor TEXT PRIMARY KEY, provider TEXT NOT NULL, email TEXT, name TEXT)"
         )
@@ -229,7 +229,7 @@ def create_social_auth_router(
         # Provider subject is authoritative; never auto-link accounts by email.
         actor = f"{provider}:" + hashlib.sha256(subject.encode()).hexdigest()[:32]
         name = str(profile.get("name") or profile.get("login") or email)[:128]
-        with sqlite3.connect(database) as db:
+        with connect_closing(database) as db:
             db.execute(
                 "INSERT INTO users VALUES (?, ?, ?, ?) ON CONFLICT(actor) DO UPDATE SET email=excluded.email, name=excluded.name",
                 (actor, provider, email, name),
