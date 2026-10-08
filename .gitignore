@@ -284,3 +284,9 @@ docs/audits/
 # Frontend build backup archives
 frontend/dist.old*/
 dist.old*/
+
+# Mangled pytest tmp_path files (drive colon/backslashes stripped on Windows)
+/C*Users*pytest-of-*
+
+# pnpm patch scratch workspace
+frontend/.patch-work/
