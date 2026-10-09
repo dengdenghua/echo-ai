@@ -9,7 +9,6 @@ runtime/platform/ui/browser_router.py::create_browser_router	1179
 runtime/core/cerebrum/_react_execution_phase6d.py::_phase_6d_dispatch_and_observe	1140
 runtime/tentacle/dashboard.py::create_tentacle_router	984
 runtime/execution/tool_engine/executor.py::ToolExecutor.execute_step	1001
-runtime/sensing/gateway/projects_router.py::create_projects_router	989
 runtime/sensing/gateway/agent_world_router.py::create_agent_world_router	961
 runtime/core/cerebrum/react_model_stream.py::_phase_6b_model_stream	946
 runtime/sensing/gateway/computer_router.py::create_computer_router	926
