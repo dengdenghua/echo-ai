@@ -402,8 +402,10 @@
     min-width: 64px;
     padding: 0 12px;
   }
-  .browser-start-search {
-    top: clamp(104px, 18cqh, 150px);
+  /* The search box sits in the main column; move the column, not the box
+     (a relative `top` on the box slid it under the prompt chips). */
+  .browser-start-main {
+    top: clamp(88px, 14cqh, 132px);
     width: calc(100% - 32px);
   }
   .browser-start-search button {
@@ -576,8 +578,15 @@
   height: 100%;
   border-radius: inherit;
   background:
-    radial-gradient(circle at 30% 40%, rgba(91, 130, 255, 0.45), transparent 60%),
-    radial-gradient(circle at 75% 65%, rgba(176, 140, 255, 0.35), transparent 60%),
+    radial-gradient(
+      circle at 30% 40%,
+      rgba(91, 130, 255, 0.45),
+      transparent 60%
+    ),
+    radial-gradient(
+      circle at 75% 65%,
+      rgba(176, 140, 255, 0.35),
+      transparent 60%
+    ),
     #020308;
 }
-

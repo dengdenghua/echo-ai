@@ -2778,7 +2778,7 @@ function LocalDiskView({
               </Button>
             )}
             {browseError ||
-              (manifest ? "本地路径与索引已连接。" : "目录服务尚未连接。")}
+              (manifest ? "本地路径与索引已连接。" : isLoading ? "正在连接目录服务…" : "目录服务尚未连接。")}
           </div>
         </main>
       </div>

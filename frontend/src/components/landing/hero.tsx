@@ -35,12 +35,12 @@ export function Hero({ className }: { className?: string }) {
         flickerChance={0.25}
       />
       <div className="absolute inset-0 z-0 bg-gradient-to-t from-black/80 via-transparent to-black/40" />
-      <div className="container-md relative z-10 mx-auto flex h-screen flex-col items-center justify-center">
+      <div className="container-md relative z-10 mx-auto flex h-screen flex-col items-center justify-center px-4">
         <div className="mb-6 flex items-center gap-2 rounded-lg border border-white/10 bg-white/5 px-4 py-1.5 text-xs font-medium text-white/60 backdrop-blur-sm">
           <span className="size-1.5 rounded-lg bg-success animate-pulse-soft" />
           {t.hero.releaseBadge}
         </div>
-        <h1 className="flex items-center gap-2 text-4xl font-bold md:text-6xl">
+        <h1 className="flex flex-wrap items-center justify-center gap-x-3 gap-y-1 text-center text-3xl font-bold sm:text-4xl md:text-6xl">
           <WordRotate
             className="text-white"
             words={[
@@ -64,7 +64,7 @@ export function Hero({ className }: { className?: string }) {
         <p className="mt-8 max-w-2xl text-center text-lg leading-relaxed text-[rgb(184,184,192)] md:text-xl">
           {t.hero.heroDescription}
         </p>
-        <div className="mt-8 flex items-center gap-4">
+        <div className="mt-8 flex flex-wrap items-center justify-center gap-4">
           <Link to="/workspace">
             <Button
               className="size-lg bg-white text-[#08080c] shadow-[var(--shadow-md)] shadow-black/25 transition-all hover:bg-white/90"

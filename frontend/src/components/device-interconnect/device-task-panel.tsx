@@ -93,11 +93,11 @@ export function DeviceTaskPanel() {
   return (
     <section
       aria-label="跨端任务"
-      className="space-y-3 rounded-2xl border bg-white p-4 text-slate-800"
+      className="space-y-3 rounded-2xl border bg-card p-4 text-foreground"
     >
       <div>
         <h2 className="font-semibold">跨端任务</h2>
-        <p className="mt-1 text-xs text-slate-500">
+        <p className="mt-1 text-xs text-muted-foreground">
           在已连接设备上执行任务，进度和结果保存在设备中心，换端后可继续查看。
         </p>
       </div>
@@ -213,7 +213,7 @@ export function DeviceTaskPanel() {
         <p role="status">正在读取任务…</p>
       ) : (
         tasks.length === 0 && (
-          <p className="text-xs text-slate-500">还没有跨端任务。</p>
+          <p className="text-xs text-muted-foreground">还没有跨端任务。</p>
         )
       )}
       {tasks.map((task) => {
@@ -228,7 +228,7 @@ export function DeviceTaskPanel() {
         return (
           <article key={task.id} className="space-y-2 rounded-xl border p-3">
             <h3 className="break-words text-sm font-medium">{task.task}</h3>
-            <p className="break-all text-xs text-slate-500">
+            <p className="break-all text-xs text-muted-foreground">
               {task.source_device || "电脑"} → {task.device_id}
             </p>
             <p className="text-xs">
@@ -243,7 +243,7 @@ export function DeviceTaskPanel() {
             <TaskStages task={task} />
             {(task.status === "succeeded" ||
               task.status === "awaiting_handoff") && (
-              <div className="space-y-2 rounded-lg bg-slate-50 p-3 text-xs">
+              <div className="space-y-2 rounded-lg bg-muted/50 p-3 text-xs">
                 <p>
                   {task.result_review?.outcome === "achieved"
                     ? "已由用户确认完成"
@@ -252,11 +252,11 @@ export function DeviceTaskPanel() {
                       : "结果待确认：步骤已执行，请到目标设备检查实际结果。"}
                 </p>
                 {task.result_review && (
-                  <p className="text-slate-500">
+                  <p className="text-muted-foreground">
                     核对人：{task.result_review.reviewed_by}
                   </p>
                 )}
-                <p className="text-slate-500">
+                <p className="text-muted-foreground">
                   核对只更新结果记录，不会再次执行操作。
                 </p>
                 <div className="flex flex-wrap gap-2">
@@ -295,7 +295,7 @@ export function DeviceTaskPanel() {
                     <li key={index}>
                       {index + 1}. {step.action}
                       {index < task.current_step ? " · 已完成" : ""}
-                      <pre className="max-h-36 overflow-auto whitespace-pre-wrap break-all rounded bg-slate-50 p-2">
+                      <pre className="max-h-36 overflow-auto whitespace-pre-wrap break-all rounded bg-muted/50 p-2">
                         {JSON.stringify(step.arguments, null, 2)}
                       </pre>
                     </li>
@@ -409,11 +409,15 @@ export function DeviceTaskSection() {
   const [open, setOpen] = useState(false);
   return (
     <details
-      className="m-4"
+      className="rounded-2xl border px-4 py-3"
       onToggle={(event) => setOpen(event.currentTarget.open)}
     >
-      <summary className="cursor-pointer text-sm">跨端任务</summary>
-      {open && <DeviceTaskPanel />}
+      <summary className="cursor-pointer text-sm font-medium">跨端任务</summary>
+      {open && (
+        <div className="mt-3">
+          <DeviceTaskPanel />
+        </div>
+      )}
     </details>
   );
 }

@@ -237,15 +237,17 @@ export default function ReflexEditorPage() {
     <WorkspaceContainer>
       <WorkspaceBody className="px-4 pb-4">
         <div className="mx-auto flex w-full max-w-6xl flex-col gap-4">
-          <section className="workspace-panel px-6 py-4">
-            <div className="flex items-center gap-3">
+          <section className="workspace-panel px-4 py-4 sm:px-6">
+            <div className="flex flex-wrap items-center gap-3">
               <Button asChild variant="ghost" size="sm">
                 <Link to="/workspace/reflex">
                   <ArrowLeftIcon className="mr-2 size-4" />
                   {t.reflexEditor.backButton}
                 </Link>
               </Button>
-              <div className="flex-1">
+              {/* min width keeps the title on one line; the status wraps
+                  below it on narrow screens instead of squeezing it. */}
+              <div className="min-w-48 flex-1">
                 <h1 className="text-lg font-semibold">
                   {t.reflexEditor.pageTitle}
                 </h1>
@@ -263,7 +265,9 @@ export default function ReflexEditorPage() {
                   )}
                 </div>
               </div>
-              <StatusBadge msg={statusMsg} kind={statusKind} />
+              {initialLoadFailed ? null : (
+                <StatusBadge msg={statusMsg} kind={statusKind} />
+              )}
             </div>
             <div className="mt-3 flex flex-wrap items-center gap-2">
               <div className="inline-flex rounded-md border border-border-default p-0.5">
@@ -370,6 +374,9 @@ export default function ReflexEditorPage() {
             <Card className="workspace-panel border-white/40 shadow-none dark:border-white/10">
               <CardContent className="flex flex-col items-center gap-3 px-4 py-12 text-center">
                 <FileWarningIcon className="size-8 text-destructive" />
+                <p className="max-w-md text-sm text-muted-foreground">
+                  {statusMsg}
+                </p>
                 <div className="flex flex-wrap justify-center gap-2">
                   <Button variant="outline" size="sm" onClick={loadFile}>
                     {t.reflexEditor.reloadFromDisk}
@@ -425,7 +432,10 @@ function StatusBadge({ msg, kind }: { msg: string; kind: StatusKind }) {
   }[kind];
   return (
     <span
-      className={cn("rounded-md px-3 py-1 font-mono text-xs", cls)}
+      className={cn(
+        "max-w-full break-words rounded-md px-3 py-1 font-mono text-xs",
+        cls,
+      )}
       title={msg}
     >
       {msg}

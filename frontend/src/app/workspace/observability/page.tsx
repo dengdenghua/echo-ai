@@ -580,11 +580,7 @@ function BlackboardPanel() {
             ? t.observabilityPage.crossTenantAdminRequired
             : t.observabilityPage.errorPrefix
         }
-        detail={
-          list.forbidden
-            ? t.observabilityPage.crossTenantAdminRequired
-            : list.error
-        }
+        detail={list.forbidden ? undefined : list.error}
       />
     );
   }
@@ -1265,9 +1261,7 @@ function RegenerationPanel() {
             ? t.observabilityPage.crossTenantAdminRequired
             : t.observabilityPage.errorPrefix
         }
-        detail={
-          forbidden ? t.observabilityPage.crossTenantAdminRequired : error
-        }
+        detail={forbidden ? undefined : error}
       />
     );
   }
@@ -1410,9 +1404,7 @@ function HemolymphPanel() {
             ? t.observabilityPage.crossTenantAdminRequired
             : t.observabilityPage.errorPrefix
         }
-        detail={
-          forbidden ? t.observabilityPage.crossTenantAdminRequired : error
-        }
+        detail={forbidden ? undefined : error}
       />
     );
   }

@@ -9,6 +9,8 @@ import { PhoneTransferList } from "@/components/device-interconnect/phone-transf
 import { Monitor, RefreshCw, Smartphone } from "lucide-react";
 import { useSearchParams } from "react-router-dom";
 
+import { cn } from "@/lib/utils";
+
 import { PhoneMirrorApp } from "@/components/device-interconnect/phone-mirror-app";
 
 const button =
@@ -67,7 +69,11 @@ export default function DevicesPage() {
           <RefreshCw size={16} />
         </button>
       </header>
-      {query.isPending && <p role="status">正在读取设备…</p>}
+      {query.isPending && (
+        <p role="status" className="text-sm text-muted-foreground">
+          正在读取设备…
+        </p>
+      )}
       {query.error && (
         <p role="alert" className="mb-4 text-sm text-destructive">
           无法读取设备：{query.error.message}。请检查登录和设备服务连接。
@@ -85,7 +91,14 @@ export default function DevicesPage() {
           </p>
         </section>
       )}
-      <div className="grid min-h-0 flex-1 items-start gap-5 lg:grid-cols-[minmax(240px,340px)_minmax(0,1fr)]">
+      {/* The device column only takes room once there is a device. */}
+      <div
+        className={cn(
+          "grid min-h-0 flex-1 content-start items-start gap-5",
+          (query.data?.length || directory.nearby.length) &&
+            "lg:grid-cols-[minmax(240px,340px)_minmax(0,1fr)]",
+        )}
+      >
         <section aria-label="已连接设备" className="space-y-3">
           {directory.nearby
             .filter(
@@ -149,13 +162,13 @@ export default function DevicesPage() {
               aria-label="手机协同窗口"
               className={
                 pip
-                  ? "fixed bottom-4 right-4 z-50 h-[480px] w-[360px] max-w-[95vw] overflow-hidden rounded-2xl border bg-white shadow-xl"
+                  ? "fixed bottom-4 right-4 z-50 h-[480px] w-[360px] max-w-[95vw] overflow-hidden rounded-2xl border bg-card shadow-xl"
                   : "relative h-[min(780px,80vh)] min-h-[480px] w-full max-w-[960px] overflow-hidden rounded-2xl border shadow-sm"
               }
             >
-              <div className="flex h-8 items-center justify-end border-b bg-slate-50 px-3">
+              <div className="flex h-8 items-center justify-end border-b bg-muted/50 px-3">
                 <button
-                  className="rounded border bg-white px-2 py-0.5 text-xs text-slate-700"
+                  className="rounded border bg-card px-2 py-0.5 text-xs text-foreground"
                   aria-label={pip ? "恢复手机窗口" : "切换为悬浮小窗"}
                   onClick={() => setPip(!pip)}
                 >
@@ -181,9 +194,13 @@ export default function DevicesPage() {
             </p>
           )}
           <DeviceTaskSection />
-          <details>
-            <summary className="cursor-pointer text-sm">全部文件传输</summary>
-            <PhoneTransferList />
+          <details className="rounded-2xl border px-4 py-3">
+            <summary className="cursor-pointer text-sm font-medium">
+              全部文件传输
+            </summary>
+            <div className="mt-3">
+              <PhoneTransferList />
+            </div>
           </details>
         </div>
       </div>
