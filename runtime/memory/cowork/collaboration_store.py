@@ -38,6 +38,9 @@ from runtime.memory.cowork._collaboration_room_write import (
 )
 from runtime.memory.cowork._collaboration_room_write import upsert_room as _upsert_room
 from runtime.memory.cowork._collaboration_schema import (
+    _MIGRATIONS,
+)
+from runtime.memory.cowork._collaboration_schema import (
     _SCHEMA as _SCHEMA,
 )
 from runtime.memory.cowork._collaboration_session_writes import (
@@ -46,7 +49,6 @@ from runtime.memory.cowork._collaboration_session_writes import (
 from runtime.memory.cowork._collaboration_session_writes import upsert_task as _upsert_task
 from runtime.memory.cowork.collaboration_collectors import (
     CollaborationCollectorStoreMixin,
-    ensure_collaboration_collector_schema,
 )
 from runtime.memory.cowork.collaboration_deliveries import (
     CollaborationDeliveryStoreMixin,
@@ -65,13 +67,7 @@ from runtime.memory.cowork.ids import (
     require_message_text,
 )
 from runtime.platform.io.sqlite import connect_closing
-from runtime.platform.io.sqlite_schema import (
-    Migration,
-    add_column,
-    configure,
-    execute_script,
-    migrate,
-)
+from runtime.platform.io.sqlite_schema import configure, migrate
 
 _MAX_JSON_BYTES = 512 * 1024
 _MAX_LIST_ITEMS = 512
@@ -388,26 +384,6 @@ def _normalize_task_payload(
     metadata.setdefault("source", "collab_session")
     payload["metadata"] = metadata
     return payload
-
-
-def _adopt_v1(conn: sqlite3.Connection) -> None:
-    """Schema as of versioning, adopting databases from every earlier release."""
-    execute_script(conn, _SCHEMA)
-    ensure_collaboration_collector_schema(conn)
-    # Installations from before structured messages lack the metadata column.
-    add_column(conn, "collaboration_messages", "metadata_json", "TEXT NOT NULL DEFAULT '{}'")
-    conn.execute(
-        "CREATE UNIQUE INDEX IF NOT EXISTS idx_collab_messages_source "
-        "ON collaboration_messages("
-        "session_id, CASE WHEN json_valid(metadata_json) "
-        "THEN json_extract(metadata_json, '$.source_message_id') END"
-        ") WHERE CASE WHEN json_valid(metadata_json) "
-        "THEN COALESCE(json_extract(metadata_json, '$.source_message_id'), '') != '' "
-        "ELSE 0 END"
-    )
-
-
-_MIGRATIONS = (Migration(1, _adopt_v1),)
 
 
 class CollaborationStore(

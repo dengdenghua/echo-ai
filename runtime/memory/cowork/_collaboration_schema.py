@@ -1,9 +1,15 @@
 """SQLite schema for collaboration sessions and their projections."""
 
-from runtime.memory.cowork.collaboration_collectors import COLLABORATION_COLLECTOR_SCHEMA
+import sqlite3
+
+from runtime.memory.cowork.collaboration_collectors import (
+    COLLABORATION_COLLECTOR_SCHEMA,
+    ensure_collaboration_collector_schema,
+)
 from runtime.memory.cowork.collaboration_deliveries import COLLABORATION_DELIVERY_SCHEMA
 from runtime.memory.cowork.collaboration_runs import COLLABORATION_RUN_SCHEMA
 from runtime.memory.cowork.context_lifecycle import CONTEXT_LIFECYCLE_SCHEMA
+from runtime.platform.io.sqlite_schema import Migration, add_column, execute_script
 
 _SCHEMA = (
     """
@@ -194,3 +200,23 @@ ON collaboration_member_runtime_leases(expires_at);
     + COLLABORATION_COLLECTOR_SCHEMA
     + CONTEXT_LIFECYCLE_SCHEMA
 )
+
+
+def _adopt_v1(conn: sqlite3.Connection) -> None:
+    """Schema as of versioning, adopting databases from every earlier release."""
+    execute_script(conn, _SCHEMA)
+    ensure_collaboration_collector_schema(conn)
+    # Installations from before structured messages lack the metadata column.
+    add_column(conn, "collaboration_messages", "metadata_json", "TEXT NOT NULL DEFAULT '{}'")
+    conn.execute(
+        "CREATE UNIQUE INDEX IF NOT EXISTS idx_collab_messages_source "
+        "ON collaboration_messages("
+        "session_id, CASE WHEN json_valid(metadata_json) "
+        "THEN json_extract(metadata_json, '$.source_message_id') END"
+        ") WHERE CASE WHEN json_valid(metadata_json) "
+        "THEN COALESCE(json_extract(metadata_json, '$.source_message_id'), '') != '' "
+        "ELSE 0 END"
+    )
+
+
+_MIGRATIONS = (Migration(1, _adopt_v1),)
