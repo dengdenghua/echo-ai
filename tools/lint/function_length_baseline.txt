@@ -7,7 +7,6 @@ runtime/sensing/gateway/realtime_turn_lifecycle.py::_start_turn	1566
 runtime/execution/subagents/bridge.py::call_subagent	1537
 runtime/platform/ui/browser_router.py::create_browser_router	1180
 runtime/core/cerebrum/_react_execution_phase6d.py::_phase_6d_dispatch_and_observe	1140
-runtime/sensing/gateway/evolution_ops_router.py::create_evolution_ops_router	1046
 runtime/tentacle/dashboard.py::create_tentacle_router	1019
 runtime/execution/tool_engine/executor.py::ToolExecutor.execute_step	1001
 runtime/sensing/gateway/projects_router.py::create_projects_router	989
