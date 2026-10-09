@@ -1,0 +1,50 @@
+name: Windows full suite (nightly)
+
+# The push lane runs the whole suite on Linux only, plus a 20-file
+# cross-platform subset on Windows/macOS (ci.yml: pytest-cross-platform).
+# That subset let ~230 Windows-only failures pile up unnoticed, so the full
+# suite now runs on Windows every night and on demand. It is a report, not a
+# merge gate: a red run means a Windows regression landed since yesterday.
+
+on:
+  schedule:
+    - cron: "17 19 * * *" # 04:17 Asia/Tokyo
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: windows-nightly-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  pytest-windows-full:
+    name: pytest (windows-2025, full suite)
+    runs-on: windows-2025
+    timeout-minutes: 240
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
+        with:
+          python-version: "3.11.9"
+      - name: Set up pinned uv
+        uses: astral-sh/setup-uv@d4b2f3b6ecc6e67c4457f6d3e41ec42d3d0fcb86 # v5
+        with:
+          version: "0.11.25"
+          enable-cache: true
+          cache-dependency-glob: uv.lock
+      - name: Install locked package
+        env:
+          UV_PYTHON_DOWNLOADS: never
+        run: >-
+          uv sync --locked --python 3.11.9
+          --extra dev --extra web --extra serve --extra discord
+      - name: Activate locked environment
+        shell: bash
+        run: echo "${GITHUB_WORKSPACE}/.venv/Scripts" >> "${GITHUB_PATH}"
+      - name: pytest (full suite)
+        # Same selection as the Linux full-suite step, without the coverage
+        # gate. pytest-timeout uses its thread method here, so a hung test
+        # ends the run with a stack dump instead of eating the job budget.
+        run: pytest --tb=short -q -p no:cacheprovider
