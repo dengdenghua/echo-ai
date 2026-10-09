@@ -4,15 +4,28 @@ import asyncio
 import base64
 import importlib.util
 import json
+import os
 import stat
 import sys
 from pathlib import Path
 from types import ModuleType
 
 import httpx
+import pytest
 
 ROOT = Path(__file__).resolve().parents[1]
 CLOUD_DIR = ROOT / "deploy" / "echo-mx"
+
+# The MX bridge, guardian and ops agent are a Linux (systemd) deployment. Every
+# secret and state file they read must be mode 0600 (st_mode & 0o077 == 0) and
+# every file they write is fchmod'ed to 0600. Windows has neither os.fchmod
+# (before Python 3.13) nor POSIX permission bits (chmod only toggles read-only,
+# so st_mode always reports 0o666/0o444), so the components fail closed there
+# by design and these tests can only run on POSIX.
+posix_secret_files = pytest.mark.skipif(
+    os.name == "nt",
+    reason="echo-mx is a POSIX-only deployment guarded by 0600 file-mode bits",
+)
 
 
 def _load_module(name: str, filename: str) -> ModuleType:
@@ -49,6 +62,7 @@ def _captcha_payload() -> str:
     return "data:image/png;base64," + base64.b64encode(b"fake-png").decode()
 
 
+@posix_secret_files
 def test_secret_json_requires_strict_permissions(tmp_path: Path) -> None:
     path = tmp_path / "credentials.json"
     path.write_text('{"user":"demo","password":"secret"}', encoding="utf-8")
@@ -68,6 +82,7 @@ def test_secret_json_requires_strict_permissions(tmp_path: Path) -> None:
     }
 
 
+@posix_secret_files
 def test_atomic_json_is_mode_0600(tmp_path: Path) -> None:
     path = tmp_path / "nested" / "state.json"
 
@@ -109,6 +124,7 @@ def test_svg_cleaner_removes_interference_paths() -> None:
     assert b'fill="#000000"' in cleaned
 
 
+@posix_secret_files
 def test_agnes_solver_accepts_one_four_digit_answer(tmp_path: Path) -> None:
     config = tmp_path / "vision.json"
     _secure_json(
@@ -140,6 +156,7 @@ def test_agnes_solver_accepts_one_four_digit_answer(tmp_path: Path) -> None:
     assert solver.solve(_captcha_payload()) == "2992"
 
 
+@posix_secret_files
 def test_agnes_solver_rejects_ambiguous_output(tmp_path: Path) -> None:
     config = tmp_path / "vision.json"
     _secure_json(
@@ -181,6 +198,7 @@ def test_hybrid_solver_prefers_agnes_without_ocr_veto() -> None:
     assert ocr.calls == 0
 
 
+@posix_secret_files
 def test_guardian_restores_and_atomically_verifies_session(tmp_path: Path) -> None:
     session_file = tmp_path / "session.json"
     credential_file = tmp_path / "credentials.json"
@@ -246,6 +264,7 @@ def test_guardian_restores_and_atomically_verifies_session(tmp_path: Path) -> No
     assert "password" not in state_file.read_text(encoding="utf-8")
 
 
+@posix_secret_files
 def test_guardian_can_delegate_to_official_browser_restorer(tmp_path: Path) -> None:
     session_file = tmp_path / "session.json"
     credential_file = tmp_path / "credentials.json"
@@ -292,6 +311,7 @@ def test_guardian_can_delegate_to_official_browser_restorer(tmp_path: Path) -> N
     assert guardian_module.load_session(session_file)["token"] == ("browser-token-1234567890")
 
 
+@posix_secret_files
 def test_credential_rejection_hard_stops_until_secret_changes(tmp_path: Path) -> None:
     session_file = tmp_path / "session.json"
     credential_file = tmp_path / "credentials.json"
@@ -337,6 +357,7 @@ def test_credential_rejection_hard_stops_until_secret_changes(tmp_path: Path) ->
     assert login_calls == 1
 
 
+@posix_secret_files
 def test_credential_rejection_lock_precedes_every_upstream_probe(tmp_path: Path) -> None:
     session_file = tmp_path / "session.json"
     credential_file = tmp_path / "credentials.json"
@@ -380,6 +401,7 @@ def test_credential_rejection_lock_precedes_every_upstream_probe(tmp_path: Path)
     assert requests == []
 
 
+@posix_secret_files
 def test_automatic_login_is_disabled_by_default(tmp_path: Path) -> None:
     session_file = tmp_path / "session.json"
     credential_file = tmp_path / "credentials.json"
@@ -419,6 +441,7 @@ def test_account_abnormal_is_a_hard_stop_marker() -> None:
     assert ops_module.BrowserLoginRestorer._credential_rejection("账号异常")
 
 
+@posix_secret_files
 def test_upstream_failure_never_submits_credentials(tmp_path: Path) -> None:
     session_file = tmp_path / "session.json"
     credential_file = tmp_path / "credentials.json"
@@ -450,6 +473,7 @@ def test_upstream_failure_never_submits_credentials(tmp_path: Path) -> None:
     assert requests == ["/5/api/user/info"]
 
 
+@posix_secret_files
 def test_bridge_state_store_exposes_only_normalized_fields(tmp_path: Path) -> None:
     path = tmp_path / "session-state.json"
     _secure_json(
@@ -473,6 +497,7 @@ def test_bridge_state_store_exposes_only_normalized_fields(tmp_path: Path) -> No
     assert "password" not in state
 
 
+@posix_secret_files
 def test_bridge_health_is_local_only(tmp_path: Path) -> None:
     session_file = tmp_path / "session.json"
     state_file = tmp_path / "state.json"
