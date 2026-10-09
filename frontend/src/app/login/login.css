@@ -246,30 +246,8 @@ html:has(.echo-login-shell) {
   padding-left: 56px;
 }
 
-.echo-login-header-nav {
-  position: absolute;
-  left: 50%;
-  display: flex;
-  align-items: center;
-  gap: 18px;
-  translate: -50% 0;
-  color: #8b94aa;
-  font-size: 11px;
-  letter-spacing: 0.16em;
-}
 
-@media (max-width: 960px) {
-  .echo-login-header-nav {
-    display: none;
-  }
-}
 
-.echo-login-header-nav i {
-  width: 2px;
-  height: 2px;
-  border-radius: 50%;
-  background: #485470;
-}
 
 .echo-login-brand {
   display: inline-flex;
@@ -346,24 +324,7 @@ html:has(.echo-login-shell) {
   letter-spacing: 0.24em;
 }
 
-.echo-login-header-status {
-  display: flex;
-  align-items: center;
-  gap: 9px;
-  color: #77839c;
-  font-size: 11px;
-  letter-spacing: 0.16em;
-}
 
-.echo-login-header-status span {
-  width: 5px;
-  height: 5px;
-  border-radius: 50%;
-  background: #b59cff;
-  box-shadow:
-    0 0 5px 1px #8ca7ff,
-    0 0 14px 3px rgba(164, 117, 255, 0.42);
-}
 
 .echo-login-layout {
   width: min(calc(100% - 64px), 1240px);
@@ -458,7 +419,7 @@ html:has(.echo-login-shell) {
   align-items: center;
   gap: 5px;
   color: #8e98ae;
-  font-size: 11px;
+  font-size: 12px;
   line-height: 1.75;
 }
 
@@ -469,7 +430,7 @@ html:has(.echo-login-shell) {
 
 .echo-login-lead small {
   color: #747f98;
-  font-size: 10px;
+  font-size: 12px;
   letter-spacing: 0.1em;
 }
 
@@ -527,7 +488,7 @@ html:has(.echo-login-shell) {
   border: 1px solid rgba(149, 172, 255, 0.3);
   border-radius: 50%;
   color: #aabaff;
-  font-size: 9px;
+  font-size: 10px;
   background: radial-gradient(
     circle,
     rgba(69, 87, 160, 0.42),
@@ -539,7 +500,7 @@ html:has(.echo-login-shell) {
 .echo-login-continuum strong {
   margin-top: 11px;
   color: #b8c1d7;
-  font-size: 9px;
+  font-size: 10px;
   font-weight: 450;
   letter-spacing: 0.16em;
 }
@@ -589,7 +550,7 @@ html:has(.echo-login-shell) {
 .echo-login-card-kicker {
   margin: 0 auto 8px;
   color: #8592b1;
-  font-size: 9px;
+  font-size: 10px;
 }
 
 .echo-login-card-kicker span {
@@ -671,7 +632,7 @@ html:has(.echo-login-shell) {
   justify-content: center;
   gap: 7px;
   color: #6f7b91;
-  font-size: 10px;
+  font-size: 12px;
   letter-spacing: 0.025em;
 }
 
@@ -682,7 +643,7 @@ html:has(.echo-login-shell) {
 .echo-login-footer {
   margin: 20px 0 0;
   color: #77839c;
-  font-size: 8px;
+  font-size: 10px;
   letter-spacing: 0.13em;
   text-align: center;
 }
@@ -759,20 +720,8 @@ html:has(.echo-login-shell) {
     width: min(calc(100% - 40px), 560px);
   }
 
-  .echo-login-header-status {
-    display: none;
-  }
 
-  .echo-login-header-nav {
-    right: 0;
-    left: auto;
-    translate: 0;
-  }
 
-  .echo-login-header-nav span:nth-of-type(n + 3),
-  .echo-login-header-nav i:nth-of-type(n + 2) {
-    display: none;
-  }
 
   .echo-login-layout {
     width: min(calc(100% - 40px), 520px);
@@ -825,7 +774,7 @@ html:has(.echo-login-shell) {
   }
 
   .echo-login-brand-copy small {
-    font-size: 8px;
+    font-size: 10px;
   }
 
   .echo-login-layout {
@@ -837,9 +786,6 @@ html:has(.echo-login-shell) {
     display: none;
   }
 
-  .echo-login-header-nav {
-    display: none;
-  }
 
   .echo-age-field {
     left: -74%;

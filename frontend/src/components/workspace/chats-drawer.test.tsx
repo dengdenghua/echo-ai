@@ -21,7 +21,7 @@ describe("ChatsDrawer", () => {
   it("offers a persistent removed-list recovery surface", async () => {
     const user = userEvent.setup();
     renderWithProviders(<ChatsDrawer open onOpenChange={vi.fn()} />, { locale: "zh-CN" });
-    await user.click(screen.getByRole("button", { name: "已移除", exact: true }));
+    await user.click(screen.getByRole("button", { name: "已移除的对话", exact: true }));
     expect(await screen.findByText("没有已移除的对话")).toBeVisible();
     expect(useThreadsMock).toHaveBeenCalledWith(expect.objectContaining({ hidden_only: true }));
   });

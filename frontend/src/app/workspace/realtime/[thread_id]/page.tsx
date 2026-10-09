@@ -4567,6 +4567,7 @@ function RealtimePageContent({
                     className="size-full"
                     threadId={threadId}
                     thread={thread}
+                    showResumeSkeleton={!isNewThread}
                     onStop={handleStop}
                     isStopping={isStopping}
                     onOpenArtifact={openWorkbenchArtifact}

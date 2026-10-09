@@ -651,6 +651,12 @@ export default function LoginPage() {
   const hasOct = authProviders?.some((p) => p.id === "oct") ?? false;
   const localProvider = authProviders?.find((p) => p.id === "local") ?? null;
   const backendUnavailable = authError !== null && authStatus === null;
+  // Name only the sign-in methods this deployment actually offers.
+  const signInMethodNames = [
+    socialProviders.google ? "Google" : null,
+    socialProviders.github ? "GitHub" : null,
+    hasOct ? "邮箱" : null,
+  ].filter((name): name is string => name !== null);
 
   // Auto-retry while the backend is unreachable: on a cold start the
   // gateway typically comes up a few seconds after the UI, and requiring
@@ -728,19 +734,6 @@ export default function LoginPage() {
 
       <header className="echo-login-header">
         <EchoBrand />
-        <nav className="echo-login-header-nav" aria-hidden="true">
-          <span>PRODUCT</span>
-          <i />
-          <span>MEMORY</span>
-          <i />
-          <span>AGENTS</span>
-          <i />
-          <span>VISION</span>
-        </nav>
-        <div className="echo-login-header-status">
-          ENTER ECHO
-          <span />
-        </div>
       </header>
 
       <main className="echo-login-layout">
@@ -918,10 +911,12 @@ export default function LoginPage() {
                 </div>
               )}
 
-              <div className="echo-login-security-note">
-                <FingerprintIcon className="size-3.5" />
-                Google、GitHub 或邮箱，选择你习惯的登录方式
-              </div>
+              {signInMethodNames.length > 1 && (
+                <div className="echo-login-security-note">
+                  <FingerprintIcon className="size-3.5" />
+                  {signInMethodNames.join("、")}，选择你习惯的登录方式
+                </div>
+              )}
             </CardContent>
           </Card>
 

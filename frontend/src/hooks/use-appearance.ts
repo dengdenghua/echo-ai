@@ -21,7 +21,7 @@ export type Density =
   | "dense"
   | "ultradense";
 
-/** 配色主题：rouge = 蔷薇粉（默认），steel = 冷钢蓝，emerald/violet/amber/teal = 高级预设，custom = 用户自定义主色。 */
+/** 配色主题：violet = 香芋紫（默认，贴近品牌蓝紫），rouge = 樱花粉（globals.css 的基础变量），steel = 冷钢蓝，emerald/violet/amber/teal = 高级预设，custom = 用户自定义主色。 */
 export type Palette =
   | "rouge"
   | "apricot"
@@ -41,7 +41,7 @@ const APPEARANCE_CHANGE_EVENT = "echo:appearance-change";
 
 const DEFAULT_CORNER: CornerScale = 1;
 const DEFAULT_DENSITY: Density = "comfortable";
-const DEFAULT_PALETTE: Palette = "rouge";
+const DEFAULT_PALETTE: Palette = "violet";
 const DEFAULT_CUSTOM_COLOR = "#3e6fd8";
 
 /** 主色相关的 CSS 变量；自定义配色时覆盖这一组即可,其余 token 沿用基础主题。 */
@@ -220,7 +220,8 @@ function applyPalette(palette: Palette, customColor?: string) {
     root.style.setProperty("--chart-1", color);
     return;
   }
-  if (palette === DEFAULT_PALETTE) delete root.dataset.theme;
+  // rouge is the unscoped base theme in globals.css; every other palette is a [data-theme] block.
+  if (palette === "rouge") delete root.dataset.theme;
   else root.dataset.theme = palette;
   clearCustomPaletteVars(root);
 }

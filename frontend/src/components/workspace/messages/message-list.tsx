@@ -1249,6 +1249,7 @@ export function MessageList({
   projectMessageActions,
   timelineEntries = [],
   allowThreadFork = true,
+  showResumeSkeleton = true,
 }: {
   className?: string;
   threadId: string;
@@ -1297,6 +1298,9 @@ export function MessageList({
   allowThreadFork?: boolean;
   /** Room-only messages/cards to merge at thread-group time boundaries. */
   timelineEntries?: readonly MessageListTimelineEntry[];
+  /** Show the history skeleton while resuming. A brand-new thread has no
+   *  history, so the page turns this off and lets its empty state stand alone. */
+  showResumeSkeleton?: boolean;
 }) {
   const { t } = useI18n();
   const [settings] = useLocalSettings();
@@ -2947,7 +2951,7 @@ export function MessageList({
     resolveAgentIdentity,
   ]);
 
-  if (thread.isThreadLoading && messages.length === 0) {
+  if (showResumeSkeleton && thread.isThreadLoading && messages.length === 0) {
     return <MessageListSkeleton />;
   }
 

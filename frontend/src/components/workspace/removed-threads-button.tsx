@@ -1,3 +1,4 @@
+import { ArchiveRestoreIcon } from "lucide-react";
 import { useState } from "react";
 import { useThreadListVisibility, useThreads } from "@/core/threads/hooks";
 import { deriveThreadTitle } from "@/core/threads/sidebar";
@@ -57,10 +58,11 @@ export function RemovedThreadsButton() {
       <Button
         variant="ghost"
         size="sm"
-        className="text-xs text-muted-foreground"
+        className="gap-1.5 text-xs text-muted-foreground"
         onClick={() => setOpen(true)}
       >
-        已移除
+        <ArchiveRestoreIcon className="size-3.5" aria-hidden />
+        已移除的对话
       </Button>
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent>
