@@ -171,6 +171,9 @@ def test_storage_status_probes_on_demand_without_heartbeat(monkeypatch) -> None:
 
 def test_heartbeat_gated_on_autostart_and_idempotent(monkeypatch) -> None:
     monkeypatch.setattr(ss, "_heartbeat_started", False)
+    # The fake thread below must not outlive this test as the live handle.
+    monkeypatch.setattr(ss, "_heartbeat_thread", None)
+    monkeypatch.setattr(ss, "_heartbeat_stop", None)
     with ss._status_lock:
         ss._state["heartbeat"] = False
     started = {"n": 0}

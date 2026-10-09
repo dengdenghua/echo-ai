@@ -2,7 +2,7 @@
 # Splitting one of these? Remove its line from this file so the
 # audit can lock in your win.
 
-runtime/cli_serve.py	1031
+runtime/cli_serve.py	1030
 runtime/core/cerebrum/_react_execution_phase6d.py	1448
 runtime/core/cerebrum/react_final_answer_guards.py	1207
 runtime/core/cerebrum/react_loop.py	1119

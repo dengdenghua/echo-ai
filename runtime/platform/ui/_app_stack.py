@@ -3,7 +3,7 @@
 Extracted from ``app.py`` during the god-file reduction (§2.1 of the
 navigation map). Wires the execution stack onto the shared journal,
 starts the optional regeneration / camouflage / auto-trigger
-schedulers, registers ephemeral subagent runners, loads the
+schedulers (and stops them on shutdown), registers ephemeral subagent runners, loads the
 project-scoped subagent registry, and builds the thread store + cowork
 runtime.
 """
@@ -19,6 +19,7 @@ from runtime.execution.model_services import native_model_services
 from runtime.platform import feature_flags
 from runtime.platform.process.paths import app_paths
 
+from ._app_background import stop_on_shutdown
 from ._app_context import AppContext
 
 
@@ -33,6 +34,78 @@ def _regeneration_scheduler_config() -> Any:
         output_dir=str(app_paths().data_dir),
         enabled=feature_flags.is_on("regeneration.enabled"),
     )
+
+
+def _start_background_schedulers(ctx: AppContext, *, agent_registry: Any) -> None:
+    """Start the regeneration + camouflage schedulers; stop both on shutdown.
+
+    Each stop is registered before its start so a start that raises half-way
+    still has its thread reaped when the app shuts down.
+    """
+    stack = ctx.stack
+    try:
+        from runtime.safety.recovery.scheduler import get_scheduler
+
+        regeneration = get_scheduler()
+        stop_on_shutdown(ctx.app, "regeneration-scheduler", regeneration.stop)
+        regeneration.start(
+            stack,
+            config=_regeneration_scheduler_config(),
+            agent_registry=agent_registry,
+        )
+    except Exception as exc:  # noqa: BLE001
+        logging.getLogger(__name__).warning(
+            "regeneration scheduler failed to start: %s",
+            exc,
+        )
+
+    # ─── Camouflage scheduler · LLM-driven prompt evolution (opt-in) ──
+    try:
+        from runtime.safety.experiments.scheduler import (
+            CamouflageConfig,
+            get_camouflage_scheduler,
+        )
+
+        cam_cfg = CamouflageConfig(
+            enabled=feature_flags.is_on("camouflage.enabled"),
+            interval_sec=max(60, int(feature_flags.value("camouflage.interval_sec", 600))),
+            initial_delay_sec=60,
+        )
+        camouflage = get_camouflage_scheduler()
+        stop_on_shutdown(ctx.app, "camouflage-scheduler", camouflage.stop)
+        camouflage.start(stack, config=cam_cfg)
+    except Exception as exc:  # noqa: BLE001
+        logging.getLogger(__name__).warning(
+            "camouflage scheduler failed to start: %s",
+            exc,
+        )
+
+
+def _start_evolution_auto_trigger(app: Any, stack: Any, *, agent_registry: Any) -> None:
+    """Start the fitness-driven self-evolution trigger; stop it on shutdown."""
+    try:
+        from runtime.safety.evolution.auto_trigger import (
+            AutoTriggerConfig,
+            get_auto_trigger,
+        )
+
+        trigger = get_auto_trigger()
+        stop_on_shutdown(app, "evolution-auto-trigger", trigger.stop)
+        # Honour the evolution.auto_trigger flag (default True =
+        # current behaviour) instead of a hardcoded enabled=True,
+        # so the registered flag actually controls the trigger.
+        trigger.start(
+            stack,
+            AutoTriggerConfig(
+                enabled=feature_flags.is_on("evolution.auto_trigger"),
+            ),
+            agent_registry=agent_registry,
+        )
+    except Exception as _at_exc:
+        logging.getLogger(__name__).debug(
+            "evolution auto-trigger not started: %s",
+            _at_exc,
+        )
 
 
 def wire_stack(
@@ -88,39 +161,7 @@ def wire_stack(
         with contextlib.suppress(ImportError, AttributeError, TypeError, OSError):
             feature_flags.configure(app_paths().feature_flags_path)
 
-        try:
-            from runtime.safety.recovery.scheduler import get_scheduler
-
-            cfg = _regeneration_scheduler_config()
-            get_scheduler().start(
-                stack,
-                config=cfg,
-                agent_registry=agent_registry,
-            )
-        except Exception as exc:  # noqa: BLE001
-            logging.getLogger(__name__).warning(
-                "regeneration scheduler failed to start: %s",
-                exc,
-            )
-
-        # ─── Camouflage scheduler · LLM-driven prompt evolution (opt-in) ──
-        try:
-            from runtime.safety.experiments.scheduler import (
-                CamouflageConfig,
-                get_camouflage_scheduler,
-            )
-
-            cam_cfg = CamouflageConfig(
-                enabled=feature_flags.is_on("camouflage.enabled"),
-                interval_sec=max(60, int(feature_flags.value("camouflage.interval_sec", 600))),
-                initial_delay_sec=60,
-            )
-            get_camouflage_scheduler().start(stack, config=cam_cfg)
-        except Exception as exc:  # noqa: BLE001
-            logging.getLogger(__name__).warning(
-                "camouflage scheduler failed to start: %s",
-                exc,
-            )
+        _start_background_schedulers(ctx, agent_registry=agent_registry)
 
         # ─── Ephemeral subagent runner · chat/code mode ───
         # Ephemeral roles (reviewer / researcher / debugger /
@@ -159,28 +200,7 @@ def wire_stack(
                         TypeError,
                     ):  # best-effort · deep_reflect / deep_evolve will return clean error
                         pass
-                    # ─── Evolution auto-trigger · fitness-driven self-evolution ──
-                    try:
-                        from runtime.safety.evolution.auto_trigger import (
-                            AutoTriggerConfig,
-                            get_auto_trigger,
-                        )
-
-                        # Honour the evolution.auto_trigger flag (default True =
-                        # current behaviour) instead of a hardcoded enabled=True,
-                        # so the registered flag actually controls the trigger.
-                        get_auto_trigger().start(
-                            stack,
-                            AutoTriggerConfig(
-                                enabled=feature_flags.is_on("evolution.auto_trigger"),
-                            ),
-                            agent_registry=agent_registry,
-                        )
-                    except Exception as _at_exc:
-                        logging.getLogger(__name__).debug(
-                            "evolution auto-trigger not started: %s",
-                            _at_exc,
-                        )
+                    _start_evolution_auto_trigger(app, stack, agent_registry=agent_registry)
                     # Same router for the Kimi-style skill library
                     # (learn_skill_from_text / apply_skill).
                     try:

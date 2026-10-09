@@ -18,6 +18,7 @@ from typing import Any
 from runtime.execution.model_services import native_model_services
 from runtime.platform.process.paths import app_paths
 
+from ._app_background import stop_on_shutdown
 from ._app_context import AppContext
 
 
@@ -51,6 +52,36 @@ def _register_plugin_hub_lifecycle(app: Any, hub: Any) -> None:
 
     app.router.add_event_handler("startup", _start_plugins)
     app.router.add_event_handler("shutdown", _stop_plugins)
+
+
+def _start_ambient_scheduler(app: Any) -> None:
+    """Start periodic LLM-backed ambient suggestions; stop them on shutdown.
+
+    No-op when the flag is off; honors ``ui.ambient_suggestions_interval_sec``.
+    """
+    try:
+        from runtime.memory.skills_lib.ambient_suggestions_scheduler import (
+            AmbientSchedulerConfig,
+            get_ambient_scheduler,
+        )
+        from runtime.platform import feature_flags
+
+        scheduler = get_ambient_scheduler()
+        stop_on_shutdown(app, "ambient-suggestions-scheduler", scheduler.stop)
+        scheduler.start(
+            AmbientSchedulerConfig(
+                enabled=feature_flags.is_on("ui.ambient_suggestions"),
+                interval_sec=max(
+                    60,
+                    int(feature_flags.value("ui.ambient_suggestions_interval_sec", 21600)),
+                ),
+            )
+        )
+    except Exception as _ambs_exc:  # noqa: BLE001
+        logging.getLogger(__name__).warning(
+            "ambient_suggestions_scheduler failed to start: %s",
+            _ambs_exc,
+        )
 
 
 def mount_routers_b(
@@ -184,29 +215,7 @@ def mount_routers_b(
         )
 
     # ─── Ambient suggestions scheduler (feature-flag gated) ───────────────
-    # Periodic LLM-backed regeneration. No-op when flag is off;
-    # honors interval from ``ui.ambient_suggestions_interval_sec``.
-    try:
-        from runtime.memory.skills_lib.ambient_suggestions_scheduler import (
-            AmbientSchedulerConfig,
-            get_ambient_scheduler,
-        )
-        from runtime.platform import feature_flags
-
-        get_ambient_scheduler().start(
-            AmbientSchedulerConfig(
-                enabled=feature_flags.is_on("ui.ambient_suggestions"),
-                interval_sec=max(
-                    60,
-                    int(feature_flags.value("ui.ambient_suggestions_interval_sec", 21600)),
-                ),
-            )
-        )
-    except Exception as _ambs_exc:  # noqa: BLE001
-        logging.getLogger(__name__).warning(
-            "ambient_suggestions_scheduler failed to start: %s",
-            _ambs_exc,
-        )
+    _start_ambient_scheduler(app)
 
     # ─── Invariants catalog ────────────────────────────────────────────────
     # Read-only constitution surface: which rule_ids are enforced

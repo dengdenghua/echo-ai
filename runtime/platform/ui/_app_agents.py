@@ -112,22 +112,14 @@ def mount_agents(
         # Filesystem watcher · auto-reload agents on disk edits.
         # Saves a SOUL.md → watchdog fires → registry.replace() → next
         # turn uses the new persona. Manual POST /api/agents/<id>/reload
-        # still works even without watchdog installed.
-        if stack is not None:
-            try:
-                from runtime.execution.agents.loader import default_agents_root
-                from runtime.execution.agents.watcher import start_agent_watcher
+        # still works even without watchdog installed. The observer lives
+        # with the app lifespan: started on startup, reaped on shutdown.
+        if stack is not None and hasattr(stack, "runtime"):
+            from runtime.platform.ui.agent_watcher_lifecycle import (
+                register_agent_watcher_lifecycle,
+            )
 
-                start_agent_watcher(
-                    agents_root=default_agents_root(),
-                    registry=agent_registry,
-                    runtime=stack.runtime,
-                )
-            except (ImportError, AttributeError, TypeError, OSError) as exc:
-                logging.getLogger(__name__).warning(
-                    "agent watcher failed to start (%s) · manual reload still works",
-                    exc,
-                )
+            register_agent_watcher_lifecycle(app, registry=agent_registry, runtime=stack.runtime)
 
     from runtime.platform.ui.team_twin_speaker import make_twin_responder
     from runtime.sensing.gateway.team_rooms_router import create_team_rooms_router

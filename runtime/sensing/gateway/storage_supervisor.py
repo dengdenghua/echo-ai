@@ -50,6 +50,10 @@ _state: dict[str, Any] = {
     "heartbeat": False,
 }
 _heartbeat_started = False
+# Each heartbeat generation gets its own stop event, so a stop() racing a later
+# start() can never leave the previous loop running on a cleared flag.
+_heartbeat_stop: threading.Event | None = None
+_heartbeat_thread: threading.Thread | None = None
 
 
 def _autostart_enabled() -> bool:
@@ -214,7 +218,7 @@ def start_storage_heartbeat() -> None:
     readiness window into continuous liveness + restart-on-death, so a storage
     that boots late or crashes mid-session is picked back up instead of silently
     leaving ``search_documents`` degraded forever."""
-    global _heartbeat_started
+    global _heartbeat_started, _heartbeat_stop, _heartbeat_thread
     if not _autostart_enabled():
         return
     with _status_lock:
@@ -222,13 +226,44 @@ def start_storage_heartbeat() -> None:
             return
         _heartbeat_started = True
         _state["heartbeat"] = True
-    threading.Thread(target=_heartbeat_loop, name="storage-heartbeat", daemon=True).start()
+        stop_event = threading.Event()
+        thread = threading.Thread(
+            target=_heartbeat_loop,
+            args=(stop_event,),
+            name="storage-heartbeat",
+            daemon=True,
+        )
+        _heartbeat_stop, _heartbeat_thread = stop_event, thread
+    thread.start()
     _LOG.info("echo-storage heartbeat supervisor started")
 
 
-def _heartbeat_loop() -> None:
-    while True:
-        time.sleep(_HEARTBEAT_INTERVAL_S)
+def stop_storage_heartbeat(timeout: float = 5.0) -> None:
+    """Stop the supervision heartbeat and join it (idempotent).
+
+    A stopped heartbeat can no longer relaunch storage behind a shutting-down
+    agent; a later :func:`start_storage_heartbeat` arms a fresh one.
+    """
+    global _heartbeat_started, _heartbeat_stop, _heartbeat_thread
+    with _status_lock:
+        stop_event, thread = _heartbeat_stop, _heartbeat_thread
+        _heartbeat_stop = _heartbeat_thread = None
+        _heartbeat_started = False
+        _state["heartbeat"] = False
+    if stop_event is not None:
+        stop_event.set()
+    if thread is not None and thread is not threading.current_thread() and thread.is_alive():
+        thread.join(timeout=timeout)
+
+
+def shutdown_storage() -> None:
+    """App-shutdown hook: stop supervising, then terminate our own child."""
+    stop_storage_heartbeat()
+    stop_storage()
+
+
+def _heartbeat_loop(stop_event: threading.Event) -> None:
+    while not stop_event.wait(_HEARTBEAT_INTERVAL_S):
         try:
             up = _already_up()
             _record(up)

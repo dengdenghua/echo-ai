@@ -906,13 +906,12 @@ def run_serve(
     # The supervisor remains opt-in and best-effort: storage can still be
     # deployed independently, and a missing sibling must never block Echo.
     try:
-        from runtime.sensing.gateway.storage_supervisor import (
-            maybe_start_storage,
-            start_storage_heartbeat,
-        )
+        from runtime.sensing.gateway import storage_supervisor as storage
 
-        storage_start = maybe_start_storage()
-        start_storage_heartbeat()
+        storage_start = storage.maybe_start_storage()
+        storage.start_storage_heartbeat()
+        # Stop supervising (and reap our child) with the ASGI lifespan.
+        app.router.add_event_handler("shutdown", storage.shutdown_storage)
         if storage_start in {"started", "already_running"}:
             print(c.dim("  local knowledge storage: ready (managed with this session)"))
         elif storage_start == "not_found":
