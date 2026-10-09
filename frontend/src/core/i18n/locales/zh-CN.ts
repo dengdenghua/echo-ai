@@ -4686,6 +4686,7 @@ export const zhCN: Translations = {
       copyPath: "复制路径",
       openPluginDirectory: "打开插件目录",
       connectingPlugin: "正在连接浏览器插件/MCP 控制会话",
+      pageInteractiveHint: "网页（点击或输入会发送到页面）",
       connectingPluginDesc:
         "非 Electron 模式会通过后端浏览器接口启动并控制本机 Chromium 浏览器，然后把截图回传到这里。",
       searchPlaceholder: "输入搜索内容",

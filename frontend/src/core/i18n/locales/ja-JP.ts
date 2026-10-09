@@ -4980,6 +4980,7 @@ export const jaJP: Translations = {
       copyPath: "パスをコピー",
       openPluginDirectory: "プラグインディレクトリを開く",
       connectingPlugin: "ブラウザープラグイン/MCP 制御セッションに接続中",
+      pageInteractiveHint: "ウェブページ（クリックと入力はページに送信されます）",
       connectingPluginDesc:
         "非 Electron モードはバックエンドブラウザー API 経由でローカル Chromium ブラウザーを起動・制御し、スクリーンショットをここに送信。",
       searchPlaceholder: "検索クエリを入力",

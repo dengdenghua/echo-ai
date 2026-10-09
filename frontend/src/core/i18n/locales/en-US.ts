@@ -4999,6 +4999,7 @@ Strategy:
       copyPath: "Copy Path",
       openPluginDirectory: "Open Plugin Directory",
       connectingPlugin: "Connecting to browser plugin/MCP control session",
+      pageInteractiveHint: "Web page (clicks and typing are sent to the page)",
       connectingPluginDesc:
         "Non-Electron mode launches and controls the local Chromium browser via the backend browser API, then sends screenshots back here.",
       searchPlaceholder: "Enter search query",

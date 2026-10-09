@@ -447,6 +447,36 @@ def create_browser_router(
                                 400, "x and y are required for double_click_at"
                             ) from exc
                         page.mouse.dblclick(x, y)
+                    elif action in ("click_page_at", "double_click_page_at"):
+                        # Coordinates on the full-page screenshot the web
+                        # build shows: bring that point into the viewport,
+                        # then click where it landed.
+                        try:
+                            x = int(body.get("x"))
+                            y = int(body.get("y"))
+                        except (TypeError, ValueError) as exc:
+                            raise HTTPException(400, f"x and y are required for {action}") from exc
+                        viewport_y = page.evaluate(
+                            "(y) => { window.scrollTo(0, Math.max(0, y - window.innerHeight / 2));"
+                            " return y - window.scrollY; }",
+                            y,
+                        )
+                        if action == "click_page_at":
+                            page.mouse.click(x, int(viewport_y))
+                        else:
+                            page.mouse.dblclick(x, int(viewport_y))
+                        # A link starts navigating shortly after the click; give
+                        # it a moment, then wait for the new document.
+                        with contextlib.suppress(Exception):  # noqa: BLE001 - no navigation is fine
+                            page.wait_for_timeout(400)
+                            page.wait_for_load_state("domcontentloaded", timeout=8000)
+                    elif action == "page_info":
+                        pass  # just report where the page is now (below)
+                    elif action == "keyboard_type":
+                        text = str(body.get("text") or "")[:4000]
+                        if not text:
+                            raise HTTPException(400, "text is required for keyboard_type")
+                        page.keyboard.type(text)
                     elif action == "wait":
                         selector = str(body.get("selector") or "").strip()
                         timeout = int(body.get("timeout") or 10_000)

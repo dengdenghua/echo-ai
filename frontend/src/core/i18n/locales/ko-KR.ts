@@ -4901,6 +4901,7 @@ export const koKR: Translations = {
       copyPath: "경로 복사",
       openPluginDirectory: "플러그인 디렉터리 열기",
       connectingPlugin: "브라우저 플러그인/MCP 제어 세션에 연결 중",
+      pageInteractiveHint: "웹 페이지(클릭과 입력이 페이지로 전송됩니다)",
       connectingPluginDesc:
         "Electron이 아닌 모드에서는 백엔드 브라우저 API로 로컬 Chromium 브라우저를 시작하고 제어한 뒤, 스크린샷을 이곳으로 다시 보냅니다.",
       searchPlaceholder: "검색어 입력",

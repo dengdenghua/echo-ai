@@ -4248,6 +4248,7 @@ export interface Translations {
       copyPath: string;
       openPluginDirectory: string;
       connectingPlugin: string;
+      pageInteractiveHint: string;
       connectingPluginDesc: string;
       searchPlaceholder: string;
       resetLayout: string;

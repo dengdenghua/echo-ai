@@ -489,3 +489,46 @@ def test_relay_ws(client) -> None:
         ws.send_json({"type": "heartbeat"})
         ws.send_json({"type": "result", "id": "w1", "result": {"ok": True}})
         ws.receive_json()
+
+
+def test_screenshot_clicks_and_typing_reach_the_page(client, monkeypatch) -> None:
+    """The web build drives the page through its full-page screenshot."""
+    c = _c(client)
+    _ensure(client)
+    calls: list[tuple] = []
+
+    class _Page(_FakePage):
+        def __init__(self) -> None:
+            super().__init__()
+            self.mouse.click = lambda x, y: calls.append(("click", x, y))
+            self.mouse.dblclick = lambda x, y: calls.append(("dblclick", x, y))
+            self.keyboard.type = lambda text: calls.append(("type", text))
+            self.wait_for_load_state = lambda *a, **kw: None
+            self.wait_for_timeout = lambda *a, **kw: None
+
+        def evaluate(self, js: str, arg=None):
+            # Scrolled so the point sits mid-viewport (viewport 800 tall).
+            return arg - max(0, arg - 400) if arg is not None else super().evaluate(js)
+
+    page = _Page()
+    monkeypatch.setattr(
+        _StubBackend, "_ensure_real_browser_session", lambda self, s: s.update(page=page) or True
+    )
+    base = {"session_id": "s1"}
+
+    assert (
+        c.post("/api/browser/action", json={**base, "action": "click_page_at"}).status_code == 400
+    )
+    assert (
+        c.post("/api/browser/action", json={**base, "action": "keyboard_type"}).status_code == 400
+    )
+    for body in (
+        {"action": "click_page_at", "x": 120, "y": 2400},
+        {"action": "double_click_page_at", "x": 5, "y": 100},
+        {"action": "keyboard_type", "text": "你好 echo"},
+        {"action": "page_info"},
+    ):
+        response = c.post("/api/browser/action", json={**base, **body})
+        assert response.status_code == 200, (body, response.text)
+
+    assert calls == [("click", 120, 400), ("dblclick", 5, 100), ("type", "你好 echo")]

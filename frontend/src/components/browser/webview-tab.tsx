@@ -522,6 +522,84 @@ function BackendBrowserTab({
     return data;
   };
 
+  // The screenshot is the page here, so the user drives it through the
+  // backend browser: clicks land at the same spot, keys go to the focused
+  // field. (With the relay, the page is the user's own Chrome tab instead.)
+  // Keys go through a hidden text field so IME composition (Chinese input),
+  // paste and plain typing all arrive as text; Enter, arrows and the like
+  // are sent as key presses.
+  const sinkRef = useRef<HTMLTextAreaElement | null>(null);
+  const typedRef = useRef("");
+  const typeTimerRef = useRef<number | null>(null);
+  const interactive = Boolean(screenshot) && !relayStatus?.connected;
+  const forwardAction = async (
+    action: string,
+    params: Record<string, unknown>,
+  ) => {
+    try {
+      await runAction(action, params);
+      // Slow navigations finish after the action returns: look again.
+      window.setTimeout(() => {
+        void runAction("page_info").catch(swallow);
+      }, 1500);
+    } catch (e) {
+      swallow(e);
+      setError(e instanceof Error ? e.message : String(e));
+    }
+  };
+  const pagePoint = (event: React.MouseEvent<HTMLImageElement>) => {
+    const image = event.currentTarget;
+    const rect = image.getBoundingClientRect();
+    if (!rect.width || !image.naturalWidth) return null;
+    // Full-page PNG at device scale 1: image pixels are page CSS pixels.
+    const scale = image.naturalWidth / rect.width;
+    return {
+      x: Math.round((event.clientX - rect.left) * scale),
+      y: Math.round((event.clientY - rect.top) * scale),
+    };
+  };
+  const flushTyped = () => {
+    if (typeTimerRef.current) window.clearTimeout(typeTimerRef.current);
+    typeTimerRef.current = null;
+    const text = typedRef.current;
+    typedRef.current = "";
+    if (text) void forwardAction("keyboard_type", { text });
+  };
+  const queueTyped = (text: string) => {
+    if (!text) return;
+    typedRef.current += text;
+    if (typeTimerRef.current) window.clearTimeout(typeTimerRef.current);
+    typeTimerRef.current = window.setTimeout(flushTyped, 300);
+  };
+  const takeSinkText = (field: HTMLTextAreaElement) => {
+    const text = field.value;
+    field.value = "";
+    queueTyped(text);
+  };
+  const PASSTHROUGH_KEYS = new Set([
+    "Enter",
+    "Backspace",
+    "Delete",
+    "Tab",
+    "Escape",
+    "ArrowUp",
+    "ArrowDown",
+    "ArrowLeft",
+    "ArrowRight",
+    "Home",
+    "End",
+    "PageUp",
+    "PageDown",
+  ]);
+  const onSinkKeyDown = (event: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    if (event.nativeEvent.isComposing || event.key === "Process") return;
+    if (event.metaKey || event.ctrlKey || event.altKey) return;
+    if (!PASSTHROUGH_KEYS.has(event.key)) return;
+    event.preventDefault();
+    flushTyped();
+    void forwardAction("press", { key: event.key });
+  };
+
   useImperativeHandle(
     imperativeRef,
     () => ({
@@ -653,8 +731,24 @@ function BackendBrowserTab({
               pointerEvents: "none",
             }
       }
-      className="relative flex-col overflow-auto bg-muted/20"
+      className="relative flex-col overflow-auto bg-muted/20 focus-within:ring-2 focus-within:ring-inset focus-within:ring-primary/30"
     >
+      {interactive ? (
+        <textarea
+          ref={sinkRef}
+          aria-label={wt.pageInteractiveHint}
+          className="pointer-events-none absolute left-0 top-0 size-px resize-none opacity-0"
+          autoComplete="off"
+          autoCorrect="off"
+          spellCheck={false}
+          onKeyDown={onSinkKeyDown}
+          onInput={(event) => {
+            if ((event.nativeEvent as InputEvent).isComposing) return;
+            takeSinkText(event.currentTarget);
+          }}
+          onCompositionEnd={(event) => takeSinkText(event.currentTarget)}
+        />
+      ) : null}
       <div
         className={cn(
           AUTOMATION_CAPSULE_OVERLAY_CLASS_NAME,
@@ -777,8 +871,25 @@ function BackendBrowserTab({
         <img
           src={screenshot}
           alt={tab.title || tab.url}
-          className="w-full object-contain"
-          onClick={() => void refreshScreenshot()}
+          className={cn(
+            "w-full object-contain",
+            interactive && "cursor-pointer",
+          )}
+          draggable={false}
+          // Typing after a click belongs to the page, not the address bar.
+          onMouseDown={() => {
+            if (interactive) sinkRef.current?.focus({ preventScroll: true });
+          }}
+          onClick={(event) => {
+            if (!interactive) return void refreshScreenshot();
+            const point = pagePoint(event);
+            if (point) void forwardAction("click_page_at", point);
+          }}
+          onDoubleClick={(event) => {
+            if (!interactive) return;
+            const point = pagePoint(event);
+            if (point) void forwardAction("double_click_page_at", point);
+          }}
         />
       ) : (
         <div className="flex h-full flex-col items-center justify-center gap-2 px-6 text-center">
