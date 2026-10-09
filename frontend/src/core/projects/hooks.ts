@@ -1,8 +1,14 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { getAPIClient } from "../api";
-import { authHeaders, jsonAuthHeaders } from "../auth/api";
-import { getBackendBaseURL } from "../config";
+import {
+  EchoAPIError,
+  apiDelete,
+  apiFetch,
+  apiGet,
+  apiPost,
+  type ApiFailure,
+} from "../api/request";
 import { isPrimaryPersonaAgentId } from "../agents/persona-policy";
 import { type PortfolioEntry, normalizePortfolio } from "./portfolio";
 import {
@@ -66,8 +72,50 @@ export interface ProjectHomeOptions {
   initialAgents?: readonly ProjectInitialAgent[];
 }
 
-const BASE = () => `${getBackendBaseURL()}/api/projects`;
 export const DEFAULT_PROJECT_AGENT_ID = "general";
+
+/** ``"<label>: <statusText>"`` — this module's historical error wording. */
+function failed(label: string) {
+  return (failure: ApiFailure): string => `${label}: ${failure.statusText}`;
+}
+
+/** Read the detach failure's ``detail`` / ``message`` / ``code`` fields. */
+function projectBindingError(failure: ApiFailure): ProjectBindingRequestError {
+  let detail = "";
+  let code: string | null = null;
+  // Some deployments return an empty/plain response for errors (no payload).
+  // The status remains available to render the conflict-specific message.
+  if (failure.payload && typeof failure.payload === "object") {
+    const payload = failure.payload as {
+      detail?: unknown;
+      message?: unknown;
+      code?: unknown;
+    };
+    const rawDetail = payload.detail ?? payload.message;
+    if (typeof rawDetail === "string") {
+      detail = rawDetail.trim();
+    } else if (rawDetail && typeof rawDetail === "object") {
+      const structured = rawDetail as {
+        code?: unknown;
+        message?: unknown;
+      };
+      if (typeof structured.message === "string") {
+        detail = structured.message.trim();
+      }
+      if (typeof structured.code === "string") {
+        code = structured.code.trim();
+      }
+    }
+    if (!code && typeof payload.code === "string") {
+      code = payload.code.trim();
+    }
+  }
+  return new ProjectBindingRequestError(
+    detail || `Failed to detach project from group: ${failure.statusText}`,
+    failure.status,
+    code,
+  );
+}
 
 function normalizedInitialAgents(
   agents: readonly ProjectInitialAgent[] | undefined,
@@ -135,14 +183,11 @@ async function moveThreadToProject(
   threadId: string,
   projectId: string,
 ): Promise<void> {
-  const res = await fetch(`${BASE()}/move`, {
-    method: "POST",
-    headers: jsonAuthHeaders(),
-    body: JSON.stringify({ thread_id: threadId, project_id: projectId }),
+  // The success body is not read, exactly as before.
+  await apiFetch("post", "/api/projects/move", {
+    body: { thread_id: threadId, project_id: projectId },
+    errorMessage: failed("Failed to bind project home"),
   });
-  if (!res.ok) {
-    throw new Error(`Failed to bind project home: ${res.statusText}`);
-  }
 }
 
 /** Ensure every project has one durable, directly-openable work group.
@@ -268,13 +313,9 @@ export function useProjects(enabled = true) {
     staleTime: 5 * 60 * 1000,
     refetchOnWindowFocus: false,
     queryFn: async () => {
-      const res = await fetch(BASE(), {
-        headers: authHeaders(),
+      const data = await apiGet("/api/projects", {
+        errorMessage: failed("Failed to load projects"),
       });
-      if (!res.ok) {
-        throw new Error(`Failed to load projects: ${res.statusText}`);
-      }
-      const data = (await res.json()) as unknown;
       if (Array.isArray(data)) return data as Project[];
       if (
         data &&
@@ -300,19 +341,14 @@ export function useCreateProject() {
     }) => {
       const initialAgents =
         normalizedInitialAgents(data.initialAgents ?? []) ?? [];
-      const res = await fetch(`${BASE()}/group`, {
-        method: "POST",
-        headers: jsonAuthHeaders(),
-        body: JSON.stringify({
+      const state = (await apiPost("/api/projects/group", {
+        body: {
           name: data.name,
           goal: data.goal?.trim() || data.name,
           initial_agents: initialAgents.map(projectGroupAgent),
-        }),
-      });
-      if (!res.ok) {
-        throw new Error(`Failed to create project: ${res.statusText}`);
-      }
-      const state = (await res.json()) as {
+        },
+        errorMessage: failed("Failed to create project"),
+      })) as {
         project: Project;
         thread_id: string;
       };
@@ -345,20 +381,11 @@ export function usePromoteGroupToProject() {
       name: string;
       goal: string;
     }) => {
-      const res = await fetch(
-        `${BASE()}/from-group/${encodeURIComponent(threadId)}`,
-        {
-          method: "POST",
-          headers: jsonAuthHeaders(),
-          body: JSON.stringify({ name, goal, run: false }),
-        },
-      );
-      if (!res.ok) {
-        throw new Error(
-          `Failed to create project from group: ${res.statusText}`,
-        );
-      }
-      return (await res.json()) as { project: Project };
+      return (await apiPost("/api/projects/from-group/{thread_id}", {
+        path: { thread_id: threadId },
+        body: { name, goal, run: false },
+        errorMessage: failed("Failed to create project from group"),
+      })) as { project: Project };
     },
     onSuccess: (_result, input) => {
       void qc.invalidateQueries({ queryKey: ["projects"] });
@@ -390,55 +417,22 @@ export function useDetachProjectFromGroup() {
       expectedProjectId: string;
       force?: boolean;
     }) => {
-      const res = await fetch(
-        `${BASE()}/from-group/${encodeURIComponent(threadId)}`,
-        {
-          method: "DELETE",
-          headers: jsonAuthHeaders(),
-          body: JSON.stringify({
-            force,
-            expected_project_id: expectedProjectId,
-          }),
-        },
-      );
-      if (!res.ok) {
-        let detail = "";
-        let code: string | null = null;
-        try {
-          const payload = (await res.json()) as {
-            detail?: unknown;
-            message?: unknown;
-            code?: unknown;
-          };
-          const rawDetail = payload.detail ?? payload.message;
-          if (typeof rawDetail === "string") {
-            detail = rawDetail.trim();
-          } else if (rawDetail && typeof rawDetail === "object") {
-            const structured = rawDetail as {
-              code?: unknown;
-              message?: unknown;
-            };
-            if (typeof structured.message === "string") {
-              detail = structured.message.trim();
-            }
-            if (typeof structured.code === "string") {
-              code = structured.code.trim();
-            }
-          }
-          if (!code && typeof payload.code === "string") {
-            code = payload.code.trim();
-          }
-        } catch {
-          // Some deployments return an empty/plain response for errors. The
-          // status remains available to render the conflict-specific message.
-        }
-        throw new ProjectBindingRequestError(
-          detail || `Failed to detach project from group: ${res.statusText}`,
-          res.status,
-          code,
-        );
+      const raised: { error?: ProjectBindingRequestError } = {};
+      try {
+        return (await apiDelete("/api/projects/from-group/{thread_id}", {
+          path: { thread_id: threadId },
+          body: { force, expected_project_id: expectedProjectId },
+          errorMessage: (failure) => {
+            raised.error = projectBindingError(failure);
+            return raised.error.message;
+          },
+        })) as DetachedProjectBinding;
+      } catch (error) {
+        // HTTP failures surface as ProjectBindingRequestError (status + code);
+        // network errors propagate unchanged.
+        if (error instanceof EchoAPIError && raised.error) throw raised.error;
+        throw error;
       }
-      return (await res.json()) as DetachedProjectBinding;
     },
     onSuccess: (_result, input) => {
       void qc.invalidateQueries({ queryKey: ["projects"] });
@@ -469,13 +463,11 @@ export function useDeleteProject() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async (id: string) => {
-      const res = await fetch(`${BASE()}/${id}`, {
-        method: "DELETE",
-        headers: authHeaders(),
+      // The success body is not read, exactly as before.
+      await apiFetch("delete", "/api/projects/{project_id}", {
+        path: { project_id: id },
+        errorMessage: failed("Failed to delete project"),
       });
-      if (!res.ok) {
-        throw new Error(`Failed to delete project: ${res.statusText}`);
-      }
     },
     onSuccess: () => qc.invalidateQueries({ queryKey: ["projects"] }),
   });
@@ -515,13 +507,11 @@ export function usePortfolio(enabled = true) {
     staleTime: 30 * 1000,
     refetchOnWindowFocus: false,
     queryFn: async () => {
-      const res = await fetch(`${BASE()}/portfolio`, {
-        headers: authHeaders(),
-      });
-      if (!res.ok) {
-        throw new Error(`Failed to load project portfolio: ${res.statusText}`);
-      }
-      return normalizePortfolio(await res.json());
+      return normalizePortfolio(
+        await apiGet("/api/projects/portfolio", {
+          errorMessage: failed("Failed to load project portfolio"),
+        }),
+      );
     },
   });
 }
@@ -532,13 +522,9 @@ export function useThreadMap() {
     staleTime: 5 * 60 * 1000,
     refetchOnWindowFocus: false,
     queryFn: async () => {
-      const res = await fetch(`${BASE()}/thread-map`, {
-        headers: authHeaders(),
+      return apiGet("/api/projects/thread-map", {
+        errorMessage: failed("Failed to load thread map"),
       });
-      if (!res.ok) {
-        throw new Error(`Failed to load thread map: ${res.statusText}`);
-      }
-      return res.json();
     },
   });
 }

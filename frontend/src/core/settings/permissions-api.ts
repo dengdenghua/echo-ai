@@ -1,5 +1,9 @@
-import { getBackendBaseURL } from "@/core/config";
-import { authHeaders, jsonAuthHeaders } from "@/core/auth/api";
+import {
+  apiDelete,
+  apiGet,
+  apiPost,
+  type ApiFailure,
+} from "@/core/api/request";
 
 export type RuleEffect = "allow" | "deny";
 
@@ -21,14 +25,17 @@ export interface NewRuleInput {
   reason?: string;
 }
 
+/** ``"<label>: <status>[ <body>]"`` — this module's write-error wording. */
+function failedWithBody(label: string) {
+  return (failure: ApiFailure): string =>
+    `${label}: ${failure.status}${failure.text ? ` ${failure.text}` : ""}`;
+}
+
 export async function listPermissionRules(): Promise<ApprovalRule[]> {
-  const res = await fetch(`${getBackendBaseURL()}/api/permissions`, {
-    headers: authHeaders(),
+  const data = await apiGet("/api/permissions", {
+    errorMessage: (failure) =>
+      `Failed to load permission rules: ${failure.statusText}`,
   });
-  if (!res.ok) {
-    throw new Error(`Failed to load permission rules: ${res.statusText}`);
-  }
-  const data = (await res.json()) as PolicyResponse;
   return data.rules ?? [];
 }
 
@@ -41,38 +48,20 @@ export async function addPermissionRule(
     args_contains: rule.args_contains ?? "",
     reason: rule.reason ?? "",
   };
-  const res = await fetch(`${getBackendBaseURL()}/api/permissions/rules`, {
-    method: "POST",
-    headers: jsonAuthHeaders(),
-    body: JSON.stringify(body),
+  const data = await apiPost("/api/permissions/rules", {
+    body,
+    errorMessage: failedWithBody("Failed to add rule"),
   });
-  if (!res.ok) {
-    const detail = await res.text().catch(() => "");
-    throw new Error(
-      `Failed to add rule: ${res.status}${detail ? ` ${detail}` : ""}`,
-    );
-  }
-  const data = (await res.json()) as PolicyResponse;
   return data.rules ?? [];
 }
 
 export async function deletePermissionRule(
   index: number,
 ): Promise<ApprovalRule[]> {
-  const res = await fetch(
-    `${getBackendBaseURL()}/api/permissions/rules/${index}`,
-    {
-      method: "DELETE",
-      headers: authHeaders(),
-    },
-  );
-  if (!res.ok) {
-    const detail = await res.text().catch(() => "");
-    throw new Error(
-      `Failed to delete rule: ${res.status}${detail ? ` ${detail}` : ""}`,
-    );
-  }
-  const data = (await res.json()) as PolicyResponse;
+  const data = await apiDelete("/api/permissions/rules/{index}", {
+    path: { index },
+    errorMessage: failedWithBody("Failed to delete rule"),
+  });
   return data.rules ?? [];
 }
 
@@ -80,20 +69,10 @@ export async function movePermissionRule(
   fromIndex: number,
   toIndex: number,
 ): Promise<ApprovalRule[]> {
-  const res = await fetch(
-    `${getBackendBaseURL()}/api/permissions/rules/${fromIndex}/move`,
-    {
-      method: "POST",
-      headers: jsonAuthHeaders(),
-      body: JSON.stringify({ to: toIndex }),
-    },
-  );
-  if (!res.ok) {
-    const detail = await res.text().catch(() => "");
-    throw new Error(
-      `Failed to move rule: ${res.status}${detail ? ` ${detail}` : ""}`,
-    );
-  }
-  const data = (await res.json()) as PolicyResponse;
+  const data = await apiPost("/api/permissions/rules/{index}/move", {
+    path: { index: fromIndex },
+    body: { to: toIndex },
+    errorMessage: failedWithBody("Failed to move rule"),
+  });
   return data.rules ?? [];
 }

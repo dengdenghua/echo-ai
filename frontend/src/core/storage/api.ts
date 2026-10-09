@@ -1,5 +1,12 @@
+import {
+  EchoAPIError,
+  apiGet,
+  apiPost,
+  untypedApi,
+  type ApiFailure,
+  type HttpMethod,
+} from "@/core/api/request";
 import { getBackendBaseURL } from "@/core/config";
-import { authHeaders } from "@/core/auth/api";
 
 export type NASMode = "efficiency" | "privacy";
 
@@ -122,27 +129,54 @@ export function getNASBaseURL(): string {
   return `${getBackendBaseURL()}/api/storage`;
 }
 
-async function request<T>(path: string, init?: RequestInit): Promise<T> {
+/** These requests always sent a JSON content type, even without a body. */
+const JSON_CONTENT_TYPE = { "Content-Type": "application/json" };
+
+/**
+ * Run a request-layer call and re-raise its HTTP failure as this module's
+ * ``NASRequestError`` (status + raw body text); other errors pass through.
+ */
+async function nasCall<T>(
+  path: string,
+  call: (errorMessage: (failure: ApiFailure) => string) => Promise<unknown>,
+): Promise<T> {
+  const raised: { error?: NASRequestError } = {};
+  try {
+    return (await call((failure) => {
+      raised.error = new NASRequestError(path, failure.status, failure.text);
+      return raised.error.message;
+    })) as T;
+  } catch (error) {
+    if (error instanceof EchoAPIError && raised.error) throw raised.error;
+    throw error;
+  }
+}
+
+interface NASRequestInit {
+  method?: HttpMethod;
+  /** JSON-serialised by the request layer. */
+  body?: unknown;
+  signal?: AbortSignal;
+}
+
+const NAS_GATEWAY_REASON =
+  "the NAS service is reached through the catch-all /api/storage/{storage_path} proxy; its sub-path (slashes and query string) is passed verbatim, which the typed {storage_path} param would percent-encode";
+
+async function request<T>(path: string, init: NASRequestInit = {}): Promise<T> {
   const controller = new AbortController();
   const timeoutId = window.setTimeout(() => controller.abort(), 8_000);
   const abortFromCaller = () => controller.abort();
-  init?.signal?.addEventListener("abort", abortFromCaller, { once: true });
+  init.signal?.addEventListener("abort", abortFromCaller, { once: true });
   try {
-    const response = await fetch(`${getNASBaseURL()}${path}`, {
-      ...init,
-      signal: controller.signal,
-      headers: {
-        "Content-Type": "application/json",
-        ...authHeaders(),
-        ...(init?.headers ?? {}),
-      },
-    });
-    if (!response.ok) {
-      const text = await response.text().catch(() => "");
-      throw new NASRequestError(path, response.status, text);
-    }
-    if (response.status === 204) return undefined as T;
-    return (await response.json()) as T;
+    return await nasCall<T>(path, (errorMessage) =>
+      untypedApi[init.method ?? "get"](`/api/storage${path}`, {
+        reason: NAS_GATEWAY_REASON,
+        body: init.body,
+        signal: controller.signal,
+        headers: JSON_CONTENT_TYPE,
+        errorMessage,
+      }),
+    );
   } catch (error) {
     if (error instanceof DOMException && error.name === "AbortError") {
       throw new NASRequestTimeoutError(path);
@@ -150,49 +184,18 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
     throw error;
   } finally {
     window.clearTimeout(timeoutId);
-    init?.signal?.removeEventListener("abort", abortFromCaller);
+    init.signal?.removeEventListener("abort", abortFromCaller);
   }
-}
-
-/**
- * Send a request to the echo-ai backend (where the video media_router is
- * mounted at `/media`). Unlike `request`, this does NOT target the NAS storage
- * service — the video semantic index lives in the agent's data dir.
- */
-async function backendRequest<T>(path: string, init?: RequestInit): Promise<T> {
-  const response = await fetch(`${getBackendBaseURL()}${path}`, {
-    ...init,
-    headers: {
-      "Content-Type": "application/json",
-      ...authHeaders(),
-      ...(init?.headers ?? {}),
-    },
-  });
-  if (!response.ok) {
-    const text = await response.text().catch(() => "");
-    throw new NASRequestError(path, response.status, text);
-  }
-  if (response.status === 204) return undefined as T;
-  return (await response.json()) as T;
 }
 
 export async function startNASService(): Promise<NASServiceStartResponse> {
-  const response = await fetch(
-    `${getBackendBaseURL()}/api/local-brain/storage/start`,
-    {
-      method: "POST",
-      credentials: "include",
-      headers: authHeaders(),
-    },
-  );
-  if (!response.ok) {
-    const text = await response.text().catch(() => "");
-    throw new Error(
-      `Storage start failed: ${response.status}${text ? ` - ${text}` : ""}`,
-    );
-  }
-  const body = (await response.json()) as NASServiceStartResponse;
-  return body;
+  return (await apiPost("/api/local-brain/storage/start", {
+    credentials: "include",
+    errorMessage: (failure) =>
+      `Storage start failed: ${failure.status}${
+        failure.text ? ` - ${failure.text}` : ""
+      }`,
+  })) as NASServiceStartResponse;
 }
 
 export function getNASManifest(): Promise<NASManifest> {
@@ -209,26 +212,26 @@ export function listNASModels(): Promise<NASModel[]> {
 
 export function downloadNASModel(modelId: string): Promise<NASModel> {
   return request(`/v1/models/${encodeURIComponent(modelId)}/download`, {
-    method: "POST",
+    method: "post",
   });
 }
 
 export function enableNASModel(modelId: string): Promise<NASModel> {
   return request(`/v1/models/${encodeURIComponent(modelId)}/enable`, {
-    method: "POST",
+    method: "post",
   });
 }
 
 export function disableNASModel(modelId: string): Promise<NASModel> {
   return request(`/v1/models/${encodeURIComponent(modelId)}/disable`, {
-    method: "POST",
+    method: "post",
   });
 }
 
 export function updateNASPolicy(policy: NASPolicy): Promise<NASPolicy> {
   return request("/v1/policy", {
-    method: "PUT",
-    body: JSON.stringify(policy),
+    method: "put",
+    body: policy,
   });
 }
 
@@ -242,14 +245,14 @@ export function listNASDirectory(path: string): Promise<NASDirectoryEntry[]> {
 
 export function createNASSource(path: string): Promise<NASSource> {
   return request("/v1/sources", {
-    method: "POST",
-    body: JSON.stringify({ path }),
+    method: "post",
+    body: { path },
   });
 }
 
 export function deleteNASSource(sourceId: string): Promise<void> {
   return request(`/v1/sources/${encodeURIComponent(sourceId)}`, {
-    method: "DELETE",
+    method: "delete",
   });
 }
 
@@ -257,8 +260,8 @@ export function createNASIndexJob(
   sourceIds: string[] = [],
 ): Promise<NASIndexJob> {
   return request("/v1/index/jobs", {
-    method: "POST",
-    body: JSON.stringify({ source_ids: sourceIds, full_rescan: false }),
+    method: "post",
+    body: { source_ids: sourceIds, full_rescan: false },
   });
 }
 
@@ -268,8 +271,8 @@ export function getNASIndexJob(jobId: string): Promise<NASIndexJob> {
 
 export function searchNAS(query: string): Promise<NASSearchResponse> {
   return request("/v1/search", {
-    method: "POST",
-    body: JSON.stringify({ query, top_k: 8, source_ids: [] }),
+    method: "post",
+    body: { query, top_k: 8, source_ids: [] },
   });
 }
 
@@ -313,7 +316,7 @@ export function openNASApp(
   appId: string,
 ): Promise<{ ok: boolean; app_id: string }> {
   return request(`/v1/apps/${encodeURIComponent(appId)}/open`, {
-    method: "POST",
+    method: "post",
   });
 }
 
@@ -321,7 +324,7 @@ export function revealNASApp(
   appId: string,
 ): Promise<{ ok: boolean; app_id: string }> {
   return request(`/v1/apps/${encodeURIComponent(appId)}/reveal`, {
-    method: "POST",
+    method: "post",
   });
 }
 
@@ -341,23 +344,20 @@ export function getNASFileContentURL(assetId: string): string {
 }
 
 export async function loadNASAssetURL(path: string): Promise<string> {
-  const response = await fetch(`${getNASBaseURL()}${path}`, {
-    headers: authHeaders(),
-  });
-  if (!response.ok) {
-    throw new NASRequestError(
-      path,
-      response.status,
-      await response.text().catch(() => ""),
-    );
-  }
+  // Binary asset read as a blob: no JSON content type and no timeout here.
+  const response = await nasCall<Response>(path, (errorMessage) =>
+    untypedApi.fetch("get", `/api/storage${path}`, {
+      reason: NAS_GATEWAY_REASON,
+      errorMessage,
+    }),
+  );
   return URL.createObjectURL(await response.blob());
 }
 
 export function answerNAS(query: string): Promise<NASAnswerResponse> {
   return request("/v1/answer", {
-    method: "POST",
-    body: JSON.stringify({ query, top_k: 8, source_ids: [] }),
+    method: "post",
+    body: { query, top_k: 8, source_ids: [] },
   });
 }
 
@@ -371,13 +371,19 @@ export interface NASVideoIndexResponse {
   message?: string;
 }
 
+/*
+ * The video calls below go to the echo-ai backend (where the video
+ * media_router is mounted at `/media`), NOT the NAS storage service — the
+ * video semantic index lives in the agent's data dir. They always sent a JSON
+ * content type and raise NASRequestError on HTTP failures, but have no timeout.
+ */
 export function triggerVideoIndex(
   incremental = true,
 ): Promise<NASVideoIndexResponse> {
-  return backendRequest("/media/video/index", {
-    method: "POST",
-    body: JSON.stringify({ directory: ".", incremental }),
-  });
+  const path = "/media/video/index";
+  return nasCall(path, (errorMessage) =>
+    apiPost(path, { body: { directory: ".", incremental }, errorMessage }),
+  );
 }
 
 export interface NASVideoSearchHit {
@@ -451,61 +457,80 @@ export function searchVideoByText(
   query: string,
   top_k = 10,
 ): Promise<NASVideoSearchResponse> {
-  return backendRequest("/media/video/search", {
-    method: "POST",
-    body: JSON.stringify({ query, directory: ".", top_k }),
-  });
+  const path = "/media/video/search";
+  return nasCall(path, (errorMessage) =>
+    apiPost(path, { body: { query, directory: ".", top_k }, errorMessage }),
+  );
 }
 
 export function searchVideoByFace(
   imagePath: string,
   top_k = 10,
 ): Promise<NASVideoSearchResponse> {
-  return backendRequest("/media/video/search/face", {
-    method: "POST",
-    body: JSON.stringify({ image_path: imagePath, directory: ".", top_k }),
-  });
+  const path = "/media/video/search/face";
+  return nasCall(path, (errorMessage) =>
+    apiPost(path, {
+      body: { image_path: imagePath, directory: ".", top_k },
+      errorMessage,
+    }),
+  );
 }
 
 export function searchVideoByImage(
   imagePath: string,
   top_k = 10,
 ): Promise<NASVideoSearchResponse> {
-  return backendRequest("/media/video/search/image", {
-    method: "POST",
-    body: JSON.stringify({ image_path: imagePath, directory: ".", top_k }),
-  });
+  const path = "/media/video/search/image";
+  return nasCall(path, (errorMessage) =>
+    apiPost(path, {
+      body: { image_path: imagePath, directory: ".", top_k },
+      errorMessage,
+    }),
+  );
 }
 
 export function searchVideoBySpeech(
   query: string,
   top_k = 10,
 ): Promise<NASVideoSpeechResponse> {
-  return backendRequest("/media/video/search/speech", {
-    method: "POST",
-    body: JSON.stringify({ query, directory: ".", top_k }),
-  });
+  const path = "/media/video/search/speech";
+  return nasCall(path, (errorMessage) =>
+    untypedApi.post(path, {
+      reason:
+        "VideoSpeechSearchRequest in the OpenAPI snapshot has no top_k field; the client has always sent it",
+      body: { query, directory: ".", top_k },
+      errorMessage,
+    }),
+  );
 }
 
 export function listVideoFaceGroups(): Promise<NASVideoFaceGroupsResponse> {
-  return backendRequest("/media/video/faces?directory=.&threshold=0.45");
+  // ``path`` keeps the query string so NASRequestError reads as before.
+  const path = "/media/video/faces?directory=.&threshold=0.45";
+  return nasCall(path, (errorMessage) =>
+    apiGet("/media/video/faces", {
+      query: { directory: ".", threshold: 0.45 },
+      headers: JSON_CONTENT_TYPE,
+      errorMessage,
+    }),
+  );
 }
 
 export function classifyVideoTags(): Promise<NASVideoClassifyResponse> {
-  return backendRequest("/media/video/classify", {
-    method: "POST",
-    body: JSON.stringify({ directory: ".", top_k: 5 }),
-  });
+  const path = "/media/video/classify";
+  return nasCall(path, (errorMessage) =>
+    apiPost(path, { body: { directory: ".", top_k: 5 }, errorMessage }),
+  );
 }
 
 export function ocrVideoKeyframes(
   query: string,
   top_k = 20,
 ): Promise<NASVideoOcrResponse> {
-  return backendRequest("/media/video/ocr", {
-    method: "POST",
-    body: JSON.stringify({ query, directory: ".", top_k }),
-  });
+  const path = "/media/video/ocr";
+  return nasCall(path, (errorMessage) =>
+    apiPost(path, { body: { query, directory: ".", top_k }, errorMessage }),
+  );
 }
 
 /**

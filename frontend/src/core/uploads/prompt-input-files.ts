@@ -43,6 +43,7 @@ export async function promptInputFilePartToFile(
   }
 
   try {
+    // raw fetch: reads the attachment's own blob:/data: (or external) URL, not a backend route; it must stay unauthenticated
     const response = await fetch(filePart.url);
     if (!response.ok) {
       throw new Error(

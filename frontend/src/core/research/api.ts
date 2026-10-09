@@ -1,6 +1,10 @@
 import { swallow } from "@/core/utils/log";
-import { jsonAuthHeaders } from "@/core/auth/api";
-import { getBackendBaseURL } from "@/core/config";
+import {
+  EchoAPIError,
+  apiGet,
+  apiPost,
+  failureDetail,
+} from "@/core/api/request";
 import type { SubagentRouteDecision } from "@/core/parallel-agents/api";
 
 export type ResearchDepth = "quick" | "standard" | "deep";
@@ -142,22 +146,22 @@ export interface DeepResearchRequest {
   final_report_format?: "markdown" | "brief" | "slides_outline";
 }
 
+/** The client sent ``Content-Type: application/json`` on these bodiless GETs. */
+const JSON_CONTENT_TYPE = { "Content-Type": "application/json" };
+
 async function postResearch(
-  path: string,
+  path: "/api/research/deep/plan" | "/api/research/deep/start",
   body: DeepResearchRequest,
 ): Promise<ResearchJob> {
-  const res = await fetch(`${getBackendBaseURL()}${path}`, {
-    method: "POST",
-    headers: jsonAuthHeaders(),
-    body: JSON.stringify(body),
-  });
-  if (!res.ok) {
-    const err = (await res.json().catch(() => ({}))) as { detail?: string };
-    throw new Error(
-      err.detail ?? `Deep research request failed: ${res.status}`,
-    );
-  }
-  return (await res.json()) as ResearchJob;
+  return (await apiPost(path, {
+    body,
+    errorMessage: (failure) => {
+      const detail = failureDetail(failure);
+      return detail === undefined || detail === null
+        ? `Deep research request failed: ${failure.status}`
+        : String(detail);
+    },
+  })) as ResearchJob;
 }
 
 export function planDeepResearch(
@@ -176,30 +180,28 @@ export async function fetchDeepResearchJob(
   jobId: string,
 ): Promise<ResearchJob | null> {
   try {
-    const res = await fetch(
-      `${getBackendBaseURL()}/api/research/deep/jobs/${jobId}`,
-      {
-        headers: jsonAuthHeaders(),
-      },
-    );
-    if (!res.ok) return null;
-    return (await res.json()) as ResearchJob;
+    return (await apiGet("/api/research/deep/jobs/{job_id}", {
+      path: { job_id: jobId },
+      headers: JSON_CONTENT_TYPE,
+    })) as ResearchJob;
   } catch (e) {
-    swallow(e);
+    // Any HTTP failure means "no job" (silently, as before); network and
+    // parse errors are swallowed too.
+    if (!(e instanceof EchoAPIError)) swallow(e);
     return null;
   }
 }
 
 export async function listDeepResearchJobs(): Promise<ResearchJob[]> {
   try {
-    const res = await fetch(`${getBackendBaseURL()}/api/research/deep/jobs`, {
-      headers: jsonAuthHeaders(),
-    });
-    if (!res.ok) return [];
-    const data = (await res.json()) as { jobs?: ResearchJob[] };
+    const data = (await apiGet("/api/research/deep/jobs", {
+      headers: JSON_CONTENT_TYPE,
+    })) as { jobs?: ResearchJob[] };
     return data.jobs ?? [];
   } catch (e) {
-    swallow(e);
+    // Any HTTP failure means "no jobs" (silently, as before); network and
+    // parse errors are swallowed too.
+    if (!(e instanceof EchoAPIError)) swallow(e);
     return [];
   }
 }

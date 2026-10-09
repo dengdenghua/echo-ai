@@ -1,5 +1,10 @@
-import { getBackendBaseURL } from "@/core/config";
-import { authHeaders, jsonAuthHeaders } from "@/core/auth/api";
+import {
+  apiFetch,
+  apiGet,
+  apiPost,
+  untypedApi,
+  type ApiFailure,
+} from "@/core/api/request";
 
 export type PauseReason =
   | "user_request"
@@ -70,26 +75,35 @@ export interface ResumeTaskResponse {
   message: string;
 }
 
+/** ``"<label>: <statusText>"`` — this module's read-error wording. */
+function failed(label: string) {
+  return (failure: ApiFailure): string => `${label}: ${failure.statusText}`;
+}
+
+/** ``"<label>: <status> <body or statusText>"`` — the write-error wording. */
+function failedWithBody(label: string) {
+  return (failure: ApiFailure): string =>
+    `${label}: ${failure.status} ${failure.text || failure.statusText}`;
+}
+
 export async function listTasks(
   status?: "paused" | "pending" | "active" | "all",
   signal?: AbortSignal,
 ): Promise<TasksListResponse> {
-  const qs = status ? `?status=${status}` : "";
-  const res = await fetch(`${getBackendBaseURL()}/api/tasks${qs}`, {
-    headers: authHeaders(),
+  return untypedApi.get<TasksListResponse>("/api/tasks", {
+    reason:
+      "GET /api/tasks query `status` is not declared in the OpenAPI snapshot (only workspace_path is)",
+    query: { status: status || undefined },
     signal,
+    errorMessage: failed("Failed to list tasks"),
   });
-  if (!res.ok) throw new Error(`Failed to list tasks: ${res.statusText}`);
-  return (await res.json()) as TasksListResponse;
 }
 
 export async function getTask(taskId: string): Promise<TaskDetail> {
-  const res = await fetch(
-    `${getBackendBaseURL()}/api/tasks/${encodeURIComponent(taskId)}`,
-    { headers: authHeaders() },
-  );
-  if (!res.ok) throw new Error(`Failed to load task: ${res.statusText}`);
-  return (await res.json()) as TaskDetail;
+  return (await apiGet("/api/tasks/{task_id}", {
+    path: { task_id: taskId },
+    errorMessage: failed("Failed to load task"),
+  })) as TaskDetail;
 }
 
 export async function pauseTask(
@@ -97,21 +111,11 @@ export async function pauseTask(
   reason: PauseReason = "user_request",
   note = "",
 ): Promise<{ ok: boolean; request: PauseRequest }> {
-  const res = await fetch(
-    `${getBackendBaseURL()}/api/tasks/${encodeURIComponent(taskId)}/pause`,
-    {
-      method: "POST",
-      headers: jsonAuthHeaders(),
-      body: JSON.stringify({ reason, note }),
-    },
-  );
-  if (!res.ok) {
-    const detail = await res.text();
-    throw new Error(
-      `Failed to pause: ${res.status} ${detail || res.statusText}`,
-    );
-  }
-  return (await res.json()) as { ok: boolean; request: PauseRequest };
+  return (await apiPost("/api/tasks/{task_id}/pause", {
+    path: { task_id: taskId },
+    body: { reason, note },
+    errorMessage: failedWithBody("Failed to pause"),
+  })) as { ok: boolean; request: PauseRequest };
 }
 
 export async function resumeTask(
@@ -122,32 +126,17 @@ export async function resumeTask(
     extra_usd?: number;
   } = {},
 ): Promise<ResumeTaskResponse> {
-  const res = await fetch(
-    `${getBackendBaseURL()}/api/tasks/${encodeURIComponent(taskId)}/resume`,
-    {
-      method: "POST",
-      headers: jsonAuthHeaders(),
-      body: JSON.stringify(opts),
-    },
-  );
-  if (!res.ok) {
-    const detail = await res.text();
-    throw new Error(
-      `Failed to resume: ${res.status} ${detail || res.statusText}`,
-    );
-  }
-  return (await res.json()) as ResumeTaskResponse;
+  return (await apiPost("/api/tasks/{task_id}/resume", {
+    path: { task_id: taskId },
+    body: opts,
+    errorMessage: failedWithBody("Failed to resume"),
+  })) as ResumeTaskResponse;
 }
 
 export async function deleteTask(taskId: string): Promise<void> {
-  const res = await fetch(
-    `${getBackendBaseURL()}/api/tasks/${encodeURIComponent(taskId)}`,
-    { method: "DELETE", headers: authHeaders() },
-  );
-  if (!res.ok) {
-    const detail = await res.text();
-    throw new Error(
-      `Failed to delete: ${res.status} ${detail || res.statusText}`,
-    );
-  }
+  // The success body is not read, exactly as before.
+  await apiFetch("delete", "/api/tasks/{task_id}", {
+    path: { task_id: taskId },
+    errorMessage: failedWithBody("Failed to delete"),
+  });
 }
