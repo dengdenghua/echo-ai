@@ -458,7 +458,7 @@ def test_local_auth_jwt_reaches_control_and_auth_aware_routes(
             jwt_secret="0123456789abcdef0123456789ABCDEF!",
         ),
     )
-    client = TestClient(app)
+    client = TestClient(app, client=("127.0.0.1", 50000))
 
     login = client.post("/api/auth/local/login", json={"username": "alice"})
     assert login.status_code == 200
@@ -510,7 +510,7 @@ def test_local_auth_jwt_audience_is_issued_and_enforced(
             jwt_audience="echo-local-ui",
         ),
     )
-    client = TestClient(app)
+    client = TestClient(app, client=("127.0.0.1", 50000))
 
     login = client.post("/api/auth/local/login", json={"username": "alice"})
     assert login.status_code == 200

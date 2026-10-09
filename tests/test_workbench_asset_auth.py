@@ -46,7 +46,7 @@ def test_manifest_grants_only_authenticated_package_asset_access(tmp_path, monke
         )
     )
     base = "/api/workbench-packages"
-    with TestClient(app) as client:
+    with TestClient(app, client=("127.0.0.1", 50000)) as client:
         assert client.get(f"{base}/first/assets/dist/index.html").status_code == 401
         login = client.post("/api/auth/local/login", json={"username": "reader"})
         headers = {"Authorization": "Bearer " + login.json()["access_token"]}

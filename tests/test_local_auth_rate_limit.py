@@ -71,7 +71,7 @@ def _client(
     router = local_auth_router.create_local_auth_router(config=config, clock=clock)
     app = FastAPI()
     app.include_router(router)
-    return TestClient(app), router
+    return TestClient(app, client=("127.0.0.1", 50000)), router
 
 
 def _login(

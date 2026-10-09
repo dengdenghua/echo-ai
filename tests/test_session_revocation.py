@@ -54,7 +54,7 @@ def test_local_logout_cookie_and_bearer_are_revoked(monkeypatch):
             identity_store=store,
         )
     )
-    with TestClient(app) as client:
+    with TestClient(app, client=("127.0.0.1", 50000)) as client:
         for use_header in (False, True):
             login = client.post("/api/auth/local/login", json={"username": "alice"})
             assert login.status_code == 200
@@ -92,7 +92,7 @@ def test_generic_logout_revokes_bearer_and_cookie_sessions():
             registry=SkillRegistry(), identity_store=store, jwt_secret=SECRET, require_auth=True
         )
     )
-    with TestClient(app) as client:
+    with TestClient(app, client=("127.0.0.1", 50000)) as client:
         for use_cookie in (False, True):
             token = encode_jwt_hs256({"sub": "alice", "exp": time.time() + 3600}, secret=SECRET)
             headers = {"Authorization": f"Bearer {token}"}

@@ -100,3 +100,29 @@ def test_config_loader_preserves_bcrypt_salt(monkeypatch):
     encoded = "bcrypt:$2b$12$ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyza"
     monkeypatch.setenv("ABCDEFGHIJKLMNOPQRSTUVWXYZ", "must-not-replace")
     assert _interpolate_env(encoded) == encoded
+
+
+@pytest.mark.parametrize(
+    "host,origin,status",
+    [
+        ("127.0.0.1", "http://localhost:13310", 200),
+        ("127.0.0.1", None, 200),
+        ("192.168.1.20", None, 403),
+        ("127.0.0.1", "http://evil.example", 403),
+    ],
+)
+def test_passwordless_dev_login_stays_on_this_machine(monkeypatch, host, origin, status):
+    # Dev mode with no password accounts signs anyone in by name; a server
+    # bound to the LAN must not hand those sessions to other machines.
+    monkeypatch.setenv("ECHO_ENV", "development")
+    monkeypatch.setenv("ECHO_DEPLOYMENT_MODE", "local")
+    config = LocalAuthConfig(enabled=True, allow_any_username=True, admin_usernames=["*"])
+    app = FastAPI()
+    app.include_router(create_local_auth_router(config=config))
+    with TestClient(app, client=(host, 50000)) as client:
+        response = client.post(
+            "/api/auth/local/login",
+            json={"username": "guest"},
+            headers={"Origin": origin} if origin else {},
+        )
+    assert response.status_code == status

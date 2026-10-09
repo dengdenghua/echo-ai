@@ -275,7 +275,10 @@ def create_local_auth_router(
         response: Response,
     ) -> LoginResponse:
         _require_enabled()
-        if config.password_only_username:
+        # Development shortcuts — a fixed account, or no password check at all
+        # — stay on this machine even when the server is bound to the LAN;
+        # otherwise anyone on the network could sign in (possibly as admin).
+        if config.password_only_username or not config.password_required:
             import ipaddress
             from urllib.parse import urlsplit
 
