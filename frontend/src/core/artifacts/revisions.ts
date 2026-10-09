@@ -1,4 +1,4 @@
-import { authHeaders } from "@/core/auth/api";
+import { EchoAPIError, untypedApi } from "@/core/api/request";
 import { ArtifactSaveError, canSaveWorkspaceOutput } from "./save";
 import { urlOfArtifactRevision } from "./utils";
 
@@ -36,16 +36,22 @@ async function readRevisions<T>(
   const url = new URL(address, window.location.href);
   for (const [key, value] of Object.entries(params))
     url.searchParams.set(key, value);
-  const response = await fetch(url.toString(), {
-    headers: authHeaders(),
-    signal,
-  });
-  if (!response.ok)
-    throw new ArtifactSaveError(
-      `无法读取版本历史（${response.status}），请重试。`,
-      response.status,
-    );
-  return response.json() as Promise<T>;
+  try {
+    return await untypedApi.get<T>(url.toString(), {
+      reason:
+        "the URL is derived from urlOfArtifactRevision; artifact_path keeps its '/' separators unencoded",
+      baseUrl: "",
+      signal,
+    });
+  } catch (error) {
+    if (error instanceof EchoAPIError) {
+      throw new ArtifactSaveError(
+        `无法读取版本历史（${error.status}），请重试。`,
+        error.status,
+      );
+    }
+    throw error;
+  }
 }
 
 export function listArtifactRevisions(

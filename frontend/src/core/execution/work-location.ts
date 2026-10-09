@@ -1,8 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { useCallback, useEffect, useState } from "react";
 
-import { authHeaders, jsonAuthHeaders } from "@/core/auth/api";
-import { getBackendBaseURL } from "@/core/config";
+import { apiGet, apiPost, type ApiFailure } from "@/core/api/request";
 
 export type RemoteTransport = "ssh_tunnel" | "wsl";
 
@@ -66,14 +65,9 @@ export interface WorkLocationsResponse {
 }
 
 export async function fetchWorkLocations(): Promise<WorkLocationsResponse> {
-  const response = await fetch(
-    `${getBackendBaseURL()}/api/execution/locations`,
-    {
-      headers: authHeaders(),
-    },
-  );
-  if (!response.ok) throw new Error(`HTTP ${response.status}`);
-  return (await response.json()) as WorkLocationsResponse;
+  return (await apiGet("/api/execution/locations", {
+    errorMessage: (failure) => `HTTP ${failure.status}`,
+  })) as WorkLocationsResponse;
 }
 
 export function useWorkLocations(enabled: boolean) {
@@ -117,49 +111,45 @@ export interface RemoteConnectionDraft {
   auth_token?: string;
 }
 
-async function postConnection<T>(
-  path: string,
+/** The draft as sent: an empty token is omitted rather than sent as "". */
+function connectionBody(
   draft: Omit<RemoteConnectionDraft, "name"> & { name?: string },
-): Promise<T> {
-  const response = await fetch(`${getBackendBaseURL()}${path}`, {
-    method: "POST",
-    headers: jsonAuthHeaders(),
-    body: JSON.stringify({
-      ...draft,
-      auth_token: draft.auth_token || undefined,
-    }),
-  });
-  if (!response.ok) {
-    const text = await response.text();
-    let detail = text;
-    try {
-      const parsed = JSON.parse(text) as { detail?: unknown };
-      detail =
-        typeof parsed.detail === "string"
-          ? parsed.detail
-          : JSON.stringify(parsed.detail ?? parsed);
-    } catch {
-      /* plain-text error */
-    }
-    throw new Error(detail || `HTTP ${response.status}`);
+) {
+  return { ...draft, auth_token: draft.auth_token || undefined };
+}
+
+/** A string ``detail``, else the JSON error body, else the raw text. */
+function connectionFailed(failure: ApiFailure): string {
+  let detail = failure.text;
+  try {
+    const parsed = JSON.parse(failure.text) as { detail?: unknown };
+    detail =
+      typeof parsed.detail === "string"
+        ? parsed.detail
+        : JSON.stringify(parsed.detail ?? parsed);
+  } catch {
+    /* plain-text error */
   }
-  return (await response.json()) as T;
+  return detail || `HTTP ${failure.status}`;
 }
 
 /** Probe an unsaved connection: opens the SSH forward / WSL loopback and hits /api/health. */
-export function testRemoteConnection(
+export async function testRemoteConnection(
   draft: Omit<RemoteConnectionDraft, "name">,
 ): Promise<{ status: "ok" | "error"; detail: string | null }> {
-  return postConnection("/api/remote-backends/test", draft);
+  return (await apiPost("/api/remote-backends/test", {
+    body: connectionBody(draft),
+    errorMessage: connectionFailed,
+  })) as { status: "ok" | "error"; detail: string | null };
 }
 
 export async function addRemoteConnection(
   draft: RemoteConnectionDraft,
 ): Promise<{ id: string; name: string }> {
-  const body = await postConnection<{ backend: { id: string; name: string } }>(
-    "/api/remote-backends",
-    draft,
-  );
+  const body = (await apiPost("/api/remote-backends", {
+    body: connectionBody(draft),
+    errorMessage: connectionFailed,
+  })) as { backend: { id: string; name: string } };
   return body.backend;
 }
 

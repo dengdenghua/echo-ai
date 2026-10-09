@@ -17,7 +17,7 @@ import {
   setCloudPluginEnabled,
   setRuntimePluginEnabled,
 } from "@/core/agents/agent-world-api";
-import { authHeaders } from "@/core/auth/api";
+import { EchoAPIError, apiGet, type ApiFailure } from "@/core/api/request";
 import { getBackendBaseURL } from "@/core/config";
 import { useActiveAgentId } from "@/core/agents/active";
 import {
@@ -80,8 +80,9 @@ function issueFromError(error: unknown): SurfaceIssue {
   };
 }
 
-async function responseDetail(response: Response): Promise<string> {
-  const text = await response.text().catch(() => "");
+/** A string ``detail`` from a JSON error body, or the trimmed plain text. */
+function failureText(failure: ApiFailure): string {
+  const { text } = failure;
   if (!text) return "";
   try {
     const payload = JSON.parse(text) as { detail?: unknown };
@@ -89,6 +90,40 @@ async function responseDetail(response: Response): Promise<string> {
   } catch {
     return text.trim();
   }
+}
+
+function manifestLoadError(
+  status: number,
+  detail: string,
+): RemoteWorkbenchLoadError {
+  if (status === 404) {
+    return new RemoteWorkbenchLoadError(
+      "missing",
+      "应用尚未安装，或安装包缺少界面入口。",
+    );
+  }
+  if (status === 409) {
+    return new RemoteWorkbenchLoadError(
+      "incompatible",
+      detail || "当前应用版本与 Echo 宿主不兼容，请更新应用。",
+    );
+  }
+  if (status === 422) {
+    return new RemoteWorkbenchLoadError(
+      "corrupt",
+      "安装包损坏或完整性校验失败，请从应用中心重新安装。",
+    );
+  }
+  if (status >= 500) {
+    return new RemoteWorkbenchLoadError(
+      "offline",
+      detail || "本地应用服务暂时不可用，请稍后重试。",
+    );
+  }
+  return new RemoteWorkbenchLoadError(
+    "unknown",
+    detail || `应用界面包加载失败（HTTP ${status}）。`,
+  );
 }
 
 function backendOrigin(): string {
@@ -103,42 +138,20 @@ export async function fetchRemoteWorkbenchManifest(
   packageId: string,
   signal?: AbortSignal,
 ): Promise<RemoteWorkbenchManifest> {
-  const response = await fetch(
-    `${getBackendBaseURL()}/api/workbench-packages/${encodeURIComponent(packageId)}/manifest`,
-    { headers: authHeaders(), signal },
-  );
-  if (!response.ok) {
-    const detail = await responseDetail(response);
-    if (response.status === 404) {
-      throw new RemoteWorkbenchLoadError(
-        "missing",
-        "应用尚未安装，或安装包缺少界面入口。",
-      );
+  let manifest: RemoteWorkbenchManifest;
+  try {
+    manifest = (await apiGet("/api/workbench-packages/{plugin_id}/manifest", {
+      path: { plugin_id: packageId },
+      signal,
+      // The error message carries the body's detail text to the mapping below.
+      errorMessage: failureText,
+    })) as RemoteWorkbenchManifest;
+  } catch (error) {
+    if (error instanceof EchoAPIError) {
+      throw manifestLoadError(error.status, error.message);
     }
-    if (response.status === 409) {
-      throw new RemoteWorkbenchLoadError(
-        "incompatible",
-        detail || "当前应用版本与 Echo 宿主不兼容，请更新应用。",
-      );
-    }
-    if (response.status === 422) {
-      throw new RemoteWorkbenchLoadError(
-        "corrupt",
-        "安装包损坏或完整性校验失败，请从应用中心重新安装。",
-      );
-    }
-    if (response.status >= 500) {
-      throw new RemoteWorkbenchLoadError(
-        "offline",
-        detail || "本地应用服务暂时不可用，请稍后重试。",
-      );
-    }
-    throw new RemoteWorkbenchLoadError(
-      "unknown",
-      detail || `应用界面包加载失败（HTTP ${response.status}）。`,
-    );
+    throw error;
   }
-  const manifest = (await response.json()) as RemoteWorkbenchManifest;
   if (
     manifest.schema !== "echo.workbench_app.v1" ||
     manifest.id !== packageId ||

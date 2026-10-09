@@ -1,5 +1,4 @@
-import { getBackendBaseURL } from "@/core/config";
-import { jsonAuthHeaders } from "@/core/auth/api";
+import { apiPost } from "@/core/api/request";
 
 export interface DesignCapabilities {
   mode: "auto" | "manual";
@@ -62,20 +61,13 @@ export async function resolveDesignCapabilities(
   checkConnection = false,
   signal?: AbortSignal,
 ): Promise<DesignCapabilityPlan> {
-  const response = await fetch(
-    `${getBackendBaseURL()}/api/design/capabilities/resolve`,
-    {
-      method: "POST",
-      headers: jsonAuthHeaders(),
-      signal,
-      body: JSON.stringify({
-        goal,
-        preferences,
-        check_connection: checkConnection,
-      }),
+  return (await apiPost("/api/design/capabilities/resolve", {
+    signal,
+    body: {
+      goal,
+      preferences,
+      check_connection: checkConnection,
     },
-  );
-  if (!response.ok)
-    throw new Error(`设计能力检查失败 (${response.status})，请重试`);
-  return (await response.json()) as DesignCapabilityPlan;
+    errorMessage: (failure) => `设计能力检查失败 (${failure.status})，请重试`,
+  })) as DesignCapabilityPlan;
 }

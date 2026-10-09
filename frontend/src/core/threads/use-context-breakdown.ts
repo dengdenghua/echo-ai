@@ -1,7 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 
-import { authHeaders } from "@/core/auth/api";
-import { getBackendBaseURL } from "@/core/config";
+import { untypedApi } from "@/core/api/request";
 import { swallow } from "@/core/utils/log";
 import {
   normalizeContextBreakdown,
@@ -47,18 +46,16 @@ export function useContextBreakdown(
     setIsLoading(true);
     void (async () => {
       try {
-        const response = await fetch(
-          `${getBackendBaseURL()}/api/threads/${encodeURIComponent(threadId)}/context-breakdown`,
-          { headers: authHeaders(), signal: controller.signal },
-        );
-        if (!response.ok) {
-          throw new Error(`context breakdown unavailable (${response.status})`);
-        }
-        const payload = (await response.json()) as {
+        const payload = await untypedApi.get<{
           segments?: unknown;
           total_tokens?: unknown;
           source?: unknown;
-        };
+        }>(`/api/threads/${encodeURIComponent(threadId)}/context-breakdown`, {
+          reason: "the context-breakdown route is not in the OpenAPI snapshot",
+          signal: controller.signal,
+          errorMessage: (failure) =>
+            `context breakdown unavailable (${failure.status})`,
+        });
         if (controller.signal.aborted) return;
         const segments = normalizeContextBreakdown(payload.segments);
         if (!segments) {

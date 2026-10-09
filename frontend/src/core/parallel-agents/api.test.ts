@@ -7,6 +7,8 @@ vi.mock("@/core/config", () => ({
 const authState = vi.hoisted(() => ({ token: null as string | null }));
 vi.mock("@/core/auth/api", () => ({
   getToken: () => authState.token,
+  authHeaders: (): Record<string, string> =>
+    authState.token ? { Authorization: `Bearer ${authState.token}` } : {},
 }));
 
 import { fetchBatchRecoverySnapshot, streamBatch, toBackendURL } from "./api";

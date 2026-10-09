@@ -1,5 +1,4 @@
-import { getBackendBaseURL } from "@/core/config";
-import { authHeaders } from "@/core/auth/api";
+import { apiGet } from "@/core/api/request";
 
 export interface RegenerationSchedulerStatus {
   running: boolean;
@@ -112,9 +111,7 @@ export interface RegenerationStatus {
 }
 
 export async function getRegenerationStatus(): Promise<RegenerationStatus> {
-  const res = await fetch(`${getBackendBaseURL()}/api/regeneration/status`, {
-    headers: authHeaders(),
-  });
-  if (!res.ok) throw new Error(`Failed: ${res.statusText}`);
-  return (await res.json()) as RegenerationStatus;
+  return (await apiGet("/api/regeneration/status", {
+    errorMessage: (failure) => `Failed: ${failure.statusText}`,
+  })) as RegenerationStatus;
 }

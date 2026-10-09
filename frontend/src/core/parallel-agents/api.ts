@@ -5,7 +5,7 @@
  * `swarm/live-driver.ts` (Kimi-style workbench). Both now consume this module.
  */
 import { swallow } from "@/core/utils/log";
-import { getToken } from "@/core/auth/api";
+import { EchoAPIError, apiFetch, apiGet, apiPost } from "@/core/api/request";
 import { getBackendBaseURL } from "@/core/config";
 import { openSseStream } from "@/core/streaming/sse";
 
@@ -233,46 +233,40 @@ export interface SplitResult {
 // gracefully instead of tearing down their render tree.
 // ---------------------------------------------------------------------------
 
-// Shared fetch options — include cookies for session-based auth and Bearer
-// token for token-based auth. Match the rest of the app's auth pattern.
 export function toBackendURL(pathOrUrl: string): string {
   if (/^https?:\/\//i.test(pathOrUrl)) return pathOrUrl;
   return `${getBackendBaseURL()}${pathOrUrl}`;
 }
 
-async function authedFetch(
-  pathOrUrl: string,
-  init?: RequestInit,
-): Promise<Response> {
-  const token = getToken();
-  return fetch(toBackendURL(pathOrUrl), {
-    ...init,
-    credentials: "include",
-    headers: {
-      ...(init?.headers ?? {}),
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
-    },
-  });
+// Calls include cookies for session-based auth; the request layer adds the
+// Bearer token for token-based auth.
+const WITH_COOKIES = { credentials: "include" } as const;
+
+/** A non-2xx answer degrades quietly (as ``!res.ok`` did); other errors are logged. */
+function swallowUnlessHttp(error: unknown): void {
+  if (!(error instanceof EchoAPIError)) swallow(error);
 }
 
 export async function fetchOrchestratorStatus(): Promise<OrchestratorStatus | null> {
   try {
-    const res = await authedFetch("/api/agents/parallel/status");
-    if (!res.ok) return null;
-    return (await res.json()) as OrchestratorStatus;
+    return (await apiGet(
+      "/api/agents/parallel/status",
+      WITH_COOKIES,
+    )) as OrchestratorStatus;
   } catch (e) {
-    swallow(e);
+    swallowUnlessHttp(e);
     return null;
   }
 }
 
 export async function fetchBatch(batchId: string): Promise<BatchResult | null> {
   try {
-    const res = await authedFetch(`/api/agents/parallel/batch/${batchId}`);
-    if (!res.ok) return null;
-    return (await res.json()) as BatchResult;
+    return (await apiGet("/api/agents/parallel/batch/{batch_id}", {
+      ...WITH_COOKIES,
+      path: { batch_id: batchId },
+    })) as BatchResult;
   } catch (e) {
-    swallow(e);
+    swallowUnlessHttp(e);
     return null;
   }
 }
@@ -281,37 +275,35 @@ export async function fetchBatchRecoverySnapshot(
   batchId: string,
 ): Promise<BatchRecoverySnapshot | null> {
   try {
-    const res = await authedFetch(
-      `/api/agents/parallel/batch/${batchId}/recovery-snapshot`,
-    );
-    if (!res.ok) return null;
-    return (await res.json()) as BatchRecoverySnapshot;
+    return (await apiGet(
+      "/api/agents/parallel/batch/{batch_id}/recovery-snapshot",
+      { ...WITH_COOKIES, path: { batch_id: batchId } },
+    )) as BatchRecoverySnapshot;
   } catch (e) {
-    swallow(e);
+    swallowUnlessHttp(e);
     return null;
   }
 }
 
 export async function cancelTask(taskId: string): Promise<boolean> {
   try {
-    const res = await authedFetch(`/api/agents/parallel/cancel/${taskId}`, {
-      method: "POST",
+    await apiFetch("post", "/api/agents/parallel/cancel/{task_id}", {
+      ...WITH_COOKIES,
+      path: { task_id: taskId },
     });
-    return res.ok;
+    return true;
   } catch (e) {
-    swallow(e);
+    swallowUnlessHttp(e);
     return false;
   }
 }
 
 export async function cancelAll(): Promise<boolean> {
   try {
-    const res = await authedFetch("/api/agents/parallel/cancel-all", {
-      method: "POST",
-    });
-    return res.ok;
+    await apiFetch("post", "/api/agents/parallel/cancel-all", WITH_COOKIES);
+    return true;
   } catch (e) {
-    swallow(e);
+    swallowUnlessHttp(e);
     return false;
   }
 }
@@ -490,22 +482,19 @@ export async function dispatchParallel(
         ]
       : tasksOrPrompt;
   try {
-    const res = await authedFetch("/api/agents/parallel/dispatch", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
+    return (await apiPost("/api/agents/parallel/dispatch", {
+      ...WITH_COOKIES,
+      body: {
         tasks,
         max_concurrency: options?.max_concurrency,
         aggregation_strategy: options?.aggregation_strategy,
         execution_mode: options?.execution_mode,
         thread_id: options?.thread_id,
         model_name: options?.model_name,
-      }),
-    });
-    if (!res.ok) return null;
-    return (await res.json()) as BatchResult;
+      },
+    })) as BatchResult;
   } catch (e) {
-    swallow(e);
+    swallowUnlessHttp(e);
     return null;
   }
 }
@@ -519,20 +508,17 @@ export async function splitTask(
   },
 ): Promise<SplitResult | null> {
   try {
-    const res = await authedFetch("/api/agents/parallel/split", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
+    return (await apiPost("/api/agents/parallel/split", {
+      ...WITH_COOKIES,
+      body: {
         task: prompt,
         max_subtasks: options?.max_subtasks,
         context: options?.context,
         model_name: options?.model_name,
-      }),
-    });
-    if (!res.ok) return null;
-    return (await res.json()) as SplitResult;
+      },
+    })) as SplitResult;
   } catch (e) {
-    swallow(e);
+    swallowUnlessHttp(e);
     return null;
   }
 }

@@ -1,5 +1,4 @@
-import { getBackendBaseURL } from "../config";
-import { authHeaders } from "@/core/auth/api";
+import { apiGet, untypedApi } from "@/core/api/request";
 
 import type { Model } from "./types";
 
@@ -9,17 +8,19 @@ export async function loadModels(): Promise<Model[]> {
   // "echo-ai/list_cwd") as "models" for external clients that
   // want to call a skill via model= routing. For the in-app
   // ModelPicker we want real LLM options (Echo Mix + configured custom models).
-  const res = await fetch(`${getBackendBaseURL()}/api/llm-models`, {
-    headers: authHeaders(),
-  });
-  if (!res.ok)
-    throw new Error(`Failed to load models: ${res.status} ${res.statusText}`);
-  const { models } = (await res.json()) as { models: Model[] };
-  const officialResponse = await fetch(
-    `${getBackendBaseURL()}/api/oct/openai/v1/models`,
-    { headers: authHeaders() },
-  ).catch(() => null);
-  const official = officialResponse?.ok ? await officialResponse.json() : null;
+  const { models } = (await apiGet("/api/llm-models", {
+    errorMessage: (failure) =>
+      `Failed to load models: ${failure.status} ${failure.statusText}`,
+  })) as { models: Model[] };
+  // Network and HTTP failures both mean "no official catalog"; a malformed
+  // 2xx body still throws, as before.
+  const officialResponse = await untypedApi
+    .fetch("get", "/api/oct/openai/v1/models", {
+      reason:
+        "the oct OpenAI-compat models route is not in the OpenAPI snapshot",
+    })
+    .catch(() => null);
+  const official = officialResponse ? await officialResponse.json() : null;
   const officialRows: Model[] = Array.isArray(official?.data)
     ? official.data
         .filter(

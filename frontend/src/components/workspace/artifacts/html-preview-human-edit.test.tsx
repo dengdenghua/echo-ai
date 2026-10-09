@@ -286,10 +286,10 @@ describe("HtmlPreview human editing", () => {
     );
 
     await waitFor(() => expect(fetch).toHaveBeenCalledTimes(1));
-    expect(fetch).toHaveBeenCalledWith(
-      expect.stringContaining("/output-proposals/"),
-      expect.objectContaining({ method: "GET" }),
-    );
+    const [url, init] = vi.mocked(fetch).mock.calls[0]!;
+    expect(String(url)).toContain("/output-proposals/");
+    // Only the proposal read happens; GET may be implicit in the init.
+    expect(init?.method ?? "GET").toBe("GET");
   });
 
   it("keeps the editing session open when the artifact changed concurrently", async () => {

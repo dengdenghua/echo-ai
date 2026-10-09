@@ -5,8 +5,7 @@
  * /api/auth/oct/* 与 /api/account/oct/*(后端用存的网关 JWT 调上游 + 网关计费)。
  * 这是 additive 模块;登录页/消费者切到这里在 ③b。
  */
-import { authHeaders } from "@/core/auth/api";
-import { getBackendBaseURL } from "@/core/config";
+import { EchoAPIError, failureDetail, untypedApi } from "@/core/api/request";
 
 export class OctApiError extends Error {
   readonly status: number;
@@ -64,26 +63,31 @@ export function octErrorMessage(error: unknown, fallback: string): string {
 
 async function _request<T>(
   path: string,
-  init?: RequestInit & { signal?: AbortSignal },
+  init: { method?: "POST" | "DELETE"; body?: unknown } = {},
 ): Promise<T> {
-  const res = await fetch(`${getBackendBaseURL()}${path}`, {
-    ...init,
-    headers: { ...authHeaders(), ...(init?.headers || {}) },
-  });
-  if (!res.ok) {
-    const body = (await res.json().catch(() => null)) as {
-      detail?: unknown;
-    } | null;
-    const detail = body?.detail;
-    throw new OctApiError(
-      res.status,
-      typeof detail === "string"
-        ? detail
-        : (messageFromRecord(detail) ??
-            `${init?.method ?? "GET"} ${path} → ${res.status}`),
-    );
+  const method = init.method ?? "GET";
+  const verb = ({ GET: "get", POST: "post", DELETE: "delete" } as const)[
+    method
+  ];
+  try {
+    return await untypedApi[verb]<T>(path, {
+      reason:
+        "the /api/auth/oct and /api/account/oct routes are not in the OpenAPI snapshot",
+      body: init.body,
+      errorMessage: (failure) => {
+        const detail = failureDetail(failure);
+        return typeof detail === "string"
+          ? detail
+          : (messageFromRecord(detail) ??
+              `${method} ${path} → ${failure.status}`);
+      },
+    });
+  } catch (error) {
+    if (error instanceof EchoAPIError) {
+      throw new OctApiError(error.status, error.message);
+    }
+    throw error;
   }
-  return (await res.json()) as T;
 }
 
 // ─── 认证(邮箱验证码)───────────────────────────────────
@@ -110,16 +114,14 @@ export const octAuthApi = {
   emailSend: (email: string) =>
     _request<OctEmailSendResponse>("/api/auth/oct/email/send", {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ email }),
+      body: { email },
     }),
 
   /** 邮箱验证码登录 → 返回会话 access_token(agent 自有 JWT 或网关 JWT)。 */
   emailLogin: (email: string, code: string) =>
     _request<OctEmailLoginResponse>("/api/auth/oct/email/login", {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ email, code }),
+      body: { email, code },
     }),
 };
 
@@ -243,8 +245,7 @@ export const octApi = {
     create: (goodsId: string, currency: "CNY" | "USD" = "CNY") =>
       _request<OctOrder>("/api/account/oct/orders", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ goods_id: goodsId, currency }),
+        body: { goods_id: goodsId, currency },
       }),
 
     /** 查单(status=PAID 时后端顺手刷余额)。 */

@@ -2,12 +2,12 @@
  * Local-model cookbook: hardware-aware recommendations + one-click pull.
  *
  * `/api/cookbook/snapshot` (public) returns detected hardware + ranked models;
- * `/api/cookbook/pull` (auth-gated) triggers a background ollama pull. The global
- * fetch interceptor supplies the bearer token.
+ * `/api/cookbook/pull` (auth-gated) triggers a background ollama pull. The typed
+ * request layer sends the bearer token on both.
  */
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
-import { getBackendBaseURL } from "@/core/config";
+import { EchoAPIError, apiGet, apiPost } from "@/core/api/request";
 
 export interface CookbookHardware {
   backend: string;
@@ -52,9 +52,13 @@ const EMPTY: CookbookSnapshot = {
 };
 
 async function fetchSnapshot(signal?: AbortSignal): Promise<CookbookSnapshot> {
-  const res = await fetch(`${getBackendBaseURL()}/api/cookbook/snapshot`, { signal });
-  if (!res.ok) return EMPTY;
-  return (await res.json()) as CookbookSnapshot;
+  try {
+    return (await apiGet("/api/cookbook/snapshot", { signal })) as CookbookSnapshot;
+  } catch (error) {
+    // Any HTTP failure falls back to the empty static snapshot.
+    if (error instanceof EchoAPIError) return EMPTY;
+    throw error;
+  }
 }
 
 export function useCookbook(): {
@@ -86,15 +90,11 @@ export function useCookbookPull(): {
 } {
   const qc = useQueryClient();
   const m = useMutation({
-    mutationFn: async (tag: string) => {
-      const res = await fetch(`${getBackendBaseURL()}/api/cookbook/pull`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ tag }),
-      });
-      if (!res.ok) throw new Error(`pull failed: ${res.status}`);
-      return res.json();
-    },
+    mutationFn: (tag: string) =>
+      apiPost("/api/cookbook/pull", {
+        body: { tag },
+        errorMessage: (failure) => `pull failed: ${failure.status}`,
+      }),
     onSettled: () => {
       void qc.invalidateQueries({ queryKey: KEY });
     },

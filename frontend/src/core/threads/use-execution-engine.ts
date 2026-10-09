@@ -2,9 +2,8 @@ import { useQuery } from "@tanstack/react-query";
 import { useCallback, useEffect, useState } from "react";
 
 import { coderQueryKeys, getCoderModelProfile } from "@/core/coder/api";
-import { authHeaders } from "@/core/auth/api";
+import { apiGet } from "@/core/api/request";
 import type { EngineCapabilityChecks } from "@/core/agents/engine-capability-checks";
-import { getBackendBaseURL } from "@/core/config";
 import {
   executionEnginePreference,
   previewExecutionEngine,
@@ -105,21 +104,15 @@ export function useExecutionEngine({
   const codexAvailable = profile.data?.execution_available === true;
   const opencode = useQuery({
     queryKey: ["opencode-status", principal],
-    queryFn: async ({ signal }) => {
-      const response = await fetch(
-        `${getBackendBaseURL()}/api/config/opencode/status`,
-        {
-          headers: authHeaders(),
-          signal,
-        },
-      );
-      if (!response.ok) throw new Error("OpenCode status unavailable");
-      return (await response.json()) as {
+    queryFn: async ({ signal }) =>
+      (await apiGet("/api/config/opencode/status", {
+        signal,
+        errorMessage: () => "OpenCode status unavailable",
+      })) as {
         available: boolean;
         reason: string | null;
         capability_checks?: EngineCapabilityChecks;
-      };
-    },
+      },
     enabled,
     staleTime: 30_000,
   });

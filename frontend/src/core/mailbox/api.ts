@@ -1,5 +1,4 @@
-import { getBackendBaseURL } from "@/core/config";
-import { jsonAuthHeaders } from "@/core/auth/api";
+import { failureDetail, untypedApi, type HttpMethod } from "@/core/api/request";
 
 export interface MailAccount {
   id: string;
@@ -36,18 +35,20 @@ export async function mailboxRequest<T>(
   path: string,
   options: { method?: string; body?: unknown; signal?: AbortSignal } = {},
 ): Promise<T> {
-  const response = await fetch(`${getBackendBaseURL()}/api/mailbox${path}`, {
-    method: options.method ?? "GET",
-    headers: jsonAuthHeaders(),
+  const method = (options.method ?? "GET").toLowerCase() as HttpMethod;
+  const response = await untypedApi.fetch(method, `/api/mailbox${path}`, {
+    reason: "callers pass a dynamic /api/mailbox sub-route and verb",
+    body: options.body,
     signal: options.signal,
-    body: options.body === undefined ? undefined : JSON.stringify(options.body),
+    // Historically sent on every call, including bodiless GETs.
+    headers: { "Content-Type": "application/json" },
+    errorMessage: (failure) => {
+      const detail = failureDetail(failure);
+      return typeof detail === "string"
+        ? detail
+        : `邮箱请求失败（${failure.status}）`;
+    },
   });
-  const data = await response.json().catch(() => null);
-  if (!response.ok)
-    throw new Error(
-      typeof data?.detail === "string"
-        ? data.detail
-        : `邮箱请求失败（${response.status}）`,
-    );
-  return data as T;
+  // An empty or non-JSON 2xx body resolves to null, as before.
+  return (await response.json().catch(() => null)) as T;
 }

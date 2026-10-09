@@ -9,8 +9,14 @@
  *   GET  /api/tentacle/stats            — coordinator stats
  */
 
-import { authHeaders } from "@/core/auth/api";
-import { getBackendBaseURL } from "@/core/config";
+import {
+  apiFetch,
+  apiGet,
+  apiPost,
+  failureDetail,
+  untypedApi,
+  type ApiFailure,
+} from "@/core/api/request";
 
 // ── Types ──────────────────────────────────────────────
 
@@ -126,47 +132,57 @@ export interface ScreenAnalysis {
 
 // ── API ────────────────────────────────────────────────
 
-const TENTACLE_BASE = "/api/tentacle";
-
-async function request<T>(path: string, init?: RequestInit): Promise<T> {
-  const url = `${getBackendBaseURL()}${TENTACLE_BASE}${path}`;
-  const res = await fetch(url, {
-    ...init,
-    headers: {
-      "Content-Type": "application/json",
-      ...authHeaders(),
-      ...(init?.headers ?? {}),
-    },
-  });
-  if (!res.ok) {
-    const body = await res.json().catch(() => ({}));
-    throw new Error(body.detail || res.statusText);
-  }
-  return res.json();
+/** ``body.detail`` when truthy, else the status text — the historical wording. */
+function failed(failure: ApiFailure): string {
+  return String(failureDetail(failure) || failure.statusText);
 }
 
+/**
+ * Options every JSON tentacle call shares. The client has always sent a JSON
+ * content type, including on bodiless GETs.
+ */
+const JSON_CALL = {
+  headers: { "Content-Type": "application/json" },
+  errorMessage: failed,
+};
+
 export async function listDevices(signal?: AbortSignal): Promise<TentacleDevice[]> {
-  return request<TentacleDevice[]>("/devices", { signal });
+  return (await apiGet("/api/tentacle/devices", {
+    ...JSON_CALL,
+    signal,
+  })) as TentacleDevice[];
 }
 
 export async function getDevice(tentacleId: string): Promise<TentacleDevice> {
-  return request<TentacleDevice>(`/devices/${encodeURIComponent(tentacleId)}`);
+  return (await apiGet("/api/tentacle/devices/{tentacle_id}", {
+    ...JSON_CALL,
+    path: { tentacle_id: tentacleId },
+  })) as TentacleDevice;
 }
 
 export async function getDeviceManifest(
   tentacleId: string,
 ): Promise<Record<string, unknown>> {
-  return request(`/devices/${encodeURIComponent(tentacleId)}/manifest`);
+  return (await apiGet("/api/tentacle/devices/{tentacle_id}/manifest", {
+    ...JSON_CALL,
+    path: { tentacle_id: tentacleId },
+  })) as Record<string, unknown>;
 }
 
 export async function getDeviceLease(tentacleId: string): Promise<DeviceLease> {
-  return request(`/devices/${encodeURIComponent(tentacleId)}/lease`);
+  return (await apiGet("/api/tentacle/devices/{tentacle_id}/lease", {
+    ...JSON_CALL,
+    path: { tentacle_id: tentacleId },
+  })) as DeviceLease;
 }
 
 export async function getDeviceHealth(
   tentacleId: string,
 ): Promise<DeviceHealth> {
-  return request(`/devices/${encodeURIComponent(tentacleId)}/health`);
+  return (await apiGet("/api/tentacle/devices/{tentacle_id}/health", {
+    ...JSON_CALL,
+    path: { tentacle_id: tentacleId },
+  })) as DeviceHealth;
 }
 
 export async function getDeviceTelemetry(
@@ -176,24 +192,35 @@ export async function getDeviceTelemetry(
   samples: Array<Record<string, unknown>>;
   faults: Array<Record<string, unknown>>;
 }> {
-  const query = metric ? `?metric=${encodeURIComponent(metric)}` : "";
-  return request(
-    `/devices/${encodeURIComponent(tentacleId)}/telemetry${query}`,
-  );
+  return (await apiGet("/api/tentacle/devices/{tentacle_id}/telemetry", {
+    ...JSON_CALL,
+    path: { tentacle_id: tentacleId },
+    query: { metric: metric || undefined },
+  })) as {
+    samples: Array<Record<string, unknown>>;
+    faults: Array<Record<string, unknown>>;
+  };
 }
 
 export async function listProcedures(): Promise<DeviceProcedure[]> {
-  return request("/procedures");
+  return (await apiGet("/api/tentacle/procedures", {
+    ...JSON_CALL,
+  })) as DeviceProcedure[];
 }
 
 export async function controlProcedure(
   procedureId: string,
   action: "run" | "pause" | "resume" | "cancel" | "emergency-stop",
 ): Promise<DeviceProcedure> {
-  return request(`/procedures/${encodeURIComponent(procedureId)}/${action}`, {
-    method: "POST",
-    body: JSON.stringify({}),
-  });
+  return untypedApi.post<DeviceProcedure>(
+    `/api/tentacle/procedures/${encodeURIComponent(procedureId)}/${action}`,
+    {
+      reason:
+        "dynamic action segment; pause/cancel/emergency-stop declare no body but the client sends {}",
+      ...JSON_CALL,
+      body: {},
+    },
+  );
 }
 
 export interface SimulationReport {
@@ -221,10 +248,11 @@ export async function dryRunProcedure(
     injected_faults?: Record<string, string>;
   },
 ): Promise<SimulationReport> {
-  return request(`/procedures/${encodeURIComponent(procedureId)}/dry-run`, {
-    method: "POST",
-    body: JSON.stringify(scenario ?? {}),
-  });
+  return (await apiPost("/api/tentacle/procedures/{procedure_id}/dry-run", {
+    ...JSON_CALL,
+    path: { procedure_id: procedureId },
+    body: scenario ?? {},
+  })) as SimulationReport;
 }
 
 export async function submitTask(
@@ -233,18 +261,22 @@ export async function submitTask(
 ): Promise<TaskRecord> {
   const body: Record<string, string> = { task };
   if (tentacleId) body.tentacle_id = tentacleId;
-  return request<TaskRecord>("/task", {
-    method: "POST",
-    body: JSON.stringify(body),
-  });
+  return (await apiPost("/api/tentacle/task", {
+    ...JSON_CALL,
+    body,
+  })) as TaskRecord;
 }
 
 export async function listTasks(): Promise<TaskRecord[]> {
-  return request<TaskRecord[]>("/tasks");
+  return (await apiGet("/api/tentacle/tasks", {
+    ...JSON_CALL,
+  })) as TaskRecord[];
 }
 
 export async function getStats(): Promise<TentacleStats> {
-  return request<TentacleStats>("/stats");
+  return (await apiGet("/api/tentacle/stats", {
+    ...JSON_CALL,
+  })) as TentacleStats;
 }
 
 // ── VLM / Screenshot ───────────────────────────────────
@@ -253,22 +285,24 @@ export async function analyzeDevice(
   tentacleId: string,
   task: string,
 ): Promise<ScreenAnalysis> {
-  return request<ScreenAnalysis>(
-    `/devices/${encodeURIComponent(tentacleId)}/analyze`,
-    {
-      method: "POST",
-      body: JSON.stringify({ task }),
-    },
-  );
+  return (await apiPost("/api/tentacle/devices/{tentacle_id}/analyze", {
+    ...JSON_CALL,
+    path: { tentacle_id: tentacleId },
+    body: { task },
+  })) as ScreenAnalysis;
 }
 
 export async function getDeviceScreenshot(tentacleId: string): Promise<Blob> {
-  const url = `${TENTACLE_BASE}/devices/${encodeURIComponent(tentacleId)}/screenshot`;
-  const res = await fetch(url, { headers: authHeaders() });
-  if (!res.ok) {
-    const body = await res.json().catch(() => ({}));
-    throw new Error(body.detail || res.statusText);
-  }
+  const res = await apiFetch(
+    "get",
+    "/api/tentacle/devices/{tentacle_id}/screenshot",
+    {
+      path: { tentacle_id: tentacleId },
+      // This call has always been origin-relative (no backend base URL).
+      baseUrl: "",
+      errorMessage: failed,
+    },
+  );
   return res.blob();
 }
 
@@ -293,27 +327,34 @@ export async function startPcScreenCapture(opts?: {
   scale?: number;
   quality?: number;
 }): Promise<{ status: string; stats: PcScreenStats }> {
-  return request("/pc-screen/start", {
-    method: "POST",
-    body: JSON.stringify(opts || {}),
-  });
+  return (await apiPost("/api/tentacle/pc-screen/start", {
+    ...JSON_CALL,
+    body: opts || {},
+  })) as { status: string; stats: PcScreenStats };
 }
 
 export async function stopPcScreenCapture(): Promise<{
   status: string;
   last_stats: PcScreenStats;
 }> {
-  return request("/pc-screen/stop", { method: "POST" });
+  return (await apiPost("/api/tentacle/pc-screen/stop", {
+    ...JSON_CALL,
+  })) as { status: string; last_stats: PcScreenStats };
 }
 
 export async function getPcScreenStats(): Promise<PcScreenStats> {
-  return request("/pc-screen/stats");
+  return (await apiGet("/api/tentacle/pc-screen/stats", {
+    ...JSON_CALL,
+  })) as PcScreenStats;
 }
 
 // ── Skills ─────────────────────────────────────────────
 
 export async function listSkills(): Promise<SkillInfo[]> {
-  return request("/skills");
+  return untypedApi.get<SkillInfo[]>("/api/tentacle/skills", {
+    reason: "the tentacle skills route is not in the OpenAPI snapshot",
+    ...JSON_CALL,
+  });
 }
 
 // ── Remote Input ───────────────────────────────────────
@@ -354,8 +395,8 @@ export interface RemoteInputEvent {
 export async function sendRemoteInput(
   event: RemoteInputEvent,
 ): Promise<{ success: boolean; error: string | null }> {
-  return request("/remote-input", {
-    method: "POST",
-    body: JSON.stringify(event),
-  });
+  return (await apiPost("/api/tentacle/remote-input", {
+    ...JSON_CALL,
+    body: event,
+  })) as { success: boolean; error: string | null };
 }

@@ -62,6 +62,9 @@ export interface OpenSseStreamOptions {
 // Default transport: same-origin or absolute backend URL, cookies for
 // session auth, Bearer header for token auth — mirrors the authedFetch
 // pattern used across the app's API modules.
+// raw fetch: this is the SSE transport itself — it needs the streaming
+// Response, a per-attempt Last-Event-ID header and `credentials: include`,
+// none of which the JSON request layer (core/api/request) models.
 const defaultFetchImpl: SseFetchImpl = (url, init) => {
   const token = getToken();
   return fetch(url, {

@@ -1,5 +1,10 @@
-import { authHeaders } from "@/core/auth/api";
-import { getBackendBaseURL } from "@/core/config";
+import {
+  apiGet,
+  apiPost,
+  failureDetail,
+  untypedApi,
+  type ApiFailure,
+} from "@/core/api/request";
 
 import type {
   WikiDocList,
@@ -8,34 +13,26 @@ import type {
   WikiUpdateResult,
 } from "./types";
 
-async function wikiRequest<T>(path: string, init?: RequestInit): Promise<T> {
-  const response = await fetch(`${getBackendBaseURL()}${path}`, {
-    ...init,
-    headers: { ...authHeaders(), ...init?.headers },
-  });
-  if (!response.ok) {
-    const detail = (await response.json().catch(() => ({}))) as {
-      detail?: string;
-    };
-    throw new Error(
-      detail.detail ?? `Wiki request failed (${response.status})`,
-    );
-  }
-  return (await response.json()) as T;
+/** ``detail`` from the error body, else this module's status wording. */
+function failed(failure: ApiFailure): string {
+  const detail = failureDetail(failure);
+  return detail === undefined || detail === null
+    ? `Wiki request failed (${failure.status})`
+    : String(detail);
 }
 
-function withRoot(path: string, root?: string | null): string {
-  if (!root) return path;
-  const separator = path.includes("?") ? "&" : "?";
-  return `${path}${separator}root=${encodeURIComponent(root)}`;
+export async function getWikiStatus(root?: string | null): Promise<WikiStatus> {
+  return (await apiGet("/api/wiki/status", {
+    query: { root: root || undefined },
+    errorMessage: failed,
+  })) as WikiStatus;
 }
 
-export function getWikiStatus(root?: string | null): Promise<WikiStatus> {
-  return wikiRequest(withRoot("/api/wiki/status", root));
-}
-
-export function listWikiDocs(root?: string | null): Promise<WikiDocList> {
-  return wikiRequest(withRoot("/api/wiki/docs?lang=zh", root));
+export async function listWikiDocs(root?: string | null): Promise<WikiDocList> {
+  return (await apiGet("/api/wiki/docs", {
+    query: { lang: "zh", root: root || undefined },
+    errorMessage: failed,
+  })) as WikiDocList;
 }
 
 export function getWikiDocument(
@@ -43,13 +40,28 @@ export function getWikiDocument(
   root?: string | null,
 ): Promise<WikiDocument> {
   const safePath = path.split("/").map(encodeURIComponent).join("/");
-  return wikiRequest(withRoot(`/api/wiki/docs/${safePath}`, root));
+  return untypedApi.get<WikiDocument>(`/api/wiki/docs/${safePath}`, {
+    reason:
+      "doc_path is a multi-segment path; its '/' separators must stay unencoded",
+    query: { root: root || undefined },
+    errorMessage: failed,
+  });
 }
 
-export function generateWiki(root?: string | null): Promise<WikiUpdateResult> {
-  return wikiRequest(withRoot("/api/wiki/generate", root), { method: "POST" });
+export async function generateWiki(
+  root?: string | null,
+): Promise<WikiUpdateResult> {
+  return (await apiPost("/api/wiki/generate", {
+    query: { root: root || undefined },
+    errorMessage: failed,
+  })) as WikiUpdateResult;
 }
 
-export function updateWiki(root?: string | null): Promise<WikiUpdateResult> {
-  return wikiRequest(withRoot("/api/wiki/update", root), { method: "POST" });
+export async function updateWiki(
+  root?: string | null,
+): Promise<WikiUpdateResult> {
+  return (await apiPost("/api/wiki/update", {
+    query: { root: root || undefined },
+    errorMessage: failed,
+  })) as WikiUpdateResult;
 }

@@ -4,9 +4,8 @@
  * and billing history.
  */
 
-import { getBackendBaseURL } from "@/core/config";
 import { apiClient } from "@/core/api";
-import { authHeaders } from "@/core/auth/api";
+import { untypedApi } from "@/core/api/request";
 
 import type {
   AccountOverview,
@@ -33,17 +32,21 @@ export const accountApi = {
   uploadAvatar: async (file: File) => {
     const formData = new FormData();
     formData.append("file", file);
-    const resp = await fetch(`${getBackendBaseURL()}/api/account/avatar`, {
-      method: "POST",
-      // Auth owns the token storage contract. In particular, current sessions
-      // live in sessionStorage under `echo_auth_token`; never manufacture an
-      // empty Authorization header because that also prevents the global fetch
-      // interceptor from attaching a valid session token.
-      headers: authHeaders(),
-      body: formData,
-    });
-    if (!resp.ok) throw new Error(`Upload avatar failed: ${resp.status}`);
-    return resp.json() as Promise<{ success: boolean; avatar_url: string }>;
+    // The request layer takes its headers from auth's `authHeaders()`, which
+    // owns the token storage contract (current sessions live in
+    // sessionStorage under `echo_auth_token`) and never manufactures an empty
+    // Authorization header — that would also stop the global fetch
+    // interceptor from attaching a valid session token. The FormData body
+    // keeps its browser-set multipart content type.
+    return untypedApi.post<{ success: boolean; avatar_url: string }>(
+      "/api/account/avatar",
+      {
+        reason:
+          "the multipart avatar upload body is not declared in the snapshot",
+        body: formData,
+        errorMessage: (failure) => `Upload avatar failed: ${failure.status}`,
+      },
+    );
   },
 
   // Linked Accounts

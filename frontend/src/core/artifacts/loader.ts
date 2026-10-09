@@ -1,7 +1,6 @@
+import { EchoAPIError, apiGet, untypedApi } from "@/core/api/request";
 import type { AIMessage } from "@/core/api/types";
 import type { BaseStream } from "@/core/api/use-stream-types";
-import { authHeaders } from "@/core/auth/api";
-import { getBackendBaseURL } from "@/core/config";
 
 import type { AgentThreadState } from "../threads";
 
@@ -31,15 +30,21 @@ export async function loadArtifactContent({
     enhancedFilepath = filepath + "/SKILL.md";
   }
   const url = urlOfArtifact({ filepath: enhancedFilepath, threadId, isMock });
-  const response = await fetch(url, { headers: authHeaders() });
-  const text = await response.text();
-  if (!response.ok) {
-    throw new ArtifactLoadError(
-      response.status,
-      `artifact request failed (${response.status})`,
-    );
+  let response: Response;
+  try {
+    response = await untypedApi.fetch("get", url, {
+      reason:
+        "urlOfArtifact resolves the full URL (multi-segment artifact path, mock route)",
+      baseUrl: "",
+      errorMessage: (failure) => `artifact request failed (${failure.status})`,
+    });
+  } catch (error) {
+    if (error instanceof EchoAPIError) {
+      throw new ArtifactLoadError(error.status, error.message);
+    }
+    throw error;
   }
-  return { content: text, url };
+  return { content: await response.text(), url };
 }
 
 export function loadArtifactContentFromToolCall({
@@ -96,17 +101,17 @@ export function loadToolCallInfo({
 }
 
 export async function loadOriginalFileContent(path: string, threadId?: string) {
-  const baseURL = getBackendBaseURL();
-  const params = new URLSearchParams({
-    path,
-    max_lines: "5000",
-  });
-  if (threadId) {
-    params.set("thread_id", threadId);
+  let data: { binary?: boolean; content: string };
+  try {
+    // ``binary`` is sent for non-text files but missing from FsReadResponse.
+    data = await apiGet("/api/fs/read", {
+      query: { path, max_lines: 5000, thread_id: threadId || undefined },
+    });
+  } catch (error) {
+    // Any HTTP failure means "no original content".
+    if (error instanceof EchoAPIError) return null;
+    throw error;
   }
-  const response = await fetch(`${baseURL}/api/fs/read?${params.toString()}`);
-  if (!response.ok) return null;
-  const data = await response.json();
   if (data.binary) return null;
-  return data.content as string;
+  return data.content;
 }

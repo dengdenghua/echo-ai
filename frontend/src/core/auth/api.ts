@@ -122,6 +122,9 @@ export function currentActorId(user?: User | null): string {
   }
 }
 
+// raw fetch (this whole module): core/api/request imports authHeaders from
+// here, so routing these calls through it would create an import cycle.
+// Most of these endpoints also run before any token exists.
 export async function getAuthStatus(): Promise<AuthStatus> {
   const res = await fetch(`${getBackendBaseURL()}/api/auth/status`);
   if (!res.ok) throw new Error(`Failed to get auth status: ${res.statusText}`);

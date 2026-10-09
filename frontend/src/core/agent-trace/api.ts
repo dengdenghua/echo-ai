@@ -1,5 +1,4 @@
-import { authHeaders } from "@/core/auth/api";
-import { getBackendBaseURL } from "@/core/config";
+import { EchoAPIError, untypedApi } from "@/core/api/request";
 
 export const E2E_SURPASS_TARGET_SCORE = 95;
 
@@ -1362,40 +1361,36 @@ function appendScope(params: URLSearchParams, scope?: AgentTraceScope) {
   if (scope?.turnId) params.set("turn_id", scope.turnId);
 }
 
-async function fetchJson<T>(path: string): Promise<T> {
-  const res = await fetch(`${getBackendBaseURL()}${path}`, {
-    headers: authHeaders(),
-  });
-  if (!res.ok) {
-    throw new AgentTraceRequestError(res.status, await readErrorDetail(res));
+const DYNAMIC_PATH_REASON =
+  "callers pass ~50 dynamic agent-trace / task-run / replay paths with prebuilt query strings, including server-provided queue URLs";
+
+/** HTTP failures keep surfacing as ``AgentTraceRequestError(status, detail)``. */
+async function traceRequest<T>(request: () => Promise<T>): Promise<T> {
+  try {
+    return await request();
+  } catch (error) {
+    if (error instanceof EchoAPIError) {
+      throw new AgentTraceRequestError(error.status, error.detail);
+    }
+    throw error;
   }
-  return (await res.json()) as T;
+}
+
+async function fetchJson<T>(path: string): Promise<T> {
+  return traceRequest(() =>
+    untypedApi.get<T>(path, { reason: DYNAMIC_PATH_REASON }),
+  );
 }
 
 async function postJson<T>(path: string, body?: unknown): Promise<T> {
-  const res = await fetch(`${getBackendBaseURL()}${path}`, {
-    method: "POST",
-    headers: {
-      ...authHeaders(),
-      "Content-Type": "application/json",
-    },
-    body: body === undefined ? undefined : JSON.stringify(body),
-  });
-  if (!res.ok) {
-    throw new AgentTraceRequestError(res.status, await readErrorDetail(res));
-  }
-  return (await res.json()) as T;
-}
-
-async function readErrorDetail(res: Response): Promise<unknown> {
-  try {
-    const body = await res.json();
-    return body && typeof body === "object" && "detail" in body
-      ? (body as { detail?: unknown }).detail
-      : body;
-  } catch {
-    return await res.text().catch(() => "");
-  }
+  return traceRequest(() =>
+    untypedApi.post<T>(path, {
+      reason: DYNAMIC_PATH_REASON,
+      body,
+      // Historically sent even when the POST carries no body.
+      headers: { "Content-Type": "application/json" },
+    }),
+  );
 }
 
 export async function fetchAgentTraceStats(

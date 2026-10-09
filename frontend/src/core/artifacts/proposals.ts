@@ -1,4 +1,4 @@
-import { authHeaders } from "@/core/auth/api";
+import { EchoAPIError, untypedApi } from "@/core/api/request";
 import { ArtifactSaveError, sha256Text } from "./save";
 import { urlOfArtifactRevision } from "./utils";
 
@@ -30,23 +30,28 @@ async function request<T>(
     location.href,
   );
   if (proposalId) url.searchParams.set("proposal_id", proposalId);
-  const response = await fetch(url.toString(), {
-    method: body ? "POST" : "GET",
-    headers: {
-      ...authHeaders(),
-      ...(body ? { "Content-Type": "application/json" } : {}),
-    },
+  const options = {
+    reason:
+      "the URL is derived from urlOfArtifactRevision; artifact_path keeps its '/' separators unencoded",
+    baseUrl: "",
     signal: scope.signal,
-    ...(body ? { body: JSON.stringify(body) } : {}),
-  });
-  if (!response.ok)
-    throw new ArtifactSaveError(
-      response.status === 409
-        ? "文件或工作副本已变化，请重新比较。本次操作未覆盖内容。"
-        : "暂时无法处理修改，请重试。",
-      response.status,
-    );
-  return response.json() as Promise<T>;
+    body,
+  };
+  try {
+    return await (body
+      ? untypedApi.post<T>(url.toString(), options)
+      : untypedApi.get<T>(url.toString(), options));
+  } catch (error) {
+    if (error instanceof EchoAPIError) {
+      throw new ArtifactSaveError(
+        error.status === 409
+          ? "文件或工作副本已变化，请重新比较。本次操作未覆盖内容。"
+          : "暂时无法处理修改，请重试。",
+        error.status,
+      );
+    }
+    throw error;
+  }
 }
 export async function createArtifactProposal(
   scope: Scope & { expectedContent: string },
