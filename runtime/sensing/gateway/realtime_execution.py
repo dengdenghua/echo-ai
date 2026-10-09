@@ -173,6 +173,14 @@ async def select_turn_execution(
         # The node runs its own installed role and engine; this host only
         # dispatches the task and relays the result.
         return ExecutionRoute(EngineId.ECHO, "execution_node", NODE_LOCATION_REASON)
+    from runtime.sensing.gateway.realtime_remote_echo import (
+        REMOTE_LOCATION_REASON,
+        remote_work_location,
+    )
+
+    if remote_work_location(context) is not None:
+        # An SSH/WSL connection runs the turn on its own Echo and engine.
+        return ExecutionRoute(EngineId.ECHO, "remote_echo", REMOTE_LOCATION_REASON)
     requested = getattr(turn.params, "execution_engine", "auto")
     config = getattr(getattr(runtime, "_stack", None), "config", None)
     default_member = getattr(getattr(config, "execution", None), "member_engine", "echo")
@@ -275,6 +283,10 @@ async def _dispatch_host_driver(
         from runtime.sensing.gateway.realtime_execution_node import drive_execution_node
 
         await drive_execution_node(host.runtime, *args, text=request.text)
+    elif driver == "remote_echo":
+        from runtime.sensing.gateway.realtime_remote_echo import drive_remote_echo
+
+        await drive_remote_echo(host.runtime, *args, text=request.text)
     else:
         return False
     return True

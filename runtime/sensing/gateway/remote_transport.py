@@ -38,6 +38,7 @@ Storage
         { "id": "...", "name": "...", "url": "https://host:8000",
           "ssh": null | { "host": "...", "user": "...", "port": 22,
                           "identity_file": "..." },
+          "wsl": null | { "distro": "Ubuntu-24.04" },
           "has_auth": true | false,
           "added_at": "...", "last_health": "ok" | "error" | null,
           "last_health_at": "..." }
@@ -132,6 +133,34 @@ class SshTunnel:
             return None
 
 
+_WSL_DISTRO_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$")
+_LOOPBACK_HOSTS = frozenset({"127.0.0.1", "localhost", "::1"})
+
+
+@dataclass
+class WslTarget:
+    """An Echo runtime inside a local WSL distro, reached on loopback.
+
+    WSL2 forwards the distro's localhost ports to Windows, so the registry URL
+    is ``http://127.0.0.1:<port>``. The remote Echo keeps its own sandbox.
+    """
+
+    distro: str
+
+    def to_dict(self) -> dict[str, Any]:
+        return asdict(self)
+
+    @classmethod
+    def from_dict(cls, raw: dict[str, Any]) -> WslTarget | None:
+        distro = str(raw.get("distro") or "").strip()
+        return cls(distro=distro) if _WSL_DISTRO_RE.fullmatch(distro) else None
+
+
+def _is_loopback_http(url: str) -> bool:
+    parsed = urlparse(url)
+    return parsed.scheme.lower() == "http" and (parsed.hostname or "") in _LOOPBACK_HOSTS
+
+
 @dataclass
 class RemoteBackend:
     """One named remote echo-ai runtime."""
@@ -140,24 +169,32 @@ class RemoteBackend:
     name: str
     url: str  # http(s)://host:port
     ssh: SshTunnel | None = None
+    wsl: WslTarget | None = None
     added_at: str = ""
     last_health: str | None = None  # "ok" | "error" | None (untested)
     last_health_at: str | None = None
     health_detail: str | None = None  # last error message
     has_auth: bool = False
-    # Runtime-only proof that a loopback URL was created by our own SSH
-    # forwarder. Never loaded from or persisted to the registry.
+    # Runtime-only proof that a private URL was produced by our own transport
+    # (an SSH forward, or a WSL loopback endpoint). Never loaded from or
+    # persisted to the registry.
     tunnel_active: bool = False
+
+    @property
+    def transport(self) -> str:
+        return "ssh_tunnel" if self.ssh else "wsl" if self.wsl else "direct"
 
     def to_dict(self) -> dict[str, Any]:
         d = asdict(self)
         d.pop("tunnel_active", None)
         d["ssh"] = self.ssh.to_dict() if self.ssh else None
-        d["transport"] = "ssh_tunnel" if self.ssh else "direct"
+        d["wsl"] = self.wsl.to_dict() if self.wsl else None
+        d["transport"] = self.transport
         d["capabilities"] = {
             "http": True,
             "realtime": True,
             "ssh_tunnel": self.ssh is not None,
+            "wsl": self.wsl is not None,
         }
         return d
 
@@ -173,12 +210,19 @@ class RemoteBackend:
             ssh = SshTunnel.from_dict(ssh_raw) if isinstance(ssh_raw, dict) else None
             if isinstance(ssh_raw, dict) and ssh is None:
                 return None
+            wsl_raw = raw.get("wsl")
+            wsl = WslTarget.from_dict(wsl_raw) if isinstance(wsl_raw, dict) else None
+            if isinstance(wsl_raw, dict) and wsl is None:
+                return None
             url = _validate_url(url)
+            if wsl is not None and (ssh is not None or not _is_loopback_http(url)):
+                return None
             return cls(
                 id=bid,
                 name=name,
                 url=url,
                 ssh=ssh,
+                wsl=wsl,
                 added_at=str(raw.get("added_at") or ""),
                 last_health=raw.get("last_health"),
                 last_health_at=raw.get("last_health_at"),
@@ -361,6 +405,11 @@ def connect_remote_backend(
 ) -> Iterator[RemoteBackend]:
     """Yield a directly reachable backend, opening SSH when configured."""
 
+    if backend.wsl is not None:
+        if not _is_loopback_http(backend.url):
+            raise ValueError("WSL endpoints must be http:// on loopback")
+        yield replace(backend, tunnel_active=True)
+        return
     if backend.ssh is None:
         yield backend
         return
@@ -445,9 +494,19 @@ class BackendRegistry:
         name: str,
         url: str,
         ssh: SshTunnel | None = None,
+        wsl: WslTarget | None = None,
         auth_token: str | None = None,
     ) -> RemoteBackend:
         canonical_url = _validate_url(url)
+        if wsl is not None:
+            if ssh is not None:
+                raise ValueError("choose either an SSH tunnel or a WSL distro")
+            validated_wsl = WslTarget.from_dict(wsl.to_dict())
+            if validated_wsl is None:
+                raise ValueError("WSL distro name is invalid")
+            if not _is_loopback_http(canonical_url):
+                raise ValueError("WSL endpoints must be http:// on loopback")
+            wsl = validated_wsl
         if ssh is not None:
             validated_ssh = SshTunnel.from_dict(ssh.to_dict())
             if validated_ssh is None:
@@ -473,6 +532,7 @@ class BackendRegistry:
                 name=clean_name,
                 url=canonical_url,
                 ssh=ssh,
+                wsl=wsl,
                 added_at=_now_iso(),
                 has_auth=bool(clean_token),
             )
@@ -663,6 +723,7 @@ __all__ = [
     "SshTunnelError",
     "SshTunnelForwarder",
     "SshTunnel",
+    "WslTarget",
     "connect_remote_backend",
     "health_check",
     "proxy_request",

@@ -13771,6 +13771,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/remote-backends/test": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Test Backend
+         * @description Probe a connection the user is still filling in; nothing is saved.
+         */
+        post: operations["test_backend_api_remote_backends_test_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/remote-backends/{backend_id}": {
         parameters: {
             query?: never;
@@ -48040,6 +48060,43 @@ export interface operations {
         };
     };
     add_backend_api_remote_backends_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": {
+                    [key: string]: unknown;
+                } | null;
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    test_backend_api_remote_backends_test_post: {
         parameters: {
             query?: never;
             header?: never;

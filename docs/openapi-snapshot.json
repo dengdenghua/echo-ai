@@ -49143,6 +49143,55 @@
         "summary": "Add Backend"
       }
     },
+    "/api/remote-backends/test": {
+      "post": {
+        "description": "Probe a connection the user is still filling in; nothing is saved.",
+        "operationId": "test_backend_api_remote_backends_test_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "anyOf": [
+                  {
+                    "additionalProperties": true,
+                    "type": "object"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Body"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Test Backend Api Remote Backends Test Post",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Test Backend"
+      }
+    },
     "/api/remote-backends/{backend_id}": {
       "delete": {
         "operationId": "remove_backend_api_remote_backends__backend_id__delete",

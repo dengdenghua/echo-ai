@@ -520,6 +520,10 @@ def mount_routers_b(
         _realtime_runtime._thread_store = ctx.thread_store  # noqa: SLF001
         _realtime_runtime._project_store = ctx.project_store  # noqa: SLF001
         _realtime_runtime._cowork_coordination = getattr(ctx.cowork_runtime, "coordination", None)
+        # Relaying a turn to an SSH/WSL connection uses operator-held
+        # credentials; the driver checks the caller's roles against these.
+        _realtime_runtime._identity_store = ctx.identity_store  # noqa: SLF001
+        _realtime_runtime._require_auth = ctx.require_auth  # noqa: SLF001
 
         _realtime_gateway = RealtimeGateway(
             runtime=_realtime_runtime,

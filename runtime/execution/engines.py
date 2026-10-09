@@ -200,7 +200,7 @@ class ExecutionRoute:
 
     def driver_for(self, phase: ExecutionPhase) -> str:
         # Dispatch-only routes: the remote side owns every phase of the work.
-        if self.reason in {"remote_group_member", "work_location_node"}:
+        if self.reason in {"remote_group_member", "work_location_node", "work_location_remote"}:
             return self.driver
         if phase is ExecutionPhase.PRIMARY and self.driver in {
             "project_os",

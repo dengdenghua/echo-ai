@@ -68,23 +68,23 @@ class TaskAction(BaseModel):
     action: Literal["pause", "resume", "cancel", "apply"]
 
 
-def _remote_backends() -> dict:
-    """Registered remote Echo backends, only while remote transport is enabled."""
+def _remote_connections(can_manage: bool) -> dict:
+    """SSH / WSL connections, only while remote transport is enabled.
+
+    The registry is an operator control plane (it holds credentials), so
+    other callers learn only whether the feature exists.
+    """
     from runtime.platform import feature_flags
 
-    if not feature_flags.is_on("ui.remote_transport"):
-        return {"enabled": False, "backends": []}
+    enabled = feature_flags.is_on("ui.remote_transport")
+    if not enabled or not can_manage:
+        return {"enabled": enabled, "can_manage": can_manage, "connections": []}
     from runtime.platform.process.paths import app_paths
     from runtime.sensing.gateway.remote_transport import BackendRegistry
+    from runtime.sensing.gateway.work_locations import remote_connections
 
     registry = BackendRegistry(app_paths().data_dir / "remote_backends.json")
-    return {
-        "enabled": True,
-        "backends": [
-            {"id": b.id, "name": b.name, "health": b.last_health, "has_auth": b.has_auth}
-            for b in registry.list()
-        ],
-    }
+    return {"enabled": True, "can_manage": True, "connections": remote_connections(registry)}
 
 
 def create_execution_nodes_router(
@@ -200,7 +200,20 @@ def create_execution_nodes_router(
                         "workspaces": workspaces,
                     }
                 )
-        return {"execution_nodes": nodes, "remote_backends": _remote_backends()}
+        try:
+            principal(request, operator=True)
+            can_manage = True
+        except HTTPException:
+            can_manage = False
+        from runtime.sensing.gateway.work_locations import wsl_distros
+
+        return {
+            "execution_nodes": nodes,
+            "remote": _remote_connections(can_manage),
+            "wsl": wsl_distros() if can_manage else {"available": False, "distros": []},
+            # Hosted runs need an Echo cloud service; not offered yet.
+            "cloud": {"available": False},
+        }
 
     @router.post("/tasks")
     def submit(request: Request, body: NodeTaskRequest):

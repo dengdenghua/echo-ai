@@ -534,4 +534,6 @@ def test_locations_list_nodes_with_the_callers_writable_workspaces(setup):
     # alice cannot write bob's workspace, so it is not offered as a location.
     assert [w["name"] for w in listed["nas-a"]["workspaces"]] == ["Project"]
     assert listed["nas-a"]["label"] == "书房 NAS" and listed["nas-a"]["online"] is True
-    assert body["remote_backends"]["enabled"] in {True, False}
+    # SSH / WSL connections are operator configuration; alice only sees nodes.
+    assert body["remote"]["can_manage"] is False and body["remote"]["connections"] == []
+    assert body["wsl"]["distros"] == [] and body["cloud"] == {"available": False}

@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it } from "vitest";
 import {
   LOCAL_WORK_LOCATION,
   readWorkLocation,
+  splitSshTarget,
   workLocationContext,
   writeWorkLocation,
   type WorkLocation,
@@ -15,6 +16,13 @@ const NODE: WorkLocation = {
   role: "coder",
   label: "书房 NAS",
   workspace_name: "Project",
+};
+
+const SSH: WorkLocation = {
+  kind: "remote",
+  backend_id: "a".repeat(32),
+  transport: "ssh_tunnel",
+  label: "实验室",
 };
 
 describe("work location", () => {
@@ -52,5 +60,23 @@ describe("work location", () => {
       workspace_id: "ws-1",
       role: "coder",
     });
+  });
+
+  it("remembers an SSH or WSL connection and sends only its id", () => {
+    writeWorkLocation("thread-a", SSH);
+
+    expect(readWorkLocation("thread-a")).toEqual(SSH);
+    expect(workLocationContext(SSH)).toEqual({
+      kind: "remote",
+      backend_id: "a".repeat(32),
+    });
+  });
+
+  it("splits user@host and leaves ssh config aliases alone", () => {
+    expect(splitSshTarget(" me@lab.example.com ")).toEqual({
+      host: "lab.example.com",
+      user: "me",
+    });
+    expect(splitSshTarget("lab")).toEqual({ host: "lab", user: null });
   });
 });
