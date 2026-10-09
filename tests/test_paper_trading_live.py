@@ -16,6 +16,7 @@ from __future__ import annotations
 import base64
 import gzip
 import json
+import os
 from pathlib import Path
 from unittest.mock import MagicMock
 
@@ -357,7 +358,8 @@ def test_save_credentials_writes_0600_file(tmp_path: Path) -> None:
     path = client.save_credentials("13800000000", "p@ss", creds)
 
     assert path.exists()
-    assert (path.stat().st_mode & 0o777) == 0o600
+    if os.name != "nt":  # Windows chmod only toggles read-only; no POSIX mode bits
+        assert (path.stat().st_mode & 0o777) == 0o600
     import json as _json
 
     assert _json.loads(path.read_text(encoding="utf-8")) == {
