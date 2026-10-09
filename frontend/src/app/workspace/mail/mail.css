@@ -505,10 +505,14 @@
 .mail-editor label select {
   flex: 1;
   min-width: 0;
-  background: transparent;
+  background-color: transparent;
   outline: none;
   color: var(--foreground);
   padding: 4px;
+}
+/* Room for the shared select chevron (globals.css). */
+.mail-editor label select {
+  padding-right: 24px;
 }
 .mail-editor textarea {
   height: 260px;

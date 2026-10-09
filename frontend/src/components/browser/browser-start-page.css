@@ -305,8 +305,9 @@
   min-height: 38px;
   border: 1px solid var(--border);
   border-radius: 8px;
-  padding: 8px 10px;
-  background: var(--background);
+  padding: 8px 28px 8px 10px;
+  /* background-color only: the shorthand would erase the select chevron. */
+  background-color: var(--background);
   color: var(--foreground);
   font-size: 14px;
 }

@@ -366,8 +366,15 @@ export default function MediaAppPage({ kind }: MediaAppPageProps) {
                 本机媒体服务暂时不可用
               </h2>
               <p className="mt-1 max-w-md text-xs leading-5 text-muted-foreground">
-                {error}
+                {/(502|503|504)|unavailable|timed? ?out|超时/i.test(error)
+                  ? "本机存储服务没有响应，可能还没启动。可以重试，或到存储管理里查看服务状态。"
+                  : "读取本机索引时出错。可以重试，或到存储管理里检查授权目录。"}
               </p>
+              {/* The raw error stays available for support, folded away. */}
+              <details className="mt-2 max-w-md text-micro text-muted-foreground">
+                <summary className="cursor-pointer">技术详情</summary>
+                <p className="mt-1 break-all font-mono">{error}</p>
+              </details>
               <div className="mt-4 flex flex-wrap justify-center gap-2">
                 <Button
                   type="button"

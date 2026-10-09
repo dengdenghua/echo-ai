@@ -2147,8 +2147,8 @@ export function CapabilityMarketPanel({
       ) : null}
 
       {loading ? (
-        <div className="flex min-h-[200px] items-center justify-center text-muted-foreground">
-          <Loader2 className="size-5 animate-spin" />
+        <div role="status" className="flex min-h-[200px] items-center justify-center gap-2 text-ui text-muted-foreground">
+          <Loader2 className="size-5 animate-spin" /> 正在读取插件目录…
         </div>
       ) : (
         <div
