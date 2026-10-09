@@ -1,5 +1,9 @@
-import { getBackendBaseURL } from "@/core/config";
-import { authHeaders, jsonAuthHeaders } from "@/core/auth/api";
+import {
+  apiGet,
+  apiPost,
+  untypedApi,
+  type ApiFailure,
+} from "@/core/api/request";
 
 export type ChannelName =
   | "feishu"
@@ -227,17 +231,26 @@ export interface PairingRequestsResponse {
   total: number;
 }
 
+/** ``label: statusText``, this module's historical error wording. */
+function failed(label: string) {
+  return (failure: ApiFailure): string => `${label}: ${failure.statusText}`;
+}
+
+/**
+ * The legacy client sent ``Content-Type: application/json`` on these
+ * bodiless POSTs; keep the request headers identical.
+ */
+const JSON_CONTENT_TYPE = { "Content-Type": "application/json" };
+
 // ---------------------------------------------------------------------------
 // Implemented endpoints (backend has these)
 // ---------------------------------------------------------------------------
 
 export async function getChannelsStatus(): Promise<ChannelsStatusResponse> {
-  const res = await fetch(`${getBackendBaseURL()}/api/channels`, {
-    headers: authHeaders(),
+  const data: unknown = await apiGet("/api/channels", {
+    errorMessage: (failure) =>
+      `Failed to load channels status: HTTP ${failure.status}`,
   });
-  if (!res.ok)
-    throw new Error(`Failed to load channels status: HTTP ${res.status}`);
-  const data: unknown = await res.json();
   const invalid = () =>
     new Error("渠道状态：服务返回的数据格式不完整，请重试。");
   if (Array.isArray(data)) {
@@ -279,16 +292,11 @@ export async function getChannelsStatus(): Promise<ChannelsStatusResponse> {
 export async function restartChannel(
   name: ChannelName,
 ): Promise<{ message: string }> {
-  const res = await fetch(
-    `${getBackendBaseURL()}/api/channels/${name}/restart`,
-    {
-      method: "POST",
-      headers: jsonAuthHeaders(),
-    },
-  );
-  if (!res.ok)
-    throw new Error(`Failed to restart channel ${name}: ${res.statusText}`);
-  return (await res.json()) as { message: string };
+  return untypedApi.post<{ message: string }>(`/api/channels/${name}/restart`, {
+    reason: "POST /api/channels/{name}/restart is not in the OpenAPI snapshot",
+    headers: JSON_CONTENT_TYPE,
+    errorMessage: failed(`Failed to restart channel ${name}`),
+  });
 }
 
 // ---------------------------------------------------------------------------
@@ -324,61 +332,48 @@ export function isChannelNotImplemented(
 }
 
 export async function getChannelsDetail(): Promise<ChannelsDetailResponse> {
-  const res = await fetch(`${getBackendBaseURL()}/api/channels/detail`, {
-    headers: authHeaders(),
-  });
-  if (!res.ok)
-    throw new Error(`Failed to load channels detail: ${res.statusText}`);
-  return (await res.json()) as ChannelsDetailResponse;
+  return (await apiGet("/api/channels/detail", {
+    errorMessage: failed("Failed to load channels detail"),
+  })) as ChannelsDetailResponse;
 }
 
 export async function saveChannelCredentials(
   name: ChannelName,
   credentials: ChannelCredentials,
 ): Promise<{ message: string }> {
-  const res = await fetch(
-    `${getBackendBaseURL()}/api/channels/credentials/${name}`,
+  return untypedApi.post<{ message: string }>(
+    `/api/channels/credentials/${name}`,
     {
-      method: "POST",
-      headers: jsonAuthHeaders(),
-      body: JSON.stringify(credentials),
+      reason:
+        "the snapshot declares no request body for " +
+        "POST /api/channels/credentials/{platform}",
+      body: credentials,
+      errorMessage: failed(`Failed to save credentials for ${name}`),
     },
   );
-  if (!res.ok)
-    throw new Error(
-      `Failed to save credentials for ${name}: ${res.statusText}`,
-    );
-  return (await res.json()) as { message: string };
 }
 
 export async function assignChannelAgent(
   name: ChannelName,
   agentName: string,
 ): Promise<{ message: string }> {
-  const res = await fetch(
-    `${getBackendBaseURL()}/api/channels/${name}/assistant`,
+  return untypedApi.post<{ message: string }>(
+    `/api/channels/${name}/assistant`,
     {
-      method: "POST",
-      headers: jsonAuthHeaders(),
-      body: JSON.stringify({ agent_id: agentName }),
+      reason:
+        "the snapshot declares no request body for " +
+        "POST /api/channels/{channel_id}/assistant",
+      body: { agent_id: agentName },
+      errorMessage: failed(`Failed to assign agent for ${name}`),
     },
   );
-  if (!res.ok)
-    throw new Error(`Failed to assign agent for ${name}: ${res.statusText}`);
-  return (await res.json()) as { message: string };
 }
 
 export async function getWechatQRCode(): Promise<WechatQRResponse> {
-  const res = await fetch(
-    `${getBackendBaseURL()}/api/channels/wechat/qr/start`,
-    {
-      method: "POST",
-      headers: jsonAuthHeaders(),
-    },
-  );
-  if (!res.ok)
-    throw new Error(`Failed to get WeChat QR code: ${res.statusText}`);
-  const data = await res.json();
+  const data = (await apiPost("/api/channels/wechat/qr/start", {
+    headers: JSON_CONTENT_TYPE,
+    errorMessage: failed("Failed to get WeChat QR code"),
+  })) as { qrcode?: string; qrcode_img_content?: string };
   return {
     session_id: data.qrcode ?? "",
     qr_url: data.qrcode_img_content ?? "",
@@ -389,17 +384,16 @@ export async function getWechatQRCode(): Promise<WechatQRResponse> {
 export async function pollWechatLoginStatus(
   sessionId: string,
 ): Promise<WechatQRResponse> {
-  const res = await fetch(
-    `${getBackendBaseURL()}/api/channels/wechat/qr/poll`,
-    {
-      method: "POST",
-      headers: jsonAuthHeaders(),
-      body: JSON.stringify({ qrcode: sessionId }),
-    },
-  );
-  if (!res.ok)
-    throw new Error(`Failed to poll WeChat status: ${res.statusText}`);
-  const data = await res.json();
+  const data = await untypedApi.post<{
+    confirmed?: boolean;
+    status?: WechatQRResponse["status"];
+  }>("/api/channels/wechat/qr/poll", {
+    reason:
+      "the snapshot declares no request body for " +
+      "POST /api/channels/wechat/qr/poll",
+    body: { qrcode: sessionId },
+    errorMessage: failed("Failed to poll WeChat status"),
+  });
   return {
     session_id: sessionId,
     qr_url: "",
@@ -412,15 +406,10 @@ export async function getPairingRequests(params?: {
   status?: PairingStatus;
 }): Promise<PairingRequestsResponse> {
   const channelId = params?.channel ?? "all";
-  const res = await fetch(
-    `${getBackendBaseURL()}/api/channels/${channelId}/pairings`,
-    {
-      headers: authHeaders(),
-    },
-  );
-  if (!res.ok)
-    throw new Error(`Failed to load pairing requests: ${res.statusText}`);
-  const data = await res.json();
+  const data = (await apiGet("/api/channels/{channel_id}/pairings", {
+    path: { channel_id: channelId },
+    errorMessage: failed("Failed to load pairing requests"),
+  })) as { pending?: Record<string, unknown>[] };
   const pending: PairingRequest[] = (data.pending ?? []).map(
     (p: Record<string, unknown>, i: number) => ({
       id: (p.sender_id as string) || String(i),
@@ -443,29 +432,19 @@ export async function getPairingRequests(params?: {
 export async function approvePairingRequest(
   id: string,
 ): Promise<{ message: string }> {
-  const res = await fetch(
-    `${getBackendBaseURL()}/api/channels/pairing/${id}/approve`,
-    {
-      method: "POST",
-      headers: jsonAuthHeaders(),
-    },
-  );
-  if (!res.ok)
-    throw new Error(`Failed to approve pairing ${id}: ${res.statusText}`);
-  return (await res.json()) as { message: string };
+  return (await apiPost("/api/channels/pairing/{pairing_id}/approve", {
+    path: { pairing_id: id },
+    headers: JSON_CONTENT_TYPE,
+    errorMessage: failed(`Failed to approve pairing ${id}`),
+  })) as { message: string };
 }
 
 export async function rejectPairingRequest(
   id: string,
 ): Promise<{ message: string }> {
-  const res = await fetch(
-    `${getBackendBaseURL()}/api/channels/pairing/${id}/reject`,
-    {
-      method: "POST",
-      headers: jsonAuthHeaders(),
-    },
-  );
-  if (!res.ok)
-    throw new Error(`Failed to reject pairing ${id}: ${res.statusText}`);
-  return (await res.json()) as { message: string };
+  return (await apiPost("/api/channels/pairing/{pairing_id}/reject", {
+    path: { pairing_id: id },
+    headers: JSON_CONTENT_TYPE,
+    errorMessage: failed(`Failed to reject pairing ${id}`),
+  })) as { message: string };
 }
