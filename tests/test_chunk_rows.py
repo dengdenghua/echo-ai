@@ -10,6 +10,7 @@ JSONL write/read integration, fail-loud decode, and the rollback knob.
 from __future__ import annotations
 
 import json
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from uuid import uuid4
 
@@ -31,13 +32,21 @@ from runtime.memory.journal._chunk_rows import (
 from runtime.memory.journal._journal_models import UserMessageEvent
 
 
-def _chunk(delta: str, *, iteration: int = 1, kind: str = "text-delta") -> AssistantChunkEvent:
+def _chunk(
+    delta: str,
+    *,
+    iteration: int = 1,
+    kind: str = "text-delta",
+    ts: datetime | None = None,
+) -> AssistantChunkEvent:
+    extra = {} if ts is None else {"ts": ts}
     return AssistantChunkEvent(
         event_id=uuid4(),
         iteration=iteration,
         kind=kind,
         delta=delta,
         task_id=None,
+        **extra,
     )
 
 
@@ -122,9 +131,23 @@ class TestContinues:
         assert not continues_chunk_run(a, b)
 
     def test_older_timestamp_breaks_run(self) -> None:
-        a, b = _entry(_chunk("b")), _entry(_chunk("a"))
+        # Explicit timestamps: the Windows wall clock ticks every ~15.6 ms,
+        # so two default-stamped events usually share one timestamp.
+        t0 = datetime(2026, 1, 1, tzinfo=UTC)
+        a = _entry(_chunk("a", ts=t0))
+        b = _entry(_chunk("b", ts=t0 + timedelta(microseconds=1)))
         # b was created after a, so continuing from b with a's entry is stale.
         assert not continues_chunk_run(b, a)
+
+    def test_equal_timestamp_continues_and_round_trips(self) -> None:
+        t0 = datetime(2026, 1, 1, tzinfo=UTC)
+        events = [_chunk(f"c{i}", ts=t0) for i in range(MIN_RUN)]
+        entries = [_entry(e) for e in events]
+        assert continues_chunk_run(entries[0], entries[1])
+        row = pack_chunk_row(entries)
+        assert row["dt_us"] == [0] * (MIN_RUN - 1)
+        expanded = expand_chunk_row(row)
+        assert expanded == [json.loads(e.model_dump_json()) for e in events]
 
 
 class TestCodec:
