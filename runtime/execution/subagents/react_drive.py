@@ -26,11 +26,11 @@ from runtime.platform.models import ParsedIntent
 try:
     from runtime.safety.approval.approval_gate import (
         ApprovalProvider,
-        AutoApproveProvider,
+        AutoDenyProvider,
     )
 except ImportError:  # pragma: no cover - optional import at runtime
     ApprovalProvider = Any  # type: ignore[misc,assignment]
-    AutoApproveProvider = Any  # type: ignore[misc,assignment]
+    AutoDenyProvider = Any  # type: ignore[misc,assignment]
 
 _TERMINAL_KINDS = frozenset(
     {"react_completed", "react_cancelled", "react_error", "react_paused"},
@@ -211,7 +211,9 @@ def run_subagent_react_loop(
         tool_allowlist=tool_allowlist,
         metadata=metadata,
     )
-    provider = approval_provider or AutoApproveProvider()
+    # A child asks whoever its parent asks. Without one (no interactive
+    # parent) gated actions are refused, exactly like the main loop.
+    provider = approval_provider or AutoDenyProvider()
 
     gen = stream_react_loop(
         stack,

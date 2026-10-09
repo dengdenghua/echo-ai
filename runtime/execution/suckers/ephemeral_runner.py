@@ -626,6 +626,11 @@ def make_llm_ephemeral_runner(
             except (ImportError, AttributeError, LookupError):
                 _session_meta = {}
             if not dispatch_is_restricted(_ctx, _session_meta):
+                from runtime.safety.approval.approval_gate import ApprovalProvider
+
+                # Gated actions inside the child go to the parent's approver
+                # (the live user prompt, or the parent's own auto policy).
+                _parent_provider = _session_meta.get("_approval_provider")
                 _result = run_subagent_react_loop(
                     _ctx["react_stack"],
                     prompt=call.user_prompt,
@@ -647,6 +652,11 @@ def make_llm_ephemeral_runner(
                         {"role": "user", "content": call.user_prompt},
                     ],
                     tool_allowlist=tuple(call.role.tool_allowlist or ()),
+                    approval_provider=(
+                        _parent_provider
+                        if isinstance(_parent_provider, ApprovalProvider)
+                        else None
+                    ),
                     metadata=_ctx,
                     steering_drain=(
                         _ctx.get("steering_drain") if callable(_ctx.get("steering_drain")) else None
