@@ -353,6 +353,20 @@ export default defineConfig({
       "e2e/**",
       "src/**/_tmp_*.test.{ts,tsx}",
     ],
+    projects: [
+      { extends: true, test: { name: "app" } },
+      // The Electron main-process modules (electron/*.cjs) run in Node, so
+      // their tests get a plain Node environment without jsdom or the DOM
+      // setup file above.
+      {
+        test: {
+          name: "electron",
+          environment: "node",
+          include: ["electron/**/*.test.mjs"],
+          testTimeout: 15_000,
+        },
+      },
+    ],
     coverage: {
       provider: "v8",
       // Ratchet thresholds — set slightly below current levels to prevent

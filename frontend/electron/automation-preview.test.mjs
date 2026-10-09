@@ -1,4 +1,4 @@
-import test from "node:test";
+import { test } from "vitest";
 import assert from "node:assert/strict";
 import { createRequire } from "node:module";
 const { selectPreviewSource } = createRequire(import.meta.url)("./automation-preview.cjs");
