@@ -11,6 +11,7 @@ import {
   HouseIcon,
   ImageIcon,
   LaptopIcon,
+  Loader2Icon,
   PuzzleIcon,
   TabletIcon,
   SmartphoneIcon,
@@ -88,6 +89,7 @@ import {
 } from "./browser-store";
 import { openBrowserFind, openBrowserReader } from "./browser-events";
 import { PasswordOfferBubble, SavedPasswordButton } from "./password-prompt";
+import { EXTENSION_STORE_NAME, storeExtensionPage } from "./extension-links";
 import { preferredSearchEngine, suggestEngineId } from "./search-engines";
 import type { WebviewTabHandle } from "./webview-tab";
 
@@ -552,6 +554,26 @@ export function UrlBar({ webviewHandle, onOpenExtensions }: Props) {
     }
   }, [clearHistory, confirm, webviewHandle]);
 
+  // A Chrome Web Store / Edge Add-ons detail page can be installed here.
+  const storePage = useMemo(
+    () => storeExtensionPage(activeTab?.url),
+    [activeTab?.url],
+  );
+  const [installingExtension, setInstallingExtension] = useState(false);
+  const installStoreExtension = useCallback(async () => {
+    const api = window.echo?.extensions;
+    if (!storePage || !api?.installFromStore || !activeTab?.url) return;
+    setInstallingExtension(true);
+    try {
+      const result = await api.installFromStore(activeTab.url);
+      if (result.ok)
+        toast.success(`已安装「${result.extension?.name ?? "扩展"}」`);
+      else toast.error(result.error || "安装失败");
+    } finally {
+      setInstallingExtension(false);
+    }
+  }, [activeTab?.url, storePage]);
+
   const siteOrigin = useMemo(() => {
     if (!activeTab?.url) return null;
     try {
@@ -819,6 +841,22 @@ export function UrlBar({ webviewHandle, onOpenExtensions }: Props) {
               )}
             </div>
           )}
+          {storePage && window.echo?.extensions?.installFromStore ? (
+            <button
+              type="button"
+              disabled={installingExtension}
+              onClick={() => void installStoreExtension()}
+              title={`从${EXTENSION_STORE_NAME[storePage.store]}安装这个扩展`}
+              className="flex h-6 shrink-0 items-center gap-1 rounded-full bg-primary/10 px-2 text-[11px] font-medium text-primary transition-colors hover:bg-primary/15 disabled:opacity-60"
+            >
+              {installingExtension ? (
+                <Loader2Icon className="size-3 animate-spin" />
+              ) : (
+                <PuzzleIcon className="size-3" />
+              )}
+              安装到 Echo
+            </button>
+          ) : null}
           {window.echo?.isElectron && !activeTab?.private ? (
             <SavedPasswordButton
               origin={siteOrigin}
@@ -1121,6 +1159,7 @@ function BrowserDataCenterDialog({
   const rowClass =
     "flex items-center gap-3 rounded-xl border border-border-subtle bg-muted/20 p-3";
   const [passwordAvailable, setPasswordAvailable] = useState(false);
+  const [passwordNeverSites, setPasswordNeverSites] = useState<string[]>([]);
   const [passwordEntries, setPasswordEntries] = useState<
     StoredBrowserPassword[]
   >([]);
@@ -1153,7 +1192,14 @@ function BrowserDataCenterDialog({
     );
     setPasswordAvailable(result.ok && result.available);
     setPasswordEntries(result.ok ? result.entries : []);
+    const never = await window.echo.browser.listPasswordNeverSites?.();
+    setPasswordNeverSites(never?.ok ? never.origins : []);
   }, [currentOrigin]);
+
+  const removePasswordNeverSite = async (origin: string) => {
+    await window.echo?.browser.removePasswordNeverSite(origin);
+    await refreshPasswords();
+  };
 
   const refreshSiteDevicePermissions = useCallback(async () => {
     if (!window.echo?.browser?.listSitePermissions) {
@@ -1499,8 +1545,8 @@ function BrowserDataCenterDialog({
               </div>
               <div className="mt-0.5 text-xs leading-5 text-muted-foreground">
                 {passwordAvailable
-                  ? "密码由系统钥匙串加密，只能在域名完全匹配时主动填充。"
-                  : "网页版不保存密码；请在桌面应用中使用系统钥匙串。"}
+                  ? "密码由系统加密保存，登录后会询问是否保存，只在域名完全匹配时由你点按填充。"
+                  : "网页版不保存密码；请在桌面应用中使用。"}
               </div>
               {passwordAvailable && currentOrigin && (
                 <div className="mt-3 space-y-2">
@@ -1524,7 +1570,7 @@ function BrowserDataCenterDialog({
                     disabled={passwordBusy || !username.trim() || !password}
                     onClick={() => void savePassword()}
                   >
-                    保存到系统钥匙串
+                    保存密码
                   </Button>
                   {passwordEntries.map((entry) => (
                     <div
@@ -1558,6 +1604,30 @@ function BrowserDataCenterDialog({
                   ))}
                 </div>
               )}
+              {passwordAvailable && passwordNeverSites.length > 0 ? (
+                <div className="mt-3 space-y-1">
+                  <div className="text-xs font-medium text-muted-foreground">
+                    从不询问保存密码的网站
+                  </div>
+                  {passwordNeverSites.map((origin) => (
+                    <div
+                      key={origin}
+                      className="flex items-center gap-2 rounded-lg bg-background/70 px-2.5 py-1.5"
+                    >
+                      <span className="min-w-0 flex-1 truncate text-xs">
+                        {origin}
+                      </span>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => void removePasswordNeverSite(origin)}
+                      >
+                        移除
+                      </Button>
+                    </div>
+                  ))}
+                </div>
+              ) : null}
             </div>
           </section>
 

@@ -83,9 +83,6 @@ const WebviewTab = lazy(() =>
   })),
 );
 
-const CHROME_WEB_STORE_EXTENSIONS_URL =
-  "https://chromewebstore.google.com/category/extensions";
-
 const isBrowserDevice = (
   value: unknown,
 ): value is BrowserOpenUrlRequest["device"] =>
@@ -150,19 +147,20 @@ function BrowserShell() {
     [],
   );
 
-  const openExtensionsStore = useCallback(() => {
-    if (window.echo?.app?.openExternal) {
-      void window.echo.app.openExternal(CHROME_WEB_STORE_EXTENSIONS_URL);
-      return;
-    }
-
-    const opened = window.open(
-      CHROME_WEB_STORE_EXTENSIONS_URL,
-      "_blank",
-      "noopener,noreferrer",
-    );
-    if (!opened) openTab(CHROME_WEB_STORE_EXTENSIONS_URL);
-  }, [openTab]);
+  // The desktop app installs from a store page opened in a tab; the web
+  // build cannot install, so the store opens outside.
+  const openExtensionsStore = useCallback(
+    (url: string) => {
+      if (window.echo?.extensions?.installFromStore) {
+        openTab(url);
+        setExtensionsOpen(false);
+        return;
+      }
+      const opened = window.open(url, "_blank", "noopener,noreferrer");
+      if (!opened) openTab(url);
+    },
+    [openTab],
+  );
 
   // Implementation note.
   // Implementation note.

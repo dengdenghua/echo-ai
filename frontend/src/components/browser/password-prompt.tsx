@@ -2,7 +2,7 @@ import { KeyRoundIcon, XIcon } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 
-const PASSWORDS_CHANGED_EVENT = "echo:browser-passwords-changed";
+export const PASSWORDS_CHANGED_EVENT = "echo:browser-passwords-changed";
 
 type PasswordOffer = {
   token: string;
@@ -34,7 +34,7 @@ export function PasswordOfferBubble() {
     });
   }, []);
 
-  const answer = async (save: boolean) => {
+  const answer = async (save: boolean | "never") => {
     const current = offer;
     setOffer(null);
     if (!current || !window.echo?.browser?.resolvePasswordOffer) return;
@@ -42,6 +42,10 @@ export function PasswordOfferBubble() {
       current.token,
       save,
     );
+    if (save === "never") {
+      window.dispatchEvent(new Event(PASSWORDS_CHANGED_EVENT));
+      return;
+    }
     if (!save) return;
     if (result.ok && result.saved) {
       window.dispatchEvent(new Event(PASSWORDS_CHANGED_EVENT));
@@ -80,7 +84,17 @@ export function PasswordOfferBubble() {
       <p className="mt-2 text-[11px] leading-4 text-muted-foreground">
         密码由系统加密保存，只留在这台电脑上。
       </p>
-      <div className="mt-3 flex justify-end gap-2">
+      <div className="mt-3 flex items-center gap-2">
+        {offer.update ? null : (
+          <button
+            type="button"
+            onClick={() => void answer("never")}
+            className="h-7 rounded-md px-2 text-xs text-muted-foreground hover:bg-muted hover:text-foreground"
+          >
+            此网站永不
+          </button>
+        )}
+        <span className="flex-1" />
         <button
           type="button"
           onClick={() => void answer(false)}

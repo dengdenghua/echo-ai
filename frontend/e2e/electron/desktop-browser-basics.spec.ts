@@ -458,9 +458,9 @@ test("desktop offers to save a submitted login, never in private tabs", async ()
       async () => (await window.echo!.browser.listPasswords()).available,
     );
     test.skip(!available, "no OS encryption for the password vault here");
-    const signIn = (partition: string) =>
+    const signIn = (partition: string, user = "alice") =>
       win.evaluate(
-        async ({ url, partition }) => {
+        async ({ url, partition, user }) => {
           const w = window as unknown as { __offers?: unknown[] };
           if (!w.__offers) {
             w.__offers = [];
@@ -481,7 +481,7 @@ test("desktop offers to save a submitted login, never in private tabs", async ()
           document.body.append(webview);
           await ready;
           await webview.executeJavaScript(
-            `document.querySelector('[name=user]').value = 'alice';
+            `document.querySelector('[name=user]').value = ${JSON.stringify(user)};
              document.querySelector('[name=pw]').value = 's3cret';
              document.querySelector('#go').click();`,
             true,
@@ -489,7 +489,7 @@ test("desktop offers to save a submitted login, never in private tabs", async ()
           await new Promise((resolve) => setTimeout(resolve, 1200));
           return w.__offers!.length;
         },
-        { url: `${base}/login`, partition },
+        { url: `${base}/login`, partition, user },
       );
     expect(await signIn("echo-private")).toBe(0);
     expect(await signIn("persist:echo-browser")).toBe(1);
@@ -523,6 +523,27 @@ test("desktop offers to save a submitted login, never in private tabs", async ()
     );
     expect(listed.entries.map((entry) => entry.username)).toEqual(["alice"]);
     expect(JSON.stringify(listed)).not.toContain("s3cret");
+
+    // "Never for this site" stops further offers until it is removed.
+    expect(await signIn("persist:echo-browser", "bob")).toBe(2);
+    const never = await win.evaluate(async () => {
+      const offers = (window as unknown as { __offers: { token: string }[] })
+        .__offers;
+      return window.echo!.browser.resolvePasswordOffer(
+        offers[1]!.token,
+        "never",
+      );
+    });
+    expect(never).toEqual({ ok: true, saved: false });
+    expect(await signIn("persist:echo-browser", "carol")).toBe(2);
+    expect(
+      await win.evaluate(() => window.echo!.browser.listPasswordNeverSites()),
+    ).toEqual({ ok: true, origins: [base] });
+    await win.evaluate(
+      (origin) => window.echo!.browser.removePasswordNeverSite(origin),
+      base,
+    );
+    expect(await signIn("persist:echo-browser", "dave")).toBe(3);
   } finally {
     await app.close();
     await new Promise<void>((resolve) => server.close(() => resolve()));

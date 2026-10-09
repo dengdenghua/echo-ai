@@ -58,6 +58,8 @@ const api = {
     deletePassword: invoke("browser:deletePassword"),
     fillPassword: invoke("browser:fillPassword"),
     resolvePasswordOffer: invoke("browser:resolvePasswordOffer"),
+    listPasswordNeverSites: invoke("browser:listPasswordNeverSites"),
+    removePasswordNeverSite: invoke("browser:removePasswordNeverSite"),
     listSitePermissions: invoke("browser:listSitePermissions"),
     setSitePermission: invoke("browser:setSitePermission"),
     showDownloadInFolder: invoke("browser:showDownloadInFolder"),
@@ -80,6 +82,7 @@ const api = {
   extensions: {
     list: invoke("extensions:list"),
     installFromFolder: invoke("extensions:installFromFolder"),
+    installFromStore: invoke("extensions:installFromStore"),
     setEnabled: invoke("extensions:setEnabled"),
     remove: invoke("extensions:remove"),
   },

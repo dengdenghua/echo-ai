@@ -36,6 +36,7 @@ const { selectPreviewSource } = require("./automation-preview.cjs");
 const desktopProtocol = require("./desktop-protocol.cjs");
 const mcpOAuthDeepLink = require("./mcp-oauth-deep-link.cjs");
 const { startBrowserControlBridge } = require("./browser-control-bridge.cjs");
+const extensionStore = require("./extension-store.cjs");
 let browserControlBridge = null;
 let activeBrowserTabId = null;
 const {
@@ -569,6 +570,23 @@ function storePasswordEntry(entry) {
   writePasswordVault([next, ...entries.filter((item) => item.id !== next.id)]);
 }
 
+// Sites the user told never to offer saving a password for.
+const passwordNeverFile = () =>
+  path.join(app.getPath("userData"), "browser-password-never.json");
+
+function readPasswordNeverSites() {
+  try {
+    const list = JSON.parse(fs.readFileSync(passwordNeverFile(), "utf8"));
+    return Array.isArray(list) ? list.filter((o) => typeof o === "string") : [];
+  } catch {
+    return [];
+  }
+}
+
+function writePasswordNeverSites(origins) {
+  fs.writeFileSync(passwordNeverFile(), JSON.stringify([...new Set(origins)]));
+}
+
 // Logins submitted in a browser tab wait here (password stays in the main
 // process) until the user answers the "save password?" prompt.
 const pendingPasswordOffers = new Map();
@@ -595,6 +613,7 @@ function offerToSavePassword(event, payload) {
     .slice(0, 200);
   const password = String(payload?.password || "").slice(0, 500);
   if (!username || !password) return;
+  if (readPasswordNeverSites().includes(origin)) return;
   const existing = readPasswordVault().find(
     (item) => item.origin === origin && item.username === username,
   );
@@ -879,6 +898,99 @@ function browserExtensions() {
   const ses = browserProfileSession();
   // Electron 35+ moved these methods to session.extensions.
   return ses.extensions ?? ses;
+}
+
+// Store installs are unpacked here; removing one deletes its folder.
+const storeExtensionsDir = () =>
+  path.join(app.getPath("userData"), "store-extensions");
+
+function isStoreExtensionPath(dir) {
+  const root = path.resolve(storeExtensionsDir());
+  return path.resolve(dir).startsWith(root + path.sep);
+}
+
+/** Load an unpacked extension folder into browser tabs and register it. */
+async function installExtensionFromDir(dir, source = "folder") {
+  const manifest = JSON.parse(
+    await fsp.readFile(path.join(dir, "manifest.json"), "utf8"),
+  );
+  const loaded = await browserExtensions().loadExtension(dir);
+  // Store packages name themselves with __MSG_…__ placeholders; the
+  // loaded extension carries the localized values.
+  const info = {
+    id: loaded.id,
+    name: loaded.name || manifest.name || path.basename(dir),
+    version: loaded.version || manifest.version || "0.0.0",
+    description: loaded.manifest?.description || manifest.description || "",
+    manifestVersion: manifest.manifest_version || 3,
+    path: dir,
+    enabled: true,
+    installedAt: new Date().toISOString(),
+    source,
+  };
+  const registry = readExtensionRegistry().filter(
+    (e) => e.path !== dir && e.id !== info.id,
+  );
+  registry.push(info);
+  writeExtensionRegistry(registry);
+  return info;
+}
+
+async function installExtensionFromStore(input) {
+  const parsed = extensionStore.parseStoreInput(input);
+  if (!parsed)
+    return {
+      ok: false,
+      error: "不是 Chrome 应用店或 Edge 加载项的扩展链接 / ID",
+    };
+  let crx = null;
+  let lastError = "";
+  for (const url of extensionStore.crxDownloadUrls(
+    parsed,
+    process.versions.chrome,
+  )) {
+    try {
+      const response = await net.fetch(url);
+      if (!response.ok) {
+        lastError = `HTTP ${response.status}`;
+        continue;
+      }
+      const body = Buffer.from(await response.arrayBuffer());
+      if (body.length > 64 * 1024 * 1024) {
+        lastError = "扩展包过大";
+        continue;
+      }
+      crx = body;
+      break;
+    } catch (err) {
+      lastError = err.message;
+    }
+  }
+  if (!crx) return { ok: false, error: `下载扩展失败：${lastError}` };
+  const dir = path.join(storeExtensionsDir(), parsed.id);
+  try {
+    for (const ext of readExtensionRegistry()) {
+      if (ext.path === dir) {
+        try {
+          browserExtensions().removeExtension(ext.id);
+        } catch {
+          /* not loaded */
+        }
+      }
+    }
+    await fsp.rm(dir, { recursive: true, force: true });
+    extensionStore.extractZip(extensionStore.crxZip(crx), dir);
+    return {
+      ok: true,
+      extension: await installExtensionFromDir(dir, parsed.store || "store"),
+    };
+  } catch (err) {
+    await fsp.rm(dir, { recursive: true, force: true }).catch(() => {});
+    writeExtensionRegistry(
+      readExtensionRegistry().filter((e) => e.path !== dir),
+    );
+    return { ok: false, error: err.message };
+  }
 }
 
 async function loadEnabledExtensions() {
@@ -1560,6 +1672,10 @@ function registerIpc() {
     const offer = pendingPasswordOffers.get(String(token));
     pendingPasswordOffers.delete(String(token));
     if (!offer) return { ok: false, error: "offer expired" };
+    if (save === "never") {
+      writePasswordNeverSites([...readPasswordNeverSites(), offer.origin]);
+      return { ok: true, saved: false };
+    }
     if (!save) return { ok: true, saved: false };
     try {
       storePasswordEntry(offer);
@@ -1567,6 +1683,16 @@ function registerIpc() {
     } catch (err) {
       return { ok: false, error: err.message };
     }
+  });
+  handle("browser:listPasswordNeverSites", () => ({
+    ok: true,
+    origins: readPasswordNeverSites(),
+  }));
+  handle("browser:removePasswordNeverSite", (origin) => {
+    writePasswordNeverSites(
+      readPasswordNeverSites().filter((item) => item !== origin),
+    );
+    return { ok: true };
   });
   ipcMain.on("browser-page:login-submitted", (event, payload) =>
     offerToSavePassword(event, payload),
@@ -1757,28 +1883,14 @@ function registerIpc() {
       return { ok: false, canceled: true };
     const dir = picked.filePaths[0];
     try {
-      const manifest = JSON.parse(
-        await fsp.readFile(path.join(dir, "manifest.json"), "utf8"),
-      );
-      const loaded = await browserExtensions().loadExtension(dir);
-      const info = {
-        id: loaded.id,
-        name: manifest.name || path.basename(dir),
-        version: manifest.version || "0.0.0",
-        description: manifest.description || "",
-        manifestVersion: manifest.manifest_version || 3,
-        path: dir,
-        enabled: true,
-        installedAt: new Date().toISOString(),
-      };
-      const registry = readExtensionRegistry().filter((e) => e.path !== dir);
-      registry.push(info);
-      writeExtensionRegistry(registry);
-      return { ok: true, extension: info };
+      return { ok: true, extension: await installExtensionFromDir(dir) };
     } catch (err) {
       return { ok: false, error: err.message };
     }
   });
+  handle("extensions:installFromStore", (input) =>
+    installExtensionFromStore(input),
+  );
   handle("extensions:setEnabled", async (id, enabled) => {
     const registry = readExtensionRegistry();
     const ext = registry.find((e) => e.id === id);
@@ -1797,13 +1909,19 @@ function registerIpc() {
       return { ok: false, error: err.message };
     }
   });
-  handle("extensions:remove", (id) => {
+  handle("extensions:remove", async (id) => {
     try {
       browserExtensions().removeExtension(id);
     } catch {
       /* may not be loaded */
     }
-    writeExtensionRegistry(readExtensionRegistry().filter((e) => e.id !== id));
+    const registry = readExtensionRegistry();
+    const removed = registry.find((e) => e.id === id);
+    writeExtensionRegistry(registry.filter((e) => e.id !== id));
+    // A store install's unpacked copy is ours to delete; a user's own
+    // folder is left alone.
+    if (removed && isStoreExtensionPath(removed.path))
+      await fsp.rm(removed.path, { recursive: true, force: true });
     return { ok: true };
   });
 

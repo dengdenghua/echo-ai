@@ -23,6 +23,8 @@ export interface BrowserExtensionInfo {
   path: string;
   enabled: boolean;
   installedAt: string;
+  /** "folder", or the store it was installed from ("chrome" / "edge"). */
+  source?: string;
 }
 
 export interface NativeDesktopItem {
@@ -177,8 +179,11 @@ export interface EchoElectronAPI {
     /** Answer a "save password?" offer; the password never leaves main. */
     resolvePasswordOffer: (
       token: string,
-      save: boolean,
+      /** "never": don't save and never ask again for this site. */
+      save: boolean | "never",
     ) => Promise<{ ok: boolean; saved?: boolean; error?: string }>;
+    listPasswordNeverSites: () => Promise<{ ok: boolean; origins: string[] }>;
+    removePasswordNeverSite: (origin: string) => Promise<{ ok: boolean }>;
     getNavigationHistory: (webContentsId: number) => Promise<{
       ok: boolean;
       entries: BrowserNavigationEntry[];
@@ -220,6 +225,12 @@ export interface EchoElectronAPI {
     installFromFolder: () => Promise<{
       ok: boolean;
       canceled?: boolean;
+      extension?: BrowserExtensionInfo;
+      error?: string;
+    }>;
+    /** Chrome Web Store / Edge Add-ons link or extension ID. */
+    installFromStore: (input: string) => Promise<{
+      ok: boolean;
       extension?: BrowserExtensionInfo;
       error?: string;
     }>;
