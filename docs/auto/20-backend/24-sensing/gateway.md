@@ -42,6 +42,8 @@ tier: "standard"
 | `_channels_models.py` | — |
 | `_channels_persist.py` | — |
 | `_computer_appshot_routes.py` | Appshot and native desktop-target routes for computer automation. |
+| `_computer_observe_routes.py` | Status, activity, screenshot, and UIA observation routes for computer automation. |
+| `_computer_plan_routes.py` | Preview, plan, ground, and vision routes for computer automation. |
 | `_config_endpoints.py` | Endpoint handlers for the config router. |
 | `_config_endpoints_codex.py` | Principal-scoped Coder/Codex account and model control endpoints. |
 | `_config_endpoints_custom_models.py` | Custom-model lifecycle endpoints for the config router. |
@@ -54,24 +56,40 @@ tier: "standard"
 | `_conversation_error_diagnostics.py` | Privacy-bounded diagnostics for errors persisted in conversation snapshots. |
 | `_cowork_coordination.py` | Group-scoped coordination HTTP API; identity comes only from request ACLs. |
 | `_cowork_group_access.py` | Authorization helpers for the cowork group HTTP router. |
+| `_cowork_group_collector_endpoints.py` | Collector retry / cancel / archive endpoints for the cowork router. |
+| `_cowork_group_deps.py` | Shared dependencies for the ``/api/cowork/*`` thread-group router. |
 | `_cowork_group_models.py` | Pydantic request bodies for the cowork group HTTP API. |
+| `_cowork_group_room_endpoints.py` | Linked-room endpoints for the cowork router: social, room link, messages. |
 | `_cowork_group_room_ensure.py` | Atomic ensure-room workflow for collaboration sessions. |
 | `_cowork_group_room_link.py` | Fail-safe Team Room linking for collaboration sessions. |
+| `_cowork_group_run_endpoints.py` | Collaboration run, collector child, and delivery endpoints for cowork. |
 | `_cowork_group_session.py` | Read-side projection helpers for unified cowork sessions. |
+| `_design_studio_models.py` | Request bodies and static ComfyUI catalogs for the Design Studio router. |
 | `_device_flow_models.py` | Typed wire models for connector device-flow generations. |
 | `_event_bridge_tool_items.py` | Tool-event → item/description builders for the realtime bridge. |
+| `_evolution_candidate_endpoints.py` | Evidence, candidate, dual-helix shadow, and fitness endpoints for evolution. |
+| `_evolution_certification_endpoints.py` | Scorecard and Kimi-swarm certification endpoints for the evolution router. |
 | `_evolution_helpers.py` | — |
+| `_evolution_ledger_endpoints.py` | Proposal-ledger and skill-canary endpoints for the evolution router. |
 | `_evolution_models.py` | — |
+| `_evolution_ops_deps.py` | Shared closures for the evolution operator-console router. |
+| `_evolution_ops_forge_endpoints.py` | RecipeForge alias endpoints for the evolution ops router. |
 | `_evolution_ops_insights.py` | Read-model builders for the evolution operator console. |
+| `_evolution_ops_learning_endpoints.py` | Learning-insight and skill-forge endpoints for the evolution ops router. |
+| `_evolution_ops_proposal_endpoints.py` | Skill, model, and MCP proposal endpoints for the evolution ops router. |
+| `_evolution_repair_endpoints.py` | Repair-recipe, verifier, and subagent endpoints for the evolution router. |
 | `_fs_router_diff.py` | Unified-diff parsing / reverse-apply helpers for the filesystem router. |
 | `_fs_router_endpoints.py` | Endpoint handlers for the filesystem router. |
 | `_fs_router_helpers.py` | Shared helpers for the filesystem router factory. |
 | `_fs_router_models.py` | Response models and shared constants for the filesystem router. |
 | `_fs_router_paths.py` | Path / root-resolution helpers for the filesystem router. |
+| `_meta_auth_routes.py` | Auth status, current-user / logout, and login-provider routes for the meta router. |
 | `_meta_mentions.py` | @-mention autocomplete builder for the meta router. |
 | `_meta_models.py` | Pydantic response models for the meta router. |
+| `_meta_router_deps.py` | Shared inputs for the meta router's endpoint groups. |
 | `_meta_skill_install.py` | Skill install / uninstall filesystem helpers for the meta router. |
 | `_meta_skill_metadata.py` | Skill metadata assembly for the meta router. |
+| `_meta_skill_routes.py` | Skill administration routes for the meta router: catalog, toggles, install. |
 | `_observability_auth.py` | Router-level auth helpers shared by the observability endpoint groups. |
 | `_observability_helpers.py` | Shared helpers for the observability router factory. |
 | `_observability_journal.py` | Journal, reflect, evolution and tool-effect endpoints for the observability router. |
@@ -84,7 +102,11 @@ tier: "standard"
 | `_openai_gateway_router_ratelimit.py` | — |
 | `_openai_gateway_router_run.py` | — |
 | `_openai_gateway_router_synthesize.py` | — |
+| `_projects_group_endpoints.py` | Project creation and cowork-group binding endpoints for the Project OS router. |
 | `_projects_group_projections.py` | Project-group read-model projections and compensation helpers. |
+| `_projects_models.py` | Request bodies for the Project OS router. |
+| `_projects_read_endpoints.py` | Read endpoints for the Project OS router: lists, state, reports, audit. |
+| `_projects_router_deps.py` | Shared state and access helpers for the Project OS router. |
 | `_realtime_cerebrum_project_os.py` | Explicit Project OS command bridge for the realtime runtime. |
 | `_realtime_cerebrum_requests.py` | JSON-RPC method dispatch for the realtime runtime. |
 | `_realtime_cerebrum_steering.py` | Active-turn lease + steering management for the realtime runtime. |
@@ -119,9 +141,12 @@ tier: "standard"
 | `_team_tasks_access.py` | Authorization helpers for the persistent team-tasks router. |
 | `_team_tasks_helpers.py` | Module-level helpers for the persistent team tasks router. |
 | `_team_tasks_models.py` | Pydantic wire models for the persistent team tasks API. |
+| `_team_tasks_runtime.py` | Task-store, broadcast, execution, and action helpers for the team tasks router. |
 | `_thread_history_fork.py` | Verified conversation-only forks, without live requests or native bindings. |
 | `_thread_state_auto_title.py` | Auto-title service wiring shared by the thread state router. |
 | `_thread_state_delete.py` | Fail-closed thread deletion with a durable Project OS binding fence. |
+| `_thread_state_deps.py` | Shared state and access helpers for the thread-state router. |
+| `_thread_state_endpoints.py` | Thread CRUD, search, feedback, and history endpoints for the thread router. |
 | `_thread_state_search_projection.py` | Search projection helpers for the thread-state HTTP router. |
 | `_tool_bridge_exec.py` | Tool execution + semantic error + XML recovery helpers. |
 | `_tool_bridge_loop.py` | The native agentic tool loop (``stream_agentic_fallback``). |
@@ -387,6 +412,13 @@ tier: "standard"
 | --- | --- | --- |
 | class | `class CoworkGroupAccess` | Apply canonical-thread and linked-room ACLs without cached membership. |
 
+### `_cowork_group_deps.py`
+
+| Kind | Symbol | Doc |
+| --- | --- | --- |
+| class | `class CoworkGroupDeps` | Closures and stores shared by the cowork router's endpoint groups. |
+| func | `def build_cowork_group_deps(store, async_store, collaboration_store, room_message_store, team_rooms_state_path, team_tasks_state_path, team_rooms_router, team_tasks_router, runtime, project_store, identity_store, require_auth, jwt_secret, jwt_issuer, jwt_audience)` | Build the shared state in the same order the factory used to. |
+
 ### `_cowork_group_models.py`
 
 | Kind | Symbol | Doc |
@@ -439,6 +471,23 @@ tier: "standard"
 | --- | --- | --- |
 | class | `class CoworkGroupSessionView` | Combine canonical cowork data with legacy Team Room projections. |
 
+### `_design_studio_models.py`
+
+| Kind | Symbol | Doc |
+| --- | --- | --- |
+| class | `class WorkflowImport(BaseModel)` |  |
+| class | `class DesignCapabilityRequest(BaseModel)` |  |
+| class | `class WorkflowSave(BaseModel)` |  |
+| class | `class QueueRequest(BaseModel)` |  |
+| class | `class CanvasSave(BaseModel)` |  |
+| class | `class CanvasPresenceHeartbeat(BaseModel)` |  |
+| class | `class PluginNodeStatePut(BaseModel)` |  |
+| class | `class ComfyCustomNodeAction(BaseModel)` |  |
+| class | `class ComfyCustomNodeRollback(BaseModel)` |  |
+| class | `class ComfyModelDownload(BaseModel)` |  |
+| class | `class ComfyModelAction(BaseModel)` |  |
+| class | `class ComfyModelRestore(BaseModel)` |  |
+
 ### `_device_flow_models.py`
 
 | Kind | Symbol | Doc |
@@ -446,6 +495,18 @@ tier: "standard"
 | class | `class DeviceFlowPayload(BaseModel)` | One server-owned device authorization generation. |
 | class | `class DeviceFlowResponse(BaseModel)` | Shared connect/status envelope while preserving connector-specific fields. |
 | class | `class DeviceFlowCancelResponse(BaseModel)` | Idempotent generation-scoped cancellation result. |
+
+### `_evolution_candidate_endpoints.py`
+
+| Kind | Symbol | Doc |
+| --- | --- | --- |
+| class | `class EvolutionRouterDeps` | Per-router state the factory builds once for the endpoint groups. |
+
+### `_evolution_ops_deps.py`
+
+| Kind | Symbol | Doc |
+| --- | --- | --- |
+| class | `class EvolutionOpsDeps` | Injected stores plus the factory's closures, shared by every group. |
 
 ### `_evolution_ops_insights.py`
 
@@ -462,6 +523,12 @@ tier: "standard"
 | Kind | Symbol | Doc |
 | --- | --- | --- |
 | func | `def register_endpoints(router, ctx)` |  |
+
+### `_meta_router_deps.py`
+
+| Kind | Symbol | Doc |
+| --- | --- | --- |
+| class | `class MetaRouterDeps` | The factory's injected values plus its admin-check closure. |
 
 ### `_observability_auth.py`
 
@@ -516,6 +583,27 @@ tier: "standard"
 | Kind | Symbol | Doc |
 | --- | --- | --- |
 | class | `class ProjectGroupProjectionContext` | Coordinate Project OS projections without owning HTTP route policy. |
+
+### `_projects_models.py`
+
+| Kind | Symbol | Doc |
+| --- | --- | --- |
+| class | `class PlanBody(BaseModel)` |  |
+| class | `class ProjectGroupAgentBody(BaseModel)` |  |
+| class | `class ProjectGroupBody(BaseModel)` |  |
+| class | `class MoveThreadBody(BaseModel)` |  |
+| class | `class RunBody(BaseModel)` |  |
+| class | `class RecoverBody(BaseModel)` |  |
+| class | `class TaskInterventionBody(BaseModel)` |  |
+| class | `class FromGroupBody(BaseModel)` |  |
+| class | `class DetachFromGroupBody(BaseModel)` |  |
+
+### `_projects_router_deps.py`
+
+| Kind | Symbol | Doc |
+| --- | --- | --- |
+| class | `class ProjectsDeps` | Per-router stores and closures shared by the endpoint groups. |
+| func | `def build_projects_deps(store, group_store, collaboration_store, team_rooms_router, thread_store, workspace_root, logs_root, model_router, planning_model, subagent_runner, identity_store, require_auth, jwt_secret, jwt_issuer, jwt_audience)` | Build the shared state in the order the factory used to. |
 
 ### `_realtime_claim_aware_emitter.py`
 
@@ -636,6 +724,13 @@ tier: "standard"
 | Kind | Symbol | Doc |
 | --- | --- | --- |
 | func | `def delete_thread_state(store, thread_id, existing, actor_id, tenant_id, require_auth, workspace_root, logs_root, is_archived, project_store, group_store, logger)` | Serialize deletion against every live realtime turn before re-reading state. |
+
+### `_thread_state_deps.py`
+
+| Kind | Symbol | Doc |
+| --- | --- | --- |
+| class | `class ThreadStateDeps` | Per-router stores, flags, and closures shared by the endpoint groups. |
+| func | `def build_thread_state_deps(store, logs_root, session_titles, identity_store, require_auth, managed_workspace_required, jwt_secret, jwt_issuer, jwt_audience, workspace_root, group_store, project_store, access_resolver, share_store, share_relay)` | Build the closures exactly as the factory used to define them. |
 
 ### `_thread_state_search_projection.py`
 
@@ -974,18 +1069,6 @@ tier: "standard"
 
 | Kind | Symbol | Doc |
 | --- | --- | --- |
-| class | `class WorkflowImport(BaseModel)` |  |
-| class | `class DesignCapabilityRequest(BaseModel)` |  |
-| class | `class WorkflowSave(BaseModel)` |  |
-| class | `class QueueRequest(BaseModel)` |  |
-| class | `class CanvasSave(BaseModel)` |  |
-| class | `class CanvasPresenceHeartbeat(BaseModel)` |  |
-| class | `class PluginNodeStatePut(BaseModel)` |  |
-| class | `class ComfyCustomNodeAction(BaseModel)` |  |
-| class | `class ComfyCustomNodeRollback(BaseModel)` |  |
-| class | `class ComfyModelDownload(BaseModel)` |  |
-| class | `class ComfyModelAction(BaseModel)` |  |
-| class | `class ComfyModelRestore(BaseModel)` |  |
 | func | `def create_design_studio_router(skill_registry, project_store, identity_store, require_auth, jwt_secret, jwt_issuer, jwt_audience, plugin_node_state_store)` |  |
 
 ### `enterprise_assets_router.py`
@@ -1247,15 +1330,6 @@ tier: "standard"
 
 | Kind | Symbol | Doc |
 | --- | --- | --- |
-| class | `class PlanBody(BaseModel)` |  |
-| class | `class ProjectGroupAgentBody(BaseModel)` |  |
-| class | `class ProjectGroupBody(BaseModel)` |  |
-| class | `class MoveThreadBody(BaseModel)` |  |
-| class | `class RunBody(BaseModel)` |  |
-| class | `class RecoverBody(BaseModel)` |  |
-| class | `class TaskInterventionBody(BaseModel)` |  |
-| class | `class FromGroupBody(BaseModel)` |  |
-| class | `class DetachFromGroupBody(BaseModel)` |  |
 | func | `def create_projects_router(store, group_store, collaboration_store, team_rooms_router, thread_store, workspace_root, logs_root, model_router, planning_model, subagent_runner, identity_store, require_auth, jwt_secret, jwt_issuer, jwt_audience)` | Create the ``/api/projects/*`` router. |
 
 ### `prompts_router.py`
@@ -1517,6 +1591,8 @@ tier: "standard"
 | func | `def storage_status()` | Snapshot of storage liveness for a status endpoint / UI light. Returns the heartbeat-cached value when the heartbeat is running; otherwise p |
 | func | `def maybe_start_storage(force)` | Co-launch storage when opt-in + not already up + resolvable. Returns a status: ``disabled`` / ``already_running`` / ``not_found`` / ``starte |
 | func | `def start_storage_heartbeat()` | Start the ongoing supervision heartbeat once (idempotent, daemon thread). |
+| func | `def stop_storage_heartbeat(timeout)` | Stop the supervision heartbeat and join it (idempotent). |
+| func | `def shutdown_storage()` | App-shutdown hook: stop supervising, then terminate our own child. |
 | func | `def stop_storage()` | Terminate the co-launched child (if we started one). Idempotent. |
 
 ### `streaming_journal.py`

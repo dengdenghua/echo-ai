@@ -106,5 +106,5 @@ tier: "standard"
 - **`runtime/platform/`** · 1 file(s)
   - `runtime/platform/ui/_app_auth_routers.py`
 - **`runtime/sensing/`** · 1 file(s)
-  - `runtime/sensing/gateway/meta_router.py`
+  - `runtime/sensing/gateway/_meta_auth_routes.py`
 

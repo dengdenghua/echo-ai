@@ -466,7 +466,7 @@ Self-evolution subsystem — biomimetic alias: *Regeneration*.
 
 ## Who imports this
 
-**40** file(s) reference this package:
+**41** file(s) reference this package:
 
 - **`runtime/_cli_commands.py/`** · 1 file(s)
   - `runtime/_cli_commands.py`
@@ -500,11 +500,11 @@ Self-evolution subsystem — biomimetic alias: *Regeneration*.
   - `runtime/safety/evolution/replay_latency_budget.py`
   - `runtime/safety/experiments/prompt_mutator.py`
   - `runtime/safety/experiments/prompt_optimizer.py`
-- **`runtime/sensing/`** · 14 file(s)
+- **`runtime/sensing/`** · 15 file(s)
   - `runtime/sensing/gateway/_agents_endpoints_system.py`
+  - `runtime/sensing/gateway/_evolution_ops_learning_endpoints.py`
+  - `runtime/sensing/gateway/_evolution_ops_proposal_endpoints.py`
   - `runtime/sensing/gateway/_observability_helpers.py`
   - `runtime/sensing/gateway/_observability_journal.py`
-  - `runtime/sensing/gateway/_observability_kg.py`
-  - `runtime/sensing/gateway/_observability_rollback_panels.py`
-  - _… and 9 more_
+  - _… and 10 more_
 

@@ -221,7 +221,7 @@ tier: "core"
 
 ## Who imports this
 
-**62** file(s) reference this package:
+**63** file(s) reference this package:
 
 - **`runtime/_cli_commands.py/`** · 1 file(s)
   - `runtime/_cli_commands.py`
@@ -265,13 +265,13 @@ tier: "core"
   - `runtime/safety/recovery/memory_consolidator.py`
   - `runtime/safety/recovery/recipe_evaluator.py`
   - _… and 4 more_
-- **`runtime/sensing/`** · 22 file(s)
+- **`runtime/sensing/`** · 23 file(s)
+  - `runtime/sensing/gateway/_evolution_ops_learning_endpoints.py`
   - `runtime/sensing/gateway/_observability_auth.py`
   - `runtime/sensing/gateway/_observability_journal.py`
   - `runtime/sensing/gateway/_observability_progress_stream.py`
   - `runtime/sensing/gateway/_observability_rollback_panels.py`
-  - `runtime/sensing/gateway/_realtime_react_stream_drive.py`
-  - _… and 17 more_
+  - _… and 18 more_
 - **`runtime/tour.py/`** · 1 file(s)
   - `runtime/tour.py`
 

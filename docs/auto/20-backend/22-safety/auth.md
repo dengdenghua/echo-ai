@@ -58,6 +58,7 @@ tier: "core"
 | `identity.py` | — |
 | `internal_token.py` | Internal, same-process service token for agent→gateway calls. |
 | `login_throttle.py` | Bounded, thread-safe attempt limits for public authentication endpoints. |
+| `origin_policy.py` | Browser Host / Origin policy shared by the HTTP guard and WebSocket auth. |
 | `path_denylist.py` | User-defined path denylist — Marvis-style "不可读取文件夹". |
 | `path_guard.py` | — |
 | `principal.py` | Request principal resolution and role gates for shared deployments. |
@@ -67,6 +68,7 @@ tier: "core"
 | `trust_engine.py` | — |
 | `url_guard.py` | — |
 | `websocket.py` | Shared browser-safe WebSocket bearer-token transport helpers. |
+| `websocket_auth.py` | One handshake gate for every WebSocket endpoint. |
 
 ## Key classes & functions
 
@@ -127,6 +129,19 @@ tier: "core"
 | Kind | Symbol | Doc |
 | --- | --- | --- |
 | class | `class AuthAttemptLimiter` |  |
+
+### `origin_policy.py`
+
+| Kind | Symbol | Doc |
+| --- | --- | --- |
+| func | `def host_from_header(value)` | Hostname of a ``Host`` header value (``h``, ``h:p``, ``[v6]:p``). |
+| func | `def is_loopback_hostname(host)` |  |
+| func | `def normalize_origin(value)` | ``scheme://host[:port]`` lowercased, or ``""`` when unparsable. |
+| func | `def allowed_hosts()` |  |
+| func | `def allowed_origins()` |  |
+| func | `def scope_header(scope, name)` | Return one raw ASGI header (latin-1 decoded), or ``None`` if absent. |
+| func | `def host_rejection(scope, require_local_host)` | Reason to refuse the request's Host, or ``None`` when it is allowed. |
+| func | `def origin_rejection(scope)` | Reason to refuse the browser Origin, or ``None`` when it is allowed. |
 
 ### `path_denylist.py`
 
@@ -215,10 +230,25 @@ tier: "core"
 | func | `def websocket_bearer_token(connection)` | Decode a bearer token offered through WebSocket subprotocols. |
 | func | `def accepted_auth_subprotocol(connection)` | Select only the non-secret auth marker from the client's offer. |
 
+### `websocket_auth.py`
+
+| Kind | Symbol | Doc |
+| --- | --- | --- |
+| class | `class WebSocketCredential(StrEnum)` | What a WebSocket endpoint accepts as proof of identity. |
+| class | `class WebSocketAuthConfig` | The host auth settings shared with the HTTP ``resolve_principal``. |
+| class | `class WebSocketExemption` | Why a WebSocket route does not take a host session at the handshake. |
+| class | `class WebSocketAuthError(_WebSocketException)` | Refuse a handshake; Starlette closes it with 1008 before ``accept()``. |
+| class | `class WebSocketAuthResult` | An admitted handshake: who connected and the subprotocol to accept. |
+| func | `def websocket_auth_config_from_app(app)` | The host's config, published by ``setup_app`` on ``app.state``. |
+| func | `def check_websocket_auth(websocket, config, credential, roles)` | Decide a handshake without touching the socket. |
+| func | `def require_connection_principal(connection, config)` | Router-dependency form for routers that mix HTTP and WebSocket routes. |
+| func | `async def refuse_websocket(websocket, reason)` | Close a not-yet-accepted handshake with the shared policy code. |
+| func | `async def authenticate_websocket(websocket, config, credential, roles)` | Authenticate a handshake before ``accept()``; ``None`` means refused. |
+
 
 ## Who imports this
 
-**196** file(s) reference this package:
+**203** file(s) reference this package:
 
 - **`runtime/adapters/`** · 6 file(s)
   - `runtime/adapters/integrations/local_auth/router.py`
@@ -254,13 +284,13 @@ tier: "core"
   - `runtime/memory/journal/_journal_base.py`
   - `runtime/memory/journal/journal.py`
   - _… and 9 more_
-- **`runtime/platform/`** · 21 file(s)
+- **`runtime/platform/`** · 25 file(s)
   - `runtime/platform/capabilities/permission_grants.py`
   - `runtime/platform/capabilities/service.py`
   - `runtime/platform/capabilities/tenant_context.py`
   - `runtime/platform/config/builder.py`
   - `runtime/platform/connectors/cli_profile.py`
-  - _… and 16 more_
+  - _… and 20 more_
 - **`runtime/projectos/`** · 6 file(s)
   - `runtime/projectos/_store_message_actions.py`
   - `runtime/projectos/_store_project_deletion.py`
@@ -275,16 +305,17 @@ tier: "core"
   - `runtime/safety/evolution/fitness.py`
   - `runtime/safety/evolution/proposal_ledger.py`
   - _… and 17 more_
-- **`runtime/sensing/`** · 85 file(s)
+- **`runtime/sensing/`** · 87 file(s)
   - `runtime/sensing/gateway/_agent_trace_router_stores.py`
   - `runtime/sensing/gateway/_config_endpoints.py`
   - `runtime/sensing/gateway/_config_endpoints_codex.py`
   - `runtime/sensing/gateway/_config_endpoints_local_models.py`
   - `runtime/sensing/gateway/_config_endpoints_models.py`
-  - _… and 80 more_
-- **`runtime/tentacle/`** · 2 file(s)
+  - _… and 82 more_
+- **`runtime/tentacle/`** · 3 file(s)
   - `runtime/tentacle/coordinator.py`
   - `runtime/tentacle/dashboard.py`
+  - `runtime/tentacle/transport/asgi.py`
 - **`runtime/tour.py/`** · 1 file(s)
   - `runtime/tour.py`
 - **`runtime/workspace/`** · 1 file(s)

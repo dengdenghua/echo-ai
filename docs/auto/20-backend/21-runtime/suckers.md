@@ -799,9 +799,9 @@ Suckers = skill pool.
 - **`runtime/sensing/`** · 27 file(s)
   - `runtime/sensing/gateway/_agent_world_helpers.py`
   - `runtime/sensing/gateway/_computer_appshot_routes.py`
+  - `runtime/sensing/gateway/_computer_observe_routes.py`
+  - `runtime/sensing/gateway/_evolution_ops_proposal_endpoints.py`
   - `runtime/sensing/gateway/_meta_mentions.py`
-  - `runtime/sensing/gateway/_realtime_react_stream_drive.py`
-  - `runtime/sensing/gateway/_realtime_react_stream_helpers.py`
   - _… and 22 more_
 - **`runtime/tour.py/`** · 1 file(s)
   - `runtime/tour.py`
