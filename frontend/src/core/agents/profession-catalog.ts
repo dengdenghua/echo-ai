@@ -2,8 +2,7 @@ import { useEffect, useState } from "react";
 import { listAgents } from "./api";
 import type { Agent } from "./types";
 import presets from "./profession-blueprints.json";
-import { getBackendBaseURL } from "@/core/config";
-import { authHeaders } from "@/core/auth/api";
+import { apiGet } from "@/core/api/request";
 
 export const blueprints = presets;
 export type Profession = {
@@ -54,7 +53,8 @@ export function useProfessionCatalog() {
     setLoading(true); setError(false);
     Promise.all([
       listAgents({ signal: controller.signal }),
-      fetch(`${getBackendBaseURL()}/api/agent-market/echo/catalog`, { signal: controller.signal, headers: authHeaders() }).then(r => r.ok ? r.json() as Promise<{ agents?: Agent[] }> : { agents: [] }).catch(() => ({ agents: [] })),
+      // Any failure (HTTP or network) degrades to "no catalog extras".
+      apiGet("/api/agent-market/echo/catalog", { signal: controller.signal }).then(data => data as { agents?: Agent[] }).catch(() => ({ agents: [] as Agent[] })),
     ]).then(([agents, catalog]) => {
       if (!controller.signal.aborted) setRoles(mergeProfessions([...agents, ...(catalog.agents ?? [])]));
     }).catch(() => { if (!controller.signal.aborted) setError(true); })

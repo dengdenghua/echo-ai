@@ -1,5 +1,4 @@
-import { authHeaders } from "@/core/auth/api";
-import { getBackendBaseURL } from "@/core/config";
+import { apiGet, isApiErrorStatus } from "@/core/api/request";
 import type { CapabilityInfo } from "./agent-world-api";
 
 export type RequiredConnectionState =
@@ -22,12 +21,18 @@ export async function inspectRequiredConnection(
   signal?: AbortSignal,
 ): Promise<RequiredConnection> {
   const result: RequiredConnection = { id, name: id, state: "unknown" };
-  const base = `${getBackendBaseURL()}/api/capabilities/${encodeURIComponent(id)}`;
   try {
-    const response = await fetch(base, { headers: authHeaders(), signal });
-    if (response.status === 404) return { ...result, state: "missing" };
-    if (!response.ok) return result;
-    const capability = (await response.json()) as CapabilityInfo;
+    let capability: CapabilityInfo;
+    try {
+      capability = (await apiGet("/api/capabilities/{cid}", {
+        path: { cid: id },
+        signal,
+      })) as CapabilityInfo;
+    } catch (error) {
+      if (isApiErrorStatus(error, 404)) return { ...result, state: "missing" };
+      // Other HTTP failures fall through to the outer "unknown" result.
+      throw error;
+    }
     if (capability.id !== id || capability.source !== "connector")
       return result;
     result.name = capability.name_zh || capability.name || id;
@@ -40,12 +45,10 @@ export async function inspectRequiredConnection(
     if (!capability.enabled) return { ...result, state: "disabled" };
     if (capability.auth_mode === "none")
       return { ...result, state: "configured" };
-    const status = await fetch(`${base}/status`, {
-      headers: authHeaders(),
+    const auth = (await apiGet("/api/capabilities/{cid}/status", {
+      path: { cid: id },
       signal,
-    });
-    if (!status.ok) return result;
-    const auth = (await status.json()) as { connected?: boolean };
+    })) as { connected?: boolean };
     return {
       ...result,
       state:
