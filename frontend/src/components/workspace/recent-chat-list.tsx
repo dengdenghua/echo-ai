@@ -66,7 +66,7 @@ import {
   exportThreadAsMarkdown,
 } from "@/core/threads/export";
 import {
-  useDeleteThread,
+  useThreadListVisibility,
   useRenameThread,
   useThreads,
 } from "@/core/threads/hooks";
@@ -134,7 +134,7 @@ export function RecentChatList() {
   );
   const { data: projects = [] } = useProjects();
   const { data: threadProjectMap = {} } = useThreadMap();
-  const { mutate: deleteThread } = useDeleteThread();
+  const { mutate: deleteThread } = useThreadListVisibility();
   const { mutate: renameThread } = useRenameThread();
   const { mutate: moveThreadToProject } = useMoveThreadToProject();
   const ensureProjectHome = useEnsureProjectHome();
@@ -165,19 +165,25 @@ export function RecentChatList() {
 
   const handleDelete = useCallback(
     (threadId: string) => {
-      deleteThread({ threadId });
-      if (threadId === threadIdFromPath) {
-        const threadIndex = threads.findIndex((x) => x.thread_id === threadId);
-        let nextThreadId = "new";
-        if (threadIndex > -1) {
-          if (threads[threadIndex + 1]) {
-            nextThreadId = threads[threadIndex + 1]!.thread_id;
-          } else if (threads[threadIndex - 1]) {
-            nextThreadId = threads[threadIndex - 1]!.thread_id;
-          }
-        }
-        void navigate(`/workspace/realtime/${nextThreadId}`);
-      }
+      deleteThread(
+        { threadId },
+        {
+          onSuccess: () => {
+            if (threadId === threadIdFromPath) {
+              const threadIndex = threads.findIndex((x) => x.thread_id === threadId);
+              let nextThreadId = "new";
+              if (threadIndex > -1) {
+                if (threads[threadIndex + 1]) {
+                  nextThreadId = threads[threadIndex + 1]!.thread_id;
+                } else if (threads[threadIndex - 1]) {
+                  nextThreadId = threads[threadIndex - 1]!.thread_id;
+                }
+              }
+              void navigate(`/workspace/realtime/${nextThreadId}`);
+            }
+          },
+        },
+      );
     },
     [deleteThread, navigate, threadIdFromPath, threads],
   );
@@ -410,7 +416,7 @@ export function RecentChatList() {
                 onSelect={() => setThreadToDelete(thread)}
               >
                 <Trash2 />
-                <span>{t.common.delete}</span>
+                <span>{t.sidebar.deleteThreadTooltip}</span>
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
@@ -578,7 +584,7 @@ export function RecentChatList() {
       >
         <DialogContent className="sm:max-w-[var(--dialog-md)]">
           <DialogHeader>
-            <DialogTitle>{t.common.delete}</DialogTitle>
+            <DialogTitle>{t.sidebar.deleteThreadTooltip}</DialogTitle>
             <DialogDescription>
               {threadToDelete
                 ? t.sidebar.confirmDeleteThread(titleOfThread(threadToDelete))
@@ -589,8 +595,8 @@ export function RecentChatList() {
             <Button variant="outline" onClick={() => setThreadToDelete(null)}>
               {t.common.cancel}
             </Button>
-            <Button variant="destructive" onClick={handleThreadDelete}>
-              {t.common.delete}
+            <Button onClick={handleThreadDelete}>
+              {t.sidebar.deleteThreadTooltip}
             </Button>
           </DialogFooter>
         </DialogContent>

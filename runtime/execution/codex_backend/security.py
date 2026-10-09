@@ -46,7 +46,9 @@ from ._security_support import (
     _MARKER_FILE,
     CodexSecurityError,
     _atomic_write_private,
-    _ensure_private_directory,
+    _capture_cleanup_allocation,
+    _CleanupAllocation,
+    _ensure_private_directories,
     _expect_value,
     _lock_down_directory,
     _mapping_at,
@@ -216,6 +218,8 @@ class CodexSidecarContext:
     _launch_env: Mapping[str, str] = field(repr=False)
     provider_profile: CodexProviderProfile | None = field(default=None, repr=False)
     selected_app_ids: tuple[str, ...] = ()
+    _scratch_allocation: _CleanupAllocation | None = field(default=None, repr=False)
+    _task_allocation: _CleanupAllocation | None = field(default=None, repr=False)
 
     def launch_env(self) -> dict[str, str]:
         """Return a mutable copy suitable for ``subprocess.Popen(env=...)``."""
@@ -386,12 +390,14 @@ class CodexSidecarContext:
             root=self.state_root,
             marker_path=self.scratch_marker_path,
             expected_kind="scratch",
+            allocation=self._scratch_allocation,
         )
         _remove_marked_tree(
             self.task_root,
             root=self.state_root,
             marker_path=self.task_root / _MARKER_FILE,
             expected_kind="task",
+            allocation=self._task_allocation,
         )
         _prune_empty_parents(self.scratch_root.parent, stop=self.state_root)
         _prune_empty_parents(self.task_root.parent, stop=self.state_root)
@@ -556,25 +562,27 @@ class CodexSidecarSecurity:
         tool_home = scratch_root / "home"
         tool_tmp = scratch_root / "tmp"
 
-        for directory in (
-            thread_root,
-            task_root,
-            codex_home,
-            codex_home / "sqlite",
-            app_home,
-            app_home / "cache",
-            app_home / "config",
-            app_home / "data",
-            task_root / "tmp",
-            scratch_marker_path.parent,
-            scratch_root,
-            tool_home,
-            tool_home / ".cache",
-            tool_home / ".config",
-            tool_home / ".local" / "share",
-            tool_tmp,
-        ):
-            _ensure_private_directory(directory, root=state_root)
+        _ensure_private_directories(
+            (
+                thread_root,
+                task_root,
+                codex_home,
+                codex_home / "sqlite",
+                app_home,
+                app_home / "cache",
+                app_home / "config",
+                app_home / "data",
+                task_root / "tmp",
+                scratch_marker_path.parent,
+                scratch_root,
+                tool_home,
+                tool_home / ".cache",
+                tool_home / ".config",
+                tool_home / ".local" / "share",
+                tool_tmp,
+            ),
+            root=state_root,
+        )
 
         _write_marker(
             thread_root / _MARKER_FILE,
@@ -647,6 +655,10 @@ class CodexSidecarSecurity:
             provider_profile=provider_profile,
             selected_app_ids=tuple(dict.fromkeys(selected_app_ids)),
             _launch_env=MappingProxyType(launch_env),
+            _scratch_allocation=_capture_cleanup_allocation(
+                scratch_root, root=state_root, kind="scratch"
+            ),
+            _task_allocation=_capture_cleanup_allocation(task_root, root=state_root, kind="task"),
         )
         _read_binding_file(context)
         config_text = _render_codex_config(context)

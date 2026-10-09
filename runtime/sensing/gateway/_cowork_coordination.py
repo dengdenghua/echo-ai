@@ -21,7 +21,11 @@ class ReceiptBody(BaseModel):
     message_id: str = Field(default="", max_length=160)
 
 
-def mount_coordination_routes(router, service, access, runtime):
+class RecruitmentDecision(BaseModel):
+    accept: bool
+
+
+def mount_coordination_routes(router, service, access, runtime, invite=None):
     def owned_task(thread_id, task_id, request):
         task = service.ledger.get(task_id)
         if task is None or task["thread_id"] != thread_id:
@@ -40,7 +44,31 @@ def mount_coordination_routes(router, service, access, runtime):
         data["actor_id"] = access.actor(request)
         decision = getattr(request.state, "cowork_thread_access", None)
         data["can_write"] = decision.can_write if decision is not None else True
+        data["can_manage"] = decision.can_manage if decision is not None else True
         return data
+
+    @router.post("/api/collab/{thread_id}/coordination/recruitment/{proposal_id}")
+    def review_recruitment(
+        thread_id: str, proposal_id: str, body: RecruitmentDecision, request: Request
+    ):
+        access.require_owned_thread(thread_id, request)
+        if invite is None:
+            raise HTTPException(503, "邀请入口暂不可用")
+        from runtime.memory.cowork.recruitment import review
+
+        try:
+            return review(
+                service,
+                thread_id,
+                proposal_id,
+                access.actor(request),
+                body.accept,
+                lambda member: invite(thread_id, member, request),
+            )
+        except KeyError as exc:
+            raise HTTPException(404, "proposal not found") from exc
+        except (ValueError, PermissionError, RuntimeError) as exc:
+            raise HTTPException(409, str(exc)) from exc
 
     @router.post("/api/collab/{thread_id}/coordination/tasks")
     def create_task(thread_id: str, body: TaskBody, request: Request):

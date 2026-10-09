@@ -3,10 +3,52 @@
 from __future__ import annotations
 
 import socket
+from collections.abc import Iterator
 
 import pytest
 
 from runtime.safety.auth import check_url, is_safe_url
+
+
+def test_safe_stream_pins_dns_preserves_sni_and_closes_without_buffering(monkeypatch):
+    import httpx
+
+    import runtime.safety.auth.url_guard as guard
+
+    captured: dict[str, object] = {}
+    events: list[str] = []
+
+    class Stream(httpx.SyncByteStream):
+        def __iter__(self) -> Iterator[bytes]:
+            events.append("read")
+            yield b"first"
+            yield b"second"
+
+        def close(self) -> None:
+            events.append("closed")
+
+    class Transport(httpx.BaseTransport):
+        def handle_request(self, request):
+            captured.update(host=request.url.host, authority=request.headers["Host"], sni=request.extensions.get("sni_hostname"))
+            return httpx.Response(200, request=request, stream=Stream())
+
+    monkeypatch.setattr(httpx, "HTTPTransport", Transport)
+    monkeypatch.setattr(guard, "check_url", lambda url, **kwargs: guard.URLVerdict(True, url, resolved_ip="203.0.113.10"))
+    with guard.safe_httpx_stream("GET", "https://remote.example:8443/api/files/stream", headers={"Host": "evil.invalid"}) as response:
+        assert events == []
+        assert list(response.iter_raw()) == [b"first", b"second"]
+    assert captured == {"host": "203.0.113.10", "authority": "remote.example:8443", "sni": "remote.example"}
+    assert events == ["read", "closed"]
+
+
+def test_safe_stream_rejects_private_network_destinations():
+    from runtime.safety.auth.url_guard import safe_httpx_stream
+
+    with (
+        pytest.raises(ValueError, match="url_guard rejected"),
+        safe_httpx_stream("GET", "http://127.0.0.1/api/health"),
+    ):
+        pytest.fail("private destination must not be opened")
 
 # ═══════════════════════════════════════════════════════════
 # Implementation note.

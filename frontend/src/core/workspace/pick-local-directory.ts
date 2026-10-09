@@ -1,6 +1,7 @@
 import type { components } from "@/core/api/openapi-types";
 import { authHeaders } from "@/core/auth/api";
 import { getBackendBaseURL } from "@/core/config";
+import { getRemoteExecutionId } from "@/core/execution-location";
 
 type PickDirectoryResponse = components["schemas"]["FsPickDirectoryResponse"];
 
@@ -9,6 +10,13 @@ export async function pickLocalDirectory(
   options: { signal?: AbortSignal } = {},
 ): Promise<string | null> {
   options.signal?.throwIfAborted();
+  if (getRemoteExecutionId()) {
+    // The native dialog belongs to this computer, not the selected runtime.
+    // The shared workspace picker falls back to remote /api/fs/tree browsing.
+    throw new Error(
+      "Choose a remote folder using the directory browser or path input",
+    );
+  }
   if (window.echo?.dialog?.open) {
     const result = await window.echo.dialog.open({
       title: "选择工作区文件夹",

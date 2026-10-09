@@ -26,7 +26,6 @@ import {
 import { useI18n } from "@/core/i18n/hooks";
 import { cn } from "@/lib/utils";
 import { AutomationPictureInPicture } from "@/components/workspace/automation-picture-in-picture";
-import { AutomationTargetIcon } from "@/components/ui/automation-target-icon";
 import {
   OPEN_AUTOMATION_PREVIEW,
   CLOSE_AUTOMATION_INSPECTION,
@@ -64,36 +63,57 @@ export function AutomationControlDock({
   const [previewOpen, setPreviewOpen] = useState(false);
   const [changingState, setChangingState] = useState(false);
   const wasActiveRef = useRef(false);
-  const currentSessionRef = useRef(sessionId);
-  currentSessionRef.current = sessionId;
-  const inFlightRef = useRef<string | null>(null);
+  const requestRef = useRef(0);
+  const scopeRef = useRef(0);
+  const inFlightRef = useRef(false);
+  const changingStateRef = useRef(false);
 
-  const refresh = useCallback(async () => {
-    if (document.hidden || inFlightRef.current === sessionId) return;
-    inFlightRef.current = sessionId;
-    const [relayResult, replayResult] = await Promise.allSettled([
-      target.kind === "browser_tab" ? getRelayStatus() : Promise.resolve(null),
-      getControlSessionReplay(sessionId),
-    ]);
-    if (inFlightRef.current === sessionId) inFlightRef.current = null;
-    if (currentSessionRef.current !== sessionId) return;
-    if (relayResult.status === "fulfilled") setRelay(relayResult.value);
-    if (replayResult.status === "fulfilled") setReplay(replayResult.value);
-  }, [sessionId, target.kind]);
+  const refresh = useCallback(
+    async (force = false) => {
+      if (
+        (!force && (inFlightRef.current || changingStateRef.current)) ||
+        document.hidden
+      )
+        return;
+      const request = ++requestRef.current;
+      inFlightRef.current = true;
+      const [relayResult, replayResult] = await Promise.allSettled([
+        target.kind === "browser_tab"
+          ? getRelayStatus()
+          : Promise.resolve(null),
+        getControlSessionReplay(sessionId),
+      ]);
+      if (request !== requestRef.current) return;
+      inFlightRef.current = false;
+      if (relayResult.status === "fulfilled") setRelay(relayResult.value);
+      if (replayResult.status === "fulfilled") setReplay(replayResult.value);
+    },
+    [sessionId, target.kind],
+  );
 
   useEffect(() => {
+    scopeRef.current += 1;
+    inFlightRef.current = false;
+    changingStateRef.current = false;
+    wasActiveRef.current = false;
+    setChangingState(false);
+    setRelay(null);
     setReplay(null);
+    setExpanded(false);
+    setPreviewOpen(false);
     void refresh();
     const timer = window.setInterval(() => void refresh(), 2500);
-    const onVisible = () => {
+    const onVisibility = () => {
       if (!document.hidden) void refresh();
     };
-    document.addEventListener("visibilitychange", onVisible);
+    document.addEventListener("visibilitychange", onVisibility);
     return () => {
+      scopeRef.current += 1;
+      requestRef.current += 1;
       window.clearInterval(timer);
-      document.removeEventListener("visibilitychange", onVisible);
+      document.removeEventListener("visibilitychange", onVisibility);
     };
-  }, [refresh]);
+  }, [refresh, target.id]);
 
   const sessionStatus = replay?.session.status || "idle";
   const paused = replay?.session.paused || sessionStatus === "paused";
@@ -149,6 +169,11 @@ export function AutomationControlDock({
 
   const changeState = useCallback(
     async (action: "pause" | "resume" | "takeover") => {
+      if (changingStateRef.current) return;
+      const scope = scopeRef.current;
+      changingStateRef.current = true;
+      requestRef.current += 1;
+      inFlightRef.current = false;
       setChangingState(true);
       try {
         await setControlSessionState(
@@ -156,15 +181,20 @@ export function AutomationControlDock({
           action,
           action === "takeover" ? "user takeover" : `user ${action}`,
         );
-        await refresh();
+        if (scope !== scopeRef.current) return;
+        await refresh(true);
       } catch (error) {
+        if (scope !== scopeRef.current) return;
         toast.error(
           error instanceof Error
             ? error.message
             : t.chatInputBox.automationControlFailed,
         );
       } finally {
+        if (scope === scopeRef.current) {
+          changingStateRef.current = false;
         setChangingState(false);
+      }
       }
     },
     [refresh, sessionId, t.chatInputBox.automationControlFailed],
@@ -183,7 +213,7 @@ export function AutomationControlDock({
       <div
         className={cn(
           AUTOMATION_CAPSULE_CONTROLS_CLASS_NAME,
-          "flex min-h-10 items-center gap-2 px-2.5 py-1.5",
+          "flex min-h-10 flex-wrap items-center gap-2 px-2.5 py-1.5",
         )}
       >
         <span
@@ -199,8 +229,7 @@ export function AutomationControlDock({
           )}
           aria-hidden="true"
         />
-        <AutomationTargetIcon target={target} />
-        <div className="min-w-0 flex-1">
+        <div className="min-w-0 flex-1 basis-40">
           <div className="truncate text-xs font-medium text-foreground">
             {target.title}
           </div>

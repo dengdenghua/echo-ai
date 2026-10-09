@@ -44,6 +44,7 @@ import {
 } from "@/components/ui/select";
 import {
   cancelCoderLogin,
+  CoderAPIError,
   coderQueryKeys,
   getCoderAccount,
   getCoderApps,
@@ -85,6 +86,7 @@ const COPY = {
       "通过 ChatGPT 订阅登录；独立 OpenAI Key 在高级选项中配置。",
     loading: "正在读取 Coder 配置…",
     loadFailed: "暂时无法读取 Coder 模型配置。",
+    authExpired: "Echo 登录已失效，请重新登录后再选择模型。",
     retry: "重试",
     compatible: "可由 Codex 引擎运行",
     incompatible: "当前系统模型与 Codex 不兼容",
@@ -183,6 +185,7 @@ const COPY = {
       "Sign in with ChatGPT; a separate OpenAI key is available under advanced options.",
     loading: "Loading Coder configuration…",
     loadFailed: "The Coder model configuration is unavailable.",
+    authExpired: "Your Echo session has expired. Sign in again to choose a model.",
     retry: "Retry",
     compatible: "Compatible with the Codex engine",
     incompatible: "The system model is not compatible with Codex",
@@ -1231,7 +1234,9 @@ export function CoderEngineControl({
             ) : null}
             {saveProfile.isError ? (
               <p role="alert" className="px-2 py-2 text-xs text-destructive">
-                {saveProfile.error instanceof Error
+                {saveProfile.error instanceof CoderAPIError && saveProfile.error.status === 401
+                  ? copy.authExpired
+                  : saveProfile.error instanceof Error
                   ? saveProfile.error.message
                   : copy.unavailable}
               </p>
@@ -1603,7 +1608,9 @@ export function CoderEngineSettings({
     profile?.source === chatDefaultSource &&
     (profile?.selected_model || profile?.effective_model) === chatDefaultModel;
   const executionAvailable = profile ? profileCanExecute(profile) : false;
-  const error = saveProfile.error
+  const error = saveProfile.error instanceof CoderAPIError && saveProfile.error.status === 401
+    ? copy.authExpired
+    : saveProfile.error
     ? saveProfile.error instanceof Error
       ? saveProfile.error.message
       : String(saveProfile.error)

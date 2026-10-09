@@ -1,4 +1,9 @@
 import { expect, test } from "./fixtures";
+import {
+  assertChildrenContained,
+  assertNoVisualOverflow,
+  freezeVisualState,
+} from "./helpers/visual-stability";
 
 /**
  * Visual regression: pixel-level baselines for the key workspace surfaces.
@@ -56,6 +61,10 @@ test.describe("Visual regression · workspace surfaces", () => {
       timeout: 15_000,
     });
 
+    // 冻结动效与字体渲染，并校验无布局意外溢出
+    await freezeVisualState(page);
+    await assertNoVisualOverflow(page.locator("main").first());
+
     await expect(page).toHaveScreenshot("chat-composer.png", {
       maxDiffPixelRatio: 0.02,
       animations: "disabled",
@@ -80,6 +89,7 @@ test.describe("Visual regression · workspace surfaces", () => {
     await expect(page.getByTestId("chat-composer-input")).toBeEditable();
     await expect(page.getByTestId("chat-send-button")).toBeDisabled();
 
+    await freezeVisualState(page);
     await expect(page).toHaveScreenshot("recoverable-empty-state.png", {
       maxDiffPixelRatio: 0.02,
       animations: "disabled",
@@ -96,6 +106,9 @@ test.describe("Visual regression · workspace surfaces", () => {
       timeout: 15_000,
     });
     await expect(page.locator("textarea").first()).toBeVisible();
+
+    await freezeVisualState(page);
+    await assertNoVisualOverflow(page.locator("main").first());
 
     await expect(page).toHaveScreenshot("workspace-shell.png", {
       maxDiffPixelRatio: 0.02,
@@ -127,6 +140,7 @@ test.describe("Visual regression · workspace surfaces", () => {
       page.getByRole("button", { name: "Close workbench" }),
     ).toBeVisible();
 
+    await freezeVisualState(page);
     await expect(page).toHaveScreenshot("workbench-drawer-1024.png", {
       maxDiffPixelRatio: 0.02,
       animations: "disabled",

@@ -94,16 +94,20 @@ class CancellationToken:
 
     @property
     def is_cancelled(self) -> bool:
-        return self._source._is_cancelled
+        parent = self._source._parent
+        return self._source._is_cancelled or bool(parent and parent.is_cancelled)
 
     @property
     def reason(self) -> str:
-        return self._source._reason
+        if self._source._is_cancelled:
+            return self._source._reason
+        parent = self._source._parent
+        return parent.reason if parent and parent.is_cancelled else ""
 
     def throw_if_cancelled(self) -> None:
         """Raise ``OperationCancelled`` iff this token is tripped."""
-        if self._source._is_cancelled:
-            raise OperationCancelled(self._source._reason or "cancelled")
+        if self.is_cancelled:
+            raise OperationCancelled(self.reason or "cancelled")
 
     # ── callbacks ──────────────────────────────────────────
 
@@ -147,9 +151,10 @@ class CancellationToken:
             child.cancel(reason=self._source._reason or "parent cancelled")
             return child
         # Otherwise, relay any future cancellation to the child.
-        unlink = self.on_cancelled(
-            lambda reason: child.cancel(reason=reason or "parent cancelled"),
-        )
+        def relay(reason: str) -> None:
+            child.cancel(reason=reason or "parent cancelled")
+
+        unlink = self.on_cancelled(relay)
         child.token.on_cancelled(lambda _reason: unlink())
         return child
 
@@ -179,7 +184,10 @@ class CancellationSource:
     registered ``on_cancelled`` callback runs.
     """
 
-    def __init__(self) -> None:
+    def __init__(self, *, parent: CancellationToken | None = None) -> None:
+        # Poll the parent directly: callbacks may be delayed by another listener
+        # doing I/O. The owner still links callbacks and disposes subscriptions.
+        self._parent = parent
         self._lock = threading.Lock()
         self._is_cancelled = False
         self._reason = ""

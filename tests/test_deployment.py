@@ -21,6 +21,11 @@ class TestDockerfile:
     def test_dockerfile_exists(self):
         assert (REPO / "Dockerfile").exists()
 
+    def test_image_installs_configured_auth_and_model_provider(self):
+        text = (REPO / "Dockerfile").read_text(encoding="utf-8")
+        assert "--extra local-auth" in text
+        assert "--extra anthropic" in text
+
     def test_frontend_install_uses_supported_locked_pnpm_flags(self):
         text = (REPO / "Dockerfile").read_text(encoding="utf-8")
 

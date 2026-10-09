@@ -1,4 +1,5 @@
 import { useMemo } from "react";
+import { executionStorageKey } from "@/core/execution-location";
 import type { Message } from "@/core/api/types";
 import { isAIMessage, isHumanMessage } from "@/core/api/types";
 import { extractTextFromMessage } from "@/core/messages/utils";
@@ -46,10 +47,10 @@ export function modeLabelFor(
   return t.modes.develop;
 }
 
-const CHAT_WORKDIR_KEY = "chat:workdir:lastUsed";
-const CODE_WORKDIR_KEY = "code:workdir:lastUsed";
-const RECENT_WORKDIRS_KEY = "echo:recentWorkdirs";
-const GROUP_PERSPECTIVE_KEY_PREFIX = "echo:group-perspective:";
+const CHAT_WORKDIR_KEY = executionStorageKey("chat:workdir:lastUsed");
+const CODE_WORKDIR_KEY = executionStorageKey("code:workdir:lastUsed");
+const RECENT_WORKDIRS_KEY = executionStorageKey("echo:recentWorkdirs");
+const GROUP_PERSPECTIVE_KEY_PREFIX = executionStorageKey("echo:group-perspective:");
 const MAX_RECENT_WORKDIRS = 6;
 
 export type ThreadRouteState = {

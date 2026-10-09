@@ -140,7 +140,7 @@ export const ConversationScrollButton = ({
     !isAtBottom && (
       <Button
         className={cn(
-          "absolute bottom-4 left-1/2 z-40 -translate-x-1/2 rounded-full border-border-default bg-background/92 px-3 text-xs shadow-[var(--shadow-md)] shadow-black/10 backdrop-blur-md hover:bg-background",
+          "absolute bottom-4 left-1/2 z-40 flex items-center gap-1.5 -translate-x-1/2 rounded-full border-border-default bg-background/92 px-3 text-xs shadow-[var(--shadow-md)] shadow-black/10 backdrop-blur-md transition-all duration-base hover:bg-background hover:scale-105 active:scale-95",
           className,
         )}
         onClick={handleScrollToBottom}
@@ -149,7 +149,13 @@ export const ConversationScrollButton = ({
         variant="outline"
         {...props}
       >
-        <ArrowDownIcon className="size-4" />
+        {pendingActivityCount > 0 && (
+          <span className="relative flex size-2 shrink-0">
+            <span className="absolute inline-flex size-full animate-ping rounded-full bg-primary opacity-75" />
+            <span className="relative inline-flex size-2 rounded-full bg-primary" />
+          </span>
+        )}
+        <ArrowDownIcon className="size-3.5 shrink-0" />
         {label}
       </Button>
     )

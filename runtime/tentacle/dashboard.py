@@ -32,7 +32,7 @@ from fastapi import APIRouter, Depends, HTTPException, WebSocket, WebSocketDisco
 from fastapi import Request as FastAPIRequest
 from fastapi.responses import HTMLResponse, Response, StreamingResponse
 
-from runtime.safety.auth import resolve_principal
+from runtime.safety.auth import require_operator
 from runtime.safety.auth.websocket import accepted_auth_subprotocol, websocket_bearer_token
 from runtime.tentacle._dashboard_helpers import _auto_detect_vlm_config
 from runtime.tentacle._dashboard_html import _DASHBOARD_HTML
@@ -44,6 +44,17 @@ from runtime.tentacle.procedure import Procedure, ProcedureStep, RetryPolicy
 from runtime.tentacle.simulation import ProcedureSimulator, SimulationScenario
 
 logger = logging.getLogger(__name__)
+
+_OPERATOR_ROLES = frozenset({"admin", "operator"})
+
+
+class _RoleRequired(PermissionError):
+    """Authenticated, but lacking the admin/operator role (WS close 4403)."""
+
+
+def _is_operator(identity: Any) -> bool:
+    roles = {str(role).strip().lower() for role in (getattr(identity, "roles", None) or ())}
+    return bool(roles & _OPERATOR_ROLES)
 
 
 def create_tentacle_router(
@@ -77,7 +88,13 @@ def create_tentacle_router(
 
 
     def _require_http_auth(request: FastAPIRequest) -> None:
-        """FastAPI dependency: enforce auth on HTTP endpoints when enabled."""
+        """FastAPI dependency: enforce operator auth on HTTP endpoints when enabled.
+
+        Every endpoint behind this dependency controls or observes the host's
+        devices (screen capture, remote input, task dispatch), so being logged
+        in is not enough: open-signup accounts (OCT/social) are plain users.
+        Only ``admin``/``operator`` principals may use the control plane.
+        """
         if not _enforce_auth:
             return
         if identity_store is None:
@@ -88,6 +105,7 @@ def create_tentacle_router(
             token = auth_header[7:].strip()
         if not token:
             raise HTTPException(401, "missing tentacle auth token")
+        identity = None
         if jwt_secret and token.count(".") == 2:
             identity = identity_store.verify_jwt(
                 token,
@@ -95,14 +113,13 @@ def create_tentacle_router(
                 required_issuer=jwt_issuer,
                 required_audience=jwt_audience,
             )
-            if identity is not None:
-                request.state.device_workspace_actor = identity.actor_id
-                return
-        identity = identity_store.verify_api_key(token)
-        if identity is not None:
-            request.state.device_workspace_actor = identity.actor_id
-            return
-        raise HTTPException(401, "invalid tentacle auth token")
+        if identity is None:
+            identity = identity_store.verify_api_key(token)
+        if identity is None:
+            raise HTTPException(401, "invalid tentacle auth token")
+        if not _is_operator(identity):
+            raise HTTPException(403, "admin/operator role required")
+        request.state.device_workspace_actor = identity.actor_id
 
     from .mirror_api import create_mirror_router
 
@@ -136,6 +153,7 @@ def create_tentacle_router(
             if _enforce_auth:
                 raise PermissionError("missing tentacle auth token")
             return None
+        identity = None
         if jwt_secret and token.count(".") == 2:
             identity = identity_store.verify_jwt(
                 token,
@@ -143,16 +161,22 @@ def create_tentacle_router(
                 required_issuer=jwt_issuer,
                 required_audience=jwt_audience,
             )
-            if identity is not None:
-                return identity.actor_id
-            if _enforce_auth:
+            if identity is None and _enforce_auth:
                 raise PermissionError("invalid jwt")
-        identity = identity_store.verify_api_key(token)
-        if identity is not None:
-            return identity.actor_id
-        if _enforce_auth:
-            raise PermissionError("invalid token")
-        return None
+        if identity is None:
+            identity = identity_store.verify_api_key(token)
+        if identity is None:
+            if _enforce_auth:
+                raise PermissionError("invalid token")
+            return None
+        if _enforce_auth and not _is_operator(identity):
+            raise _RoleRequired("admin/operator role required")
+        return identity.actor_id
+
+    async def _reject_ws(ws: WebSocket, exc: PermissionError) -> None:
+        code = 4403 if isinstance(exc, _RoleRequired) else 4401
+        with suppress(Exception):
+            await ws.close(code=code, reason=str(exc))
 
     # ── Dashboard HTML ──────────────────────────────────
 
@@ -732,8 +756,7 @@ def create_tentacle_router(
         try:
             _resolve_ws_actor(ws)
         except PermissionError as exc:
-            with suppress(Exception):
-                await ws.close(code=4401, reason=str(exc))
+            await _reject_ws(ws, exc)
             return
         screen_relay = getattr(coordinator, "screen_relay", None)
         if screen_relay is None:
@@ -832,8 +855,7 @@ def create_tentacle_router(
         try:
             _resolve_ws_actor(ws)
         except PermissionError as exc:
-            with suppress(Exception):
-                await ws.close(code=4401, reason=str(exc))
+            await _reject_ws(ws, exc)
             return
         screen_relay = getattr(coordinator, "screen_relay", None)
         if screen_relay is None:
@@ -958,7 +980,7 @@ def create_tentacle_router(
         （``Authorization`` 请求头或 ``?token=`` 查询参数）。会话会
         绑定到该账号，后续 ``/mcp/message`` 也要求同一账号凭证。
         """
-        principal = resolve_principal(
+        principal = require_operator(
             request,
             identity_store,
             require_auth,
@@ -1010,7 +1032,7 @@ def create_tentacle_router(
         if not session_id:
             raise HTTPException(400, "Missing session_id parameter")
 
-        principal = resolve_principal(
+        principal = require_operator(
             request,
             identity_store,
             require_auth,

@@ -266,6 +266,10 @@ class ThreadStateStore:
                 self._feedback = FeedbackStore(feedback_base)
 
         # Load existing records
+        from .list_visibility import ThreadListVisibility
+
+        self.list_visibility = ThreadListVisibility(self._resolve_feedback_base())
+
         if self._path is not None and self._path.exists():
             self._load_from(self._path)
         if self._per_agent_base is not None:

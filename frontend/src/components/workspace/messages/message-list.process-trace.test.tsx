@@ -3191,6 +3191,24 @@ describe("MessageList stalled-run warning", () => {
 });
 
 
+test("keeps native forms visible when the completed process trace is folded", () => {
+  const document = { version: 1, title: "项目需求", blocks: [{ type: "form", id: "needs", title: "填写需求", fields: [{ id: "goal", label: "目标", type: "text" }] }] };
+  const messages: Message[] = [
+    message("user-ui", "human", "帮我规划项目"),
+    { id: "ui-call", type: "ai", content: "", tool_calls: [{ id: "show-ui", name: "show_ui", args: { document } }] } as AIMessage,
+    { id: "ui-result", type: "tool", tool_call_id: "show-ui", content: JSON.stringify({ ok: true, kind: "echo.ui.v1", thread_id: "thread-1", document }) } as Message,
+    message("ui-final", "ai", "请补充项目需求。"),
+  ];
+  renderMessageList({ thread: mockThread({ messages }), locale: "zh-CN" });
+  expect(screen.getByRole("form", { name: "填写需求" })).toBeVisible();
+  for (const toggle of screen.queryAllByTestId("process-replay-toggle")) {
+    fireEvent.click(toggle);
+    expect(screen.getByRole("form", { name: "填写需求" })).toBeVisible();
+    fireEvent.click(toggle);
+    expect(screen.getByRole("form", { name: "填写需求" })).toBeVisible();
+  }
+});
+
 test("keeps inline visuals visible when the completed process trace is folded", () => {
   const messages: Message[] = [
     message("user-visual", "human", "解释结构"),

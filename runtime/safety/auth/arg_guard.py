@@ -43,6 +43,11 @@ MODEL_FORBIDDEN_ARGS: frozenset[str] = frozenset(
     {
         "allow_sensitive",
         "allow_private",
+        # Sandbox network tiers come ONLY from the session's
+        # ``sandbox_policy``; a model that needs network gets it through the
+        # approval-backed sandbox escalation, never by passing a flag.
+        "allow_network",
+        "egress_allow_common",
     }
 )
 

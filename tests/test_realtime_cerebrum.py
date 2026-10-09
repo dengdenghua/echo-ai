@@ -2528,6 +2528,9 @@ def test_team_subagent_lifecycle_maps_to_first_class_item(
 def test_persistent_cowork_chat_without_mention_completes_without_model(
     tmp_path: Path,
 ) -> None:
+    from types import SimpleNamespace
+    from unittest.mock import AsyncMock
+
     from runtime.memory.cowork.collaboration_store import CollaborationStore
     from runtime.memory.cowork.group_store import GroupStore
     from runtime.memory.cowork.service import invite_member
@@ -2549,12 +2552,14 @@ def test_persistent_cowork_chat_without_mention_completes_without_model(
             {"type": "react_completed"},
         ]
     )
+    broadcaster = AsyncMock()
     runtime = CerebrumRuntime(
         stack=object(),
         agent=object(),
         logs_root=str(tmp_path / "threads"),
         cowork_group_store=groups,
         collaboration_store=collaboration,
+        team_rooms_router=SimpleNamespace(broadcast=broadcaster),
     )
     gateway = RealtimeGateway(runtime=runtime, approval_timeout=5.0)
     app = FastAPI()
@@ -2576,13 +2581,19 @@ def test_persistent_cowork_chat_without_mention_completes_without_model(
     assert [item["type"] for item in turn["items"]] == ["userMessage"]
     assert _LAST_STREAM_ARGS == {}
 
+    broadcaster.assert_awaited_once_with("room-project", {
+        "type": "thread:update", "thread_id": "th-project-room",
+        "reason": "message", "participant_id": "",
+    })
+
     messages = collaboration.messages_for_session("th-project-room")
     assert len(messages) == 1
     message = messages[0]
     user_item = turn["items"][0]
     assert message["text"] == "这是一条普通项目群消息"
     assert message["participant_id"] == "anonymous"
-    assert message["display_name"] == "我"
+    assert message["display_name"] == "anonymous"
+    assert message["metadata"]["sender_kind"] == "human"
     assert message["metadata"]["source_message_id"] == f"thread:{user_item['id']}"
 
     # Emulate the frontend's lazy Project-action mirror.  The shared source id
@@ -2592,7 +2603,7 @@ def test_persistent_cowork_chat_without_mention_completes_without_model(
         room_id="room-project",
         text=message["text"],
         participant_id="anonymous",
-        display_name="我",
+        display_name=message["display_name"],
         metadata={"source_message_id": message["metadata"]["source_message_id"]},
     )
     assert repeated_seq == message["seq"]
@@ -5476,6 +5487,70 @@ def test_failed_turn_dispatches_stop_with_success_false(
 
 
 # ─── subagent wakeup → auto parent turn (dsh report lane) ─────────────
+
+
+def test_group_results_auto_resume_original_leader_without_public_user_stub(tmp_path, monkeypatch):
+    from types import SimpleNamespace
+
+    from runtime.memory.cowork.async_work import AsyncWorkStore
+    from runtime.memory.cowork.collaboration_store import CollaborationStore
+    from runtime.memory.cowork.coordination_service import CoordinationService
+    from runtime.memory.cowork.delivery import current_delivery
+    from runtime.memory.cowork.group import MemberEvent
+    from runtime.memory.cowork.group_store import GroupStore
+    from runtime.memory.threads.event_log import EventLog, thread_log_path
+    from runtime.platform.process.session import current_session
+    from runtime.sensing.gateway.realtime_cerebrum import CerebrumRuntime
+    from runtime.sensing.gateway.realtime_gateway import RealtimeGateway
+
+    groups = GroupStore(tmp_path)
+    for member in ("leader", "worker"):
+        groups.append("group", MemberEvent(action="invite", actor="user", target_id=member))
+    groups.append("group", MemberEvent(action="mode", actor="user", mode="cluster"))
+    service = CoordinationService(groups, CollaborationStore(tmp_path), AsyncWorkStore(tmp_path, groups))
+    service.logs_root = tmp_path / "threads"
+    runtime = CerebrumRuntime(stack=object(), agent=SimpleNamespace(agent_id="leader"),
+                              logs_root=str(service.logs_root))
+    runtime._cowork_coordination = service
+    calls = []
+
+    def stream(*args, **kwargs):
+        batch = current_delivery()
+        calls.append(batch)
+        if batch is None:
+            child = service.delegate_agent("worker", "分析产品")["task_id"]
+            task = service.queue.claim_execution(child)
+            service.queue.complete(child, "成员已核对产品参数", expected_attempt=task.attempts)
+            service.sync("group")
+            response = "已安排成员分析。"
+        else:
+            assert current_session().metadata["_coordination_delivery_parent"] == batch["parent"]["id"]
+            assert current_session().agent_id == "leader"
+            assert "成员已核对产品参数" in args[1].user_context["mode_contract"]
+            response = "已验收成员结果，统一交付。"
+        yield {"type": "text_delta", "delta": response}
+        yield {"type": "react_completed", "final_answer": response}
+
+    monkeypatch.setattr("runtime.core.cerebrum.react_loop.stream_react_loop", stream)
+    app = FastAPI()
+    gateway = RealtimeGateway(runtime=runtime)
+    app.include_router(gateway.router)
+    with TestClient(app) as client, client.websocket_connect("/api/realtime") as ws:
+        out = _drive(ws, {"threadId": "group", "input": [{"type": "text", "text": "分析产品"}]})
+        first_id = out["response"].result["turn"]["id"]
+        completed = _wait_for_turn_event(ws, "turn/completed")
+        while completed.params["turn"]["id"] == first_id:
+            completed = _wait_for_turn_event(ws, "turn/completed")
+        assert completed.params["turn"]["status"] == "completed", json.dumps(
+            completed.params["turn"], ensure_ascii=False
+        )
+        items = completed.params["turn"]["items"]
+        assert not any(item["type"] == "userMessage" for item in items)
+        assert any(item.get("text") == "已验收成员结果，统一交付。" for item in items)
+    assert len(calls) == 2
+    assert len(service.queue.list("group")) == 1
+    turns = EventLog(thread_log_path(service.logs_root, "group")).replay()
+    assert len(turns) == 2
 
 
 def _recv_deadline(ws: Any, timeout_s: float = 6.0) -> Any:

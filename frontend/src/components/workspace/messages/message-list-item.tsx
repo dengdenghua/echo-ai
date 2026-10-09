@@ -343,6 +343,7 @@ export function HumanMessageDeliveryStatus({
   const clientMessageId = message.id;
   const canRetry =
     state === "failed" &&
+    message.additional_kwargs?.retryable !== false &&
     typeof clientMessageId === "string" &&
     clientMessageId.length > 0;
   const label =

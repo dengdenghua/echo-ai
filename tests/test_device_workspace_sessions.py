@@ -25,7 +25,7 @@ def register(phone, name):
 def test_cast_only_reaches_selected_subscriber_and_stops_when_receiver_leaves():
     coordinator = TentacleCoordinator(host="127.0.0.1", port=0, dashboard_port=None, auth_token="test-device")
     store = IdentityStore()
-    store.add(Identity(actor_id="operator"), api_key_plaintext="test-operator")
+    store.add(Identity(actor_id="operator", roles=("operator",)), api_key_plaintext="test-operator")
     app = FastAPI()
     app.include_router(create_tentacle_router(coordinator, identity_store=store))
     headers = {"Authorization": "Bearer test-operator"}

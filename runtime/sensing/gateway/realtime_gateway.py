@@ -199,11 +199,17 @@ class RealtimeGateway(_RealtimeGatewaySessionMixin):
         # is marked disconnected instead of stalling a resident turn.
         outbound_send_timeout_seconds: float = _OUTBOUND_SEND_TIMEOUT_DEFAULT,
         thread_access_resolver: Any = None,
+        # Trusted application-owned identity for an explicitly auth-off
+        # desktop. Never accepted from client params or used with auth on.
+        local_actor_id: str | None = None,
     ) -> None:
         self._runtime = runtime
         self._approval_timeout = approval_timeout
         self._identity_store = identity_store
         self._require_auth = require_auth
+        self._local_actor_id = (
+            (str(local_actor_id or "").strip() or None) if not require_auth else None
+        )
         self._allow_local_workspace_access = bool(allow_local_workspace_access)
         self._jwt_secret = jwt_secret
         self._jwt_issuer = jwt_issuer
@@ -542,6 +548,10 @@ class RealtimeGateway(_RealtimeGatewaySessionMixin):
         from refilling the consecutive-wake budget (only human input
         resets dsh ``spentWakes``).
         """
+        from ._realtime_cowork_delivery import maybe_deliver
+
+        if await maybe_deliver(self, thread_id):
+            return
         if thread_id in self._active_turn_threads:
             return
         conn = self._watching_connection(thread_id)
@@ -931,6 +941,12 @@ class RealtimeGateway(_RealtimeGatewaySessionMixin):
             return turn
         finally:
             claim.release()
+
+            from ._realtime_cowork_delivery import delivery_service
+
+            delivery = delivery_service(self)
+            if delivery is not None:
+                delivery.notify(thread_id)
 
 
 # Type re-exports for runtime authors.

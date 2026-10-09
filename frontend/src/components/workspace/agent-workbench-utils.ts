@@ -106,6 +106,7 @@ export interface AgentWorkspaceFocus {
 }
 
 export interface DiffEntry {
+  truncated?: boolean;
   created: boolean;
   id: string;
   path: string;
@@ -749,7 +750,10 @@ function isCreatedDiffEntry(op: unknown, text: string, path?: string | null) {
   );
 }
 
-export function diffEntriesFromBlocks(blocks: WorkBlock[]): DiffEntry[] {
+export function diffEntriesFromBlocks(
+  blocks: WorkBlock[],
+  options?: { latestPerPath?: boolean },
+): DiffEntry[] {
   const entries = blocks
     .filter(
       (block) =>
@@ -790,6 +794,8 @@ export function diffEntriesFromBlocks(blocks: WorkBlock[]): DiffEntry[] {
                 ? change.op
                 : fallbackCreateOpFromEventName(block.event.name);
             return {
+              truncated:
+                change.diffTruncated === true || change.diff_truncated === true,
               created: isCreatedDiffEntry(op, text, path),
               id: `${block.id}:${path || index}`,
               op,
@@ -826,7 +832,7 @@ export function diffEntriesFromBlocks(blocks: WorkBlock[]): DiffEntry[] {
       ];
     })
     .filter((entry): entry is DiffEntry => Boolean(entry));
-  return dedupeDiffEntries(entries);
+  return dedupeDiffEntries(entries, options?.latestPerPath);
 }
 
 function isFinalDeliverableEntry(entry: DiffEntry) {
@@ -855,10 +861,11 @@ export function hasFinalOutputArtifact(events: LiveToolEvent[]) {
 }
 
 function diffEntryDedupeKey(entry: DiffEntry) {
-  const normalized = normalizeSlashes(entry.path || entry.title)
-    .toLowerCase()
-    .replace(/\/+$/, "");
-  return normalized.split("/").pop() || normalized;
+  const normalized = normalizeSlashes(entry.path || entry.title).replace(
+    /\/+$/,
+    "",
+  );
+  return normalized;
 }
 
 function diffEntryQuality(entry: DiffEntry) {
@@ -869,12 +876,34 @@ function diffEntryQuality(entry: DiffEntry) {
   );
 }
 
-function dedupeDiffEntries(entries: DiffEntry[]) {
+function dedupeDiffEntries(entries: DiffEntry[], latestPerPath = false) {
   const byKey = new Map<string, DiffEntry>();
+  const paths = Array.from(new Set(entries.map(diffEntryDedupeKey)));
+  const uniqueSuffixes = new Map<string, string | null>();
+  for (const path of paths) {
+    for (
+      let slash = path.indexOf("/");
+      slash >= 0;
+      slash = path.indexOf("/", slash + 1)
+    ) {
+      const suffix = path.slice(slash + 1);
+      uniqueSuffixes.set(suffix, uniqueSuffixes.has(suffix) ? null : path);
+    }
+  }
   for (const entry of entries) {
-    const key = diffEntryDedupeKey(entry);
+    const rawKey = diffEntryDedupeKey(entry);
+    // A tool summary may contain a relative path while the file-change
+    // receipt contains its full path. Resolve only an unambiguous suffix;
+    // src/index.ts and tests/index.ts must remain separate files.
+    const key = !isAbsolutePathLike(rawKey)
+      ? (uniqueSuffixes.get(rawKey) ?? rawKey)
+      : rawKey;
     const existing = byKey.get(key);
-    if (!existing || diffEntryQuality(entry) > diffEntryQuality(existing)) {
+    if (
+      !existing ||
+      latestPerPath ||
+      diffEntryQuality(entry) >= diffEntryQuality(existing)
+    ) {
       byKey.set(key, entry);
     }
   }

@@ -1,4 +1,5 @@
 import { WORKBENCH_BUILTIN_APPS } from "@/core/workbench/apps";
+import { RemovedThreadsButton } from "./removed-threads-button";
 import { useCallback, useMemo, useState } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 
@@ -43,7 +44,7 @@ import { useActiveAgentId } from "@/core/agents/active";
 import { emitOpenSettings, eventBus } from "@/core/events";
 import { useI18n } from "@/core/i18n/hooks";
 import {
-  useDeleteThread,
+  useThreadListVisibility,
   useRenameThread,
   useThreads,
 } from "@/core/threads/hooks";
@@ -139,7 +140,7 @@ export function ChatsDrawer({ open, onOpenChange }: ChatsDrawerProps) {
   const { t } = useI18n();
   const navigate = useNavigate();
   const { pathname, search } = useLocation();
-  const deleteThread = useDeleteThread();
+  const deleteThread = useThreadListVisibility();
   const { mutate: renameThread } = useRenameThread();
   const [query, setQuery] = useState("");
   const { confirm, confirmDialog } = useConfirmDialog();
@@ -243,13 +244,21 @@ export function ChatsDrawer({ open, onOpenChange }: ChatsDrawerProps) {
     async (thread: AgentThread) => {
       const ok = await confirm({
         title: t.sidebar.deleteThreadTooltip,
+      confirmLabel: t.sidebar.deleteThreadTooltip,
+      destructive: false,
         description: t.sidebar.confirmDeleteThread(deriveTitle(thread)),
       });
       if (!ok) return;
-      deleteThread.mutate({ threadId: thread.thread_id });
-      if (pathname === threadHref(thread)) {
-        navigate(`/workspace/realtime/${uuid()}`, { replace: true });
-      }
+      deleteThread.mutate(
+        { threadId: thread.thread_id },
+        {
+          onSuccess: () => {
+            if (pathname === threadHref(thread)) {
+              navigate(`/workspace/realtime/${uuid()}`, { replace: true });
+            }
+          },
+        },
+      );
     },
     [confirm, deleteThread, navigate, pathname, t],
   );
@@ -443,6 +452,7 @@ export function ChatsDrawer({ open, onOpenChange }: ChatsDrawerProps) {
           </div>
 
           <div className="border-t border-border-subtle p-2">
+            <RemovedThreadsButton />
             <button
               type="button"
               onClick={openSettings}

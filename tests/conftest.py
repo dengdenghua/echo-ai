@@ -25,6 +25,15 @@ from runtime.platform.models import (
     TrajectoryOutcome,
 )
 
+# Starlette's TestClient sends ``Host: testserver``. The auth-off Host guard
+# (runtime/platform/ui/local_origin_guard.py) trusts only loopback names by
+# default, so the harness host is allowlisted for this process instead of
+# being special-cased in production code. Set at import so module-scoped
+# fixtures that build and call the app are covered too.
+_allowed_hosts = [h for h in os.environ.get("ECHO_ALLOWED_HOSTS", "").split(",") if h.strip()]
+if "testserver" not in _allowed_hosts:
+    os.environ["ECHO_ALLOWED_HOSTS"] = ",".join([*_allowed_hosts, "testserver"])
+
 
 @pytest.fixture(autouse=True)
 def _restore_working_directory():

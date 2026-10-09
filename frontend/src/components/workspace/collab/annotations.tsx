@@ -75,6 +75,7 @@ export function AnnotationThread({
     unresolveAnnotation,
     deleteAnnotation,
     replyToAnnotation,
+    canWrite = true,
   } = useCollab();
 
   const [replyText, setReplyText] = useState("");
@@ -145,6 +146,7 @@ export function AnnotationThread({
                     void unresolveAnnotation(annotation.annotation_id)
                   }
                   aria-label={t.annotations.unresolve}
+                  disabled={!canWrite}
                 >
                   <Undo2 size={12} />
                 </Button>
@@ -162,6 +164,7 @@ export function AnnotationThread({
                     void resolveAnnotation(annotation.annotation_id)
                   }
                   aria-label={t.annotations.resolve}
+                  disabled={!canWrite}
                 >
                   <CheckCircle2 size={12} />
                 </Button>
@@ -177,6 +180,7 @@ export function AnnotationThread({
                 className="size-6 text-destructive hover:text-destructive"
                 onClick={() => void deleteAnnotation(annotation.annotation_id)}
                 aria-label={t.annotations.delete}
+                disabled={!canWrite}
               >
                 <Trash2 size={12} />
               </Button>
@@ -209,7 +213,7 @@ export function AnnotationThread({
       )}
 
       {/* Reply input */}
-      {!annotation.resolved && (
+      {!annotation.resolved && canWrite && (
         <div className="mt-2 flex items-center gap-1.5">
           <input
             ref={inputRef}
@@ -353,7 +357,7 @@ export function AddAnnotationButton({
   className,
 }: AddAnnotationButtonProps) {
   const { t } = useI18n();
-  const { addAnnotation } = useCollab();
+  const { addAnnotation, canWrite = true } = useCollab();
   const [open, setOpen] = useState(false);
   const [text, setText] = useState("");
   const [submitting, setSubmitting] = useState(false);
@@ -371,6 +375,8 @@ export function AddAnnotationButton({
       setSubmitting(false);
     }
   }, [text, messageId, addAnnotation]);
+
+  if (!canWrite) return null;
 
   if (!open) {
     return (

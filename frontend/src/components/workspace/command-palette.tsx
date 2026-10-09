@@ -1,3 +1,4 @@
+import { CpuIcon } from "lucide-react";
 import { WORKBENCH_BUILTIN_APPS } from "@/core/workbench/apps";
 import {
   ActivityIcon,
@@ -37,6 +38,12 @@ import {
 import { emitOpenSettings } from "@/core/events";
 import { useI18n } from "@/core/i18n/hooks";
 import { BROWSER_WORKSPACE_ROUTE } from "@/core/workspace/sidebar-routing";
+import {
+  COMPUTER_CONTROL_ROUTE,
+  DESKTOP_ORGANIZER_ROUTE,
+  MESSAGE_CHANNELS_ROUTE,
+  REFLEX_RULES_ROUTE,
+} from "@/core/workspace/utility-destinations";
 import { useGlobalShortcuts } from "@/hooks/use-global-shortcuts";
 
 export function CommandPalette() {
@@ -144,7 +151,7 @@ export function CommandPalette() {
       },
       {
         id: "channels",
-        to: "/workspace/realtime/echo-assistant?agent=echo&assistantPanel=channels",
+        to: MESSAGE_CHANNELS_ROUTE,
         label: t.channels.title,
         icon: CableIcon,
         keywords: "channel connector messaging",
@@ -173,7 +180,7 @@ export function CommandPalette() {
       },
       {
         id: "desktop-organizer",
-        to: "/workspace/settings?section=desktopAutomation",
+        to: DESKTOP_ORGANIZER_ROUTE,
         label: t.sidebar.navDesktopOrganizer,
         icon: FolderIcon,
         keywords: "desktop organizer folder",
@@ -181,7 +188,7 @@ export function CommandPalette() {
 
       {
         id: "reflex",
-        to: "/workspace/evolution?surface=chat&section=governance&detail=reflex",
+        to: REFLEX_RULES_ROUTE,
         label: t.reflexPage.pageTitle,
         icon: RadarIcon,
         keywords: "reflex rule monitor",
@@ -192,6 +199,13 @@ export function CommandPalette() {
         label: t.sidebar.navBrowserSurface,
         icon: GlobeIcon,
         keywords: "browser ai tabs history bookmarks copilot",
+      },
+      {
+        id: "computer",
+        to: COMPUTER_CONTROL_ROUTE,
+        label: t.agentWorkbench.computerView,
+        icon: CpuIcon,
+        keywords: "computer desktop automation",
       },
     ],
     [t],

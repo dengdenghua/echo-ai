@@ -239,6 +239,7 @@ function withLocalFileAgentMention(
 
 /** A team member offered by the @ typeahead (group roster). */
 export interface MentionMemberInput {
+  kind?: "human" | "agent" | "role";
   name: string;
   display_name?: string | null;
   icon?: string | null;

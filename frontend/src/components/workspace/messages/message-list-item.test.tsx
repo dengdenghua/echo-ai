@@ -2,6 +2,15 @@ import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import type { Message } from "@/core/api/types";
 import { describe, expect, it, vi } from "vitest";
 import { RETRY_PENDING_MESSAGE_EVENT } from "@/core/threads/optimistic-messages";
+import type { ReactNode } from "react";
+
+// This suite covers delivery actions rather than Markdown rendering.
+vi.mock("@/components/ai-elements/streamdown-host", () => ({
+  default: ({ children }: { children?: ReactNode }) => <>{children}</>,
+  LocalizedStreamdown: ({ children }: { children?: ReactNode }) => (
+    <>{children}</>
+  ),
+}));
 
 import {
   containsProtocolMarkers,
@@ -47,6 +56,21 @@ vi.mock("@/core/i18n/hooks", () => ({
 }));
 
 describe("HumanMessageDeliveryStatus", () => {
+  it("leaves retry ownership with the queue for queue-origin failures", () => {
+    render(
+      <HumanMessageDeliveryStatus
+        threadId="queue-thread"
+        message={{
+          id: "itm_queue_failed",
+          type: "human",
+          content: "next",
+          additional_kwargs: { delivery_state: "failed", retryable: false },
+        }}
+      />,
+    );
+    expect(screen.getByText("发送失败")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "重试" })).toBeNull();
+  });
   it("makes queued websocket delivery explicit", () => {
     render(
       <HumanMessageDeliveryStatus

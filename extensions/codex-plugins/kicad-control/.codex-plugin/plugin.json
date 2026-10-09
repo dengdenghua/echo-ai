@@ -1,0 +1,26 @@
+{
+  "name": "kicad-control",
+  "version": "0.1.0+echo.20260925",
+  "description": "本机 KiCad 自动化：原理图、PCB 布局、检查、生产文件和 STEP 三维导出。",
+  "author": {
+    "name": "Local developer"
+  },
+  "skills": "./skills/",
+  "interface": {
+    "displayName": "KiCad 电路设计控制",
+    "shortDescription": "绘制和检查原理图、PCB，并导出生产与三维文件。",
+    "longDescription": "连接本机 KiCad 10，通过官方 IPC、本地 MCP、原理图文件 API 和 KiCad CLI 完成板卡设计、ERC/DRC、Gerber、钻孔及 STEP 导出。",
+    "developerName": "Local developer",
+    "category": "Productivity",
+    "capabilities": [
+      "Read",
+      "Write"
+    ],
+    "defaultPrompt": [
+      "检查当前 KiCad 原理图和 PCB",
+      "完善板卡布局并运行 ERC 和 DRC",
+      "导出 Gerber、钻孔文件和 STEP 三维模型"
+    ]
+  },
+  "mcpServers": "./.mcp.json"
+}

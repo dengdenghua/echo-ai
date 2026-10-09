@@ -32,6 +32,17 @@ def _git(repo, *args):
     ).stdout
 
 
+def _installed_coder(monkeypatch, runner):
+    """Parallel delegation requires a loaded HUB role, even for an injected runner."""
+    from runtime.execution.subagents import market_bridge
+
+    runner.agent_registry = SimpleNamespace(has=lambda agent_id: agent_id == "coder")
+    identity = market_bridge.MarketIdentity("coder", "Coder", "", "Test worker")
+    monkeypatch.setattr(
+        market_bridge, "market_identity_index", lambda agents_root=None: {"coder": identity}
+    )
+
+
 def _host(tmp_path):
     repo = _init_repo(tmp_path)
     artifacts = tmp_path / "artifacts"
@@ -76,6 +87,7 @@ def test_snapshot_retains_dirty_working_files_without_touching_head_or_index(tmp
         workspace = Path(current_session().metadata["workspace_path"])
         workspaces.append(workspace)
         assert workspace != repo and request.task.permissions.allows_write(workspace)
+        assert request.task.environment.workspace == workspace
         assert not request.task.permissions.allows_write(repo)
         assert request.task.artifacts.inputs[0].path == workspace / "README.md"
         assert (workspace / "README.md").read_text() == "actual working version\n"
@@ -135,6 +147,7 @@ def test_parallel_lanes_edit_the_same_file_in_distinct_workspaces(tmp_path, monk
         (workspace / "README.md").write_text(label + "\n")
         return label
 
+    _installed_coder(monkeypatch, runner)
     monkeypatch.setattr(bridge, "_RUNNER", runner)
     monkeypatch.setattr(bridge, "_REGISTRY", None)
     monkeypatch.setattr(skills, "_allowed_agent_ids", lambda: {"coder"})
@@ -146,7 +159,7 @@ def test_parallel_lanes_edit_the_same_file_in_distinct_workspaces(tmp_path, monk
         session=parent,
         timeout_s=20,
     )
-    assert result["success_count"] == 2, result
+    assert result["success_count"] == 2, [item.get("error") for item in result["results"]]
     assert len({path for path, _task in scopes}) == 2
     assert len({task.task_id for _path, task in scopes}) == 2
     patches = [Path(item["worktree"]["patch"]["path"]).read_text() for item in result["successes"]]
@@ -427,6 +440,7 @@ def test_parallel_parent_cancellation_reaches_both_isolated_children(tmp_path, m
         assert release.wait(10)
         return "late completion"
 
+    _installed_coder(monkeypatch, runner)
     monkeypatch.setattr(bridge, "_RUNNER", runner)
     monkeypatch.setattr(bridge, "_REGISTRY", None)
     monkeypatch.setattr(skills, "_allowed_agent_ids", lambda: {"coder"})

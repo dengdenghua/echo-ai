@@ -6,6 +6,7 @@ from pathlib import Path
 
 import pytest
 
+from runtime import __version__
 from runtime.core.graph_runtime import GraphRuntime
 from runtime.execution.agents import AgentRegistry, make_desktop_operator_agent
 from runtime.execution.arms.presets import make_desktop_operator_arm, make_web_read_arm
@@ -59,14 +60,20 @@ class TestDesktopOperatorArm:
 class TestDesktopOperatorAgent:
     def test_agent_constructs(self):
         agent = make_desktop_operator_agent(_rt())
-        assert agent.agent_id == "desktop_operator"
+        assert agent.agent_id == "raven"
         assert agent.display_name == "Raven"
         assert agent.icon == "🖥️"
         assert "desktop" in agent.extra_affinity
 
-    def test_agent_has_one_arm(self):
+    def test_agent_has_desktop_control_and_private_workflow_arms(self):
         agent = make_desktop_operator_agent(_rt())
-        assert len(agent.arms) == 1
+        arms = {str(arm.arm_id): arm for arm in agent.arms}
+        desktop = arms["desktop_operator_arm"]
+        workflows = arms["raven_private_arm"]
+        for skill in ("computer_observe", "computer_plan_next", "computer_execute_token"):
+            assert desktop.can_use(skill)
+        for skill in ("browser-use", "documents", "spreadsheets", "pdf"):
+            assert workflows.can_use(skill)
 
     def test_agent_can_use_core_desktop_skills(self):
         agent = make_desktop_operator_agent(_rt())
@@ -83,7 +90,7 @@ class TestDesktopOperatorAgent:
         from runtime.execution.agents import make_all_agent_presets
 
         roster_ids = {getattr(a, "agent_id", None) for a in make_all_agent_presets(_rt())}
-        assert "desktop_operator" in roster_ids
+        assert "raven" in roster_ids
 
     def test_general_agent_has_desktop_arm(self):
         """Implementation note."""
@@ -120,7 +127,9 @@ class TestHealthEndpoint:
         assert isinstance(data["channels"], list)
         assert data["runtime"] == {
             "name": "echo-ai-runtime",
-            "version": "0.2.0",
+            "product": "Echo",
+            "version": __version__,
+            "hostApiVersion": "0.2.0",
             "verifiedBundle": False,
         }
 
@@ -138,7 +147,9 @@ class TestHealthEndpoint:
 
         assert runtime == {
             "name": "echo-ai-runtime",
-            "version": "0.2.0",
+            "product": "Echo",
+            "version": __version__,
+            "hostApiVersion": "0.2.0",
             "sourceId": source_id,
             "verifiedBundle": True,
         }

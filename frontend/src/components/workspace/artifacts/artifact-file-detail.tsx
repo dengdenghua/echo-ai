@@ -93,6 +93,7 @@ import {
 } from "./inspect-html";
 import { useInstallSkill } from "./use-install-skill";
 import { InspectOverlay } from "./inspect-overlay";
+import { rawArtifactFrameSandbox } from "./raw-artifact-frame";
 import {
   buildOfficeEditPrompt,
   officeArtifactKind,
@@ -421,6 +422,7 @@ export function ArtifactFileDetail({
           <iframe
             className="size-full"
             title={t.common.preview}
+            sandbox={rawArtifactFrameSandbox(filepath)}
             src={urlOfArtifact({
               filepath: filepathFromProps,
               threadId,

@@ -7502,9 +7502,10 @@ export default function DesignPage({
             <PluginNodeFrame
               title="AI 剪辑工坊"
               src={`${getBackendBaseURL()}/api/plugins/clip-studio/page?project=${encodeURIComponent(projectId || selectedNode?.id || "default")}`}
-              projectId={projectId}
+              projectId={projectId || selectedNode?.id || "default"}
               pluginId="clip-studio"
               nodeId={selectedNode?.id || "clip-studio"}
+              onRequestClose={() => setEmbeddedSurface(null)}
               className="min-h-0 flex-1 border-0 bg-background"
             />
           ) : !comfyNative ? (

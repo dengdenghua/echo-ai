@@ -57,6 +57,7 @@ class _RealtimeGatewaySessionMixin:
     _identity_store: Any
     _require_auth: bool
     _allow_local_workspace_access: bool
+    _local_actor_id: str | None
     _jwt_secret: str | None
     _jwt_issuer: str | None
     _jwt_audience: str | None
@@ -203,6 +204,9 @@ class _RealtimeGatewaySessionMixin:
             with suppress(Exception):
                 await ws.close(code=4401, reason=exc.message)
             return
+        local_principal = actor_id is None and self._local_actor_id is not None
+        if local_principal:
+            actor_id = self._local_actor_id
         # Per-actor connection cap (4429 ≈ HTTP 429). Checked before
         # accept so an over-limit actor never spawns connection state.
         if not self._admit_connection(actor_id):
@@ -219,7 +223,11 @@ class _RealtimeGatewaySessionMixin:
         )
         conn.bind_thread_watch_handler(lambda thread_id: self._watch_thread(thread_id, conn))
         conn.actor_id = actor_id
-        if actor_id is not None and self._identity_store is not None:
+        if local_principal:
+            # Keep the desktop operator in its legacy local namespace; a
+            # similarly named registered account cannot supply its tenant.
+            conn.tenant_id = f"legacy:{actor_id}"
+        elif actor_id is not None and self._identity_store is not None:
             identity = self._identity_store.get(actor_id)
             metadata = getattr(identity, "metadata", None) or {}
             conn.tenant_id = str(metadata.get("tenant_id") or f"legacy:{actor_id}")
@@ -376,6 +384,19 @@ class _RealtimeGatewaySessionMixin:
             except Exception:  # noqa: BLE001 — watcher registration is best-effort
                 _logger.debug("subagent wake watcher register failed", exc_info=True)
         self._wake_watch_refs[thread_id] = refs + 1
+        from ._realtime_cowork_delivery import delivery_service
+
+        delivery = delivery_service(self)
+        if delivery is not None:
+            loop = self._capture_loop()
+
+            def completed():
+                if not loop.is_closed():
+                    loop.call_soon_threadsafe(self._schedule_auto_turn, thread_id, True)
+
+            delivery.watchers[thread_id] = completed
+            # Includes results that landed while the browser/server was offline.
+            completed()
 
     def _unwatch_thread(self, thread_id: str) -> None:
         """Drop one connection's watch; unregister the store handler at zero."""
@@ -384,6 +405,11 @@ class _RealtimeGatewaySessionMixin:
         refs = self._wake_watch_refs.get(thread_id, 0)
         if refs <= 1:
             self._wake_watch_refs.pop(thread_id, None)
+            from ._realtime_cowork_delivery import delivery_service
+
+            delivery = delivery_service(self)
+            if delivery is not None:
+                delivery.watchers.pop(thread_id, None)
             try:
                 from runtime.execution.subagents.sessions import (
                     get_subagent_session_store,
@@ -417,13 +443,31 @@ class _RealtimeGatewaySessionMixin:
 
         return _wake
 
-    def _schedule_auto_turn(self, thread_id: str) -> None:
+    def _schedule_auto_turn(self, thread_id: str, cowork_only: bool = False) -> None:
         """Dedupe rapid wakeups: one pending task claims every parked report."""
+        if not hasattr(self, "_auto_turn_again"):
+            self._auto_turn_again = {}
         if thread_id in self._auto_turn_tasks:
+            self._auto_turn_again[thread_id] = (
+                self._auto_turn_again.get(thread_id, True) and cowork_only
+            )
             return
-        task = asyncio.create_task(self._maybe_auto_turn(thread_id))
+        from ._realtime_cowork_delivery import maybe_deliver
+
+        task = asyncio.create_task(
+            maybe_deliver(self, thread_id) if cowork_only else self._maybe_auto_turn(thread_id)
+        )
         self._auto_turn_tasks[thread_id] = task
-        task.add_done_callback(lambda _t: self._auto_turn_tasks.pop(thread_id, None))
+
+        def finished(completed):
+            self._auto_turn_tasks.pop(thread_id, None)
+            if not completed.cancelled() and completed.exception():
+                _logger.error("auto turn failed", exc_info=completed.exception())
+            again = self._auto_turn_again.pop(thread_id, None)
+            if again is not None and self._wake_watch_refs.get(thread_id):
+                self._schedule_auto_turn(thread_id, again)
+
+        task.add_done_callback(finished)
 
     def _watching_connection(self, thread_id: str) -> RpcConnection | None:
         for conn in list(self._connections):

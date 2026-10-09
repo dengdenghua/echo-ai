@@ -67,7 +67,8 @@ COPY echo_runtime/ ./echo_runtime/
 # --no-sources 禁止本地 tool.uv.sources 在发布镜像中替换 registry 来源。
 RUN uv sync --locked --no-dev --no-editable --no-sources \
     --python /usr/local/bin/python \
-    --extra serve --extra tracing --extra web --extra hearts-redis
+    --extra serve --extra tracing --extra web --extra hearts-redis \
+    --extra local-auth --extra anthropic
 
 
 # ═══════════════════════════════════════════════════════════

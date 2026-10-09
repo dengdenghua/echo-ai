@@ -1002,3 +1002,60 @@ def test_cleanup_resolves_redirected_root_and_child_consistently(tmp_path, monke
     support._remove_marked_tree(child, root=root, marker_path=marker, expected_kind="scratch")
     assert not physical_child.exists()
     assert not marker.exists()
+
+
+def test_cleanup_accepts_only_captured_partial_namespace_redirect(tmp_path, monkeypatch):
+    from runtime.execution.codex_backend import _security_support as support
+
+    manager, workspace, _ = _manager(tmp_path)
+    context = _prepare(manager, workspace)
+    logical = context.scratch_root
+    physical = tmp_path / "LocalCache" / logical.name
+    original_resolve = Path.resolve
+    original_lstat = Path.lstat
+    metadata = logical.lstat()
+
+    def resolve(path, strict=False):
+        return physical if path == logical else original_resolve(path, strict=strict)
+
+    def lstat(path):
+        return metadata if path == physical else original_lstat(path)
+
+    monkeypatch.setattr(Path, "resolve", resolve)
+    monkeypatch.setattr(Path, "lstat", lstat)
+    allocation = support._capture_cleanup_allocation(
+        logical, root=context.state_root, kind="scratch"
+    )
+    removed = []
+    monkeypatch.setattr(support.shutil, "rmtree", removed.append)
+    support._remove_marked_tree(
+        logical,
+        root=context.state_root,
+        marker_path=context.scratch_marker_path,
+        expected_kind="scratch",
+        allocation=allocation,
+    )
+    assert removed == [physical]
+
+
+@pytest.mark.parametrize("replace_directory", [False, True])
+def test_cleanup_rejects_changed_allocation(tmp_path, monkeypatch, replace_directory):
+    manager, workspace, _ = _manager(tmp_path)
+    context = _prepare(manager, workspace)
+    scratch = context.scratch_root
+    if replace_directory:
+        scratch.rename(scratch.with_name(scratch.name + "-original"))
+        scratch.mkdir()
+    else:
+        original_resolve = Path.resolve
+        other = tmp_path / "unrelated"
+        other.mkdir()
+
+        def resolve(path, strict=False):
+            return other if path == scratch else original_resolve(path, strict=strict)
+
+        monkeypatch.setattr(Path, "resolve", resolve)
+    with pytest.raises(CodexSecurityError, match="allocation changed"):
+        context.cleanup()
+    assert scratch.exists()
+    assert context.scratch_marker_path.exists()

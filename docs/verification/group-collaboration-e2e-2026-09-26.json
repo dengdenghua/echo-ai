@@ -1,0 +1,138 @@
+{
+  "date": "2026-09-26",
+  "timezone": "Asia/Shanghai",
+  "environment": "Windows, isolated local authenticated Echo service, Chromium independent user contexts",
+  "browser": {
+    "stats": {
+      "startTime": "2026-09-25T19:22:07.575Z",
+      "duration": 120448.78,
+      "expected": 7,
+      "skipped": 0,
+      "unexpected": 0,
+      "flaky": 0
+    },
+    "cases": [
+      {
+        "title": "message reactions, pins, comments, replies and reconnect stay shared",
+        "status": "passed",
+        "duration_ms": 22798
+      },
+      {
+        "title": "viewer can read but cannot submit or manage the group",
+        "status": "passed",
+        "duration_ms": 5023
+      },
+      {
+        "title": "project membership approval survives applicant refresh",
+        "status": "passed",
+        "duration_ms": 16285
+      },
+      {
+        "title": "AI roster changes are staged, cancelable and durable",
+        "status": "passed",
+        "duration_ms": 8721
+      },
+      {
+        "title": "mobile member sends a message visible to the owner and after refresh",
+        "status": "passed",
+        "duration_ms": 13351
+      },
+      {
+        "title": "removed member and another tenant cannot reopen private group data",
+        "status": "passed",
+        "duration_ms": 9912
+      },
+      {
+        "title": "two authenticated people join one canonical group and survive refresh",
+        "status": "passed",
+        "duration_ms": 20996
+      }
+    ],
+    "command": "npm run e2e:collaboration"
+  },
+  "frontend": {
+    "files": 36,
+    "passed": 256,
+    "failed": 0,
+    "pending": 0
+  },
+  "backend": {
+    "tests": 821,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 2,
+    "passed": 819,
+    "duration_seconds": 201.662,
+    "test_files": [
+      "tests.test_cancellation_beak_router_retry.TestBeakMetricsWiring",
+      "tests.test_cancellation_beak_router_retry.TestMultiRouterRetry",
+      "tests.test_cancellation_beak_router_retry.TestScopedCancellation",
+      "tests.test_collaboration_collectors",
+      "tests.test_collaboration_context_lifecycle",
+      "tests.test_collaboration_deliveries",
+      "tests.test_collaboration_reconnect",
+      "tests.test_collaboration_runs",
+      "tests.test_collaboration_store_cutover",
+      "tests.test_cowork_advanced",
+      "tests.test_cowork_async_runner",
+      "tests.test_cowork_context_engines",
+      "tests.test_cowork_context_steward",
+      "tests.test_cowork_context_view",
+      "tests.test_cowork_e2e_chain",
+      "tests.test_cowork_group",
+      "tests.test_cowork_group_router",
+      "tests.test_cowork_group_store",
+      "tests.test_cowork_member_identity",
+      "tests.test_cowork_presence",
+      "tests.test_cowork_realtime_grant",
+      "tests.test_cowork_router_v2",
+      "tests.test_cowork_search",
+      "tests.test_cowork_session",
+      "tests.test_cowork_storage_guards",
+      "tests.test_cowork_store",
+      "tests.test_cowork_trust",
+      "tests.test_cowork_turn_plan",
+      "tests.test_cowork_v2",
+      "tests.test_execution_claim_guard",
+      "tests.test_execution_lifecycle",
+      "tests.test_group_coordination",
+      "tests.test_group_fanout",
+      "tests.test_linked_team_room_acl",
+      "tests.test_project_group_creation",
+      "tests.test_project_group_join_approval",
+      "tests.test_project_group_message_actions",
+      "tests.test_projectos_cowork",
+      "tests.test_realtime_cerebrum",
+      "tests.test_remote_group_member",
+      "tests.test_team_connections",
+      "tests.test_team_gateway",
+      "tests.test_team_invitation_security",
+      "tests.test_team_memory_layers",
+      "tests.test_team_pattern_coverage",
+      "tests.test_team_patterns",
+      "tests.test_team_role_models",
+      "tests.test_team_role_models_router",
+      "tests.test_team_rooms_router",
+      "tests.test_team_rooms_router_security",
+      "tests.test_team_tasks_router",
+      "tests.test_team_tasks_router_security"
+    ],
+    "command": ".venv/Scripts/python.exe -m pytest <listed test files> -q -n 4 --dist loadfile --junitxml=test-results/collaboration-final.xml"
+  },
+  "static_checks": {
+    "typescript": "passed",
+    "ruff_changed_python": "passed",
+    "invariants_changed_python": "0 errors, 0 warnings",
+    "mypy_targeted_python": "passed (7 files, follow-imports=silent)"
+  },
+  "separate_openapi_check": {
+    "status": "failed",
+    "added_path": "/api/tentacle/task-workspace/{command}",
+    "note": "Existing task-workspace route absent from the snapshot; snapshot left unchanged."
+  },
+  "limitations": [
+    "Offline deterministic model responses; no live model quality claim",
+    "Same-host browser contexts; no cross-device NAS endurance or 100-user load test",
+    "Chromium only; voice/video and all attachment formats not covered"
+  ]
+}

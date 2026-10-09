@@ -218,8 +218,13 @@ def setup_app(
         jwt_issuer=cocoloop_jwt_issuer,
         jwt_audience=cocoloop_jwt_audience,
     )
+    # Browser cookies authenticate some HTTP and WebSocket routes too: Origin
+    # checks must remain active after login, not just in no-auth local mode.
+    from runtime.platform.ui.local_origin_guard import LocalOriginGuardMiddleware
+
+    app.add_middleware(LocalOriginGuardMiddleware, require_local_host=not cocoloop_require_auth)
     # Install last so these headers also wrap early 401/403 responses emitted
-    # by the legacy control-plane auth middleware.
+    # by the legacy control-plane auth middleware and the local origin guard.
     app.add_middleware(_SecurityHeadersMiddleware)
 
     return AppContext(

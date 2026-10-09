@@ -2,6 +2,7 @@ import { firstSubscriptionCheck } from "@/core/automation/schedule-preview";
 import { serviceErrorMessage } from "@/core/utils/service-error";
 import { Loader2Icon } from "lucide-react";
 import { useEffect, useState } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
@@ -24,6 +25,7 @@ import {
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { getBackendBaseURL } from "@/core/config";
+import { getRemoteExecutionId } from "@/core/execution-location";
 import { useI18n } from "@/core/i18n/hooks";
 
 export interface AutomationTemplate {
@@ -66,7 +68,10 @@ export function AutomationCreateDialog({
   presetTemplate,
   onCreated,
 }: AutomationCreateDialogProps) {
-  const { t } = useI18n();
+  const { t, locale } = useI18n();
+  const zh = locale.startsWith("zh");
+  const remote = Boolean(getRemoteExecutionId());
+  const queryClient = useQueryClient();
   const [displayName, setDisplayName] = useState("");
   const [topic, setTopic] = useState("");
   const [cadence, setCadence] = useState("每天");
@@ -154,11 +159,14 @@ export function AutomationCreateDialog({
       });
 
       toast.success(t.intelligence.createTaskSuccess);
+      await queryClient.invalidateQueries({
+        queryKey: ["intelligence", "subscriptions"],
+      });
       onCreated?.();
       onOpenChange(false);
       resetForm();
     } catch (error) {
-      toast.error(serviceErrorMessage(error));
+      toast.error(serviceErrorMessage(error, zh));
     } finally {
       setSubmitting(false);
     }
@@ -296,15 +304,37 @@ export function AutomationCreateDialog({
           className="rounded-lg border bg-muted/30 p-3 text-xs leading-5"
           aria-live="polite"
         >
-          <p>执行时区：{timezone}</p>
           <p>
-            首次最早检查：
-            {firstCheck ? firstCheck.toLocaleString() : "请填写有效时间"}
-            （实际运行以服务调度为准）
+            {zh ? "执行时区" : "Time zone"}：{timezone}
           </p>
-          <p>执行位置：当前部署的订阅服务；结果保存在“订阅 → 执行历史”。</p>
           <p>
-            关闭网页不影响已运行的服务；服务停止期间不会执行，恢复后会重新检查到期任务。
+            {zh ? "首次最早检查" : "First eligible check"}：
+            {firstCheck
+              ? firstCheck.toLocaleString(locale)
+              : zh
+                ? "请填写有效时间"
+                : "Enter a valid time"}
+            {zh
+              ? "（实际运行以服务调度为准）"
+              : " (actual start depends on service dispatch)"}
+          </p>
+          <p>
+            {zh ? "执行位置" : "Runs on"}：
+            {remote
+              ? zh
+                ? "所选远程电脑的 Echo 服务"
+                : "the selected remote computer's Echo service"
+              : zh
+                ? "当前 Echo 服务所在电脑"
+                : "the computer running this Echo service"}
+            {zh
+              ? "；结果保存在“订阅 → 执行历史”。"
+              : ". Results are saved in Subscriptions → Run history."}
+          </p>
+          <p>
+            {zh
+              ? "电脑需保持在线且 Echo 服务持续运行。服务停止期间不会执行，恢复后会重新检查到期任务。"
+              : "Keep that computer online with Echo running. Checks stop while the service is offline and resume when it returns."}
           </p>
         </div>
         <DialogFooter className="flex flex-row justify-end gap-2 sm:justify-end">

@@ -108,16 +108,34 @@ def _copy_template_private_skills(
     template: dict[str, Any],
     skills_root: Path,
 ) -> dict[str, list[str]]:
-    _template_private_skills(template)
-    available_skills = _template_skill_catalog(template)
+    available_skills = list(
+        dict.fromkeys(
+            [
+                *_template_private_skills(template),
+                *_template_skill_catalog(template),
+            ]
+        )
+    )
     source_rel = template.get("skill_source_root")
     result: dict[str, list[str]] = {"copied": [], "skipped": [], "missing": []}
     if not available_skills or not source_rel:
         return result
     source_root = _template_source_root(template) / str(source_rel)
     skills_root.mkdir(parents=True, exist_ok=True)
+    pending: list[tuple[Path, Path]] = []
     for skill_name in available_skills:
         skill_name = _require_safe_skill_name(skill_name)
+        target = skills_root / skill_name
+        if target.exists() or target.is_symlink():
+            if (
+                target.is_symlink()
+                or not (target / "SKILL.md").is_file()
+                or any(child.is_symlink() for child in target.rglob("*"))
+            ):
+                result["missing"].append(skill_name)
+            else:
+                result["skipped"].append(skill_name)
+            continue
         source = source_root / skill_name
         if (
             source.is_symlink()
@@ -127,12 +145,15 @@ def _copy_template_private_skills(
         ):
             result["missing"].append(skill_name)
             continue
-        target = skills_root / skill_name
-        if target.exists() or target.is_symlink():
-            result["skipped"].append(skill_name)
-            continue
+        pending.append((source, target))
+    if result["missing"]:
+        raise ValueError(
+            "模板缺少技能文件，尚未安装角色；请安装包含技能的完整角色包："
+            + ", ".join(result["missing"])
+        )
+    for source, target in pending:
         shutil.copytree(source, target)
-        result["copied"].append(skill_name)
+        result["copied"].append(target.name)
     return result
 
 

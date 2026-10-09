@@ -595,8 +595,12 @@ def test_use_capability_blocks_risky_inner_action_under_taint() -> None:
     assert ran["shell"] is False, "blocked inner handler must NOT have run"
 
 
-def test_use_capability_allows_inner_action_on_clean_turn() -> None:
-    """Control: with no taint, use_capability dispatches normally."""
+def test_use_capability_holds_risky_inner_action_for_approval_on_clean_turn() -> None:
+    """A clean turn is not an approval. The single-action approval gate
+    reviewed the low-risk ``use_capability`` call, never the inner
+    ``exec_shell``, and a nested dispatch cannot ask the user — so the
+    risky inner action is refused (fail-closed) instead of silently running
+    without the review a direct ``exec_shell`` call would get."""
     ran = {"shell": False}
 
     def _shell(**_kw):
@@ -620,6 +624,40 @@ def test_use_capability_allows_inner_action_on_clean_turn() -> None:
         action="exec_shell",
         args={"command": "x"},
     )
+    assert result["ok"] is False
+    assert "approval_required" in result.get("error", "")
+    assert ran["shell"] is False, "unapproved inner exec_shell must NOT have run"
+
+
+def test_use_capability_runs_risky_inner_action_when_session_auto_approves() -> None:
+    """Control: a session already in auto-approve mode (the same switch the
+    executor's governance honours) lets the registered inner action run."""
+    from runtime.platform.process.session import Session, session_scope
+
+    ran = {"shell": False}
+
+    def _shell(**_kw):
+        ran["shell"] = True
+        return {"exit_code": 0}
+
+    registry = SkillRegistry()
+    registry.register(
+        Skill(
+            name="exec_shell",
+            summary="run a shell command",
+            affinity=["shell", "exec", "dangerous"],
+            trusted_source="plugin://dangerpack/exec_shell",
+            handler=_shell,
+        )
+    )
+    register_agent_meta_skills(registry)
+
+    with session_scope(Session(metadata={"auto_approve": True})):
+        result = registry.get("use_capability").handler(
+            capability_id="dangerpack",
+            action="exec_shell",
+            args={"command": "x"},
+        )
     assert result["ok"] is True
     assert ran["shell"] is True
 

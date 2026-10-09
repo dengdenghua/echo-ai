@@ -358,6 +358,8 @@ export interface Translations {
     insertChromeSurface: string;
     workflow: string;
     deepResearchConfig: string;
+    conversationOptions: string;
+    executionMethod: string;
     roles: string;
     materials: string;
     collapse: string;
@@ -1769,6 +1771,7 @@ export interface Translations {
     navCommunity: string;
     navMcp: string;
     navEvolution: string;
+    navMail: string;
     navProjects: string;
     navDesign: string;
     navNarrative: string;

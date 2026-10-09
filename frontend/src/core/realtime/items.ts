@@ -195,6 +195,27 @@ export interface FileChangeItem extends ItemBase {
   grantRoot: string | null;
 }
 
+/** One file as a whole turn left it, merged across every tool call that
+ * touched it (``turn.fileEdits``). The runtime publishes this projection
+ * instead of the underlying contents, so it carries hashes and a
+ * reversibility verdict rather than bytes.
+ *
+ * ``beforeSource`` is the honesty flag: `recorded`/`derived` mean the
+ * before-state is known, `unknown` means it was not established and
+ * `reason` says why. A surface must not offer an undo for `unknown`.
+ */
+export interface FileEditSummary {
+  path: string;
+  op: "create" | "update" | "delete";
+  beforeSha256: string;
+  afterSha256: string;
+  beforeSource: "recorded" | "derived" | "unknown";
+  reversible: boolean;
+  reason: string;
+  /** How many separate tool calls touched this file during the turn. */
+  touches: number;
+}
+
 export interface McpToolCallItem extends ItemBase {
   type: "mcpToolCall";
   server: string;
@@ -448,6 +469,9 @@ export interface Turn {
     resumable: boolean;
     retryable: boolean;
   } | null;
+  /** Merged per-file journal of everything this turn did to the working
+   * tree, in first-touch order. Content-free by construction. */
+  fileEdits?: FileEditSummary[];
 }
 
 // Lightweight thread metadata for ``thread/list`` responses. Keeps the

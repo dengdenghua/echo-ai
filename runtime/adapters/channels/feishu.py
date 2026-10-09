@@ -7,6 +7,7 @@ import time
 from datetime import datetime
 from typing import Any
 
+from ._webhook_auth import secrets_match
 from .base import Attachment, Channel, InboundMessage, OutboundMessage, _sanitize_url
 
 try:
@@ -332,7 +333,7 @@ class FeishuChannel(Channel):
 
         if payload.get("type") == "url_verification":
             token = payload.get("token")
-            if token != self._verification_token:
+            if not secrets_match(token, self._verification_token):
                 raise FeishuSignatureError(
                     "verification_token mismatch on url_verification",
                 )
@@ -345,7 +346,7 @@ class FeishuChannel(Channel):
             raise ValueError("missing event header")
 
         recv_token = header.get("token")
-        if recv_token != self._verification_token:
+        if not secrets_match(recv_token, self._verification_token):
             raise FeishuSignatureError(
                 "verification_token mismatch on event",
             )

@@ -358,6 +358,16 @@ def call_subagent(
     """
     agent_id = agent_id or role or name
     prompt = prompt or task or message or query
+    # Pipelines and other composite tools must obey the same group roster as
+    # direct delegation. Tool arguments cannot grant global candidate access.
+    from runtime.execution.tool_engine.coordination_guard import current_group_coordination
+    from runtime.memory.cowork.delivery import current_delivery
+
+    if current_delivery() is not None:
+        raise PermissionError("自动交付阶段仅验收已有成员结果，不得重新派发任务")
+    coordination = current_group_coordination()
+    if coordination is not None:
+        coordination.check_member(coordination.current()["thread_id"], agent_id)
     if not agent_id:
         return {
             "agent_id": agent_id,
@@ -1837,13 +1847,13 @@ def _dispatch(
     market_role = runnable_market_roles(selected_runner).get(agent_id)
     if (context or {}).get("_require_installed_market_role") and market_role is None:
         return {
-            "agent_id": agent_id,
-            "output": "",
-            "success": False,
+            "agent_id": agent_id, "output": "", "success": False,
             "error": "HUB role is no longer installed or runnable; no substitute was spawned.",
         }
+    # A caller-supplied runner already owns execution and its cancellation
+    # scope. Registered definitions and temporary roles must not replace it.
     registry = _REGISTRY
-    if market_role is None and registry is not None and registry.has(agent_id):
+    if market_role is None and runner is None and registry is not None and registry.has(agent_id):
         definition = registry.get(agent_id)
         merged_context: dict[str, Any] = {
             **(context or {}),
@@ -1885,7 +1895,7 @@ def _dispatch(
             timeout_s=timeout_s,
         )
 
-    if market_role is None and is_ephemeral_role(agent_id):
+    if market_role is None and runner is None and is_ephemeral_role(agent_id):
         merged_eph: dict[str, Any] = dict(context or {})
         if (
             use_cheap_model

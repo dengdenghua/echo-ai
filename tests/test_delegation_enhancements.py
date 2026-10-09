@@ -118,7 +118,9 @@ def test_call_agent_passes_explicit_continuation_session(mock_subagent, mock_bui
 # ── Custom agent_id fallback ──────────────────────────────
 
 
-@pytest.mark.parametrize("name", ["sleep_researcher_eight", "kyc_debugger_v2", "streaming-auditor", "custom_task_alpha"])
+@pytest.mark.parametrize(
+    "name", ["sleep_researcher_eight", "kyc_debugger_v2", "streaming-auditor", "custom_task_alpha"]
+)
 def test_unknown_role_never_substitutes_builtin(mock_subagent, mock_builtins, name):
     from runtime.execution.suckers.delegation_skills import _call_agent
 
@@ -131,10 +133,12 @@ def test_unknown_role_never_substitutes_builtin(mock_subagent, mock_builtins, na
 def test_unknown_roles_parallel_do_not_spawn(mock_subagent, mock_builtins):
     from runtime.execution.suckers.delegation_skills import _call_agent_parallel
 
-    result = _call_agent_parallel(specs=[
-        {"agent_id": "sleep_researcher_one", "prompt": "Task A"},
-        {"agent_id": "sleep_researcher_two", "prompt": "Task B"},
-    ])
+    result = _call_agent_parallel(
+        specs=[
+            {"agent_id": "sleep_researcher_one", "prompt": "Task A"},
+            {"agent_id": "sleep_researcher_two", "prompt": "Task B"},
+        ]
+    )
     assert result["ok"] is False
     assert result["success_count"] == 0
     mock_subagent.assert_not_called()

@@ -48,6 +48,7 @@ import os
 import subprocess
 import sys
 import tempfile
+from collections import Counter
 from functools import lru_cache
 from pathlib import Path
 
@@ -251,6 +252,17 @@ def test_openapi_response_models_on_config_endpoints() -> None:
             f"got ref={ref!r}. If the model was renamed intentionally, "
             "update both the check above and regenerate the snapshot."
         )
+
+
+def test_openapi_operation_ids_are_unique() -> None:
+    """Duplicate operation ids produce duplicate TypeScript declarations."""
+    counts = Counter(
+        operation["operationId"]
+        for route in _current_schema()["paths"].values()
+        for operation in route.values()
+        if isinstance(operation, dict) and "operationId" in operation
+    )
+    assert not {name: count for name, count in counts.items() if count > 1}
 
 
 def test_device_flow_generation_contract_is_typed() -> None:

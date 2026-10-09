@@ -27,7 +27,7 @@ FACTORY_WORKBENCHES: dict[str, dict[str, str]] = {
     "narrative_studio": {
         "version": "0.2.0",
         "data_dir_name": "narrative-studio",
-    }
+    },
 }
 
 

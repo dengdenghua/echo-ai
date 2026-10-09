@@ -7,6 +7,7 @@ from datetime import datetime
 from typing import Any
 from uuid import uuid4
 
+from ._webhook_auth import secrets_match
 from .base import Attachment, Channel, InboundMessage, OutboundMessage, _sanitize_url
 
 try:
@@ -204,7 +205,7 @@ class MatrixChannel(Channel):
 
         if self._access_token:
             as_token = payload.get("as_token", "")
-            if as_token != self._access_token:
+            if not secrets_match(as_token, self._access_token):
                 raise MatrixSignatureError("as_token mismatch")
 
         events = payload.get("events")

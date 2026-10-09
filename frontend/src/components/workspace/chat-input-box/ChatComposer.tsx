@@ -1,7 +1,7 @@
 import { getLocalSettings } from "@/core/settings/local";
-import { queueFollowup } from "@/core/threads/task-interaction";
 import {
   BookOpenIcon,
+  ChevronDownIcon,
   ExternalLinkIcon,
   FileIcon,
   FlagIcon,
@@ -31,6 +31,7 @@ import {
   useMemo,
   useRef,
   useState,
+  type ReactNode,
 } from "react";
 import { toast } from "sonner";
 
@@ -50,12 +51,12 @@ import {
   loadComposerDraft,
   saveComposerDraft,
 } from "@/core/threads/composer-draft";
-import { EvolutionIndicator } from "../evolution-indicator";
 import { ModelPicker, type PickerModel } from "../model-picker";
 import { CoderEngineControl } from "../coder-engine-control";
-import { PreviewRefreshIndicator } from "../preview-refresh-indicator";
 import { tryLocalSlash } from "../local-slash-dispatch";
 import { useSlashTypeahead } from "../use-slash-typeahead";
+import { useContextCompression } from "../use-context-compression";
+import { ComposerOptions } from "./ComposerOptions";
 import { PermissionIndicator } from "../permission-indicator";
 import {
   DropdownMenu,
@@ -109,8 +110,8 @@ import { FileTree } from "../file-tree";
 /**
  * The main chat composer card: textarea + file attachments + deep-research
  * picker + footer (tools menu, model picker, send/stop). Owns all the
- * draft / image / file / research state. The status strip (workdir/mode
- * selectors) is rendered separately by the parent.
+ * draft / image / file / research state. The parent supplies the status strip
+ * and receives the live guard for switching execution locations.
  */
 export function ChatComposer({
   status,
@@ -146,6 +147,7 @@ export function ChatComposer({
   modelProfileControl = false,
   executionEngine = "echo",
   executionEngineControl,
+  renderStatusStrip,
   onPermissionModeChange,
   onReasoningEffortChange,
   onModelChange,
@@ -154,13 +156,17 @@ export function ChatComposer({
   onDeepResearch,
   onSubmit,
   onDraftChange,
+  onQueue,
+  pendingQueuedMessages = false,
   onStop,
   onResume,
   isStopping = false,
   isUploading = false,
   className,
-}: ChatInputBoxProps) {
-  const { t } = useI18n();
+}: ChatInputBoxProps & {
+  renderStatusStrip?: (executionLocationLocked: boolean) => ReactNode;
+}) {
+  const { t, locale } = useI18n();
   const { models } = useModels();
   // Async attachment work must never outlive the conversation that started
   // it. Replace the scope during the route commit so abandoned concurrent
@@ -479,6 +485,37 @@ export function ChatComposer({
     connectionPhase === "reconnecting" ||
     connectionPhase === "recovery_error"
   );
+  const contextProps = {
+    sessionId: threadId,
+    estimated: true,
+    currentTokens: contextTokens,
+    maxTokens: maxContextTokens,
+    isCompressing: isCompressingContext,
+    onCompress: onCompressContext,
+    disabled: Boolean(
+      isBusy ||
+      status === "streaming" ||
+      status === "submitted" ||
+      submissionBlocked,
+    ),
+  };
+  const contextState = useContextCompression(contextProps);
+
+  const executionLocationLocked = Boolean(
+    isBusy ||
+    pendingQueuedMessages ||
+    status === "streaming" ||
+    status === "submitted" ||
+    draft.trim() ||
+    quoteText.trim() ||
+    pendingImages.length ||
+    pendingFiles.length ||
+    researchMaterials.length ||
+    researchUrlText.trim() ||
+    researchTextBody.trim() ||
+    researchTextTitle.trim() ||
+    researchNote.trim(),
+  );
   const connectionBlockedLabel =
     connectionPhase === "recovery_error"
       ? t.chatInputBox.connectionRecoveryFailed
@@ -597,10 +634,7 @@ export function ChatComposer({
     };
     window.addEventListener("echo:send-failed", handler as EventListener);
     return () => {
-      window.removeEventListener(
-        "echo:send-failed",
-        handler as EventListener,
-      );
+      window.removeEventListener("echo:send-failed", handler as EventListener);
     };
   }, [threadId]);
 
@@ -640,7 +674,8 @@ export function ChatComposer({
     };
   }, [addPendingWorkspaceFile, threadId]);
 
-  const handleSubmit = useCallback(async () => {
+  const handleSubmit = useCallback(
+    async (intent: "send" | "queue" = "send") => {
     const threadScope = composerThreadScopeRef.current;
     let text = draft.trim();
     const sendableText = parseComposerDraft(text).body.trim();
@@ -663,6 +698,31 @@ export function ChatComposer({
         }
       }, 250);
     };
+      if (intent === "queue") {
+        try {
+          if (!onQueue || hasImages || hasFiles || isDeepResearchMode) return;
+          if (!onQueue(text)) {
+            toast.error(
+              locale.startsWith("zh")
+                ? "队列已满或消息过长，请保留草稿后重试"
+                : "Queue is full or the message is too long. Your draft was kept.",
+            );
+            return;
+          }
+          setDraft(
+            activeLongTaskMode
+              ? serializeComposerDraft({
+                  mode: activeLongTaskMode,
+                  refs: [],
+                  body: "",
+                })
+              : "",
+          );
+        } finally {
+          releaseSubmitLock();
+        }
+        return;
+      }
     // Fast path: client-side slash commands (mode/model/permission/
     // compact/settings) resolve locally with no LLM round-trip.
     // Falls through for anything not handled here.
@@ -670,7 +730,9 @@ export function ChatComposer({
       tryLocalSlash(text, {
         onModeChange: onModeChange ? (mode) => onModeChange(mode) : undefined,
         // The shared server-side model profile owns its model namespace.
-        onModelChange: modelProfileControl ? undefined : applyNativeModelChange,
+          onModelChange: modelProfileControl
+            ? undefined
+            : applyNativeModelChange,
         onPermissionModeChange,
         onCompact: onCompressContext
           ? () => {
@@ -808,7 +870,8 @@ export function ChatComposer({
       setPendingImages([]);
       clearPendingImagePreviews();
     }
-  }, [
+    },
+    [
     draft,
     quoteText,
     setQuoteText,
@@ -818,6 +881,8 @@ export function ChatComposer({
     isDeepResearchMode,
     onDeepResearch,
     onSubmit,
+      onQueue,
+      locale,
     onSwitchPanel,
     parsedResearchUrls,
     researchMaterials,
@@ -835,7 +900,8 @@ export function ChatComposer({
     t,
     threadId,
     activeLongTaskMode,
-  ]);
+    ],
+  );
 
   const addMaterial = useCallback((material: Partial<ResearchMaterial>) => {
     setResearchMaterials((current) => [
@@ -1240,10 +1306,7 @@ export function ChatComposer({
       handler as EventListener,
     );
     return () => {
-      window.removeEventListener(
-        "echo:send-failed",
-        handler as EventListener,
-      );
+      window.removeEventListener("echo:send-failed", handler as EventListener);
       window.removeEventListener(
         "echo:inject-composer-images",
         handler as EventListener,
@@ -1360,7 +1423,7 @@ export function ChatComposer({
     ],
   );
 
-  return (
+  const composer = (
     <>
       {showProjectIntentSuggestion ? (
         <div
@@ -1493,7 +1556,8 @@ export function ChatComposer({
                   "inline-flex h-6 max-w-48 shrink-0 items-center gap-1 rounded-md px-1.5 text-xs font-semibold",
                   isPlugin &&
                     "bg-violet-500/10 text-violet-700 dark:text-violet-300",
-                  isSkill && "bg-blue-500/10 text-blue-700 dark:text-blue-300",
+                    isSkill &&
+                      "bg-blue-500/10 text-blue-700 dark:text-blue-300",
                   ref.type === "surface" &&
                     "bg-cyan-500/10 text-cyan-700 dark:text-cyan-300",
                 )}
@@ -1527,7 +1591,8 @@ export function ChatComposer({
               "pointer-events-none absolute left-3 top-2.5 z-10 inline-flex items-center gap-1 text-sm font-bold leading-snug",
               activeComposerMode === "goal" &&
                 "text-violet-600 dark:text-violet-400",
-              activeComposerMode === "plan" && "text-sky-600 dark:text-sky-400",
+                activeComposerMode === "plan" &&
+                  "text-sky-600 dark:text-sky-400",
               activeComposerMode === "spec" &&
                 "text-amber-600 dark:text-amber-400",
               activeComposerMode === "project" &&
@@ -1562,7 +1627,11 @@ export function ChatComposer({
           ref={textareaRef}
           autoFocus={autoFocus}
           disabled={isBusy}
-          placeholder={composerRefs.length > 0 ? "" : (placeholder ?? t.inputBox.placeholder)}
+            placeholder={
+              composerRefs.length > 0
+                ? ""
+                : (placeholder ?? t.inputBox.placeholder)
+            }
           aria-label={placeholder ?? t.inputBox.placeholder}
           value={visibleDraft}
           onChange={(e) => setVisibleDraft(e.target.value)}
@@ -1579,7 +1648,9 @@ export function ChatComposer({
               ? "pl-[7.5rem] pr-3"
               : activeComposerMode
                 ? "pl-[5.25rem] pr-3"
-                : composerRefs.length > 0 ? "pl-1.5 pr-3" : "px-3",
+                  : composerRefs.length > 0
+                    ? "pl-1.5 pr-3"
+                    : "px-3",
           )}
         />
       </div>
@@ -1660,8 +1731,8 @@ export function ChatComposer({
           if (imageInputRef.current) imageInputRef.current.value = "";
         }}
       />
-      <div className="composer-footer flex min-h-10 flex-wrap items-center justify-between gap-1 px-2 pb-2 pt-1 sm:gap-2">
-        <div className="flex min-w-0 max-w-full flex-wrap items-center gap-0.5">
+      <div className="composer-footer flex min-h-10 items-center justify-between gap-1 px-2 pb-2 pt-1 sm:gap-2">
+        <div className="flex shrink-0 items-center gap-0.5">
           <DropdownMenu
             open={toolsMenuOpen}
             onOpenChange={(open) => {
@@ -2024,9 +2095,6 @@ export function ChatComposer({
               )}
             </DropdownMenuContent>
           </DropdownMenu>
-          <div className="composer-footer__secondary contents">
-            <PreviewRefreshIndicator />
-          </div>
           {(!isGroupConversation || resolvedPermissionMode !== "default") && (
             <div className="composer-footer__secondary contents">
               <PermissionIndicator
@@ -2067,26 +2135,17 @@ export function ChatComposer({
             </button>
           ) : null}
         </div>
-        <div className="ml-auto flex min-w-0 shrink-0 items-center justify-end gap-1">
-          {responseModeControl ? (
-            <div className="composer-footer__response contents">
-              {responseModeControl}
-            </div>
-          ) : null}
-          <div className="composer-footer__secondary contents">
-            <EvolutionIndicator compact quiet />
-          </div>
+        <div className="ml-auto flex min-w-0 items-center justify-end gap-1">
+          <ComposerOptions
+            responseModeControl={responseModeControl}
+            executionEngineControl={executionEngineControl}
+            contextProps={contextProps}
+            contextState={contextState}
+          />
           <div
             data-testid="composer-runtime-controls"
             className="flex min-w-0 max-w-[min(58vw,20rem)] items-center"
           >
-            {executionEngineControl}
-            {executionEngineControl ? (
-              <span
-                className="mx-0.5 h-3.5 w-px shrink-0 bg-border/70"
-                aria-hidden="true"
-              />
-            ) : null}
             {modelProfileControl && executionEngine !== "opencode" ? (
               <div className="composer-footer__model min-w-0">
                 <CoderEngineControl
@@ -2127,19 +2186,7 @@ export function ChatComposer({
             <>
               <button
                 type="button"
-                title="当前回复结束后执行；附件请在任务结束后发送"
-                disabled={isBusy || submissionBlocked || pendingImages.length > 0 || pendingFiles.length > 0}
-                className="shrink-0 rounded-md px-2 py-1 text-xs text-muted-foreground hover:bg-muted disabled:opacity-50"
-                onClick={() => {
-                  const parsed = parseComposerDraft(draft.trim());
-                  const quoted = quoteText.split(/\r?\n/).map(line => `> ${line}`).join("\n");
-                  const text = serializeComposerDraft({ ...parsed, body: quoteText ? `${parsed.body}\n\n${quoted}` : parsed.body });
-                  if (queueFollowup(threadId, text)) { setVisibleDraft(""); setQuoteText(""); }
-                }}
-              >稍后执行</button>
-              <button
-                type="button"
-                onClick={handleSubmit}
+                onClick={() => void handleSubmit()}
                 data-testid="chat-steer-button"
                 disabled={isBusy || submissionBlocked}
                 className="flex size-[42px] items-center justify-center rounded-lg bg-foreground text-background transition-all duration-base hover:bg-foreground/90 active:scale-95 disabled:cursor-wait disabled:opacity-70 sm:size-8"
@@ -2148,6 +2195,65 @@ export function ChatComposer({
               >
                 <SendHorizontalIcon className="size-3.5" />
               </button>
+              {onQueue ? (
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <button
+                      type="button"
+                      data-testid="chat-send-options"
+                      aria-label={
+                        locale.startsWith("zh") ? "发送选项" : "Send options"
+                      }
+                      className="flex h-[42px] w-6 shrink-0 items-center justify-center rounded-lg hover:bg-muted sm:h-8"
+                    >
+                      <ChevronDownIcon className="size-3.5" />
+                    </button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent
+                    side="top"
+                    align="end"
+                    className="max-w-[calc(100vw-2rem)]"
+                  >
+                    <DropdownMenuItem
+                      onSelect={() => void handleSubmit()}
+                      disabled={
+                        isBusy ||
+                        submissionBlocked ||
+                        pendingImages.length > 0 ||
+                        pendingFiles.length > 0
+                      }
+                    >
+                      {locale.startsWith("zh")
+                        ? "补充当前任务"
+                        : "Steer current task"}
+                    </DropdownMenuItem>
+                    <DropdownMenuItem
+                      onSelect={() => void handleSubmit("queue")}
+                      disabled={
+                        isBusy ||
+                        submissionBlocked ||
+                        pendingImages.length > 0 ||
+                        pendingFiles.length > 0 ||
+                        isDeepResearchMode
+                      }
+                    >
+                      <ListTodoIcon className="size-4" />
+                      {locale.startsWith("zh")
+                        ? "排队发送 · 当前任务结束后"
+                        : "Queue after the current task"}
+                    </DropdownMenuItem>
+                    {pendingImages.length > 0 ||
+                    pendingFiles.length > 0 ||
+                    isDeepResearchMode ? (
+                      <p className="px-2 py-1 text-xs text-muted-foreground">
+                        {locale.startsWith("zh")
+                          ? "排队暂支持纯文本消息"
+                          : "Queue currently supports text only"}
+                      </p>
+                    ) : null}
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              ) : null}
               <button
                 type="button"
                 onClick={onStop}
@@ -2207,7 +2313,7 @@ export function ChatComposer({
           ) : (
             <button
               type="button"
-              onClick={handleSubmit}
+              onClick={() => void handleSubmit()}
               data-testid="chat-send-button"
               disabled={
                 (!sendableDraftText &&
@@ -2245,6 +2351,12 @@ export function ChatComposer({
         </div>
       </div>
     </div>
+    </>
+  );
+  return (
+    <>
+      {composer}
+      {renderStatusStrip?.(executionLocationLocked)}
     </>
   );
 }

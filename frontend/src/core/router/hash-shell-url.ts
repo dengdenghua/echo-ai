@@ -56,14 +56,19 @@ function currentShellPrefix(): string {
 
 function onCurrentShell(rootHashUrl: string): string {
   const prefix = currentShellPrefix();
-  return prefix ? `${prefix}${rootHashUrl}` : rootHashUrl;
+  // Runtime scope lives outside the hash. Preserve it when an app link uses
+  // /#/... instead of letting a route change silently return to local files.
+  const search = typeof window === "undefined" ? "" : window.location.search;
+  return `${prefix}/${search}${rootHashUrl.slice(1)}`;
 }
 
 function normalizeHistoryUrl(
   url: string | URL | null | undefined,
 ): string | URL | null | undefined {
   if (typeof url !== "string") return url;
-  if (url.startsWith(`${BUILT_WEBUI_PREFIX}/#/`)) return url;
+  if (url.startsWith(`${BUILT_WEBUI_PREFIX}/#/`)) {
+    return onCurrentShell(url.slice(BUILT_WEBUI_PREFIX.length));
+  }
   if (url.startsWith("/#/")) return onCurrentShell(url);
   if (url.startsWith("#/")) return onCurrentShell(`/${url}`);
   if (!url.startsWith("/")) return url;

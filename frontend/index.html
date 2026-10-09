@@ -29,6 +29,14 @@
         margin: 0;
         width: 100%;
         height: 100%;
+      }
+
+      /* Splash-only paint: applies before the theme provider puts .light/.dark
+         on <html>. Once booted, the app theme (--background) must win,
+         otherwise an OS "light" preference pins html/body to white even in
+         dark mode. */
+      html:not(.light):not(.dark),
+      html:not(.light):not(.dark) body {
         background: var(--startup-background);
       }
 

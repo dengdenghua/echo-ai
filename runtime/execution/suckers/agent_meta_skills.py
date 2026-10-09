@@ -13,6 +13,7 @@ from .capability_skills import (
 )
 from .registry import Skill, SkillRegistry
 from .testing import SkillExpect, SkillTestCase
+from .visual_skills import VISUAL_SKILL_NAMES, register_visual_skills
 
 _VALID_STATUS = {"pending", "in_progress", "completed"}
 _TODO_LOCK = threading.Lock()
@@ -247,6 +248,7 @@ AGENT_META_SKILL_NAMES = [
     "query_skill",
     "execute_skill",
     *CAPABILITY_SKILL_NAMES,
+    *VISUAL_SKILL_NAMES,
 ]
 
 
@@ -286,6 +288,7 @@ def _query_skill_for_registry(registry: SkillRegistry):
             "cost_profile": skill.cost_profile,
             "trusted_source": skill.trusted_source,
             "enabled": enabled,
+            **({"input_schema": skill.input_schema} if skill.input_schema is not None else {}),
             **role_catalog,
             "guidance": (
                 "This is a registered skill, not a plugin capability ID. "
@@ -471,20 +474,23 @@ def _execute_skill_for_registry(registry: SkillRegistry):
         else:
             return {"ok": False, "name": skill.name, "error": "args must be an object"}
 
-        # Model-controlled auth/sandbox overrides are stripped exactly as on
-        # the executor path before the shared inner-dispatch gates run.
-        from runtime.safety.auth import strip_model_controlled_overrides
+        # Run the executor's pre-execution pipeline for the inner call:
+        # model-controlled overrides are stripped, the host ``allowed_tools``
+        # contract and audit read-only mode are enforced, and — critically for
+        # read tools such as grep_text / glob_files — ``_prepare_scoped_args``
+        # injects ``sandbox_dir`` / root confinement so the read cannot leave
+        # the session's execution scope.
+        from runtime.execution.tool_engine.skill_gate import prepare_inner_dispatch
 
-        call_args, stripped = strip_model_controlled_overrides(call_args)
-        from runtime.execution.tool_engine.skill_gate import gate_inner_dispatch
-
-        block = gate_inner_dispatch(
+        prepared = prepare_inner_dispatch(
             skill,
             call_args,
             caller="execute_skill",
         )
-        if block is not None:
-            return {"ok": False, "name": skill.name, "error": block.message}
+        if prepared.block is not None:
+            return {"ok": False, "name": skill.name, "error": prepared.block.message}
+        call_args = prepared.args
+        stripped = list(prepared.stripped)
         try:
             from runtime.execution.tool_engine.coordination_guard import invoke_coordinated
 
@@ -508,6 +514,7 @@ def _execute_skill_for_registry(registry: SkillRegistry):
 def register_agent_meta_skills(registry: SkillRegistry) -> int:
     """Register the agent-meta skills. Returns the count registered."""
     capability_count = register_capability_skills(registry)
+    visual_count = register_visual_skills(registry)
     registry.register(
         Skill(
             name="todo_read",
@@ -588,9 +595,10 @@ def register_agent_meta_skills(registry: SkillRegistry) -> int:
                 "Purpose: search the entire registered skill catalog by keyword "
                 "when the compact prompt catalog was truncated or you do not know "
                 "the exact skill name. Search matches name, summary, affinity, "
-                "and description, then returns compact candidates. Call "
-                "query_skill(name=...) for full details before using an unfamiliar "
-                "candidate.\n"
+                "and description, then returns compact candidates. A unique, "
+                "unambiguous hit should be invoked directly; only call "
+                "query_skill(name=...) when the parameter contract is genuinely "
+                "unclear, and check one candidate at a time.\n"
                 "When not to use: if the needed skill is already visible and its "
                 "parameters are obvious; call that skill directly.\n"
                 "Key params: query (keyword), limit (1-25, default 10), "
@@ -661,7 +669,7 @@ def register_agent_meta_skills(registry: SkillRegistry) -> int:
             ],
         )
     )
-    return capability_count + 5
+    return capability_count + visual_count + 5
 
 
 __all__ = [

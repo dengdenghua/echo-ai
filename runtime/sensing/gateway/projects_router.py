@@ -175,11 +175,27 @@ def create_projects_router(
         if model_router is not None:
             from runtime.projectos.llm_hooks import create_llm_hooks
 
-            return create_llm_hooks(
+            hooks = create_llm_hooks(
                 model_router,
                 **({"model": planning_model} if planning_model else {}),
                 subagent_runner=subagent_runner,
             )
+            generate_milestones = hooks["generate_milestones"]
+
+            def _generate_milestones(goal: str):
+                try:
+                    return generate_milestones(goal)
+                except Exception as exc:  # noqa: BLE001 - provider details stay private
+                    raise HTTPException(
+                        503,
+                        detail={
+                            "code": "PROJECT_PLANNING_UNAVAILABLE",
+                            "message": "项目规划暂时不可用，请检查执行模型配置或连接后重试；未创建项目。",
+                            "retryable": True,
+                        },
+                    ) from exc
+
+            return {**hooks, "generate_milestones": _generate_milestones}
         return {
             "generate_milestones": stub_generate_milestones,
             "decompose_tasks": stub_decompose_tasks,
@@ -673,8 +689,6 @@ def create_projects_router(
             project = _engine(principal).plan(body.name, body.goal)
         except ValueError as exc:
             raise _bad_request(exc) from exc
-        except RuntimeError as exc:
-            raise HTTPException(503, "项目规划失败，请检查执行模型后重试。") from exc
         _project_to_collaboration(request, project.id)
         return {"ok": True, **_full_state(request, project.id)}
 

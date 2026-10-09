@@ -49,8 +49,9 @@ class OctConfig(BaseModel):
         description="agent 自有会话 JWT 的 HS256 密钥 · 留空则复用网关 JWT 作为 access_token",
     )
     jwt_expire_seconds: int = Field(
-        default=30 * 24 * 3600,
-        description="agent 自有 JWT exp 距 iat 秒数 · 默认 30 天",
+        default=8 * 3600,
+        gt=0,
+        description="agent 自有 JWT exp 距 iat 秒数 · 默认 8 小时",
     )
     jwt_issuer: str | None = Field(
         default="echo-ai",

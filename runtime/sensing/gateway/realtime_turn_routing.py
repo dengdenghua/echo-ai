@@ -137,11 +137,13 @@ def _requests_role_tool(text: str) -> bool:
             r"(?:派生|委派|派发|委托|\bspawn\b|\bdelegate\b).{0,30}"
             r"(?:角色|子代理|子任务|成员|sub.?agent)|"
             r"(?:echo_)?call_agent(?:_parallel)?\s*\(",
-            clause, re.IGNORECASE,
+            clause,
+            re.IGNORECASE,
         )
         if match and not re.search(
             r"不要|不用|无需|别|不需要|\b(?:do not|don't|never)\b",
-            clause[:match.start()], re.IGNORECASE,
+            clause[: match.start()],
+            re.IGNORECASE,
         ):
             return True
     return False

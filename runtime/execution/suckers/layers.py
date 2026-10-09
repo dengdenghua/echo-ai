@@ -64,6 +64,10 @@ ATOMIC_SKILL_NAMES: frozenset[str] = frozenset(
         # decision card. Atomic so every agent can prompt the user
         # without explicit allowlisting.
         "ask_user_question",
+        # Inert native cards: validation/display only. Form submissions use
+        # the user's ordinary conversation permission and approval boundary.
+        "visual_guidelines",
+        "show_ui",
         # blackboard · turn-scoped shared state for parallel sub-agents.
         # In-process dict, no I/O · trivially atomic. Always-on so every
         # agent (lead OR sub-agent) can use bb_read/bb_write to exchange
@@ -180,6 +184,8 @@ READ_ONLY_SKILL_NAMES: frozenset[str] = frozenset(
         "execute_skill",
         "search_capabilities",
         "query_capability",
+        "visual_guidelines",
+        "show_ui",
         # agent memory · recall side only
         "recall",
         "recall_scores",

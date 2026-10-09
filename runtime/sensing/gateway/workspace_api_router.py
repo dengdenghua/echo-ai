@@ -197,11 +197,7 @@ def create_workspace_api_router(
             raise HTTPException(404, f"workspace {workspace_id!r} not found")
         if action == "admin" and role != "owner" and not global_operator:
             raise HTTPException(403, "workspace owner or operator role required")
-        if (
-            action == "write"
-            and role not in {"owner", "editor", "reviewer"}
-            and not global_operator
-        ):
+        if action == "write" and role not in {"owner", "editor"} and not global_operator:
             raise HTTPException(403, "workspace write membership required")
         return ws, principal
 
@@ -479,6 +475,20 @@ def create_workspace_api_router(
         return {"leases": [_lease_dict(lease) for lease in active]}
 
     # ─── Health ────────────────────────────────────────────────────────────
+
+    @router.get(
+        "/api/workspaces/{workspace_id}/execution-directory",
+        dependencies=[Depends(_auth_dep)],
+    )
+    async def get_execution_directory(request: Request, workspace_id: str) -> dict[str, Any]:
+        """Resolve the directory on this backend, subject to existing workspace ACLs."""
+        import asyncio
+
+        from runtime.workspace.execution_directory import execution_directory
+
+        _require_flag()
+        ws, _ = _workspace_access(request, workspace_id, action="write")
+        return await asyncio.to_thread(execution_directory, ws)
 
     @router.post(
         "/api/workspaces/{workspace_id}/health",

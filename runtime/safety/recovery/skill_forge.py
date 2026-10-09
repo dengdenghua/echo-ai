@@ -314,13 +314,19 @@ class SkillForge:
                 # review queue; keep the tick idempotent.
                 retired.append(cand.name)
                 continue
-            passed, shadow_report = self.shadow_validate(cand)
-            reports[cand.name] = shadow_report
-            if not passed:
-                shadow_failed.append(cand.name)
-                retired.append(cand.name)
-                continue
+            # Route dangerous macros to human review BEFORE any shadow run.
+            # Shadow validation replays the composite, and the composite's
+            # inner-dispatch pipeline (correctly) refuses unapproved risky
+            # steps — an unattended background tick must never replay a
+            # recorded exec_shell / write / GUI step to "validate" it.
             dangerous = self._dangerous_underlying_skills(cand)
+            if not dangerous:
+                passed, shadow_report = self.shadow_validate(cand)
+                reports[cand.name] = shadow_report
+                if not passed:
+                    shadow_failed.append(cand.name)
+                    retired.append(cand.name)
+                    continue
             if dangerous:
                 exc = UnsafeSkillPromotionError(
                     f"refusing to promote forged skill {cand.name!r}; "
@@ -782,24 +788,26 @@ class SkillForge:
                     # calls each sub-skill's handler DIRECTLY (not via
                     # executor.execute_step), so every pre-execution gate —
                     # capability-permission, injection-taint, immunity,
-                    # file-safety — is bypassed. Identical to the persisted
-                    # twin in suckers/forged_persistence; re-apply the shared
-                    # gate sequence per sub-skill, fail-closed.
+                    # file-safety, approval, sandbox/scope injection — is
+                    # bypassed. Identical to the persisted twin in
+                    # suckers/forged_persistence; re-run the shared
+                    # inner-dispatch pipeline per sub-skill, fail-closed.
                     from runtime.execution.tool_engine.skill_gate import (
-                        gate_inner_dispatch,
+                        prepare_inner_dispatch,
                     )
 
-                    _block = gate_inner_dispatch(
+                    _prepared = prepare_inner_dispatch(
                         skill,
                         call_args,
                         caller="forged_composite",
                     )
-                    if _block is not None:
+                    if _prepared.block is not None:
                         success = False
                         failed_at = i
-                        error_type = _block.error_type
-                        error_msg = _block.message
+                        error_type = _prepared.block.error_type
+                        error_msg = _prepared.block.message
                         break
+                    call_args = _prepared.args
                     from runtime.execution.tool_engine.coordination_guard import invoke_coordinated
 
                     outputs[f"n{i}"] = invoke_coordinated(skill, call_args)

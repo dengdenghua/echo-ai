@@ -1744,13 +1744,15 @@ export function useRealtimeThread(
     async (input) => {
       const client = clientRef.current;
       if (!client) throw new Error("realtime client not ready");
+      const operationEpoch = threadEpochRef.current;
+      if (operationEpoch.threadId !== args.threadId) return;
       const watch = {
         delivered: false,
         ...(input.clientItemId ? { clientItemId: input.clientItemId } : {}),
       };
       turnDeliveryWatchesRef.current.add(watch);
       try {
-        await client.request("turn/start", {
+        const response = await client.request<{ turn?: Conversation["turns"][number] }>("turn/start", {
           threadId: args.threadId,
           input: [
             {
@@ -1774,6 +1776,22 @@ export function useRealtimeThread(
           executionEngine: input.executionEngine ?? "auto",
           ...(input.topologyId ? { topologyId: input.topologyId } : {}),
         });
+        // A durable duplicate returns its existing turn without emitting a
+        // second user-message event. Reconcile that receipt, or a refreshed
+        // UI form can remain stuck on its optimistic "sending" bubble.
+        const recoveredTurn = response?.turn;
+        if (
+          input.clientItemId && recoveredTurn?.threadId === args.threadId &&
+          Array.isArray(recoveredTurn.items) &&
+          recoveredTurn.items.some((item) => item.type === "userMessage" && item.id === input.clientItemId)
+        ) {
+          setState((prev) => {
+            if (!isCurrentThreadClient(operationEpoch, client) || prev.turns.some((turn) => turn.items.some((item) => item.id === input.clientItemId))) return prev;
+            const next = { ...prev, turns: mergeTurnSnapshots(prev.turns, [recoveredTurn]) };
+            stateRef.current = next;
+            return next;
+          });
+        }
       } catch (err) {
         // The turn/start response only arrives once the whole turn has
         // finished, so a disconnect at any point of a long turn rejects
@@ -1793,7 +1811,7 @@ export function useRealtimeThread(
         turnDeliveryWatchesRef.current.delete(watch);
       }
     },
-    [args.threadId],
+    [args.threadId, isCurrentThreadClient],
   );
 
   const steer = useCallback<UseRealtimeThreadValue["steer"]>(

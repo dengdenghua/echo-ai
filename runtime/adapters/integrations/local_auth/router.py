@@ -3,7 +3,6 @@ from __future__ import annotations
 import hashlib
 import logging
 import math
-import re
 import threading
 import time
 from collections import OrderedDict, deque
@@ -25,11 +24,10 @@ except ImportError:  # pragma: no cover
 
 from runtime.sensing._fastapi_guard import require_fastapi
 
-from .config import LocalAuthConfig, development_login_enabled, verify_password
+from .config import _USERNAME_RE, LocalAuthConfig, local_login_enabled, verify_password
 
 logger = logging.getLogger(__name__)
 
-_USERNAME_RE = re.compile(r"^[A-Za-z0-9._@\-]{1,64}$")
 _DUMMY_BCRYPT_HASH = "bcrypt:$2b$12$i97XS4XVBLbe1Ipw01D4C.KRRk3TznyetM5gIwNVmEc5gb8LS2Nzi"
 
 
@@ -175,14 +173,14 @@ def create_local_auth_router(
     )
 
     def _require_enabled() -> None:
-        if not development_login_enabled(config):
+        if not local_login_enabled(config):
             raise HTTPException(
                 status_code=503,
-                detail=("本地登录仅用于开发环境，当前未启用。"),
+                detail="账号登录未配置；部署环境需密码账号和强 JWT 密钥，快捷登录仅限本地开发。",
             )
 
     def _check_username(username: str) -> None:
-        if not _USERNAME_RE.match(username):
+        if not _USERNAME_RE.fullmatch(username):
             raise HTTPException(
                 status_code=400,
                 detail="username 只能含字母/数字/._@- · 长度 1-64",
@@ -385,7 +383,15 @@ def create_local_auth_router(
     @router.post("/logout", status_code=204, response_class=Response, response_model=None)
     def logout(request: Request, response: Response):
         from runtime.safety.auth.principal import clear_session_cookie
+        from runtime.safety.auth.session_revocation import revoke_request_session
 
+        revoke_request_session(
+            request,
+            identity_store,
+            secret=config.jwt_secret,
+            issuer=config.jwt_issuer,
+            audience=config.jwt_audience,
+        )
         clear_session_cookie(response, request)
 
     @router.get("/whoami", response_model=WhoamiResponse)

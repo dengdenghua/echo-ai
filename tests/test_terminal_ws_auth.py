@@ -133,6 +133,28 @@ def test_ws_rejects_foreign_owner_before_spawn():
     assert terminal_router._sessions["agent-workbench-thread-alice"].owner_actor == "alice"
 
 
+def test_ws_accepts_browser_subprotocol_token_and_echoes_marker():
+    # The browser client (openAuthenticatedWebSocket) sends the token as
+    # ``bearer.b64, <base64url>``; the server must decode it and select only
+    # the non-secret marker, or the browser aborts the handshake. A foreign
+    # owner is used so the resolved actor (bob) is proven without spawning.
+    import base64
+
+    client = _client(require_auth=True, store=_store())
+    _seed_owned_session("agent-workbench-thread-alice", owner="alice")
+    encoded = base64.urlsafe_b64encode(b"sk-bob").decode().rstrip("=")
+    with (
+        pytest.raises(WebSocketDisconnect) as ei,
+        client.websocket_connect(
+            "/api/terminal/ws/agent-workbench-thread-alice",
+            subprotocols=["bearer.b64", encoded],
+        ) as ws,
+    ):
+        assert ws.accepted_subprotocol == "bearer.b64"
+        ws.receive_text()
+    assert ei.value.code == 4403
+
+
 def test_bind_or_check_owner_semantics():
     # Unit-level (no subprocess): the accepted-owner path spawns a real
     # shell whose lifetime spans the TestClient loop and is flaky to reap,

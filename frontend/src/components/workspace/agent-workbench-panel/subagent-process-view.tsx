@@ -2,12 +2,8 @@ import { useMemo, useRef, useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   ArrowDownIcon,
-  BookmarkIcon,
-  ExternalLinkIcon,
-  GitBranchIcon,
-  PencilIcon,
-  SendHorizontalIcon,
   Share2Icon,
+  MessageCircleIcon,
 } from "lucide-react";
 import { toast } from "sonner";
 import { eventBus } from "@/core/events/event-bus";
@@ -27,6 +23,7 @@ import type { WorkBlock } from "../work-blocks";
 import { MessageGroup } from "../messages/message-group";
 import { MessageListItem } from "../messages/message-list-item";
 import { ComputerScopeSwitch } from "./computer-scope-switch";
+import { memberErrorText } from "./member-error";
 
 function publicBlockOutput(block: WorkBlock): string {
   const observation = block.event.observation?.trim();
@@ -195,6 +192,7 @@ function subagentMessages(
       readableResultText(agent.resultSummary ?? agent.error ?? ""),
     );
   }
+  if (agent.status === "error") answerText = memberErrorText(answerText);
   const answer: Message | null = answerText
     ? {
         id: answerId,
@@ -228,83 +226,30 @@ export function SubagentProcessView({
   const navigate = useNavigate();
   const [followupText, setFollowupText] = useState("");
 
-  const handlePromoteToThread = () => {
-    const params = new URLSearchParams();
-    if (agent.name) params.set("agent", agent.name);
-    if (agent.prompt || agent.task) {
-      params.set(
-        "prompt",
-        `针对前序子任务继续推进：\n${agent.prompt || agent.task}\n\n`,
-      );
-    }
-    navigate(`/workspace/realtime/new?${params.toString()}`);
-    toast.success(`已为 ${agent.codename ?? agent.name} 开启独立对话窗口`);
-  };
-
-  const handlePublishToRoom = () => {
-    const summary = readableResultText(
-      agent.resultSummary || agent.task || agent.error || "",
-    ).trim();
-    const name = agent.codename ?? agent.name ?? "并列协作者";
-    const text = summary
-      ? `📢 来自并列协作者【${name}】的阶段交付：\n\n${summary}`
-      : `📢 并列协作者【${name}】正在推进：\n${agent.task || ""}`;
-    eventBus.emit("composer:insert-mention", {
-      text,
-      submit: true,
-    });
-    toast.success(`已将【${name}】的工作成果同步发布至群公共`);
-  };
-
-  const [decisionRecorded, setDecisionRecorded] = useState(false);
-
-  const handleRecordDecision = () => {
-    const summary = readableResultText(
-      agent.resultSummary || agent.task || agent.error || "",
-    ).trim();
-    const name = agent.codename ?? agent.name ?? "并列协作者";
-    const text = summary
-      ? `🏛️ [项目决策固化] 采纳并列协作者【${name}】交付方案：\n\n${summary}`
-      : `🏛️ [项目决策固化] 确立并列协作者【${name}】推进目标：\n${agent.task || ""}`;
-    eventBus.emit("composer:insert-mention", {
-      text,
-      submit: true,
-    });
-    setDecisionRecorded(true);
-    toast.success(`已将【${name}】的成果固化为长项目核心决策`);
-  };
-
-  const handleForkSandbox = () => {
-    const targetName = agent.codename ?? agent.name ?? "并列协作者";
-    const text = `🌱 【方案推演沙盒】针对并列协作者【${targetName}】的方案开启隔离推演验证：\n- 目标：${agent.task || "验证当前方案可行性"}\n- 请在沙盒内进行推演与 POC 测试，不污染项目主干。`;
-    eventBus.emit("composer:insert-mention", {
-      text,
-      submit: true,
-    });
-    toast.success(`已为【${targetName}】开辟推演沙盒分支`);
-  };
-
-  const handleFollowupSubmit = (e: React.FormEvent, directSend = true) => {
-    e.preventDefault();
-    const text = followupText.trim();
-    if (!text) return;
-    const targetName = agent.name || agent.codename || "agent";
-    eventBus.emit("composer:insert-mention", {
-      text: `@${targetName} ${text}`,
-      submit: directSend,
-    });
-    setFollowupText("");
-    toast.success(
-      directSend
-        ? `已向并列协作者 ${agent.codename ?? agent.name} 直接发送对话`
-        : `已将针对 ${agent.codename ?? agent.name} 的指令装入输入框`,
-    );
-  };
-
+  const memberName = agent.codename ?? agent.name;
   const messages = useMemo(
     () => subagentMessages(agent, blocks),
     [agent, blocks],
   );
+  const shareableReply = typeof messages.answer?.content === "string"
+    && agent.status !== "error" ? messages.answer.content.trim() : "";
+
+  const handleShareToGroup = () => {
+    if (!shareableReply) return;
+    eventBus.emit("composer:insert-mention", {
+      text: `${memberName} 的回复：\n\n${shareableReply}`,
+      submit: false,
+    });
+    toast.success("已放入群聊输入框，确认后发送");
+  };
+
+  const handlePrivateChat = (event: React.FormEvent) => {
+    event.preventDefault();
+    const params = new URLSearchParams({ agent: agent.name, private: "1" });
+    if (followupText.trim()) params.set("prompt", followupText.trim());
+    navigate(`/workspace/realtime/new?${params.toString()}`);
+    setFollowupText("");
+  };
 
   // 智能滚动锚点：自动滚动到底部，除非用户主动向上滚动
   const containerRef = useRef<HTMLDivElement>(null);
@@ -371,55 +316,20 @@ export function SubagentProcessView({
       >
         <div className="mx-auto flex w-full min-w-0 max-w-2xl flex-col">
           <ComputerScopeSwitch
-            subLabel={`${agent.codename ?? agent.name} · 并列协作者 ${agent.label}`}
+            subLabel={agent.codename ?? agent.name}
             onOpenMain={onOpenMain}
+            mainLabel="返回总览"
             trailingAction={
-              <div className="flex flex-wrap items-center gap-1.5 [&>button]:min-h-7 [&>button]:shrink-0 [&>button]:whitespace-nowrap [&_svg]:shrink-0">
-                <button
-                  type="button"
-                  onClick={handleRecordDecision}
-                  disabled={decisionRecorded}
-                  className={cn(
-                    "inline-flex items-center gap-1 rounded-md border px-2 py-0.5 text-xs font-medium transition-all focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring",
-                    decisionRecorded
-                      ? "border-amber-500/30 bg-amber-500/10 text-amber-600 dark:text-amber-400"
-                      : "border-border/60 bg-background/80 text-foreground/80 hover:bg-muted hover:text-foreground",
-                  )}
-                  title="将该并列协作者的交付成果作为长项目的核心决策固化沉淀到 Project OS 事实库"
-                >
-                  <BookmarkIcon className="size-3" />
-                  <span>
-                    {decisionRecorded ? "已固化为决策" : "固化为决策"}
-                  </span>
-                </button>
-                <button
-                  type="button"
-                  onClick={handleForkSandbox}
-                  className="inline-flex items-center gap-1 rounded-md border border-border/60 bg-background/80 px-2 py-0.5 text-xs font-medium text-foreground/80 transition-all hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
-                  title="开辟独立推演沙盒，进行多方案 POC 隔离验证"
-                >
-                  <GitBranchIcon className="size-3" />
-                  <span>推演沙盒</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={handlePublishToRoom}
-                  className="inline-flex items-center gap-1 rounded-md border border-primary/30 bg-primary/10 px-2 py-0.5 text-xs font-medium text-primary transition-all hover:bg-primary/20 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
-                  title="将该并列协作者的产出作为阶段成果同步发布到群公共流"
-                >
-                  <Share2Icon className="size-3" />
-                  <span>同步至群公共</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={handlePromoteToThread}
-                  className="inline-flex items-center gap-1 rounded-md border border-border/50 bg-background/80 px-2 py-0.5 text-xs font-medium text-muted-foreground transition-all hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
-                  title="以独立对话窗口打开此并列进程，支持长期深度多轮对话"
-                >
-                  <ExternalLinkIcon className="size-3" />
-                  <span>以独立会话打开</span>
-                </button>
-              </div>
+              <button
+                type="button"
+                onClick={handleShareToGroup}
+                disabled={!shareableReply}
+                title={shareableReply ? "放入群聊输入框，确认后发送" : "有回复后可以分享"}
+                className="inline-flex min-h-8 shrink-0 items-center gap-1.5 whitespace-nowrap rounded-md px-2 text-xs text-muted-foreground hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-40"
+              >
+                <Share2Icon className="size-3.5" />
+                分享到群聊
+              </button>
             }
           />
           {!hasConversation ? (
@@ -449,7 +359,7 @@ export function SubagentProcessView({
               messages.process.length === 0 &&
               !messages.answer ? (
                 <p role="status" className="text-xs text-muted-foreground">
-                  正在并行运行，等待并列协作者返回进展…
+                  正在处理，稍后会在这里显示进展…
                 </p>
               ) : null}
               {messages.answer ? (
@@ -471,38 +381,25 @@ export function SubagentProcessView({
         className="min-w-0 shrink-0 border-t border-border-subtle bg-background/95 p-2.5 backdrop-blur-xs"
       >
         <form
-          onSubmit={(e) => handleFollowupSubmit(e, true)}
+          onSubmit={handlePrivateChat}
           className="mx-auto flex w-full min-w-0 max-w-2xl flex-wrap items-center justify-end gap-2"
         >
           <input
             type="text"
-            aria-label={`向 ${agent.codename ?? agent.name} 发送指令`}
+            aria-label={`与 ${memberName} 私聊`}
             value={followupText}
             onChange={(e) => setFollowupText(e.target.value)}
-            placeholder={`随时打字向并列协作者 ${agent.codename ?? agent.name} 发起对话或发送指令…`}
+            placeholder={`想问 ${memberName} 什么？`}
             className="min-w-0 flex-[1_1_220px] rounded-md border border-input bg-background/80 px-3 py-1.5 text-xs text-foreground placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-primary"
           />
-          <div className="flex items-center gap-1.5 shrink-0">
-            <button
-              type="button"
-              disabled={!followupText.trim()}
-              onClick={(e) => handleFollowupSubmit(e, false)}
-              className="inline-flex shrink-0 items-center gap-1 rounded-md border border-border/50 bg-background/80 px-2 py-1.5 text-xs font-medium text-muted-foreground transition-colors hover:bg-muted hover:text-foreground disabled:opacity-40"
-              title="装入主输入框草稿编辑"
-            >
-              <PencilIcon className="size-3" />
-              <span>装入草稿</span>
-            </button>
-            <button
-              type="submit"
-              disabled={!followupText.trim()}
-              className="inline-flex shrink-0 items-center gap-1 rounded-md bg-primary px-3 py-1.5 text-xs font-medium text-primary-foreground shadow-xs transition-colors hover:bg-primary/90 disabled:opacity-50"
-              title="直接发送对话给该并列协作者"
-            >
-              <SendHorizontalIcon className="size-3.5" />
-              <span>直接发送</span>
-            </button>
-          </div>
+          <button
+            type="submit"
+            className="inline-flex min-h-8 shrink-0 items-center gap-1.5 rounded-md bg-primary px-3 py-1.5 text-xs font-medium text-primary-foreground hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+            title={`打开与 ${memberName} 的单独对话`}
+          >
+            <MessageCircleIcon className="size-3.5" />
+            私聊
+          </button>
         </form>
       </div>
 

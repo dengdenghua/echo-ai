@@ -28,7 +28,7 @@ from runtime.execution.codex_backend.types import (
     CodexAppServerConfig,
     ConfigurationError,
 )
-from runtime.platform.models.llm import ModelRequest, ModelResponse, ToolCall
+from runtime.platform.models.llm import ModelRequest, ModelResponse, ModelStreamEvent, ToolCall
 from runtime.platform.process.session import Session, current_session
 from runtime.safety.approval.approval_gate import AutoDenyProvider
 
@@ -73,6 +73,16 @@ class _RecordingRouter:
 class _RealToolLoopRouter:
     def __init__(self) -> None:
         self.requests: list[ModelRequest] = []
+        self.first_text_received = Event()
+
+    def call_stream(self, request):
+        response = self.call(request)
+        if response.text:
+            yield ModelStreamEvent(type="text_delta", delta=response.text[:5])
+            if not self.first_text_received.wait(timeout=5):
+                raise TimeoutError("Codex buffered the first text until completion")
+            yield ModelStreamEvent(type="text_delta", delta=response.text[5:])
+        yield ModelStreamEvent(type="done", final=response)
 
     def call(self, request: ModelRequest) -> ModelResponse:
         self.requests.append(request)
@@ -224,6 +234,158 @@ async def _post(
         for name, value in (line.split(":", 1) for line in lines[1:])
     }
     return status, headers, response_body
+
+
+class _GatedStreamRouter:
+    def __init__(self, *, fail: bool = False, invalid_tool: bool = False) -> None:
+        self.release = Event()
+        self.closed = Event()
+        self.calls = 0
+        self.sessions = []
+        self.fail = fail
+        self.invalid_tool = invalid_tool
+
+    def call(self, request):
+        raise AssertionError("streaming must not call the buffered API")
+
+    def call_stream(self, request):
+        self.calls += 1
+        self.sessions.append(current_session())
+        try:
+            yield ModelStreamEvent(type="text_delta", delta="首字")
+            if not self.release.wait(timeout=5):
+                raise TimeoutError("test stream was not released")
+            if self.fail:
+                raise RuntimeError("private-provider-token")
+            yield ModelStreamEvent(type="text_delta", delta="到了")
+            yield ModelStreamEvent(
+                type="done",
+                final=ModelResponse(
+                    text="首字到了",
+                    input_tokens=17,
+                    output_tokens=9,
+                    tool_calls=[
+                        ToolCall(
+                            id="call-1",
+                            name="unadvertised" if self.invalid_tool else "lookup",
+                            input={"query": "echo"},
+                        )
+                    ],
+                ),
+            )
+        finally:
+            self.closed.set()
+
+
+async def _open_stream(profile, payload):
+    parsed = urlsplit(profile.base_url)
+    reader, writer = await asyncio.open_connection(parsed.hostname, parsed.port)
+    body = json.dumps(payload).encode()
+    writer.write(
+        (
+            f"POST {parsed.path}/responses HTTP/1.1\r\n"
+            f"Host: {parsed.hostname}:{parsed.port}\r\n"
+            f"Authorization: Bearer {profile.scoped_bearer_token}\r\n"
+            f"Content-Length: {len(body)}\r\n\r\n"
+        ).encode()
+        + body
+    )
+    await writer.drain()
+    return reader, writer
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("disconnect", [False, True])
+async def test_live_stream_first_text_precedes_completion_and_retry_is_deduplicated(disconnect):
+    router = _GatedStreamRouter()
+    trusted = Session(
+        actor="alice", thread_id="thread-a", turn_id="turn-a", metadata={"tenant_id": "tenant-a"}
+    )
+    async with ScopedResponsesProxy(router, scope=_scope(), trusted_session=trusted) as proxy:
+        payload = _tool_history_payload()
+        reader, writer = await _open_stream(proxy.provider_profile, payload)
+        head = await asyncio.wait_for(reader.readuntil(b"\r\n\r\n"), timeout=2)
+        assert b"200 OK" in head
+        prefix = await asyncio.wait_for(reader.readuntil("首字".encode()), timeout=2)
+        assert b"response.output_text.delta" in prefix
+        assert not router.release.is_set()  # deterministic TTFT regression gate
+        if disconnect:
+            writer.close()
+            await writer.wait_closed()
+        retry = asyncio.create_task(_post(proxy.provider_profile, payload))
+        router.release.set()
+        status, _, replay = await retry
+        if not disconnect:
+            rest = await reader.read()
+            assert prefix + rest == replay
+            writer.close()
+            await writer.wait_closed()
+        assert status == 200 and router.calls == 1
+        assert router.sessions == [trusted]
+        events = [
+            json.loads(line[6:])
+            for line in replay.decode().splitlines()
+            if line.startswith("data: ")
+        ]
+        assert [event["sequence_number"] for event in events] == list(range(len(events)))
+        assert (
+            "".join(e["delta"] for e in events if e["type"] == "response.output_text.delta")
+            == "首字到了"
+        )
+        assert events[-1]["type"] == "response.completed"
+        assert events[-1]["response"]["usage"]["total_tokens"] == 26
+        assert events[-1]["response"]["output"][1]["name"] == "lookup"
+    assert router.closed.wait(timeout=1)
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("invalid_tool", [False, True])
+async def test_live_stream_failure_is_sanitized_and_never_completed(invalid_tool):
+    router = _GatedStreamRouter(fail=not invalid_tool, invalid_tool=invalid_tool)
+    router.release.set()
+    async with ScopedResponsesProxy(router, scope=_scope(), trusted_session=None) as proxy:
+        first = await _post(proxy.provider_profile, _tool_history_payload())
+        retry = await _post(proxy.provider_profile, _tool_history_payload())
+    assert first[0] == retry[0] == 200
+    assert first[2] == retry[2]
+    assert router.calls == 1
+    assert b"response.failed" in first[2]
+    assert b"response.completed" not in first[2]
+    assert b"private-provider-token" not in first[2]
+    assert b"unadvertised" not in first[2]
+
+
+@pytest.mark.asyncio
+async def test_closing_live_proxy_revokes_connections_and_stops_stream_worker():
+    router = _GatedStreamRouter()
+    proxy = ScopedResponsesProxy(router, scope=_scope(), trusted_session=None)
+    await proxy.start()
+    reader, writer = await _open_stream(proxy.provider_profile, _tool_history_payload())
+    try:
+        await asyncio.wait_for(reader.readuntil("首字".encode()), timeout=2)
+        await asyncio.wait_for(proxy.close(), timeout=3)
+        assert not proxy._writers and not proxy._handlers
+    finally:
+        router.release.set()
+        writer.close()
+        await writer.wait_closed()
+        await proxy.close()
+    assert await asyncio.to_thread(router.closed.wait, 2)
+
+
+@pytest.mark.asyncio
+async def test_live_stream_size_limit_ends_with_failure(monkeypatch):
+    router = _GatedStreamRouter()
+    async with ScopedResponsesProxy(router, scope=_scope(), trusted_session=None) as proxy:
+        reader, writer = await _open_stream(proxy.provider_profile, _tool_history_payload())
+        await asyncio.wait_for(reader.readuntil("首字".encode()), timeout=2)
+        monkeypatch.setattr(responses_proxy_module, "_MAX_RESPONSE_BYTES", 1)
+        router.release.set()
+        rest = await reader.read()
+        writer.close()
+        await writer.wait_closed()
+        assert b"response.failed" in rest
+        assert b"response.completed" not in rest
 
 
 @pytest.mark.asyncio
@@ -904,6 +1066,8 @@ async def test_real_codex_app_server_completes_scoped_text_and_tool_loop(
                 while True:
                     notification = await execution.next_notification(timeout_s=10.0)
                     notifications.append(notification)
+                    if notification.method == "item/agentMessage/delta":
+                        router.first_text_received.set()
                     if notification.method == "turn/completed":
                         break
                 compact_result = await execution._require_client().request(
@@ -915,6 +1079,7 @@ async def test_real_codex_app_server_completes_scoped_text_and_tool_loop(
             await execution.close()
 
     assert isinstance(compact_result, dict)
+    assert router.first_text_received.is_set()
     assert len(router.requests) == 3
     compact_prompt = "\n".join(
         str(message.content) for message in router.requests[-1].messages

@@ -2,6 +2,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { fireEvent, render, screen } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { describe, expect, it, vi } from "vitest";
+import type { ReactNode } from "react";
 
 import type { Message } from "@/core/api/types";
 
@@ -10,6 +11,15 @@ import { MessageListItem } from "./message-list-item";
 
 const renderTracker = vi.hoisted(() => ({
   markdown: vi.fn(),
+}));
+
+// Artifact controls also import the Markdown host; this suite observes render
+// isolation rather than its CSS or syntax-highlighting dependencies.
+vi.mock("@/components/ai-elements/streamdown-host", () => ({
+  default: ({ children }: { children?: ReactNode }) => <>{children}</>,
+  LocalizedStreamdown: ({ children }: { children?: ReactNode }) => (
+    <>{children}</>
+  ),
 }));
 
 vi.mock("./markdown-content", () => ({

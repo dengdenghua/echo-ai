@@ -1,19 +1,65 @@
 from __future__ import annotations
 
 import os
+import re
 from typing import Any
 
 from pydantic import BaseModel, Field
 
 
 def development_login_enabled(config: Any) -> bool:
-    """Local credentials are an explicit development-only facility."""
+    """Passwordless and fixed-account shortcuts are development-only."""
     return bool(
         config is not None
         and getattr(config, "enabled", False)
         and os.getenv("ECHO_ENV", "").strip().lower() == "development"
         and os.getenv("ECHO_DEPLOYMENT_MODE", "local").strip().lower() == "local"
     )
+
+
+_USERNAME_RE = re.compile(r"^[A-Za-z0-9._@\-]{1,64}$")
+_BCRYPT_HASH_RE = re.compile(r"^bcrypt:\$2[aby]\$(?:0[4-9]|[12][0-9]|3[01])\$[./A-Za-z0-9]{53}$")
+
+
+def credentialed_login_enabled(config: Any) -> bool:
+    """Permit password-backed login when every account can issue a signed session."""
+    if config is None or not getattr(config, "enabled", False):
+        return False
+    if getattr(config, "password_only_username", None):
+        # The fixed-account shortcut is intentionally local-development only.
+        return False
+    users = getattr(config, "users", None)
+    if not users or not all(
+        isinstance(username, str)
+        and _USERNAME_RE.fullmatch(username)
+        and isinstance(password_hash, str)
+        and _BCRYPT_HASH_RE.fullmatch(password_hash)
+        for username, password_hash in users.items()
+    ):
+        return False
+    try:
+        LocalAuthConfig._validate_jwt_secret(getattr(config, "jwt_secret", None))
+    except ValueError:
+        return False
+    return bool(getattr(config, "jwt_secret", None))
+
+
+def local_login_enabled(config: Any) -> bool:
+    """Allow configured password accounts in deployments, never dev shortcuts."""
+    if config is None or not getattr(config, "enabled", False):
+        return False
+    if development_login_enabled(config):
+        return True
+    if getattr(config, "password_only_username", None) or not getattr(config, "users", {}):
+        return False
+    secret = getattr(config, "jwt_secret", None)
+    if not isinstance(secret, str) or not secret:
+        return False
+    try:
+        LocalAuthConfig._validate_jwt_secret(secret)
+    except ValueError:
+        return False
+    return True
 
 
 def hash_password(plaintext: str) -> str:
@@ -50,7 +96,7 @@ class LocalAuthConfig(BaseModel):
     )
     enabled: bool = Field(
         default=False,
-        description="总开关 · 生产环境慎开",
+        description="账号登录开关；生产环境必须配置密码账号和强 JWT 密钥",
     )
     allow_any_username: bool = Field(
         default=False,
@@ -125,8 +171,9 @@ class LocalAuthConfig(BaseModel):
             )
 
     jwt_expire_seconds: int = Field(
-        default=7 * 24 * 3600,
-        description="JWT exp 距 iat 多少秒 · 默认 7 天",
+        default=8 * 3600,
+        gt=0,
+        description="JWT exp 距 iat 多少秒 · 默认 8 小时",
     )
     jwt_issuer: str | None = Field(
         default="echo-ai",

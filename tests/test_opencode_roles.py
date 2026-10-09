@@ -314,7 +314,7 @@ def test_tool_free_stream_owns_lifetime_and_context(host, monkeypatch, tmp_path,
         finally:
             lifecycle.append("close")
 
-    async def session_for_thread(*args):
+    async def session_for_thread(*args, **kwargs):
         return "external-session"
 
     async def stream(client, session_id, **kwargs):
@@ -491,3 +491,77 @@ def test_deadline_cancels_work_and_preserves_unrelated_timeout(host):
         assert not isinstance(exc.value, ExecutionDeadlineExceeded)
 
     asyncio.run(run())
+
+
+def test_chat_and_tool_turns_share_native_database_and_history_recovery(
+    host, monkeypatch, tmp_path
+):
+    from runtime.execution.tool_engine import host_mcp, host_tool_broker
+
+    roots = []
+    coordinates = []
+    monkeypatch.setattr(roles.backend, "inspect_readiness", lambda scope: {"available": True})
+    monkeypatch.setattr(roles.backend, "state_directory", lambda scope, thread: tmp_path / thread)
+    monkeypatch.setattr(
+        roles.backend, "server_directory", lambda scope: tmp_path / "identity-engine"
+    )
+    monkeypatch.setattr(roles.backend, "model_key", lambda *args: None)
+    monkeypatch.setattr(roles.backend, "executable", lambda: "fixture")
+    monkeypatch.setattr(
+        host_tool_broker,
+        "HostToolBroker",
+        lambda *args, **kw: SimpleNamespace(catalog=SimpleNamespace(names=[])),
+    )
+
+    class Bridge:
+        def __init__(self, *args):
+            pass
+
+        @contextlib.asynccontextmanager
+        async def serve(self):
+            yield object()
+
+    monkeypatch.setattr(host_mcp, "HostMCPBridge", Bridge)
+
+    class Client:
+        async def get(self, *args, **kwargs):
+            return SimpleNamespace(
+                raise_for_status=lambda: None, json=lambda: {"echo": {"status": "connected"}}
+            )
+
+    @contextlib.asynccontextmanager
+    async def server(command, root, key, model, **kwargs):
+        roots.append(root)
+        yield Client()
+
+    async def coordinate(client, root, **kwargs):
+        coordinates.append((root, kwargs["recover_missing"]))
+        return "ses_same"
+
+    async def stream(client, session_id, **kwargs):
+        assert kwargs["fresh_thread_text"] == "canonical history"
+        yield {"type": "react_completed", "success": True}
+
+    monkeypatch.setattr(roles.backend, "managed_server", server)
+    monkeypatch.setattr(roles.backend, "session_for_thread", coordinate)
+    monkeypatch.setattr(roles.backend, "stream_prompt", stream)
+
+    async def run():
+        for tool_free in [True, False, True]:
+            async for _ in roles.stream_role(
+                host.stack,
+                host.agent,
+                request=host.request,
+                session=host.session,
+                context={},
+                model="big-pickle",
+                text="latest",
+                fresh_text="canonical history",
+                tool_free=tool_free,
+                interrupted=lambda: False,
+            ):
+                pass
+
+    asyncio.run(run())
+    assert roots == [tmp_path / "identity-engine"] * 3
+    assert coordinates == [(tmp_path / "parent-thread", True)] * 3

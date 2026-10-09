@@ -40,9 +40,21 @@ def _is_loopback_host(host: str) -> bool:
         return False
 
 
-def _insecure_bind_error(*, host: str, uds: str | None, require_auth: bool) -> str | None:
+def _insecure_bind_error(
+    *, host: str, uds: str | None, require_auth: bool, local_auth_config: Any = None
+) -> str | None:
     """Describe an unsafe network bind, or return ``None`` when it is safe."""
-    if uds or require_auth or _is_loopback_host(host):
+    if uds or _is_loopback_host(host):
+        return None
+    if local_auth_config is not None and getattr(local_auth_config, "enabled", False):
+        from runtime.adapters.integrations.local_auth.config import credentialed_login_enabled
+
+        if not credentialed_login_enabled(local_auth_config):
+            return (
+                "local_auth on a non-loopback host requires bcrypt hashes for every user, "
+                "a strong jwt_secret, and no password_only_username"
+            )
+    if require_auth:
         return None
     return (
         "control-plane auth is OFF while the server is bound to a "
@@ -598,10 +610,22 @@ def run_serve(
         .strip()
         .lower()
     )
+    # Passwordless local_auth (allow_any_username / a bare username allowlist)
+    # hands anyone who can reach the port a JWT, so it does not make a
+    # network bind safe; only OCT or password-backed local_auth does.
+    local_auth_cfg = getattr(cfg, "local_auth", None)
+    bind_auth = bool(
+        getattr(getattr(cfg, "oct", None), "enabled", False)
+        or (
+            getattr(local_auth_cfg, "enabled", False)
+            and getattr(local_auth_cfg, "password_required", False)
+        )
+    )
     bind_error = _insecure_bind_error(
         host=host,
         uds=uds,
-        require_auth=require_ui_auth,
+        require_auth=bind_auth,
+        local_auth_config=cfg.local_auth,
     )
     if bind_error is not None:
         print(c.red(f"security error: {bind_error}"), file=sys.stderr)

@@ -416,6 +416,15 @@ class ToolExecutor:
             from runtime.platform.process.session import current_session
 
             _policy_session = current_session()
+            from runtime.execution.request import current_execution_request
+
+            _host_request = current_execution_request()
+            if (
+                _host_request is not None
+                and _host_request.task.allowed_tools is not None
+                and str(sucker_id) not in _host_request.task.allowed_tools
+            ):
+                return _reject_step("failed", "tool is outside the host execution contract")
             _policy_context = getattr(_policy_session, "metadata", None) or {}
             _audit_denial = audit_read_only_tool_denial(
                 sucker_id,
@@ -797,7 +806,17 @@ class ToolExecutor:
                         # Hold inside the actual worker: a timeout must not release
                         # a device while the timed-out handler is still operating it.
                         service = getattr(self, "coordination", None)
-                        with coordination_scope(service), coordinated_resource(service, skill):
+                        from runtime.platform.io.file_coordination import coordinate_file_mutations
+
+                        with (
+                            coordination_scope(service),
+                            coordinated_resource(service, skill),
+                            coordinate_file_mutations([_lease_target] if _lease_target else []),
+                        ):
+                            # Recheck after entering the physical mutation boundary:
+                            # a sync/editor write could race the earlier inspection.
+                            if _lease_target is not None:
+                                verify_file_unchanged_since_read(_write_session, _lease_target)
                             _handler_executed = True
                             return skill.handler(**handler_args)
 

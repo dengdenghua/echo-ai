@@ -202,8 +202,7 @@ def _phase_6g_housekeeping(state: _LoopState, *, i: int, max_iterations: int) ->
         _has_real_observation = bool(step.observation and step.observation != "N/A")
         _has_response_tool_calls = bool(getattr(resp, "tool_calls", None))
         _length_limit_should_continue = state.parse.length_limit_should_continue = (
-            _length_limited
-            and not (_has_response_tool_calls or _has_real_observation)
+            _length_limited and not (_has_response_tool_calls or _has_real_observation)
         )
         _checkpoint_has_final = maybe_final is not None and not _length_limit_should_continue
         if react_task_id is not None and _checkpoint_has_final:

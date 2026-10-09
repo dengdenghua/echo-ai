@@ -1,3 +1,4 @@
+import userEvent from "@testing-library/user-event";
 import { fireEvent, screen } from "@testing-library/react";
 import { describe, expect, it, vi, beforeEach } from "vitest";
 
@@ -58,11 +59,11 @@ describe("<SubagentProcessView /> interaction enhancements", () => {
       target: "system",
       subtitle: "planner-agent",
       startedAt: 1000,
-      inputText: "{ target: \"system\" }",
+      inputText: '{ target: "system" }',
     },
   ];
 
-  it("renders subagent process and top promote-to-thread button", () => {
+  it("shows two plain actions without technical menus", async () => {
     renderWithProviders(
       <SubagentProcessView
         agent={mockAgent}
@@ -73,171 +74,91 @@ describe("<SubagentProcessView /> interaction enhancements", () => {
       />,
     );
 
-    expect(screen.getByText("以独立会话打开")).toBeInTheDocument();
-    expect(screen.getByText("同步至群公共")).toBeInTheDocument();
-    expect(screen.getByTestId("subagent-followup-bar")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "私聊", exact: true })).toBeEnabled();
+    expect(screen.getByRole("button", { name: "分享到群聊", exact: true })).toBeEnabled();
+    expect(screen.getByRole("button", { name: "返回总览" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "更多操作" })).not.toBeInTheDocument();
+    expect(screen.queryByText(/固化|沙盒|独立会话|群聊草稿/)).not.toBeInTheDocument();
   });
 
-  it("clicking promote-to-public emits composer:insert-mention with delivery text and submit true", () => {
-    const emitSpy = vi.spyOn(eventBus, "emit");
-
+  it("does not duplicate tool observations as reasoning", () => {
     renderWithProviders(
       <SubagentProcessView
-        agent={mockAgent}
-        blocks={mockBlocks}
-        currentBlockId={null}
+        agent={{ ...mockAgent, status: "running", resultSummary: undefined }}
+        blocks={[
+          {
+            ...mockBlocks[0]!,
+            event: {
+              ...mockBlocks[0]!.event,
+              thought: undefined,
+              observation: "已读取协作配置。",
+            },
+          },
+        ]}
         onOpenMain={vi.fn()}
-        onSelectBlock={vi.fn()}
       />,
     );
+    expect(
+      screen.queryByTestId("process-timeline-event-thinking"),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.getByTestId("process-timeline-event-execution"),
+    ).toBeInTheDocument();
+  });
 
-    const publishBtn = screen.getByRole("button", { name: "同步至群公共" });
-    fireEvent.click(publishBtn);
-
-    expect(emitSpy).toHaveBeenCalledWith(
-      "composer:insert-mention",
-      expect.objectContaining({
-        text: expect.stringContaining("📢 来自并列协作者【规划专家】的阶段交付"),
-        submit: true,
-      }),
+  it("closes completed tools even when they returned no text", () => {
+    renderWithProviders(
+      <SubagentProcessView
+        agent={{ ...mockAgent, status: "running", resultSummary: undefined }}
+        blocks={[
+          {
+            ...mockBlocks[0]!,
+            outputText: "",
+            event: { ...mockBlocks[0]!.event, thought: undefined },
+          },
+        ]}
+        onOpenMain={vi.fn()}
+      />,
     );
+    expect(
+      screen.getByTestId("process-timeline-event-execution"),
+    ).toHaveAttribute("data-process-event-status", "done");
+  });
 
+  it("shares only the actual reply as a reviewable group draft", async () => {
+    const emitSpy = vi.spyOn(eventBus, "emit");
+    renderWithProviders(<SubagentProcessView agent={mockAgent} blocks={mockBlocks} onOpenMain={vi.fn()} />);
+    await userEvent.click(screen.getByRole("button", { name: "分享到群聊" }));
+    expect(emitSpy).toHaveBeenCalledWith("composer:insert-mention", {
+      text: `规划专家 的回复：\n\n${mockAgent.resultSummary}`,
+      submit: false,
+    });
     emitSpy.mockRestore();
   });
 
-  it("clicking promote-to-thread navigates to new thread with agent context", () => {
-    renderWithProviders(
-      <SubagentProcessView
-        agent={mockAgent}
-        blocks={mockBlocks}
-        currentBlockId={null}
-        onOpenMain={vi.fn()}
-        onSelectBlock={vi.fn()}
-      />,
-    );
-
-    const promoteButton = screen.getByRole("button", { name: "以独立会话打开" });
-    fireEvent.click(promoteButton);
-
-    expect(mocks.navigate).toHaveBeenCalledOnce();
-    const calledUrl = mocks.navigate.mock.calls[0][0];
-    expect(calledUrl).toContain("/workspace/realtime/new?");
-    expect(calledUrl).toContain("agent=planner-agent");
-    expect(calledUrl).toContain("prompt=");
-  });
-
-  it("submitting followup instruction via direct send emits composer:insert-mention with submit true", () => {
+  it("opens a private draft without publishing anything to the group", () => {
     const emitSpy = vi.spyOn(eventBus, "emit");
-
-    renderWithProviders(
-      <SubagentProcessView
-        agent={mockAgent}
-        blocks={mockBlocks}
-        currentBlockId={null}
-        onOpenMain={vi.fn()}
-        onSelectBlock={vi.fn()}
-      />,
-    );
-
-    const input = screen.getByPlaceholderText(/随时打字向并列协作者 规划专家/);
-    fireEvent.change(input, { target: { value: "请将方案细化到文件级别" } });
-
-    const submitBtn = screen.getByRole("button", { name: "直接发送" });
-    fireEvent.click(submitBtn);
-
-    expect(emitSpy).toHaveBeenCalledWith(
-      "composer:insert-mention",
-      expect.objectContaining({
-        text: "@planner-agent 请将方案细化到文件级别",
-        submit: true,
-      }),
-    );
-
+    renderWithProviders(<SubagentProcessView agent={mockAgent} blocks={mockBlocks} onOpenMain={vi.fn()} />);
+    fireEvent.change(screen.getByRole("textbox", { name: "与 规划专家 私聊" }), { target: { value: "请将方案细化到文件级别" } });
+    fireEvent.click(screen.getByRole("button", { name: "私聊", exact: true }));
+    expect(emitSpy).not.toHaveBeenCalled();
+    const params = new URL(mocks.navigate.mock.calls[0][0], "http://localhost").searchParams;
+    expect(params.get("agent")).toBe("planner-agent");
+    expect(params.get("private")).toBe("1");
+    expect(params.get("prompt")).toBe("请将方案细化到文件级别");
     emitSpy.mockRestore();
   });
 
-  it("submitting followup instruction via draft emits composer:insert-mention with submit false", () => {
-    const emitSpy = vi.spyOn(eventBus, "emit");
-
-    renderWithProviders(
-      <SubagentProcessView
-        agent={mockAgent}
-        blocks={mockBlocks}
-        currentBlockId={null}
-        onOpenMain={vi.fn()}
-        onSelectBlock={vi.fn()}
-      />,
-    );
-
-    const input = screen.getByPlaceholderText(/随时打字向并列协作者 规划专家/);
-    fireEvent.change(input, { target: { value: "先拟定目录结构" } });
-
-    const draftBtn = screen.getByRole("button", { name: "装入草稿" });
-    fireEvent.click(draftBtn);
-
-    expect(emitSpy).toHaveBeenCalledWith(
-      "composer:insert-mention",
-      expect.objectContaining({
-        text: "@planner-agent 先拟定目录结构",
-        submit: false,
-      }),
-    );
-
-    emitSpy.mockRestore();
+  it("allows starting a private chat before typing", async () => {
+    renderWithProviders(<SubagentProcessView agent={mockAgent} blocks={[]} onOpenMain={vi.fn()} />);
+    await userEvent.click(screen.getByRole("button", { name: "私聊", exact: true }));
+    const params = new URL(mocks.navigate.mock.calls[0][0], "http://localhost").searchParams;
+    expect(params.get("private")).toBe("1");
+    expect(params.has("prompt")).toBe(false);
   });
 
-  it("clicking '固化为决策' emits composer:insert-mention with decision prefix and updates button text", () => {
-    const emitSpy = vi.spyOn(eventBus, "emit");
-
-    renderWithProviders(
-      <SubagentProcessView
-        agent={mockAgent}
-        blocks={mockBlocks}
-        currentBlockId={null}
-        onOpenMain={vi.fn()}
-        onSelectBlock={vi.fn()}
-      />,
-    );
-
-    const decisionBtn = screen.getByRole("button", { name: "固化为决策" });
-    fireEvent.click(decisionBtn);
-
-    expect(emitSpy).toHaveBeenCalledWith(
-      "composer:insert-mention",
-      expect.objectContaining({
-        text: expect.stringContaining("🏛️ [项目决策固化] 采纳并列协作者【规划专家】交付方案"),
-        submit: true,
-      }),
-    );
-    expect(screen.getByText("已固化为决策")).toBeInTheDocument();
-
-    emitSpy.mockRestore();
-  });
-
-  it("clicking '推演沙盒' emits composer:insert-mention with sandbox prompt and submit true", () => {
-    const emitSpy = vi.spyOn(eventBus, "emit");
-
-    renderWithProviders(
-      <SubagentProcessView
-        agent={mockAgent}
-        blocks={mockBlocks}
-        currentBlockId={null}
-        onOpenMain={vi.fn()}
-        onSelectBlock={vi.fn()}
-      />,
-    );
-
-    const sandboxBtn = screen.getByRole("button", { name: "推演沙盒" });
-    fireEvent.click(sandboxBtn);
-
-    expect(emitSpy).toHaveBeenCalledWith(
-      "composer:insert-mention",
-      expect.objectContaining({
-        text: expect.stringContaining("🌱 【方案推演沙盒】针对并列协作者【规划专家】的方案开启隔离推演验证"),
-        submit: true,
-      }),
-    );
-
-    emitSpy.mockRestore();
+  it("does not present a task brief or an error as a shareable reply", () => {
+    renderWithProviders(<SubagentProcessView agent={{...mockAgent, resultSummary: undefined, status: "error", error: "执行失败"}} blocks={[]} onOpenMain={vi.fn()} />);
+    expect(screen.getByRole("button", { name: "分享到群聊" })).toBeDisabled();
   });
 });

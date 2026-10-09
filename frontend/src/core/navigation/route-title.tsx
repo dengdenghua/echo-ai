@@ -20,6 +20,7 @@ export function RouteTitle() {
     });
     const title =
       workbench?.name ??
+      (pathname === "/workspace/devices" ? "设备互联" : undefined) ??
       (pathname.startsWith("/workspace/agents") ? "HUB" : undefined) ??
       (pathname === "/workspace/web-app"
         ? new URLSearchParams(search).get("title")

@@ -16,6 +16,7 @@
  *  - No token (or the legacy guest sentinel) ⇒ the request is left untouched.
  */
 import { getBackendBaseURL } from "@/core/config";
+import { executionProxyPath } from "@/core/execution-location";
 
 const TOKEN_KEY = "echo_auth_token";
 const GUEST_SENTINEL = "__guest__";
@@ -51,6 +52,28 @@ function urlOf(input: RequestInfo | URL): string {
   if (typeof input === "string") return input;
   if (input instanceof URL) return input.href;
   return input.url; // Request
+}
+
+function scopedBackendInput(
+  input: RequestInfo | URL,
+  rawUrl: string,
+): RequestInfo | URL {
+  const scope = executionProxyPath();
+  if (!scope) return input;
+  const url = new URL(rawUrl, window.location.href);
+  // Auth and the registry always belong to the local gateway. Already-scoped
+  // calls must not recurse through a second remote proxy.
+  if (
+    url.pathname.startsWith("/api/auth/") ||
+    url.pathname.startsWith("/api/account/") ||
+    url.pathname === "/api/remote-backends" ||
+    url.pathname.startsWith("/api/remote-backends/")
+  )
+    return input;
+  const destination = `${getBackendBaseURL()}${url.pathname}${url.search}`;
+  return input instanceof Request
+    ? new Request(new URL(destination, window.location.href), input)
+    : destination;
 }
 
 function isInteractiveLoginRequest(rawUrl: string): boolean {
@@ -112,6 +135,7 @@ export function installAuthFetchInterceptor(): void {
     if (!isBackendApiRequest(rawUrl)) {
       return originalFetch(input, init);
     }
+    const scopedInput = scopedBackendInput(input, rawUrl);
     // Browser restarts recover through an HttpOnly session cookie.  Same-origin
     // requests include it by default; Electron and configured cross-origin
     // backends need an explicit credentials policy.
@@ -144,7 +168,7 @@ export function installAuthFetchInterceptor(): void {
         if (!headers.has("Authorization")) {
           headers.set("Authorization", `Bearer ${token}`);
           return observeAuthResponse(
-            originalFetch(input, { ...backendInit, headers }),
+            originalFetch(scopedInput, { ...backendInit, headers }),
             rawUrl,
           );
         }
@@ -152,6 +176,6 @@ export function installAuthFetchInterceptor(): void {
     } catch {
       // Any unexpected error ⇒ fall through to the untouched fetch.
     }
-    return observeAuthResponse(originalFetch(input, backendInit), rawUrl);
+    return observeAuthResponse(originalFetch(scopedInput, backendInit), rawUrl);
   };
 }

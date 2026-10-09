@@ -285,6 +285,24 @@ def test_packaged_agent_disables_tampered_external_skill_projection(
 
 
 @pytest.mark.parametrize("kind", ["codex", "connector"])
+def test_current_host_api_installs_signed_package_despite_older_runtime_release(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    kind: str,
+) -> None:
+    source, trust_store = _package(
+        tmp_path,
+        kind,
+        signed=True,
+        requirements={"host_api": ">=0.2,<0.3"},
+    )
+    catalog = _catalog(tmp_path, monkeypatch, kind=kind, source=source, trust_store=trust_store)
+    catalog.install_plugin("documents", plugin_kind=kind)
+    assert (CloudCatalog.PLUGIN_INSTALL_ROOT / kind / "documents").is_dir()
+    assert catalog.plugin_statuses()["documents"]["lifecycle_state"] == "disabled"
+
+
+@pytest.mark.parametrize("kind", ["codex", "connector"])
 def test_packaged_agent_rejects_unsigned_packages_before_install(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,

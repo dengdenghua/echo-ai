@@ -39,6 +39,7 @@ describe("<AutomationPictureInPicture />", () => {
   });
 
   afterEach(() => {
+    window.history.replaceState({}, "", "/");
     window.echo = originalEcho;
     vi.clearAllMocks();
   });
@@ -84,6 +85,38 @@ describe("<AutomationPictureInPicture />", () => {
 
     await user.click(screen.getByRole("button", { name: "Close" }));
     expect(onOpenChange).toHaveBeenCalledWith(false);
+  });
+
+  it("captures the selected remote window without using this computer's capture", async () => {
+    window.history.replaceState({}, "", "/?echoRemote=host-a");
+    const target = {
+      kind: "desktop_window" as const,
+      source: "computer",
+      id: "window:42:0",
+      title: "Remote window",
+    };
+    vi.mocked(captureComputerWindowPreview).mockResolvedValue({
+      ok: true,
+      data_url: "data:image/png;base64,cmVtb3Rl",
+    });
+    renderWithProviders(
+      <AutomationPictureInPicture
+        threadId="remote-thread"
+        target={target}
+        open
+        active
+        paused={false}
+        relayConnected
+        stateLabel="Running"
+        onOpenChange={vi.fn()}
+      />,
+    );
+    expect(await screen.findByAltText("Remote window")).toHaveAttribute(
+      "src",
+      "data:image/png;base64,cmVtb3Rl",
+    );
+    expect(captureComputerWindowPreview).toHaveBeenCalledWith(target);
+    expect(captureAutomationPreview).not.toHaveBeenCalled();
   });
 
   it("uses the exact browser tab instead of a native browser window", async () => {

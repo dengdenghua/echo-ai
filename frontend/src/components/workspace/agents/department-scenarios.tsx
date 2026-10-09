@@ -75,9 +75,9 @@ export function DepartmentScenarios({ additional = [] }: { additional?: Addition
     {error && <Button variant="ghost" onClick={() => setAttempt(n => n + 1)}><RefreshCw className="size-4" />角色加载失败，重试</Button>}
     <div id="featured-scenario-list" className="grid grid-cols-1 gap-x-3 gap-y-1 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">{(expanded ? scenarios : scenarios.slice(0, 6)).map(scenario => {
       const { missing } = resolveDepartment(scenario, agents);
-      const status = loading ? "加载中" : `${scenario.roles.length} 个建议岗位`;
-      const details = `${scenario.title}\n${scenario.flow}\n岗位：${scenario.roles.map(([,name]) => name).join("、")}${scenario.output ? `\n交付：${scenario.output}` : ""}${missing.length ? `\n待补：${missing.join("、")}` : ""}`;
-      return <button key={scenario.id} title={details} aria-label={`启动部门场景：${scenario.title}`} disabled={loading || error} onClick={() => launch(scenario)} className="group flex h-10 min-w-0 items-center gap-2 rounded-md px-2 text-left transition-colors hover:bg-muted/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-60">
+      const status = external ? `${scenario.roles.length} 人` : loading ? "加载中" : `${scenario.roles.length} 个建议岗位`;
+      const details = `${scenario.title}\n${scenario.flow}\n岗位：${scenario.roles.map(([,name]) => name).join("、")}${scenario.output ? `\n交付：${scenario.output}` : ""}${missing.length && !external ? `\n待补：${missing.join("、")}` : ""}`;
+      return <button key={scenario.id} title={details} aria-label={`启动部门场景：${scenario.title}`} disabled={external ? !scenario.roles.length : loading || error} onClick={() => "onLaunch" in scenario && typeof scenario.onLaunch === "function" ? scenario.onLaunch() : launch(scenario)} className="group flex h-10 min-w-0 items-center gap-2 rounded-md px-2 text-left transition-colors hover:bg-muted/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-60">
         <Users className="size-4 shrink-0 text-violet-500" /><span className="min-w-0 flex-1 truncate text-xs font-medium">{scenario.title}</span><span className="shrink-0 text-xs text-muted-foreground">{status}</span><ArrowRight className="size-3 shrink-0 text-muted-foreground" />
       </button>;
     })}</div>

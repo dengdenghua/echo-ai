@@ -587,3 +587,34 @@ def test_endpoints_return_403_when_flag_off(
     assert client.get("/api/workspaces/anything/leases").status_code == 403
     # Health
     assert client.post("/api/workspaces/anything/health").status_code == 403
+
+
+def test_execution_directory_uses_workspace_acl(tmp_path, monkeypatch):
+    from runtime.safety.auth.principal import CurrentPrincipal
+    import runtime.sensing.gateway.workspace_api_router as module
+
+    store = WorkspaceStore(db_path=tmp_path / "scope.db")
+    ws = store.create_workspace(name="shared", mount_type="local", mount_target=str(tmp_path), owner_id="owner", tenant_id="team")
+    store.add_member(ws.id, "reader", role="viewer")
+    store.add_member(ws.id, "editor", role="editor")
+    client = _client(tmp_path, workspace_store=store)
+    for actor, tenant, expected in [("reader", "team", 403), ("stranger", "team", 404), ("editor", "other", 404), ("editor", "team", 200)]:
+        principal = CurrentPrincipal(tenant_id=tenant, actor_id=actor, roles=frozenset({"user"}), scopes=frozenset(), authn_method="test", request_id="test")
+        monkeypatch.setattr(module, "resolve_principal", lambda *a, **k: principal)
+        response = client.get(f"/api/workspaces/{ws.id}/execution-directory")
+        assert response.status_code == expected
+        if expected == 200:
+            assert response.json()["filesystem_path"] == str(tmp_path.resolve())
+
+
+def test_execution_directory_unavailable_and_feature_gate(tmp_path, monkeypatch):
+    mount = tmp_path / "mounted"
+    mount.mkdir()
+    client = _client(tmp_path)
+    ws = _create_workspace(client, mount_target=mount)
+    mount.rmdir()
+    response = client.get(f"/api/workspaces/{ws['id']}/execution-directory")
+    assert response.json()["status"] == "unavailable"
+    assert not mount.exists()
+    _flag_off(monkeypatch)
+    assert client.get(f"/api/workspaces/{ws['id']}/execution-directory").status_code == 403

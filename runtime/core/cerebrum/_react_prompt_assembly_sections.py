@@ -27,7 +27,20 @@ from runtime.core.cerebrum.react_guards import _explicit_source_paths
 from runtime.core.cerebrum.react_loop_controls import _long_task_budget_limits
 from runtime.core.cerebrum.react_native import trim_text_protocol_for_native
 from runtime.core.cerebrum.react_prompt_contracts import (
+    CITATION_PLACEMENT_CONTRACT as _CITATION_PLACEMENT_CONTRACT,
+)
+from runtime.core.cerebrum.react_prompt_contracts import (
+    DELIVERABLE_CONTRACT as _DELIVERABLE_CONTRACT,
+)
+from runtime.core.cerebrum.react_prompt_contracts import (
+    IRREVERSIBLE_ACTION_CONTRACT as _IRREVERSIBLE_ACTION_CONTRACT,
+)
+from runtime.core.cerebrum.react_prompt_contracts import (
     SKILL_SELECTION_CONTRACT as _SKILL_SELECTION_CONTRACT,
+    VISUAL_EXPRESSION_CONTRACT as _VISUAL_EXPRESSION_CONTRACT,
+)
+from runtime.core.cerebrum.react_prompt_contracts import (
+    irreversible_turn_note_for,
 )
 from runtime.core.cerebrum.react_resume import _build_resume_context_prompt
 from runtime.core.cerebrum.react_types import REACT_SYSTEM_PROMPT_BASE
@@ -171,6 +184,13 @@ def _assemble_early_sections(state: _AssemblyState) -> None:
     # latency (pure prompt), only sharpens how the model weighs sources.
     state.system_parts.append(_CONTENT_TRUST_CONTRACT)
     state.system_parts.append(_RESEARCH_EVIDENCE_CONTRACT)
+    # Output/turn contracts adopted from the Kimi-desktop teardown
+    # (docs/audits/kimi-desktop-unpack-2026-09-22.md): a parseable
+    # deliverable list, one citation-placement rule, and a two-turn
+    # confirmation gate for destructive work. Static -> cache-safe.
+    state.system_parts.append(_DELIVERABLE_CONTRACT)
+    state.system_parts.append(_CITATION_PLACEMENT_CONTRACT)
+    state.system_parts.append(_IRREVERSIBLE_ACTION_CONTRACT)
     if state.no_tool_turn:
         state.system_parts.append(
             "\n<direct-answer-contract>\n"
@@ -244,6 +264,14 @@ def _assemble_early_sections(state: _AssemblyState) -> None:
             "</read-only-contract>"
         )
 
+    # Turn A of the two-turn irreversible-action protocol. Volatile on
+    # purpose: it is derived from this turn's user message, so putting it in
+    # the stable prefix would break the provider prompt cache on every
+    # destructive request.
+    _irreversible_note = "" if state.no_tool_turn else irreversible_turn_note_for(_goal)
+    if _irreversible_note:
+        state.volatile_parts.append(_irreversible_note)
+
     # Default tool-use mandate (see _TOOL_USE_CONTRACT above). Injected on every
     # normal turn so the model must actually execute tools rather than deliver an
     # announce-only placeholder that the final-answer guard would have to catch.
@@ -258,6 +286,7 @@ def _assemble_early_sections(state: _AssemblyState) -> None:
     ):
         state.system_parts.append(_TOOL_USE_CONTRACT)
         state.system_parts.append(_SKILL_SELECTION_CONTRACT)
+        state.system_parts.append(_VISUAL_EXPRESSION_CONTRACT)
 
     # Codebase grounding for code/project chats: the same wiki + source
     # retrieval the planner uses, so interactive chat is grounded the same way

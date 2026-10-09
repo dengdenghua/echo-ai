@@ -199,12 +199,20 @@ const PLATFORM_CATEGORY_MAP: Record<string, string> = {
 
 const CATEGORY_ORDER = ["im", "china", "email_sms", "smart_home", "dev_tools"];
 
-export default function ChannelsPage({
-  embedded = false,
-}: {
-  embedded?: boolean;
-}) {
+export default function ChannelsPage({ embedded = false }: { embedded?: boolean }) {
+  if (embedded) return <ChannelsContent embedded />;
+  return (
+    <WorkspaceContainer mobileNavigation>
+      <WorkspaceBody className="px-4 pb-4">
+        <ChannelsContent />
+      </WorkspaceBody>
+    </WorkspaceContainer>
+  );
+}
+
+export function ChannelsContent({ embedded = false }: { embedded?: boolean }) {
   const { t } = useI18n();
+  const ChannelTitle = embedded ? "h2" : "h1";
   const { confirm, confirmDialog } = useConfirmDialog();
   const [rows, setRows] = useState<ChannelRow[]>([]);
   const [agents, setAgents] = useState<AgentLite[]>([]);
@@ -463,29 +471,36 @@ export default function ChannelsPage({
   }, [filteredRows, t.channels.categoryOther]);
 
   return (
-    <WorkspaceContainer
-      mobileNavigation={!embedded}
-      className={embedded ? "h-full min-h-0 !px-0 !pb-0" : undefined}
-      style={embedded ? { height: "100%" } : undefined}
-    >
-      <WorkspaceBody className="px-4 pb-4">
-        <div className="ui-density-stack mx-auto flex w-full max-w-6xl flex-col">
+    <>
+      <div
+        className={cn(
+          "ui-density-stack mx-auto flex w-full flex-col",
+          embedded ? "@container" : "max-w-6xl",
+        )}
+      >
           {confirmDialog}
           {/* Implementation note. */}
           <section className="workspace-panel ui-density-panel">
-            <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
+          <div
+            className={cn(
+              "flex flex-col gap-4",
+              !embedded && "md:flex-row md:items-end md:justify-between",
+            )}
+          >
               <div className="min-w-0">
                 <div className="flex items-center gap-3">
                   <div className="flex size-10 items-center justify-center rounded-lg bg-primary/10 text-primary ring-1 ring-primary/10">
                     <MessageCircleIcon className="size-5" />
                   </div>
                   <div>
+                  {!embedded && (
                     <div className="text-muted-foreground text-xs font-medium uppercase tracking-eyebrow">
                       Channel Ops
                     </div>
-                    <h1 className="text-xl font-semibold tracking-tight">
+                  )}
+                  <ChannelTitle className="text-xl font-semibold tracking-tight">
                       {t.channels.title}
-                    </h1>
+                  </ChannelTitle>
                   </div>
                 </div>
                 <p className="mt-3 max-w-2xl text-sm leading-6 text-muted-foreground">
@@ -501,9 +516,7 @@ export default function ChannelsPage({
                   <div className="text-xs text-muted-foreground">
                     {t.channels.channelCount(rows.length)}
                   </div>
-                  <div className="mt-1 text-lg font-semibold">
-                    {rows.length}
-                  </div>
+                <div className="mt-1 text-lg font-semibold">{rows.length}</div>
                 </div>
                 <div className="rounded-lg border border-success/20 bg-success/50/[0.06] px-3 py-2">
                   <div className="flex items-center gap-1 text-xs text-success">
@@ -559,7 +572,12 @@ export default function ChannelsPage({
 
           {!loading && !error && rows.length > 0 && (
             <>
-              <section className="workspace-panel flex flex-col gap-3 p-3 md:flex-row md:items-center md:justify-between">
+            <section
+              className={cn(
+                "workspace-panel flex flex-col gap-3 p-3",
+                !embedded && "md:flex-row md:items-center md:justify-between",
+              )}
+            >
                 <div className="relative min-w-0 flex-1">
                   <SearchIcon className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
                   <Input
@@ -610,7 +628,14 @@ export default function ChannelsPage({
                     <h2 className="mb-3 text-sm font-semibold text-muted-foreground">
                       {section.label}
                     </h2>
-                    <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+                  <div
+                    className={cn(
+                      "grid gap-4",
+                      embedded
+                        ? "@[32rem]:grid-cols-2"
+                        : "md:grid-cols-2 xl:grid-cols-3",
+                    )}
+                  >
                       {section.items.map((row, index) => (
                         <ChannelCard
                           key={row.channel_id || `${row.platform}-${index}`}
@@ -637,7 +662,6 @@ export default function ChannelsPage({
             </>
           )}
         </div>
-      </WorkspaceBody>
 
       {/* Implementation note. */}
       {pairingsForId &&
@@ -849,7 +873,7 @@ export default function ChannelsPage({
           )}
         </DialogContent>
       </Dialog>
-    </WorkspaceContainer>
+    </>
   );
 }
 

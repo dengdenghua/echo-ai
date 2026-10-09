@@ -134,6 +134,9 @@ export interface ChatInputBoxProps {
    * server profile. */
   executionEngine?: "echo" | "codex" | "opencode";
   executionEngineControl?: ReactNode;
+  /** Execution location sits on the right of the workspace/mode status strip.
+   * Receives the composer guard for unfinished drafts/uploads and live turns. */
+  executionLocationControl?: (locked: boolean) => ReactNode;
   workspaceControl?: ReactNode;
   contextActions?: ReactNode;
   onPermissionModeChange?: (mode: PermissionMode) => void;
@@ -173,6 +176,10 @@ export interface ChatInputBoxProps {
   onStop?: () => void | Promise<void>;
   /** Continue an interrupted/failed task without replacing the user's draft. */
   onResume?: () => void;
+  /** Text-only follow-up sent after the current turn finishes. */
+  onQueue?: (text: string) => boolean;
+  messageQueueControl?: ReactNode;
+  pendingQueuedMessages?: boolean;
   /** Prevent repeated stop requests while the server acknowledges one. */
   isStopping?: boolean;
   /** True while attachments are being uploaded to the backend. Surfaces
@@ -222,7 +229,7 @@ export function GroupMemberAvatarStack({
         "inline-flex items-center gap-1.5 rounded-full bg-muted/30 px-2 py-0.5 text-xs text-muted-foreground",
         className,
       )}
-      title="群聊成员 · 点击头像查看并行进程，右键 @ 成员"
+      title="群聊成员 · 点击 AI 查看进程，点击真人或右键头像提及"
     >
       <UsersIcon
         className="size-3 shrink-0 text-muted-foreground"
@@ -250,10 +257,14 @@ export function GroupMemberAvatarStack({
               key={`${member.name}-${idx}`}
               type="button"
               className="relative inline-flex size-5 shrink-0 items-center justify-center overflow-hidden rounded-full border border-background bg-muted text-[10px] font-semibold text-muted-foreground transition-transform hover:z-10 hover:scale-125 hover:border-primary/60 focus:outline-none focus:ring-1 focus:ring-primary"
-              title={`${name} · 点击查看并行进程，右键 @ 成员`}
-              aria-label={`查看 ${name} 并行进程（右键 @ 提及）`}
+              title={member.kind === "human" ? `提及 ${name}` : `${name} · 点击查看并行进程，右键 @ 成员`}
+              aria-label={member.kind === "human" ? `提及 ${name}` : `查看 ${name} 并行进程（右键 @ 提及）`}
               onClick={(e) => {
                 e.preventDefault();
+                if (member.kind === "human") {
+                  eventBus.emit("composer:insert-mention", { text: mentionText });
+                  return;
+                }
                 emitAgentWorkbenchFocus({
                   agentId: member.name,
                   agent: {
@@ -261,7 +272,7 @@ export function GroupMemberAvatarStack({
                     name,
                     role: member.name,
                     avatar: avatarUrl || undefined,
-                    status: "running",
+                    status: "waiting",
                     task: "",
                   },
                   tab: "agent",
@@ -319,6 +330,10 @@ export function GroupMemberAvatarStack({
                     key={`${member.name}-${idx}`}
                     className="flex cursor-pointer items-center justify-between gap-2 px-2 py-1.5"
                     onClick={() => {
+                      if (member.kind === "human") {
+                        eventBus.emit("composer:insert-mention", { text: mentionText });
+                        return;
+                      }
                       emitAgentWorkbenchFocus({
                         agentId: member.name,
                         agent: {
@@ -326,7 +341,7 @@ export function GroupMemberAvatarStack({
                           name,
                           role: member.name,
                           avatar: avatarUrl || undefined,
-                          status: "running",
+                          status: "waiting",
                           task: "",
                         },
                         tab: "agent",
@@ -341,7 +356,7 @@ export function GroupMemberAvatarStack({
                     }}
                   >
                     <span className="truncate font-medium">{name}</span>
-                    <span className="text-[10px] text-muted-foreground">查看进程</span>
+                    <span className="text-[10px] text-muted-foreground">{member.kind === "human" ? "提及成员" : "查看进程"}</span>
                   </DropdownMenuItem>
                 );
               })}
@@ -379,6 +394,7 @@ function ChatInputBoxImpl(props: ChatInputBoxProps) {
     statusTrailing,
     workspaceControl,
     contextActions,
+    executionLocationControl,
   } = props;
 
   const { t } = useI18n();
@@ -463,9 +479,8 @@ function ChatInputBoxImpl(props: ChatInputBoxProps) {
     (showAgentSegment ? 1 : 0) +
     (showWorkDirSegment ? 1 : 0) +
     (showModeSegment ? 1 : 0) +
-    (statusTrailing ? 1 : 0);
-  // Keep the under-composer strip whenever the context ring is present so it
-  // can sit on the same row as the workspace control, right-aligned.
+    (statusTrailing ? 1 : 0) +
+    (executionLocationControl ? 1 : 0);
   const showStatusStrip = statusSegmentCount > 0 || showContextWindow;
 
   return (
@@ -486,12 +501,15 @@ function ChatInputBoxImpl(props: ChatInputBoxProps) {
           onDismiss={onDismissModeIntent}
         />
       ) : null}
-      <ChatComposer {...props} />
-      {showStatusStrip && (
+      {props.messageQueueControl}
+      <ChatComposer
+        {...props}
+        renderStatusStrip={(executionLocationLocked) =>
+          showStatusStrip ? (
         <div
           data-testid="chat-status-strip"
           data-composer-context-strip={statusTrailing ? undefined : "true"}
-          className="flex min-h-8 flex-wrap items-center gap-x-2 px-2 pt-1.5 text-ui text-muted-foreground"
+              className="flex min-h-8 flex-wrap items-center gap-x-2 gap-y-1 px-2 pt-1.5 text-ui text-muted-foreground"
         >
           <div className="inline-flex max-w-full items-center gap-1.5 rounded-lg px-0.5 py-0.5">
             {showAgentSegment ? (
@@ -591,8 +609,10 @@ function ChatInputBoxImpl(props: ChatInputBoxProps) {
               </>
             ) : null}
           </div>
-          <div className="ml-auto flex items-center gap-1">
-            {contextActions}
+              {(executionLocationControl || contextActions || showContextWindow) ? (
+                <div className="ml-auto flex min-w-0 max-w-full flex-wrap items-center justify-end gap-x-3 gap-y-1">
+                  {executionLocationControl?.(executionLocationLocked)}
+                  {contextActions ? <div className="flex items-center gap-1">{contextActions}</div> : null}
             {showContextWindow ? (
               <ContextWindowBar
                 contextTokens={props.contextTokens}
@@ -602,9 +622,12 @@ function ChatInputBoxImpl(props: ChatInputBoxProps) {
                 segments={props.contextSegments}
               />
             ) : null}
-          </div>
         </div>
-      )}
+              ) : null}
+            </div>
+          ) : null
+        }
+      />
     </>
   );
 }

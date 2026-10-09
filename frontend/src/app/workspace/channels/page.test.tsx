@@ -3,7 +3,7 @@ import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { renderWithProviders } from "@/test/harness";
 import type * as AuthApi from "@/core/auth/api";
-import ChannelsPage from "./page";
+import ChannelsPage, { ChannelsContent } from "./page";
 import { SidebarProvider } from "@/components/ui/sidebar";
 
 vi.mock("@/core/auth/api", async (importOriginal) => ({
@@ -17,6 +17,18 @@ vi.mock("@/core/auth/api", async (importOriginal) => ({
 afterEach(() => vi.unstubAllGlobals());
 
 describe("channel page loading", () => {
+  it("embeds the channel controls without a workspace or sidebar provider", async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValue({ ok: true, json: async () => [] });
+    vi.stubGlobal("fetch", fetchMock);
+    renderWithProviders(<ChannelsContent embedded />, { locale: "zh-CN" });
+
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(3));
+    expect(screen.getByRole("heading", { name: "消息渠道" })).toBeVisible();
+    expect(screen.queryByText("Channel Ops")).toBeNull();
+  });
+
   it("authenticates channel, role and team requests", async () => {
     const fetchMock = vi
       .fn()

@@ -19,6 +19,7 @@ export function EmptyShellView({
   onTabClose,
   onClose,
   visibleDiffEntries,
+  historyDiffEntries,
   threadId,
   inferredWorkDir,
   browserTabPage,
@@ -50,6 +51,7 @@ export function EmptyShellView({
   onTabClose: (tabId: AgentWorkbenchTabId) => void;
   onClose?: () => void;
   visibleDiffEntries: DiffEntry[];
+  historyDiffEntries?: DiffEntry[];
   threadId?: string | null;
   inferredWorkDir?: string;
   browserTabPage: ReactNode;
@@ -61,7 +63,13 @@ export function EmptyShellView({
   const { t } = useI18n();
   const emptyEmbeddedPage =
     effectiveActiveTab === "diff" ? (
-      <AgentDiffPage entries={visibleDiffEntries} />
+      <AgentDiffPage
+        key={threadId}
+        threadId={threadId ?? undefined}
+        entries={visibleDiffEntries}
+        historyEntries={historyDiffEntries}
+        onBackToSummary={() => onTabClick("agent")}
+      />
     ) : effectiveActiveTab === "terminal" ? (
       <TerminalPanel
         sessionId={`agent-workbench-${threadId ?? "local"}`}

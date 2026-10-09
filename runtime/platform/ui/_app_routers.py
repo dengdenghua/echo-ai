@@ -36,7 +36,36 @@ def mount_routers_a(
     stack = ctx.stack
     state = ctx.state
 
+    from runtime.execution.lifecycle import (
+        ExecutionLifecycle,
+        get_execution_lifecycle,
+        set_execution_lifecycle,
+    )
+    from runtime.execution.node_worker import mount_execution_node_worker
+    from runtime.memory.cowork.collaboration_store import CollaborationStore
+    from runtime.sensing.gateway.execution_nodes_router import create_execution_nodes_router
     from runtime.sensing.gateway.system_router import create_system_router
+
+    collaboration_store = getattr(ctx.cowork_runtime, "collaboration_store", None) or CollaborationStore()
+    app.include_router(
+        create_execution_nodes_router(
+            collaboration_store=collaboration_store,
+            identity_store=ctx.identity_store,
+            require_auth=ctx.require_auth,
+            jwt_secret=ctx.jwt_secret,
+            jwt_issuer=ctx.jwt_issuer,
+            jwt_audience=ctx.jwt_audience,
+        )
+    )
+    lifecycle = ExecutionLifecycle(collaboration_store)
+    app.router.add_event_handler("startup", lambda: set_execution_lifecycle(lifecycle))
+
+    def stop_lifecycle():
+        if get_execution_lifecycle() is lifecycle:
+            set_execution_lifecycle(None)
+
+    app.router.add_event_handler("shutdown", stop_lifecycle)
+    mount_execution_node_worker(ctx)
 
     def _reset_runtime_memory() -> None:
         clear_threads = getattr(ctx.thread_store, "clear", None)
@@ -57,6 +86,13 @@ def mount_routers_a(
             jwt_audience=ctx.jwt_audience,
         )
     )
+
+    from runtime.sensing.gateway.visuals_router import create_visuals_router
+
+    app.include_router(create_visuals_router(
+        identity_store=ctx.identity_store, require_auth=ctx.require_auth,
+        jwt_secret=ctx.jwt_secret, jwt_issuer=ctx.jwt_issuer, jwt_audience=ctx.jwt_audience,
+    ))
 
     # Unified control plane for browser / Chrome / webview / computer sessions.
     from runtime.sensing.gateway.control_sessions_router import create_control_sessions_router
@@ -399,6 +435,24 @@ def mount_routers_a(
             _task_runs_exc,
         )
 
+    from runtime.sensing.gateway.assistant_activity_router import create_assistant_activity_router
+
+    app.include_router(
+        create_assistant_activity_router(
+            supervisor=getattr(state, "task_supervisor", None),
+            project_store=project_store,
+            collaboration_store=getattr(ctx.cowork_runtime, "collaboration_store", None),
+            group_store=getattr(ctx.cowork_runtime, "group_store", None),
+            thread_store=ctx.thread_store,
+            team_rooms_router=ctx.team_rooms_router,
+            identity_store=ctx.identity_store,
+            require_auth=ctx.require_auth,
+            jwt_secret=ctx.jwt_secret,
+            jwt_issuer=ctx.jwt_issuer,
+            jwt_audience=ctx.jwt_audience,
+        )
+    )
+
     from runtime.sensing.gateway.verify_router import create_verify_router
 
     app.include_router(
@@ -465,6 +519,19 @@ def mount_routers_a(
 
     app.include_router(
         create_android_router(
+            identity_store=ctx.identity_store,
+            require_auth=ctx.require_auth,
+            jwt_secret=ctx.jwt_secret,
+            jwt_issuer=ctx.jwt_issuer,
+            jwt_audience=ctx.jwt_audience,
+        )
+    )
+
+    from runtime.sensing.gateway.mailbox_router import create_mailbox_router
+
+    app.include_router(
+        create_mailbox_router(
+            stack=stack,
             identity_store=ctx.identity_store,
             require_auth=ctx.require_auth,
             jwt_secret=ctx.jwt_secret,

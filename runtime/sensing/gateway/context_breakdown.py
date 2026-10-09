@@ -168,4 +168,3 @@ def handle_thread_context_breakdown(
     values = thread.get("values") if isinstance(thread.get("values"), dict) else {}
     messages = values.get("messages") if isinstance(values, dict) else None
     return breakdown_for_thread(thread_id, messages if isinstance(messages, list) else [])
-

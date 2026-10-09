@@ -1,5 +1,5 @@
 import { act, renderHook, waitFor } from "@testing-library/react";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import type {
   ArtifactItem,
@@ -1023,6 +1023,19 @@ describe("useThreadStreamRealtime permissions", () => {
       "interrupt was rejected",
     );
     expect(interrupt).toHaveBeenCalledTimes(1);
+  });
+
+  it("uses native UI correlation ids without turning replies into queued messages", async () => {
+    const startTurn = mockRealtime(vi.fn().mockRejectedValue(new Error("offline")));
+    const { result } = renderHook(() => useThreadStreamRealtime({ threadId: "th-test" }));
+    act(() => {
+      result.current[1]("th-test", { text: "项目需求\n名称：Echo", files: [] }, { clientMessageId: "ui-reply-123" });
+    });
+    await waitFor(() => expect(startTurn).toHaveBeenCalledTimes(1));
+    expect(startTurn.mock.calls[0]?.[0].clientItemId).toBe("ui-reply-123");
+    await waitFor(() => expect(result.current[0].messages[0]).toMatchObject({
+      id: "ui-reply-123", additional_kwargs: { delivery_state: "failed", retryable: true },
+    }));
   });
 
   it("shows a new-turn human message immediately and reconciles it by stable item id", async () => {
@@ -2725,5 +2738,128 @@ describe("uploadPromptInputFiles", () => {
     ]);
 
     expect(fetchSpy).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("realtime message queue integration", () => {
+  beforeEach(() => sessionStorage.clear());
+  afterEach(() => sessionStorage.clear());
+
+  function queueFixture() {
+    const startTurn = vi.fn(() => new Promise<void>(() => undefined));
+    const realtime = {
+      state: makeConversation([
+        {
+          ...makeTurn([], "active"),
+          status: "inProgress" as const,
+          completedAt: null,
+        },
+      ]),
+      connected: true,
+      startTurn,
+      steer: vi.fn().mockResolvedValue(undefined),
+      resolveApproval: vi.fn(),
+      resume: vi.fn().mockResolvedValue(undefined),
+      interrupt: vi.fn().mockResolvedValue(undefined),
+      compact: vi.fn().mockResolvedValue({ compacted: false }),
+      decideHunk: vi.fn().mockResolvedValue(undefined),
+    };
+    vi.mocked(useRealtimeThread).mockImplementation(() => realtime);
+    const view = renderHook(() =>
+      useThreadStreamRealtime({ threadId: "th-test" }),
+    );
+    return { ...view, realtime, startTurn };
+  }
+
+  it("sends one queued follow-up after the turn settles and reconciles the server receipt", async () => {
+    const view = queueFixture();
+    act(() => {
+      view.result.current[0].messageQueue.enqueue("next task");
+    });
+    expect(view.startTurn).not.toHaveBeenCalled();
+    view.realtime.state = makeConversation([makeTurn([], "active")]);
+    view.rerender();
+    await waitFor(() => expect(view.startTurn).toHaveBeenCalledTimes(1));
+    const id = view.result.current[0].messageQueue.items[0]!.id;
+    expect(view.startTurn.mock.calls[0]?.[0]).toMatchObject({
+      input: "next task",
+      clientItemId: id,
+    });
+    view.realtime.state = makeConversation([
+      makeTurn([], "active"),
+      {
+        ...makeTurn(
+          [
+            {
+              id,
+              type: "userMessage",
+              text: "next task",
+              createdAt: BASE_TS,
+              status: "completed",
+            },
+          ],
+          "next",
+        ),
+        status: "inProgress",
+        completedAt: null,
+      },
+    ]);
+    view.rerender();
+    await waitFor(() =>
+      expect(view.result.current[0].messageQueue.items).toHaveLength(0),
+    );
+    expect(
+      view.result.current[0].messages.filter(
+        (message) => message.type === "human",
+      ),
+    ).toHaveLength(1);
+    expect(view.startTurn).toHaveBeenCalledTimes(1);
+  });
+
+  it("does not auto-resend a queue-origin message after an unconfirmed disconnect", async () => {
+    const view = queueFixture();
+    act(() => {
+      view.result.current[0].messageQueue.enqueue("send once");
+    });
+    view.realtime.state = makeConversation([makeTurn([], "active")]);
+    view.rerender();
+    await waitFor(() => expect(view.startTurn).toHaveBeenCalledTimes(1));
+    const id = view.result.current[0].messageQueue.items[0]!.id;
+    view.realtime.connected = false;
+    view.realtime.state = {
+      ...view.realtime.state,
+      resumeState: "needsResume",
+    };
+    view.rerender();
+    expect(view.result.current[0].messageQueue.items[0]?.state).toBe(
+      "uncertain",
+    );
+    view.realtime.connected = true;
+    view.realtime.state = { ...view.realtime.state, resumeState: "resumed" };
+    view.rerender();
+    await act(async () => {});
+    expect(view.startTurn).toHaveBeenCalledTimes(1);
+    act(() => view.result.current[0].messageQueue.resume());
+    expect(view.startTurn).toHaveBeenCalledTimes(1);
+    act(() => view.result.current[0].messageQueue.retry(id));
+    await waitFor(() => expect(view.startTurn).toHaveBeenCalledTimes(2));
+    expect(view.startTurn.mock.calls[1]?.[0].clientItemId).toBe(id);
+  });
+
+  it("pauses queued follow-ups as soon as stop is requested", async () => {
+    const view = queueFixture();
+    act(() => {
+      view.result.current[0].messageQueue.enqueue("later");
+    });
+    await act(async () => {
+      await view.result.current[0].stop();
+    });
+    expect(view.result.current[0].messageQueue.paused).toBe(true);
+    expect(view.realtime.interrupt).toHaveBeenCalledTimes(1);
+    view.realtime.state = makeConversation([
+      { ...makeTurn([], "active"), status: "interrupted" },
+    ]);
+    view.rerender();
+    expect(view.startTurn).not.toHaveBeenCalled();
   });
 });

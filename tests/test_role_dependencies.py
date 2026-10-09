@@ -24,7 +24,16 @@ def test_workbuddy_dependencies_survive_import_and_role_loading(tmp_path):
     pack = tmp_path / "pack"
     _pack(pack, {"connectors": ["feishu", "dingtalk", "feishu"], "mcpServers": "connections.json"})
     (pack / "connections.json").write_text(
-        json.dumps({"mcpServers": {"research-db": {"url": "https://example.invalid/mcp", "headers": {"Authorization": "do-not-copy"}}}}),
+        json.dumps(
+            {
+                "mcpServers": {
+                    "research-db": {
+                        "url": "https://example.invalid/mcp",
+                        "headers": {"Authorization": "do-not-copy"},
+                    }
+                }
+            }
+        ),
         encoding="utf-8",
     )
     preview = scan_agent_pack(pack)
@@ -40,13 +49,20 @@ def test_workbuddy_dependencies_survive_import_and_role_loading(tmp_path):
     assert not (tmp_path / "agents/.mcp.json").exists()
 
 
-@pytest.mark.parametrize("dependencies", [
-    {"connectors": "feishu"}, {"connectors": ["../feishu"]},
-    {"connectors": ["x" * 129]}, {"connectors": [None]},
-    {"connectors": ["a"] * 65}, {"mcpServers": "../outside.json"},
-    {"mcpServers": "missing.json"}, {"mcpServers": {"url": "https://example.invalid"}},
-    {"mcpServers": ["a"] * 65},
-])
+@pytest.mark.parametrize(
+    "dependencies",
+    [
+        {"connectors": "feishu"},
+        {"connectors": ["../feishu"]},
+        {"connectors": ["x" * 129]},
+        {"connectors": [None]},
+        {"connectors": ["a"] * 65},
+        {"mcpServers": "../outside.json"},
+        {"mcpServers": "missing.json"},
+        {"mcpServers": {"url": "https://example.invalid"}},
+        {"mcpServers": ["a"] * 65},
+    ],
+)
 def test_invalid_required_dependencies_prevent_partial_install(tmp_path, dependencies):
     pack = tmp_path / "pack"
     _pack(pack, dependencies)
@@ -70,11 +86,12 @@ def test_legacy_pack_without_dependencies_remains_supported(tmp_path):
     _pack(pack)
     result = import_agent_from_pack(pack, "research", tmp_path / "agents", tmp_path / "skills")
     assert parse_template(Path(result.agent_path), tmp_path / "shared").dependencies == {
-        "connectors": [], "mcp_servers": []
+        "connectors": [],
+        "mcp_servers": [],
     }
 
 
 def test_dependencies_carry_ids_only():
-    assert normalize_role_dependencies({"connectors": ["feishu"], "url": "https://example.invalid"}) == {
-        "connectors": ["feishu"], "mcp_servers": []
-    }
+    assert normalize_role_dependencies(
+        {"connectors": ["feishu"], "url": "https://example.invalid"}
+    ) == {"connectors": ["feishu"], "mcp_servers": []}

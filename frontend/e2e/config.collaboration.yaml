@@ -1,0 +1,11 @@
+# Isolated loopback E2E only. The runner supplies a fresh random JWT secret.
+extends: ../../config.e2e.yaml
+planner:
+  type: llm
+  model: mock/planner
+  mock_response: '[{"name":"Review launch readiness","goal":"Verify the shared checklist","success_criteria":["Checklist reviewed"]}]'
+local_auth:
+  enabled: true
+  allow_any_username: false
+  allowed_usernames: [alice, bob, viewer, outsider]
+  jwt_secret: ${ECHO_E2E_JWT_SECRET}

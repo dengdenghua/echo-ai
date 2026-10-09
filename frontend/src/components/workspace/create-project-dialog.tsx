@@ -7,7 +7,6 @@ import {
   CrownIcon,
   UsersRoundIcon,
 } from "lucide-react";
-import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -30,6 +29,7 @@ import {
 } from "@/core/agents/persona-policy";
 import {
   DEFAULT_PROJECT_AGENT_ID,
+  ProjectCreationRequestError,
   type ProjectInitialAgent,
   useCreateProject,
 } from "@/core/projects/hooks";
@@ -46,7 +46,33 @@ export function CreateProjectDialog({
   open,
   onOpenChange,
 }: CreateProjectDialogProps) {
-  const { t } = useI18n();
+  const { t, locale } = useI18n();
+  const copy = locale.startsWith("zh")
+    ? {
+        failed: "无法创建项目，请重试。",
+        planning:
+          "项目规划暂时不可用，请检查执行模型配置或连接后重试；未创建项目。",
+        retryHint: "填写内容已保留，检查模型后可手动重试。",
+        retry: "重试创建",
+        recovery: "项目已保存但工作群未完成，请查看已有项目。",
+        outcomeUnknown: "连接中断，尚未确认创建结果。请先检查项目列表。",
+        savedProject: "已保留项目：",
+        viewThread: "查看已有对话",
+      }
+    : {
+        failed: "Unable to create the project. Please try again.",
+        planning:
+          "Project planning is unavailable. Check the execution model configuration or connection and try again. No project was created.",
+        retryHint:
+          "Your draft is saved here. Check the model, then retry manually.",
+        retry: "Retry creation",
+        recovery:
+          "The project was saved, but its work group is incomplete. Check the existing project.",
+        outcomeUnknown:
+          "Connection interrupted. The creation result is not confirmed. Check the project list first.",
+        savedProject: "Saved project: ",
+        viewThread: "View existing conversation",
+      };
   const navigate = useNavigate();
   const CATEGORY_PRESETS = useMemo(
     () => [
@@ -82,6 +108,10 @@ export function CreateProjectDialog({
   const [invitePeopleAfterCreate, setInvitePeopleAfterCreate] = useState(false);
   const [advanced, setAdvanced] = useState(false);
   const [agentSearch, setAgentSearch] = useState("");
+  const [submissionError, setSubmissionError] =
+    useState<ProjectCreationRequestError | null>(null);
+  const creationBlocked =
+    submissionError?.recoveryPending || submissionError?.outcomeUnknown;
   const { agents, isLoading: agentsLoading } = useAgents();
   const activeAgentId = useActiveAgentId();
   const { mutate: createProject, isPending } = useCreateProject();
@@ -130,6 +160,7 @@ export function CreateProjectDialog({
     setInvitePeopleAfterCreate(false);
     setAdvanced(false);
     setAgentSearch("");
+    setSubmissionError(null);
   };
 
   const handleOpenChange = (nextOpen: boolean) => {
@@ -151,7 +182,8 @@ export function CreateProjectDialog({
   };
 
   const handleSubmit = () => {
-    if (!name.trim() || isPending) return;
+    if (!name.trim() || isPending || creationBlocked) return;
+    setSubmissionError(null);
     const initialAgents: ProjectInitialAgent[] = effectiveSelectedAgentIds.map(
       (id) => {
         const agent = agents.find((candidate) => candidate.name === id);
@@ -184,7 +216,12 @@ export function CreateProjectDialog({
             },
           });
         },
-        onError: () => toast.error("项目工作群创建失败，请重试"),
+        onError: (error) =>
+          setSubmissionError(
+            error instanceof ProjectCreationRequestError
+              ? error
+              : new ProjectCreationRequestError(copy.failed, 0),
+          ),
       },
     );
   };
@@ -207,6 +244,53 @@ export function CreateProjectDialog({
           <DialogTitle>{t.createProjectDialog.title}</DialogTitle>
           <DialogDescription>{t.createProjectDialog.hint}</DialogDescription>
         </DialogHeader>
+        {submissionError && (
+          <div
+            role="alert"
+            className="mx-6 mb-4 rounded-lg border border-amber-500/30 bg-amber-500/5 p-3 text-sm"
+          >
+            <p>
+              {submissionError.recoveryPending
+                ? copy.recovery
+                : submissionError.outcomeUnknown
+                  ? copy.outcomeUnknown
+                  : submissionError.code === "PROJECT_PLANNING_UNAVAILABLE"
+                    ? copy.planning
+                    : submissionError.message}
+            </p>
+            {submissionError.recoveryPending && submissionError.projectId && (
+              <p className="mt-2 break-all text-xs text-muted-foreground">
+                {copy.savedProject}
+                {submissionError.projectId}
+              </p>
+            )}
+            {!submissionError.recoveryPending && submissionError.retryable && (
+              <p className="mt-2 text-xs text-muted-foreground">
+                {copy.retryHint}
+              </p>
+            )}
+            {submissionError.recoveryPending && submissionError.threadId && (
+              <Button
+                variant="outline"
+                size="sm"
+                className="mt-3"
+                onClick={() => {
+                  const threadId = submissionError.threadId;
+                  if (!threadId) return;
+                  handleOpenChange(false);
+                  navigate(
+                    `/workspace/realtime/${encodeURIComponent(threadId)}`,
+                    {
+                      state: { openProjectWorkbench: true },
+                    },
+                  );
+                }}
+              >
+                {copy.viewThread}
+              </Button>
+            )}
+          </div>
+        )}
         <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto overscroll-contain border-y px-6 py-4">
           <div className="space-y-2">
             <Label htmlFor="create-project-name">
@@ -439,8 +523,13 @@ export function CreateProjectDialog({
           <Button variant="outline" onClick={() => handleOpenChange(false)}>
             {t.createProjectDialog.cancel}
           </Button>
-          <Button onClick={handleSubmit} disabled={!name.trim() || isPending}>
-            {t.createProjectDialog.create}
+          <Button
+            onClick={handleSubmit}
+            disabled={!name.trim() || isPending || creationBlocked}
+          >
+            {submissionError?.retryable
+              ? copy.retry
+              : t.createProjectDialog.create}
           </Button>
         </DialogFooter>
       </DialogContent>

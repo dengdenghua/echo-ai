@@ -5,6 +5,8 @@ import {
   STEER_RECEIPT_EVENT,
 } from "@/core/threads/task-interaction";
 
+import { executionStorageKey } from "@/core/execution-location";
+
 type Entry = { id: string; text: string };
 export function TaskFollowups(props: {
   threadId: string;
@@ -23,7 +25,7 @@ function Followups({
   failed,
   onSend,
 }: Parameters<typeof TaskFollowups>[0]) {
-  const storageKey = `echo:followups:${threadId}`;
+  const storageKey = executionStorageKey(`echo:followups:${threadId}`);
   const [entries, setEntries] = useState<Entry[]>(() => {
     try {
       const value: unknown = JSON.parse(

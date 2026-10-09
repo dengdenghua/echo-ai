@@ -270,6 +270,25 @@ class TestServeBasics:
         assert rc == 2
         assert "config error" in capsys.readouterr().err
 
+    def test_network_bind_rejects_passwordless_local_auth_before_startup(
+        self, tmp_path: Path, capsys
+    ) -> None:
+        from runtime.cli import run_serve
+
+        cfg = _write_cfg(tmp_path)
+        with cfg.open("a", encoding="utf-8") as stream:
+            stream.write("\nlocal_auth:\n  enabled: true\n  allow_any_username: true\n")
+
+        rc = run_serve(
+            config_path=cfg,
+            host="0.0.0.0",
+            port=9095,
+            color=False,
+        )
+
+        assert rc == 2
+        assert "requires bcrypt hashes for every user" in capsys.readouterr().err
+
     def test_mock_planner_prints_warning_banner(self, tmp_path: Path, monkeypatch, capsys):
         """Accidental ``--config config.example.yaml`` (mock planner)
         must print a red warning at serve start · otherwise users see

@@ -1,6 +1,7 @@
+import { executionStorageKey } from "@/core/execution-location";
 import { useEffect, useState } from "react";
 
-const RECENT_WORKDIRS_KEY = "echo:recentWorkdirs";
+const RECENT_WORKDIRS_KEY = executionStorageKey("echo:recentWorkdirs");
 
 function isAbsolutePath(value: string) {
   return value.startsWith("/") || /^[A-Za-z]:[\\/]/.test(value);
@@ -11,9 +12,9 @@ function readActiveProjectRoot(): string | null {
   const hashQuery = window.location.hash.includes("?")
     ? window.location.hash.slice(window.location.hash.indexOf("?") + 1)
     : "";
-  const routePath = new URLSearchParams(
-    window.location.search || hashQuery,
-  ).get("workspace_path");
+  const routePath =
+    new URLSearchParams(hashQuery).get("workspace_path") ??
+    new URLSearchParams(window.location.search).get("workspace_path");
   if (routePath && isAbsolutePath(routePath)) return routePath;
   try {
     const parsed = JSON.parse(

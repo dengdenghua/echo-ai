@@ -70,8 +70,8 @@ class _FakeManager:
 
 def _store() -> IdentityStore:
     store = IdentityStore()
-    store.add(Identity(actor_id="alice"), api_key_plaintext="sk-alice")
-    store.add(Identity(actor_id="bob"), api_key_plaintext="sk-bob")
+    store.add(Identity(actor_id="alice", roles=("operator",)), api_key_plaintext="sk-alice")
+    store.add(Identity(actor_id="bob", roles=("operator",)), api_key_plaintext="sk-bob")
     return store
 
 
@@ -251,3 +251,21 @@ def test_mcp_message_accepts_session_owner(
     )
     assert resp.status_code == 200
     assert resp.json() == {"status": "ok"}
+
+
+def test_mcp_sse_rejects_plain_user_without_operator_role(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # MCP 暴露设备控制工具：已登录但无 admin/operator 角色的普通账号应被拒。
+    _use_fake_manager(monkeypatch)
+    store = _store()
+    store.add(Identity(actor_id="mallory"), api_key_plaintext="sk-mallory")
+    client = _client(require_auth=True, store=store)
+    r = client.get("/api/tentacle/mcp/sse", headers={"Authorization": "Bearer sk-mallory"})
+    assert r.status_code == 403
+    r2 = client.post(
+        "/api/tentacle/mcp/message?session_id=deadbeef",
+        json=_PING,
+        headers={"Authorization": "Bearer sk-mallory"},
+    )
+    assert r2.status_code == 403

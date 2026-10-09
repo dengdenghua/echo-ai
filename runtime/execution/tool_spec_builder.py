@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import inspect
 import re
+from copy import deepcopy
 from functools import lru_cache
 from types import UnionType
 from typing import Any, Union, get_args, get_origin, get_type_hints
@@ -34,6 +35,10 @@ PRIORITY_SKILLS: frozenset[str] = frozenset(
         "collaboration",
         "search_capabilities",
         "find_capability",
+        "visual_guidelines",
+        "show_visual",
+        "show_ui",
+        "visual_status",
         "query_capability",
         "use_capability",
         "execute_skill",
@@ -196,6 +201,8 @@ _INTERNAL_PARAMS = frozenset(
     {
         "sandbox_dir",
         "allow_sensitive",
+        "allow_network",
+        "egress_allow_common",
         "self",
         "cls",
         "_kw",
@@ -393,6 +400,12 @@ def build_anthropic_tool_specs(
     if tool_ceiling is not None:
         all_names = [name for name in all_names if name in tool_ceiling]
 
+    from runtime.execution.request import current_execution_request
+
+    host_request = current_execution_request()
+    if host_request is not None and host_request.task.allowed_tools is not None:
+        all_names = [name for name in all_names if name in host_request.task.allowed_tools]
+
     activation = activate_capabilities(
         goal,
         user_context=user_context,
@@ -450,21 +463,49 @@ def build_anthropic_tool_specs(
             selected.append(name)
 
     specs: list[ToolSpec] = []
+    from runtime.platform.process.session import current_session
+
+    session = current_session()
+    coordination = getattr(registry, "coordination", None)
+    group_members = (
+        coordination.members(session.thread_id)
+        if coordination is not None and session is not None and session.thread_id
+        else []
+    )
     for name in selected:
         try:
             skill = registry.get(name)
             desc = (getattr(skill, "description", "") or "").strip()
             handler = getattr(skill, "handler", None)
+            declared_schema = getattr(skill, "input_schema", None)
         except (AttributeError, TypeError, KeyError):
             desc = ""
             handler = None
+            declared_schema = None
         if not desc:
             desc = f"Run the `{name}` skill."
-        input_schema = (
-            _input_schema_from_handler(handler)[0]
-            if handler is not None
-            else {"type": "object", "properties": {}, "additionalProperties": True}
-        )
+        if group_members and name in {"call_agent", "call_agent_parallel", "collaboration"}:
+            import json
+
+            desc = (
+                "Current group members (authoritative): "
+                + json.dumps(group_members, ensure_ascii=False)
+                + "\nUse existing members first. Only if a capability gap remains, search global roles "
+                "and call collaboration(action='propose_member', assignee=installed_role_id, "
+                "reason=why_existing_members_cannot_cover, message=proposed_task, request_id=stable_id). "
+                "This opens a human review dialog; never invite or execute a global candidate before approval. "
+                "Group call_agent and call_agent_parallel enqueue durable tasks and return immediately. "
+                "Pending is not completion. Query collaboration list/inbox for real results before summarizing.\n"
+                + (desc if name == "collaboration" else "")
+            )
+        if isinstance(declared_schema, dict):
+            input_schema = deepcopy(declared_schema)
+        else:
+            input_schema = (
+                _input_schema_from_handler(handler)[0]
+                if handler is not None
+                else {"type": "object", "properties": {}, "additionalProperties": True}
+            )
         specs.append(
             ToolSpec(
                 name=name,

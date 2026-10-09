@@ -33,6 +33,26 @@ def test_local_login_rejected_outside_development(monkeypatch, environment, depl
         assert response.status_code == 503
 
 
+@pytest.mark.parametrize("environment,deployment", [("production", "production"), ("", "local")])
+def test_password_backed_login_is_available_outside_development(
+    monkeypatch, environment, deployment
+):
+    monkeypatch.setenv("ECHO_ENV", environment)
+    monkeypatch.setenv("ECHO_DEPLOYMENT_MODE", deployment)
+    config = LocalAuthConfig(
+        enabled=True,
+        users={"admin": _TEST_BCRYPT_HASH},
+        jwt_secret="Production!Local9Jwt#Secret2With$Entropy4AndLength",
+    )
+    app = FastAPI()
+    app.include_router(local_auth_router.create_local_auth_router(config=config))
+    with TestClient(app) as client:
+        assert _login(client, "admin", "wrong").status_code == 401
+        response = _login(client, "admin", "correct-password")
+        assert response.status_code == 200, response.text
+        assert response.json()["access_token"]
+
+
 class _Clock:
     def __init__(self) -> None:
         self._now = 1_000.0

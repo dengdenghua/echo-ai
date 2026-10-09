@@ -148,6 +148,11 @@ def mount_collaboration(
                 create_tentacle_join_router(
                     ws_port=_tentacle_ws_port,
                     auth_token=_tentacle_token,
+                    identity_store=ctx.identity_store,
+                    require_auth=ctx.require_auth,
+                    jwt_secret=ctx.jwt_secret,
+                    jwt_issuer=ctx.jwt_issuer,
+                    jwt_audience=ctx.jwt_audience,
                 )
             )
             app.state.tentacle_coordinator = _tentacle_coordinator

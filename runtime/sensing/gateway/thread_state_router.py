@@ -83,6 +83,8 @@ def create_thread_state_router(
     collaboration_store: Any = None,
     team_rooms_router: Any = None,
     project_store: Any = None,
+    workspace_store: Any = None,
+    lease_store: Any = None,
 ) -> Any:
     require_fastapi(__name__)
     managed_workspace_required = require_auth and not allow_local_workspace_access
@@ -653,18 +655,34 @@ def create_thread_state_router(
         except Exception as exc:
             _logger.exception("get feedback failed")
             raise HTTPException(500, f"get feedback failed: {exc}") from exc
-        return {"feedbacks": [
-            {"thread_id": f.thread_id, "message_index": f.message_index, "feedback_type": f.feedback_type,
-             "tags": list(f.tags), "comment": f.comment, "timestamp": f.timestamp, "user_id": f.user_id}
-            for f in feedbacks
-        ]}
+        return {
+            "feedbacks": [
+                {
+                    "thread_id": f.thread_id,
+                    "message_index": f.message_index,
+                    "feedback_type": f.feedback_type,
+                    "tags": list(f.tags),
+                    "comment": f.comment,
+                    "timestamp": f.timestamp,
+                    "user_id": f.user_id,
+                }
+                for f in feedbacks
+            ]
+        }
 
     @router.get("/api/threads/{thread_id}/context-breakdown")
     def get_thread_context_breakdown(request: Request, thread_id: str) -> dict[str, Any]:
         """Claude-style context segments for the composer ring."""
         from .context_breakdown import handle_thread_context_breakdown
+
         return handle_thread_context_breakdown(
-            request, thread_id, _auth, _tenant, _require_store, _require_thread_id, _get_accessible_thread
+            request,
+            thread_id,
+            _auth,
+            _tenant,
+            _require_store,
+            _require_thread_id,
+            _get_accessible_thread,
         )
 
     @router.get("/api/threads/{thread_id}")
@@ -708,6 +726,22 @@ def create_thread_state_router(
             logger=_logger,
         )
 
+    @router.put("/api/threads/{thread_id}/list-visibility")
+    def set_thread_list_visibility(request: Request, thread_id: str, body: dict[str, Any]):
+        actor_id = _auth(request)
+        tenant_id = _tenant(request)
+        _require_store()
+        thread_id = _require_thread_id(thread_id)
+        if _get_accessible_thread(thread_id, actor_id, tenant_id) is None or _is_archived(thread_id):
+            raise HTTPException(404, f"thread not found: {thread_id}")
+        hidden = body.get("hidden")
+        if not isinstance(hidden, bool):
+            raise HTTPException(422, "hidden must be a boolean")
+        # Any reader may change their own list. Never alter the room, owner,
+        # project binding, execution or shared conversation snapshot.
+        store.list_visibility.set_hidden(tenant_id or "local", actor_id or "local", thread_id, hidden)
+        return {"thread_id": thread_id, "hidden": hidden}
+
     @router.post("/api/threads/search")
     def search_threads_post(
         request: Request,
@@ -717,6 +751,8 @@ def create_thread_state_router(
         tenant_id = _tenant(request)
         _require_store()
         payload = body or {}
+        hidden_ids = store.list_visibility.hidden_ids(tenant_id or "local", actor_id or "local")
+        hidden_only = payload.get("hidden_only") is True
         metadata = payload.get("metadata") if isinstance(payload.get("metadata"), dict) else None
         metadata = dict(metadata) if metadata is not None else None
         if actor_id is not None:
@@ -733,10 +769,11 @@ def create_thread_state_router(
         # bounded tenant slice first, apply the dynamic room ACL, then paginate
         # the visible result so same-tenant private threads cannot starve joined
         # conversations from the sidebar.
-        fetch_limit = max(500, min(2000, offset + limit * 5)) if require_auth else limit
+        needs_filter = require_auth or bool(hidden_ids) or hidden_only
+        fetch_limit = max(500, min(2000, offset + limit * 5)) if needs_filter else limit
         results = store.search(
             limit=fetch_limit,
-            offset=0 if require_auth else offset,
+            offset=0 if needs_filter else offset,
             metadata=metadata,
             sort_by=sort_by,
             sort_order=sort_order,
@@ -747,9 +784,10 @@ def create_thread_state_router(
             for thread in results
             if _can_read(thread, actor_id, tenant_id)
             if not (isinstance(thread.get("thread_id"), str) and _is_archived(thread["thread_id"]))
+            if (thread.get("thread_id") in hidden_ids) == hidden_only
         ]
         return project_visible_search_page(
-            visible, select=select, offset=offset, limit=limit, require_auth=require_auth
+            visible, select=select, offset=offset, limit=limit, require_auth=needs_filter
         )
 
     @router.get("/api/threads/{thread_id}/state")
@@ -949,6 +987,28 @@ def create_thread_state_router(
         ):
             raise HTTPException(404, "shared task not found")
         return Response(status_code=204)
+
+    def _authorize_shared_spaces(request: Request, thread_id: str) -> dict[str, Any]:
+        actor_id = _auth(request)
+        _require_store()
+        thread_id = _require_thread_id(thread_id)
+        thread = _get_owned_thread(thread_id, actor_id, _tenant(request))
+        if thread is None or _is_archived(thread_id):
+            raise HTTPException(404, "thread not found")
+        return thread
+
+    from .thread_shared_spaces import shared_spaces_router
+
+    router.include_router(
+        shared_spaces_router(
+            store=store,
+            authorize=_authorize_shared_spaces,
+            managed=managed_workspace_required,
+            workspace_root=workspace_root,
+            workspace_store=workspace_store,
+            lease_store=lease_store,
+        )
+    )
 
     @router.post("/api/threads/{thread_id}/state")
     def update_thread_state(

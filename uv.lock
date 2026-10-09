@@ -1181,6 +1181,7 @@ dependencies = [
 [package.optional-dependencies]
 a2a = [
     { name = "a2a-sdk" },
+    { name = "sse-starlette" },
 ]
 all = [
     { name = "anthropic" },
@@ -1284,6 +1285,7 @@ dev = [
     { name = "pytest-cov" },
     { name = "pytest-timeout" },
     { name = "ruff" },
+    { name = "sse-starlette" },
     { name = "tzdata", marker = "sys_platform == 'win32'" },
 ]
 discord = [
@@ -1336,6 +1338,7 @@ release = [
 ]
 serve = [
     { name = "fastapi" },
+    { name = "httpx" },
     { name = "python-multipart" },
     { name = "pyyaml" },
     { name = "starlette" },
@@ -1409,6 +1412,7 @@ requires-dist = [
     { name = "httpx", marker = "extra == 'desktop-core'", specifier = ">=0.27" },
     { name = "httpx", marker = "extra == 'minimal'", specifier = ">=0.27" },
     { name = "httpx", marker = "extra == 'reach'", specifier = ">=0.27" },
+    { name = "httpx", marker = "extra == 'serve'", specifier = ">=0.27" },
     { name = "httpx", marker = "extra == 'web'", specifier = ">=0.27" },
     { name = "httpx2", marker = "extra == 'dev'", specifier = ">=2.12.0" },
     { name = "insightface", marker = "extra == 'all'", specifier = ">=1.0.1" },
@@ -1485,6 +1489,8 @@ requires-dist = [
     { name = "reportlab", marker = "extra == 'desktop-core'", specifier = ">=4.4.4" },
     { name = "reportlab", marker = "extra == 'office'", specifier = ">=4.4.4" },
     { name = "ruff", marker = "extra == 'dev'", specifier = ">=0.15.12,<0.16" },
+    { name = "sse-starlette", marker = "extra == 'a2a'", specifier = ">=3.4,<4" },
+    { name = "sse-starlette", marker = "extra == 'dev'", specifier = ">=3.4,<4" },
     { name = "starlette", marker = "extra == 'all'", specifier = ">=1.3.1" },
     { name = "starlette", marker = "extra == 'desktop-core'", specifier = ">=1.3.1" },
     { name = "starlette", marker = "extra == 'serve'", specifier = ">=1.3.1" },

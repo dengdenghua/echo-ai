@@ -42,6 +42,9 @@ class Skill(BaseModel):
     # catalog while remaining visible only to their sticky canary cohort.
     rollout_candidate_id: str | None = None
     handler: Callable[..., Any]
+    # External tools already provide their complete JSON Schema. Preserve it
+    # instead of inferring an empty contract from the bridge's **kwargs wrapper.
+    input_schema: dict[str, Any] | None = None
     tests: list[SkillTestCase] = Field(default_factory=list)
     # ADR-010 · the exclusive resource this skill must hold while running, e.g.
     # ``device:desktop`` (pyautogui drives the one physical screen/mouse/keyboard,

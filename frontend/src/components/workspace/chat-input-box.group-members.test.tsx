@@ -121,6 +121,19 @@ describe("GroupMemberAvatarStack & Input Box Group Members", () => {
     window.removeEventListener("echo:agent-workbench-focus", focusSpy);
   });
 
+  it("mentions human members without opening a fictitious agent process", () => {
+    const focusSpy = vi.fn();
+    window.addEventListener("echo:agent-workbench-focus", focusSpy);
+    renderWithProviders(
+      <ChatInputBox mode="react" threadId="human-member-test" isGroupConversation
+        mentionMembers={[{ name: "owner", display_name: "群主", mention_value: "群主", kind: "human" }]} />,
+    );
+    fireEvent.click(screen.getByRole("button", { name: "提及 群主" }));
+    expect((screen.getByRole("textbox") as HTMLTextAreaElement).value).toContain("@群主");
+    expect(focusSpy).not.toHaveBeenCalled();
+    window.removeEventListener("echo:agent-workbench-focus", focusSpy);
+  });
+
   it("right-clicking a member avatar inserts mention into the composer draft", () => {
     renderWithProviders(
       <ChatInputBox

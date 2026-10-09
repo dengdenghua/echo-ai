@@ -1,9 +1,12 @@
 import type { AutomationTarget } from "@/core/computer/api";
+import { executionStorageKey } from "@/core/execution-location";
 
 const TARGET_STORAGE_PREFIX = "echo:automation-target:";
 
 function targetStorageKey(threadId?: string | null): string {
-  return `${TARGET_STORAGE_PREFIX}${threadId?.trim() || "new"}`;
+  return executionStorageKey(
+    `${TARGET_STORAGE_PREFIX}${threadId?.trim() || "new"}`,
+  );
 }
 
 export function loadAutomationTarget(

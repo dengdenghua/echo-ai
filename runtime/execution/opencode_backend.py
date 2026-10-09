@@ -273,10 +273,9 @@ def server_directory(scope: TenantScope | None) -> Path:
     process and its XDG caches are shared. Nested under ``servers/`` so it can
     never collide with the per-thread roots already on disk.
 
-    A tool turn deliberately keeps its thread-scoped root: it connects its own
-    MCP bridge into a throwaway server, and the pool's
-    one-live-server-per-root rule would otherwise let it discard the shared
-    engine.
+    Tool turns use this same database through a throwaway MCP-enabled process.
+    Retiring an idle warm process is preferable to handing its session id to
+    a different database when a conversation starts using tools.
     """
 
     identity = [scope.tenant_id, scope.actor_id] if scope else [None, None]
@@ -779,7 +778,7 @@ async def stream_model(
         raise OpenCodeError("请安装 OpenCode 并配置 ECHO_OPENCODE_BIN。")
     root = state_directory(None, "model")
     async with _warm_text_server(command, root, model_key(None, model), model) as client:
-        session_id = await session_for_thread(client, root)
+        session_id = await session_for_thread(client, root, recover_missing=bool(fresh_text))
         async for event in stream_prompt(
             client,
             session_id,
@@ -793,7 +792,9 @@ async def stream_model(
             yield event
 
 
-async def session_for_thread(client: httpx.AsyncClient, root: Path) -> str:
+async def session_for_thread(
+    client: httpx.AsyncClient, root: Path, *, recover_missing: bool = False
+) -> str:
     mapping = root / "session.json"
     if mapping.exists():
         try:
@@ -807,11 +808,15 @@ async def session_for_thread(client: httpx.AsyncClient, root: Path) -> str:
             return session_id
         if response.status_code != 404:
             raise OpenCodeError("无法读取 OpenCode 会话，请稍后重试。")
-        # Do not silently lose a conversation that used to exist.
-        raise OpenCodeError("OpenCode 会话已不存在，请新建对话继续。")
+        # Only recover when the caller can bootstrap Echo's canonical history
+        # into the new empty session. Auth/network/server errors never reset it.
+        if not recover_missing:
+            raise OpenCodeError("OpenCode 会话已不存在，且没有可用于恢复的对话历史。")
     response = await client.post("/session", json={"title": "Echo"})
     response.raise_for_status()
     session_id = response.json()["id"]
+    if not isinstance(session_id, str) or not re.fullmatch(r"ses_[A-Za-z0-9]+", session_id):
+        raise OpenCodeError("OpenCode 返回了无效的会话编号，请重试。")
     # The session coordinate lives in its own per-thread root, which nothing
     # else creates any more now that the engine runs from a shared root.
     mapping.parent.mkdir(parents=True, exist_ok=True)

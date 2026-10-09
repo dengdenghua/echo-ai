@@ -21,6 +21,9 @@ import {
 } from "react";
 
 import { useI18n } from "@/core/i18n/hooks";
+import { useQuery } from "@tanstack/react-query";
+import { coordinationRequest, type CoordinationSnapshot } from "@/core/cowork/coordination";
+import { mergeCoordinatedAgents } from "./agent-workbench-panel/coordinated-agents";
 import {
   artifactDisplayPath,
   normalizeWorkspaceArtifactRef,
@@ -52,7 +55,12 @@ import { CoworkSearchMenu } from "./cowork-collab-bar";
 import { CollaborationDeliveryRecovery } from "./collaboration-delivery-recovery";
 import type { ExtractedCodeBlocks } from "@/lib/extract-code-blocks";
 import type { StreamdownProps } from "streamdown";
-import type { AgentWorkbenchTabId, DiffEntry } from "./agent-workbench-utils";
+import {
+  diffEntriesFromBlocks,
+  type AgentWorkbenchTabId,
+  type DiffEntry,
+} from "./agent-workbench-utils";
+import { toWorkBlocks } from "./work-blocks";
 import { useAgentWorkbenchI18n } from "./use-agent-workbench-i18n";
 import { AgentDiffPage } from "./agent-workbench-pages";
 import { useAgentWorkbenchSnapshot } from "./agent-workbench-snapshot";
@@ -87,6 +95,7 @@ export type { WorkbenchRosterSeat } from "./agent-workbench-panel/helpers";
 function AgentWorkbenchPanelImpl({
   activeTab,
   events,
+  historyEvents,
   progressOutline,
   userInput,
   groundingSources,
@@ -135,6 +144,7 @@ function AgentWorkbenchPanelImpl({
   /** Chat owns task progress; the header menu owns sources. */
   hideMainOverview?: boolean;
   events: LiveToolEvent[];
+  historyEvents?: LiveToolEvent[];
   /** 「进展」面板的叙事大纲（按 iteration 分组）；缺省时回退为 phase 平铺。 */
   progressOutline?: OutlineRound[];
   userInput?: {
@@ -308,7 +318,7 @@ function AgentWorkbenchPanelImpl({
   }, [enableCache, threadId, workbenchSnapshot, events]);
 
   const {
-    agentTiles,
+    agentTiles: eventAgentTiles,
     blocks,
     currentPhase: snapshotCurrentPhase,
     focusedTab,
@@ -317,6 +327,14 @@ function AgentWorkbenchPanelImpl({
     visibleDiffEntries,
     evidence,
   } = activeSnapshot;
+  const coordination = useQuery({
+    queryKey: ["coordination", threadId],
+    queryFn: () => coordinationRequest<CoordinationSnapshot>(threadId!),
+    enabled: Boolean(showDeliveryRecovery && threadId && threadId !== "new"),
+    refetchInterval: 5000,
+    refetchIntervalInBackground: false,
+  });
+  const agentTiles = useMemo(() => mergeCoordinatedAgents(eventAgentTiles, coordination.data?.tasks ?? []), [eventAgentTiles, coordination.data?.tasks]);
   const typedGroundingSources = useMemo<GroundingSource[]>(
     () =>
       evidence
@@ -549,6 +567,13 @@ function AgentWorkbenchPanelImpl({
     !selectedEffectKey
       ? (mergeProjectHome ? "project" : isDevelopmentWorkbench ? "diff" : "workspace")
       : normalizedActiveTab;
+  const historyDiffEntries = useMemo(
+    () =>
+      historyEvents && effectiveActiveTab === "diff"
+        ? diffEntriesFromBlocks(toWorkBlocks(historyEvents), { latestPerPath: true })
+        : undefined,
+    [effectiveActiveTab, historyEvents],
+  );
   const workbenchTabs: WorkbenchTab[] = useMemo(
     () => [
       ...(mergeProjectHome ? [{
@@ -706,6 +731,7 @@ function AgentWorkbenchPanelImpl({
         onTabClose={handleCloseTab}
         onClose={onClose}
         visibleDiffEntries={visibleDiffEntries}
+        historyDiffEntries={historyDiffEntries}
         threadId={threadId}
         inferredWorkDir={inferredWorkDir}
         browserTabPage={browserTabPage}
@@ -768,7 +794,13 @@ function AgentWorkbenchPanelImpl({
         onBack={() => setSelectedEffectKey(null)}
       />
     ) : effectiveActiveTab === "diff" ? (
-      <AgentDiffPage entries={visibleDiffEntries} />
+      <AgentDiffPage
+        key={threadId}
+        threadId={threadId ?? undefined}
+        entries={visibleDiffEntries}
+        historyEntries={historyDiffEntries}
+        onBackToSummary={() => handleOpenTab("agent")}
+      />
     ) : effectiveActiveTab === "terminal" ? (
       <TerminalPanel
         sessionId={`agent-workbench-${threadId ?? "local"}`}

@@ -21,10 +21,12 @@ from contextvars import copy_context
 from datetime import UTC, datetime
 from typing import Any
 
+from runtime.execution.claim_guard import ExecutionClaimGuard
 from runtime.memory.cowork.async_work import AsyncTask, AsyncWorkStore
 from runtime.memory.cowork.context_view import materialize_messages, resolve_view
 from runtime.memory.cowork.group_store import GroupStore
 from runtime.memory.cowork.nominate import CompetenceStore, tokenize
+from runtime.safety.approval.cancellation import current_cancellation_token
 
 _LOG = logging.getLogger("echo.cowork.async_runner")
 
@@ -165,33 +167,67 @@ class AsyncWorkRunner:
 
     def run_one(self, task: AsyncTask) -> bool:
         """Claim → execute → complete (or fail) one task. False if not claimable."""
+        parent = current_cancellation_token()
+        if parent.is_cancelled:
+            return False
         if self._admission is not None:
             try:
                 if not self._admission(task):
                     return False
             except PermissionError:
                 # Membership/permission revocation cannot turn into delayed work.
-                self._store.cancel_batch([task.task_id], reason="group execution permission revoked")
+                self._store.cancel_batch(
+                    [task.task_id], reason="group execution permission revoked"
+                )
                 return False
-        if not self._store.claim(task.task_id):
+        claimed = self._store.claim_execution(task.task_id)
+        if claimed is None:
             return False
+        task = claimed
+        guard = ExecutionClaimGuard(
+            lambda: self._store.heartbeat(task.task_id, expected_attempt=task.attempts),
+            interval_s=min(30.0, self._recover_stale_seconds / 3),
+        )
+
+        # Persist parent cancellation even if the provider ignores its token.
+        # The attempt fence prevents a delayed callback cancelling a new worker.
+        def cancel_claim(reason: str) -> None:
+            self._store.cancel_claim(task.task_id, expected_attempt=task.attempts, reason=reason)
+
+        unlink = parent.on_cancelled(cancel_claim)
         try:
+            with guard.scope():
+                return self._run_claimed(task, guard)
+        finally:
+            unlink()
+
+    def _run_claimed(self, task: AsyncTask, guard: ExecutionClaimGuard) -> bool:
+        try:
+            guard.token.throw_if_cancelled()
             result = self._execute(task, self._build_context(task))
+            guard.token.throw_if_cancelled()
         except Exception as exc:  # noqa: BLE001 — a failed task must not kill the loop
+            if guard.claim_lost:
+                return True
+            if guard.token.is_cancelled:
+                self._store.cancel_claim(
+                    task.task_id, expected_attempt=task.attempts, reason=guard.token.reason
+                )
+                return True
             error = f"{type(exc).__name__}: {exc}"
-            failed = self._store.fail(task.task_id, error)
-            current = self._store.get(task.task_id)
-            if not failed and current is not None and current.status == "cancelled":
-                _LOG.info("discarded late failure from cancelled async task %s", task.task_id)
+            failed = self._store.fail(task.task_id, error, expected_attempt=task.attempts)
+            if not failed:
+                _LOG.info("discarded failure from obsolete async claim %s", task.task_id)
                 return True
             self._record_competence(task.assignee, task.prompt, success=False)
             self._notify_completion(task, success=False, result=error)
             _LOG.warning("async task %s failed: %s", task.task_id, exc)
             return True
-        completed = self._store.complete(task.task_id, result)
-        current = self._store.get(task.task_id)
-        if not completed and current is not None and current.status == "cancelled":
-            _LOG.info("discarded late result from cancelled async task %s", task.task_id)
+        if guard.claim_lost:
+            return True
+        completed = self._store.complete(task.task_id, result, expected_attempt=task.attempts)
+        if not completed:
+            _LOG.info("discarded result from obsolete async claim %s", task.task_id)
             return True
         self._record_competence(task.assignee, task.prompt, success=True)
         self._notify_completion(task, success=True, result=result)

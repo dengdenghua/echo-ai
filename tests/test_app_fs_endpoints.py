@@ -469,6 +469,20 @@ class TestFsWrite:
 
 
 class TestFsRevertDiff:
+    def test_incomplete_diff_does_not_modify_file(
+        self,
+        client: TestClient,
+        tmp_path: Path,
+    ) -> None:
+        target = tmp_path / "incomplete.txt"
+        target.write_bytes(b"new1\nnew2\n")
+        response = client.post(
+            "/api/fs/revert-diff",
+            json={"path": str(target), "diff": "@@ -1,2 +1,2 @@\n-old1\n+new1\n"},
+        )
+        assert response.status_code == 400
+        assert target.read_bytes() == b"new1\nnew2\n"
+
     def test_revert_diff_restores_file_content(
         self,
         client: TestClient,

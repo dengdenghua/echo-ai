@@ -10,6 +10,7 @@ from types import SimpleNamespace
 
 import pytest
 
+from runtime.execution.environment import ExecutionEnvironment
 from runtime.execution.misc.file_write_leases import (
     FileWriteLeaseConflict,
     acquire_file_write_lease,
@@ -36,6 +37,7 @@ def _parent(workspace, *, deadline=None):
         goal="Build a report",
         permissions=ExecutionScope("code", "code", (workspace,), (workspace,)),
         resources=ExecutionResources(2000, 0.2, deadline),
+        environment=ExecutionEnvironment(workspace),
     )
     return Session(
         actor="alice",
@@ -52,7 +54,18 @@ def _parent(workspace, *, deadline=None):
     )
 
 
-def test_bridge_children_have_distinct_identity_and_contend_for_same_file(tmp_path):
+@pytest.mark.parametrize("registered", [False, True])
+def test_bridge_children_have_distinct_identity_and_contend_for_same_file(
+    tmp_path, monkeypatch, registered
+):
+    from runtime.execution.subagents import bridge
+    from runtime.execution.subagents.registry import SubagentDefinition, SubagentRegistry
+
+    definitions = (
+        [SubagentDefinition(name="coder", description="test role", system_prompt="Coder")]
+        if registered else []
+    )
+    monkeypatch.setattr(bridge, "_REGISTRY", SubagentRegistry(definitions))
     parent = _parent(tmp_path)
     children = []
     caller_thread = threading.get_ident()
@@ -66,6 +79,7 @@ def test_bridge_children_have_distinct_identity_and_contend_for_same_file(tmp_pa
         assert request.task.actor_id == session.actor == "alice"
         assert request.instruction == prompt
         assert request.task.resources is parent.metadata["_execution_task"].resources
+        assert request.task.environment.workspace == tmp_path
         # The default public lane remains shared; the execution identity is
         # separate so private engine state and write ownership cannot collide.
         assert request.task.thread_id != parent.thread_id

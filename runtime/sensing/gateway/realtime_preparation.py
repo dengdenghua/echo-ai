@@ -41,11 +41,16 @@ async def require_role_connections(turn: Any, agent: Any, *, registry: Any = Non
             if registry is None:
                 registry = await asyncio.to_thread(create_registry)
             for offset in range(0, len(connectors), 4):
-                checks.extend(await asyncio.gather(*(
-                    asyncio.to_thread(inspect, cid) for cid in connectors[offset:offset + 4]
-                )))
+                checks.extend(
+                    await asyncio.gather(
+                        *(
+                            asyncio.to_thread(inspect, cid)
+                            for cid in connectors[offset : offset + 4]
+                        )
+                    )
+                )
     except Exception:  # noqa: BLE001 - no credential/configuration internals in receipts
         # Preserve any completed checks; pending/failed lookups remain explicitly unknown.
-        checks.extend(unknown[len(checks):])
+        checks.extend(unknown[len(checks) :])
     if any(item["state"] != "configured" for item in checks):
         raise RolePreparationError(agent_id, connectors, checks)

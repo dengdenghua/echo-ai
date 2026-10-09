@@ -20,18 +20,24 @@ import { useI18n } from "@/core/i18n/hooks";
 
 const DESKTOP_ORGANIZER_ENABLED_KEY = "echo:desktop-organizer-enabled";
 
-export default function DesktopOrganizerPage({
-  embedded = false,
-}: {
-  embedded?: boolean;
-}) {
+export default function DesktopOrganizerPage({ embedded = false }: { embedded?: boolean }) {
+  if (embedded) return <DesktopOrganizerSurface />;
+  return (
+    <WorkspaceContainer>
+      <WorkspaceBody>
+        <DesktopOrganizerSurface />
+      </WorkspaceBody>
+    </WorkspaceContainer>
+  );
+}
+
+export function DesktopOrganizerSurface({ embedded = true }: { embedded?: boolean }) {
   const { t } = useI18n();
   const { confirm, confirmDialog } = useConfirmDialog();
   const [enabled, setEnabled] = useState(false);
   const [busy, setBusy] = useState<"install" | "remove" | null>(null);
   const [contextMenuMessage, setContextMenuMessage] = useState("");
-  const isElectron =
-    typeof window !== "undefined" && !!window.echo?.isElectron;
+  const isElectron = typeof window !== "undefined" && !!window.echo?.isElectron;
 
   useEffect(() => {
     try {
@@ -85,8 +91,7 @@ export default function DesktopOrganizerPage({
   };
 
   return (
-    <WorkspaceContainer className={embedded ? "!h-auto !p-0" : undefined}>
-      <WorkspaceBody className={embedded ? "overflow-visible pt-0" : undefined}>
+    <>
         <div className="mx-auto flex w-full max-w-5xl flex-col gap-4 py-2">
           <section className="workspace-panel flex flex-col gap-5 p-4 md:p-6">
             <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
@@ -202,9 +207,8 @@ export default function DesktopOrganizerPage({
             </div>
           </section>
         </div>
-      </WorkspaceBody>
       {confirmDialog}
-    </WorkspaceContainer>
+    </>
   );
 }
 

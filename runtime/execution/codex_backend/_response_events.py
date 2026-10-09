@@ -5,7 +5,7 @@ from collections.abc import Mapping
 from typing import Any, cast
 
 
-def _responses_sse(response: Mapping[str, Any]) -> bytes:
+def _response_frames(response: Mapping[str, Any]) -> list[tuple[str, dict[str, Any]]]:
     created = dict(response)
     created["status"] = "in_progress"
     created["output"] = []
@@ -76,7 +76,100 @@ def _responses_sse(response: Mapping[str, Any]) -> bytes:
             },
         )
     )
+    return frames
+
+
+def _responses_sse(response: Mapping[str, Any]) -> bytes:
     return b"".join(
         f"event: {event}\ndata: {json.dumps(data, ensure_ascii=False, separators=(',', ':'))}\n\n".encode()
-        for event, data in frames
+        for event, data in _response_frames(response)
     )
+
+
+class ResponsesTextStream:
+    """Emit text immediately; finalize validated tools and usage exactly once."""
+
+    def __init__(self, response: dict[str, Any]) -> None:
+        self.response = {**response, "status": "in_progress", "output": []}
+        self.sequence = 0
+        self.text = ""
+        self.item_id = response["id"].replace("resp_", "msg_", 1)
+
+    def emit(self, kind: str, **payload: Any) -> bytes:
+        data = {"type": kind, "sequence_number": self.sequence, **payload}
+        self.sequence += 1
+        return f"event: {kind}\ndata: {json.dumps(data, ensure_ascii=False, separators=(',', ':'))}\n\n".encode()
+
+    def start(self) -> bytes:
+        return self.emit("response.created", response=self.response)
+
+    def delta(self, text: str) -> bytes:
+        if not text:
+            return b""
+        frames = b""
+        if not self.text:
+            # The final message phase depends on whether tools are returned.
+            # Omit it until finalization rather than guessing final_answer.
+            frames += self.emit(
+                "response.output_item.added",
+                output_index=0,
+                item={
+                    "id": self.item_id,
+                    "type": "message",
+                    "status": "in_progress",
+                    "role": "assistant",
+                    "content": [],
+                },
+            )
+            frames += self.emit(
+                "response.content_part.added",
+                output_index=0,
+                item_id=self.item_id,
+                content_index=0,
+                part={"type": "output_text", "text": "", "annotations": []},
+            )
+        self.text += text
+        return frames + self.emit(
+            "response.output_text.delta",
+            output_index=0,
+            item_id=self.item_id,
+            content_index=0,
+            delta=text,
+        )
+
+    def finish(self, response: dict[str, Any]) -> bytes:
+        response["id"] = self.response["id"]
+        response["created_at"] = self.response["created_at"]
+        frames = b""
+        if self.text:
+            output = response["output"]
+            if not output or output[0]["type"] != "message":
+                raise ValueError("streamed text missing from final response")
+            text = output[0]["content"][0]["text"]
+            if not text.startswith(self.text):
+                raise ValueError("streamed text differs from final response")
+            frames += self.delta(text[len(self.text) :])
+            output[0]["id"] = self.item_id
+        for kind, payload in _response_frames(response):
+            if kind == "response.created":
+                continue
+            if (
+                self.text
+                and payload.get("output_index") == 0
+                and kind
+                in {
+                    "response.output_item.added",
+                    "response.content_part.added",
+                    "response.output_text.delta",
+                }
+            ):
+                continue
+            frames += self.emit(
+                kind,
+                **{
+                    key: value
+                    for key, value in payload.items()
+                    if key not in {"type", "sequence_number"}
+                },
+            )
+        return frames

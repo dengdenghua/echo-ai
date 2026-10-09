@@ -972,3 +972,53 @@ async def test_validate_catalog_model_gives_up_when_catalog_never_loads(monkeypa
     ) as client:
         with pytest.raises(OpenCodeError, match="尚未就绪"):
             await validate_catalog_model(client, "union-alpha")
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("status", [401, 403, 500, 404])
+async def test_missing_session_recovery_requires_history_and_only_handles_404(tmp_path, status):
+    mapping = tmp_path / "session.json"
+    original = json.dumps({"session_id": "ses_original"})
+    mapping.write_text(original, encoding="utf-8")
+    posted = []
+
+    def handle(request):
+        if request.method == "POST":
+            posted.append(request.url.path)
+            return httpx.Response(200, json={"id": "ses_recovered"})
+        return httpx.Response(status)
+
+    async with httpx.AsyncClient(
+        transport=httpx.MockTransport(handle), base_url="http://localhost"
+    ) as client:
+        with pytest.raises(OpenCodeError):
+            await session_for_thread(client, tmp_path)
+        assert mapping.read_text(encoding="utf-8") == original
+        assert posted == []
+        if status == 404:
+            assert (
+                await session_for_thread(client, tmp_path, recover_missing=True) == "ses_recovered"
+            )
+            assert posted == ["/session"]
+            assert json.loads(mapping.read_text(encoding="utf-8"))["session_id"] == "ses_recovered"
+        else:
+            with pytest.raises(OpenCodeError):
+                await session_for_thread(client, tmp_path, recover_missing=True)
+            assert posted == []
+            assert mapping.read_text(encoding="utf-8") == original
+
+
+@pytest.mark.asyncio
+async def test_recovery_keeps_original_coordinate_when_session_creation_fails(tmp_path):
+    mapping = tmp_path / "session.json"
+    original = json.dumps({"session_id": "ses_original"})
+    mapping.write_text(original, encoding="utf-8")
+    async with httpx.AsyncClient(
+        transport=httpx.MockTransport(
+            lambda request: httpx.Response(404 if request.method == "GET" else 503)
+        ),
+        base_url="http://localhost",
+    ) as client:
+        with pytest.raises(httpx.HTTPStatusError):
+            await session_for_thread(client, tmp_path, recover_missing=True)
+    assert mapping.read_text(encoding="utf-8") == original

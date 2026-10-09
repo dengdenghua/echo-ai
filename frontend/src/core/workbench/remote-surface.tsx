@@ -16,7 +16,11 @@ import {
   setRuntimePluginEnabled,
 } from "@/core/agents/agent-world-api";
 import { authHeaders } from "@/core/auth/api";
-import { getBackendBaseURL } from "@/core/config";
+import { getBackendBaseURL, getLocalBackendBaseURL } from "@/core/config";
+import {
+  getRemoteExecutionId,
+  REMOTE_EXECUTION_PARAM,
+} from "@/core/execution-location";
 
 import type { WorkbenchBuiltinApp } from "./apps";
 
@@ -137,6 +141,10 @@ export async function fetchRemoteWorkbenchManifest(
     manifest.id !== packageId ||
     manifest.isolation !== "iframe" ||
     !manifest.entry_url ||
+    typeof manifest.entry_url !== "string" ||
+    !manifest.entry_url.startsWith(
+      `/api/workbench-packages/${encodeURIComponent(packageId)}/assets/`,
+    ) ||
     !Array.isArray(manifest.permissions)
   ) {
     throw new RemoteWorkbenchLoadError(
@@ -428,9 +436,13 @@ export function RemoteWorkbenchSurface({
   const src = useMemo(() => {
     if (!manifest) return "";
     const entry = new URL(
-      manifest.entry_url,
-      getBackendBaseURL() || window.location.origin,
+      `${getBackendBaseURL()}${manifest.entry_url}`,
+      window.location.origin,
     );
+    const remoteId = getRemoteExecutionId();
+    if (remoteId) entry.searchParams.set(REMOTE_EXECUTION_PARAM, remoteId);
+    const gateway = getLocalBackendBaseURL();
+    if (gateway) entry.searchParams.set("echoBackend", gateway);
     entry.searchParams.set("echo_host_path", entryHostPath);
     entry.searchParams.set("echo_host_origin", window.location.origin);
     return entry.toString();

@@ -1,5 +1,4 @@
 import {
-  ArrowLeftIcon,
   BotIcon,
   CheckCircle2Icon,
   ChevronDownIcon,
@@ -7,7 +6,6 @@ import {
   BrainCircuitIcon,
   FilePlus2Icon,
   FileTextIcon,
-  GitBranchIcon,
   GlobeIcon,
   InfoIcon,
   Loader2Icon,
@@ -42,7 +40,6 @@ import {
   type AgentWorkbenchTabId,
   statusIcon,
   agentEventGroupId,
-  DIFF_TAB_LABEL,
   roleDescription,
   subagentAvatarSrc,
 } from "./agent-workbench-utils";
@@ -1998,88 +1995,4 @@ export function friendlyRoleName(role: string | undefined | null): string {
   return map[lower] ?? value.replace(/[_-]+/g, " ");
 }
 
-export function DiffText({ text }: { text: string }) {
-  const lines = text.split(/\r?\n/);
-  return (
-    <pre className="max-h-[22rem] overflow-auto whitespace-pre-wrap break-words px-3 py-2.5 font-mono text-xs leading-5 text-foreground/80">
-      {lines.map((line, index) => (
-        <span
-          key={`${index}-${line}`}
-          className={cn(
-            "block min-h-5",
-            line.startsWith("+") &&
-              !line.startsWith("+++") &&
-              "bg-success/10 text-success",
-            line.startsWith("-") &&
-              !line.startsWith("---") &&
-              "bg-destructive/10 text-destructive",
-            (line.startsWith("@@") ||
-              line.startsWith("diff --git") ||
-              line.startsWith("+++") ||
-              line.startsWith("---")) &&
-              "text-muted-foreground",
-          )}
-        >
-          {line || " "}
-        </span>
-      ))}
-    </pre>
-  );
-}
-
-export function AgentDiffPage({
-  entries,
-  onBackToSummary,
-}: {
-  entries: DiffEntry[];
-  onBackToSummary?: () => void;
-}) {
-  const { t } = useI18n();
-  if (entries.length === 0) {
-    return (
-      <WorkbenchEmptyPage
-        title={DIFF_TAB_LABEL}
-        description={t.agentWorkbenchPages.noDiffEntriesDescription}
-      />
-    );
-  }
-  return (
-    <div className="flex min-h-0 flex-1 flex-col overflow-y-auto bg-background/70 p-3">
-      <div className="mx-auto w-full max-w-2xl space-y-3">
-        {onBackToSummary && (
-          <div className="flex items-center gap-2">
-            <button
-              type="button"
-              onClick={onBackToSummary}
-              className="inline-flex items-center gap-1.5 rounded-md px-2 py-1 text-xs font-medium text-muted-foreground transition-colors hover:bg-muted/60 hover:text-foreground"
-            >
-              <ArrowLeftIcon className="size-3.5" />
-              {t.agentWorkbenchPages.dashboardOverview}
-            </button>
-            <span className="min-w-0 truncate text-xs text-muted-foreground">
-              {DIFF_TAB_LABEL}
-            </span>
-          </div>
-        )}
-        {entries.map((entry) => (
-          <section
-            key={entry.id}
-            className="overflow-hidden rounded-lg border border-border-default bg-background/85 shadow-[var(--shadow-xs)]"
-          >
-            <div className="flex items-center gap-2 border-b border-border-subtle px-3 py-2">
-              <StatusGlyph status={entry.status} />
-              <GitBranchIcon className="size-4 shrink-0 text-muted-foreground" />
-              <span
-                className="min-w-0 flex-1 truncate text-xs font-semibold text-foreground"
-                title={entry.path}
-              >
-                {basename(entry.title || entry.path)}
-              </span>
-            </div>
-            <DiffText text={entry.text} />
-          </section>
-        ))}
-      </div>
-    </div>
-  );
-}
+export { AgentDiffPage, DiffText } from "./agent-diff-review";

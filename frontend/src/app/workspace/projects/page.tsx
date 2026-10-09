@@ -41,6 +41,7 @@ import {
   RefreshCwIcon,
   RotateCcwIcon,
   TimerIcon,
+  Trash2Icon,
   UserRoundIcon,
   UsersIcon,
 } from "lucide-react";
@@ -58,8 +59,10 @@ import {
 } from "@/components/workspace/workspace-container";
 import { useI18n } from "@/core/i18n/hooks";
 import { CreateProjectDialog } from "@/components/workspace/create-project-dialog";
+import { useConfirmDialog } from "@/components/ui/confirm-dialog";
 import {
   type Project,
+  useDeleteProject,
   useEnsureProjectHome,
   usePortfolio,
 } from "@/core/projects/hooks";
@@ -385,6 +388,8 @@ export default function ProjectsPage() {
   const { t } = useI18n();
   const navigate = useNavigate();
   const ensureProjectHome = useEnsureProjectHome();
+  const deleteProjectMutation = useDeleteProject();
+  const { confirm, confirmDialog } = useConfirmDialog();
   const [searchParams] = useSearchParams();
   const [selectedId, setSelectedId] = useState<string | null>(searchParams.get("project"));
   useEffect(() => {
@@ -525,6 +530,31 @@ export default function ProjectsPage() {
         }),
       onError: () => toast.error("项目工作群打开失败，请重试"),
     });
+  };
+
+  const handleDeleteProject = async (project: Project) => {
+    const ok = await confirm({
+      title: "删除项目",
+      description: `确定要移除项目「${project.name || project.id}」吗？相关数据与看板记录将被清理。`,
+      confirmLabel: "删除",
+      cancelLabel: "取消",
+      destructive: true,
+    });
+    if (!ok) return;
+
+    try {
+      await deleteProjectMutation.mutateAsync(project.id);
+      toast.success(`项目「${project.name || project.id}」已成功移除`);
+      const nextProjects = projects.filter((p) => p.id !== project.id);
+      if (nextProjects.length > 0) {
+        setSelectedId(nextProjects[0]!.id);
+      } else {
+        setSelectedId(null);
+      }
+      refresh();
+    } catch {
+      toast.error("删除项目失败，请重试");
+    }
   };
 
   return (
@@ -730,6 +760,16 @@ export default function ProjectsPage() {
                               >
                                 <MessageSquareIcon className="size-3.5" />
                                 进入项目群
+                              </Button>
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                className="gap-1.5 text-xs text-destructive hover:bg-destructive/10 hover:text-destructive border-destructive/30"
+                                disabled={deleteProjectMutation.isPending}
+                                onClick={() => handleDeleteProject(detail.project)}
+                              >
+                                <Trash2Icon className="size-3.5" />
+                                删除项目
                               </Button>
                               {detail.action_specs.map((spec) => (
                                 <Button
@@ -1179,6 +1219,7 @@ export default function ProjectsPage() {
           )}
         </div>
         <CreateProjectDialog open={createOpen} onOpenChange={setCreateOpen} />
+        {confirmDialog}
       </WorkspaceBody>
     </WorkspaceContainer>
   );

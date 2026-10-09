@@ -28,6 +28,84 @@ __all__ = [
 ]
 
 
+_LOCKED_DIR_PARAMS = ("cwd", "root")
+_LOCKED_PATH_PARAMS = ("path", "file_path", "filepath")
+
+
+def _confine_args_to_locked_root(
+    call_input: dict[str, Any],
+    params: Any,
+    locked: Any,
+) -> str | None:
+    """Pin a locked-worktree call's directory/path arguments to ``locked``.
+
+    Mutates ``call_input`` in place (the call model is frozen, its input dict
+    is not). Returns an escape description when a model-supplied ``cwd`` /
+    ``root`` / path resolves outside the locked root, else ``None``.
+
+    * ``sandbox_dir`` is ALWAYS the locked root — a model-supplied value is
+      overwritten, never trusted (it is the confinement boundary itself).
+    * ``cwd`` / ``root`` default to the locked root; relative values resolve
+      under it; absolute values must stay inside it.
+    * absolute path params must stay inside the locked root; relative ones are
+      anchored to it when the handler has no ``sandbox_dir`` to resolve them.
+    """
+    from pathlib import Path
+
+    locked_text = str(locked)
+    locked_root = Path(locked_text).expanduser()
+    try:
+        locked_resolved = locked_root.resolve(strict=False)
+    except OSError:
+        locked_resolved = locked_root
+
+    def _anchor(value: Any) -> Path:
+        candidate = Path(str(value)).expanduser()
+        if not candidate.is_absolute():
+            candidate = locked_root / candidate
+        return candidate
+
+    def _inside(candidate: Path) -> bool:
+        try:
+            resolved = candidate.resolve(strict=False)
+        except OSError:
+            return False
+        try:
+            resolved.relative_to(locked_resolved)
+        except ValueError:
+            return False
+        return True
+
+    if "sandbox_dir" in params or "sandbox_dir" in call_input:
+        call_input["sandbox_dir"] = locked_text
+
+    for key in _LOCKED_DIR_PARAMS:
+        if key not in params and key not in call_input:
+            continue
+        supplied = call_input.get(key)
+        if supplied in (None, "", ".", "./"):
+            if key in params:
+                call_input[key] = locked_text
+            continue
+        anchored = _anchor(supplied)
+        if not _inside(anchored):
+            return f"{key}={supplied!r} escapes the locked worktree"
+        if not Path(str(supplied)).expanduser().is_absolute():
+            call_input[key] = str(anchored)
+
+    has_sandbox = "sandbox_dir" in params
+    for key in _LOCKED_PATH_PARAMS:
+        supplied = call_input.get(key)
+        if not isinstance(supplied, str) or not supplied.strip():
+            continue
+        anchored = _anchor(supplied)
+        if not _inside(anchored):
+            return f"{key}={supplied!r} escapes the locked worktree"
+        if not has_sandbox and not Path(supplied).expanduser().is_absolute():
+            call_input[key] = str(anchored)
+    return None
+
+
 def _ephemeral_write_confine_block(call: Any, skill: Any) -> str | None:
     """Scope a sub-agent's filesystem tools to a locked worktree.
 
@@ -35,8 +113,10 @@ def _ephemeral_write_confine_block(call: Any, skill: Any) -> str | None:
     would otherwise run with ``sandbox_dir=None`` (no confinement → it can write
     anywhere, verified live). When the Session pins ``_locked_write_root`` (set
     by ``call_subagent(workspace_path=...)``), we replicate the injector here:
-    inject the locked root as ``sandbox_dir`` so the skill's own ``check_path``
-    confines relative writes into the worktree and blocks escapes. A write skill
+    FORCE the locked root as ``sandbox_dir`` (a model-supplied value is
+    overwritten) so the skill's own ``check_path`` confines writes into the
+    worktree, and reject a ``cwd`` / ``root`` / absolute path that resolves
+    outside it (see ``_confine_args_to_locked_root``). A write skill
     that can't take a sandbox_dir is blocked (fail-closed) rather than allowed to
     escape. Shell/exec-class tools are blocked outright (audit F-02) — a cwd
     nudge is not a sandbox for a command interpreter. Returns a block message,
@@ -83,27 +163,27 @@ def _ephemeral_write_confine_block(call: Any, skill: Any) -> str | None:
     } or (
         path_payload and any(tok in name for tok in ("write", "edit", "patch", "create", "append"))
     )
-    if not (filesystem_affinity or filesystem_name):
-        # Logical state writers such as bb_write / todo_write are not file
-        # operations and must remain usable inside a locked worktree.
-        return None
     try:
         import inspect
 
         params = inspect.signature(skill.handler).parameters
     except (TypeError, ValueError):
         params = {}
+    # A handler that takes a directory base is scope-bearing whatever its
+    # affinity says — leaving it unconfined would let the model point it
+    # anywhere on disk from inside an isolated spawn.
+    scope_params = any(p in params for p in ("sandbox_dir", "cwd", "root"))
+    if not (filesystem_affinity or filesystem_name or scope_params):
+        # Logical state writers such as bb_write / todo_write are not file
+        # operations and must remain usable inside a locked worktree.
+        return None
     if isinstance(call_input, dict):
-        if "cwd" in params and not call_input.get("cwd"):
-            call_input["cwd"] = str(locked)
-        if "sandbox_dir" in params and not call_input.get("sandbox_dir"):
-            call_input["sandbox_dir"] = str(locked)
-        if "root" in params:
-            from pathlib import Path
-
-            root = str(call_input.get("root") or ".")
-            if not Path(root).is_absolute():
-                call_input["root"] = str(Path(str(locked)) / root)
+        escape = _confine_args_to_locked_root(call_input, params, locked)
+        if escape is not None:
+            return (
+                f"(blocked: '{getattr(call, 'name', '?')}' {escape} — this isolated "
+                f"spawn is locked to the worktree {locked}. Use a path inside it.)"
+            )
 
     is_write = any(tok in name for tok in ("write", "edit", "patch", "create", "append")) or any(
         a in ("write", "edit", "file-write") for a in affinity
@@ -175,6 +255,10 @@ def _execute_tool_in_subagent(
     # That made personal-workspace children search the entire repository even
     # though the parent had a precise artifact root.  Keep the direct dispatch,
     # but apply the same trusted cwd/sandbox injection before the safety gate.
+    # In worktree-locked mode ``_ephemeral_write_confine_block`` has already
+    # pinned sandbox_dir/cwd/root/path to the locked root (stricter than the
+    # session scope, which may not even contain the worktree), so the
+    # scope-based preparation is intentionally not re-run there.
     try:
         from runtime.platform.process.session import current_session
 
@@ -223,7 +307,9 @@ def _execute_tool_in_subagent(
     try:
         from runtime.execution.tool_engine.coordination_guard import invoke_coordinated
 
-        output = invoke_coordinated(skill, call.input, service=getattr(registry, "coordination", None))
+        output = invoke_coordinated(
+            skill, call.input, service=getattr(registry, "coordination", None)
+        )
     except TypeError as exc:
         return (f"(TypeError: {exc})", True)
     except Exception as exc:  # noqa: BLE001

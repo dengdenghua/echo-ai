@@ -58,6 +58,30 @@ def test_serve_refuses_network_bind_without_auth(tmp_path: Path, capsys) -> None
     assert "security error" in capsys.readouterr().err
 
 
+def test_serve_refuses_network_bind_with_passwordless_local_auth(tmp_path: Path, capsys) -> None:
+    from runtime.cli import run_serve
+
+    config = tmp_path / "config.yaml"
+    config.write_text(
+        "name: phase0a\nplanner:\n  type: static\n"
+        "local_auth:\n  enabled: true\n  allow_any_username: true\n"
+        "  jwt_secret: '0123456789abcdef0123456789ABCDEF!'\n",
+        encoding="utf-8",
+    )
+
+    assert (
+        run_serve(
+            config_path=config,
+            host="0.0.0.0",
+            port=8000,
+            learn_interval_s=0,
+            color=False,
+        )
+        == 2
+    )
+    assert "security error" in capsys.readouterr().err
+
+
 def test_media_router_requires_auth_when_enabled() -> None:
     app = FastAPI()
     app.include_router(

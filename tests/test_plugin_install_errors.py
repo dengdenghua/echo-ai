@@ -4,14 +4,19 @@ import pytest
 from runtime.platform.plugins.install_errors import installation_failure
 
 
-@pytest.mark.parametrize("upstream,code,retryable", [
-    (404, "PACKAGE_UNAVAILABLE", False),
-    (403, "PACKAGE_ACCESS_DENIED", False),
-    (503, "PACKAGE_SERVICE_UNAVAILABLE", True),
-])
+@pytest.mark.parametrize(
+    "upstream,code,retryable",
+    [
+        (404, "PACKAGE_UNAVAILABLE", False),
+        (403, "PACKAGE_ACCESS_DENIED", False),
+        (503, "PACKAGE_SERVICE_UNAVAILABLE", True),
+    ],
+)
 def test_upstream_failure_is_safe_and_actionable(upstream, code, retryable):
     request = httpx.Request("GET", "https://example.com/package?token=secret")
-    exc = httpx.HTTPStatusError("secret", request=request, response=httpx.Response(upstream, request=request))
+    exc = httpx.HTTPStatusError(
+        "secret", request=request, response=httpx.Response(upstream, request=request)
+    )
     _, detail = installation_failure(exc)
     assert detail["code"] == code
     assert detail["retryable"] is retryable

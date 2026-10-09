@@ -13,6 +13,10 @@ import time
 from typing import Any
 
 SCHEMA = """
+CREATE TABLE IF NOT EXISTS coordination_recruitment (
+ id TEXT PRIMARY KEY, thread_id TEXT NOT NULL, status TEXT NOT NULL,
+ payload TEXT NOT NULL, created_at REAL NOT NULL
+);
 CREATE TABLE IF NOT EXISTS coordination_tasks (
  id TEXT PRIMARY KEY, thread_id TEXT NOT NULL, member_id TEXT NOT NULL,
  actor_id TEXT NOT NULL, title TEXT NOT NULL, status TEXT NOT NULL,

@@ -2156,6 +2156,7 @@ describe("useRealtimeThread turn/start delivery anchoring", () => {
       params: Record<string, unknown>;
     }) => void;
     rejectTurnStart: (err: Error) => void;
+    resolveTurnStart: (value: unknown) => void;
     requests: Array<{ method: string; params: Record<string, unknown> }>;
   }
 
@@ -2178,8 +2179,9 @@ describe("useRealtimeThread turn/start delivery anchoring", () => {
         request: (method: string, params: Record<string, unknown>) => {
           handles.requests?.push({ method, params });
           if (method === "turn/start") {
-            return new Promise((_resolve, reject) => {
+            return new Promise((resolve, reject) => {
               handles.rejectTurnStart = reject;
+              handles.resolveTurnStart = resolve;
             });
           }
           return Promise.resolve({ thread: { id: "th" }, turns: [] });
@@ -2204,6 +2206,18 @@ describe("useRealtimeThread turn/start delivery anchoring", () => {
     );
     return outcome;
   }
+
+  it.each(["th", "other-thread"])("reconciles a replayed form receipt only for its own thread (%s)", async (threadId) => {
+    const { rendered, handles } = setupDelivery();
+    await waitFor(() => expect(rendered.result.current.state.resumeState).toBe("resumed"));
+    let pending!: Promise<void>;
+    act(() => { pending = rendered.result.current.startTurn({ input: "form reply", clientItemId: "ui-stable" }); });
+    await act(async () => {
+      handles.resolveTurnStart({ turn: { id: "existing-turn", threadId, status: "completed", startedAt: "2026-10-08T00:00:00Z", completedAt: "2026-10-08T00:00:01Z", error: null, items: [{ id: "ui-stable", type: "userMessage", status: "completed", createdAt: "2026-10-08T00:00:00Z", text: "form reply" }] } });
+      await pending;
+    });
+    expect(rendered.result.current.state.turns.flatMap((turn) => turn.items).filter((item) => item.id === "ui-stable")).toHaveLength(threadId === "th" ? 1 : 0);
+  });
 
   it.each(["auto", "echo", "codex"] as const)(
     "forwards the client item id and %s engine choice in turn/start",

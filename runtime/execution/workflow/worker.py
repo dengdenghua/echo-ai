@@ -6,9 +6,10 @@ Concurrency slots, per-run caps, cancellation and fatal-error propagation
 mirror the dsh runtime; the host force-terminates the process when a run
 crosses its bounds (sync-slice timeout, cancellation grace, disposal).
 
-Not a security boundary by itself — the host subprocess boundary is. The
-AST contract (``realm.validate_script``) keeps scripts inside the
-vocabulary; the process boundary contains everything else.
+The host launches a stdlib-only snapshot. Linux bubblewrap additionally
+isolates filesystem and network access; shared/production refuses to run
+without it. Local desktop compatibility is a restricted DSL, not an OS
+sandbox. Agent tools are always authorized by the host.
 """
 
 from __future__ import annotations

@@ -56,9 +56,13 @@ def test_native_role_session_keeps_role_and_parent_turn(with_parent, tmp_path):
     with session_scope(parent) if parent is not None else nullcontext():
         previous = current_session()
         with pytest.raises(RuntimeError, match="planner error"):
-            runner("inspect session", subagent_name="scout", context={
-                "runtime_session_metadata": {"workspace_path": str(tmp_path)},
-            })
+            runner(
+                "inspect session",
+                subagent_name="scout",
+                context={
+                    "runtime_session_metadata": {"workspace_path": str(tmp_path)},
+                },
+            )
         assert current_session() is previous
     assert captured["agent"] is role
     assert captured["turn_id"] == "parent-turn" if with_parent else bool(captured["turn_id"])

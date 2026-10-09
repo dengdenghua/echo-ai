@@ -13,7 +13,11 @@ def installation_failure(exc: Exception) -> tuple[int, dict[str, object]]:
         elif upstream in {401, 403}:
             code, status = "PACKAGE_ACCESS_DENIED", 409
         else:
-            code, status, retryable = "PACKAGE_SERVICE_UNAVAILABLE", 502, upstream >= 500 or upstream == 429
+            code, status, retryable = (
+                "PACKAGE_SERVICE_UNAVAILABLE",
+                502,
+                upstream >= 500 or upstream == 429,
+            )
     elif isinstance(exc, (httpx.RequestError, TimeoutError, ConnectionError)):
         code, status, retryable = "PACKAGE_SERVICE_UNAVAILABLE", 502, True
     elif isinstance(exc, KeyError) and "not found in content pack" in message:
@@ -23,7 +27,9 @@ def installation_failure(exc: Exception) -> tuple[int, dict[str, object]]:
     elif isinstance(exc, ValueError):
         if "第三方宿主" in message:
             code, status = "ECHO_ADAPTER_REQUIRED", 409
-        elif any(word in message for word in ("signature", "checksum", "signed package", "untrusted")):
+        elif any(
+            word in message for word in ("signature", "checksum", "signed package", "untrusted")
+        ):
             code, status = "PACKAGE_VERIFICATION_FAILED", 409
         elif "dependency" in message or "host_api" in message:
             code, status = "PACKAGE_INCOMPATIBLE", 409

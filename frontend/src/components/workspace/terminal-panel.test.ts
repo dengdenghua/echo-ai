@@ -15,3 +15,21 @@ describe("terminal shell label", () => {
     expect(__testing.terminalShellLabel("Linux x86_64")).toBe("shell");
   });
 });
+
+describe("terminal socket URL", () => {
+  it("carries only the cwd, never a credential", () => {
+    const url = __testing.terminalSocketURL(
+      "ws://127.0.0.1:8310",
+      "s1",
+      "/work dir",
+    );
+    expect(url).toBe("ws://127.0.0.1:8310/api/terminal/ws/s1?cwd=%2Fwork+dir");
+    expect(url).not.toContain("token");
+  });
+
+  it("omits the query string without a cwd", () => {
+    expect(__testing.terminalSocketURL("ws://127.0.0.1:8310", "s1")).toBe(
+      "ws://127.0.0.1:8310/api/terminal/ws/s1",
+    );
+  });
+});

@@ -43,21 +43,30 @@ function GovernancePanelLoading() {
   );
 }
 
+type GovernanceDetailSection = "summary" | "control" | "reflex" | "runtime";
+
+function normalizeDetailSection(value: string | null): GovernanceDetailSection {
+  return value === "control" || value === "reflex" || value === "runtime"
+    ? value
+    : "summary";
+}
+
 export function EvolutionGovernancePanel() {
   const queryClient = useQueryClient();
   const [searchParams, setSearchParams] = useSearchParams();
-  const detail = searchParams.get("detail");
-  const detailSection =
-    detail && ["control", "reflex", "runtime"].includes(detail)
-      ? detail
-      : "summary";
-  const setDetailSection = (value: string) =>
-    setSearchParams((current) => {
-      const params = new URLSearchParams(current);
-      if (value === "summary") params.delete("detail");
-      else params.set("detail", value);
-      return params;
-    }, { replace: true });
+  const detailSection = normalizeDetailSection(searchParams.get("detail"));
+  const changeDetailSection = (next: string) => {
+    const detail = normalizeDetailSection(next);
+    setSearchParams(
+      (current) => {
+        const params = new URLSearchParams(current);
+        if (detail === "summary") params.delete("detail");
+        else params.set("detail", detail);
+        return params;
+      },
+      { replace: true },
+    );
+  };
   const shadow = useQuery({
     queryKey: shadowQueryKey,
     queryFn: getDualHelixShadowStatus,
@@ -148,7 +157,11 @@ export function EvolutionGovernancePanel() {
           <div className="mt-3 space-y-2 text-xs text-muted-foreground">
             <div className="flex justify-between">
               <span>影子执行</span>
-              <span>{shadow.data?.automatic_enabled ? "风险触发 + 手动" : "手动触发"}</span>
+              <span>
+                {shadow.data?.automatic_enabled
+                  ? "风险触发 + 手动"
+                  : "手动触发"}
+              </span>
             </div>
             <div className="flex justify-between">
               <span>工作区权限</span>
@@ -164,7 +177,7 @@ export function EvolutionGovernancePanel() {
 
       <Tabs
         value={detailSection}
-        onValueChange={setDetailSection}
+        onValueChange={changeDetailSection}
         className="space-y-3"
       >
         <TabsList className="h-9 max-w-full min-w-max rounded-lg">
@@ -221,7 +234,7 @@ export function EvolutionGovernancePanel() {
               <button
                 key={value}
                 type="button"
-                onClick={() => setDetailSection(value)}
+                onClick={() => changeDetailSection(value)}
                 className="group flex h-auto items-start justify-start rounded-xl border bg-card p-4 text-left transition-colors hover:bg-muted/30"
               >
                 <span className="grid size-9 shrink-0 place-items-center rounded-lg bg-muted text-muted-foreground">

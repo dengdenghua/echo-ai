@@ -80,9 +80,41 @@ def _ensure_path(path: str | Path, sandbox_dir: str | None = None) -> tuple[Path
     return Path(verdict.resolved) if verdict.resolved else Path(path), None
 
 
-def _safe_output_dir(path: str | None, default_name: str) -> Path:
+def _checked_write_target(path: str | Path, sandbox_dir: str | None = None) -> Path:
+    """Validate a model-supplied write destination (file or directory).
+
+    Runs the same two guards the executor applies to write tools:
+    ``path_guard.check_path`` (sandbox confinement when a ``sandbox_dir`` is
+    bound — the executor injects the session's write scope — plus the
+    sensitive-path floor) and the credential-file write denylist
+    (``.bashrc`` / ``.env`` / ``~/.ssh`` …). Raises ``PermissionError``.
+    Absolute inputs are returned as given (the verdict already checked their
+    resolved form); relative ones are anchored where the guard resolved them.
+    """
+    from runtime.safety.auth import check_file_write
+    from runtime.safety.auth.path_guard import check_path
+
+    raw = str(path)
+    verdict = check_path(raw, sandbox_dir=sandbox_dir, allow_sensitive=False)
+    if not verdict.allow:
+        raise PermissionError(f"path_blocked: {verdict.reason}")
+    target = Path(raw).expanduser()
+    if not target.is_absolute() and verdict.resolved:
+        target = Path(verdict.resolved)
+    write_verdict = check_file_write(verdict.resolved or target)
+    if not write_verdict.allow:
+        raise PermissionError(f"path_blocked: {write_verdict.reason}")
+    return target
+
+
+def _safe_output_dir(
+    path: str | None,
+    default_name: str,
+    *,
+    sandbox_dir: str | None = None,
+) -> Path:
     if path:
-        return Path(path)
+        return _checked_write_target(path, sandbox_dir)
     from runtime.platform.process.paths import app_paths
 
     return app_paths().data_dir / default_name
@@ -213,12 +245,20 @@ def _compact_media_result(result: dict[str, Any], *, provider: str) -> dict[str,
     return compact
 
 
-def _media_output_path(kind: str, suffix: str, output_path: str = "") -> Path:
+def _media_output_path(
+    kind: str,
+    suffix: str,
+    output_path: str = "",
+    sandbox_dir: str | None = None,
+) -> Path:
     if output_path:
-        return Path(output_path)
+        return _checked_write_target(output_path, sandbox_dir)
     root = _safe_output_dir(None, "generated_media") / kind
     root.mkdir(parents=True, exist_ok=True)
-    return root / f"{kind}-{int(time.time() * 1000)}.{suffix.lstrip('.')}"
+    # ``suffix`` can be model-supplied (generate_speech ``format``); keep it a
+    # bare extension so it cannot smuggle separators / ``..`` into the name.
+    safe_suffix = re.sub(r"[^A-Za-z0-9]", "", suffix)[:12] or "bin"
+    return root / f"{kind}-{int(time.time() * 1000)}.{safe_suffix}"
 
 
 def _generate_image(
@@ -230,12 +270,20 @@ def _generate_image(
     image: str | list[str] | None = None,
     provider: str = "",
     output_path: str = "",
+    sandbox_dir: str | None = None,
     **_: Any,
 ) -> dict[str, Any]:
     if not prompt.strip():
         return {"error": "missing prompt"}
     if not HTTPX_AVAILABLE:
         return {"error": "httpx not installed"}
+    # Validate a caller-chosen destination before spending a provider call.
+    out_target: Path | None = None
+    if output_path:
+        try:
+            out_target = _media_output_path("image", "png", output_path, sandbox_dir)
+        except PermissionError as exc:
+            return {"ok": False, "error": str(exc)}
     from . import media_gateway
 
     if media_gateway.selected():
@@ -303,7 +351,7 @@ def _generate_image(
         return {"error": f"generate_image_error: {type(exc).__name__}: {exc}"}
     item = ((data.get("data") or [{}])[0]) if isinstance(data, dict) else {}
     if item.get("b64_json"):
-        out = _media_output_path("image", "png", output_path)
+        out = out_target or _media_output_path("image", "png")
         out.parent.mkdir(parents=True, exist_ok=True)
         out.write_bytes(base64.b64decode(item["b64_json"]))
         return {"ok": True, "model": image_model, "path": str(out), "size": size}
@@ -334,8 +382,14 @@ def _generate_video(
 
     if media_gateway.selected():
         return media_gateway.generate(
-            "video", prompt, model=model, task_id=task_id,
-            width=width, height=height, seconds=seconds, image=image,
+            "video",
+            prompt,
+            model=model,
+            task_id=task_id,
+            width=width,
+            height=height,
+            seconds=seconds,
+            image=image,
         )
     if not _bundled_media_configured():
         return _provider_missing(
@@ -391,12 +445,20 @@ def _generate_speech(
     model: str | None = None,
     format: str = "mp3",  # noqa: A002
     output_path: str = "",
+    sandbox_dir: str | None = None,
     **_: Any,
 ) -> dict[str, Any]:
     if not text.strip():
         return {"error": "missing text"}
     if not HTTPX_AVAILABLE:
         return {"error": "httpx not installed"}
+    # Validate a caller-chosen destination before spending a provider call.
+    out_target: Path | None = None
+    if output_path:
+        try:
+            out_target = _media_output_path("speech", format, output_path, sandbox_dir)
+        except PermissionError as exc:
+            return {"ok": False, "error": str(exc)}
     base_url, api_key = _openai_media_config()
     if not api_key:
         return _provider_missing(
@@ -420,7 +482,7 @@ def _generate_speech(
             audio = r.content
     except Exception as exc:  # noqa: BLE001
         return {"error": f"generate_speech_error: {type(exc).__name__}: {exc}"}
-    out = _media_output_path("speech", format, output_path)
+    out = out_target or _media_output_path("speech", format)
     out.parent.mkdir(parents=True, exist_ok=True)
     out.write_bytes(audio)
     return {"ok": True, "model": tts_model, "voice": voice, "path": str(out), "bytes": len(audio)}
@@ -636,6 +698,37 @@ def _screenshot_web_full_page(
     )
 
 
+def _copytree_without_symlinks(src: Path, dest: Path, *ignore_names: str) -> list[str]:
+    """``shutil.copytree`` that never follows (or copies) symbolic links.
+
+    ``copytree`` dereferences symlinks by default, so a link inside a
+    project (``leak -> ~/.ssh/id_rsa``) would copy the target's bytes into
+    the servable deployments / snapshot area. Symlinks (and Windows
+    junctions) are skipped outright; ``symlinks=True`` is a second guard.
+    Returns the skipped entries relative to ``src``.
+    """
+    skipped: list[str] = []
+    name_filter = shutil.ignore_patterns(*ignore_names) if ignore_names else None
+
+    def _ignore(directory: str, names: list[str]) -> set[str]:
+        ignored = set(name_filter(directory, names)) if name_filter else set()
+        for name in names:
+            if name in ignored:
+                continue
+            entry = Path(directory) / name
+            is_junction = getattr(entry, "is_junction", None)
+            if entry.is_symlink() or (callable(is_junction) and is_junction()):
+                ignored.add(name)
+                try:
+                    skipped.append(str(entry.relative_to(src)))
+                except ValueError:
+                    skipped.append(str(entry))
+        return ignored
+
+    shutil.copytree(src, dest, symlinks=True, ignore=_ignore)
+    return skipped
+
+
 def _version_root(project_dir: str | Path) -> Path:
     digest = hashlib.sha1(
         str(Path(project_dir).resolve()).encode("utf-8"), usedforsecurity=False
@@ -682,8 +775,9 @@ def _website_version_manager(
             + hashlib.sha1(os.urandom(8), usedforsecurity=False).hexdigest()[:6]
         )
         dest = root / vid
-        ignore = shutil.ignore_patterns("node_modules", ".git", "dist", "build", ".next", ".vite")
-        shutil.copytree(project, dest, ignore=ignore)
+        _copytree_without_symlinks(
+            project, dest, "node_modules", ".git", "dist", "build", ".next", ".vite"
+        )
         record = {"id": vid, "label": label or vid, "created_at": time.time(), "path": str(dest)}
         manifest.setdefault("versions", []).insert(0, record)
         manifest_path.write_text(
@@ -704,9 +798,11 @@ def _website_version_manager(
             else:
                 child.unlink()
         for child in src.iterdir():
+            if child.is_symlink():
+                continue
             dest = project / child.name
             if child.is_dir():
-                shutil.copytree(child, dest)
+                _copytree_without_symlinks(child, dest)
             else:
                 shutil.copy2(child, dest)
         return {"ok": True, "restored": version_id, "project_dir": str(project)}
@@ -751,8 +847,9 @@ def _deploy_website(
 
     root = app_paths().data_dir / "deployments"
     dest = root / deploy_id
-    ignore = shutil.ignore_patterns("node_modules", ".git", ".next", ".vite", "__pycache__")
-    shutil.copytree(source, dest, ignore=ignore)
+    skipped_links = _copytree_without_symlinks(
+        source, dest, "node_modules", ".git", ".next", ".vite", "__pycache__"
+    )
 
     manifest_path = root / "manifest.json"
     try:
@@ -776,7 +873,11 @@ def _deploy_website(
     manifest.setdefault("deployments", []).insert(0, record)
     root.mkdir(parents=True, exist_ok=True)
     manifest_path.write_text(json.dumps(manifest, ensure_ascii=False, indent=2), encoding="utf-8")
-    return {"ok": True, "deployment": record}
+    return {
+        "ok": True,
+        "deployment": record,
+        **({"skipped_symlinks": skipped_links} if skipped_links else {}),
+    }
 
 
 def _load_image(path: str, sandbox_dir: str | None = None) -> tuple[Any, Path | None, str | None]:
@@ -873,7 +974,10 @@ def _crop_and_replicate_assets_in_image(
         if "error" in detected:
             return {"error": detected["error"], "assets": []}
         boxes = detected.get("boxes") or []
-    out_dir = _safe_output_dir(output_dir or None, "image_assets")
+    try:
+        out_dir = _safe_output_dir(output_dir or None, "image_assets", sandbox_dir=sandbox_dir)
+    except PermissionError as exc:
+        return {"error": str(exc), "assets": []}
     out_dir.mkdir(parents=True, exist_ok=True)
     assets = []
     for i, box in enumerate(boxes):
@@ -913,7 +1017,10 @@ def register_kimi_compat_skills(registry: SkillRegistry) -> int:
         (
             "generate_image",
             "Generate images through the server-configured media service. Echo gateway takes priority when configured. Optional model must be enabled on the server; do not invent endpoints or credentials.",
-            ["media", "image", "generate"],
+            # ``write``: may persist to a caller-chosen output_path, so the
+            # executor injects the write-scope sandbox_dir and applies the
+            # write-tool policy (plan mode, audit read-only, file safety).
+            ["media", "image", "generate", "write"],
             _generate_image,
             [
                 SkillTestCase(
@@ -941,7 +1048,7 @@ def register_kimi_compat_skills(registry: SkillRegistry) -> int:
         (
             "generate_speech",
             "Generate speech via a configured TTS provider.",
-            ["media", "audio", "speech"],
+            ["media", "audio", "speech", "write"],
             _generate_speech,
             [
                 SkillTestCase(

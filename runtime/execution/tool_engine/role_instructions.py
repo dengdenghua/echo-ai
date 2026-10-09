@@ -207,6 +207,10 @@ def compose_role_instructions(
             sections.append(f"<{label}>\n{value}\n</{label}>")
 
     if registry is not None:
+        if {"show_ui", "show_visual"}.intersection(registry.all_names()):
+            from runtime.core.cerebrum.react_prompt_contracts import VISUAL_EXPRESSION_CONTRACT
+
+            sections.append(VISUAL_EXPRESSION_CONTRACT)
         if "collaboration" in registry.all_names():
             from runtime.memory.cowork.coordination_service import GUIDANCE
 
@@ -227,7 +231,9 @@ def compose_role_instructions(
             sections.append(explicit)
 
     sections.append(
-        "<clarification-interaction>When missing user preferences or requirements prevent useful progress, "
+        "<clarification-interaction>For several related fields, prefer an advertised show_ui form after reading "
+        "visual_guidelines(module=ui), then await its reply; do not also emit a questionnaire for the same fields. "
+        "For brief missing preferences or requirements that prevent useful progress, "
         "use ask_user_question if advertised, with questions=[{title,options,multiple}] (1-3 questions). "
         "Ask only missing information; allow free text and uncertainty, and never invent answers. "
         "If the tool is unavailable, render the same questionnaire as a JSON fenced block with "

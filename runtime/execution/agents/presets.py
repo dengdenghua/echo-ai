@@ -81,5 +81,7 @@ def make_all_agent_presets(runtime: GraphRuntime) -> list[Agent]:
     ``desktop_operator`` IS part of the roster (first-class CUA persona).
     """
     return [
-        agent for agent in load_all_agents(runtime) if getattr(agent, "agent_id", None) not in {"admin", "leon"}
+        agent
+        for agent in load_all_agents(runtime)
+        if getattr(agent, "agent_id", None) not in {"admin", "leon"}
     ]

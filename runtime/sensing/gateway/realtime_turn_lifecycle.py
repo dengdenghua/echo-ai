@@ -663,6 +663,11 @@ async def _start_turn(
     )
 
     turn = Turn(thread_id=thread_id, params=validated)
+    from runtime.memory.cowork.delivery import apply_delivery_context, current_delivery
+
+    delivery = current_delivery()
+    if delivery is not None:
+        delivery["delivery"].bind_turn(delivery, turn.id)
     turn_created_at = time.perf_counter()
     # Every turn has an objective coordinate from its first emitted snapshot.
     # ReAct replaces this provisional id with its durable task id as soon as
@@ -783,7 +788,10 @@ async def _start_turn(
             from runtime.protocol import UserMessageItem
 
             attachments = _input_attachments(validated.input)
-            if validated.user_item_id is None:
+            if delivery is not None:
+                # This is a system continuation, never a fabricated human message.
+                attachments = []
+            elif validated.user_item_id is None:
                 user_item = UserMessageItem(text=text, attachments=attachments)
             else:
                 user_item = UserMessageItem(
@@ -791,17 +799,18 @@ async def _start_turn(
                     text=text,
                     attachments=attachments,
                 )
-            turn.items.append(user_item)
-            await runtime._emit_item_started(turn, log, emitter, user_item)
-            user_item.status = ItemStatus.COMPLETED
-            await runtime._emit_item_completed(turn, log, emitter, user_item)
+            if user_item is not None:
+                turn.items.append(user_item)
+                await runtime._emit_item_started(turn, log, emitter, user_item)
+                user_item.status = ItemStatus.COMPLETED
+                await runtime._emit_item_completed(turn, log, emitter, user_item)
             user_message_visible_at = time.perf_counter()
             _logger.info(
                 "realtime user message timing thread_id=%s turn_id=%s item_id=%s "
                 "turn_started_to_user_visible_ms=%.3f created_to_user_visible_ms=%.3f",
                 thread_id,
                 turn.id,
-                user_item.id,
+                user_item.id if user_item else "auto-delivery",
                 (user_message_visible_at - turn_started_visible_at) * 1000,
                 (user_message_visible_at - turn_created_at) * 1000,
             )
@@ -918,8 +927,10 @@ async def _start_turn(
             text=text,
             intent=intent,
         )
+        if delivery is not None:
+            apply_delivery_context(intent, delivery)
         if user_item is not None:
-            _persist_cowork_user_message(
+            room_message = _persist_cowork_user_message(
                 runtime,
                 thread_id=thread_id,
                 text=text,
@@ -927,6 +938,15 @@ async def _start_turn(
                 actor_id=getattr(emitter, "actor_id", None),
                 intent=intent,
             )
+            if room_message is not None:
+                from .collaboration_events import broadcast_thread_update
+
+                await broadcast_thread_update(
+                    getattr(runtime, "_team_rooms_router", None),
+                    room_id=str((intent.user_context or {}).get("cowork_room_id") or ""),
+                    thread_id=thread_id,
+                    reason="message",
+                )
         explicit_project_command = _is_project_os_command(text)
         _planned_team_pattern = (intent.user_context or {}).get("team_pattern")
         _planned_pattern_execution = (
@@ -1385,8 +1405,17 @@ async def _start_turn(
         # wrote a confident answer. Require server-observed delegation. Give
         # the coordinator one bounded repair round so an omitted tool call can
         # be corrected without making the user repeat the request.
+        coordination = getattr(runtime, "_cowork_coordination", None)
+        waiting_for_members = bool(
+            coordination is not None
+            and coordination.delivery.waiting_for_turn(thread_id, turn.id)
+        )
+        if waiting_for_members:
+            turn.outcome_reason = "completed_with_background"
+            log.turn_updated(thread_id, turn.id, outcome_reason=turn.outcome_reason)
         if (
             _team_pattern_execution == "orchestrated"
+            and not waiting_for_members
             # Project OS owns durable execution and acceptance evidence. Its
             # control response must not launch a second chat orchestration run.
             and not explicit_project_command

@@ -1,6 +1,7 @@
 import { useSyncExternalStore } from "react";
 
 export type WorkbenchBuiltinIcon =
+  | "mail"
   | "projects"
   | "trading"
   | "design"
@@ -28,6 +29,8 @@ export interface WorkbenchBuiltinApp {
 
 /** Native Echo pages that can also live in the browser desktop and Dock. */
 export const WORKBENCH_BUILTIN_APPS: readonly WorkbenchBuiltinApp[] = [
+  { id: "mail", moduleId: "mail", name: "邮箱", description: "统一收件箱、邮件总结与智能写作",
+    workspaceRoute: "/workspace/mail", launchUrl: "echo://workspace/mail", icon: "mail", delivery: "core" },
   {
     id: "projects",
     moduleId: "projects",

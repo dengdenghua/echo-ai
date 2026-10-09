@@ -42,7 +42,15 @@ class SharedExecutionRouter:
 
     def call_stream(self, request: Any) -> Any:
         router, selected = self._route(request)
-        yield from router.call_stream(selected)
+        stream = getattr(router, "call_stream", None)
+        if callable(stream):
+            yield from stream(selected)
+        else:
+            from runtime.platform.models.llm import ModelStreamEvent
+
+            # Older integrations implement only call(). Preserve their route
+            # and response contract without retrying a failed stream.
+            yield ModelStreamEvent(type="done", final=router.call(selected))
 
 
 def native_model_services(stack: Any) -> tuple[Any | None, str | None]:

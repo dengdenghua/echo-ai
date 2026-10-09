@@ -38,6 +38,7 @@ import { cn } from "@/lib/utils";
 import { useDebounce } from "@/hooks";
 import { useI18n } from "@/core/i18n/hooks";
 import { BROWSER_WORKSPACE_ROUTE } from "@/core/workspace/sidebar-routing";
+import { DESKTOP_ORGANIZER_ROUTE } from "@/core/workspace/utility-destinations";
 import {
   buildDesktopApps,
   desktopWindowURL,
@@ -454,10 +455,7 @@ export default function DesktopShellPage() {
         const folderName = t.desktop.categories[category];
         if (!folderName || !desktopPath) return;
         const destDir = desktopPath + "\\" + folderName;
-        const result = await window.echo.desktop.moveItem(
-          item.path,
-          destDir,
-        );
+        const result = await window.echo.desktop.moveItem(item.path, destDir);
         if (result.ok) {
           refreshDesktopItems();
           toast.success(t.desktop.toasts.fileArchived(item.name, folderName));
@@ -545,7 +543,7 @@ export default function DesktopShellPage() {
             </button>
             <button
               type="button"
-              onClick={() => navigate("/workspace/desktop-organizer")}
+              onClick={() => navigate(DESKTOP_ORGANIZER_ROUTE)}
               className="inline-flex h-10 items-center justify-center border border-border bg-background px-4 text-sm font-medium transition hover:bg-muted"
             >
               {t.desktop.pluginSettingsButton}

@@ -1000,3 +1000,92 @@ class TestEndToEnd:
         )
         assert step.success
         assert (tmp_path / "out.txt").read_text(encoding="utf-8") == "via-agent"
+
+
+# ── handler-reported file changes (P1-9 format ownership) ────────────
+
+
+def _file_changes(result: dict[str, object]) -> list[dict[str, str]]:
+    changes = result["file_changes"]
+    assert isinstance(changes, list) and changes, result
+    return changes  # type: ignore[return-value]
+
+
+def _op(result: dict[str, object]) -> str:
+    return str(_file_changes(result)[0]["op"])
+
+
+def _reported_path(result: dict[str, object]) -> Path:
+    return Path(str(_file_changes(result)[0]["path"])).resolve()
+
+
+def test_write_text_file_reports_create_then_update(tmp_path: Path):
+    target = tmp_path / "note.md"
+
+    created = _write_text_file(path=str(target), content="one\n", sandbox_dir=str(tmp_path))
+    assert created["verified"] is True
+    assert _op(created) == "create"
+    assert _reported_path(created) == target.resolve()
+
+    updated = _write_text_file(
+        path=str(target), content="two\n", sandbox_dir=str(tmp_path), overwrite=True
+    )
+    assert _op(updated) == "update"
+    assert _reported_path(updated) == target.resolve()
+
+
+def test_append_reports_create_then_update(tmp_path: Path):
+    target = tmp_path / "log.md"
+
+    assert (
+        _op(_append_text_file(path=str(target), content="a\n", sandbox_dir=str(tmp_path)))
+        == "create"
+    )
+    assert (
+        _op(_append_text_file(path=str(target), content="b\n", sandbox_dir=str(tmp_path)))
+        == "update"
+    )
+
+
+def test_every_edit_primitive_reports_an_update(tmp_path: Path):
+    target = tmp_path / "doc.md"
+    target.write_text("alpha beta\n", encoding="utf-8")
+
+    edited = _edit_text_file(
+        path=str(target), find="beta", replace="gamma", sandbox_dir=str(tmp_path)
+    )
+    assert _op(edited) == "update"
+
+    swapped = _edit_file(
+        path=str(target), old_string="gamma", new_string="delta", sandbox_dir=str(tmp_path)
+    )
+    assert _op(swapped) == "update"
+
+    multi = _multi_edit_file(
+        path=str(target),
+        edits=[{"old_string": "delta", "new_string": "epsilon"}],
+        sandbox_dir=str(tmp_path),
+    )
+    assert _op(multi) == "update"
+    assert all(_reported_path(r) == target.resolve() for r in (edited, swapped, multi))
+
+
+def test_failed_write_claims_no_file_change(tmp_path: Path):
+    target = tmp_path / "keep.md"
+    target.write_text("original\n", encoding="utf-8")
+
+    refused = _write_text_file(path=str(target), content="clobber\n", sandbox_dir=str(tmp_path))
+    assert "error" in refused
+    assert "file_changes" not in refused
+
+
+def test_unverified_write_claims_no_file_change(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
+    """A read-back mismatch must not be advertised as a completed change."""
+    target = tmp_path / "ghost.md"
+
+    monkeypatch.setattr(Path, "read_bytes", lambda self: b"something else")
+
+    result = _write_text_file(path=str(target), content="payload\n", sandbox_dir=str(tmp_path))
+
+    assert "verify_error" in result
+    assert "file_changes" not in result

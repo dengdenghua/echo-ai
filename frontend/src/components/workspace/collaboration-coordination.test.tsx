@@ -189,3 +189,40 @@ describe("group coordination", () => {
     expect(screen.queryByRole("button", { name: "取消任务" })).toBeNull();
   });
 });
+
+
+describe("staffing approval", () => {
+  const recruitment = [{ id: "gap-1", status: "pending", candidate_id: "optical",
+    reason: "现有成员缺少光学设计经验", prompt: "审核镜头设计", roster: ["builder"] }];
+  it.each([true, false])("waits for the user's explicit decision: %s", async (accept) => {
+    const fetch = vi.fn().mockImplementation((_url, opts) => Promise.resolve(new Response(JSON.stringify(
+      opts?.method === "POST" ? { status: accept ? "approved" : "rejected" }
+        : { ...initial, can_manage: true, recruitment }
+    ))));
+    vi.stubGlobal("fetch", fetch);
+    mount();
+    await screen.findByRole("dialog");
+    expect(screen.getByText("现有成员缺少光学设计经验")).toBeInTheDocument();
+    expect(fetch.mock.calls.filter(([, opts]) => opts?.method === "POST")).toHaveLength(0);
+    fireEvent.click(screen.getByRole("button", { name: accept ? "同意邀请并安排任务" : "不同意" }));
+    await waitFor(() => expect(fetch.mock.calls.filter(([, opts]) => opts?.method === "POST")).toHaveLength(1));
+    const [url, opts] = fetch.mock.calls.find(([, opts]) => opts?.method === "POST")!;
+    expect(url).toContain("/coordination/recruitment/gap-1");
+    expect(JSON.parse(opts.body)).toEqual({ accept });
+  });
+  it("does not offer approval to viewers", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockImplementation(() => Promise.resolve(new Response(JSON.stringify({
+      ...initial, can_manage: false, recruitment,
+    })))));
+    mount();
+    await screen.findByText(/1 项进行中/);
+    expect(screen.queryByRole("dialog")).toBeNull();
+  });
+  it("shows completed background deliveries after the leader has stopped", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response(JSON.stringify({
+      ...initial, tasks: [{ ...initial.tasks[0], background: true }], messages: [],
+    }))));
+    mount();
+    await screen.findByText("1 项已交付");
+  });
+});

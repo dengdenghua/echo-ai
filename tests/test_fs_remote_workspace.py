@@ -453,9 +453,8 @@ def test_write_same_holder_renews_lease(tmp_path: Path) -> None:
     assert backend.files["src/app.py"] == b"v2"
 
 
-def test_write_without_holder_id_skips_lease_check(tmp_path: Path) -> None:
-    """When no holder_id is supplied the lease check is skipped — back-compat
-    for callers that haven't adopted leases."""
+def test_write_without_holder_id_cannot_bypass_lease(tmp_path: Path) -> None:
+    """Omitting the holder must not overwrite a file reserved by another editor."""
     backend = _MockMountBackend()
     reg = _make_backend_registry(backend)
     store = WorkspaceStore(db_path=tmp_path / "ws.db")
@@ -478,7 +477,7 @@ def test_write_without_holder_id_skips_lease_check(tmp_path: Path) -> None:
         registry=reg,
     )
 
-    # Alice writes without holder_id — lease gate is skipped, write succeeds.
+    # Alice omits holder_id; Bob's reservation still blocks the write.
     r = client.post(
         "/api/fs/write",
         json={
@@ -487,13 +486,61 @@ def test_write_without_holder_id_skips_lease_check(tmp_path: Path) -> None:
             "user_id": "alice",
         },
     )
-    assert r.status_code == 200
-    assert backend.files["src/app.py"] == b"ignored-lease"
+    assert r.status_code == 409
+    assert "src/app.py" not in backend.files
 
 
 # ═══════════════════════════════════════════════════════════
 # Tree
 # ═══════════════════════════════════════════════════════════
+
+
+@pytest.mark.parametrize("operation", ["get_by_path", "acquire"])
+def test_lease_service_failure_prevents_backend_write(tmp_path, monkeypatch, operation):
+    backend = _MockMountBackend()
+    reg = _make_backend_registry(backend)
+    store = WorkspaceStore(db_path=tmp_path / "ws.db")
+    leases = LeaseStore(db_path=tmp_path / "leases.db")
+    _seed_workspace(store, workspace_id="ws-1")
+    reg._instances["ws-1"] = backend
+
+    def unavailable(*args, **kwargs):
+        raise OSError("lease database unavailable")
+
+    monkeypatch.setattr(leases, operation, unavailable)
+    client = _client(tmp_path=tmp_path, workspace_store=store, lease_store=leases, registry=reg)
+    result = client.post(
+        "/api/fs/write",
+        json={
+            "path": "ws-1:project.txt",
+            "content": "new",
+            "user_id": "alice",
+            "holder_id": "alice",
+        },
+    )
+    assert result.status_code == 503
+    assert backend.files == {}
+
+
+@pytest.mark.parametrize("endpoint", ["write", "revert", "revert-diff"])
+def test_http_writer_conflicts_with_tool_file_coordination(tmp_path, monkeypatch, endpoint):
+    from runtime.platform.io.file_coordination import coordinate_file_mutations
+
+    target = tmp_path / "project.txt"
+    target.write_text("original")
+    monkeypatch.setenv("ECHO_FS_ALLOWED_ROOTS", str(tmp_path))
+    client = _client(tmp_path=tmp_path)
+    with coordinate_file_mutations([target]):
+        result = client.post(
+            f"/api/fs/{endpoint}",
+            json={
+                "path": str(target),
+                "content": "replacement",
+                "diff": "unparsed diff",
+            },
+        )
+    assert result.status_code == 409
+    assert target.read_text() == "original"
 
 
 def test_tree_routes_through_backend_for_workspace_prefix(tmp_path: Path) -> None:

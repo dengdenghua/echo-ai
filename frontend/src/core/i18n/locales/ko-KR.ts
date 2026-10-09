@@ -430,6 +430,8 @@ export const koKR: Translations = {
     insertChromeSurface: "Chrome 마커 삽입",
     workflow: "워크플로",
     deepResearchConfig: "리서치 설정",
+    conversationOptions: "대화 옵션",
+    executionMethod: "실행 방식",
     roles: "하위 에이전트",
     materials: "자료",
     collapse: "접기",
@@ -1956,7 +1958,7 @@ export const koKR: Translations = {
     confirmDeleteProject: (project: string) =>
       `프로젝트 "${project}"의 스레드는 삭제되지 않고 분류만 해제됩니다.`,
     confirmDeleteProjectTitle: "프로젝트 삭제",
-    confirmDeleteThread: (title: string) => `채팅 "${title}"을(를) 삭제할까요?`,
+    confirmDeleteThread: (title: string) => `"${title}"을(를) 내 목록에서 숨길까요? 채팅, 프로젝트, 파일과 다른 멤버에게는 영향이 없으며 복원할 수 있습니다.`,
     tools: "도구",
     navigate: "탐색",
     backgroundTasks: "백그라운드 작업",
@@ -1993,6 +1995,7 @@ export const koKR: Translations = {
     navCommunity: "커뮤니티",
     navMcp: "MCP",
     navEvolution: "자기 진화",
+    navMail: "메일",
     navProjects: "프로젝트",
     navDesign: "디자인 캔버스",
     navNarrative: "스토리 공방",
@@ -2052,7 +2055,7 @@ export const koKR: Translations = {
     // Project + chat list actions
     deleteProjectTooltip: "프로젝트 삭제",
     deleteProjectFailed: "프로젝트 삭제에 실패했습니다. 다시 시도해 주세요.",
-    deleteThreadTooltip: "채팅 삭제",
+    deleteThreadTooltip: "내 목록에서 숨기기",
     actionSort: "정렬",
     actionNewProject: "프로젝트 폴더 선택",
     projectPickerFailed:
@@ -8661,7 +8664,7 @@ export const koKR: Translations = {
       "인간 협업자의 권한을 관리합니다; AI 멤버는 팀 설정에서 유지됩니다.",
     ownerDesc: "멤버, 초대, 작업 권한 관리",
     memberDesc: "AI 작업을 시작하고 협업에 참여할 수 있습니다",
-    viewerDesc: "진행 상황을 보고 메시지를 보낼 수 있습니다",
+    viewerDesc: "읽기 전용: 메시지와 진행 상황을 볼 수 있습니다",
     permissionsUpdated: "멤버 권한이 업데이트되었습니다",
     updatePermissionsFailed: "멤버 권한 업데이트 실패",
     memberRemoved: "멤버가 제거되었습니다",

@@ -1,0 +1,147 @@
+diff --git a/index.js b/index.js
+index 23384ea16bb848616886f356d8d69f94325535bf..21b0f5cf6fe624cfd077b80bcd53fe2b82e10568 100644
+--- a/index.js
++++ b/index.js
+@@ -50,18 +50,7 @@ class Extractor {
+           return
+         }
+ 
+-        const destDir = path.dirname(path.join(this.opts.dir, entry.fileName))
+-
+         try {
+-          await fs.mkdir(destDir, { recursive: true })
+-
+-          const canonicalDestDir = await fs.realpath(destDir)
+-          const relativeDestDir = path.relative(this.opts.dir, canonicalDestDir)
+-
+-          if (relativeDestDir.split(path.sep).includes('..')) {
+-            throw new Error(`Out of bound path "${canonicalDestDir}" found while processing file ${entry.fileName}`)
+-          }
+-
+           await this.extractEntry(entry)
+           debug('finished processing', entry.fileName)
+           this.zipfile.readEntry()
+@@ -74,6 +63,64 @@ class Extractor {
+     })
+   }
+ 
++  assertContained (dest) {
++    const relative = path.relative(this.opts.dir, dest)
++    if (path.isAbsolute(relative) || relative.split(path.sep).includes('..')) {
++      throw new Error(`Out of bound path "${dest}"`)
++    }
++  }
++
++  async checkExistingPath (dest) {
++    this.assertContained(dest)
++    try {
++      // lstat distinguishes a dangling symlink from a missing path. Never
++      // accept a dangling existing link whose eventual target is unknown.
++      await fs.lstat(dest)
++    } catch (err) {
++      if (err.code !== 'ENOENT') throw err
++      if (dest !== this.opts.dir) await this.checkExistingPath(path.dirname(dest))
++      return
++    }
++    this.assertContained(await fs.realpath(dest))
++  }
++
++  async ensureDirectory (dest, mode) {
++    this.assertContained(dest)
++    if (dest === this.opts.dir) return
++    await this.ensureDirectory(path.dirname(dest))
++    // Validate before mkdir, including the final component, to avoid creating
++    // directories through a link outside the extraction root.
++    await this.checkExistingPath(dest)
++    try {
++      await fs.mkdir(dest, { mode })
++    } catch (err) {
++      if (err.code !== 'EEXIST') throw err
++      if (!(await fs.stat(dest)).isDirectory()) throw err
++    }
++    await this.checkExistingPath(dest)
++  }
++
++  async checkLinkTarget (parent, link) {
++    // Resolve existing links before processing each '..'. Lexically resolving
++    // the full string first is unsafe when an earlier component is an alias
++    // to a shallower directory (including a link to the extraction root).
++    let current = await fs.realpath(parent)
++    for (const part of link.split('/')) {
++      if (!part || part === '.') continue
++      current = path.resolve(current, part)
++      this.assertContained(current)
++      let existing
++      try {
++        existing = await fs.lstat(current)
++      } catch (err) {
++        if (err.code !== 'ENOENT') throw err
++        continue
++      }
++      if (existing.isSymbolicLink()) current = await fs.realpath(current)
++      this.assertContained(current)
++    }
++  }
++
+   async extractEntry (entry) {
+     /* istanbul ignore if */
+     if (this.canceled) {
+@@ -85,7 +132,16 @@ class Extractor {
+       this.opts.onEntry(entry, this.zipfile)
+     }
+ 
+-    const dest = path.join(this.opts.dir, entry.fileName)
++    // Validate after onEntry, which may change fileName. Apply both platform
++    // conventions so a ZIP cannot become dangerous when moved to Windows.
++    const name = entry.fileName
++    if (typeof name !== 'string' || !name || /[\\\x00:]/.test(name) ||
++        path.posix.isAbsolute(name) || path.win32.isAbsolute(name) ||
++        name.split('/').includes('..')) {
++      throw new Error('Invalid archive entry path')
++    }
++    const dest = path.resolve(this.opts.dir, name)
++    this.assertContained(dest)
+ 
+     // convert external file attr int into a fs stat mode int
+     const mode = (entry.externalFileAttributes >> 16) & 0xFFFF
+@@ -113,23 +169,32 @@ class Extractor {
+     // always ensure folders are created
+     const destDir = isDir ? dest : path.dirname(dest)
+ 
+-    const mkdirOptions = { recursive: true }
+-    if (isDir) {
+-      mkdirOptions.mode = procMode
+-    }
+-    debug('mkdir', { dir: destDir, ...mkdirOptions })
+-    await fs.mkdir(destDir, mkdirOptions)
++    await this.ensureDirectory(destDir, isDir ? procMode : undefined)
+     if (isDir) return
+ 
+     debug('opening read stream', dest)
+     const readStream = await promisify(this.zipfile.openReadStream.bind(this.zipfile))(entry)
+ 
+     if (symlink) {
+-      const link = await getStream(readStream)
++      const link = await getStream(readStream, { maxBuffer: 4096 })
++      if (!link || /[\\\x00:]/.test(link) || path.posix.isAbsolute(link) || path.win32.isAbsolute(link)) {
++        throw new Error('Invalid archive symlink target')
++      }
++      await this.checkLinkTarget(path.dirname(dest), link)
+       debug('creating symlink', link, dest)
+       await fs.symlink(link, dest)
+     } else {
+-      await pipeline(readStream, createWriteStream(dest, { mode: procMode }))
++      try {
++        const existing = await fs.lstat(dest)
++        if (!existing.isFile()) throw new Error('Refusing to overwrite archive link or directory')
++        // Replace regular files without following symlinks or modifying any
++        // existing hard-link target. Exclusive creation also closes the final
++        // component race between lstat/unlink and opening the output file.
++        await fs.unlink(dest)
++      } catch (err) {
++        if (err.code !== 'ENOENT') throw err
++      }
++      await pipeline(readStream, createWriteStream(dest, { mode: procMode, flags: 'wx' }))
+     }
+   }
+ 

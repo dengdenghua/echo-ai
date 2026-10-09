@@ -9,6 +9,7 @@ from typing import Any
 import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
+from starlette.websockets import WebSocketDisconnect
 
 from runtime.memory.cowork.group_store import GroupStore
 from runtime.memory.cowork.session import link_room
@@ -54,11 +55,17 @@ def _ownerless_local_client(
     return TestClient(app), log_path
 
 
-def _receive_response(ws: Any, request_id: int) -> JsonRpcResponse:
+def _receive_response(
+    ws: Any, request_id: int, *, approve_commands: bool = False
+) -> JsonRpcResponse:
     while True:
         message = decode_message(ws.receive_text())
         if isinstance(message, JsonRpcResponse) and message.id == request_id:
             return message
+        if approve_commands and isinstance(message, JsonRpcRequest):
+            assert message.method == "item/commandExecution/requestApproval"
+            ws.send_text(encode_message(JsonRpcResponse(id=message.id, result={"action": "accept"})))
+            continue
         assert isinstance(message, Notification)
 
 
@@ -172,3 +179,80 @@ def test_only_matching_local_project_room_can_resume(
     assert decision.can_read is allowed
     assert decision.can_write is allowed
     assert decision.can_manage is allowed
+
+
+@pytest.mark.parametrize(
+    ("metadata", "allowed"),
+    [
+        ({}, True),
+        ({"owner_actor_id": "local", "tenant_id": "legacy:local"}, True),
+        ({"owner_actor_id": "alice", "tenant_id": "legacy:alice"}, False),
+        ({"owner_actor_id": "local", "tenant_id": "another-tenant"}, False),
+    ],
+)
+def test_explicit_desktop_operator_resumes_only_its_local_threads(
+    tmp_path: Path, metadata: dict[str, Any], allowed: bool
+) -> None:
+    thread_id = "local-linked-conversation"
+    threads = ThreadStateStore()
+    threads.ensure_thread(thread_id, metadata=metadata)
+    groups = GroupStore(base_dir=tmp_path / "cowork")
+    link_room(groups, thread_id, "local-room", actor="local")
+    logs_root = tmp_path / "threads"
+    EventLog(thread_log_path(logs_root, thread_id)).thread_started(thread_id)
+    resolver = ThreadAccessResolver(
+        thread_store=threads, group_store=groups, local_actor_id="local"
+    )
+    runtime = EchoRuntime(logs_root=logs_root)
+    runtime._thread_access_resolver = resolver
+    gateway = RealtimeGateway(
+        runtime=runtime,
+        require_auth=False,
+        local_actor_id="local",
+        thread_access_resolver=resolver,
+    )
+    app = FastAPI()
+    app.include_router(gateway.router)
+    with TestClient(app) as client, client.websocket_connect("/api/realtime") as ws:
+        ws.send_text(
+            encode_message(
+                JsonRpcRequest(id=1, method="thread/resume", params={"threadId": thread_id})
+            )
+        )
+        response = _receive_response(ws, 1)
+        assert (response.error is None) is allowed
+        if allowed:
+            assert response.result["thread"]["id"] == thread_id
+            ws.send_text(
+                encode_message(
+                    JsonRpcRequest(
+                        id=2,
+                        method="turn/start",
+                        params={
+                            "threadId": thread_id,
+                            "input": [{"type": "text", "text": "continue"}],
+                        },
+                    )
+                )
+            )
+            followup = _receive_response(ws, 2, approve_commands=True)
+            assert followup.error is None
+            assert followup.result["turn"]["status"] == "completed"
+
+
+def test_desktop_operator_does_not_replace_required_authentication(tmp_path: Path) -> None:
+    app = FastAPI()
+    app.include_router(
+        RealtimeGateway(
+            runtime=EchoRuntime(logs_root=tmp_path / "threads"),
+            require_auth=True,
+            local_actor_id="local",
+        ).router
+    )
+    with (
+        TestClient(app) as client,
+        pytest.raises(WebSocketDisconnect) as error,
+        client.websocket_connect("/api/realtime"),
+    ):
+        pass
+    assert error.value.code == 4401

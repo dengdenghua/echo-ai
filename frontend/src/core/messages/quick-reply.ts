@@ -1,6 +1,7 @@
 export type QuickReplyDetail = {
   text?: unknown;
   threadId?: unknown;
+  clientMessageId?: string;
 };
 
 export const QUICK_REPLY_EVENT = "echo:quick-reply";

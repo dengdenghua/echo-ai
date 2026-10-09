@@ -243,6 +243,41 @@ describe("CapabilityMarketPanel", () => {
     expect(open).not.toHaveBeenCalled();
   });
 
+  it("refuses to open a non-http(s) OAuth authorize URL", async () => {
+    const tdx = {
+      ...westock,
+      id: "tdx-connector",
+      name: "Tongdaxin",
+      name_zh: "通达信",
+      auth_mode: "oauth",
+      oauth_supported: true,
+      mcp_servers: [
+        {
+          name: "tdx-finance",
+          url: "https://txmcp.tdx.com.cn:3001/txmcp",
+        },
+      ],
+    };
+    mocks.listCapabilities.mockResolvedValue({
+      capabilities: [tdx],
+      total: 1,
+    });
+    mocks.oauthAuthorize.mockResolvedValue({
+      ok: true,
+      authorize_url: "javascript:alert(document.domain)",
+    });
+    const open = vi.spyOn(window, "open");
+
+    renderWithProviders(<CapabilityMarketPanel />, { locale: "zh-CN" });
+    await waitFor(() => expect(screen.getByText("通达信")).toBeInTheDocument());
+    await chooseManagementAction("连接");
+
+    await waitFor(() =>
+      expect(screen.getByText(/授权地址不是 http\(s\) 链接/)).toBeInTheDocument(),
+    );
+    expect(open).not.toHaveBeenCalled();
+  });
+
   it("renders connectors + plugins unified from the backend", async () => {
     mocks.listCapabilities.mockResolvedValue({
       capabilities: [westock, browserPlugin],

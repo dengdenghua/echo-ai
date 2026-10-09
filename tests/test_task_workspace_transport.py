@@ -24,7 +24,9 @@ def test_paired_phone_task_is_approved_over_http_executed_on_pc_and_read_after_r
     coordinator.task_workspace_path = tmp_path
     coordinator.ws_server.peer_grants = {"phone": {"pc": ["desktop.echo"]}}
     identities = IdentityStore()
-    identities.add(Identity(actor_id="operator"), api_key_plaintext="operator-test")
+    identities.add(
+        Identity(actor_id="operator", roles=("operator",)), api_key_plaintext="operator-test"
+    )
     app = FastAPI()
     app.include_router(create_tentacle_router(coordinator, identity_store=identities))
     headers = {"Authorization": "Bearer operator-test"}
@@ -148,7 +150,9 @@ def test_parent_task_handoff_uses_two_paired_devices_and_keeps_history_on_reconn
     coordinator.task_workspace_path = tmp_path
     coordinator.ws_server.peer_grants = {"phone": {"pc": ["desktop.echo"]}}
     identities = IdentityStore()
-    identities.add(Identity(actor_id="operator"), api_key_plaintext="operator-test")
+    identities.add(
+        Identity(actor_id="operator", roles=("operator",)), api_key_plaintext="operator-test"
+    )
     app = FastAPI()
     app.include_router(create_tentacle_router(coordinator, identity_store=identities))
     headers = {"Authorization": "Bearer operator-test"}

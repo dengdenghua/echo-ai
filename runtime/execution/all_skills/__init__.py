@@ -276,6 +276,10 @@ _CATALOG: dict[str, dict[str, Any]] = {
     # ``todo_write`` is the task-plan surface · call it from any
     # multi-step agent turn to drive the UI's live checklist.
     "todo_read": {"group": "agent_meta", "atomic": True},
+    "visual_guidelines": {"group": "agent_meta", "atomic": True},
+    "show_ui": {"group": "agent_meta", "atomic": True},
+    "show_visual": {"group": "agent_meta", "atomic": False},
+    "visual_status": {"group": "agent_meta", "atomic": False},
     "todo_write": {"group": "agent_meta", "atomic": True},
     "search_skills": {"group": "agent_meta", "atomic": True},
     "query_skill": {"group": "agent_meta", "atomic": True},

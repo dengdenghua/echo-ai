@@ -7,6 +7,8 @@ from pathlib import Path
 from types import SimpleNamespace
 from uuid import uuid4
 
+import pytest
+
 from runtime.execution.suckers import Skill, SkillRegistry
 from runtime.execution.tool_engine import ToolExecutor
 from runtime.execution.tool_engine.skill_gate import GATE_CAPABILITY, gate_inner_dispatch
@@ -155,7 +157,19 @@ def test_executor_and_inner_dispatch_share_marketplace_permission_gate(
     assert calls == [{"path": "memo.txt"}]
 
 
-def test_install_plan_is_deterministic_and_side_effect_free(tmp_path: Path) -> None:
+@pytest.mark.parametrize(
+    "host_api,expected_blockers",
+    [
+        (">=0", []),
+        (">=0.2,<0.3", []),
+        (">=0.3", ["host_incompatible"]),
+        (">=0.1,<0.2", ["host_incompatible"]),
+        ("invalid", ["host_requirement_invalid"]),
+    ],
+)
+def test_install_plan_is_deterministic_and_side_effect_free(
+    tmp_path: Path, host_api: str, expected_blockers: list[str]
+) -> None:
     class ConnectorCatalog:
         _permissions = None
 
@@ -174,7 +188,7 @@ def test_install_plan_is_deterministic_and_side_effect_free(tmp_path: Path) -> N
                     "installed": False,
                     "enabled": False,
                     "version": "1.0.0",
-                    "host_api": ">=0",
+                    "host_api": host_api,
                     "permissions": ["account.credentials", "network.remote"],
                     "auth_modes": ["oauth"],
                     "dependencies": [],
@@ -204,7 +218,8 @@ def test_install_plan_is_deterministic_and_side_effect_free(tmp_path: Path) -> N
 
     assert first == second
     assert first["schema"] == "echo.capability_install_plan.v1"
-    assert first["can_install"] is True
+    assert first["can_install"] is (not expected_blockers)
+    assert first["blockers"] == expected_blockers
     assert first["permissions"] == ["account.credentials", "network.remote"]
     assert first["runtime_dependencies"] == [{"name": "vendor-runtime", "bundled": True}]
     assert not state.exists()
@@ -237,7 +252,9 @@ def test_install_plan_resolves_nested_marketplace_dependencies(
 
         @staticmethod
         def get(connector_id: str):
-            return SimpleNamespace(cli={}, mcp_servers={}) if connector_id == "root-package" else None
+            return (
+                SimpleNamespace(cli={}, mcp_servers={}) if connector_id == "root-package" else None
+            )
 
     monkeypatch.setattr(CloudCatalog, "__init__", lambda self, *args, **kwargs: None)
     monkeypatch.setattr(

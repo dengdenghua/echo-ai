@@ -373,6 +373,9 @@ def mount_routers_b(
         )
         from runtime.sensing.gateway.thread_access import ThreadAccessResolver
 
+        _local_realtime_actor = (
+            "local" if not ctx.require_auth and ctx.allow_local_workspace_access else None
+        )
         _realtime_thread_access = ThreadAccessResolver(
             thread_store=ctx.thread_store,
             group_store=(
@@ -391,6 +394,7 @@ def mount_routers_b(
             # and benchmark-created ThreadState rows have no owner/tenant; the
             # resolver grants those rows only when they are also unlinked.
             allow_anonymous_ownerless=not ctx.require_auth,
+            local_actor_id=_local_realtime_actor,
         )
 
         if stack is not None:
@@ -483,6 +487,7 @@ def mount_routers_b(
                 "task_supervisor": getattr(state, "task_supervisor", None),
                 "allow_client_auto_approve": _allow_approval_bypass,
                 "allow_local_workspace_access": ctx.allow_local_workspace_access,
+                "team_rooms_router": ctx.team_rooms_router,
                 "cowork_group_store": (
                     getattr(ctx.cowork_runtime, "group_store", None)
                     if ctx.cowork_runtime is not None
@@ -518,6 +523,7 @@ def mount_routers_b(
         # writer guard must still consult the same durable deletion fences.
         _realtime_runtime._thread_store = ctx.thread_store  # noqa: SLF001
         _realtime_runtime._project_store = ctx.project_store  # noqa: SLF001
+        _realtime_runtime._cowork_coordination = getattr(ctx.cowork_runtime, "coordination", None)
 
         _realtime_gateway = RealtimeGateway(
             runtime=_realtime_runtime,
@@ -529,6 +535,9 @@ def mount_routers_b(
             jwt_audience=ctx.jwt_audience,
             allow_client_approval_bypass=_allow_approval_bypass,
             thread_access_resolver=_realtime_thread_access,
+            # HTTP local Team Rooms use the same operator id. Without it a
+            # refreshed WS becomes anonymous and cannot resume a linked room.
+            local_actor_id=_local_realtime_actor,
         )
         app.include_router(_realtime_gateway.router)
         # Exposed for introspection/tests (e.g. asserting the secure

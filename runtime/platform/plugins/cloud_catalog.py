@@ -24,7 +24,6 @@ from typing import Any
 from packaging.specifiers import InvalidSpecifier, SpecifierSet
 from packaging.version import InvalidVersion, Version
 
-from runtime import __version__
 from runtime.platform.io import atomic_write_json
 from runtime.platform.io.transactional import path_transaction
 from runtime.platform.plugins._cloud_catalog_entries import (
@@ -45,6 +44,7 @@ from runtime.platform.plugins.catalog_provenance import (
     load_catalog_signature,
     verify_marketplace_catalog,
 )
+from runtime.platform.plugins.host_api import HOST_API_VERSION
 from runtime.platform.plugins.marketplace_package import (
     CONNECTOR_RELEASE_SUMMARY,
     compute_marketplace_content_provenance,
@@ -2681,12 +2681,12 @@ class CloudCatalog:
         host_api = str(manifest.get("host_api") or "").strip()
         if host_api:
             try:
-                compatible = Version(__version__) in SpecifierSet(host_api)
+                compatible = Version(HOST_API_VERSION) in SpecifierSet(host_api)
             except (InvalidSpecifier, InvalidVersion) as exc:
                 raise ValueError(f"invalid marketplace host_api: {host_api}") from exc
             if not compatible:
                 raise ValueError(
-                    f"marketplace package requires host_api {host_api}; host is {__version__}"
+                    f"marketplace package requires host_api {host_api}; host API is {HOST_API_VERSION}"
                 )
         for dependency in manifest.get("dependencies") or []:
             if dependency == plugin_id:
@@ -2753,12 +2753,12 @@ class CloudCatalog:
             raise ValueError("host.same_origin is reserved for trusted first-party workbenches")
         if manifest.host_api:
             try:
-                compatible = Version(__version__) in SpecifierSet(manifest.host_api)
+                compatible = Version(HOST_API_VERSION) in SpecifierSet(manifest.host_api)
             except (InvalidSpecifier, InvalidVersion) as exc:
                 raise ValueError(f"invalid workbench host_api: {manifest.host_api}") from exc
             if not compatible:
                 raise ValueError(
-                    f"workbench requires host_api {manifest.host_api}; host is {__version__}"
+                    f"workbench requires host_api {manifest.host_api}; host API is {HOST_API_VERSION}"
                 )
         for dependency in manifest.dependencies:
             dependency_path = install_root / dependency

@@ -30,6 +30,12 @@ _METADATA = (
     "approval_risk_policy",
     "_inherited_injection_taint",
     "injection_taint",
+    "model_name",
+    "model",
+    "thinking_enabled",
+    "reasoning_effort",
+    "coder_engine",
+    "coder_model",
 )
 
 
@@ -46,12 +52,16 @@ def capture_policy(session, *, parent=None):
     for key in ("readable_roots", "writable_roots"):
         value[key] = [str(p) for p in value[key]]
     metadata = {k: session.metadata[k] for k in _METADATA if k in session.metadata}
-    context = {"scope": value, "metadata": metadata, "turn_id": session.turn_id}
+    context = {
+        "scope": value, "metadata": metadata, "turn_id": session.turn_id,
+        "auto_delivery": True,
+    }
     if task is not None and getattr(task, "resources", None) is not None:
         remaining = task.resources.remaining_seconds()
         if remaining is not None:
             context["expires_at"] = time.time() + remaining
     if parent:
+        context["parent_task_id"] = parent["id"]
         context["root_id"] = parent.get("root_id") or parent["id"]
         context["depth"] = int(parent.get("depth", 0)) + 1
         if context["depth"] > 3:

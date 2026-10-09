@@ -122,6 +122,7 @@ const DEFAULT_FLOOR: FloorState = {
 };
 
 interface CollabContextType {
+  canWrite: boolean;
   users: User[];
   currentUser: User | null;
   isConnected: boolean;
@@ -156,6 +157,7 @@ interface CollabContextType {
 }
 
 interface CollabProviderProps {
+  canWrite?: boolean;
   children: ReactNode;
   teamId?: string | null;
   threadId?: string | null;
@@ -168,6 +170,7 @@ interface CollabProviderProps {
 const CollabContext = createContext<CollabContextType | null>(null);
 
 export function CollabProvider({
+  canWrite = true,
   children,
   teamId,
   threadId,
@@ -255,7 +258,7 @@ export function CollabProvider({
     return () => {
       disposed = true;
     };
-  }, [normalizedThreadId, teamId]);
+  }, [normalizedThreadId, teamId, isConnected]);
 
   useEffect(() => {
     if (!teamId || typeof window === "undefined") return;
@@ -492,23 +495,35 @@ export function CollabProvider({
           }
           const senderId = String(msg.participant_id ?? "");
           if (senderId === resolvedParticipantId) return;
+          // Durable room writes can originate from HTTP or another realtime
+          // connection without a live room-message frame. Refetch the shared
+          // timeline even when this browser is in the background.
+          void queryClient.invalidateQueries({
+            queryKey: ["cowork", "session", normalizedThreadId],
+          });
           if (msg.reason === "annotation" && normalizedThreadId) {
             void getCollabAnnotations(normalizedThreadId)
-              .then(setAnnotations)
+              .then((next) => {
+                if (!disposed) setAnnotations(next);
+              })
               .catch((error) =>
                 swallow(error, "refresh-collaboration-annotations"),
               );
           }
           if (msg.reason === "reaction" && normalizedThreadId) {
             void getCollabMessageReactions(normalizedThreadId)
-              .then(setMessageReactions)
+              .then((next) => {
+                if (!disposed) setMessageReactions(next);
+              })
               .catch((error) =>
                 swallow(error, "refresh-collaboration-message-reactions"),
               );
           }
           if (msg.reason === "pin" && normalizedThreadId) {
             void getCollabPinnedMessages(normalizedThreadId)
-              .then(setPinnedMessages)
+              .then((next) => {
+                if (!disposed) setPinnedMessages(next);
+              })
               .catch((error) =>
                 swallow(error, "refresh-collaboration-pinned-messages"),
               );
@@ -807,7 +822,11 @@ export function CollabProvider({
         display_name: author?.display_name,
         avatar_color: author?.avatar_color,
       });
-      setAnnotations((prev) => [...prev, annotation]);
+      setAnnotations((prev) =>
+        prev.some((item) => item.annotation_id === annotation.annotation_id)
+          ? prev
+          : [...prev, annotation],
+      );
       void queryClient.invalidateQueries({
         queryKey: ["cowork", "session", normalizedThreadId],
       });
@@ -929,7 +948,11 @@ export function CollabProvider({
           item.annotation_id === annotationId
             ? {
                 ...item,
-                replies: [...item.replies, reply],
+                replies: item.replies.some(
+                  (existing) => existing.reply_id === reply.reply_id,
+                )
+                  ? item.replies
+                  : [...item.replies, reply],
               }
             : item,
         ),
@@ -942,6 +965,7 @@ export function CollabProvider({
   return (
     <CollabContext.Provider
       value={{
+        canWrite,
         users,
         currentUser,
         isConnected,

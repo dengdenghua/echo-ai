@@ -5,7 +5,9 @@ from runtime.platform.connectors.cli_profile import cli_profile_env, direct_cli_
 
 
 def test_login_and_direct_execution_share_echo_profile(monkeypatch, tmp_path):
-    monkeypatch.setattr("runtime.platform.process.paths.app_paths", lambda: SimpleNamespace(data_dir=tmp_path))
+    monkeypatch.setattr(
+        "runtime.platform.process.paths.app_paths", lambda: SimpleNamespace(data_dir=tmp_path)
+    )
     monkeypatch.setattr(tenant_context, "current_capability_scope", lambda: None)
     env = cli_profile_env("dingtalk")
     assert env == direct_cli_profile_env(["C:\\tools\\dws.cmd", "auth", "status"])
@@ -15,10 +17,20 @@ def test_login_and_direct_execution_share_echo_profile(monkeypatch, tmp_path):
 
 
 def test_profiles_do_not_cross_accounts(monkeypatch, tmp_path):
-    monkeypatch.setattr("runtime.platform.process.paths.app_paths", lambda: SimpleNamespace(data_dir=tmp_path))
-    monkeypatch.setattr(tenant_context, "current_capability_scope", lambda: SimpleNamespace(tenant_id="tenant", actor_id="a"))
+    monkeypatch.setattr(
+        "runtime.platform.process.paths.app_paths", lambda: SimpleNamespace(data_dir=tmp_path)
+    )
+    monkeypatch.setattr(
+        tenant_context,
+        "current_capability_scope",
+        lambda: SimpleNamespace(tenant_id="tenant", actor_id="a"),
+    )
     first = cli_profile_env("dingtalk")
-    monkeypatch.setattr(tenant_context, "current_capability_scope", lambda: SimpleNamespace(tenant_id="tenant", actor_id="b"))
+    monkeypatch.setattr(
+        tenant_context,
+        "current_capability_scope",
+        lambda: SimpleNamespace(tenant_id="tenant", actor_id="b"),
+    )
     assert cli_profile_env("dingtalk")["HOME"] != first["HOME"]
 
 

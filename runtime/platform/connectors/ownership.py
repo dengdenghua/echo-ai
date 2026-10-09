@@ -1,4 +1,5 @@
 """Describe execution ownership without confusing package provenance with OAuth identity."""
+
 from __future__ import annotations
 
 import json
@@ -16,5 +17,9 @@ def connector_ownership(conn: Any) -> dict[str, Any]:
         state, label = "cli_unverified", "Echo 调用官方 CLI · 登录隔离待验证"
     else:
         state, label = "echo_managed", "Echo 管理连接 · 授权后仍需验证"
-    return {"execution_owner": "echo", "ownership_state": state, "ownership_label": label,
-            "native_verified": False}
+    return {
+        "execution_owner": "echo",
+        "ownership_state": state,
+        "ownership_label": label,
+        "native_verified": False,
+    }

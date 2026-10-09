@@ -198,9 +198,15 @@ export default defineConfig({
       : []),
   ],
   resolve: {
-    // CodeMirror facets depend on singleton state/view identities. Transitive
-    // language packages may resolve newer copies and break deletion rendering.
-    dedupe: ["@codemirror/state", "@codemirror/view"],
+    dedupe: [
+      "react",
+      "react-dom",
+      "react/jsx-runtime",
+      "react/jsx-dev-runtime",
+      "@tanstack/react-query",
+      "@codemirror/state",
+      "@codemirror/view",
+    ],
     alias: [
       {
         find: "@",
@@ -249,12 +255,14 @@ export default defineConfig({
     // preview pane) can run alongside a dev server already holding 3310.
     // FRONTEND_PORT stays the explicit override and wins.
     port: parseInt(process.env.FRONTEND_PORT || process.env.PORT || "3310"),
-    host: "0.0.0.0",
+    // This server proxies privileged backend APIs. Network exposure must
+    // be an explicit deployment choice, even when the backend is loopback.
+    host: process.env.FRONTEND_HOST || "127.0.0.1",
     proxy: proxyConfig,
   },
   preview: {
     port: parseInt(process.env.FRONTEND_PORT || process.env.PORT || "3310"),
-    host: "0.0.0.0",
+    host: process.env.FRONTEND_HOST || "127.0.0.1",
     proxy: proxyConfig,
   },
   build: {
@@ -320,6 +328,10 @@ export default defineConfig({
   },
   test: {
     environment: "jsdom",
+    // 488 files run in parallel on CI; a whole test can legitimately take
+    // longer than the 5s default when workers contend for CPU. A gate that
+    // fails at random teaches everyone to ignore red, so leave headroom.
+    testTimeout: 15_000,
     // Streamdown imports KaTeX CSS. Keep it in Vite's transform pipeline
     // instead of asking Node's ESM loader to execute the stylesheet.
     // CodeMirror must also use Vite's singleton resolution in component tests.

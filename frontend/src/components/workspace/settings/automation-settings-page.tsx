@@ -17,6 +17,10 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { useNavigate } from "react-router-dom";
+import {
+  COMPUTER_CONTROL_ROUTE,
+  DESKTOP_ORGANIZER_ROUTE,
+} from "@/core/workspace/utility-destinations";
 
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
@@ -107,7 +111,7 @@ export default function AutomationSettingsPage() {
 
   const openAutomationChat = () => {
     window.dispatchEvent(new Event("echo:close-settings"));
-    navigate("/workspace/realtime/new");
+    navigate(COMPUTER_CONTROL_ROUTE);
   };
 
   async function onSave() {
@@ -366,12 +370,22 @@ function LocalToolsSection() {
           {t.settings.automation.localToolsDesc}
         </p>
       </div>
-      <div className="grid gap-2">
+      <div className="grid gap-2 sm:grid-cols-2">
         <Button
           type="button"
           variant="outline"
           className="justify-start gap-2"
-          onClick={() => openTool("/workspace/desktop-organizer")}
+          onClick={() => openTool(COMPUTER_CONTROL_ROUTE)}
+        >
+          <MonitorIcon className="h-4 w-4" />
+          {t.agentWorkbench.computerView}
+          <ExternalLinkIcon className="ml-auto h-3.5 w-3.5 opacity-60" />
+        </Button>
+        <Button
+          type="button"
+          variant="outline"
+          className="justify-start gap-2"
+          onClick={() => openTool(DESKTOP_ORGANIZER_ROUTE)}
         >
           <FolderIcon className="h-4 w-4" />
           {t.sidebar.navDesktopOrganizer}

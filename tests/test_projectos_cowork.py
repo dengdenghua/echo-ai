@@ -228,11 +228,13 @@ def test_concurrent_group_runs_execute_only_the_cas_winners_task(
         original_claim = store.claim_task
 
         def synchronized_bind(*args, _bind=original_bind, **kwargs):
-            bind_barrier.wait(timeout=5)
+            # A deadlock guard, not a latency assertion: concurrent browser and
+            # xdist suites can delay the second SQLite-backed contender.
+            bind_barrier.wait(timeout=30)
             return _bind(*args, **kwargs)
 
         def synchronized_claim(*args, _claim=original_claim, **kwargs):
-            claim_barrier.wait(timeout=5)
+            claim_barrier.wait(timeout=30)
             return _claim(*args, **kwargs)
 
         monkeypatch.setattr(store, "bind_thread_if_absent_versioned", synchronized_bind)

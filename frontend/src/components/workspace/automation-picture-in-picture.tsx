@@ -20,6 +20,10 @@ import {
   type AutomationTarget,
 } from "@/core/computer/api";
 import { useI18n } from "@/core/i18n/hooks";
+import {
+  executionStorageKey,
+  getRemoteExecutionId,
+} from "@/core/execution-location";
 import { BROWSER_WORKSPACE_ROUTE } from "@/core/workspace/sidebar-routing";
 import { cn } from "@/lib/utils";
 import { AutomationTargetIcon } from "@/components/ui/automation-target-icon";
@@ -55,7 +59,7 @@ const MIN_HEIGHT = 196;
 const EDGE_GAP = 14;
 
 function placementKey(threadId: string) {
-  return `echo:automation-pip:${threadId || "new"}`;
+  return executionStorageKey(`echo:automation-pip:${threadId || "new"}`);
 }
 
 function defaultPlacement(): Placement {
@@ -124,7 +128,7 @@ async function capturePreviewFrame(
     return captureBrowserRelayPreview(target);
   }
   const nativeCapture = window.echo?.desktop.captureAutomationPreview;
-  if (nativeCapture && !target.id.startsWith("win32:")) {
+  if (nativeCapture && !getRemoteExecutionId() && !target.id.startsWith("win32:")) {
     const result = await nativeCapture({
       kind: target.kind,
       id: target.id,
@@ -196,7 +200,7 @@ export function AutomationPictureInPicture({
     setPlacement(readPlacement(threadId));
     setFrame(null);
     setError(null);
-  }, [target.id, threadId]);
+  }, [target.id, target.kind, threadId]);
 
   const refreshRequest = useRef<(() => void) | null>(null);
 

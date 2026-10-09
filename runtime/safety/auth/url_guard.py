@@ -2,7 +2,8 @@ from __future__ import annotations
 
 import ipaddress
 import socket
-from collections.abc import Mapping
+from collections.abc import Iterator, Mapping
+from contextlib import contextmanager
 from dataclasses import dataclass
 from typing import Any
 from urllib.parse import urlparse
@@ -212,6 +213,87 @@ def safe_httpx_get(
     )
 
 
+def _pinned_httpx_transport(url: str, *, allow_private: bool = False):
+    """Resolve and pin a single HTTP authority for buffered or streamed use."""
+    import httpx
+
+    verdict = check_url(url, allow_private=allow_private)
+    if not verdict.allow:
+        raise ValueError(f"url_guard rejected: {verdict.reason}")
+
+    parsed = urlparse(url)
+    host = parsed.hostname or ""
+    resolved_ip = verdict.resolved_ip or host
+    default_port = 443 if parsed.scheme.lower() == "https" else 80
+    host_literal = f"[{host}]" if ":" in host else host
+    host_header = (
+        f"{host_literal}:{parsed.port}"
+        if parsed.port is not None and parsed.port != default_port
+        else host_literal
+    )
+
+    # httpx ``transport`` takes a resolver hook. Pin every host
+    # seen in this request to the single IP we approved.
+    class _PinnedResolver(httpx.HTTPTransport):
+        def __init__(self_inner, pinned_host: str, pinned_ip: str) -> None:  # noqa: N805
+            super().__init__()
+            self_inner._pinned_host = pinned_host
+            self_inner._pinned_ip = pinned_ip
+
+        def handle_request(self_inner, request):  # type: ignore[override]  # noqa: N805
+            target_host = request.url.host
+            if target_host == self_inner._pinned_host:
+                # Fake-ip proxy pool (198.18/15, see _FAKE_IP_NETWORK):
+                # the proxy restores the real host from the TLS SNI, so
+                # rewriting the URL host to the fake IP would drop SNI and
+                # fail the handshake. Keep the hostname URL in that case.
+                if not _is_fake_ip(self_inner._pinned_ip):
+                    # httpcore uses this extension as the TLS
+                    # ``server_hostname`` while the rewritten URL controls
+                    # only the TCP destination. Without it, a normal public
+                    # DNS result would pin the socket correctly but validate
+                    # the certificate against the IP address.
+                    request.extensions["sni_hostname"] = target_host
+                    new_url = request.url.copy_with(host=self_inner._pinned_ip)
+                    request.url = new_url
+                request.headers.setdefault("Host", target_host)
+            return super().handle_request(request)
+
+    transport = _PinnedResolver(host, resolved_ip)
+    return transport, host_header
+
+
+@contextmanager
+def safe_httpx_stream(
+    method: str,
+    url: str,
+    *,
+    data: bytes = b"",
+    headers: dict[str, str] | None = None,
+    timeout: Any = 30.0,
+    allow_private: bool = False,
+) -> Iterator[Any]:
+    """Open a raw response stream using the same DNS pinning as HTTP fetches.
+
+    Redirects are never followed. The caller must keep this context open
+    until the stream is consumed and preserve Content-Encoding for raw bytes.
+    """
+    import httpx
+
+    if headers and any(key.lower() == "accept-encoding" for key in headers):
+        raise ValueError("Accept-Encoding is managed by url_guard")
+    transport, authority = _pinned_httpx_transport(url, allow_private=allow_private)
+    request_headers = {
+        key: value for key, value in (headers or {}).items() if key.lower() != "host"
+    }
+    request_headers["Host"] = authority
+    with (
+        httpx.Client(transport=transport, timeout=timeout, follow_redirects=False) as client,
+        client.stream(method, url, content=data, headers=request_headers) as response,
+    ):
+        yield response
+
+
 def safe_httpx_request(
     method: str,
     url: str,
@@ -252,49 +334,9 @@ def safe_httpx_request(
             raise RuntimeError("redirect loop detected")
         visited.add(current_url)
 
-        verdict = check_url(current_url, allow_private=allow_private)
-        if not verdict.allow:
-            raise ValueError(f"url_guard rejected: {verdict.reason}")
-
-        parsed = urlparse(current_url)
-        host = parsed.hostname or ""
-        resolved_ip = verdict.resolved_ip or host
-        default_port = 443 if parsed.scheme.lower() == "https" else 80
-        host_literal = f"[{host}]" if ":" in host else host
-        host_header = (
-            f"{host_literal}:{parsed.port}"
-            if parsed.port is not None and parsed.port != default_port
-            else host_literal
+        transport, host_header = _pinned_httpx_transport(
+            current_url, allow_private=allow_private,
         )
-
-        # httpx ``transport`` takes a resolver hook. Pin every host
-        # seen in this request to the single IP we approved.
-        class _PinnedResolver(httpx.HTTPTransport):
-            def __init__(self_inner, pinned_host: str, pinned_ip: str) -> None:  # noqa: N805
-                super().__init__()
-                self_inner._pinned_host = pinned_host
-                self_inner._pinned_ip = pinned_ip
-
-            def handle_request(self_inner, request):  # type: ignore[override]  # noqa: N805
-                target_host = request.url.host
-                if target_host == self_inner._pinned_host:
-                    # Fake-ip proxy pool (198.18/15, see _FAKE_IP_NETWORK):
-                    # the proxy restores the real host from the TLS SNI, so
-                    # rewriting the URL host to the fake IP would drop SNI and
-                    # fail the handshake. Keep the hostname URL in that case.
-                    if not _is_fake_ip(self_inner._pinned_ip):
-                        # httpcore uses this extension as the TLS
-                        # ``server_hostname`` while the rewritten URL controls
-                        # only the TCP destination. Without it, a normal public
-                        # DNS result would pin the socket correctly but validate
-                        # the certificate against the IP address.
-                        request.extensions["sni_hostname"] = target_host
-                        new_url = request.url.copy_with(host=self_inner._pinned_ip)
-                        request.url = new_url
-                    request.headers.setdefault("Host", target_host)
-                return super().handle_request(request)
-
-        transport = _PinnedResolver(host, resolved_ip)
         request_headers = {
             key: value for key, value in (headers or {}).items() if key.lower() != "host"
         }

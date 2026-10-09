@@ -758,10 +758,14 @@ def create_meta_router(
         return response
 
     def auth_logout(request: Request, response: Response) -> None:
-        """Clear the durable browser session even when its JWT has expired."""
+        """Revoke the presented JWT and clear the browser session cookie."""
 
         from runtime.safety.auth.principal import clear_session_cookie
+        from runtime.safety.auth.session_revocation import revoke_request_session
 
+        revoke_request_session(
+            request, identity_store, secret=jwt_secret, issuer=jwt_issuer, audience=jwt_audience
+        )
         clear_session_cookie(response, request)
         response.status_code = 204
 
@@ -803,14 +807,19 @@ def create_meta_router(
                     "endpoint_verify": "/api/auth/oct/email/login",
                 }
             )
-        from runtime.adapters.integrations.local_auth.config import development_login_enabled
+        from runtime.adapters.integrations.local_auth.config import local_login_enabled
 
-        if development_login_enabled(local_auth_config):
+        if local_login_enabled(local_auth_config):
             pw_required = bool(getattr(local_auth_config, "users", {}))
             providers.append(
                 {
                     "id": "local",
-                    "label": "开发者登录",
+                    "label": (
+                        "账号密码登录"
+                        if pw_required
+                        and not getattr(local_auth_config, "password_only_username", None)
+                        else "开发者登录"
+                    ),
                     "allow_any_username": bool(
                         getattr(local_auth_config, "allow_any_username", True),
                     ),

@@ -9,9 +9,10 @@ from pathlib import Path
 import httpx
 from fastapi import Depends, HTTPException, Request
 
-from .codex_hotspot import owner_token
+from .hotspot_auth import owner_token
 from .hotspot_control import require_local_owner
-from .team_gateway import ROOT
+
+ROOT = Path.home() / ".echo" / "team-gateway"
 
 BASE = "http://127.0.0.1:8333"
 _lock = asyncio.Lock()

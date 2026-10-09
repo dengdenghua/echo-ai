@@ -16,7 +16,7 @@
 | 它解决什么 | 把 agent 的规划、执行、记忆、安全、成本、审计、反思组织到一条可观测链路里 |
 | 它不是什么 | 不是 ChatGPT 替代品，不是只封装 LangChain，也不绑定某一个 LLM |
 | 核心依赖 | `pydantic>=2.12`，其余能力大多是 optional extras |
-| 成熟度 | Beta v0.3.0 |
+| 成熟度 | Beta v0.1.0 |
 | License | Apache-2.0 |
 
 ## 1. 安装
@@ -171,10 +171,12 @@ python -m pytest tests/test_cli_status.py tests/test_cli_smoke.py -q
 
 ## 8. Docker
 
+首次运行 `make up` 会生成 `config.yaml` 和 `.env`，然后停止，避免用未启用认证的示例配置启动。按 [部署指南](docs/deployment.md) 为 `local_auth` 设置强 JWT 密钥和管理员密码哈希后，再运行一次：
+
 ```bash
-cp .env.example .env
-cp config.example.yaml config.yaml
-docker compose up -d
+make up
+# 编辑 config.yaml 和 .env，配置认证后：
+make up
 docker compose logs -f echo-ai
 ```
 

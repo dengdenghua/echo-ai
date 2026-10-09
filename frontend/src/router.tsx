@@ -21,6 +21,17 @@ import {
   type WorkbenchBuiltinApp,
 } from "@/core/workbench/apps";
 import { RemoteWorkbenchSurface } from "@/core/workbench/remote-surface";
+import {
+  COMPUTER_CONTROL_ROUTE,
+  workspaceUtilityDestination,
+} from "@/core/workspace/utility-destinations";
+import { normalizeSettingsSection } from "@/components/workspace/settings/settings-sections";
+
+const RouteSettingsDialog = lazy(() =>
+  import("@/components/workspace/settings/settings-dialog").then((module) => ({
+    default: module.SettingsDialog,
+  })),
+);
 
 function remoteWorkbenchApp(id: string): WorkbenchBuiltinApp {
   const app = WORKBENCH_BUILTIN_APPS.find(
@@ -51,30 +62,66 @@ function HubAssetRedirect({ tab }: { tab: "plugins" | "skills" }) {
   return <Navigate to={`/workspace/agents?${params.toString()}`} replace />;
 }
 
-function SettingsRoute() {
+export function SettingsRoute() {
   const location = useLocation();
   const navigate = useNavigate();
+  const params = new URLSearchParams(location.search);
+  const section = normalizeSettingsSection(params.get("section") ?? undefined);
+  const toolsTab =
+    params.get("toolsTab") === "channels" ? "channels" : "external";
+  const embedded = params.get("embedded");
+  const returnParams = new URLSearchParams(params);
+  returnParams.delete("section");
+  returnParams.delete("toolsTab");
+  const target = `/workspace/realtime/new${returnParams.size ? `?${returnParams.toString()}` : ""}`;
 
   useEffect(() => {
-    const params = new URLSearchParams(location.search);
-    const section = params.get("section");
-    const embedded = params.get("embedded");
-    const target = embedded
-      ? `/workspace/realtime/new?embedded=${encodeURIComponent(embedded)}`
-      : "/workspace/realtime/new";
+    // Embedded workspaces do not mount the sidebar's settings host.
+    if (embedded) return;
     // Carry the intent to the mounted destination; an event from this route
     // can be lost when navigation unmounts its effect.
     navigate(target, {
       replace: true,
-      state: { settingsSection: section ?? "appearance" },
+      state: {
+        settingsSection: section,
+        settingsToolsTab: toolsTab,
+      },
     });
-  }, [location.search, navigate]);
+  }, [embedded, navigate, section, target, toolsTab]);
+
+  if (embedded) {
+    return (
+      <Suspense fallback={<PageLoading />}>
+        <RouteSettingsDialog
+          open
+          defaultSection={section}
+          defaultToolsTab={toolsTab}
+          onOpenChange={(open) => {
+            if (!open) navigate(target, { replace: true });
+          }}
+        />
+      </Suspense>
+    );
+  }
 
   return <PageLoading />;
 }
 
+function WorkspaceUtilityRedirect() {
+  const { pathname, search } = useLocation();
+  return (
+    <Navigate
+      to={
+        workspaceUtilityDestination(pathname, search) ??
+        "/workspace/realtime/new"
+      }
+      replace
+    />
+  );
+}
+
 const LEGACY_REDIRECTS = {
-  computer: "/workspace/settings?section=desktopAutomation",
+  computer: COMPUTER_CONTROL_ROUTE,
   mobile: "/workspace/devices",
   store: "/workspace/agents?surface=chat",
   replay: "/workspace/observability",
@@ -112,8 +159,9 @@ const ObservabilityPage = lazy(
 const KnowledgePage = lazy(() => import("./app/workspace/knowledge/page"));
 const DevicesPage = lazy(() => import("./app/workspace/devices/page"));
 const StoragePage = lazy(() => import("./app/workspace/storage/page"));
+const MailPage = lazy(() => import("./app/workspace/mail/page"));
 const WorkspaceWebAppPage = lazy(() => import("./app/workspace/web-app/page"));
-// Reflex monitor + YAML editor. See app/workspace/reflex/page.tsx.
+// Rule editing remains a distinct action within evolution governance.
 const ReflexEditorPage = lazy(() => import("./app/workspace/reflex/edit/page"));
 const SLOW_PAGE_LOADING_MS = 8_000;
 
@@ -226,15 +274,10 @@ export function AppRouter() {
                   path="browser"
                   element={<Navigate to="/browser" replace />}
                 />
-                <Route
-                  path="computer"
-                  element={<Navigate to={LEGACY_REDIRECTS.computer} replace />}
-                />
+                <Route path="computer" element={<WorkspaceUtilityRedirect />} />
                 <Route
                   path="desktop-organizer"
-                  element={
-                    <Navigate to="/workspace/settings?section=desktopAutomation" replace />
-                  }
+                  element={<WorkspaceUtilityRedirect />}
                 />
                 <Route
                   path="mobile"
@@ -265,16 +308,11 @@ export function AppRouter() {
                   path="store"
                   element={<Navigate to={LEGACY_REDIRECTS.store} replace />}
                 />
+                <Route path="channels" element={<WorkspaceUtilityRedirect />} />
                 <Route
-                  path="channels"
-                  element={
-                    <Navigate
-                      to="/workspace/realtime/echo-assistant?agent=echo&assistantPanel=channels"
-                      replace
-                    />
-                  }
+                  path="architecture"
+                  element={<Navigate to="/workspace/realtime/new" replace />}
                 />
-                <Route path="architecture" element={<Navigate to="/workspace/realtime/new" replace />} />
                 <Route path="observability" element={<ObservabilityPage />} />
                 <Route
                   path="intelligence"
@@ -304,6 +342,7 @@ export function AppRouter() {
                   path="paper-trading"
                   element={<Navigate to="/workspace/agents" replace />}
                 />
+                <Route path="mail" element={<MailPage />} />
                 <Route path="web-app" element={<WorkspaceWebAppPage />} />
                 <Route
                   path="replay"
@@ -313,16 +352,11 @@ export function AppRouter() {
                   path="workflows"
                   element={<Navigate to={LEGACY_REDIRECTS.workflows} replace />}
                 />
-                <Route
-                  path="reflex"
-                  element={
-                    <Navigate to="/workspace/evolution?surface=chat&section=governance&detail=reflex" replace />
-                  }
-                />
+                <Route path="reflex" element={<WorkspaceUtilityRedirect />} />
                 <Route path="reflex/edit" element={<ReflexEditorPage />} />
                 <Route
                   path="diagnostics"
-                  element={<Navigate to="/workspace/observability?tab=system" replace />}
+                  element={<WorkspaceUtilityRedirect />}
                 />
               </Route>
             </Route>
