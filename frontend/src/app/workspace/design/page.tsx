@@ -13,6 +13,7 @@ import {
   useMemo,
   useRef,
   useState,
+  type CSSProperties,
   type MouseEvent as ReactMouseEvent,
   type PointerEvent as ReactPointerEvent,
   type SetStateAction,
@@ -194,21 +195,32 @@ type CanvasBackgroundTone =
   | "blush"
   | "sand";
 
+// Each tone has a dark counterpart: an inline light color used to override the
+// dark theme, leaving a white canvas under dark toolbars and unreadable hints.
 const CANVAS_BACKGROUND_TONES: Array<{
   id: CanvasBackgroundTone;
   label: string;
   color: string;
+  darkColor: string;
 }> = [
-  { id: "default", label: "默认", color: "#fafafa" },
-  { id: "paper", label: "纸白", color: "#f8f5ee" },
-  { id: "cool-gray", label: "冷灰", color: "#f0f2f4" },
-  { id: "warm-gray", label: "暖灰", color: "#f4f0ec" },
-  { id: "mist-blue", label: "雾蓝", color: "#edf4f7" },
-  { id: "sage", label: "雾绿", color: "#eef3ec" },
-  { id: "lavender", label: "淡紫", color: "#f2eff8" },
-  { id: "blush", label: "浅粉", color: "#f8eff1" },
-  { id: "sand", label: "沙色", color: "#f5f0e6" },
+  { id: "default", label: "默认", color: "#fafafa", darkColor: "#0f0f10" },
+  { id: "paper", label: "纸白", color: "#f8f5ee", darkColor: "#15130f" },
+  { id: "cool-gray", label: "冷灰", color: "#f0f2f4", darkColor: "#101317" },
+  { id: "warm-gray", label: "暖灰", color: "#f4f0ec", darkColor: "#151210" },
+  { id: "mist-blue", label: "雾蓝", color: "#edf4f7", darkColor: "#0e1418" },
+  { id: "sage", label: "雾绿", color: "#eef3ec", darkColor: "#101510" },
+  { id: "lavender", label: "淡紫", color: "#f2eff8", darkColor: "#131119" },
+  { id: "blush", label: "浅粉", color: "#f8eff1", darkColor: "#171012" },
+  { id: "sand", label: "沙色", color: "#f5f0e6", darkColor: "#16130d" },
 ];
+
+/** Light and dark tone colors as CSS variables; `dark:` picks between them. */
+function canvasToneStyle(tone: { color: string; darkColor: string }) {
+  return {
+    "--canvas-tone": tone.color,
+    "--canvas-tone-dark": tone.darkColor,
+  } as CSSProperties;
+}
 type CanvasSyncState =
   | "local"
   | "loading"
@@ -5967,11 +5979,11 @@ export default function DesignPage({
       }}
       onWheel={handleWheel}
       className={cn(
-        "relative min-h-0 min-w-0 flex-1 touch-none overflow-clip transition-colors dark:bg-[#0a0a0a]",
+        "relative min-h-0 min-w-0 flex-1 touch-none overflow-clip transition-colors bg-[var(--canvas-tone)] dark:bg-[var(--canvas-tone-dark)]",
         (toolMode === "hand" || spacePanning) &&
           "cursor-grab active:cursor-grabbing",
       )}
-      style={{ backgroundColor: canvasTone.color }}
+      style={canvasToneStyle(canvasTone)}
     >
       <input
         ref={canvasFileInputRef}
@@ -6134,11 +6146,11 @@ export default function DesignPage({
       </div>
       {!document.nodes.length ? (
         <div className="pointer-events-none absolute inset-0 grid place-items-center">
-          <div className="rounded-[14px] border border-black/[0.06] bg-white/75 px-5 py-3 text-center shadow-[0_8px_28px_-20px_rgba(0,0,0,.35)] backdrop-blur dark:border-white/10 dark:bg-black/45">
-            <div className="text-[11px] font-medium">
+          <div className="rounded-[14px] border border-black/[0.06] bg-white/75 px-5 py-3 text-center text-foreground shadow-[0_8px_28px_-20px_rgba(0,0,0,.35)] backdrop-blur dark:border-white/10 dark:bg-white/[0.06]">
+            <div className="text-xs font-medium">
               双击画布，自由生成节点
             </div>
-            <div className="mt-1 text-[9px] text-muted-foreground">
+            <div className="mt-1 text-[11px] text-muted-foreground">
               拖动框选 · 滚动缩放 · 按住 Space 拖动画布
             </div>
           </div>
@@ -6723,11 +6735,11 @@ export default function DesignPage({
                 title={tone.label}
                 aria-label={`背景颜色：${tone.label}`}
                 className={cn(
-                  "size-5 rounded-full border border-black/10",
+                  "size-5 rounded-full border border-black/10 bg-[var(--canvas-tone)] dark:border-white/15 dark:bg-[var(--canvas-tone-dark)]",
                   canvasView.tone === tone.id &&
                     "ring-2 ring-foreground ring-offset-1",
                 )}
-                style={{ backgroundColor: tone.color }}
+                style={canvasToneStyle(tone)}
               />
             ))}
           </div>
