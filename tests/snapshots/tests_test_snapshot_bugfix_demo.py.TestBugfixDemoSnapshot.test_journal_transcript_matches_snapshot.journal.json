@@ -576,6 +576,12 @@
         "network_egress_bytes": 0,
         "output": {
           "diff_preview": "--- a/{workdir}/demo_project/add.py\n+++ b/{workdir}/demo_project/add.py\n@@ -1,4 +1,4 @@\n \"\"\"Arithmetic utils. There is one bug.\"\"\"\n \n def add(a, b):\n-    return a - b     # BUG: should be `a + b`\n+    return a + b     # BUG: should be `a + b`\n",
+          "file_changes": [
+            {
+              "op": "update",
+              "path": "{workdir}/demo_project/add.py"
+            }
+          ],
           "new_size": 104,
           "occurrences": 1,
           "path": "{workdir}/demo_project/add.py",
@@ -1242,6 +1248,12 @@
             "network_egress_bytes": 0,
             "output": {
               "diff_preview": "--- a/{workdir}/demo_project/add.py\n+++ b/{workdir}/demo_project/add.py\n@@ -1,4 +1,4 @@\n \"\"\"Arithmetic utils. There is one bug.\"\"\"\n \n def add(a, b):\n-    return a - b     # BUG: should be `a + b`\n+    return a + b     # BUG: should be `a + b`\n",
+              "file_changes": [
+                {
+                  "op": "update",
+                  "path": "{workdir}/demo_project/add.py"
+                }
+              ],
               "new_size": 104,
               "occurrences": 1,
               "path": "{workdir}/demo_project/add.py",

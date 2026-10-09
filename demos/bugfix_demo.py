@@ -56,8 +56,10 @@ def setup_buggy_project(root: Path) -> Path:
     root.mkdir(parents=True, exist_ok=True)
     proj = root / "demo_project"
     proj.mkdir()
-    (proj / "add.py").write_text(_BUGGY_SRC, encoding="utf-8")
-    (proj / "test_add.py").write_text(_TEST_SRC, encoding="utf-8")
+    # newline="\n": the seeded sources must be byte-identical on every OS
+    # (Windows text mode would otherwise write CRLF and change their sizes).
+    (proj / "add.py").write_text(_BUGGY_SRC, encoding="utf-8", newline="\n")
+    (proj / "test_add.py").write_text(_TEST_SRC, encoding="utf-8", newline="\n")
 
     if shutil.which("git") is None:
         raise RuntimeError("git not on PATH · demo requires git")
