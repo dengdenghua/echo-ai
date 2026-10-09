@@ -397,7 +397,13 @@ def _read_bounded_wrapper_source(path: Path) -> tuple[bytes, tuple[int, ...]]:
         metadata = path.lstat()
         if stat.S_ISLNK(metadata.st_mode) or not stat.S_ISREG(metadata.st_mode):
             raise OSError("not a non-symlink regular file")
-        descriptor = os.open(path, os.O_RDONLY | os.O_CLOEXEC | os.O_NOFOLLOW)
+        # O_CLOEXEC/O_NOFOLLOW are POSIX-only; on Windows the lstat/fstat
+        # identity comparison below still rejects a path swapped mid-open,
+        # and O_BINARY keeps the digest over the exact on-disk bytes.
+        flags = os.O_RDONLY
+        for name in ("O_BINARY", "O_CLOEXEC", "O_NOFOLLOW"):
+            flags |= getattr(os, name, 0)
+        descriptor = os.open(path, flags)
         try:
             before = os.fstat(descriptor)
             source = bytearray()
