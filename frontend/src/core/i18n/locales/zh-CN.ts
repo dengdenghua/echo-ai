@@ -10,6 +10,7 @@ import {
 } from "lucide-react";
 import type { Translations } from "./types";
 import { workspaceComputerZhCN } from "./workspace-computer";
+import { workLocationZhCN } from "./work-location";
 import { agentOperatorZhCN } from "./agent-operator";
 
 export const zhCN: Translations = {
@@ -1221,6 +1222,7 @@ export const zhCN: Translations = {
   },
 
   workspaceComputer: workspaceComputerZhCN,
+  workLocation: workLocationZhCN,
   agentOperator: agentOperatorZhCN,
 
   // Agent Workbench Panel

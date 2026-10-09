@@ -133,6 +133,11 @@ jobs:
         if: always() && matrix.python-version == '3.11.9'
         run: python tools/lint/function_length_check.py --strict
 
+      - name: Inline-locale ratchet (frontend copy goes through core/i18n)
+        # Style/ratchet gate: must not mask pytest below (see note at job top).
+        if: always() && matrix.python-version == '3.11.9'
+        run: python tools/lint/inline_locale_check.py --strict
+
       - name: Import-direction ratchet (no NEW kernel→sensing/web imports)
         # Style/ratchet gate: must not mask pytest below (see note at job top).
         if: always() && matrix.python-version == '3.11.9'

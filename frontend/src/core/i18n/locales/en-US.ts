@@ -10,6 +10,7 @@ import {
 } from "lucide-react";
 import type { Translations } from "./types";
 import { workspaceComputerEnUS } from "./workspace-computer";
+import { workLocationEnUS } from "./work-location";
 import { agentOperatorEnUS } from "./agent-operator";
 
 export const enUS: Translations = {
@@ -1284,6 +1285,7 @@ export const enUS: Translations = {
   },
 
   workspaceComputer: workspaceComputerEnUS,
+  workLocation: workLocationEnUS,
   agentOperator: agentOperatorEnUS,
 
   // Agent Workbench Panel

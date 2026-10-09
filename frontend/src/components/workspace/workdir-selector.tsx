@@ -1115,7 +1115,6 @@ export function WorkDirSelector({
   // location, and 本地 opens the folders this computer can work in. Picking a
   // folder also makes this computer the location again. Shared spaces keep
   // their own switcher in the sidebar.
-  const zhUi = locale.startsWith("zh");
   const runsLocally = !runsElsewhere;
   const toLocal = () => {
     if (location && location.value.kind !== "local") {
@@ -1181,11 +1180,7 @@ export function WorkDirSelector({
           void handlePrimaryAction();
         }}
       >
-        {isWorkDirLocked
-          ? lockedCopy.openFolder
-          : zhUi
-            ? "打开文件夹…"
-            : "Open folder…"}
+        {isWorkDirLocked ? lockedCopy.openFolder : t.workLocation.openFolder}
       </LocationAction>
     </>
   );

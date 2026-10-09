@@ -209,8 +209,7 @@ export function useWorkLocationMenu(
   binding: WorkLocationBinding | undefined,
   menuOpen: boolean,
 ) {
-  const { locale } = useI18n();
-  const zh = locale.startsWith("zh");
+  const copy = useI18n().t.workLocation;
   const queryClient = useQueryClient();
   const value = binding?.value ?? LOCAL_WORK_LOCATION;
   const [adding, setAdding] = useState(false);
@@ -326,13 +325,7 @@ export function useWorkLocationMenu(
                 unavailable && active && "text-destructive",
               )}
             >
-              {unavailable
-                ? zh
-                  ? "离线"
-                  : "Offline"
-                : active
-                  ? summary
-                  : null}
+              {unavailable ? copy.offline : active ? summary : null}
             </span>
           </DropdownMenuSubTrigger>
           <DropdownMenuSubContent
@@ -359,15 +352,7 @@ export function useWorkLocationMenu(
               key={`${node.node_id}:${workspace.id}:${role}`}
               title={node.label}
               subtitle={
-                offline
-                  ? zh
-                    ? "离线"
-                    : "Offline"
-                  : unmounted
-                    ? zh
-                      ? "共享空间未挂载到本机"
-                      : "Workspace is not mounted here"
-                    : scope
+                offline ? copy.offline : unmounted ? copy.notMounted : scope
               }
               selected={
                 value.kind === "node" &&
@@ -393,13 +378,7 @@ export function useWorkLocationMenu(
     );
     const missing = (
       <LocationNote>
-        {locations.isLoading
-          ? zh
-            ? "正在查找…"
-            : "Looking…"
-          : zh
-            ? "这个位置已不可用，请换一个"
-            : "This location is no longer available"}
+        {locations.isLoading ? copy.looking : copy.unavailableLocation}
       </LocationNote>
     );
     // A selected location stays listed even while its kind is still loading.
@@ -411,7 +390,7 @@ export function useWorkLocationMenu(
         {submenu(
           "local",
           <LaptopIcon className="size-3.5" />,
-          zh ? "本地" : "Local",
+          copy.local,
           localItems,
           localSummary,
         )}
@@ -419,7 +398,7 @@ export function useWorkLocationMenu(
           ? submenu(
               "node",
               <RadioTowerIcon className="size-3.5" />,
-              zh ? "远程控制" : "Remote Control",
+              copy.remoteControl,
               nodeItems.length > 0 ? nodeItems : missing,
               label ?? undefined,
               nodes.length > 0 && nodes.every((node) => !node.online),
@@ -453,7 +432,7 @@ export function useWorkLocationMenu(
           : null}
         <DropdownMenuSeparator />
         <LocationAction onSelect={() => setAdding(true)}>
-          {zh ? "添加连接…" : "Add connection…"}
+          {copy.addConnection}
         </LocationAction>
       </div>
     );

@@ -34,6 +34,7 @@ import {
   type WslDistro,
 } from "@/core/execution/work-location";
 import { useI18n } from "@/core/i18n/hooks";
+import type { WorkLocationCopy } from "@/core/i18n/locales/work-location";
 
 import { RemoteControlGuide } from "./remote-control-guide";
 
@@ -44,66 +45,34 @@ const DEFAULT_PORT: Record<RemoteTransport, string> = {
   wsl: "8320",
 };
 
-const SSH_HINTS: [RegExp, string, string][] = [
-  [
-    /Host key verification failed/i,
-    "主机密钥未确认：先在终端里 ssh 连一次这台主机并接受指纹",
-    "Unknown host key: ssh to this host once in a terminal and accept its fingerprint",
-  ],
-  [
-    /Permission denied|publickey/i,
-    "SSH 认证失败：检查密钥路径或 ssh-agent（不支持密码登录）",
-    "SSH authentication failed: check the key or ssh-agent (passwords are not supported)",
-  ],
-  [
-    /Could not resolve hostname|not known|nodename nor servname/i,
-    "找不到这个主机名",
-    "Host name not found",
-  ],
-  [
-    /Connection refused/i,
-    "连接被拒绝：那台机器没有运行 SSH 服务，或端口不对",
-    "Connection refused: no SSH server on that port",
-  ],
-  [
-    /timed out/i,
-    "连接超时：检查网络或防火墙",
-    "Timed out: check the network or firewall",
-  ],
-  [
-    /forward|channel/i,
-    "SSH 已连上，但远端端口上没有 Echo",
-    "SSH works, but nothing listens on the Echo port",
-  ],
-  [
-    /not available/i,
-    "这台电脑没有 OpenSSH 客户端",
-    "OpenSSH client is not installed",
-  ],
+const SSH_HINTS: [RegExp, keyof WorkLocationCopy["sshHints"]][] = [
+  [/Host key verification failed/i, "hostKey"],
+  [/Permission denied|publickey/i, "auth"],
+  [/Could not resolve hostname|not known|nodename nor servname/i, "hostName"],
+  [/Connection refused/i, "refused"],
+  [/timed out/i, "timeout"],
+  [/forward|channel/i, "noEcho"],
+  [/not available/i, "noClient"],
 ];
 
-const ECHO_HINTS: [RegExp, string, string][] = [
-  [
-    /HTTP 40[13]/,
-    "远端 Echo 拒绝了访问：请填写访问令牌",
-    "The remote Echo refused access: add an access token",
-  ],
-  [
-    /Connect|refused|timed out/i,
-    "连不上 Echo：确认它已经启动，端口填对了",
-    "Echo is unreachable: make sure it is running on that port",
-  ],
+const ECHO_HINTS: [RegExp, keyof WorkLocationCopy["echoHints"]][] = [
+  [/HTTP 40[13]/, "denied"],
+  [/Connect|refused|timed out/i, "unreachable"],
 ];
 
 /** Turn OpenSSH / probe errors into a next step, keeping the raw detail. */
-export function connectionErrorHint(detail: string, zh: boolean): string {
+export function connectionErrorHint(
+  detail: string,
+  copy: WorkLocationCopy,
+): string {
   const ssh = detail.startsWith("ssh_tunnel_failed:");
   const raw = detail.replace(/^ssh_tunnel_failed:\s*/, "").trim();
-  const hit = (ssh ? SSH_HINTS : ECHO_HINTS).find(([pattern]) =>
-    pattern.test(raw),
-  );
-  if (!hit) return raw;
-  return `${zh ? hit[1] : hit[2]}${zh ? "（" : " ("}${raw}${zh ? "）" : ")"}`;
+  if (ssh) {
+    const hit = SSH_HINTS.find(([pattern]) => pattern.test(raw));
+    return hit ? copy.withDetail(copy.sshHints[hit[1]], raw) : raw;
+  }
+  const hit = ECHO_HINTS.find(([pattern]) => pattern.test(raw));
+  return hit ? copy.withDetail(copy.echoHints[hit[1]], raw) : raw;
 }
 
 function Field({
@@ -152,8 +121,7 @@ export function AddConnectionDialog({
     transport: RemoteTransport;
   }) => void;
 }) {
-  const { locale } = useI18n();
-  const zh = locale.startsWith("zh");
+  const copy = useI18n().t.workLocation;
   const [kind, setKind] = useState<ConnectionKind>("ssh_tunnel");
   const transport: RemoteTransport = kind === "wsl" ? "wsl" : "ssh_tunnel";
   const ssh = kind === "ssh_tunnel";
@@ -241,14 +209,10 @@ export function AddConnectionDialog({
       const outcome = await testRemoteConnection(draft());
       const ok = outcome.status === "ok";
       const text = ok
-        ? zh
-          ? "连接正常，远端 Echo 已响应"
-          : "Connected — the remote Echo answered"
+        ? copy.connected
         : outcome.detail
-          ? connectionErrorHint(outcome.detail, zh)
-          : zh
-            ? "连接失败"
-            : "Connection failed";
+          ? connectionErrorHint(outcome.detail, copy)
+          : copy.connectionFailed;
       setProbe({ key: draftKey, ok, text });
       // Most fixes (port, key, token) live in the advanced section.
       if (!ok) setAdvanced(true);
@@ -289,26 +253,16 @@ export function AddConnectionDialog({
     kind === "node"
       ? null
       : !remote.enabled
-        ? zh
-          ? "SSH / WSL 连接尚未开启：需要开启实验功能 ui.remote_transport。"
-          : "SSH / WSL connections are off: enable the experimental ui.remote_transport flag."
+        ? copy.remoteDisabled
         : !remote.canManage
-          ? zh
-            ? "只有管理员可以添加 SSH / WSL 连接。"
-            : "Only admins can add SSH / WSL connections."
+          ? copy.adminOnly
           : null;
   const description =
     kind === "node"
-      ? zh
-        ? "让另一台运行 Echo 的机器连过来，把任务派给它。"
-        : "Let another machine running Echo connect here and take tasks."
+      ? copy.describeNode
       : ssh
-        ? zh
-          ? "在一台运行 Echo 的远程机器上执行对话。"
-          : "Run conversations on a remote machine that runs Echo."
-        : zh
-          ? "在 WSL 里运行的 Echo 中执行对话（Linux 环境）。"
-          : "Run conversations in Echo inside WSL (Linux).";
+        ? copy.describeSsh
+        : copy.describeWsl;
   const status = error
     ? { ok: false, text: error }
     : current
@@ -322,7 +276,7 @@ export function AddConnectionDialog({
         data-testid="remote-connection-dialog"
       >
         <DialogHeader className="text-left">
-          <DialogTitle>{zh ? "添加连接" : "Add connection"}</DialogTitle>
+          <DialogTitle>{copy.dialogTitle}</DialogTitle>
           <DialogDescription>{description}</DialogDescription>
         </DialogHeader>
         <SegmentedControl<ConnectionKind>
@@ -330,13 +284,13 @@ export function AddConnectionDialog({
           onChange={switchKind}
           size="sm"
           fullWidth
-          aria-label={zh ? "连接方式" : "Connection type"}
+          aria-label={copy.connectionType}
           options={[
             { value: "ssh_tunnel", label: "SSH" },
             ...(distros.length > 0
               ? [{ value: "wsl" as const, label: "WSL" }]
               : []),
-            { value: "node", label: zh ? "远程控制" : "Remote control" },
+            { value: "node", label: copy.remoteControl },
           ]}
         />
         {kind === "node" ? (
@@ -356,12 +310,8 @@ export function AddConnectionDialog({
             {ssh ? (
               <Field
                 id="remote-host"
-                label={zh ? "SSH 主机" : "SSH host"}
-                hint={
-                  zh
-                    ? "也可以填 ~/.ssh/config 里的主机名。"
-                    : "Or a host name from ~/.ssh/config."
-                }
+                label={copy.sshHost}
+                hint={copy.sshHostHint}
               >
                 <Input
                   id="remote-host"
@@ -374,12 +324,10 @@ export function AddConnectionDialog({
                 />
               </Field>
             ) : (
-              <Field id="remote-distro" label={zh ? "发行版" : "Distro"}>
+              <Field id="remote-distro" label={copy.distro}>
                 <Select value={distro} onValueChange={setDistro}>
                   <SelectTrigger id="remote-distro">
-                    <SelectValue
-                      placeholder={zh ? "选择发行版" : "Choose a distro"}
-                    />
+                    <SelectValue placeholder={copy.chooseDistro} />
                   </SelectTrigger>
                   <SelectContent>
                     {distros.map((item) => (
@@ -392,16 +340,12 @@ export function AddConnectionDialog({
                 </Select>
               </Field>
             )}
-            <Field
-              id="remote-name"
-              label={zh ? "名称（可选）" : "Name (optional)"}
-            >
+            <Field id="remote-name" label={copy.nameOptional}>
               <Input
                 id="remote-name"
                 value={name}
                 placeholder={
-                  defaultName ||
-                  (ssh ? (zh ? "工作笔记本" : "Work laptop") : "Ubuntu")
+                  defaultName || (ssh ? copy.namePlaceholder : "Ubuntu")
                 }
                 onChange={(event) => setName(event.target.value)}
               />
@@ -419,7 +363,7 @@ export function AddConnectionDialog({
                     (advanced ? " rotate-90" : "")
                   }
                 />
-                {zh ? "高级选项" : "Advanced"}
+                {copy.advanced}
               </button>
               {advanced ? (
                 <div className="grid gap-3 rounded-lg border border-border/70 p-3">
@@ -427,10 +371,7 @@ export function AddConnectionDialog({
                     className={ssh ? "grid grid-cols-2 gap-3" : "grid gap-3"}
                   >
                     {ssh ? (
-                      <Field
-                        id="remote-ssh-port"
-                        label={zh ? "SSH 端口" : "SSH port"}
-                      >
+                      <Field id="remote-ssh-port" label={copy.sshPort}>
                         <Input
                           id="remote-ssh-port"
                           value={sshPort}
@@ -442,10 +383,7 @@ export function AddConnectionDialog({
                         />
                       </Field>
                     ) : null}
-                    <Field
-                      id="remote-echo-port"
-                      label={zh ? "Echo 端口" : "Echo port"}
-                    >
+                    <Field id="remote-echo-port" label={copy.echoPort}>
                       <Input
                         id="remote-echo-port"
                         value={echoPort}
@@ -458,23 +396,13 @@ export function AddConnectionDialog({
                     </Field>
                   </div>
                   <p className="-mt-1 text-xs leading-relaxed text-muted-foreground">
-                    {ssh
-                      ? zh
-                        ? "Echo 端口是远端 Echo 后端的端口，它只需监听 127.0.0.1，流量走 SSH 隧道。"
-                        : "The Echo port is the remote backend's port; it only needs to listen on 127.0.0.1."
-                      : zh
-                        ? "WSL 里 Echo 后端的端口，别和这台电脑上的 Echo 冲突。"
-                        : "The Echo backend's port inside WSL; avoid this computer's own port."}
+                    {ssh ? copy.echoPortHintSsh : copy.echoPortHintWsl}
                   </p>
                   {ssh ? (
                     <Field
                       id="remote-key"
-                      label={zh ? "SSH 密钥" : "SSH key"}
-                      hint={
-                        zh
-                          ? "留空则用 SSH 配置或 ssh-agent；不支持密码登录。"
-                          : "Leave empty to use your SSH config or agent; passwords are not supported."
-                      }
+                      label={copy.sshKey}
+                      hint={copy.sshKeyHint}
                     >
                       <Input
                         id="remote-key"
@@ -487,12 +415,8 @@ export function AddConnectionDialog({
                   ) : null}
                   <Field
                     id="remote-token"
-                    label={zh ? "访问令牌" : "Access token"}
-                    hint={
-                      zh
-                        ? "远端 Echo 开启登录时需要，加密保存在本机。"
-                        : "Needed when the remote Echo requires sign-in; stored encrypted here."
-                    }
+                    label={copy.accessToken}
+                    hint={copy.accessTokenHint}
                   >
                     <Input
                       id="remote-token"
@@ -534,7 +458,7 @@ export function AddConnectionDialog({
               className="sm:ml-auto"
               onClick={() => onOpenChange(false)}
             >
-              {zh ? "知道了" : "Got it"}
+              {copy.gotIt}
             </Button>
           ) : (
             <>
@@ -548,7 +472,7 @@ export function AddConnectionDialog({
                 {busy === "testing" ? (
                   <LoaderCircleIcon className="size-3.5 animate-spin" />
                 ) : null}
-                {zh ? "测试连接" : "Test connection"}
+                {copy.testConnection}
               </Button>
               <div className="flex gap-2">
                 <Button
@@ -556,7 +480,7 @@ export function AddConnectionDialog({
                   variant="outline"
                   onClick={() => onOpenChange(false)}
                 >
-                  {zh ? "取消" : "Cancel"}
+                  {copy.cancel}
                 </Button>
                 <Button
                   type="button"
@@ -566,13 +490,7 @@ export function AddConnectionDialog({
                   {busy === "saving" ? (
                     <LoaderCircleIcon className="size-3.5 animate-spin" />
                   ) : null}
-                  {current && !current.ok
-                    ? zh
-                      ? "仍要添加"
-                      : "Add anyway"
-                    : zh
-                      ? "添加"
-                      : "Add"}
+                  {current && !current.ok ? copy.addAnyway : copy.add}
                 </Button>
               </div>
             </>

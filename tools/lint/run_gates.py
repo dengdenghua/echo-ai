@@ -43,6 +43,7 @@ GATES: tuple[Gate, ...] = (
     Gate("untracked_source_check", (PY, "-m", "tools.lint.untracked_source_check")),
     Gate("god_file_check", (PY, "tools/lint/god_file_check.py", "--strict")),
     Gate("function_length_check", (PY, "tools/lint/function_length_check.py", "--strict")),
+    Gate("inline_locale_check", (PY, "tools/lint/inline_locale_check.py", "--strict")),
     Gate("import_direction_check", (PY, "tools/lint/import_direction_check.py", "--strict")),
     Gate("orphan_module_check", (PY, "tools/lint/orphan_module_check.py", "--strict")),
     Gate(

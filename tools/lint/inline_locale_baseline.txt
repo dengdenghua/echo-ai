@@ -1,0 +1,42 @@
+# Inline locale branches per frontend file, captured by tools/lint/inline_locale_check.py
+# Moved a file's copy into core/i18n/locales? Lower or delete its line.
+
+frontend/src/components/workspace/settings/automation-capability-settings.tsx	62
+frontend/src/components/workspace/dual-helix-evolution-panel.tsx	38
+frontend/src/components/workspace/execution-nodes-dialog.tsx	30
+frontend/src/components/workspace/agents/role-connections.tsx	18
+frontend/src/components/workspace/shared-spaces-dialog.tsx	18
+frontend/src/components/workspace/settings/codex-update-radar.tsx	17
+frontend/src/components/workspace/agents/role-readiness.tsx	16
+frontend/src/components/workspace/execution-engine-picker.tsx	13
+frontend/src/components/workspace/settings/automation-plugin-card.tsx	12
+frontend/src/components/workspace/realtime-approval-toasts.tsx	11
+frontend/src/components/workspace/messages/media-reference.tsx	9
+frontend/src/components/workspace/reasoning-effort-picker.tsx	9
+frontend/src/components/workspace/messages/linked-file-reference.tsx	8
+frontend/src/components/workspace/settings/settings-dialog.tsx	8
+frontend/src/components/workspace/workdir-selector.tsx	7
+frontend/src/components/workspace/settings/automation-security-settings-page.tsx	5
+frontend/src/components/workspace/settings/conversation-settings-page.tsx	5
+frontend/src/components/workspace/settings/notification-settings-page.tsx	5
+frontend/src/components/workspace/messages/task-connection-recovery.tsx	4
+frontend/src/core/utils/datetime.ts	4
+frontend/src/components/browser/weather.ts	3
+frontend/src/components/workspace/coder-engine-control.tsx	3
+frontend/src/components/workspace/settings/personal-space-settings-page.tsx	3
+frontend/src/core/agents/engine-capability-checks.ts	3
+frontend/src/components/workspace/model-picker.tsx	2
+frontend/src/components/workspace/settings/model-settings-page.tsx	2
+frontend/src/components/workspace/settings/privacy-settings-page.tsx	2
+frontend/src/components/workspace/settings/settings-resilience.ts	2
+frontend/src/components/browser/assistant-panel.tsx	1
+frontend/src/components/store/workbuddy-cloud-store-panel.tsx	1
+frontend/src/components/ui/dialog.tsx	1
+frontend/src/components/workspace/agents/agent-card.tsx	1
+frontend/src/components/workspace/automation-picture-in-picture.tsx	1
+frontend/src/components/workspace/model-cookbook.tsx	1
+frontend/src/components/workspace/personal-mode-selector.tsx	1
+frontend/src/components/workspace/reach-control.tsx	1
+frontend/src/components/workspace/settings/about-content.ts	1
+frontend/src/components/workspace/settings/automation-plugin-diagnostics.tsx	1
+frontend/src/core/agents/agent-world-api.ts	1

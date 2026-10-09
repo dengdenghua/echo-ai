@@ -1,4 +1,6 @@
 import type { LucideIcon } from "lucide-react";
+
+import type { WorkLocationCopy } from "./work-location";
 export interface Translations {
   // Locale meta
   locale: {
@@ -1088,6 +1090,7 @@ export interface Translations {
 
   // Agent Workbench Panel (swarm)
   workspaceComputer: Record<string, string>;
+  workLocation: WorkLocationCopy;
   agentOperator: Record<string, string>;
 
   // Agent Workbench Panel (swarm)

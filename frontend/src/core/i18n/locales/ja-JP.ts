@@ -10,6 +10,7 @@ import {
 } from "lucide-react";
 import type { Translations } from "./types";
 import { workspaceComputerJaJP } from "./workspace-computer";
+import { workLocationJaJP } from "./work-location";
 import { agentOperatorJaJP } from "./agent-operator";
 
 export const jaJP: Translations = {
@@ -1263,6 +1264,7 @@ export const jaJP: Translations = {
   },
 
   workspaceComputer: workspaceComputerJaJP,
+  workLocation: workLocationJaJP,
   agentOperator: agentOperatorJaJP,
 
   // Agent Workbench Panel
