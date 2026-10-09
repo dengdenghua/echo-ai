@@ -75,6 +75,8 @@ export interface ChatInputBoxProps {
   responseModeControl?: ReactNode;
   /** Optional compact content appended to the workspace/mode status row. */
   statusTrailing?: ReactNode;
+  /** Where the conversation runs; rendered first in the status row. */
+  workLocationControl?: ReactNode;
   /** Stable browser tab / desktop window bound to this conversation. */
   automationTarget?: AutomationTarget | null;
   onAutomationTargetChange?: (target: AutomationTarget | null) => void;
@@ -385,6 +387,7 @@ function ChatInputBoxImpl(props: ChatInputBoxProps) {
     groupTaskStrategy = "auto",
     onGroupTaskStrategyChange,
     statusTrailing,
+    workLocationControl,
     workspaceControl,
     contextActions,
   } = props;
@@ -467,6 +470,7 @@ function ChatInputBoxImpl(props: ChatInputBoxProps) {
       Boolean(props.isCompressingContext) ||
       Boolean(props.contextSegments?.length));
   const statusSegmentCount =
+    (workLocationControl ? 1 : 0) +
     (showGroupMembers ? 1 : 0) +
     (showAgentSegment ? 1 : 0) +
     (showWorkDirSegment ? 1 : 0) +
@@ -502,6 +506,14 @@ function ChatInputBoxImpl(props: ChatInputBoxProps) {
           className="flex min-h-8 flex-wrap items-center gap-x-2 px-2 pt-1.5 text-ui text-muted-foreground"
         >
           <div className="inline-flex max-w-full items-center gap-1.5 rounded-lg px-0.5 py-0.5">
+            {workLocationControl ? (
+              <>
+                {workLocationControl}
+                {(showAgentSegment || showWorkDirSegment || showModeSegment || showGroupMembers) && (
+                  <span className="h-3 w-px shrink-0 bg-border/35" aria-hidden="true" />
+                )}
+              </>
+            ) : null}
             {showAgentSegment ? (
               <>
                 <div

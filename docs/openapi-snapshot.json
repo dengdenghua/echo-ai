@@ -35877,6 +35877,26 @@
         ]
       }
     },
+    "/api/execution/locations": {
+      "get": {
+        "description": "Where a conversation can run, for the composer's work-location picker.",
+        "operationId": "locations_api_execution_locations_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Locations",
+        "tags": [
+          "execution"
+        ]
+      }
+    },
     "/api/execution/nodes": {
       "get": {
         "operationId": "nodes_api_execution_nodes_get",
@@ -54746,6 +54766,168 @@
           }
         },
         "summary": "Broadcast Task",
+        "tags": [
+          "tentacle"
+        ]
+      }
+    },
+    "/api/tentacle/credentials/devices": {
+      "get": {
+        "operationId": "list_devices_api_tentacle_credentials_devices_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response List Devices Api Tentacle Credentials Devices Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "List Devices",
+        "tags": [
+          "tentacle"
+        ]
+      }
+    },
+    "/api/tentacle/credentials/devices/{device_id}": {
+      "delete": {
+        "operationId": "revoke_device_api_tentacle_credentials_devices__device_id__delete",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "device_id",
+            "required": true,
+            "schema": {
+              "title": "Device Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Revoke Device Api Tentacle Credentials Devices  Device Id  Delete",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Revoke Device",
+        "tags": [
+          "tentacle"
+        ]
+      }
+    },
+    "/api/tentacle/credentials/devices/{device_id}/rotate": {
+      "post": {
+        "operationId": "rotate_device_api_tentacle_credentials_devices__device_id__rotate_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "device_id",
+            "required": true,
+            "schema": {
+              "title": "Device Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Rotate Device Api Tentacle Credentials Devices  Device Id  Rotate Post",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Rotate Device",
+        "tags": [
+          "tentacle"
+        ]
+      }
+    },
+    "/api/tentacle/credentials/invites": {
+      "post": {
+        "operationId": "create_invite_api_tentacle_credentials_invites_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "anyOf": [
+                  {
+                    "additionalProperties": true,
+                    "type": "object"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Body"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Create Invite Api Tentacle Credentials Invites Post",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Create Invite",
         "tags": [
           "tentacle"
         ]

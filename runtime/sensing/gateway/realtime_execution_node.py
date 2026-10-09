@@ -10,6 +10,7 @@ own sandbox (file tools only, no shell or network) still applies.
 from __future__ import annotations
 
 import asyncio
+import re
 import time
 from pathlib import Path
 from typing import Any
@@ -19,6 +20,8 @@ _POLL_INTERVAL_S = 1.0
 _TASK_TIMEOUT_S = 900
 # The node may wait in queue before it claims; give it room beyond the run cap.
 _WAIT_GRACE_S = 120
+# Worker errors arrive as "RuntimeError: RuntimeError: ..."; show the message.
+_EXCEPTION_PREFIX = re.compile(r"^(?:[A-Za-z_][\w.]*(?:Error|Exception): )+")
 
 
 def node_work_location(context: dict[str, Any] | None) -> dict[str, str] | None:
@@ -94,9 +97,18 @@ async def drive_execution_node(
     label = node.get("label") or node["node_id"]
     if not node.get("online"):
         raise RuntimeError(f"执行节点「{label}」当前不在线，请确认那台机器上的 Echo 正在运行")
-    workspace = WorkspaceStore().get_workspace(location["workspace_id"])
-    if workspace is None:
-        raise RuntimeError("找不到这个共享工作空间")
+    spaces = WorkspaceStore()
+    workspace = spaces.get_workspace(location["workspace_id"])
+    # Same writable-workspace rule as the execution router: the snapshot is
+    # taken here, so an authenticated caller must own or edit the workspace.
+    if workspace is None or (
+        getattr(getattr(turn, "params", None), "tenant_id", None)
+        and (
+            workspace.tenant_id != tenant
+            or spaces.get_member_role(workspace.id, actor) not in {"owner", "editor"}
+        )
+    ):
+        raise RuntimeError("找不到这个共享工作空间，或你没有写入权限")
     probe = execution_directory(workspace)
 
     run = await asyncio.to_thread(
@@ -128,7 +140,9 @@ async def drive_execution_node(
         if status == "completed":
             break
         if status in {"failed", "cancelled"}:
-            reason = run.get("error") or ("任务已取消" if status == "cancelled" else "节点执行失败")
+            reason = _EXCEPTION_PREFIX.sub("", str(run.get("error") or "")) or (
+                "任务已取消" if status == "cancelled" else "节点执行失败"
+            )
             raise RuntimeError(f"执行节点「{label}」未完成：{reason}")
         attempt = int(run.get("attempt") or 0)
         if status == "running" and attempt != announced_attempt:

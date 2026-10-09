@@ -201,3 +201,40 @@ def test_unknown_node_fails_before_submitting(node_setup) -> None:
     with pytest.raises(RuntimeError, match="找不到这个执行节点"):
         asyncio.run(drive_execution_node(_Runtime(store), turn, None, _Emitter(), intent, text="x"))
     assert control.runs(tenant_id="local") == []
+
+
+def test_authenticated_caller_needs_write_access_to_the_workspace(node_setup) -> None:
+    store, control, turn, intent = node_setup
+    # The node belongs to tenant "local"; an authenticated stranger in that
+    # tenant who is not a workspace member must not snapshot it.
+    turn.params = SimpleNamespace(tenant_id="local", owner_actor_id="stranger")
+    with pytest.raises(RuntimeError, match="没有写入权限"):
+        asyncio.run(drive_execution_node(_Runtime(store), turn, None, _Emitter(), intent, text="x"))
+    assert control.runs(tenant_id="local") == []
+
+
+def test_node_failure_reason_drops_repeated_exception_names(node_setup) -> None:
+    store, control, turn, intent = node_setup
+
+    async def fail_like_a_worker() -> None:
+        while not control.runs(tenant_id="local"):
+            await asyncio.sleep(0.01)
+        run = control.runs(tenant_id="local")[0]
+        node = control.verify_node("nas", "local", "local")
+        claimed = control.claim(run["run_id"], node=node, instance_id="worker-1")
+        store.transition_collaboration_run(
+            run["run_id"],
+            status="failed",
+            error="RuntimeError: RuntimeError: planner error",
+            worker_id="nas:worker-1",
+            expected_attempt=claimed["attempt"],
+        )
+
+    async def scenario() -> None:
+        await asyncio.gather(
+            drive_execution_node(_Runtime(store), turn, None, _Emitter(), intent, text="x"),
+            fail_like_a_worker(),
+        )
+
+    with pytest.raises(RuntimeError, match=r"未完成：planner error$"):
+        asyncio.run(scenario())

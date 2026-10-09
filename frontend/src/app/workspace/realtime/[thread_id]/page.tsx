@@ -209,6 +209,11 @@ import { useThreadSettings } from "@/core/settings";
 import { applyCoderModelProfileBoundary } from "@/core/coder/api";
 import { useExecutionEngine } from "@/core/threads/use-execution-engine";
 import { ExecutionEnginePicker } from "@/components/workspace/execution-engine-picker";
+import { WorkLocationPicker } from "@/components/workspace/work-location-picker";
+import {
+  useThreadWorkLocation,
+  workLocationContext,
+} from "@/core/execution/work-location";
 import {
   useThreadStream,
   type ThreadStreamOptions,
@@ -1831,6 +1836,7 @@ function RealtimePageContent({
   const streamMode: ReasoningMode | "team" = collaborationEnabled
     ? "team"
     : effectiveMode;
+  const [workLocation, setWorkLocation] = useThreadWorkLocation(threadId);
   const executionSelection = useExecutionEngine({
     threadId,
     parentThreadId:
@@ -2486,6 +2492,9 @@ function RealtimePageContent({
           private_conversation: privateConversation,
           agent_name: mainPerspectiveAgentId,
           execution_engine: selectedExecutionEngine,
+          work_location: isGroupConversation
+            ? undefined
+            : workLocationContext(workLocation),
         },
         selectedExecutionEngine,
       ),
@@ -2557,6 +2566,7 @@ function RealtimePageContent({
       streamMode,
       threadId,
       threadRouteFor,
+      workLocation,
     ],
   );
   const [
@@ -4834,7 +4844,18 @@ function RealtimePageContent({
                             disabled={researchLoading || !canWriteConversation}
                             workDir={effectiveWorkDir}
                             displayAgent={perspectiveComposerAgent}
-                            showWorkDirSelector={!embeddedDesignChat}
+                            showWorkDirSelector={
+                              !embeddedDesignChat && workLocation.kind === "local"
+                            }
+                            workLocationControl={
+                              !embeddedDesignChat && !isGroupConversation ? (
+                                <WorkLocationPicker
+                                  value={workLocation}
+                                  onChange={setWorkLocation}
+                                  disabled={thread.isLoading}
+                                />
+                              ) : undefined
+                            }
                             showModeSelector
                             onWorkDirChange={handleWorkDirChange}
                             lockWorkDirToThread={!isNewThread}
