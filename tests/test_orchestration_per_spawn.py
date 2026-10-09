@@ -90,10 +90,15 @@ def test_every_canonical_lens_key_survives_its_own_normalisation() -> None:
     assert [k for k in _ROLE_LENS if _lens_for(k) is None] == []
 
 
-def test_every_lens_role_is_a_spawnable_agent() -> None:
-    """A lens for a role the registry rejects would never reach a worker."""
+def test_every_lens_role_is_a_spawnable_agent(installed_hub_roles: Any) -> None:
+    """A lens for a role the allowlist rejects would never reach a worker.
+
+    The allowlist is the set of installed HUB roles, so install every lens
+    role and assert none of them is filtered out as an internal agent.
+    """
     from runtime.execution.suckers._delegation_skills_common import _allowed_agent_ids
 
+    installed_hub_roles(*_ROLE_LENS)
     assert set(_ROLE_LENS) <= set(_allowed_agent_ids())
 
 

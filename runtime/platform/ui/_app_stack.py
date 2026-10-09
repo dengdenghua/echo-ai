@@ -287,25 +287,8 @@ def wire_stack(
                     len(_sa_registry.all_names()),
                     ", ".join(_sa_registry.all_names()),
                 )
-            # Re-register the `call_agent` skill so its description
-            # reflects the freshly-loaded user definitions. Without
-            # this the catalog would only enumerate the hardcoded
-            # BUILTIN_ROLES (call_agent gets registered earlier when
-            # the SkillRegistry was first built · before this loader
-            # had a chance to run).
-            try:
-                from runtime.execution.suckers.delegation_skills import (
-                    register_delegation_skills,
-                )
-
-                register_delegation_skills(stack.executor.registry)
-            except Exception as exc:  # noqa: BLE001
-                logging.getLogger("runtime.platform.ui.app").warning(
-                    "subagent delegation skill refresh failed (%s: %s) · "
-                    "continuing with the existing registry",
-                    type(exc).__name__,
-                    exc,
-                )
+            # call_agent was registered before this loader ran; refresh it.
+            _refresh_delegation_catalog(stack)
         except (ImportError, AttributeError, TypeError, OSError) as exc:
             logging.getLogger("runtime.platform.ui.app").warning(
                 "subagent registry load failed (%s: %s) · "
@@ -503,6 +486,26 @@ def wire_stack(
     ctx.subagent_registry = subagent_registry
 
 
+def _refresh_delegation_catalog(stack: Any) -> None:
+    """Re-register ``call_agent`` so its description lists the current roles.
+
+    Best effort: the catalog text is advisory, so a refresh failure (or a
+    stack without a skill registry) keeps the existing registration instead
+    of disabling the persistent runner and Project OS execution with it.
+    """
+    try:
+        from runtime.execution.suckers.delegation_skills import register_delegation_skills
+
+        register_delegation_skills(stack.executor.registry)
+    except Exception as exc:  # noqa: BLE001
+        logging.getLogger("runtime.platform.ui.app").warning(
+            "subagent delegation skill refresh failed (%s: %s) · "
+            "continuing with the existing registry",
+            type(exc).__name__,
+            exc,
+        )
+
+
 def wire_persistent_subagent_runner(ctx: AppContext) -> None:
     """Bind Claude-style persistent subagents to the live execution stack.
 
@@ -541,9 +544,7 @@ def wire_persistent_subagent_runner(ctx: AppContext) -> None:
             agent_registry=ctx.agent_registry,
         )
         set_sub_agent_runner(runner)
-        from runtime.execution.suckers.delegation_skills import register_delegation_skills
-
-        register_delegation_skills(stack.executor.registry)
+        _refresh_delegation_catalog(stack)
         ctx.subagent_runner = runner
         app.state.subagent_runner = runner
         app.state.subagent_runner_ready = True

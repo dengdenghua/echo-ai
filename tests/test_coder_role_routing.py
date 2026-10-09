@@ -90,6 +90,12 @@ def test_standard_coder_keeps_identity_across_runner_call_agent_and_projectos(
         == "Kane completed it"
     )
 
+    # Public delegation targets installed HUB roles that the runner has loaded:
+    # install Kane's market identity; the loaded registry supplies runnability.
+    from runtime.execution.subagents import market_bridge
+
+    kane = market_bridge.MarketIdentity("coder", "Kane", "", "White Ghost squad coder")
+    monkeypatch.setattr(market_bridge, "market_identity_index", lambda *_a: {"coder": kane})
     previous_runner = get_sub_agent_runner()
     set_sub_agent_runner(runner)
     monkeypatch.setattr(

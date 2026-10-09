@@ -46,6 +46,25 @@ def test_persistent_subagent_runner_is_wired_and_owned_until_shutdown(monkeypatc
     assert get_sub_agent_runner() is None
 
 
+def test_runner_wiring_refreshes_call_agent_on_the_stack_skill_registry(monkeypatch) -> None:
+    """Wiring re-registers ``call_agent`` so its catalog lists current roles; a
+    stack without a skill registry (above) still gets a working runner."""
+    from runtime.execution.suckers.registry import SkillRegistry
+
+    skills = SkillRegistry()
+    stack = SimpleNamespace(executor=SimpleNamespace(registry=skills))
+    monkeypatch.setattr(
+        "runtime.execution.parallel_agents.stack_runner.make_stack_subagent_runner",
+        lambda *, stack, agent_registry: lambda *_a, **_kw: "ok",
+    )
+    app = FastAPI()
+
+    wire_persistent_subagent_runner(AppContext(app=app, stack=stack))
+
+    assert app.state.subagent_runner_ready is True
+    assert skills.has("call_agent")
+
+
 def test_persistent_subagent_runner_stays_disabled_without_stack() -> None:
     app = FastAPI()
 
@@ -75,7 +94,7 @@ def test_create_app_project_run_reaches_persistent_runner(tmp_path, monkeypatch)
 
     def model_response(request) -> str:
         prompt = request.messages[-1].content
-        if "Break the goal" in prompt:
+        if "You are a project planner" in prompt:
             return '[{"name":"Build","goal":"build","success_criteria":["done"]}]'
         if "Decompose this milestone" in prompt:
             return '[{"type":"code","goal":"implement","team_mode":"single"}]'
@@ -152,7 +171,7 @@ def test_two_live_apps_keep_projectos_bound_to_their_own_runner(
 
     def model_response(request) -> str:
         prompt = request.messages[-1].content
-        if "Break the goal" in prompt:
+        if "You are a project planner" in prompt:
             return '[{"name":"Build","goal":"build","success_criteria":["done"]}]'
         if "Decompose this milestone" in prompt:
             return '[{"type":"code","goal":"implement","team_mode":"single"}]'

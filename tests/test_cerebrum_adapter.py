@@ -21,6 +21,10 @@ from runtime.tentacle.mobile.cerebrum_adapter import (
 )
 from runtime.tentacle.mobile.device import MobileDevice
 
+# Device capabilities come from the enabled first-party android plugin package;
+# opt in to its manifests instead of depending on a host install.
+pytestmark = pytest.mark.usefixtures("enabled_device_plugin_manifests")
+
 # ── fixtures ──────────────────────────────────────────────
 
 

@@ -42,6 +42,12 @@ def _reset_runner_and_budget():
     _TURN_FAILED_FINGERPRINTS.clear()
 
 
+@pytest.fixture(autouse=True)
+def _installed_roles(installed_hub_roles):
+    """Fan-out only targets installed HUB roles; install the ones dispatched here."""
+    installed_hub_roles("researcher", "reviewer", "explorer")
+
+
 def _patch_bridge(monkeypatch, scripted: dict[str, Any]):
     """Replace ``call_subagent`` so each (agent_id, prompt) returns a
     canned result. ``scripted`` maps prompt → result dict."""
@@ -532,17 +538,35 @@ def test_agent_name_task_shape_is_accepted(monkeypatch):
 
     r = _call_agent_parallel(
         specs=[
-            {"agent_name": "Agent A", "task": "Task A"},
-            {"agent_name": "Agent B", "task": "Task B"},
+            {"agent_name": "researcher", "task": "Task A"},
+            {"agent_name": "explorer", "task": "Task B"},
         ]
     )
 
     assert r["ok"] is True
     assert r["success_count"] == 2
     assert len(seen) == 2
-    assert {agent_id for agent_id, _prompt in seen} == {"explorer"}
-    assert any("Agent A" in prompt and "Task A" in prompt for _agent_id, prompt in seen)
-    assert any("Agent B" in prompt and "Task B" in prompt for _agent_id, prompt in seen)
+    assert {agent_id for agent_id, _prompt in seen} == {"researcher", "explorer"}
+    assert any(a == "researcher" and "Task A" in p for a, p in seen)
+    assert any(a == "explorer" and "Task B" in p for a, p in seen)
+
+
+def test_uninstalled_custom_agent_name_is_rejected_not_substituted(monkeypatch):
+    """Custom names no longer fall back to a builtin with a role label: the
+    identity is kept exact and an uninstalled role fails before any spawn."""
+    from runtime.execution.suckers.delegation_skills import _call_agent_parallel
+
+    seen: list[str] = []
+    monkeypatch.setattr(
+        "runtime.execution.subagents.call_subagent",
+        lambda agent_id="", **_kw: seen.append(agent_id) or _ok("should not run"),
+    )
+
+    r = _call_agent_parallel(specs=[{"agent_name": "Agent A", "task": "Task A"}])
+
+    assert r["ok"] is False
+    assert "no fallback subagent available for 'Agent A'" in r["error"]
+    assert seen == []
 
 
 def test_parallel_blocks_retired_subagent_for_high_risk(monkeypatch, tmp_path):
@@ -669,11 +693,12 @@ def test_legacy_role_goal_spec_is_accepted_without_retry(monkeypatch):
     )
 
     result = _call_agent_parallel(
-        specs=[{"role": "schema_reader", "goal": "Read the schema once"}],
+        specs=[{"role": "researcher", "goal": "Read the schema once"}],
     )
 
     assert result["ok"] is True
     assert len(seen) == 1
+    assert seen[0][0] == "researcher"
     assert "Read the schema once" in seen[0][1]
 
 

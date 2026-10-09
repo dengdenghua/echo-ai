@@ -17,6 +17,7 @@ import pytest
 
 from runtime.execution.suckers import delegation_budget as db
 from runtime.execution.suckers import delegation_skills as ds
+from runtime.execution.suckers._delegation_skills_orchestration import _ROLE_LENS
 
 
 @pytest.fixture(autouse=True)
@@ -35,6 +36,12 @@ def _reset_budget_state():
     db._TURN_FAILED_FINGERPRINTS.clear()
     set_sub_agent_runner(None)
     set_subagent_registry(None)
+
+
+@pytest.fixture(autouse=True)
+def _installed_roles(installed_hub_roles):
+    """Finders, voters and the synthesizer must all be installed HUB roles."""
+    installed_hub_roles(*_ROLE_LENS)
 
 
 # ── pure helpers ─────────────────────────────────────────────────

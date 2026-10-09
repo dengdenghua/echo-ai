@@ -87,6 +87,29 @@ def enabled_device_plugin_manifests(monkeypatch):
 
 
 @pytest.fixture
+def installed_hub_roles(monkeypatch):
+    """Return ``install(*role_ids)`` that marks roles as installed + runnable.
+
+    Public delegation (``call_agent`` / ``call_agent_parallel`` and every
+    orchestrator built on them) only targets installed HUB roles, and the
+    bridge refuses to substitute a missing one. Tests that exercise the
+    fan-out mechanics opt in to the exact roles they dispatch to, instead of
+    relying on the retired implicit-builtin fallback.
+    """
+    from runtime.execution.subagents import market_bridge
+
+    roles: dict[str, market_bridge.MarketIdentity] = {}
+    monkeypatch.setattr(market_bridge, "runnable_market_roles", lambda runner=None: roles)
+
+    def install(*role_ids: str) -> dict[str, market_bridge.MarketIdentity]:
+        for role_id in role_ids:
+            roles[role_id] = market_bridge.MarketIdentity(role_id, role_id, "", "test role")
+        return roles
+
+    return install
+
+
+@pytest.fixture
 def bypass_serve_port_guard(monkeypatch):
     """Keep mocked-Uvicorn assembly tests independent of host listeners."""
     import runtime.cli_serve as cli_serve

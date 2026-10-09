@@ -340,7 +340,13 @@ def test_call_subagent_env_override_is_used_when_cheap(
 # ── _call_agent_parallel role-based defaults ─────────────────
 
 
-def test_parallel_researcher_defaults_to_cheap(monkeypatch, capture_runner) -> None:
+@pytest.fixture
+def parallel_roles(installed_hub_roles):
+    """Public fan-out dispatches only to installed HUB roles."""
+    installed_hub_roles("researcher", "architect")
+
+
+def test_parallel_researcher_defaults_to_cheap(monkeypatch, capture_runner, parallel_roles) -> None:
     """A researcher spec with no explicit ``cheap`` flag auto-routes
     to the cheap model (here the resolved custom one)."""
     _install_custom_models(
@@ -361,7 +367,7 @@ def test_parallel_researcher_defaults_to_cheap(monkeypatch, capture_runner) -> N
     assert capture_runner["context"].get("model_name") == "deepseek-v4-flash"
 
 
-def test_parallel_explicit_cheap_false_disables_auto_route(capture_runner) -> None:
+def test_parallel_explicit_cheap_false_disables_auto_route(capture_runner, parallel_roles) -> None:
     """An explicit ``cheap: False`` on a researcher spec wins over the
     auto-cheap default."""
     delegation_skills._call_agent_parallel(
@@ -371,7 +377,7 @@ def test_parallel_explicit_cheap_false_disables_auto_route(capture_runner) -> No
     assert "model_name" not in capture_runner["context"]
 
 
-def test_parallel_architect_defaults_to_primary(capture_runner) -> None:
+def test_parallel_architect_defaults_to_primary(capture_runner, parallel_roles) -> None:
     """``architect`` is a heavy-reasoning role and stays on the primary
     model unless the spec opts in explicitly."""
     delegation_skills._call_agent_parallel(
@@ -384,6 +390,7 @@ def test_parallel_architect_defaults_to_primary(capture_runner) -> None:
 def test_parallel_explicit_cheap_true_on_architect_routes_cheap(
     monkeypatch,
     capture_runner,
+    parallel_roles,
 ) -> None:
     """Explicit ``cheap: True`` overrides the architect default."""
     _install_custom_models(

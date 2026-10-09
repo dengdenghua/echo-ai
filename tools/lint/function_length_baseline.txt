@@ -55,7 +55,7 @@ runtime/sensing/gateway/a2a_router.py::create_a2a_router	490
 runtime/sensing/gateway/openai_gateway_router.py::create_openai_router	477
 runtime/sensing/gateway/workspace_api_router.py::create_workspace_api_router	472
 runtime/cli_serve.py::run_serve	467
-runtime/platform/ui/_app_stack.py::wire_stack	466
+runtime/platform/ui/_app_stack.py::wire_stack	449
 runtime/sensing/gateway/_observability_kg.py::register_kg_endpoints	463
 runtime/execution/agents/group_fanout.py::run_group_fanout	446
 runtime/sensing/gateway/_observability_journal.py::register_journal_endpoints	427

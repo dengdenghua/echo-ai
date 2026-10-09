@@ -238,10 +238,14 @@ class TestStripHelper:
             "specs[0].context.approval_policy",
         ]
 
-    def test_forbidden_set_is_the_two_privilege_flags(self) -> None:
-        assert "allow_sensitive" in MODEL_FORBIDDEN_ARGS
-        assert "allow_private" in MODEL_FORBIDDEN_ARGS
-        assert len(MODEL_FORBIDDEN_ARGS) == 2
+    def test_forbidden_set_is_the_privilege_and_network_flags(self) -> None:
+        # The two privilege flags plus the sandbox network tiers (network
+        # access comes only from the session's sandbox_policy). Exact match so
+        # dropping any of them fails here.
+        assert (
+            frozenset({"allow_sensitive", "allow_private", "allow_network", "egress_allow_common"})
+            == MODEL_FORBIDDEN_ARGS
+        )
 
 
 class TestReactDriveDispatchKeysAreModelProtected:
