@@ -39,6 +39,7 @@ electronLanguages:
 files:
   - dist/**/*
   - electron/**/*
+  - "!electron/**/*.test.mjs"
   - "!node_modules/**/*"
   - "!**/*.map"
 
