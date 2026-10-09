@@ -32,7 +32,11 @@ from runtime.execution.subagents.worktree_loop import (
     worktree_scope,
 )
 from runtime.platform.process.session import Session
-from runtime.platform.process.tree import process_group_kwargs, terminate_process_tree
+from runtime.platform.process.tree import (
+    close_process_job,
+    spawn_in_job,
+    terminate_process_tree,
+)
 from runtime.safety.approval.cancellation import current_cancellation_token
 
 
@@ -51,13 +55,14 @@ def _git(
     git_env.update(env or {})
     handle = output.open("wb") if output is not None else None
     try:
-        proc = subprocess.Popen(
+        # Own process group + (Windows) kill-on-close Job Object: a cancelled,
+        # timed-out or orphaned git cannot leave helpers running.
+        proc = spawn_in_job(
             ["git", "-C", str(root), *_GIT_HARDENING, *args],
             env=git_env,
             stdin=subprocess.DEVNULL,
             stdout=handle if handle is not None else subprocess.PIPE,
             stderr=subprocess.PIPE,
-            **process_group_kwargs(),
         )
 
         def stop(_reason: str) -> None:
@@ -73,6 +78,7 @@ def _git(
                 raise
         finally:
             unlink()
+            close_process_job(proc)
         if not cleanup:
             token.throw_if_cancelled()
         if proc.returncode:

@@ -21,7 +21,16 @@ import time
 from pathlib import Path
 from typing import Any
 
+from runtime.platform.process.win_job import JobLimits
+
 from ._write_skills_common import _BACKGROUND_OUTPUT_CAP, _optional_float
+
+# Background tasks deliberately outlive a backend restart (see
+# ``recover_background_processes``: live jobs are adopted, never killed), as
+# they do on POSIX via ``start_new_session``. Their Windows Job Object is
+# therefore NOT kill-on-close; it still gives ``kill()`` a whole-tree
+# ``TerminateJobObject`` that also reaches grandchildren whose parent exited.
+_BACKGROUND_JOB_LIMITS = JobLimits(kill_on_close=False)
 
 
 def _background_policy_with_result(
@@ -263,11 +272,13 @@ class _BackgroundProcess:
         }
 
     def kill(self) -> dict[str, Any]:
-        from runtime.platform.process.tree import terminate_process_tree
+        from runtime.platform.process.tree import process_job, terminate_process_tree
 
         with self._lock:
             self.cancelled = True
-        if self.proc.poll() is None:
+        # With a Job Object, kill even after the direct child exited: e.g.
+        # ``cmd /c start server`` returns at once but leaves the server behind.
+        if self.proc.poll() is None or process_job(self.proc) is not None:
             terminate_process_tree(self.proc)
         deadline = time.monotonic() + 3.0
         while self._wait_thread.is_alive() and time.monotonic() < deadline:

@@ -17,6 +17,7 @@ from uuid import uuid4
 from runtime.safety.env_scrub import scrub_credential_env as _scrub_unconfined_env
 
 from ._write_skills_background import (
+    _BACKGROUND_JOB_LIMITS,
     _BACKGROUND_PROCESSES,
     _background_execution_policy,
     _background_paths,
@@ -561,9 +562,9 @@ def _background_exec(
     task_id = f"bg_{uuid4().hex[:16]}"
     paths = _background_paths(task_id)
     try:
-        from runtime.platform.process.tree import process_group_kwargs
+        from runtime.platform.process.tree import spawn_in_job
 
-        proc = subprocess.Popen(
+        proc = spawn_in_job(
             argv,
             stdin=subprocess.DEVNULL,
             stdout=subprocess.PIPE,
@@ -573,7 +574,7 @@ def _background_exec(
             env=run_env,
             bufsize=1,
             shell=False,
-            **process_group_kwargs(),
+            limits=_BACKGROUND_JOB_LIMITS,
         )
     except FileNotFoundError as e:
         return {"error": f"command not found: {e}", "argv": argv}

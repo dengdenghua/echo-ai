@@ -363,21 +363,21 @@ class WorkflowRun:
         self._loop = asyncio.get_running_loop()
         self._result_future = self._loop.create_future()
         try:
-            from runtime.platform.process.tree import process_group_kwargs
+            from runtime.platform.process.tree import spawn_in_job
 
             self._launch = prepare_worker_launch(worker_env())
-            self._proc = subprocess.Popen(
+            # Audit T-10: the worker runs in its own session (pid == pgid)
+            # so terminating it later kills the whole process group —
+            # subagent children the worker spawned do not outlive the run.
+            # On Windows the tree is also bound to a kill-on-close Job
+            # Object, which holds even if this backend process dies.
+            self._proc = spawn_in_job(
                 self._launch.argv,
                 stdin=subprocess.PIPE,
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,
                 env=self._launch.env,
                 cwd=self._launch.cwd,
-                # Audit T-10: the worker runs in its own session (pid ==
-                # pgid) so terminating it later kills the whole process
-                # group — subagent children the worker spawned do not
-                # outlive the run.
-                **process_group_kwargs(),
             )
         except (OSError, WorkflowSandboxUnavailable) as exc:
             if self._launch is not None:
@@ -672,6 +672,10 @@ class WorkflowRun:
         if self._proc is not None:
             with contextlib.suppress(subprocess.TimeoutExpired):
                 await asyncio.to_thread(self._proc.wait, timeout=1.0)
+            from runtime.platform.process.tree import close_process_job
+
+            # Ends descendants that outlived an already-exited worker.
+            close_process_job(self._proc)
         if self._launch is not None and (self._proc is None or self._proc.poll() is not None):
             self._launch.close()
             self._launch = None
