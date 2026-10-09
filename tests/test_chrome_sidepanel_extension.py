@@ -34,14 +34,18 @@ def test_extension_visible_copy_uses_echo_brand() -> None:
     bookmarklet = (EXTENSION / "bookmarklet.js").read_text(encoding="utf-8")
     background = (EXTENSION / "background.js").read_text(encoding="utf-8")
 
+    # The product brand here is plain "Echo" (manifest name "Echo Browser
+    # Relay"); "EchoAI" is the sibling echo-os brand and must not leak in.
     assert readme.startswith("# Echo Browser Relay")
     assert "Echo Agent" not in readme
-    assert "Echo Browser Relay" not in readme
+    assert "EchoAI" not in readme
     assert "WebSocket token query" not in readme
     assert "never placed in the connection URL" in readme
     assert "Echo Page Agent" not in bookmarklet
-    assert "已发送到 Echo" not in bookmarklet
-    assert "Echo Browser Relay:" not in background
+    assert "已发送到 Echo 对话" in bookmarklet
+    assert "已发送到 EchoAI" not in bookmarklet
+    assert "Echo Browser Relay:" in background
+    assert "EchoAI Browser Relay" not in background
 
 
 def test_tdx_oauth_bridge_is_early_scoped_and_validated() -> None:
@@ -151,9 +155,9 @@ def test_sidepanel_is_extension_native_not_page_overlay() -> None:
     assert 'href="sidepanel.css"' in html
     assert 'src="sidepanel.js"' in html
     assert "<script>" not in html
-    assert "Echo" in html
+    assert "<h1>Echo</h1>" in html
     assert '<span class="mark" aria-hidden="true">E</span>' in html
-    assert "Echo" not in html
+    assert "EchoAI" not in html
     assert "页面轻面板" in html
     assert 'id="controlTitle"' in html
     assert 'id="stopButton"' in html
