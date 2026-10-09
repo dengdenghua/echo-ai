@@ -77,12 +77,17 @@ def isolated_cwd(
 
 @pytest.fixture
 def empty_home(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
-    """Hide the developer's ~/.echo plugins (Windows resolves "~" via USERPROFILE)."""
+    """Hide the developer's installed Codex plugins from app startup.
+
+    They live under ~/.echo (Windows resolves "~" via USERPROFILE) and, in a
+    source checkout, under the repo's own data/plugins/codex.
+    """
 
     home = tmp_path / "home"
     home.mkdir()
     monkeypatch.setenv("HOME", str(home))
     monkeypatch.setenv("USERPROFILE", str(home))
+    monkeypatch.setenv("ECHO_DATA_DIR", str(tmp_path / "data"))
     return home
 
 

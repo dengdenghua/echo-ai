@@ -89,16 +89,20 @@ def _default_plugin_roots() -> list[Path]:
     ]
 
 
-# 我们自己的 Codex 格式插件目录(echo 名下,不再直接读 ~/.codex)。
-ECHO_CODEX_PLUGIN_ROOT = Path.home() / ".echo" / "plugins" / "codex"
-# Codex 应用的原始插件缓存(只作为一次性的迁移来源)。
-LEGACY_CODEX_PLUGIN_CACHE = Path.home() / ".codex" / "plugins" / "cache"
+# Both roots resolve per call: binding Path.home() at import pinned them to
+# whichever HOME the first importer saw.
 
 
 def echo_codex_plugin_root() -> Path:
     """返回 echo 自有的 Codex 格式插件目录(不存在则创建)。"""
-    ECHO_CODEX_PLUGIN_ROOT.mkdir(parents=True, exist_ok=True)
-    return ECHO_CODEX_PLUGIN_ROOT
+    root = Path.home() / ".echo" / "plugins" / "codex"
+    root.mkdir(parents=True, exist_ok=True)
+    return root
+
+
+def legacy_codex_plugin_cache() -> Path:
+    """Codex 应用的原始插件缓存(只作为一次性的迁移来源)。"""
+    return Path.home() / ".codex" / "plugins" / "cache"
 
 
 def _version_tuple(version: str) -> tuple[int, ...]:
@@ -118,7 +122,7 @@ def sync_codex_cache_to_echo(
     幂等:echo 目录里已有同名插件(.codex-plugin/plugin.json)就跳过,不覆盖
     本地已装的。返回本次复制成功的插件数。
     """
-    src = Path(source or LEGACY_CODEX_PLUGIN_CACHE)
+    src = Path(source or legacy_codex_plugin_cache())
     target_root = Path(dest or echo_codex_plugin_root())
     if not src.is_dir():
         return 0
