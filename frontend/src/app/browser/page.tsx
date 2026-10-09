@@ -54,6 +54,7 @@ import {
   BROWSER_READER_EVENT,
   openBrowserFind,
 } from "@/components/browser/browser-events";
+import { ExtensionsDialog } from "@/components/browser/extensions-dialog";
 import { FindBar } from "@/components/browser/find-bar";
 import { ReaderView } from "@/components/browser/reader-view";
 import type { WebviewTabHandle } from "@/components/browser/webview-tab";
@@ -488,6 +489,7 @@ function BrowserShell() {
   // page changes.
   const [findOpen, setFindOpen] = useState(false);
   const [readerOpen, setReaderOpen] = useState(false);
+  const [extensionsOpen, setExtensionsOpen] = useState(false);
   useEffect(() => {
     const onFind = () => setFindOpen(true);
     const onReader = () => setReaderOpen(true);
@@ -607,7 +609,7 @@ function BrowserShell() {
           {!activeTab?.taskPreview && (
             <UrlBar
               webviewHandle={activeHandle}
-              onOpenExtensions={openExtensionsStore}
+              onOpenExtensions={() => setExtensionsOpen(true)}
             />
           )}
           {settings.showBookmarksBar && !activeTab?.taskPreview ? (
@@ -638,6 +640,11 @@ function BrowserShell() {
               onClose={() => setReaderOpen(false)}
             />
           ) : null}
+          <ExtensionsDialog
+            open={extensionsOpen}
+            onOpenChange={setExtensionsOpen}
+            onOpenStore={openExtensionsStore}
+          />
           <div
             className="flex min-h-0 flex-1 overflow-hidden"
             style={{ position: "relative" }}

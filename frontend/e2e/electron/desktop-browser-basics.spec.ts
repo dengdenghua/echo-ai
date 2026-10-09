@@ -215,3 +215,105 @@ test("desktop browser forwards shortcuts, menus, popups and imports", async () =
     await rm(root, { recursive: true, force: true });
   }
 });
+
+test("desktop extensions run in browser tabs only", async () => {
+  const root = await mkdtemp(path.join(tmpdir(), "echo-browser-ext-"));
+  const extensionDir = path.join(root, "marker-extension");
+  await mkdir(extensionDir, { recursive: true });
+  await writeFile(
+    path.join(extensionDir, "manifest.json"),
+    JSON.stringify({
+      manifest_version: 3,
+      name: "Marker",
+      version: "1.0.0",
+      content_scripts: [
+        { matches: ["<all_urls>"], js: ["marker.js"], run_at: "document_end" },
+      ],
+    }),
+  );
+  await writeFile(
+    path.join(extensionDir, "marker.js"),
+    'document.documentElement.dataset.echoMarker = "on";',
+  );
+  const server = createServer((_req, res) => {
+    res.setHeader("Content-Type", "text/html; charset=utf-8");
+    res.end("<title>Page</title><p>extension fixture</p>");
+  });
+  await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
+  const base = `http://127.0.0.1:${(server.address() as { port: number }).port}`;
+  const app = await electron.launch({
+    args: [
+      path.resolve("electron/main.cjs"),
+      "--hidden",
+      `--user-data-dir=${root}/profile`,
+    ],
+    env: {
+      ...process.env,
+      ELECTRON_START_URL: base,
+      ECHO_DATA_DIR: root,
+      ECHO_PET_DISABLED: "1",
+    },
+  });
+  try {
+    const win = await app.firstWindow();
+    await win.waitForLoadState("domcontentloaded");
+    // Stand in for the folder picker.
+    await app.evaluate(({ dialog }, dir) => {
+      dialog.showOpenDialog = (async () => ({
+        canceled: false,
+        filePaths: [dir],
+      })) as unknown as typeof dialog.showOpenDialog;
+    }, extensionDir);
+    const installed = await win.evaluate(() =>
+      window.echo!.extensions.installFromFolder(),
+    );
+    expect(installed).toMatchObject({
+      ok: true,
+      extension: { name: "Marker", enabled: true },
+    });
+    const marker = (partition: string) =>
+      win.evaluate(
+        async ({ url, partition }) => {
+          const webview = document.createElement("webview") as HTMLElement & {
+            executeJavaScript(code: string): Promise<unknown>;
+          };
+          webview.setAttribute("partition", partition);
+          const ready = new Promise<void>((resolve) =>
+            webview.addEventListener("did-finish-load", () => resolve(), {
+              once: true,
+            }),
+          );
+          webview.setAttribute("src", url);
+          document.body.append(webview);
+          await ready;
+          await new Promise((resolve) => setTimeout(resolve, 300));
+          const value = await webview.executeJavaScript(
+            "document.documentElement.dataset.echoMarker || ''",
+          );
+          webview.remove();
+          return value;
+        },
+        { url: `${base}/page`, partition },
+      );
+    expect(await marker("persist:echo-browser")).toBe("on");
+    expect(await marker("echo-private")).toBe("");
+    // Never in the app's own window.
+    expect(
+      await win.evaluate(
+        () => document.documentElement.dataset.echoMarker ?? "",
+      ),
+    ).toBe("");
+    const id = installed.extension!.id;
+    expect(
+      await win.evaluate(
+        (id) => window.echo!.extensions.setEnabled(id, false),
+        id,
+      ),
+    ).toMatchObject({ ok: true });
+    expect(await marker("persist:echo-browser")).toBe("");
+  } finally {
+    await app.close();
+    await new Promise<void>((resolve) => server.close(() => resolve()));
+    await rm(root, { recursive: true, force: true });
+  }
+});

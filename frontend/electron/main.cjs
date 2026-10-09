@@ -805,11 +805,19 @@ function writeExtensionRegistry(list) {
   fs.writeFileSync(extensionsFile(), JSON.stringify(list, null, 2));
 }
 
+// Extensions run in browser tabs (the persistent browser profile), never in
+// the app's own UI session; private tabs get none, as in Chrome.
+function browserExtensions() {
+  const ses = browserProfileSession();
+  // Electron 35+ moved these methods to session.extensions.
+  return ses.extensions ?? ses;
+}
+
 async function loadEnabledExtensions() {
   for (const ext of readExtensionRegistry()) {
     if (!ext.enabled) continue;
     try {
-      await session.defaultSession.loadExtension(ext.path);
+      await browserExtensions().loadExtension(ext.path);
     } catch (err) {
       console.warn(`[echo] extension ${ext.name} failed to load:`, err.message);
     }
@@ -1614,7 +1622,7 @@ function registerIpc() {
       const manifest = JSON.parse(
         await fsp.readFile(path.join(dir, "manifest.json"), "utf8"),
       );
-      const loaded = await session.defaultSession.loadExtension(dir);
+      const loaded = await browserExtensions().loadExtension(dir);
       const info = {
         id: loaded.id,
         name: manifest.name || path.basename(dir),
@@ -1639,10 +1647,10 @@ function registerIpc() {
     if (!ext) return { ok: false, error: "extension not found" };
     try {
       if (enabled) {
-        const loaded = await session.defaultSession.loadExtension(ext.path);
+        const loaded = await browserExtensions().loadExtension(ext.path);
         ext.id = loaded.id;
       } else {
-        session.defaultSession.removeExtension(id);
+        browserExtensions().removeExtension(id);
       }
       ext.enabled = enabled;
       writeExtensionRegistry(registry);
@@ -1653,7 +1661,7 @@ function registerIpc() {
   });
   handle("extensions:remove", (id) => {
     try {
-      session.defaultSession.removeExtension(id);
+      browserExtensions().removeExtension(id);
     } catch {
       /* may not be loaded */
     }
