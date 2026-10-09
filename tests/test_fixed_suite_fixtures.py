@@ -221,6 +221,14 @@ def test_coding_prompts_expose_test_directory_and_repeatable_command(tmp_path) -
         assert "Do not assume bare python, pytest, or ruff" in case.prompt
 
 
+@pytest.mark.skipif(
+    sys.platform == "win32",
+    reason=(
+        "runs the real trusted controller, which scans workspaces with descriptor-relative "
+        "POSIX calls (os.open dir_fd, os.scandir(fd)) and whose local worker uses AF_UNIX "
+        "pass_fds; Windows supports neither"
+    ),
+)
 def test_path_boundary_grader_requires_tests_directory(tmp_path: Path) -> None:
     workspace = tmp_path / "workspace"
     (workspace / "tests").mkdir(parents=True)

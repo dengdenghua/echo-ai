@@ -1,12 +1,27 @@
 from __future__ import annotations
 
 import shutil
+import sys
 from pathlib import Path
+
+import pytest
 
 from benchmarks.trusted_verifier_controller import UnsafeLocalWorkerLauncher
 from benchmarks.verifiers import verify_concurrent_cache, verify_path_boundary
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
+
+# Every test here runs the real trusted controller, which is POSIX-only by
+# design; on Windows the production hidden-verifier path fails closed as
+# infrastructure-invalid (tests/test_fixed_suite_fixtures.py covers that).
+_REQUIRES_POSIX_TRUSTED_CONTROLLER = pytest.mark.skipif(
+    sys.platform == "win32",
+    reason=(
+        "the trusted verifier controller scans workspaces with descriptor-relative "
+        "POSIX calls (os.open dir_fd, os.scandir(fd)) and its local worker uses AF_UNIX "
+        "pass_fds; Windows supports neither"
+    ),
+)
 
 
 def _verify(script: str, workspace: Path) -> dict[str, object]:
@@ -18,6 +33,7 @@ def _verify(script: str, workspace: Path) -> dict[str, object]:
     raise AssertionError(f"unexpected verifier: {script}")
 
 
+@_REQUIRES_POSIX_TRUSTED_CONTROLLER
 def test_concurrent_cache_fixture_has_a_satisfiable_hidden_verifier(tmp_path) -> None:
     workspace = tmp_path / "cache"
     shutil.copytree(REPO_ROOT / "benchmarks" / "fixtures" / "coding.concurrent-cache", workspace)
@@ -69,6 +85,7 @@ class TTLCache:
     assert result["passed"] is True, result
 
 
+@_REQUIRES_POSIX_TRUSTED_CONTROLLER
 def test_concurrent_cache_verifier_rejects_unrelated_diff(tmp_path) -> None:
     workspace = tmp_path / "cache"
     shutil.copytree(REPO_ROOT / "benchmarks" / "fixtures" / "coding.concurrent-cache", workspace)
@@ -80,6 +97,7 @@ def test_concurrent_cache_verifier_rejects_unrelated_diff(tmp_path) -> None:
     assert "unrelated files" in str(result["reason"])
 
 
+@_REQUIRES_POSIX_TRUSTED_CONTROLLER
 def test_concurrent_cache_verifier_loads_dataclass_generic_candidate(tmp_path) -> None:
     """Candidates using ``@dataclass`` on a ``Generic`` must not crash the
     verifier's module loader (the loader must register the module in
@@ -155,6 +173,7 @@ class TTLCache(Generic[V]):
     assert result["passed"] is True, result
 
 
+@_REQUIRES_POSIX_TRUSTED_CONTROLLER
 def test_path_boundary_fixture_has_a_satisfiable_hidden_verifier(tmp_path) -> None:
     workspace = tmp_path / "paths"
     shutil.copytree(REPO_ROOT / "benchmarks" / "fixtures" / "coding.path-boundary", workspace)
