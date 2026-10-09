@@ -2,6 +2,13 @@ import { expect, test } from "@playwright/test";
 
 // Real Chromium exercise of our sandbox, CSP and bridge. Receipts are mocked
 // here; authenticated receipt storage is exercised separately in test_visuals.py.
+/** Hooks the /visual-test fixture page installs on ``window``. */
+type VisualTestWindow = typeof window & {
+  visualReady?: boolean;
+  renderVisual: (source: string, complete?: boolean) => void;
+  renderMermaid: () => Promise<void>;
+};
+
 test("isolated HTML renders, interacts, blocks host access and reports late errors", async ({
   page,
 }, testInfo) => {
@@ -41,7 +48,7 @@ test("isolated HTML renders, interacts, blocks host access and reports late erro
     }),
   );
   await page.goto("/visual-test");
-  await page.waitForFunction(() => (window as any).visualReady);
+  await page.waitForFunction(() => (window as VisualTestWindow).visualReady);
   const code = `<h2>参数变化</h2><label>数量 <input id="amount" type="range" min="1" max="10" value="2"></label><output id="result">4</output>
     <button id="crash">Trigger error</button><span id="isolation"></span>
     <script>
@@ -50,7 +57,7 @@ test("isolated HTML renders, interacts, blocks host access and reports late erro
       document.getElementById('crash').addEventListener('click', () => { throw new Error('late test error'); });
       try { parent.document.body; } catch { document.getElementById('isolation').textContent = 'Host isolated'; }
     </script>`;
-  await page.evaluate((source) => (window as any).renderVisual(source), code);
+  await page.evaluate((source) => (window as VisualTestWindow).renderVisual(source), code);
   const frame = page.frameLocator('iframe[title="Interactive example"]');
   await expect(frame.getByText("Host isolated")).toBeVisible();
   await expect(page.getByText("浏览器已渲染", { exact: true })).toBeVisible();
@@ -73,7 +80,7 @@ test("isolated HTML renders, interacts, blocks host access and reports late erro
 
   // Streaming code must remain inert, even when its script tag is complete.
   await page.evaluate(() =>
-    (window as any).renderVisual(
+    (window as VisualTestWindow).renderVisual(
       '<p id="state">Static</p><script>document.getElementById("state").textContent="Executed"</script>',
       false,
     ),
@@ -86,7 +93,7 @@ test("isolated HTML renders, interacts, blocks host access and reports late erro
     return route.abort();
   });
   await page.evaluate(() =>
-    (window as any).renderVisual(
+    (window as VisualTestWindow).renderVisual(
       '<p>Network boundary</p><script>fetch("https://example.invalid/blocked").catch(() => {})</script>',
     ),
   );
@@ -94,14 +101,14 @@ test("isolated HTML renders, interacts, blocks host access and reports late erro
   await expect(page.getByRole("alert")).toContainText("Blocked resource");
   expect(externalRequests).toBe(0);
   await page.evaluate(() =>
-    (window as any).renderVisual(
+    (window as VisualTestWindow).renderVisual(
       '<img src="https://example.invalid/image.png"><iframe src="https://example.invalid/frame"></iframe><p>Resource isolation</p>',
     ),
   );
   await expect(page.getByRole("alert")).toContainText("External resources");
   expect(externalRequests).toBe(0);
 
-  await page.evaluate(() => (window as any).renderMermaid());
+  await page.evaluate(() => (window as VisualTestWindow).renderMermaid());
   const diagram = page.locator('svg[id^="mermaid-chat-"]');
   await expect(diagram).toBeVisible();
   await expect(diagram).toContainText("需求");

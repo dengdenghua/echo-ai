@@ -1,5 +1,10 @@
 import { expect, test } from "@playwright/test";
 
+/** Hook the subagent-layout fixture page installs on ``window``. */
+type SubagentLayoutWindow = typeof window & {
+  renderPanel: (width: number, running?: boolean) => void;
+};
+
 for (const width of [320, 400, 640]) {
   test(`subagent sidebar fits ${width}px and keeps actions usable`, async ({
     page,
@@ -50,7 +55,7 @@ for (const width of [320, 400, 640]) {
     await panel.getByRole("button", { name: "私聊", exact: true }).click();
     await expect(input).toHaveValue("");
     await page.evaluate(
-      (width) => (window as any).renderPanel(width, true),
+      (width) => (window as SubagentLayoutWindow).renderPanel(width, true),
       width,
     );
     await expect(panel.getByText("验证结果", { exact: true })).toHaveCount(0);

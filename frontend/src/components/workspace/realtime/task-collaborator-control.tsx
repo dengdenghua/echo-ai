@@ -43,7 +43,6 @@ export function TaskCollaboratorControl({
   selectedAgents,
   selectedAgentIds,
   currentAgentName,
-  teamMode,
   open,
   onOpenChange,
   onSelectedAgentIdsChange,

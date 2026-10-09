@@ -135,6 +135,9 @@ export function InlineVisual({
   complete: boolean;
 }) {
   const frame = useRef<HTMLIFrameElement>(null);
+  // A fresh channel per render input, so a reply from the previous iframe
+  // document can never be mistaken for the current one.
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- deps are the trigger, not inputs
   const channel = useMemo(() => crypto.randomUUID(), [code, complete]);
   const [height, setHeight] = useState(360);
   const [status, setStatus] = useState("等待浏览器渲染");

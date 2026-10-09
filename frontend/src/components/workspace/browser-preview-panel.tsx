@@ -1713,11 +1713,16 @@ export function BrowserPreviewPanel({
   const [recentPages, setRecentPages] = useState<PageInfo[]>([]);
   const onPageInfoChangeRef = useRef(onPageInfoChange);
   onPageInfoChangeRef.current = onPageInfoChange;
-  useEffect(() => { onPageInfoChangeRef.current?.(pageInfo); }, [pageInfo.url, pageInfo.title]);
+  // Navigation (url / title) is the trigger; other page-info fields such as
+  // loading state must not re-announce the page or reorder recents.
+  const pageInfoRef = useRef(pageInfo);
+  pageInfoRef.current = pageInfo;
+  useEffect(() => { onPageInfoChangeRef.current?.(pageInfoRef.current); }, [pageInfo.url, pageInfo.title]);
   useEffect(() => { setRecentPages([]); }, [sessionId]);
   useEffect(() => {
-    if (!/^https?:\/\//i.test(pageInfo.url)) return;
-    setRecentPages(previous => [pageInfo, ...previous.filter(page => page.url !== pageInfo.url)].slice(0, 6));
+    const current = pageInfoRef.current;
+    if (!/^https?:\/\//i.test(current.url)) return;
+    setRecentPages(previous => [current, ...previous.filter(page => page.url !== current.url)].slice(0, 6));
   }, [pageInfo.url, pageInfo.title]);
 
   // ----- Render ------------------------------------------------------------

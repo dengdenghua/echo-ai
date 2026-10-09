@@ -482,7 +482,7 @@ test("two authenticated people join one canonical group and survive refresh", as
   const alice = await person(browser, baseURL!, "alice");
   const bob = await person(browser, baseURL!, "bob");
   try {
-    const { threadId, room } = await group(alice);
+    const { threadId } = await group(alice);
     await alice.page.goto(`/#/workspace/realtime/${threadId}`);
     await expect(alice.page.getByTestId("chat-composer-input")).toBeVisible({
       timeout: 30_000,

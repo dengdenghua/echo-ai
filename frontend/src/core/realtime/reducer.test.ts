@@ -10,7 +10,12 @@
 //   * Error event surfaces an error item on the active turn
 import { describe, expect, it } from "vitest";
 
-import { emptyConversation, type Conversation, type Turn } from "./items";
+import {
+  emptyConversation,
+  type Conversation,
+  type Item,
+  type Turn,
+} from "./items";
 import {
   itemStreamText,
   reduce,
@@ -49,7 +54,7 @@ describe("reducer", () => {
         status: "inProgress" as const,
         createdAt: T0_ISO,
         ...(type === "agentMessage" ? { text: "" } : { content: "" }),
-      } as import("./items").Item;
+      } as Item;
       const base = {
         ...emptyConversation("th"),
         turns: [{ ...blankTurn("trn-1", "th"), items: [item] }],

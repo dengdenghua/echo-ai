@@ -1,6 +1,5 @@
 import { expect, test } from "./fixtures";
 import {
-  assertChildrenContained,
   assertNoVisualOverflow,
   freezeVisualState,
 } from "./helpers/visual-stability";

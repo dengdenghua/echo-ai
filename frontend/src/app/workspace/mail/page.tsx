@@ -143,7 +143,10 @@ export default function MailPage() {
     };
   }, [accounts, accountId, folder, refresh, limit]);
   useEffect(() => {
-    const generation = ++readGeneration.current;
+    // A generation counter, not a DOM ref: cleanup bumps it so replies to a
+    // superseded read are ignored.
+    const generations = readGeneration;
+    const generation = ++generations.current;
     setDetail(null);
     setSummary("");
     setReading(false);
@@ -162,7 +165,7 @@ export default function MailPage() {
         if (readGeneration.current === generation) setReading(false);
       });
     return () => {
-      ++readGeneration.current;
+      ++generations.current;
     };
   }, [selected, folder]);
 
