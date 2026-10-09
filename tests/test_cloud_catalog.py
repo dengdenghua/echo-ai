@@ -274,6 +274,22 @@ class TestArchiveDownload:
         assert observed["max_bytes"] == 192 * 1024 * 1024
         assert observed["max_bytes"] < cloud_catalog._MAX_EXTRACTED_BYTES
 
+    def test_missing_release_is_a_readable_error_not_a_traceback(self, tmp_path, monkeypatch):
+        import httpx
+
+        def _missing(url: str, *, timeout: float, max_bytes: int) -> bytes:
+            request = httpx.Request("GET", url)
+            raise httpx.HTTPStatusError(
+                "404", request=request, response=httpx.Response(404, request=request)
+            )
+
+        monkeypatch.setattr(cloud_catalog, "CACHE_DIR", tmp_path)
+        monkeypatch.setattr(cloud_catalog, "fetch_public_https_bytes", _missing)
+
+        with pytest.raises(cloud_catalog.ContentPackUnavailableError, match="尚未在云端发布"):
+            CloudCatalog("plugins", use_remote=False, use_cache=False)._archive_path()
+        assert not list(tmp_path.iterdir()), "a failed download must not leave a cache file"
+
 
 class TestInstallSkill:
     def test_installs_to_target_and_is_idempotent(self, tmp_path, monkeypatch):

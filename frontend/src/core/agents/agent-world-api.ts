@@ -457,7 +457,16 @@ export async function installCloudPlugin(
   );
   if (!res.ok) {
     const txt = await res.text().catch(() => "");
-    throw new Error(`云插件安装失败: HTTP ${res.status} ${txt}`.trim());
+    // The backend explains download/compatibility failures in `detail`; show
+    // that sentence instead of the raw JSON body.
+    let detail = "";
+    try {
+      const parsed = JSON.parse(txt) as { detail?: unknown };
+      if (typeof parsed.detail === "string") detail = parsed.detail;
+    } catch {
+      // Non-JSON gateway responses fall through to the generic message.
+    }
+    throw new Error(detail || `云插件安装失败: HTTP ${res.status} ${txt}`.trim());
   }
   return res.json() as Promise<CloudPluginInstallResult>;
 }

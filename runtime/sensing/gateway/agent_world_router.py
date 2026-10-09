@@ -949,6 +949,7 @@ def create_agent_world_router(
         body: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
         from runtime.execution.suckers.market_skills import immutable_prompt_catalog_required
+        from runtime.platform.plugins.cloud_catalog import ContentPackUnavailableError
 
         cat = _cloud_catalog("plugins")
         item = next((i for i in cat.items() if i.get("id") == plugin_id), None)
@@ -1114,6 +1115,9 @@ def create_agent_world_router(
             ) from exc
         except ValueError as exc:
             raise HTTPException(400, str(exc)) from exc
+        except ContentPackUnavailableError as exc:
+            # Upstream download failed: a gateway problem, not a bad request.
+            raise HTTPException(502, str(exc)) from exc
         except RuntimeError as exc:
             raise HTTPException(400, str(exc)) from exc
 

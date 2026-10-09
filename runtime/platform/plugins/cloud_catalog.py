@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import contextlib
 import json
+import logging
 import os
 import re
 import shutil
@@ -21,6 +22,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
+import httpx
 from packaging.specifiers import InvalidSpecifier, SpecifierSet
 from packaging.version import InvalidVersion, Version
 
@@ -63,6 +65,34 @@ from runtime.platform.process.paths import app_paths
 REPO = Path(__file__).resolve().parents[3]
 LOCAL_MIRROR_DIR = REPO / "extensions" / "workbuddy-experts" / "storefront" / "data"
 CACHE_DIR = app_paths().data_dir / "cache"
+
+_log = logging.getLogger(__name__)
+
+
+class ContentPackUnavailableError(RuntimeError):
+    """The marketplace content pack could not be downloaded; the message is user-facing."""
+
+
+def _download_content_pack(url: str, *, timeout: float, max_bytes: int) -> bytes:
+    """Fetch a content pack, turning transport failures into a readable error.
+
+    A missing release used to surface as an unhandled 500 with an httpx
+    traceback, which the UI could only show as "HTTP 500".
+    """
+    try:
+        return fetch_public_https_bytes(url, timeout=timeout, max_bytes=max_bytes)
+    except httpx.HTTPStatusError as exc:
+        status = exc.response.status_code
+        _log.warning("content pack download failed: HTTP %s for %s", status, url)
+        if status == 404:
+            raise ContentPackUnavailableError("应用安装包尚未在云端发布，暂时无法安装。") from exc
+        raise ContentPackUnavailableError(
+            f"应用安装包下载失败（HTTP {status}），请稍后重试。"
+        ) from exc
+    except (httpx.HTTPError, OSError) as exc:
+        _log.warning("content pack download failed for %s: %s", url, exc)
+        raise ContentPackUnavailableError("无法连接应用下载服务，请检查网络后重试。") from exc
+
 
 _REMOTE_BASE = os.environ.get(
     "ECHO_CLOUD_STORE_URL",
@@ -352,7 +382,7 @@ class CloudCatalog:
             return dest
         tmp = dest.with_suffix(".part")
         try:
-            body = fetch_public_https_bytes(
+            body = _download_content_pack(
                 url,
                 timeout=180,
                 max_bytes=_MAX_ARCHIVE_BYTES,
@@ -463,7 +493,7 @@ class CloudCatalog:
             and hashlib.sha256(target.read_bytes()).hexdigest() == digest
         ):
             return target
-        body = fetch_public_https_bytes(str(url), timeout=180, max_bytes=_MAX_ARCHIVE_BYTES)
+        body = _download_content_pack(str(url), timeout=180, max_bytes=_MAX_ARCHIVE_BYTES)
         if hashlib.sha256(body).hexdigest() != digest:
             raise ValueError("skill package checksum mismatch")
         with tempfile.NamedTemporaryFile(dir=cache, suffix=".part", delete=False) as stream:
