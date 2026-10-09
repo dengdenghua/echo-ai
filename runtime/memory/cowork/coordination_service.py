@@ -106,6 +106,37 @@ class CoordinationService:
             )
         return seat
 
+    def _in_collaboration_group(self, session: Any) -> bool:
+        """Whether ``session`` runs inside a collaboration group at all.
+
+        Host-bound coordination work always does, and so does any thread with
+        a group roster. Whether this session's member may act there is left to
+        ``current``, so an unseated or departed member is still refused.
+        """
+        if session is None or not session.thread_id:
+            return False
+        metadata = session.metadata
+        if metadata.get("_coordination_task_id") or metadata.get("_coordination_delivery_parent"):
+            return True
+        try:
+            return bool(self.groups.state(session.thread_id).roster)
+        except ValueError:  # not a valid cowork thread id, so not a group
+            return False
+
+    @staticmethod
+    def _outside_group(action: str) -> dict[str, Any]:
+        """Read-only answer for a 1:1 / non-group session; it exposes no data."""
+        result: dict[str, Any] = {
+            "ok": True,
+            "is_collaboration_group": False,
+            "tasks": [],
+            "note": "当前会话不是协作群聊，没有可查看的协作任务或成员消息。",
+            "guidance": GUIDANCE,
+        }
+        if action == "inbox":
+            result["messages"] = []
+        return result
+
     def check_running(self) -> None:
         session = current_session()
         task_id = session.metadata.get("_coordination_task_id") if session else None
@@ -352,10 +383,17 @@ class CoordinationService:
         message (proposed assignment), request_id. It only opens a user approval
         dialog; it does not invite, grant access or execute the candidate.
         """
+        # A 1:1 / non-group thread has no roster: inspection degrades to an
+        # empty, readable answer instead of a PermissionError. Writes, and any
+        # session inside a real group, stay on the strict ``current`` path.
+        if action in {"list", "inbox"} and not self._in_collaboration_group(current_session()):
+            return self._outside_group(action)
         source = self.current(title)
         thread, task_id = source["thread_id"], source["id"]
         if current_session().metadata.get("_coordination_delivery_parent") and action not in {
-            "list", "inbox", "ack",
+            "list",
+            "inbox",
+            "ack",
         }:
             raise PermissionError("自动交付只验收现有结果；追加工作请由用户发起")
         if action == "list":
@@ -389,9 +427,7 @@ class CoordinationService:
             return {
                 "current_task_id": task_id,
                 "tasks": [
-                    task
-                    for task in snapshot["tasks"]
-                    if task.get("parent_task_id") == task_id
+                    task for task in snapshot["tasks"] if task.get("parent_task_id") == task_id
                 ],
                 "messages": self.ledger.inbox(task_id),
                 "guidance": GUIDANCE,
