@@ -212,3 +212,25 @@ test("preflight reports URL conflicts without exposing credentials", () => {
   );
   assert.equal(JSON.stringify(report).includes("must-not-appear"), false);
 });
+test("source runs use the vetted Codex bundle unless one is configured", async () => {
+  const { mkdtempSync, mkdirSync, writeFileSync, rmSync } = await import("node:fs");
+  const fakeRoot = mkdtempSync(resolve(tmpdir(), "echo-codex-bundle-"));
+  try {
+    const settings = { ...devSettings(root, kind, cleanEnv), root: fakeRoot };
+    assert.equal(devEnvironment(settings, cleanEnv).ECHO_CODEX_EXECUTABLE, undefined);
+
+    const bin = resolve(fakeRoot, "extras/desktop/build/codex/bin");
+    mkdirSync(bin, { recursive: true });
+    const bundled = resolve(bin, process.platform === "win32" ? "codex.exe" : "codex");
+    writeFileSync(bundled, "");
+    assert.equal(devEnvironment(settings, cleanEnv).ECHO_CODEX_EXECUTABLE, bundled);
+
+    const explicit = devEnvironment(settings, {
+      ...cleanEnv,
+      ECHO_CODEX_EXECUTABLE: "C:/custom/codex.exe",
+    });
+    assert.equal(explicit.ECHO_CODEX_EXECUTABLE, "C:/custom/codex.exe");
+  } finally {
+    rmSync(fakeRoot, { recursive: true, force: true });
+  }
+});

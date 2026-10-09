@@ -123,8 +123,22 @@ export function devEnvironment(settings, env = process.env) {
         .concat("tools.dev_instance"),
     ),
   ].join(",");
+  // Packaged builds pin the vetted Codex bundle via ECHO_CODEX_EXECUTABLE. Do
+  // the same in source runs once `pnpm codex:prepare:*` has produced it:
+  // other Codex builds (PATH, the Codex desktop app) enable features Echo's
+  // effective-config check rejects. An explicit setting always wins.
+  const bundledCodex = resolve(
+    settings.root,
+    "extras/desktop/build/codex/bin",
+    process.platform === "win32" ? "codex.exe" : "codex",
+  );
+  const codexEnv =
+    !env.ECHO_CODEX_EXECUTABLE && isFile(bundledCodex)
+      ? { ECHO_CODEX_EXECUTABLE: bundledCodex }
+      : {};
   return {
     ...env,
+    ...codexEnv,
     PYTHONUTF8: "1",
     PYTHONDONTWRITEBYTECODE: "1",
     PYTHONPATH: [settings.root, env.PYTHONPATH].filter(Boolean).join(delimiter),

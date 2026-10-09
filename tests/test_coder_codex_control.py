@@ -1244,41 +1244,6 @@ def test_shared_command_resolver_finds_packaged_chatgpt_binary(
     assert command[1:] == ("app-server", "--strict-config", "--listen", "stdio://")
 
 
-def test_windows_store_codex_packages_sort_newest_first() -> None:
-    from runtime.execution.codex_backend.command import _package_version
-
-    older = Path("OpenAI.Codex_26.912.100.0_x64__pub")
-    newer = Path("OpenAI.Codex_26.1002.7124.0_x64__pub")
-    assert sorted([older, newer], key=_package_version, reverse=True) == [newer, older]
-    assert _package_version(Path("OpenAI.Codex_unexpected")) == ()
-
-
-@pytest.mark.skipif(os.name != "nt", reason="Microsoft Store layout is Windows-only")
-def test_shared_command_resolver_finds_windows_store_codex(
-    tmp_path: Path,
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    from runtime.execution.codex_backend import command as command_module
-
-    for version in ("26.912.100.0", "26.1002.7124.0"):
-        resources = (
-            tmp_path / "WindowsApps" / f"OpenAI.Codex_{version}_x64__pub" / "app" / "resources"
-        )
-        resources.mkdir(parents=True)
-        (resources / "codex.exe").write_bytes(b"MZ")
-        # The real package also has an extensionless Linux ELF for WSL.
-        (resources / "codex").write_bytes(b"\x7fELF")
-    monkeypatch.delenv("ECHO_CODEX_EXECUTABLE", raising=False)
-    monkeypatch.setenv("PATH", str(tmp_path / "empty-path"))
-    monkeypatch.setenv("PROGRAMW6432", str(tmp_path))
-    monkeypatch.setattr(command_module, "login_shell_path", lambda: "")
-
-    command = resolve_codex_app_server_command()
-
-    newest = tmp_path / "WindowsApps" / "OpenAI.Codex_26.1002.7124.0_x64__pub"
-    assert command[0] == str((newest / "app" / "resources" / "codex.exe").resolve())
-
-
 @pytest.mark.asyncio
 async def test_state_root_env_is_shared_by_config_login_and_execution_auth(
     tmp_path: Path,

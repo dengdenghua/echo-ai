@@ -11,35 +11,6 @@ from runtime.execution.agents.login_shell_path import login_shell_path
 from .types import ConfigurationError
 
 
-def _package_version(package_dir: Path) -> tuple[int, ...]:
-    """``OpenAI.Codex_26.1002.7124.0_x64__<publisher>`` -> ``(26, 1002, 7124, 0)``."""
-    parts = package_dir.name.split("_")
-    try:
-        return tuple(int(part) for part in parts[1].split("."))
-    except (IndexError, ValueError):
-        return ()
-
-
-def _windows_codex_app_dirs() -> list[str]:
-    """Resource folders of the Microsoft Store Codex app, newest first.
-
-    Like ChatGPT.app on macOS, the Codex desktop app ships a runnable
-    ``codex.exe`` that is not on PATH. The package folder name carries the
-    version, so it changes on every update and cannot be configured once.
-    """
-    if os.name != "nt":
-        return []
-    program_files = os.environ.get("PROGRAMW6432") or os.environ.get("PROGRAMFILES")
-    base = Path(program_files or r"C:\Program Files") / "WindowsApps"
-    try:
-        packages = [path for path in base.glob("OpenAI.Codex_*") if path.is_dir()]
-    except OSError:
-        # Listing WindowsApps can be denied; PATH and ECHO_CODEX_EXECUTABLE still work.
-        return []
-    packages.sort(key=_package_version, reverse=True)
-    return [str(package / "app" / "resources") for package in packages]
-
-
 def _resolve_codex_command(command: str) -> str | None:
     path = shutil.which(command)
     if path:
@@ -57,20 +28,13 @@ def _resolve_codex_command(command: str) -> str | None:
             "/Applications/ChatGPT.app/Contents/Resources",
         )
     )
-    candidates.extend(_windows_codex_app_dirs())
-    names = [command]
-    if os.name == "nt" and not Path(command).suffix:
-        # Prefer the .exe: the Codex app also ships an extensionless Linux ELF
-        # build for its WSL sandbox in the same folder.
-        names = [f"{command}.exe", command]
     for directory in dict.fromkeys(item.strip() for item in candidates if item.strip()):
-        for name in names:
-            candidate = Path(directory).expanduser() / name
-            try:
-                if candidate.is_file() and os.access(candidate, os.X_OK):
-                    return str(candidate.resolve())
-            except OSError:
-                continue
+        candidate = Path(directory).expanduser() / command
+        try:
+            if candidate.is_file() and os.access(candidate, os.X_OK):
+                return str(candidate.resolve())
+        except OSError:
+            continue
     return None
 
 
