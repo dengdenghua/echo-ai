@@ -653,9 +653,7 @@ def make_llm_ephemeral_runner(
                     ],
                     tool_allowlist=tuple(call.role.tool_allowlist or ()),
                     approval_provider=(
-                        _parent_provider
-                        if isinstance(_parent_provider, ApprovalProvider)
-                        else None
+                        _parent_provider if isinstance(_parent_provider, ApprovalProvider) else None
                     ),
                     metadata=_ctx,
                     steering_drain=(
