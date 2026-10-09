@@ -76,6 +76,18 @@ const BrowserHome = lazy(() =>
   })),
 );
 
+// <webview> flag attributes. React treats `webview` (no hyphen) as a plain
+// element and drops boolean `true` props, so they are passed as strings;
+// Electron only checks that the attribute is present.
+const WEBVIEW_FLAG_ATTRIBUTES = {
+  // Chromium's built-in PDF viewer inside the tab.
+  plugins: "true",
+  // Without it target=_blank links and window.open are dropped in the page;
+  // the main process denies every popup window and opens the URL as a
+  // browser tab instead.
+  allowpopups: "true",
+} as unknown as { plugins: boolean; allowpopups: boolean };
+
 interface Props {
   tab: BrowserTab;
   active: boolean;
@@ -1948,7 +1960,11 @@ export const WebviewTab = forwardRef<WebviewTabHandle, Props>(
                   };
                 }
               ).result;
-              if (!result || result.requestId !== requestId || !result.finalUpdate) {
+              if (
+                !result ||
+                result.requestId !== requestId ||
+                !result.finalUpdate
+              ) {
                 return;
               }
               window.clearTimeout(timer);
@@ -2394,8 +2410,7 @@ export const WebviewTab = forwardRef<WebviewTabHandle, Props>(
           src={tab.url}
           // Private tabs get an in-memory session that is dropped on quit.
           partition={tab.private ? "echo-private" : "persist:echo-browser"}
-          // Enables Chromium's built-in PDF viewer inside the tab.
-          plugins
+          {...WEBVIEW_FLAG_ATTRIBUTES}
           data-echo-webcontents-adoption-lease={adoptionLease}
           data-echo-adopted-web-contents-id="pending"
           style={{ width: "100%", height: "100%" }}

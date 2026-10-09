@@ -301,8 +301,9 @@ function BrowserShell() {
   useEffect(() => {
     if (!window.echo) return;
     const off = window.echo.on("browser:open-tab", (...args) => {
-      const payload = args[0] as { url?: string } | undefined;
-      if (payload?.url) openTab(payload.url);
+      const payload = args[0] as { url?: string } | string | undefined;
+      const url = typeof payload === "string" ? payload : payload?.url;
+      if (url) openTab(url);
     });
     return () => off();
   }, [openTab]);

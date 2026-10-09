@@ -19,6 +19,7 @@ const EVENT_CHANNELS = [
   "browser:tab-crashed",
   "browser:keyboard-shortcut",
   "browser:download-event",
+  "browser:ask-selection",
   "desktop:organize-now",
   "desktop:items-changed",
   "backend:bootstrap-progress",
@@ -62,6 +63,8 @@ const api = {
     resumeDownload: invoke("browser:resumeDownload"),
     cancelDownload: invoke("browser:cancelDownload"),
     retryDownload: invoke("browser:retryDownload"),
+    print: invoke("browser:print"),
+    importBookmarks: invoke("browser:importBookmarks"),
   },
 
   dialog: {

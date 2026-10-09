@@ -8,9 +8,11 @@
 const {
   app,
   BrowserWindow,
+  clipboard,
   desktopCapturer,
   dialog,
   ipcMain,
+  Menu,
   net,
   protocol,
   safeStorage,
@@ -69,7 +71,10 @@ async function captureAutomationPreview(request = {}) {
     );
     const selected = selectPreviewSource(usable, request);
     if (!selected) {
-      return { ok: false, error: "Selected window is unavailable; select the window again" };
+      return {
+        ok: false,
+        error: "Selected window is unavailable; select the window again",
+      };
     }
     const size = selected.thumbnail.getSize();
     return {
@@ -160,9 +165,15 @@ function setupAutoUpdater() {
 let mainWindow = null;
 const auxiliaryWindows = new Map();
 const BROWSER_PARTITION = "persist:echo-browser";
+// Private tabs: in-memory session, nothing written to disk.
+const PRIVATE_BROWSER_PARTITION = "echo-private";
 
 function browserProfileSession() {
   return session.fromPartition(BROWSER_PARTITION);
+}
+
+function openUrlInBrowserTab(url) {
+  mainWindow?.webContents.send("browser:open-tab", { url });
 }
 
 // ── backend URL ────────────────────────────────────────────────
@@ -292,9 +303,29 @@ async function moveDesktopItem(srcPath, destDir) {
   return { ok: true, destPath: target };
 }
 
+// CPU usage is the busy share since the previous sample (the first sample
+// covers the time since boot); os.loadavg() is always 0 on Windows.
+let lastCpuTimes = null;
+function cpuUsagePercent(cpus) {
+  let idle = 0;
+  let total = 0;
+  for (const cpu of cpus) {
+    idle += cpu.times.idle;
+    total += Object.values(cpu.times).reduce((a, b) => a + b, 0);
+  }
+  const previous = lastCpuTimes;
+  lastCpuTimes = { idle, total };
+  const busy = previous
+    ? total - previous.total - (idle - previous.idle)
+    : total - idle;
+  const span = previous ? total - previous.total : total;
+  return span > 0
+    ? Math.max(0, Math.min(100, Math.round((busy / span) * 100)))
+    : 0;
+}
+
 function sampleSystemInfo() {
   const cpus = os.cpus();
-  const load = os.loadavg()[0];
   const total = os.totalmem();
   const free = os.freemem();
   return {
@@ -302,7 +333,7 @@ function sampleSystemInfo() {
     cpu: {
       model: cpus[0]?.model || "unknown",
       cores: cpus.length,
-      usage: Math.min(100, Math.round((load / Math.max(1, cpus.length)) * 100)),
+      usage: cpuUsagePercent(cpus),
     },
     memory: {
       total,
@@ -783,6 +814,188 @@ async function loadEnabledExtensions() {
       console.warn(`[echo] extension ${ext.name} failed to load:`, err.message);
     }
   }
+}
+
+// ── bookmark import ────────────────────────────────────────────
+// Bookmarks of a locally installed Chromium browser, read only when the
+// user asks to import them. Folders are flattened.
+function chromiumBookmarksPath(browser) {
+  const home = os.homedir();
+  const local = process.env.LOCALAPPDATA || path.join(home, "AppData", "Local");
+  const support = path.join(home, "Library", "Application Support");
+  const paths = {
+    chrome: {
+      win32: path.join(
+        local,
+        "Google",
+        "Chrome",
+        "User Data",
+        "Default",
+        "Bookmarks",
+      ),
+      darwin: path.join(support, "Google", "Chrome", "Default", "Bookmarks"),
+      linux: path.join(
+        home,
+        ".config",
+        "google-chrome",
+        "Default",
+        "Bookmarks",
+      ),
+    },
+    edge: {
+      win32: path.join(
+        local,
+        "Microsoft",
+        "Edge",
+        "User Data",
+        "Default",
+        "Bookmarks",
+      ),
+      darwin: path.join(support, "Microsoft Edge", "Default", "Bookmarks"),
+      linux: path.join(
+        home,
+        ".config",
+        "microsoft-edge",
+        "Default",
+        "Bookmarks",
+      ),
+    },
+  };
+  return Object.hasOwn(paths, browser)
+    ? paths[browser][process.platform] || null
+    : null;
+}
+
+async function importChromiumBookmarks(browser) {
+  const file = chromiumBookmarksPath(String(browser || ""));
+  if (!file) return { ok: false, entries: [], error: "not-found" };
+  try {
+    const data = JSON.parse(await fsp.readFile(file, "utf8"));
+    const entries = [];
+    const walk = (node) => {
+      if (!node || entries.length >= 500) return;
+      if (node.type === "url" && /^https?:\/\//i.test(node.url || "")) {
+        entries.push({
+          title: String(node.name || node.url).slice(0, 300),
+          url: node.url,
+        });
+      }
+      for (const child of node.children || []) walk(child);
+    };
+    for (const root of Object.values(data.roots || {})) walk(root);
+    return { ok: true, entries };
+  } catch (err) {
+    if (err?.code === "ENOENT")
+      return { ok: false, entries: [], error: "not-found" };
+    return { ok: false, entries: [], error: err.message };
+  }
+}
+
+// ── webview keyboard shortcuts + context menu ──────────────────
+// A focused page swallows keys, so tab shortcuts are forwarded to the
+// browser UI; the renderer decides what they do.
+function forwardBrowserShortcuts(contents) {
+  contents.on("before-input-event", (event, input) => {
+    if (input.type !== "keyDown") return;
+    const mod = process.platform === "darwin" ? input.meta : input.control;
+    if (!mod) return;
+    const key = String(input.key || "").toLowerCase();
+    const forwarded =
+      ["t", "w", "l", "f", "p"].includes(key) ||
+      /^[1-9]$/.test(key) ||
+      input.key === "Tab" ||
+      (input.shift && (key === "n" || key === "b"));
+    if (!forwarded || !mainWindow || mainWindow.isDestroyed()) return;
+    mainWindow.webContents.send("browser:keyboard-shortcut", {
+      key: input.key,
+      shift: input.shift,
+      alt: input.alt,
+      meta: input.meta,
+      control: input.control,
+    });
+    event.preventDefault();
+  });
+}
+
+function showBrowserContextMenu(contents, params) {
+  const template = [];
+  const separate = () => {
+    if (template.length && template[template.length - 1].type !== "separator")
+      template.push({ type: "separator" });
+  };
+  if (params.linkURL && /^https?:/i.test(params.linkURL)) {
+    template.push(
+      {
+        label: "在新标签页打开",
+        click: () => openUrlInBrowserTab(params.linkURL),
+      },
+      { label: "复制链接", click: () => clipboard.writeText(params.linkURL) },
+    );
+    separate();
+  }
+  if (params.mediaType === "image" && params.srcURL) {
+    template.push(
+      {
+        label: "复制图片",
+        click: () => contents.copyImageAt(params.x, params.y),
+      },
+      {
+        label: "复制图片地址",
+        click: () => clipboard.writeText(params.srcURL),
+      },
+    );
+    separate();
+  }
+  const selection = String(params.selectionText || "").trim();
+  if (selection) {
+    const ask = (action) =>
+      mainWindow?.webContents.send("browser:ask-selection", {
+        text: selection.slice(0, 4000),
+        action,
+      });
+    template.push(
+      { label: "AI 解释", click: () => ask("explain") },
+      { label: "AI 翻译成中文", click: () => ask("translate") },
+      { label: "问 AI…", click: () => ask("ask") },
+    );
+    separate();
+  }
+  if (params.isEditable) {
+    template.push(
+      { role: "cut", label: "剪切" },
+      { role: "copy", label: "复制" },
+      { role: "paste", label: "粘贴" },
+      { role: "selectAll", label: "全选" },
+    );
+    separate();
+  } else if (selection) {
+    template.push({ role: "copy", label: "复制" });
+    separate();
+  }
+  const history = contents.navigationHistory;
+  template.push(
+    {
+      label: "后退",
+      enabled: history.canGoBack(),
+      click: () => history.goBack(),
+    },
+    {
+      label: "前进",
+      enabled: history.canGoForward(),
+      click: () => history.goForward(),
+    },
+    { label: "刷新", click: () => contents.reload() },
+    { type: "separator" },
+    {
+      label: "检查元素",
+      click: () => {
+        if (!contents.isDevToolsOpened())
+          contents.openDevTools({ mode: "detach" });
+        contents.inspectElement(params.x, params.y);
+      },
+    },
+  );
+  Menu.buildFromTemplate(template).popup({ window: mainWindow || undefined });
 }
 
 // ── IPC wiring ─────────────────────────────────────────────────
@@ -1290,6 +1503,19 @@ function registerIpc() {
       return { ok: false, error: err.message };
     }
   });
+  handle("browser:print", (id) => {
+    const target = wc(id);
+    return new Promise((resolve) => {
+      target.print({}, (success, reason) =>
+        resolve(
+          success ? { ok: true } : { ok: false, error: reason || "cancelled" },
+        ),
+      );
+    });
+  });
+  handle("browser:importBookmarks", (browser) =>
+    importChromiumBookmarks(browser),
+  );
   handle("browser:listSitePermissions", () => ({
     ok: true,
     entries: readSitePermissions().sort((a, b) => b.updatedAt - a.updatedAt),
@@ -1688,10 +1914,14 @@ if (!app.requestSingleInstanceLock()) {
         return { action: "deny" };
       }
       if (/^(https?:|view-source:)/i.test(url)) {
-        mainWindow?.webContents.send("browser:open-tab", url);
+        openUrlInBrowserTab(url);
       }
       return { action: "deny" };
     });
+    forwardBrowserShortcuts(contents);
+    contents.on("context-menu", (_e, params) =>
+      showBrowserContextMenu(contents, params),
+    );
     contents.on("render-process-gone", (_e, details) => {
       mainWindow?.webContents.send("browser:tab-crashed", {
         webContentsId: contents.id,
@@ -1721,6 +1951,9 @@ if (!app.requestSingleInstanceLock()) {
     configureBrowserPermissionRequests(browserProfileSession());
     trackDownloads(session.defaultSession);
     trackDownloads(browserProfileSession());
+    const privateSession = session.fromPartition(PRIVATE_BROWSER_PARTITION);
+    configureBrowserPermissionRequests(privateSession);
+    trackDownloads(privateSession);
     mainWindow = createMainWindow();
     try {
       const bridgeDataDir =
