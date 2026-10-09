@@ -2,8 +2,11 @@ import {
   CheckIcon,
   ChevronsUpDownIcon,
   DnaIcon,
+  EyeOffIcon,
   GlobeIcon,
   Loader2Icon,
+  PinIcon,
+  PinOffIcon,
   PlusIcon,
   TriangleAlertIcon,
   XIcon,
@@ -44,6 +47,9 @@ function TabIcon({ tab }: { tab: BrowserTab }) {
   if (tab.isLoading) {
     return <Loader2Icon className="size-3.5 shrink-0 animate-spin" />;
   }
+  if (tab.private) {
+    return <EyeOffIcon className="size-3.5 shrink-0 text-violet-500" />;
+  }
   if (tab.url === BROWSER_HOME_URL) {
     return <DnaIcon className="size-3.5 shrink-0 text-primary" />;
   }
@@ -63,8 +69,29 @@ function TabIcon({ tab }: { tab: BrowserTab }) {
 export function TabBar() {
   const { t } = useI18n();
   const tb = t.browser.tabBar;
-  const { state, openTab, closeTab, activateTab, reorderTab } =
+  const { state, openTab, closeTab, activateTab, reorderTab, setTabPinned } =
     useBrowserStore();
+  // Right-click menu for a page tab: pin / unpin, close.
+  const [tabMenu, setTabMenu] = useState<{
+    id: string;
+    x: number;
+    y: number;
+  } | null>(null);
+  useEffect(() => {
+    if (!tabMenu) return;
+    const close = () => setTabMenu(null);
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === "Escape") close();
+    };
+    window.addEventListener("mousedown", close);
+    window.addEventListener("keydown", onKey);
+    window.addEventListener("blur", close);
+    return () => {
+      window.removeEventListener("mousedown", close);
+      window.removeEventListener("keydown", onKey);
+      window.removeEventListener("blur", close);
+    };
+  }, [tabMenu]);
   const [dragId, setDragId] = useState<string | null>(null);
   const [dragOverId, setDragOverId] = useState<string | null>(null);
   const [tabListOpen, setTabListOpen] = useState(false);
@@ -87,10 +114,11 @@ export function TabBar() {
     activeElement?.scrollIntoView?.({ block: "nearest", inline: "nearest" });
   }, [state.activeId]);
 
-  const handleAuxClick = (event: MouseEvent, id: string) => {
+  const handleAuxClick = (event: MouseEvent, tab: BrowserTab) => {
     if (event.button === 1) {
       event.preventDefault();
-      closeTab(id);
+      // Pinned tabs are kept on purpose; close them from the menu.
+      if (!tab.pinned) closeTab(tab.id);
     }
   };
 
@@ -118,6 +146,7 @@ export function TabBar() {
         ? tb.homeTabShort
         : t.browser.newTabPage
       : tab.title || tab.url;
+    const iconOnly = !fixed && Boolean(tab.pinned);
     return (
       <div
         key={tab.id}
@@ -141,7 +170,12 @@ export function TabBar() {
           setDragOverId(null);
         }}
         onClick={() => activateTab(tab.id)}
-        onAuxClick={(event) => handleAuxClick(event, tab.id)}
+        onAuxClick={(event) => handleAuxClick(event, tab)}
+        onContextMenu={(event) => {
+          if (fixed) return;
+          event.preventDefault();
+          setTabMenu({ id: tab.id, x: event.clientX, y: event.clientY });
+        }}
         onKeyDown={(event) => {
           if (event.key === "Enter" || event.key === " ") {
             event.preventDefault();
@@ -150,14 +184,17 @@ export function TabBar() {
         }}
         role="button"
         tabIndex={0}
-        aria-label={tabLabel}
+        aria-label={tab.private ? `无痕 · ${tabLabel}` : tabLabel}
         className={cn(
           "group relative flex h-7 cursor-pointer items-center gap-1 overflow-hidden rounded-md px-2 text-mini transition-[background-color,border-color,box-shadow,color,transform] after:absolute after:inset-x-2 after:bottom-0 after:h-[2px] after:scale-x-0 after:rounded-full after:bg-primary after:transition-transform",
           fixed
             ? "w-[76px] shrink-0"
-            : crowded
-              ? "min-w-[64px] max-w-[132px]"
-              : "min-w-[84px] max-w-[160px]",
+            : iconOnly
+              ? "w-8 shrink-0 justify-center px-0"
+              : crowded
+                ? "min-w-[64px] max-w-[132px]"
+                : "min-w-[84px] max-w-[160px]",
+          tab.private && "bg-violet-500/10",
           active
             ? "bg-card/90 text-foreground shadow-[var(--shadow-xs)] after:scale-x-100"
             : "text-muted-foreground hover:bg-foreground/5 hover:text-foreground",
@@ -167,30 +204,43 @@ export function TabBar() {
         )}
         style={
           {
-            flex: fixed ? "0 0 76px" : crowded ? "1 1 112px" : "1 1 152px",
+            flex: fixed
+              ? "0 0 76px"
+              : iconOnly
+                ? "0 0 32px"
+                : crowded
+                  ? "1 1 112px"
+                  : "1 1 152px",
             WebkitAppRegion: "no-drag",
           } as CSSProperties
         }
         title={tab.title || tab.url}
       >
         <TabIcon tab={tab} />
-        <span className="min-w-0 flex-1 truncate">{tabLabel}</span>
-        <button
-          type="button"
-          onClick={(event) => {
-            event.stopPropagation();
-            closeTab(tab.id);
-          }}
-          className="grid size-3.5 shrink-0 place-items-center rounded text-muted-foreground opacity-0 transition-opacity hover:bg-foreground/10 hover:text-foreground group-hover:opacity-100 data-[active=true]:opacity-100"
-          data-active={active}
-          title={tb.close}
-          aria-label={`${tb.close} ${tabLabel}`}
-        >
-          <XIcon className="size-2.5" />
-        </button>
+        {iconOnly ? null : (
+          <span className="min-w-0 flex-1 truncate">{tabLabel}</span>
+        )}
+        {iconOnly ? null : (
+          <button
+            type="button"
+            onClick={(event) => {
+              event.stopPropagation();
+              closeTab(tab.id);
+            }}
+            className="grid size-3.5 shrink-0 place-items-center rounded text-muted-foreground opacity-0 transition-opacity hover:bg-foreground/10 hover:text-foreground group-hover:opacity-100 data-[active=true]:opacity-100"
+            data-active={active}
+            title={tb.close}
+            aria-label={`${tb.close} ${tabLabel}`}
+          >
+            <XIcon className="size-2.5" />
+          </button>
+        )}
       </div>
     );
   };
+  const menuTab = tabMenu
+    ? state.tabs.find((tab) => tab.id === tabMenu.id)
+    : undefined;
 
   return (
     <div
@@ -199,6 +249,50 @@ export function TabBar() {
       data-testid="browser-tab-bar"
     >
       {pinnedHomeTab ? renderTab(pinnedHomeTab, true) : null}
+      {tabMenu && menuTab ? (
+        <div
+          role="menu"
+          aria-label="标签页操作"
+          className="fixed z-[200] w-40 rounded-lg border border-border-subtle bg-popover p-1 text-xs text-popover-foreground shadow-lg"
+          style={
+            {
+              left: tabMenu.x,
+              top: tabMenu.y,
+              WebkitAppRegion: "no-drag",
+            } as CSSProperties
+          }
+          onMouseDown={(event) => event.stopPropagation()}
+        >
+          <button
+            type="button"
+            role="menuitem"
+            onClick={() => {
+              setTabPinned(menuTab.id, !menuTab.pinned);
+              setTabMenu(null);
+            }}
+            className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left hover:bg-muted"
+          >
+            {menuTab.pinned ? (
+              <PinOffIcon className="size-3.5" />
+            ) : (
+              <PinIcon className="size-3.5" />
+            )}
+            {menuTab.pinned ? "取消固定" : "固定标签页"}
+          </button>
+          <button
+            type="button"
+            role="menuitem"
+            onClick={() => {
+              closeTab(menuTab.id);
+              setTabMenu(null);
+            }}
+            className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left hover:bg-muted"
+          >
+            <XIcon className="size-3.5" />
+            {tb.close}
+          </button>
+        </div>
+      ) : null}
 
       <div
         className="flex h-7 min-w-0 flex-1 items-center gap-0.5 overflow-x-auto overscroll-x-contain [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"

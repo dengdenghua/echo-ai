@@ -30,11 +30,14 @@ const DEFAULT_HOMEPAGE = BROWSER_HOME_URL;
 export interface BrowserSettings {
   homepage: string;
   searchEngine: "google" | "bing" | "baidu" | "duckduckgo";
+  /** Bookmarks bar under the address bar (Ctrl+Shift+B). */
+  showBookmarksBar: boolean;
 }
 
 const DEFAULT_SETTINGS: BrowserSettings = {
   homepage: DEFAULT_HOMEPAGE,
   searchEngine: "google",
+  showBookmarksBar: true,
 };
 
 export const SEARCH_ENGINE_URLS: Record<
@@ -147,6 +150,10 @@ export interface BrowserTab {
   favicon?: string;
   isLoading: boolean;
   device: DevicePreset;
+  /** Private tab: separate in-memory session, no history (desktop app). */
+  private?: boolean;
+  /** Pinned tabs stay first and cannot be closed by accident. */
+  pinned?: boolean;
   taskPreview?: {
     threadId: string;
     workspacePath?: string | null;
@@ -196,6 +203,7 @@ type Action =
   | { type: "ACTIVATE_TAB"; id: string }
   | { type: "REORDER_TAB"; from: number; to: number }
   | { type: "PATCH_TAB"; id: string; patch: Partial<BrowserTab> }
+  | { type: "SET_PINNED"; id: string; pinned: boolean }
   | { type: "SET_COPILOT_OPEN"; open: boolean }
   | { type: "SET_COPILOT_WIDTH"; width: number }
   | { type: "RESTORE_CLOSED_TAB"; id?: string };
@@ -272,6 +280,16 @@ function reducer(state: BrowserState, action: Action): BrowserState {
         t.id === action.id ? { ...t, ...action.patch } : t,
       );
       return { ...state, tabs };
+    }
+    case "SET_PINNED": {
+      const tabs = state.tabs.map((t) =>
+        t.id === action.id ? { ...t, pinned: action.pinned } : t,
+      );
+      // Pinned tabs lead, in their existing order; the rest follow.
+      return {
+        ...state,
+        tabs: [...tabs.filter((t) => t.pinned), ...tabs.filter((t) => !t.pinned)],
+      };
     }
     case "SET_COPILOT_OPEN":
       return { ...state, copilotOpen: action.open };
@@ -395,6 +413,7 @@ interface BrowserStoreContextType {
   activateTab: (id: string) => void;
   reorderTab: (from: number, to: number) => void;
   patchTab: (id: string, patch: Partial<BrowserTab>) => void;
+  setTabPinned: (id: string, pinned: boolean) => void;
   setCopilotOpen: (open: boolean) => void;
   toggleCopilot: () => void;
   setCopilotWidth: (w: number) => void;
@@ -511,6 +530,8 @@ export function BrowserStoreProvider({ children }: { children: ReactNode }) {
         dispatch({ type: "REORDER_TAB", from, to }),
       patchTab: (id: string, patch: Partial<BrowserTab>) =>
         dispatch({ type: "PATCH_TAB", id, patch }),
+      setTabPinned: (id: string, pinned: boolean) =>
+        dispatch({ type: "SET_PINNED", id, pinned }),
       setCopilotOpen: (open: boolean) =>
         dispatch({ type: "SET_COPILOT_OPEN", open }),
       toggleCopilot: () =>

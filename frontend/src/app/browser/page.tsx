@@ -48,6 +48,14 @@ import {
   BROWSER_OPEN_URL_REQUEST_EVENT,
 } from "@/components/browser/browser-store";
 import { requestBrowserAssistantAsk } from "@/components/browser/assistant-ask";
+import { BookmarksBar } from "@/components/browser/bookmarks-bar";
+import {
+  BROWSER_FIND_EVENT,
+  BROWSER_READER_EVENT,
+  openBrowserFind,
+} from "@/components/browser/browser-events";
+import { FindBar } from "@/components/browser/find-bar";
+import { ReaderView } from "@/components/browser/reader-view";
 import type { WebviewTabHandle } from "@/components/browser/webview-tab";
 import { WorkspaceSurfaceHeader } from "@/components/workspace/workspace-surface-header";
 import { BrowserPreviewPanel } from "@/components/workspace/browser-preview-panel";
@@ -89,6 +97,8 @@ function BrowserShell() {
   const {
     state,
     settings,
+    updateSettings,
+    bookmarks,
     activeTab,
     patchTab,
     openTab,
@@ -118,6 +128,7 @@ function BrowserShell() {
   } = useElectronTitleBar();
   const activeTabId = activeTab?.id ?? null;
   const activeTabUrl = activeTab?.url ?? "";
+  const activeTabPrivate = Boolean(activeTab?.private);
   const activeTabTitle = activeTab?.title ?? "";
   const activeTabFavicon = activeTab?.favicon;
   const activeTabLoading = activeTab?.isLoading ?? false;
@@ -237,6 +248,8 @@ function BrowserShell() {
   // Implementation note.
   useEffect(() => {
     if (!activeTabUrl || activeTabLoading) return;
+    // Private tabs leave no history.
+    if (activeTabPrivate) return;
     if (activeTabUrl.startsWith("about:") || activeTabUrl.startsWith("echo:")) {
       return;
     }
@@ -251,6 +264,7 @@ function BrowserShell() {
   }, [
     activeTabFavicon,
     activeTabLoading,
+    activeTabPrivate,
     activeTabTitle,
     activeTabUrl,
     recordVisit,
@@ -354,6 +368,28 @@ function BrowserShell() {
       if (!mod) return;
       const k = e.key.toLowerCase();
 
+      if (k === "f" && !e.shiftKey) {
+        e.preventDefault();
+        openBrowserFind();
+        return;
+      }
+      if (k === "p" && !e.shiftKey) {
+        e.preventDefault();
+        void activeHandle?.print?.().catch(swallow);
+        return;
+      }
+      if (k === "n" && e.shiftKey) {
+        if (!window.echo?.isElectron) return;
+        e.preventDefault();
+        openTab(BROWSER_HOME_URL, { private: true });
+        return;
+      }
+      if (k === "b" && e.shiftKey) {
+        e.preventDefault();
+        updateSettings({ showBookmarksBar: !settings.showBookmarksBar });
+        return;
+      }
+
       // Implementation note.
       if (k === "t" && !e.shiftKey) {
         e.preventDefault();
@@ -440,9 +476,31 @@ function BrowserShell() {
     restoreClosedTab,
     activateTab,
     activeTab,
+    activeHandle,
+    settings.showBookmarksBar,
     state.tabs,
     state.activeId,
+    updateSettings,
   ]);
+
+  // Find bar and reader mode cover the current page; both close when the
+  // page changes.
+  const [findOpen, setFindOpen] = useState(false);
+  const [readerOpen, setReaderOpen] = useState(false);
+  useEffect(() => {
+    const onFind = () => setFindOpen(true);
+    const onReader = () => setReaderOpen(true);
+    window.addEventListener(BROWSER_FIND_EVENT, onFind);
+    window.addEventListener(BROWSER_READER_EVENT, onReader);
+    return () => {
+      window.removeEventListener(BROWSER_FIND_EVENT, onFind);
+      window.removeEventListener(BROWSER_READER_EVENT, onReader);
+    };
+  }, []);
+  useEffect(() => {
+    setFindOpen(false);
+    setReaderOpen(false);
+  }, [activeTabId, activeTabUrl]);
 
   const sidePanelOpen = sidePanelHovered || sidePanelPinned;
   const clearSidePanelCloseTimer = useCallback(() => {
@@ -551,9 +609,34 @@ function BrowserShell() {
               onOpenExtensions={openExtensionsStore}
             />
           )}
+          {settings.showBookmarksBar && !activeTab?.taskPreview ? (
+            <BookmarksBar
+              bookmarks={bookmarks}
+              onOpen={(url) => {
+                if (!activeTab) {
+                  openTab(url);
+                } else if (activeHandle && activeTabUrl !== BROWSER_HOME_URL) {
+                  activeHandle.loadURL(url);
+                  patchTab(activeTab.id, { url });
+                } else {
+                  // The start page swaps to a page surface that loads it.
+                  patchTab(activeTab.id, { url, isLoading: true });
+                }
+              }}
+            />
+          ) : null}
         </div>
 
         <div className="relative z-0 flex min-h-0 flex-1 flex-col overflow-hidden">
+          {findOpen && activeTabUrl !== BROWSER_HOME_URL ? (
+            <FindBar handle={activeHandle} onClose={() => setFindOpen(false)} />
+          ) : null}
+          {readerOpen && activeTabUrl !== BROWSER_HOME_URL ? (
+            <ReaderView
+              handle={activeHandle}
+              onClose={() => setReaderOpen(false)}
+            />
+          ) : null}
           <div
             className="flex min-h-0 flex-1 overflow-hidden"
             style={{ position: "relative" }}
@@ -667,11 +750,28 @@ function BrowserShell() {
                           <BrowserPreviewPanel
                             key={tab.id}
                             renderStartPage={(onNavigate, services) => (
-                              <BrowserHome active device={tab.device} startContent={services}
-                                onOpen={url => url.startsWith("echo://") ? openTab(url) : onNavigate(url)} />
+                              <BrowserHome
+                                active
+                                device={tab.device}
+                                startContent={services}
+                                onOpen={(url) =>
+                                  url.startsWith("echo://")
+                                    ? openTab(url)
+                                    : onNavigate(url)
+                                }
+                              />
                             )}
-                            searchEngineUrl={SEARCH_ENGINE_URLS[settings.searchEngine]}
-                            onPageInfoChange={page => patchTab(tab.id, {title: !page.url || page.url === "about:blank" ? "新标签页" : (page.title || page.url)})}
+                            searchEngineUrl={
+                              SEARCH_ENGINE_URLS[settings.searchEngine]
+                            }
+                            onPageInfoChange={(page) =>
+                              patchTab(tab.id, {
+                                title:
+                                  !page.url || page.url === "about:blank"
+                                    ? "新标签页"
+                                    : page.title || page.url,
+                              })
+                            }
                             threadId={tab.taskPreview.threadId}
                             workspacePath={tab.taskPreview.workspacePath}
                             sharedSessionId={tab.taskPreview.sessionId}

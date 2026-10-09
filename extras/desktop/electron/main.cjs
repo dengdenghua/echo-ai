@@ -241,6 +241,8 @@ const browserDownloads = new Map();
 // leave this map but stay in ``browserDownloads`` (path, url for retry).
 const browserDownloadItems = new Map();
 const BROWSER_SESSION_PARTITION = "persist:echo-browser";
+// Private tabs: in-memory session (no "persist:" prefix), gone on quit.
+const PRIVATE_SESSION_PARTITION = "echo-private";
 
 const HIGH_RISK_DOWNLOAD = /\.(exe|msi|msix|bat|cmd|ps1|psm1|vbs|vbe|js|jse|wsf|scr|com|cpl|hta|jar|lnk|reg|apk|dmg|pkg|app|sh|run|appimage|deb|rpm)$/i;
 const ARCHIVE_DOWNLOAD = /\.(zip|rar|7z|tar|gz|tgz|bz2|xz|iso)$/i;
@@ -1457,6 +1459,7 @@ app.whenReady().then(async () => {
   loadExtensionRegistry();
   attachDownloadListener(session.defaultSession);
   installSitePermissionHandlers(session.fromPartition(BROWSER_SESSION_PARTITION));
+  installSitePermissionHandlers(session.fromPartition(PRIVATE_SESSION_PARTITION));
   void loadEnabledExtensionsIntoSession(session.defaultSession);
   buildMenu();
   await startBackend();
@@ -1548,7 +1551,8 @@ app.on("web-contents-created", (_event, wc) => {
     const key = (input.key || "").toLowerCase();
     const interesting =
       key === "t" || key === "w" || key === "l" || /^[1-9]$/.test(key) ||
-      input.key === "Tab";
+      input.key === "Tab" || key === "f" || key === "p" ||
+      (input.shift && (key === "n" || key === "b"));
     if (!interesting) return;
     const main = BrowserWindow.getAllWindows()[0];
     if (main && !main.isDestroyed()) {
@@ -2088,6 +2092,63 @@ ipcMain.handle("browser:retry-download", async (event, args) => {
   }
   session.fromPartition(BROWSER_SESSION_PARTITION).downloadURL(record.url);
   return { ok: true };
+});
+
+ipcMain.handle("browser:print", async (event, args) => {
+  let wc;
+  try {
+    wc = _resolveBrowserWebContents(event, args?.webContentsId);
+  } catch (e) {
+    return { ok: false, error: e?.message || "webContents not found" };
+  }
+  return new Promise((resolve) => {
+    wc.print({}, (success, reason) =>
+      resolve(success ? { ok: true } : { ok: false, error: reason || "cancelled" }),
+    );
+  });
+});
+
+// Bookmarks of a locally installed Chromium browser (Chrome / Edge), read
+// only when the user asks to import them. Folders are flattened.
+function chromiumBookmarksPath(browser) {
+  const home = os.homedir();
+  const local = process.env.LOCALAPPDATA || path.join(home, "AppData", "Local");
+  const paths = {
+    chrome: {
+      win32: path.join(local, "Google", "Chrome", "User Data", "Default", "Bookmarks"),
+      darwin: path.join(home, "Library", "Application Support", "Google", "Chrome", "Default", "Bookmarks"),
+      linux: path.join(home, ".config", "google-chrome", "Default", "Bookmarks"),
+    },
+    edge: {
+      win32: path.join(local, "Microsoft", "Edge", "User Data", "Default", "Bookmarks"),
+      darwin: path.join(home, "Library", "Application Support", "Microsoft Edge", "Default", "Bookmarks"),
+      linux: path.join(home, ".config", "microsoft-edge", "Default", "Bookmarks"),
+    },
+  };
+  return paths[browser]?.[process.platform] || null;
+}
+
+ipcMain.handle("browser:import-bookmarks", async (event, args) => {
+  if (!fromMainRenderer(event)) return { ok: false, entries: [], error: "forbidden" };
+  const file = chromiumBookmarksPath(String(args?.browser || ""));
+  if (!file || !fs.existsSync(file)) {
+    return { ok: false, entries: [], error: "not-found" };
+  }
+  try {
+    const data = JSON.parse(fs.readFileSync(file, "utf8"));
+    const entries = [];
+    const walk = (node) => {
+      if (!node || entries.length >= 500) return;
+      if (node.type === "url" && /^https?:\/\//i.test(node.url || "")) {
+        entries.push({ title: String(node.name || node.url).slice(0, 300), url: node.url });
+      }
+      for (const child of node.children || []) walk(child);
+    };
+    for (const root of Object.values(data.roots || {})) walk(root);
+    return { ok: true, entries };
+  } catch (e) {
+    return { ok: false, entries: [], error: e?.message || String(e) };
+  }
 });
 
 ipcMain.handle("browser:list-site-permissions", async (event) => {

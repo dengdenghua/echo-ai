@@ -167,6 +167,12 @@ export interface EchoElectronAPI {
       id: string,
     ) => Promise<{ ok: boolean; error?: string }>;
     openDownload: (id: string) => Promise<{ ok: boolean; error?: string }>;
+    print: (webContentsId: number) => Promise<{ ok: boolean; error?: string }>;
+    importBookmarks: (browser: "chrome" | "edge") => Promise<{
+      ok: boolean;
+      entries: { title: string; url: string }[];
+      error?: string;
+    }>;
     pauseDownload: (id: string) => Promise<{ ok: boolean; error?: string }>;
     resumeDownload: (id: string) => Promise<{ ok: boolean; error?: string }>;
     cancelDownload: (id: string) => Promise<{ ok: boolean; error?: string }>;

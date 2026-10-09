@@ -20442,6 +20442,72 @@
         ]
       }
     },
+    "/api/browser/suggest": {
+      "get": {
+        "description": "Search-box suggestions; the typed text goes only to that engine.",
+        "operationId": "api_browser_suggest_api_browser_suggest_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "q",
+            "required": false,
+            "schema": {
+              "default": "",
+              "title": "Q",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "engine",
+            "required": false,
+            "schema": {
+              "default": "bing",
+              "title": "Engine",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "lang",
+            "required": false,
+            "schema": {
+              "default": "zh-CN",
+              "title": "Lang",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Api Browser Suggest Api Browser Suggest Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Api Browser Suggest",
+        "tags": [
+          "browser"
+        ]
+      }
+    },
     "/api/browser/system-info": {
       "get": {
         "operationId": "api_browser_system_info_api_browser_system_info_get",

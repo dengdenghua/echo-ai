@@ -102,7 +102,19 @@ type WebviewElement = HTMLElement & {
   getTitle: () => string;
   isLoading: () => boolean;
   loadURL: (url: string) => Promise<void>;
+  stop: () => void;
+  findInPage: (
+    text: string,
+    options?: { forward?: boolean; findNext?: boolean },
+  ) => number;
+  stopFindInPage: (action: "clearSelection" | "keepSelection") => void;
 };
+
+/** Result of a find-in-page step: how many matches, which one is active. */
+export interface FindInPageResult {
+  matches: number;
+  active: number;
+}
 
 export interface WebviewTabHandle {
   reload: () => void;
@@ -113,6 +125,16 @@ export interface WebviewTabHandle {
   canGoForward: () => boolean;
   executeJS: (code: string) => Promise<unknown>;
   getWebContentsId: () => number | null;
+  /** Stop loading (desktop app). */
+  stop?: () => void;
+  /** Find text; forward=false goes back. Resolves with the match count. */
+  findInPage?: (
+    text: string,
+    options: { forward: boolean; findNext: boolean },
+  ) => Promise<FindInPageResult | null>;
+  stopFindInPage?: () => void;
+  /** System print dialog (desktop app). */
+  print?: () => Promise<void>;
   extractText: () => Promise<{
     url: string;
     title: string;
@@ -635,6 +657,16 @@ function BackendBrowserTab({
           `/api/browser/extract-text?session_id=${encodeURIComponent(sessionId)}`,
           { headers: authHeaders() },
         );
+      },
+      findInPage: async (text, { forward }) => {
+        if (relayStatus?.connected) return null;
+        const data = await runAction("find_in_page", {
+          text,
+          backwards: !forward,
+        });
+        const matches = typeof data.matches === "number" ? data.matches : 0;
+        // The page reports a count only; the bar tracks the position.
+        return { matches, active: matches > 0 ? -1 : 0 };
       },
       capturePage: async () => {
         if (await preferRelay()) {
@@ -1891,6 +1923,58 @@ export const WebviewTab = forwardRef<WebviewTabHandle, Props>(
           }
           return api.browser.capturePage(wv.getWebContentsId());
         },
+        stop: () =>
+          safe(() => {
+            ref.current?.stop();
+            return undefined;
+          }, undefined),
+        findInPage: (text, { forward, findNext }) =>
+          new Promise<FindInPageResult | null>((resolve) => {
+            const wv = ref.current;
+            if (!wv || !readyRef.current || !text) return resolve(null);
+            let requestId = -1;
+            const timer = window.setTimeout(() => {
+              wv.removeEventListener("found-in-page", onFound);
+              resolve(null);
+            }, 1500);
+            function onFound(event: Event) {
+              const result = (
+                event as Event & {
+                  result?: {
+                    requestId: number;
+                    matches: number;
+                    activeMatchOrdinal: number;
+                    finalUpdate: boolean;
+                  };
+                }
+              ).result;
+              if (!result || result.requestId !== requestId || !result.finalUpdate) {
+                return;
+              }
+              window.clearTimeout(timer);
+              wv?.removeEventListener("found-in-page", onFound);
+              resolve({
+                matches: result.matches,
+                active: result.activeMatchOrdinal,
+              });
+            }
+            wv.addEventListener("found-in-page", onFound);
+            requestId = wv.findInPage(text, { forward, findNext });
+          }),
+        stopFindInPage: () =>
+          safe(() => {
+            ref.current?.stopFindInPage("clearSelection");
+            return undefined;
+          }, undefined),
+        print: async () => {
+          const wv = ref.current;
+          const api = window.echo;
+          if (!wv || !api || !readyRef.current) return;
+          const result = await api.browser.print(wv.getWebContentsId());
+          if (!result.ok && result.error && result.error !== "cancelled") {
+            throw new Error(result.error);
+          }
+        },
         runAction: async (action, params = {}) => {
           const wv = ref.current;
           const api = window.echo;
@@ -2308,7 +2392,10 @@ export const WebviewTab = forwardRef<WebviewTabHandle, Props>(
           key={`wv-${tab.id}-${reloadSeed}`}
           ref={ref as unknown as React.RefObject<HTMLElement>}
           src={tab.url}
-          partition="persist:echo-browser"
+          // Private tabs get an in-memory session that is dropped on quit.
+          partition={tab.private ? "echo-private" : "persist:echo-browser"}
+          // Enables Chromium's built-in PDF viewer inside the tab.
+          plugins
           data-echo-webcontents-adoption-lease={adoptionLease}
           data-echo-adopted-web-contents-id="pending"
           style={{ width: "100%", height: "100%" }}

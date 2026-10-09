@@ -532,3 +532,50 @@ def test_screenshot_clicks_and_typing_reach_the_page(client, monkeypatch) -> Non
         assert response.status_code == 200, (body, response.text)
 
     assert calls == [("click", 120, 400), ("dblclick", 5, 100), ("type", "你好 echo")]
+
+
+def test_find_in_page_counts_matches(client, monkeypatch) -> None:
+    c = _c(client)
+    _ensure(client)
+
+    class _Page(_FakePage):
+        def evaluate(self, js: str, arg=None):
+            if arg is not None:
+                return {"matches": 3, "found": True}
+            return super().evaluate(js)
+
+    page = _Page()
+    monkeypatch.setattr(
+        _StubBackend, "_ensure_real_browser_session", lambda self, s: s.update(page=page) or True
+    )
+    base = {"session_id": "s1", "action": "find_in_page"}
+    assert c.post("/api/browser/action", json=base).status_code == 400
+    response = c.post("/api/browser/action", json={**base, "text": "echo"})
+    assert response.status_code == 200
+    assert response.json()["matches"] == 3 and response.json()["found"] is True
+
+
+def test_suggest_returns_engine_suggestions(client, monkeypatch) -> None:
+    seen: list[str] = []
+
+    class _Response:
+        status_code = 200
+
+        @staticmethod
+        def json():
+            return ["echo", ["echo ai", "echo browser", 3, ""]]
+
+    def fake_request(method, url, **kwargs):
+        seen.append(url)
+        return _Response()
+
+    monkeypatch.setattr("runtime.safety.auth.url_guard.safe_httpx_request", fake_request)
+    c = _c(client)
+    assert c.get("/api/browser/suggest", params={"q": " "}).json() == {"suggestions": []}
+    body = c.get("/api/browser/suggest", params={"q": "echo", "engine": "baidu"}).json()
+    assert body == {"suggestions": ["echo ai", "echo browser"]}
+    assert seen and seen[0].startswith("https://suggestion.baidu.com/")
+    c.get("/api/browser/suggest", params={"q": "echo", "lang": "en-US"})
+    assert "mkt=en-US" in seen[-1]
+    c.get("/api/browser/suggest", params={"q": "echo", "lang": "x&evil=1"})
+    assert "mkt=zh-CN" in seen[-1]

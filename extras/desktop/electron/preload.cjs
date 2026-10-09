@@ -95,6 +95,9 @@ const api = {
     cancelDownload: (id) => ipcRenderer.invoke("browser:cancel-download", { id }),
     retryDownload: (id) => ipcRenderer.invoke("browser:retry-download", { id }),
     listSitePermissions: () => ipcRenderer.invoke("browser:list-site-permissions"),
+    print: (webContentsId) => ipcRenderer.invoke("browser:print", { webContentsId }),
+    importBookmarks: (browser) =>
+      ipcRenderer.invoke("browser:import-bookmarks", { browser }),
     setSitePermission: (origin, permission, decision) =>
       ipcRenderer.invoke("browser:set-site-permission", {
         origin,
