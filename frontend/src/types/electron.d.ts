@@ -370,6 +370,7 @@ export interface EchoElectronAPI {
       | "browser:tab-crashed"
       | "browser:keyboard-shortcut"
       | "browser:download-event"
+      | "browser:ask-selection"
       | "desktop:organize-now"
       | "desktop:items-changed"
       | "backend:bootstrap-progress"

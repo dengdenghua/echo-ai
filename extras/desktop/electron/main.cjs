@@ -1605,7 +1605,18 @@ app.on("web-contents-created", (_event, wc) => {
     }
 
     if (isText) {
+      const askSelection = (action) => {
+        const main = mainWindow && !mainWindow.isDestroyed() ? mainWindow : null;
+        main?.webContents.send("browser:ask-selection", {
+          text: String(params.selectionText).slice(0, 4000),
+          action,
+        });
+      };
       template.push(
+        { label: "AI 解释", click: () => askSelection("explain") },
+        { label: "AI 翻译成中文", click: () => askSelection("translate") },
+        { label: "问 AI…", click: () => askSelection("ask") },
+        { type: "separator" },
         { role: "copy", label: "复制" },
         {
           label: "用 Google 搜索",

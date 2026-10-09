@@ -334,15 +334,58 @@ export const BROWSER_ACTION_PROTOCOL = `\
 最大连续 action 轮次 8 轮,超过会强停。每条 action 简洁、明确、可验证。\
 `;
 
+/** Separates context prepended for the model from the user's request. */
+export const USER_REQUEST_MARKER = "=== 用户请求 ===";
+
+/** Prepend model-only context (protocol, page text, other tabs). */
+export function withModelContext(
+  blocks: readonly string[],
+  request: string,
+): string {
+  const present = blocks.filter((block) => block.trim());
+  if (present.length === 0) return request;
+  return `${present.join("\n\n---\n\n")}\n\n${USER_REQUEST_MARKER}\n\n${request}`;
+}
+
+export interface PageSnapshot {
+  url: string;
+  title: string;
+  text: string;
+  truncated?: boolean;
+  textLength?: number;
+  pageAgent?: unknown;
+}
+
+/** A page as model context, capped so one page cannot crowd out the rest. */
+export function pageContextBlock(
+  heading: string,
+  page: PageSnapshot,
+  { maxChars = 8000, pageAgentLabel }: { maxChars?: number; pageAgentLabel?: string } = {},
+): string {
+  const full = page.textLength ?? page.text.length;
+  const text =
+    page.text.length > maxChars || page.truncated
+      ? `${page.text.slice(0, maxChars)}\n[…已截断，原文 ${full} 字符]`
+      : page.text;
+  const agent =
+    page.pageAgent && pageAgentLabel
+      ? `\n\n${pageAgentLabel}\n${JSON.stringify(page.pageAgent).slice(0, 12000)}`
+      : "";
+  return `${heading}\n标题：${page.title}\nURL：${page.url}\n\n${text}${agent}`;
+}
+
 /**
- * What the user typed, without protocol text prepended for the model (the
- * browser action protocol, the recorder-mode header). The model still gets
- * both; the conversation and its preview show only the request.
+ * What the user typed, without context prepended for the model (the action
+ * protocol, the recorder header, page text). The model still gets all of
+ * it; the conversation and its preview show only the request.
  */
 export function visibleUserText(
   text: string,
   headers: readonly string[] = [BROWSER_ACTION_PROTOCOL],
 ): string {
+  const marker = text.lastIndexOf(USER_REQUEST_MARKER);
+  if (marker !== -1) return text.slice(marker + USER_REQUEST_MARKER.length).trim();
+  // Messages sent before the marker existed used "---" after the protocol.
   let out = text;
   for (let pass = 0; pass <= headers.length; pass += 1) {
     const trimmed = out.trimStart();

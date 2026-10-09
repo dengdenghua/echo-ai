@@ -14,6 +14,7 @@ import {
   StopCircleIcon,
   PlusIcon,
   ChevronRightIcon,
+  LayersIcon,
 } from "lucide-react";
 import {
   useCallback,
@@ -56,6 +57,13 @@ import {
   recordBrowserAgentAudit,
   setBrowserAgentPermission,
 } from "@/core/browser/agent-permissions";
+import {
+  DropdownMenu,
+  DropdownMenuCheckboxItem,
+  DropdownMenuContent,
+  DropdownMenuLabel,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { cn } from "@/lib/utils";
 
 import {
@@ -69,7 +77,9 @@ import {
   type AgentAction,
   type ActionResult,
   type BrowserControlOptions,
+  pageContextBlock,
   visibleUserText,
+  withModelContext,
 } from "./agentic-actions";
 import {
   BROWSER_ASSISTANT_ASK_EVENT,
@@ -82,6 +92,8 @@ import type { WebviewTabHandle } from "./webview-tab";
 
 interface Props {
   webviewHandle: WebviewTabHandle | null;
+  /** Handles of other open tabs, for "引用标签页". */
+  getTabHandle?: (tabId: string) => WebviewTabHandle | null;
   framed?: boolean;
 }
 
@@ -113,7 +125,11 @@ interface ResearchLogEntry {
   url?: string;
 }
 
-export function AssistantPanel({ webviewHandle, framed = false }: Props) {
+export function AssistantPanel({
+  webviewHandle,
+  getTabHandle,
+  framed = false,
+}: Props) {
   const presentation = useAssistantPresentation();
   const compact = presentation?.compact === true;
   const { t, locale } = useI18n();
@@ -121,6 +137,12 @@ export function AssistantPanel({ webviewHandle, framed = false }: Props) {
   const { activeTab, state, setCopilotOpen, setCopilotWidth } =
     useBrowserStore();
   const [input, setInput] = useState("");
+  const inputRef = useRef<HTMLTextAreaElement>(null);
+  // Last page URL whose text went to the model, per conversation, so the
+  // same page is not resent on every turn.
+  const pageContextUrlRef = useRef(new Map<string, string>());
+  const [referencedTabIds, setReferencedTabIds] = useState<string[]>([]);
+  const [gathering, setGathering] = useState(false);
   const [busy, setBusy] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [pendingConfirmations, setPendingConfirmations] = useState<
@@ -831,35 +853,122 @@ export function AssistantPanel({ webviewHandle, framed = false }: Props) {
   // Implementation note.
   // Implementation note.
   const buildOutgoingText = useCallback(
-    (raw: string): string => {
-      const recorderHeader = recorderMode
-        ? `${t.browser.assistant.recorderProtocol}\n\n---\n\n`
-        : "";
-      if (!autoBrowse) return `${recorderHeader}${raw}`;
-      if (protocolInjectedRef.current.has(threadId)) return raw;
-      protocolInjectedRef.current.add(threadId);
-      return `${recorderHeader}${BROWSER_ACTION_PROTOCOL}\n\n---\n\n${raw}`;
+    (raw: string, context: readonly string[] = []): string => {
+      const blocks: string[] = [];
+      if (recorderMode) blocks.push(t.browser.assistant.recorderProtocol);
+      if (autoBrowse && !protocolInjectedRef.current.has(threadId)) {
+        protocolInjectedRef.current.add(threadId);
+        blocks.push(BROWSER_ACTION_PROTOCOL);
+      }
+      return withModelContext([...blocks, ...context], raw);
     },
     [autoBrowse, recorderMode, threadId, t],
   );
 
-  const send = useCallback(
-    (text: string) => {
-      const t = text.trim();
-      if (!t) return;
-      void sendMessage(threadId, { text: buildOutgoingText(t), files: [] });
-      setInput("");
+  // The current web page as model context: sent with the first question on
+  // a page, then again only when the page changes (or when forced).
+  const currentPageContext = useCallback(
+    async (force: boolean): Promise<string | null> => {
+      const url = activeTab?.url ?? "";
+      // Resolve at read time: the tab's surface may have changed since render.
+      const handle =
+        (activeTab ? getTabHandle?.(activeTab.id) : null) ?? webviewHandle;
+      if (!handle || !/^https?:\/\//i.test(url)) return null;
+      if (!force && pageContextUrlRef.current.get(threadId) === url) return null;
+      try {
+        const page = await withActionTimeout(
+          handle.extractText(),
+          "extract page",
+          6000,
+        );
+        pageContextUrlRef.current.set(threadId, url);
+        return pageContextBlock(t.browser.assistant.currentPageLabel, page, {
+          pageAgentLabel: t.browser.assistant.pageAgentCapabilityLabel,
+        });
+      } catch (err) {
+        swallow(err);
+        return null;
+      }
     },
-    [buildOutgoingText, sendMessage, threadId],
+    [activeTab, getTabHandle, threadId, webviewHandle, t],
   );
 
-  // A question asked on the start page arrives once this panel is open.
+  const otherTabs = useMemo(
+    () =>
+      state.tabs.filter(
+        (tab) => tab.id !== activeTab?.id && /^https?:\/\//i.test(tab.url),
+      ),
+    [activeTab?.id, state.tabs],
+  );
+
+  const referencedTabsContext = useCallback(async (): Promise<string[]> => {
+    const blocks: string[] = [];
+    for (const tab of otherTabs) {
+      if (!referencedTabIds.includes(tab.id)) continue;
+      const handle = getTabHandle?.(tab.id);
+      if (!handle) continue;
+      try {
+        const page = await withActionTimeout(
+          handle.extractText(),
+          "extract tab",
+          6000,
+        );
+        blocks.push(
+          pageContextBlock(`[另一个标签页] ${tab.title || tab.url}`, page, {
+            maxChars: 6000,
+          }),
+        );
+      } catch (err) {
+        swallow(err);
+      }
+    }
+    return blocks;
+  }, [getTabHandle, otherTabs, referencedTabIds]);
+
+  const send = useCallback(
+    async (text: string, options: { pageBlock?: string } = {}) => {
+      const request = text.trim();
+      if (!request) return;
+      setInput("");
+      setGathering(true);
+      try {
+        const page = options.pageBlock ?? (await currentPageContext(false));
+        const tabs = await referencedTabsContext();
+        setReferencedTabIds([]);
+        void sendMessage(threadId, {
+          text: buildOutgoingText(request, [...(page ? [page] : []), ...tabs]),
+          files: [],
+        });
+      } finally {
+        setGathering(false);
+      }
+    },
+    [
+      buildOutgoingText,
+      currentPageContext,
+      referencedTabsContext,
+      sendMessage,
+      threadId,
+    ],
+  );
+
+  // A question from the start page or the page's right-click menu arrives
+  // here once this panel is open.
   useEffect(() => {
     const consume = () => {
-      const text = takeBrowserAssistantAsk();
-      if (!text) return;
+      const request = takeBrowserAssistantAsk();
+      if (!request) return;
+      if (request.mode === "draft") {
+        setInput(request.text);
+        requestAnimationFrame(() => {
+          const field = inputRef.current;
+          field?.focus();
+          field?.setSelectionRange(field.value.length, field.value.length);
+        });
+        return;
+      }
       expandConversation?.(true);
-      send(text);
+      void send(request.text);
     };
     consume();
     window.addEventListener(BROWSER_ASSISTANT_ASK_EVENT, consume);
@@ -871,7 +980,7 @@ export function AssistantPanel({ webviewHandle, framed = false }: Props) {
     (e: KeyboardEvent<HTMLTextAreaElement>) => {
       if (e.key === "Enter" && !e.shiftKey) {
         e.preventDefault();
-        send(input);
+        void send(input);
       }
     },
     [input, send],
@@ -998,42 +1107,21 @@ export function AssistantPanel({ webviewHandle, framed = false }: Props) {
   }, [researchBrief]);
 
   // Implementation note.
+  // Quick actions always read the page fresh; the text goes to the model
+  // as context, and the bubble shows only the instruction.
   const askWithPage = useCallback(
     async (instruction: string) => {
       const c = t.browser.assistant;
-      if (webviewHandle && !window.echo) {
-        setBusy(true);
-        setErrorMsg(null);
-        try {
-          const page = await webviewHandle.extractText();
-          const pageAgent = page.pageAgent
-            ? `\n\n${c.pageAgentCapabilityLabel}\n${JSON.stringify(page.pageAgent).slice(0, 12000)}`
-            : "";
-          const prefix = `${c.currentPageLabel}\n${c.urlLabel} ${page.url}\n${c.titleLabel} ${page.title}\n\n${page.text}${pageAgent}\n${page.truncated ? `\n${c.truncatedSuffix(page.textLength ?? 0)}` : ""}`;
-          send(`${prefix}\n\n${instruction}`);
-        } catch (err) {
-          swallow(err);
-          setErrorMsg(err instanceof Error ? err.message : String(err));
-        } finally {
-          setBusy(false);
-        }
-        return;
-      }
-      if (!webviewHandle || !window.echo) {
-        setErrorMsg(c.needElectronError);
-        return;
-      }
-      const wcId = webviewHandle.getWebContentsId();
-      if (wcId == null) {
-        setErrorMsg(c.tabNotReadyError);
+      if (!webviewHandle) {
+        setErrorMsg(window.echo ? c.tabNotReadyError : c.needElectronError);
         return;
       }
       setBusy(true);
       setErrorMsg(null);
       try {
-        const page = await window.echo.browser.extractText(wcId);
-        const prefix = `${c.currentPageLabel}\n${c.urlLabel} ${page.url}\n${c.titleLabel} ${page.title}\n\n${page.text}\n${page.truncated ? `\n${c.truncatedSuffix(page.textLength ?? 0)}` : ""}`;
-        send(`${prefix}\n\n${instruction}`);
+        const pageBlock = await currentPageContext(true);
+        if (!pageBlock) throw new Error(c.tabNotReadyError);
+        await send(instruction, { pageBlock });
       } catch (err) {
         swallow(err);
         setErrorMsg(err instanceof Error ? err.message : String(err));
@@ -1041,7 +1129,7 @@ export function AssistantPanel({ webviewHandle, framed = false }: Props) {
         setBusy(false);
       }
     },
-    [send, webviewHandle, t],
+    [currentPageContext, send, webviewHandle, t],
   );
 
   // Implementation note.
@@ -1519,7 +1607,58 @@ export function AssistantPanel({ webviewHandle, framed = false }: Props) {
               aria-label="正在回复"
             />
           )}
+          {otherTabs.length > 0 ? (
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <button
+                  type="button"
+                  aria-label="引用其他标签页"
+                  title="把其他标签页的内容一起发给 AI"
+                  className={cn(
+                    "relative grid size-8 shrink-0 place-items-center rounded-full text-muted-foreground hover:bg-muted hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring",
+                    referencedTabIds.length > 0 && "text-primary",
+                  )}
+                >
+                  <LayersIcon className="size-4" />
+                  {referencedTabIds.length > 0 ? (
+                    <span className="absolute -right-0.5 -top-0.5 grid size-4 place-items-center rounded-full bg-primary text-[10px] font-semibold text-primary-foreground">
+                      {referencedTabIds.length}
+                    </span>
+                  ) : null}
+                </button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="start" side="top" className="w-72">
+                <DropdownMenuLabel className="text-xs font-medium text-muted-foreground">
+                  一起发给 AI 的标签页
+                </DropdownMenuLabel>
+                {otherTabs.map((tab) => (
+                  <DropdownMenuCheckboxItem
+                    key={tab.id}
+                    checked={referencedTabIds.includes(tab.id)}
+                    onSelect={(event) => event.preventDefault()}
+                    onCheckedChange={(checked) =>
+                      setReferencedTabIds((current) =>
+                        checked
+                          ? [...current, tab.id]
+                          : current.filter((id) => id !== tab.id),
+                      )
+                    }
+                    className="text-xs"
+                  >
+                    <span className="truncate">{tab.title || tab.url}</span>
+                  </DropdownMenuCheckboxItem>
+                ))}
+              </DropdownMenuContent>
+            </DropdownMenu>
+          ) : null}
+          {gathering ? (
+            <Loader2Icon
+              className="size-4 shrink-0 animate-spin text-muted-foreground"
+              aria-label="正在读取网页"
+            />
+          ) : null}
           <textarea
+            ref={inputRef}
             value={input}
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={onKey}
@@ -1530,8 +1669,8 @@ export function AssistantPanel({ webviewHandle, framed = false }: Props) {
           />
           <button
             type="button"
-            onClick={() => send(input)}
-            disabled={!input.trim() || thread.isLoading}
+            onClick={() => void send(input)}
+            disabled={!input.trim() || thread.isLoading || gathering}
             className="grid size-8 shrink-0 place-items-center rounded-full bg-foreground text-background transition-colors hover:bg-foreground/80 disabled:bg-muted disabled:text-muted-foreground"
             title={t.codeMode.send}
             aria-label={t.codeMode.send}

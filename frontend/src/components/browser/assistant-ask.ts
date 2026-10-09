@@ -6,15 +6,24 @@
  */
 export const BROWSER_ASSISTANT_ASK_EVENT = "echo:browser-assistant-ask";
 
-let pending: string | null = null;
+/** "send" asks right away; "draft" puts the text in the input to finish. */
+export type BrowserAssistantAskMode = "send" | "draft";
 
-export function requestBrowserAssistantAsk(text: string): void {
-  pending = text;
+let pending: { text: string; mode: BrowserAssistantAskMode } | null = null;
+
+export function requestBrowserAssistantAsk(
+  text: string,
+  mode: BrowserAssistantAskMode = "send",
+): void {
+  pending = { text, mode };
   window.dispatchEvent(new Event(BROWSER_ASSISTANT_ASK_EVENT));
 }
 
-export function takeBrowserAssistantAsk(): string | null {
-  const text = pending;
+export function takeBrowserAssistantAsk(): {
+  text: string;
+  mode: BrowserAssistantAskMode;
+} | null {
+  const request = pending;
   pending = null;
-  return text;
+  return request;
 }

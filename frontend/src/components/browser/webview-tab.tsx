@@ -1713,8 +1713,11 @@ export const WebviewTab = forwardRef<WebviewTabHandle, Props>(
       [],
     );
 
+    // Outside the desktop app this tab renders <BackendBrowserTab>, which
+    // owns the handle; binding the webview handle too would overwrite it
+    // (parents' layout effects run after children's).
     useImperativeHandle(
-      imperativeRef,
+      window.echo?.isElectron ? imperativeRef : null,
       () => ({
         reload: () =>
           safe(() => {

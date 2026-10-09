@@ -47,6 +47,7 @@ import {
   type BrowserOpenUrlAck,
   BROWSER_OPEN_URL_REQUEST_EVENT,
 } from "@/components/browser/browser-store";
+import { requestBrowserAssistantAsk } from "@/components/browser/assistant-ask";
 import type { WebviewTabHandle } from "@/components/browser/webview-tab";
 import { WorkspaceSurfaceHeader } from "@/components/workspace/workspace-surface-header";
 import { BrowserPreviewPanel } from "@/components/workspace/browser-preview-panel";
@@ -186,7 +187,9 @@ function BrowserShell() {
     setActiveHandle(h);
     const wcId = h?.getWebContentsId() ?? null;
     if (wcId != null) window.echo?.bridge.setActiveTab(wcId);
-  }, [activeTabId]);
+    // A tab swaps surfaces (start page → website) without changing its id;
+    // re-read the handle when its address changes too.
+  }, [activeTabId, activeTabUrl]);
 
   const activeDevice = activeTab?.device ?? "desktop";
   const renderDevice =
@@ -252,6 +255,33 @@ function BrowserShell() {
     activeTabUrl,
     recordVisit,
   ]);
+
+  const getTabHandle = useCallback(
+    (tabId: string) => handlesRef.current.get(tabId) ?? null,
+    [],
+  );
+
+  // Right-click on selected text in a page (desktop app): explain or
+  // translate it right away, or start a question about it.
+  useEffect(() => {
+    if (!window.echo) return;
+    const off = window.echo.on("browser:ask-selection", (...args) => {
+      const payload = args[0] as
+        | { text?: string; action?: "explain" | "translate" | "ask" }
+        | undefined;
+      const quote = payload?.text?.trim();
+      if (!quote) return;
+      setCopilotOpen(true);
+      if (payload?.action === "ask") {
+        requestBrowserAssistantAsk(`关于这段内容：\n「${quote}」\n`, "draft");
+      } else if (payload?.action === "translate") {
+        requestBrowserAssistantAsk(`把这段翻译成中文：\n「${quote}」`);
+      } else {
+        requestBrowserAssistantAsk(`解释这段内容：\n「${quote}」`);
+      }
+    });
+    return () => off();
+  }, [setCopilotOpen]);
 
   // Implementation note.
   useEffect(() => {
@@ -708,7 +738,11 @@ function BrowserShell() {
                   />
                 }
               >
-                <AssistantPanel webviewHandle={activeHandle} framed />
+                <AssistantPanel
+                  webviewHandle={activeHandle}
+                  getTabHandle={getTabHandle}
+                  framed
+                />
               </Suspense>
             </AssistantSurface>
           </div>

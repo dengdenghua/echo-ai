@@ -173,6 +173,7 @@ const api = {
       "browser:tab-crashed",
       "browser:keyboard-shortcut",
       "browser:download-event",
+      "browser:ask-selection",
       "desktop:organize-now",
       "desktop:items-changed",
     ];
