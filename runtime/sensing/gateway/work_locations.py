@@ -72,7 +72,7 @@ def wsl_distros(*, refresh: bool = False) -> dict[str, Any]:
                 if completed.returncode == 0:
                     distros = parse_wsl_list(_decode_wsl(completed.stdout))
                     result = {"available": bool(distros), "distros": distros}
-            except (OSError, subprocess.TimeoutExpired):
+            except (OSError, subprocess.TimeoutExpired):  # noqa: BLE001 — no usable wsl.exe means no WSL
                 pass
         _wsl_cache = (time.monotonic(), result)
         return result

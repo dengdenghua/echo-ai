@@ -39,6 +39,7 @@ from runtime.memory.control_sessions_codec import (
     _surface,
 )
 from runtime.platform.io.sqlite import connect_closing
+from runtime.platform.io.sqlite_schema import Migration, add_column, configure, migrate
 
 _SCHEMA = """
 CREATE TABLE IF NOT EXISTS control_sessions (
@@ -109,6 +110,12 @@ CREATE INDEX IF NOT EXISTS idx_control_events_session
     ON control_events(session_id, event_seq);
 """
 
+_MIGRATIONS = (
+    Migration(1, _SCHEMA),
+    # Databases from before per-user ownership lack the creator column.
+    Migration(2, lambda conn: add_column(conn, "control_sessions", "creator_actor", "TEXT")),
+)
+
 
 def _default_dir() -> Path:
     from runtime.platform.process.paths import app_paths
@@ -124,18 +131,8 @@ class ControlSessionStore:
         self._dir.mkdir(parents=True, exist_ok=True)
         self._db = self._dir / "control_sessions.db"
         self._lock = threading.RLock()
-        with self._lock, self._connect() as conn:
-            conn.executescript(_SCHEMA)
-            self._migrate_locked(conn)
-
-    @staticmethod
-    def _migrate_locked(conn: sqlite3.Connection) -> None:
-        # Idempotent column additions for DBs created before a column existed.
-        # CREATE TABLE IF NOT EXISTS never alters an existing table, so add
-        # newer columns here guarded by a table_info probe.
-        cols = {row[1] for row in conn.execute("PRAGMA table_info(control_sessions)")}
-        if "creator_actor" not in cols:
-            conn.execute("ALTER TABLE control_sessions ADD COLUMN creator_actor TEXT")
+        with self._lock, self._connect():
+            pass
 
     @property
     def base_dir(self) -> Path:
@@ -143,9 +140,9 @@ class ControlSessionStore:
 
     def _connect(self) -> sqlite3.Connection:
         self._dir.mkdir(parents=True, exist_ok=True)
-        conn = connect_closing(str(self._db), timeout=10.0)
-        conn.execute("PRAGMA journal_mode=WAL")
-        conn.executescript(_SCHEMA)
+        conn = configure(connect_closing(str(self._db), timeout=10.0))
+        # Cheap when current (one PRAGMA read); recreates a deleted database.
+        migrate(conn, _MIGRATIONS, name="control_sessions")
         return conn
 
     def upsert_session(

@@ -30,6 +30,7 @@ from typing import Any
 from uuid import uuid4
 
 from runtime.platform.io.sqlite import connect_closing
+from runtime.platform.io.sqlite_schema import Migration, add_column, configure, migrate
 from runtime.safety.auth.scope import TenantScope
 from runtime.workspace.crypto import decrypt_options, encrypt_options
 from runtime.workspace.model import (
@@ -62,6 +63,14 @@ CREATE TABLE IF NOT EXISTS workspace_members (
 CREATE INDEX IF NOT EXISTS idx_workspaces_owner ON workspaces(owner_id);
 CREATE INDEX IF NOT EXISTS idx_workspace_members_member ON workspace_members(member_id);
 """
+
+_MIGRATIONS = (
+    Migration(1, _SCHEMA),
+    # Databases from before tenant scoping lack the column.
+    Migration(
+        2, lambda conn: add_column(conn, "workspaces", "tenant_id", "TEXT NOT NULL DEFAULT ''")
+    ),
+)
 
 
 def _default_db_path() -> Path:
@@ -158,18 +167,11 @@ class WorkspaceStore:
         return row if self._workspace_allowed(ws, self._effective_scope(scope)) else None
 
     def _connect(self) -> sqlite3.Connection:
-        conn = connect_closing(str(self._db), timeout=10.0)
-        conn.execute("PRAGMA journal_mode=WAL")
-        return conn
+        return configure(connect_closing(str(self._db), timeout=10.0))
 
     def _ensure_schema(self) -> None:
         with self._lock, self._connect() as conn:
-            conn.executescript(_SCHEMA)
-            columns = {
-                str(row[1]) for row in conn.execute("PRAGMA table_info(workspaces)").fetchall()
-            }
-            if "tenant_id" not in columns:
-                conn.execute("ALTER TABLE workspaces ADD COLUMN tenant_id TEXT NOT NULL DEFAULT ''")
+            migrate(conn, _MIGRATIONS, name="workspaces")
 
     # ── workspaces ────────────────────────────────────────────────────────
 

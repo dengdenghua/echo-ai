@@ -47,6 +47,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from runtime.platform.io.sqlite import connect_closing
+from runtime.platform.io.sqlite_schema import Migration, add_column, configure, migrate
 from runtime.safety.auth.scope import TenantScope
 
 _LOG = logging.getLogger("echo.platform.io.lease")
@@ -65,6 +66,14 @@ CREATE TABLE IF NOT EXISTS file_leases (
 CREATE INDEX IF NOT EXISTS idx_lease_workspace_path ON file_leases(workspace_id, file_path);
 CREATE INDEX IF NOT EXISTS idx_lease_holder ON file_leases(holder_id);
 """
+
+_MIGRATIONS = (
+    Migration(1, _SCHEMA),
+    # Databases from before tenant scoping lack the column.
+    Migration(
+        2, lambda conn: add_column(conn, "file_leases", "tenant_id", "TEXT NOT NULL DEFAULT ''")
+    ),
+)
 
 _LEASE_COLUMNS = (
     "lease_id, workspace_id, file_path, holder_id, acquired_at, expires_at, kind, tenant_id"
@@ -163,21 +172,14 @@ class LeaseStore:
 
     def _connect(self) -> sqlite3.Connection:
         self._db_path.parent.mkdir(parents=True, exist_ok=True)
-        conn = connect_closing(str(self._db_path), timeout=10.0)
-        conn.execute("PRAGMA journal_mode=WAL")
-        conn.executescript(_SCHEMA)
+        conn = configure(connect_closing(str(self._db_path), timeout=10.0))
+        # Cheap when current (one PRAGMA read); recreates a deleted database.
+        migrate(conn, _MIGRATIONS, name="file_leases")
         return conn
 
     def _ensure_schema(self) -> None:
-        with self._lock, self._connect() as conn:
-            conn.executescript(_SCHEMA)
-            columns = {
-                str(row[1]) for row in conn.execute("PRAGMA table_info(file_leases)").fetchall()
-            }
-            if "tenant_id" not in columns:
-                conn.execute(
-                    "ALTER TABLE file_leases ADD COLUMN tenant_id TEXT NOT NULL DEFAULT ''"
-                )
+        with self._lock, self._connect():
+            pass
 
     # ── acquire / renew / release ────────────────────────────────────────────
 

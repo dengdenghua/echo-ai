@@ -281,7 +281,7 @@ class DurableIdentityStore(IdentityStore):
         items: list[Any] | None = None
         try:
             items = self._read(self._path)
-        except FileNotFoundError:
+        except FileNotFoundError:  # noqa: BLE001 — first run: fall back to .bak, else empty
             pass
         except ValueError as exc:
             # Keep the damaged file for recovery instead of overwriting it on
