@@ -19,7 +19,6 @@ import contextlib
 import json
 import logging
 import queue
-import re
 import threading
 from pathlib import Path
 from typing import Any
@@ -44,6 +43,13 @@ from ._http_support import (
     _PlatformStockIn,  # noqa: F401 - retain the package's existing private symbol
     _proxy_disabled_page,
     _StockIn,
+)
+from ._plugin_support import (
+    _enabled_by_default,
+    _explicitly_enabled,
+    _LazyLivePushEventClient,
+    _quote_code,
+    _quote_codes,
 )
 from .live import (
     DEFAULT_BASE_URL,
@@ -73,76 +79,6 @@ except ImportError:  # pragma: no cover
     StreamingResponse = None  # type: ignore[assignment,misc]
 
 _logger = logging.getLogger(__name__)
-
-
-def _explicitly_enabled(config: dict[str, Any], key: str) -> bool:
-    """Accept only a real boolean ``true`` for security-sensitive switches."""
-    return config.get(key) is True
-
-
-def _enabled_by_default(config: dict[str, Any], key: str) -> bool:
-    """Default to enabled while still rejecting false and string booleans."""
-    return config.get(key, True) is True
-
-
-def _quote_code(value: str) -> str:
-    """Validate one A-share code and add the exchange suffix used upstream."""
-
-    clean = str(value or "").strip().lower()
-    if not clean:
-        return ""
-    if "." in clean:
-        code, suffix = clean.rsplit(".", 1)
-        if re.fullmatch(r"\d{6}", code) and suffix in {"sh", "sz", "bj"}:
-            return f"{code}.{suffix}"
-        return ""
-    if not re.fullmatch(r"\d{6}", clean):
-        return ""
-    if clean.startswith(("4", "8", "92")):
-        suffix = "bj"
-    elif clean.startswith(("5", "6", "9")):
-        suffix = "sh"
-    else:
-        suffix = "sz"
-    return f"{clean}.{suffix}"
-
-
-def _quote_codes(value: str, *, limit: int, required: bool = False) -> list[str]:
-    raw = [part.strip() for part in str(value or "").split(",") if part.strip()]
-    normalized: list[str] = []
-    seen: set[str] = set()
-    for item in raw:
-        code = _quote_code(item)
-        if not code:
-            raise ValueError(f"无效股票代码: {item}")
-        if code not in seen:
-            normalized.append(code)
-            seen.add(code)
-    if required and not normalized:
-        raise ValueError("至少需要一个股票代码")
-    if len(normalized) > limit:
-        raise ValueError(f"每个连接最多订阅 {limit} 只股票")
-    return normalized
-
-
-class _LazyLivePushEventClient:
-    """Create the credentialed upstream only when a real subscriber arrives."""
-
-    def __init__(self, owner: PaperTradingPlugin) -> None:
-        self._owner = owner
-
-    def subscribe(self, event: str, params: list[str], callback: Any) -> None:
-        push = self._owner._push_client()
-        if push is None:
-            raise RuntimeError("平台实时行情源尚未配置可信 HTTPS 或登录凭证")
-        push.subscribe(event, params, callback)
-
-    def unsubscribe(self, event: str, callback: Any) -> None:
-        # Never call _push_client() during teardown: doing so could create a
-        # fresh authenticated socket while the plugin is unloading.
-        push = self._owner.push
-        if push is not None:
-            push.unsubscribe(event, callback)
 
 
 class PaperTradingPlugin(ModulePlugin):
@@ -724,109 +660,9 @@ class PaperTradingPlugin(ModulePlugin):
         # host: the global auth middleware protects /api/plugins/*, while no
         # platform account, portfolio, credential or trading route is mounted.
         hub = self.quote_hub
+        _public_quote_status: Any = None
         if hub is not None:
-
-            def _public_quote_status() -> dict[str, Any]:
-                status = dict(hub.status())
-                # This endpoint is shared by every authenticated tenant.  Keep
-                # aggregate health/capacity metrics, but never reveal another
-                # tenant's watch symbols, reference counts or provider error
-                # details (which may contain internal connection metadata).
-                status.pop("subscribers", None)
-                status.pop("subscribed_codes", None)
-                status.pop("ref_counts", None)
-                for source in status.get("sources", {}).values():
-                    if isinstance(source, dict):
-                        source.pop("last_error", None)
-                status["enabled"] = True
-                status["source_labels"] = {
-                    "platform_ws": "平台直连",
-                    "platform_rest": "平台快照备用",
-                    "tdx": "通达信备用",
-                    "westock": "腾讯自选股备用",
-                }
-                return status
-
-            def _sse_frame(event: str, payload: dict[str, Any]) -> str:
-                seq = int(payload.get("seq") or 0)
-                body = json.dumps(payload, ensure_ascii=False, separators=(",", ":"))
-                return f"id: {seq}\nevent: {event}\ndata: {body}\n\n"
-
-            @router.get("/quotes/status")
-            def quote_hub_status() -> dict[str, Any]:
-                # Observability must never create a credentialed connection.
-                return _public_quote_status()
-
-            @router.get("/quotes/snapshot")
-            def quote_hub_snapshot(codes: str = "") -> dict[str, Any]:
-                try:
-                    selected = _quote_codes(
-                        codes,
-                        limit=self._quote_hub_max_codes_per_client,
-                    )
-                except ValueError as exc:
-                    raise HTTPException(status_code=400, detail=str(exc)) from exc
-                snapshot = hub.snapshot(selected or None)
-                return {"ok": True, **snapshot, "status": _public_quote_status()}
-
-            @router.get("/quotes/stream")
-            def quote_hub_stream(request: Request, codes: str = "") -> Any:
-                if StreamingResponse is None:
-                    raise HTTPException(status_code=503, detail="SSE 不可用")
-                try:
-                    selected = _quote_codes(
-                        codes,
-                        limit=self._quote_hub_max_codes_per_client,
-                        required=True,
-                    )
-                    subscription = hub.subscribe(
-                        selected,
-                        queue_size=self._quote_hub_queue_size,
-                        replay=False,
-                    )
-                except ValueError as exc:
-                    raise HTTPException(status_code=400, detail=str(exc)) from exc
-                except RuntimeError as exc:
-                    raise HTTPException(status_code=429, detail=str(exc)) from exc
-                hub.start()
-
-                async def _gen():
-                    try:
-                        yield "retry: 3000\n\n"
-                        yield _sse_frame("snapshot", hub.snapshot(selected))
-                        yield _sse_frame("status", _public_quote_status())
-                        while True:
-                            if await request.is_disconnected():
-                                break
-                            try:
-                                item = await asyncio.to_thread(subscription.get, 15.0)
-                            except queue.Empty:
-                                yield ": keepalive\n\n"
-                                yield _sse_frame("status", _public_quote_status())
-                                continue
-                            kind = str(item.get("type") or "quotes")
-                            if kind == "closed":
-                                break
-                            if kind == "source_changed":
-                                yield _sse_frame("status", _public_quote_status())
-                                if item.get("quotes"):
-                                    yield _sse_frame("quote", item)
-                            elif kind == "snapshot":
-                                yield _sse_frame("snapshot", item)
-                            else:
-                                yield _sse_frame("quote", item)
-                    finally:
-                        subscription.close()
-
-                return StreamingResponse(
-                    _gen(),
-                    media_type="text/event-stream",
-                    headers={
-                        "Cache-Control": "no-cache, no-transform",
-                        "X-Accel-Buffering": "no",
-                        "Connection": "keep-alive",
-                    },
-                )
+            _public_quote_status = self._mount_quote_hub_routes(router, hub)
 
         # The plugin owns one process-wide engine/platform account.  An
         # authenticated host therefore fails closed unless the host has
@@ -868,6 +704,138 @@ class PaperTradingPlugin(ModulePlugin):
         self._publish_trusted_local_proxy_state(
             self._trusted_single_user_local_proxy and proxy_mounted
         )
+
+        self._mount_page_routes(
+            router, plugin_dir=plugin_dir, page_path=page_path, proxy_mounted=proxy_mounted
+        )
+        self._mount_check_in_routes(router)
+
+        # In the explicit authenticated-local mode expose only the original
+        # site bridge and the narrow check-in surface.  Do not fall through to
+        # the process-wide simulated account, order, platform-account or reset
+        # APIs; those remain unavailable until state is principal-scoped.
+        if self._authenticated_host:
+            app.include_router(router)
+            return
+
+        self._mount_market_routes(router, engine)
+        self._mount_live_push_routes(router, hub, _public_quote_status)
+        self._mount_platform_routes(router)
+        self._mount_simulation_routes(router, engine)
+
+        app.include_router(router)
+
+    def _mount_quote_hub_routes(self, router: Any, hub: QuoteHub) -> Any:
+        """Unified quote-hub status, snapshot, and SSE stream (quote-only, safe)."""
+
+        def _public_quote_status() -> dict[str, Any]:
+            status = dict(hub.status())
+            # This endpoint is shared by every authenticated tenant.  Keep
+            # aggregate health/capacity metrics, but never reveal another
+            # tenant's watch symbols, reference counts or provider error
+            # details (which may contain internal connection metadata).
+            status.pop("subscribers", None)
+            status.pop("subscribed_codes", None)
+            status.pop("ref_counts", None)
+            for source in status.get("sources", {}).values():
+                if isinstance(source, dict):
+                    source.pop("last_error", None)
+            status["enabled"] = True
+            status["source_labels"] = {
+                "platform_ws": "平台直连",
+                "platform_rest": "平台快照备用",
+                "tdx": "通达信备用",
+                "westock": "腾讯自选股备用",
+            }
+            return status
+
+        def _sse_frame(event: str, payload: dict[str, Any]) -> str:
+            seq = int(payload.get("seq") or 0)
+            body = json.dumps(payload, ensure_ascii=False, separators=(",", ":"))
+            return f"id: {seq}\nevent: {event}\ndata: {body}\n\n"
+
+        @router.get("/quotes/status")
+        def quote_hub_status() -> dict[str, Any]:
+            # Observability must never create a credentialed connection.
+            return _public_quote_status()
+
+        @router.get("/quotes/snapshot")
+        def quote_hub_snapshot(codes: str = "") -> dict[str, Any]:
+            try:
+                selected = _quote_codes(
+                    codes,
+                    limit=self._quote_hub_max_codes_per_client,
+                )
+            except ValueError as exc:
+                raise HTTPException(status_code=400, detail=str(exc)) from exc
+            snapshot = hub.snapshot(selected or None)
+            return {"ok": True, **snapshot, "status": _public_quote_status()}
+
+        @router.get("/quotes/stream")
+        def quote_hub_stream(request: Request, codes: str = "") -> Any:
+            if StreamingResponse is None:
+                raise HTTPException(status_code=503, detail="SSE 不可用")
+            try:
+                selected = _quote_codes(
+                    codes,
+                    limit=self._quote_hub_max_codes_per_client,
+                    required=True,
+                )
+                subscription = hub.subscribe(
+                    selected,
+                    queue_size=self._quote_hub_queue_size,
+                    replay=False,
+                )
+            except ValueError as exc:
+                raise HTTPException(status_code=400, detail=str(exc)) from exc
+            except RuntimeError as exc:
+                raise HTTPException(status_code=429, detail=str(exc)) from exc
+            hub.start()
+
+            async def _gen():
+                try:
+                    yield "retry: 3000\n\n"
+                    yield _sse_frame("snapshot", hub.snapshot(selected))
+                    yield _sse_frame("status", _public_quote_status())
+                    while True:
+                        if await request.is_disconnected():
+                            break
+                        try:
+                            item = await asyncio.to_thread(subscription.get, 15.0)
+                        except queue.Empty:
+                            yield ": keepalive\n\n"
+                            yield _sse_frame("status", _public_quote_status())
+                            continue
+                        kind = str(item.get("type") or "quotes")
+                        if kind == "closed":
+                            break
+                        if kind == "source_changed":
+                            yield _sse_frame("status", _public_quote_status())
+                            if item.get("quotes"):
+                                yield _sse_frame("quote", item)
+                        elif kind == "snapshot":
+                            yield _sse_frame("snapshot", item)
+                        else:
+                            yield _sse_frame("quote", item)
+                finally:
+                    subscription.close()
+
+            return StreamingResponse(
+                _gen(),
+                media_type="text/event-stream",
+                headers={
+                    "Cache-Control": "no-cache, no-transform",
+                    "X-Accel-Buffering": "no",
+                    "Connection": "keep-alive",
+                },
+            )
+
+        return _public_quote_status
+
+    def _mount_page_routes(
+        self, router: Any, *, plugin_dir: Any, page_path: Path, proxy_mounted: bool
+    ) -> None:
+        """The trading page, the watch page and its script."""
 
         @router.get("/page", response_class=HTMLResponse)
         def serve_page() -> HTMLResponse:
@@ -915,6 +883,8 @@ class PaperTradingPlugin(ModulePlugin):
                 headers={"Cache-Control": "no-cache"},
             )
 
+    def _mount_check_in_routes(self, router: Any) -> None:
+        """Platform daily check-in: status, config, session sync, run, schedule."""
         # ── 平台每日签到 ───────────────────────────────────
         # 页面按钮和后台定时器都走这里。后端只允许签到当天，提交前后均查询状态，
         # 因此重复点击、自动任务重试和多实例竞争都会收敛为“今日已签”。
@@ -990,13 +960,8 @@ class PaperTradingPlugin(ModulePlugin):
                 return {"ok": False, "error": str(exc)}
             return {"ok": True, "schedule": schedule}
 
-        # In the explicit authenticated-local mode expose only the original
-        # site bridge and the narrow check-in surface.  Do not fall through to
-        # the process-wide simulated account, order, platform-account or reset
-        # APIs; those remain unavailable until state is principal-scoped.
-        if self._authenticated_host:
-            app.include_router(router)
-            return
+    def _mount_market_routes(self, router: Any, engine: PaperTradingEngine) -> None:
+        """Simulated symbols / quotes and the live-mode market endpoints."""
 
         @router.get("/symbols")
         def symbols() -> dict[str, Any]:
@@ -1063,6 +1028,11 @@ class PaperTradingPlugin(ModulePlugin):
             if live is None:
                 return {"ok": False, "message": "未启用 live_mode"}
             return live.clear_credentials()
+
+    def _mount_live_push_routes(
+        self, router: Any, hub: QuoteHub | None, _public_quote_status: Any
+    ) -> None:
+        """Live push status / subscribe / latest / SSE stream, and live refresh."""
 
         @router.get("/live/push/status")
         def live_push_status() -> dict[str, Any]:
@@ -1215,6 +1185,8 @@ class PaperTradingPlugin(ModulePlugin):
                 }
             return live.overview(force=True)
 
+    def _mount_platform_routes(self, router: Any) -> None:
+        """Platform account reads and confirm-gated platform writes."""
         # ── 平台配资盘(真实交易) ───────────────────────────
         # 只读:合约/持仓/委托/费率/档位/卖出面板;操作类一律要求 confirm。
 
@@ -1404,6 +1376,9 @@ class PaperTradingPlugin(ModulePlugin):
                 contract_id=payload.contract_id,
             )
 
+    def _mount_simulation_routes(self, router: Any, engine: PaperTradingEngine) -> None:
+        """Simulated quote/kline/order book, watchlists, account, orders, reset."""
+
         @router.get("/quote/{code}")
         def quote(code: str) -> dict[str, Any]:
             q = engine.quote(code)
@@ -1525,8 +1500,6 @@ class PaperTradingPlugin(ModulePlugin):
         @router.post("/reset")
         def reset() -> dict[str, Any]:
             return engine.reset()
-
-        app.include_router(router)
 
     @property
     def capabilities(self) -> list[Any]:

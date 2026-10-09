@@ -16,7 +16,6 @@ runtime/sensing/gateway/team_tasks_router.py::create_team_tasks_router	429
 runtime/core/cerebrum/react_loop.py::_stream_react_loop_impl	899
 runtime/sensing/gateway/team_rooms_router.py::create_team_rooms_router	872
 runtime/platform/ui/_app_routers.py::mount_routers_a	844
-runtime/platform/plugins/bundled/paper_trading/__init__.py::PaperTradingPlugin.register_routes	823
 runtime/platform/ui/_app_routers_extra.py::mount_routers_b	790
 runtime/sensing/gateway/_fs_router_endpoints.py::register_endpoints	794
 runtime/sensing/gateway/_realtime_react_stream_drive.py::_drive_react	789

@@ -34,7 +34,7 @@ runtime/memory/threads/store.py	2167
 runtime/platform/capabilities/capability_registry.py	1030
 runtime/platform/plugins/bundled/narrative_studio/__init__.py	1012
 runtime/platform/plugins/bundled/narrative_studio/store.py	1774
-runtime/platform/plugins/bundled/paper_trading/__init__.py	1553
+runtime/platform/plugins/bundled/paper_trading/__init__.py	1526
 runtime/platform/plugins/bundled/paper_trading/quote_hub.py	1238
 runtime/platform/plugins/cloud_catalog.py	3088
 runtime/platform/plugins/plugin_hub.py	1404
