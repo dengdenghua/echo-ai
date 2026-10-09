@@ -279,9 +279,15 @@ def _write_python_test_runner(
 
 def _preflight_python_test_runner(workspace: Path, provenance: dict[str, str]) -> None:
     runner = workspace / provenance["runner_path"]
+    command: list[str] | str
     if os.name == "nt":
         comspec = os.environ.get("COMSPEC") or "cmd.exe"
-        command = [comspec, "/d", "/s", "/c", f'""{runner}" --echo-preflight"']
+        # Pass one literal command line: list2cmdline would backslash-escape
+        # the inner quotes, which cmd.exe does not understand. ``/s`` strips
+        # only the outer quote pair, so the quoted runner path survives.
+        command = (
+            f'{subprocess.list2cmdline([comspec, "/d", "/s", "/c"])} ""{runner}" --echo-preflight"'
+        )
     else:
         command = [str(runner), "--echo-preflight"]
     try:
