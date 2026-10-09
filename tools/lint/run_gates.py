@@ -45,6 +45,7 @@ GATES: tuple[Gate, ...] = (
     Gate("function_length_check", (PY, "tools/lint/function_length_check.py", "--strict")),
     Gate("inline_locale_check", (PY, "tools/lint/inline_locale_check.py", "--strict")),
     Gate("sqlite_schema_check", (PY, "tools/lint/sqlite_schema_check.py", "--strict")),
+    Gate("raw_fetch_check", (PY, "tools/lint/raw_fetch_check.py", "--strict")),
     Gate("import_direction_check", (PY, "tools/lint/import_direction_check.py", "--strict")),
     Gate("orphan_module_check", (PY, "tools/lint/orphan_module_check.py", "--strict")),
     Gate(

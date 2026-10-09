@@ -143,6 +143,11 @@ jobs:
         if: always() && matrix.python-version == '3.11.9'
         run: python tools/lint/sqlite_schema_check.py --strict
 
+      - name: Raw-fetch ratchet (frontend requests go through core/api/request)
+        # Style/ratchet gate: must not mask pytest below (see note at job top).
+        if: always() && matrix.python-version == '3.11.9'
+        run: python tools/lint/raw_fetch_check.py --strict
+
       - name: Import-direction ratchet (no NEW kernel→sensing/web imports)
         # Style/ratchet gate: must not mask pytest below (see note at job top).
         if: always() && matrix.python-version == '3.11.9'

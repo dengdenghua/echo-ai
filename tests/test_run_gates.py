@@ -21,6 +21,7 @@ def test_gate_list_matches_ci() -> None:
         "function_length_check",
         "inline_locale_check",
         "sqlite_schema_check",
+        "raw_fetch_check",
         "import_direction_check",
         "orphan_module_check",
         "feature_flag_consumption_check",
