@@ -61,6 +61,7 @@ export async function detectLocalServices({
     COMMON_DEV_PORTS.filter(({ port }) => !excluded.has(port)).map(
       async ({ port, name, type }) => {
         try {
+          // raw fetch: unauthenticated no-cors HEAD probe of third-party local dev ports, not the Echo backend
           const response = await fetch(`http://localhost:${port}/`, {
             method: "HEAD",
             signal: controller.signal,

@@ -1,5 +1,9 @@
-import { getBackendBaseURL } from "@/core/config";
-import { authHeaders, jsonAuthHeaders } from "@/core/auth/api";
+import { apiGet, apiPost, apiPut, type ApiFailure } from "@/core/api/request";
+
+/** ``"<label>: <statusText>"`` — this module's historical wording. */
+function failed(label: string) {
+  return (failure: ApiFailure): string => `${label}: ${failure.statusText}`;
+}
 
 export interface DetectedBrowser {
   name: string;
@@ -167,20 +171,15 @@ export function createEchoBrowserSessionIdentity(
 }
 
 export async function getBrowserSystemInfo(): Promise<BrowserSystemInfoResponse> {
-  const res = await fetch(`${getBackendBaseURL()}/api/browser/system-info`, {
-    headers: authHeaders(),
-  });
-  if (!res.ok) throw new Error(`Failed to get system info: ${res.statusText}`);
-  return (await res.json()) as BrowserSystemInfoResponse;
+  return (await apiGet("/api/browser/system-info", {
+    errorMessage: failed("Failed to get system info"),
+  })) as BrowserSystemInfoResponse;
 }
 
 export async function getBrowserConfig(): Promise<BrowserConfig> {
-  const res = await fetch(`${getBackendBaseURL()}/api/browser/config`, {
-    headers: authHeaders(),
-  });
-  if (!res.ok)
-    throw new Error(`Failed to get browser config: ${res.statusText}`);
-  return (await res.json()) as BrowserConfig;
+  return (await apiGet("/api/browser/config", {
+    errorMessage: failed("Failed to get browser config"),
+  })) as BrowserConfig;
 }
 
 export async function ensureBrowserSession(
@@ -192,49 +191,36 @@ export async function ensureBrowserSession(
   } = {},
 ): Promise<BrowserSessionResponse> {
   const sessionId = options.sessionId || "default";
-  const res = await fetch(`${getBackendBaseURL()}/api/browser/session/ensure`, {
-    method: "POST",
-    headers: jsonAuthHeaders(),
-    body: JSON.stringify({
+  return (await apiPost("/api/browser/session/ensure", {
+    body: {
       session_id: sessionId,
       project_id: options.projectId || sessionId,
       profile_id: options.profileId || options.projectId || sessionId,
       ...(options.headless === undefined ? {} : { headless: options.headless }),
-    }),
-  });
-  if (!res.ok)
-    throw new Error(`Failed to ensure browser session: ${res.statusText}`);
-  return (await res.json()) as BrowserSessionResponse;
+    },
+    errorMessage: failed("Failed to ensure browser session"),
+  })) as BrowserSessionResponse;
 }
 
 export async function getBrowserSessions(): Promise<BrowserSessionsResponse> {
-  const res = await fetch(`${getBackendBaseURL()}/api/browser/sessions`, {
-    headers: authHeaders(),
-  });
-  if (!res.ok)
-    throw new Error(`Failed to get browser sessions: ${res.statusText}`);
-  return (await res.json()) as BrowserSessionsResponse;
+  return (await apiGet("/api/browser/sessions", {
+    errorMessage: failed("Failed to get browser sessions"),
+  })) as BrowserSessionsResponse;
 }
 
 export async function updateBrowserConfig(
   config: Partial<BrowserConfig>,
 ): Promise<BrowserConfig> {
-  const res = await fetch(`${getBackendBaseURL()}/api/browser/config`, {
-    method: "PUT",
-    headers: jsonAuthHeaders(),
-    body: JSON.stringify(config),
-  });
-  if (!res.ok)
-    throw new Error(`Failed to update browser config: ${res.statusText}`);
-  return (await res.json()) as BrowserConfig;
+  return (await apiPut("/api/browser/config", {
+    body: config,
+    errorMessage: failed("Failed to update browser config"),
+  })) as BrowserConfig;
 }
 
 export async function getRelayStatus(): Promise<RelayStatus> {
-  const res = await fetch(`${getBackendBaseURL()}/api/browser/relay/status`, {
-    headers: authHeaders(),
-  });
-  if (!res.ok) throw new Error(`Failed to get relay status: ${res.statusText}`);
-  return (await res.json()) as RelayStatus;
+  return (await apiGet("/api/browser/relay/status", {
+    errorMessage: failed("Failed to get relay status"),
+  })) as RelayStatus;
 }
 
 export async function captureBrowserRelayPreview(target: {
@@ -242,22 +228,17 @@ export async function captureBrowserRelayPreview(target: {
   title: string;
   url?: string;
 }): Promise<{ dataUrl: string }> {
-  const res = await fetch(`${getBackendBaseURL()}/api/browser/relay/command`, {
-    method: "POST",
-    headers: jsonAuthHeaders(),
-    body: JSON.stringify({
+  const payload = (await apiPost("/api/browser/relay/command", {
+    body: {
       action: "screenshot",
       target_tab_id: target.id,
       target_tab_title: target.title,
       target_tab_url: target.url || "",
       timeout_seconds: 4,
       lease_seconds: 5,
-    }),
-  });
-  if (!res.ok) {
-    throw new Error(`Failed to capture browser preview: ${res.statusText}`);
-  }
-  const payload = (await res.json()) as {
+    },
+    errorMessage: failed("Failed to capture browser preview"),
+  })) as {
     dataUrl?: string;
     data?: string;
   };
@@ -270,26 +251,18 @@ export async function openExtensionFolder(): Promise<{
   opened: boolean;
   path: string;
 }> {
-  const res = await fetch(
-    `${getBackendBaseURL()}/api/browser/open-extension-folder`,
-    {
-      method: "POST",
-      headers: jsonAuthHeaders(),
-    },
-  );
-  if (!res.ok)
-    throw new Error(`Failed to open extension folder: ${res.statusText}`);
-  return (await res.json()) as { opened: boolean; path: string };
+  return (await apiPost("/api/browser/open-extension-folder", {
+    // Historically sent even though the request has no body.
+    headers: { "Content-Type": "application/json" },
+    errorMessage: failed("Failed to open extension folder"),
+  })) as { opened: boolean; path: string };
 }
 
 export async function getExtensionPath(): Promise<{
   path: string;
   exists: boolean;
 }> {
-  const res = await fetch(`${getBackendBaseURL()}/api/browser/extension-path`, {
-    headers: authHeaders(),
-  });
-  if (!res.ok)
-    throw new Error(`Failed to get extension path: ${res.statusText}`);
-  return (await res.json()) as { path: string; exists: boolean };
+  return (await apiGet("/api/browser/extension-path", {
+    errorMessage: failed("Failed to get extension path"),
+  })) as { path: string; exists: boolean };
 }

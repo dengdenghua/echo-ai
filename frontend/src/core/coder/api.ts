@@ -1,7 +1,13 @@
-import { authHeaders, jsonAuthHeaders } from "@/core/auth/api";
 import type { EngineCapabilityChecks } from "@/core/agents/engine-capability-checks";
 import type { components } from "@/core/api/openapi-types";
-import { getBackendBaseURL } from "@/core/config";
+import {
+  EchoAPIError,
+  apiFetch,
+  apiGet,
+  apiPost,
+  apiPut,
+  type ApiFailure,
+} from "@/core/api/request";
 
 type CodexSchemas = components["schemas"];
 type CodexAccountResponseWire = CodexSchemas["CodexAccountResponse"];
@@ -140,32 +146,54 @@ export class CoderAPIError extends Error {
   }
 }
 
-async function responseError(response: Response, fallback: string) {
-  const payload = (await response.json().catch(() => null)) as {
-    detail?: unknown;
-    message?: unknown;
-  } | null;
-  const detail = payload?.detail ?? payload?.message;
-  return new CoderAPIError(typeof detail === "string" ? detail : fallback, response.status);
+/** The error body's ``detail`` (or ``message``) string, else
+ * ``"<fallback> (<status>)"`` — this module's historical wording. */
+function coderErrorMessage(fallback: string) {
+  return (failure: ApiFailure): string => {
+    const payload = failure.payload as
+      | {
+          detail?: unknown;
+          message?: unknown;
+        }
+      | null
+      | undefined;
+    const detail = payload?.detail ?? payload?.message;
+    return typeof detail === "string"
+      ? detail
+      : `${fallback} (${failure.status})`;
+  };
 }
+
+/** HTTP failures keep surfacing as ``CoderAPIError`` (callers branch on its
+ * ``status``); network errors propagate untouched. */
+async function coderRequest<T>(
+  fallback: string,
+  request: (errorMessage: (failure: ApiFailure) => string) => Promise<T>,
+): Promise<T> {
+  try {
+    return await request(coderErrorMessage(fallback));
+  } catch (error) {
+    if (error instanceof EchoAPIError) {
+      throw new CoderAPIError(error.message, error.status);
+    }
+    throw error;
+  }
+}
+
+/** Historically sent on bodiless POSTs too. */
+const JSON_CONTENT_TYPE = { "Content-Type": "application/json" };
 
 export async function getCoderAccount(
   signal?: AbortSignal,
 ): Promise<CoderAccountState> {
-  const response = await fetch(
-    `${getBackendBaseURL()}/api/coder/codex/account`,
-    {
-      headers: authHeaders(),
-      signal,
-    },
+  return coderRequest(
+    "Coder account unavailable",
+    async (errorMessage) =>
+      (await apiGet("/api/coder/codex/account", {
+        signal,
+        errorMessage,
+      })) as CoderAccountState,
   );
-  if (!response.ok) {
-    throw await responseError(
-      response,
-      `Coder account unavailable (${response.status})`,
-    );
-  }
-  return (await response.json()) as CoderAccountState;
 }
 
 export async function startCoderLogin(
@@ -174,31 +202,22 @@ export async function startCoderLogin(
 ): Promise<CoderLoginResult> {
   const body: { type: CoderLoginType; api_key?: string } = { type };
   if (type === "apiKey" && apiKey) body.api_key = apiKey;
-  const response = await fetch(`${getBackendBaseURL()}/api/coder/codex/login`, {
-    method: "POST",
-    headers: jsonAuthHeaders(),
-    body: JSON.stringify(body),
-  });
-  if (!response.ok) {
-    throw await responseError(
-      response,
-      `Coder login failed (${response.status})`,
-    );
-  }
-  return (await response.json()) as CoderLoginResult;
+  return coderRequest("Coder login failed", (errorMessage) =>
+    apiPost("/api/coder/codex/login", { body, errorMessage }),
+  );
 }
 
 export async function cancelCoderLogin(loginId: string): Promise<boolean> {
-  const response = await fetch(
-    `${getBackendBaseURL()}/api/coder/codex/login/${encodeURIComponent(loginId)}/cancel`,
-    { method: "POST", headers: jsonAuthHeaders() },
+  const response = await coderRequest(
+    "Coder login cancellation failed",
+    (errorMessage) =>
+      apiFetch("post", "/api/coder/codex/login/{login_id}/cancel", {
+        path: { login_id: loginId },
+        headers: JSON_CONTENT_TYPE,
+        errorMessage,
+      }),
   );
-  if (!response.ok) {
-    throw await responseError(
-      response,
-      `Coder login cancellation failed (${response.status})`,
-    );
-  }
+  // An empty or non-JSON success body still means "not cancelled".
   const payload = (await response.json().catch(() => null)) as {
     cancelled?: unknown;
   } | null;
@@ -206,192 +225,149 @@ export async function cancelCoderLogin(loginId: string): Promise<boolean> {
 }
 
 export async function logoutCoderAccount(): Promise<void> {
-  const response = await fetch(
-    `${getBackendBaseURL()}/api/coder/codex/logout`,
-    {
-      method: "POST",
-      headers: jsonAuthHeaders(),
-    },
+  await coderRequest("Coder logout failed", (errorMessage) =>
+    apiFetch("post", "/api/coder/codex/logout", {
+      headers: JSON_CONTENT_TYPE,
+      errorMessage,
+    }),
   );
-  if (!response.ok) {
-    throw await responseError(
-      response,
-      `Coder logout failed (${response.status})`,
-    );
-  }
 }
 
 export async function getCoderModels(
   signal?: AbortSignal,
 ): Promise<CoderModelsResponse> {
-  const response = await fetch(
-    `${getBackendBaseURL()}/api/coder/codex/models?include_hidden=false`,
-    { headers: authHeaders(), signal },
+  return coderRequest(
+    "Coder models unavailable",
+    async (errorMessage) =>
+      (await apiGet("/api/coder/codex/models", {
+        query: { include_hidden: false },
+        signal,
+        errorMessage,
+      })) as CoderModelsResponse,
   );
-  if (!response.ok) {
-    throw await responseError(
-      response,
-      `Coder models unavailable (${response.status})`,
-    );
-  }
-  return (await response.json()) as CoderModelsResponse;
 }
 
 export async function getCoderRateLimits(
   signal?: AbortSignal,
 ): Promise<CoderRateLimits> {
-  const response = await fetch(
-    `${getBackendBaseURL()}/api/coder/codex/rate-limits`,
-    { headers: authHeaders(), signal },
+  return coderRequest(
+    "Coder rate limits unavailable",
+    async (errorMessage) =>
+      (await apiGet("/api/coder/codex/rate-limits", {
+        signal,
+        errorMessage,
+      })) as CoderRateLimits,
   );
-  if (!response.ok) {
-    throw await responseError(
-      response,
-      `Coder rate limits unavailable (${response.status})`,
-    );
-  }
-  return (await response.json()) as CoderRateLimits;
 }
 
 export async function getCoderUsage(signal?: AbortSignal): Promise<CoderUsage> {
-  const response = await fetch(`${getBackendBaseURL()}/api/coder/codex/usage`, {
-    headers: authHeaders(),
-    signal,
-  });
-  if (!response.ok) {
-    throw await responseError(
-      response,
-      `Coder usage unavailable (${response.status})`,
-    );
-  }
-  return (await response.json()) as CoderUsage;
+  return coderRequest(
+    "Coder usage unavailable",
+    async (errorMessage) =>
+      (await apiGet("/api/coder/codex/usage", {
+        signal,
+        errorMessage,
+      })) as CoderUsage,
+  );
 }
 
 export async function getCoderApps(
   signal?: AbortSignal,
 ): Promise<CoderAppsResponse> {
-  const response = await fetch(`${getBackendBaseURL()}/api/coder/codex/apps`, {
-    headers: authHeaders(),
-    signal,
-  });
-  if (!response.ok) {
-    throw await responseError(
-      response,
-      `Coder connectors unavailable (${response.status})`,
-    );
-  }
-  return (await response.json()) as CoderAppsResponse;
+  return coderRequest(
+    "Coder connectors unavailable",
+    async (errorMessage) =>
+      (await apiGet("/api/coder/codex/apps", {
+        signal,
+        errorMessage,
+      })) as CoderAppsResponse,
+  );
 }
 
 export async function updateCoderApps(
   appIds: string[],
 ): Promise<CoderAppsResponse> {
-  const response = await fetch(`${getBackendBaseURL()}/api/coder/codex/apps`, {
-    method: "PUT",
-    headers: jsonAuthHeaders(),
-    body: JSON.stringify({ app_ids: appIds }),
-  });
-  if (!response.ok) {
-    throw await responseError(
-      response,
-      `Coder connectors update failed (${response.status})`,
-    );
-  }
-  return (await response.json()) as CoderAppsResponse;
+  return coderRequest(
+    "Coder connectors update failed",
+    async (errorMessage) =>
+      (await apiPut("/api/coder/codex/apps", {
+        body: { app_ids: appIds },
+        errorMessage,
+      })) as CoderAppsResponse,
+  );
 }
 
 export async function getCoderModelProfile(
   signal?: AbortSignal,
 ): Promise<CoderModelProfile> {
-  const response = await fetch(
-    `${getBackendBaseURL()}/api/coder/codex/model-profile`,
-    { headers: authHeaders(), signal },
+  return coderRequest("Coder model profile unavailable", async (errorMessage) =>
+    normalizeModelProfile(
+      await apiGet("/api/coder/codex/model-profile", {
+        signal,
+        errorMessage,
+      }),
+    ),
   );
-  if (!response.ok) {
-    throw await responseError(
-      response,
-      `Coder model profile unavailable (${response.status})`,
-    );
-  }
-  return normalizeModelProfile(await response.json());
 }
 
 export async function updateCoderModelProfile(
   input: UpdateCoderModelProfile,
 ): Promise<CoderModelProfile> {
-  const response = await fetch(
-    // Keep reads and writes on the same origin: cookie-backed sessions cannot
-    // authenticate an alternate localhost/127.0.0.1 host.
-    `${getBackendBaseURL()}/api/coder/codex/model-profile`,
-    {
-      method: "PUT",
-      headers: jsonAuthHeaders(),
-      body: JSON.stringify({
-        mode: input.source === "codex_account" ? "chatgpt" : "follow_system",
-        ...(input.model ? { model: input.model } : {}),
-        ...(input.reasoning_effort !== undefined
-          ? { reasoning_effort: input.reasoning_effort }
-          : {}),
-      }),
-    },
+  return coderRequest(
+    "Coder model profile update failed",
+    async (errorMessage) =>
+      normalizeModelProfile(
+        // Keep reads and writes on the same origin: cookie-backed sessions
+        // cannot authenticate an alternate localhost/127.0.0.1 host.
+        await apiPut("/api/coder/codex/model-profile", {
+          body: {
+            mode:
+              input.source === "codex_account" ? "chatgpt" : "follow_system",
+            ...(input.model ? { model: input.model } : {}),
+            ...(input.reasoning_effort !== undefined
+              ? { reasoning_effort: input.reasoning_effort }
+              : {}),
+          },
+          errorMessage,
+        }),
+      ),
   );
-  if (!response.ok) {
-    throw await responseError(
-      response,
-      `Coder model profile update failed (${response.status})`,
-    );
-  }
-  return normalizeModelProfile(await response.json());
 }
 
 export async function getCoderUpstreamUpdate(
   signal?: AbortSignal,
 ): Promise<CoderUpstreamUpdate> {
-  const response = await fetch(
-    `${getBackendBaseURL()}/api/coder/codex/upstream-update`,
-    { headers: authHeaders(), signal },
+  return coderRequest(
+    "Codex update status unavailable",
+    async (errorMessage) =>
+      (await apiGet("/api/coder/codex/upstream-update", {
+        signal,
+        errorMessage,
+      })) as CoderUpstreamUpdate,
   );
-  if (!response.ok) {
-    throw await responseError(
-      response,
-      `Codex update status unavailable (${response.status})`,
-    );
-  }
-  return (await response.json()) as CoderUpstreamUpdate;
 }
 
 export async function checkCoderUpstreamUpdate(): Promise<CoderUpstreamUpdate> {
-  const response = await fetch(
-    `${getBackendBaseURL()}/api/coder/codex/upstream-update/check`,
-    { method: "POST", headers: authHeaders() },
+  return coderRequest(
+    "Codex update check failed",
+    async (errorMessage) =>
+      (await apiPost("/api/coder/codex/upstream-update/check", {
+        errorMessage,
+      })) as CoderUpstreamUpdate,
   );
-  if (!response.ok) {
-    throw await responseError(
-      response,
-      `Codex update check failed (${response.status})`,
-    );
-  }
-  return (await response.json()) as CoderUpstreamUpdate;
 }
 
 export async function approveCoderUpstreamUpdate(
   version: string,
 ): Promise<CoderUpstreamUpdate> {
-  const response = await fetch(
-    `${getBackendBaseURL()}/api/coder/codex/upstream-update/approve`,
-    {
-      method: "POST",
-      headers: jsonAuthHeaders(),
-      body: JSON.stringify({ version }),
-    },
+  return coderRequest(
+    "Codex update approval failed",
+    async (errorMessage) =>
+      (await apiPost("/api/coder/codex/upstream-update/approve", {
+        body: { version },
+        errorMessage,
+      })) as CoderUpstreamUpdate,
   );
-  if (!response.ok) {
-    throw await responseError(
-      response,
-      `Codex update approval failed (${response.status})`,
-    );
-  }
-  return (await response.json()) as CoderUpstreamUpdate;
 }
 
 function normalizeModelProfile(payload: unknown): CoderModelProfile {

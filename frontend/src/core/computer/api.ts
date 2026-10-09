@@ -1,7 +1,15 @@
-import { authHeaders, jsonAuthHeaders } from "@/core/auth/api";
-import { getBackendBaseURL } from "@/core/config";
+import { apiGet, apiPost, type ApiFailure } from "@/core/api/request";
 
-const BASE = () => `${getBackendBaseURL()}/api/computer`;
+/** ``"<label>: <statusText>"`` — this module's historical wording. */
+function failed(label: string) {
+  return (failure: ApiFailure): string => `${label}: ${failure.statusText}`;
+}
+
+/** ``"<label>: <status> <body>"`` (the body part is dropped when empty). */
+function failedWithBody(label: string) {
+  return (failure: ApiFailure): string =>
+    `${label}: ${failure.status}${failure.text ? ` ${failure.text}` : ""}`;
+}
 
 export type ComputerLeaseOwner = {
   owner_id: string;
@@ -248,37 +256,30 @@ function controlSessionBody(options?: ComputerControlSessionOptions) {
 }
 
 export async function getComputerStatus(): Promise<ComputerStatus> {
-  const res = await fetch(`${BASE()}/status`, { headers: authHeaders() });
-  if (!res.ok)
-    throw new Error(`Failed to load computer status: ${res.statusText}`);
-  return (await res.json()) as ComputerStatus;
+  return (await apiGet("/api/computer/status", {
+    errorMessage: failed("Failed to load computer status"),
+  })) as ComputerStatus;
 }
 
 export async function captureComputerScreen(
   options: ComputerControlSessionOptions = {},
 ): Promise<ComputerScreenshot> {
-  const res = await fetch(`${BASE()}/screenshot`, {
-    method: "POST",
-    headers: jsonAuthHeaders(),
-    body: JSON.stringify(controlSessionBody(options)),
-  });
-  if (!res.ok) throw new Error(`Failed to capture screen: ${res.statusText}`);
-  return (await res.json()) as ComputerScreenshot;
+  return (await apiPost("/api/computer/screenshot", {
+    body: controlSessionBody(options),
+    errorMessage: failed("Failed to capture screen"),
+  })) as ComputerScreenshot;
 }
 
 export async function captureComputerAppshot(
   options: ComputerControlSessionOptions & { maxNodes?: number } = {},
 ): Promise<ComputerAppshot> {
-  const res = await fetch(`${BASE()}/appshot`, {
-    method: "POST",
-    headers: jsonAuthHeaders(),
-    body: JSON.stringify({
+  const payload = (await apiPost("/api/computer/appshot", {
+    body: {
       ...controlSessionBody(options),
       max_nodes: options.maxNodes ?? 120,
-    }),
-  });
-  if (!res.ok) throw new Error(`Failed to capture appshot: ${res.statusText}`);
-  const payload = (await res.json()) as ComputerAppshot;
+    },
+    errorMessage: failed("Failed to capture appshot"),
+  })) as ComputerAppshot;
   if (!payload.ok || !payload.screenshot?.data_url) {
     throw new Error(payload.screenshot?.error || "Appshot capture failed");
   }
@@ -286,21 +287,16 @@ export async function captureComputerAppshot(
 }
 
 export async function listComputerTargets(): Promise<ComputerTargetsResponse> {
-  const res = await fetch(`${BASE()}/targets`, { headers: authHeaders() });
-  if (!res.ok) {
-    throw new Error(`Failed to list automation targets: ${res.statusText}`);
-  }
-  return (await res.json()) as ComputerTargetsResponse;
+  return (await apiGet("/api/computer/targets", {
+    errorMessage: failed("Failed to list automation targets"),
+  })) as ComputerTargetsResponse;
 }
 
 export async function captureComputerWindowPreview(target: AutomationTarget) {
-  const res = await fetch(`${BASE()}/preview`, {
-    method: "POST",
-    headers: jsonAuthHeaders(),
-    body: JSON.stringify({ target }),
-  });
-  if (!res.ok) throw new Error(`Window preview failed (${res.status})`);
-  return (await res.json()) as {
+  return (await apiPost("/api/computer/preview", {
+    body: { target },
+    errorMessage: (failure) => `Window preview failed (${failure.status})`,
+  })) as {
     ok: boolean;
     data_url?: string;
     target?: AutomationTarget;
@@ -316,25 +312,18 @@ export async function previewAppshotElement(
     leaseOwner?: ComputerLeaseOwner | null;
   } & ComputerControlSessionOptions = {},
 ): Promise<ComputerPreview> {
-  const res = await fetch(
-    `${BASE()}/appshots/${encodeURIComponent(snapshotId)}/elements/${elementIndex}/preview`,
+  return (await apiPost(
+    "/api/computer/appshots/{snapshot_id}/elements/{element_index}/preview",
     {
-      method: "POST",
-      headers: jsonAuthHeaders(),
-      body: JSON.stringify({
+      path: { snapshot_id: snapshotId, element_index: elementIndex },
+      body: {
         action: options.action || "click",
         ...leaseOwnerBody(options.leaseOwner),
         ...controlSessionBody(options),
-      }),
+      },
+      errorMessage: failedWithBody("Failed to preview Appshot element"),
     },
-  );
-  if (!res.ok) {
-    const text = await res.text().catch(() => "");
-    throw new Error(
-      `Failed to preview Appshot element: ${res.status}${text ? ` ${text}` : ""}`,
-    );
-  }
-  return (await res.json()) as ComputerPreview;
+  )) as ComputerPreview;
 }
 
 export async function previewComputerAction(
@@ -343,22 +332,14 @@ export async function previewComputerAction(
     leaseOwner?: ComputerLeaseOwner | null;
   } & ComputerControlSessionOptions = {},
 ): Promise<ComputerPreview> {
-  const res = await fetch(`${BASE()}/actions/preview`, {
-    method: "POST",
-    headers: jsonAuthHeaders(),
-    body: JSON.stringify({
+  return (await apiPost("/api/computer/actions/preview", {
+    body: {
       ...action,
       ...leaseOwnerBody(options.leaseOwner),
       ...controlSessionBody(options),
-    }),
-  });
-  if (!res.ok) {
-    const text = await res.text().catch(() => "");
-    throw new Error(
-      `Failed to preview action: ${res.status}${text ? ` ${text}` : ""}`,
-    );
-  }
-  return (await res.json()) as ComputerPreview;
+    },
+    errorMessage: failedWithBody("Failed to preview action"),
+  })) as ComputerPreview;
 }
 
 export async function planComputerActions(
@@ -368,23 +349,15 @@ export async function planComputerActions(
     leaseOwner?: ComputerLeaseOwner | null;
   } & ComputerControlSessionOptions = {},
 ): Promise<ComputerActionPlan> {
-  const res = await fetch(`${BASE()}/actions/plan`, {
-    method: "POST",
-    headers: jsonAuthHeaders(),
-    body: JSON.stringify({
+  return (await apiPost("/api/computer/actions/plan", {
+    body: {
       goal,
       capture: options.capture ?? true,
       ...leaseOwnerBody(options.leaseOwner),
       ...controlSessionBody(options),
-    }),
-  });
-  if (!res.ok) {
-    const text = await res.text().catch(() => "");
-    throw new Error(
-      `Failed to plan actions: ${res.status}${text ? ` ${text}` : ""}`,
-    );
-  }
-  return (await res.json()) as ComputerActionPlan;
+    },
+    errorMessage: failedWithBody("Failed to plan actions"),
+  })) as ComputerActionPlan;
 }
 
 export async function groundComputerActions(
@@ -395,24 +368,16 @@ export async function groundComputerActions(
     leaseOwner?: ComputerLeaseOwner | null;
   } & ComputerControlSessionOptions = {},
 ): Promise<ComputerActionPlan> {
-  const res = await fetch(`${BASE()}/actions/ground`, {
-    method: "POST",
-    headers: jsonAuthHeaders(),
-    body: JSON.stringify({
+  return (await apiPost("/api/computer/actions/ground", {
+    body: {
       goal,
       output,
       capture: options.capture ?? true,
       ...leaseOwnerBody(options.leaseOwner),
       ...controlSessionBody(options),
-    }),
-  });
-  if (!res.ok) {
-    const text = await res.text().catch(() => "");
-    throw new Error(
-      `Failed to ground vision output: ${res.status}${text ? ` ${text}` : ""}`,
-    );
-  }
-  return (await res.json()) as ComputerActionPlan;
+    },
+    errorMessage: failedWithBody("Failed to ground vision output"),
+  })) as ComputerActionPlan;
 }
 
 export async function askVisionModelForComputerActions(
@@ -422,23 +387,15 @@ export async function askVisionModelForComputerActions(
     leaseOwner?: ComputerLeaseOwner | null;
   } & ComputerControlSessionOptions = {},
 ): Promise<ComputerActionPlan> {
-  const res = await fetch(`${BASE()}/actions/vision`, {
-    method: "POST",
-    headers: jsonAuthHeaders(),
-    body: JSON.stringify({
+  return (await apiPost("/api/computer/actions/vision", {
+    body: {
       goal,
       model_id: modelId,
       ...leaseOwnerBody(options.leaseOwner),
       ...controlSessionBody(options),
-    }),
-  });
-  if (!res.ok) {
-    const text = await res.text().catch(() => "");
-    throw new Error(
-      `Failed to ask vision model: ${res.status}${text ? ` ${text}` : ""}`,
-    );
-  }
-  return (await res.json()) as ComputerActionPlan;
+    },
+    errorMessage: failedWithBody("Failed to ask vision model"),
+  })) as ComputerActionPlan;
 }
 
 export async function executeComputerAction(
@@ -447,41 +404,25 @@ export async function executeComputerAction(
     leaseOwner?: ComputerLeaseOwner | null;
   } & ComputerControlSessionOptions = {},
 ): Promise<ComputerExecuteResult> {
-  const res = await fetch(`${BASE()}/actions/execute`, {
-    method: "POST",
-    headers: jsonAuthHeaders(),
-    body: JSON.stringify({
+  return (await apiPost("/api/computer/actions/execute", {
+    body: {
       token,
       ...leaseOwnerBody(options.leaseOwner),
       ...controlSessionBody(options),
-    }),
-  });
-  if (!res.ok) {
-    const text = await res.text().catch(() => "");
-    throw new Error(
-      `Failed to execute action: ${res.status}${text ? ` ${text}` : ""}`,
-    );
-  }
-  return (await res.json()) as ComputerExecuteResult;
+    },
+    errorMessage: failedWithBody("Failed to execute action"),
+  })) as ComputerExecuteResult;
 }
 
 export async function releaseComputerLease(
   leaseOwner: ComputerLeaseOwner,
   options: ComputerControlSessionOptions = {},
 ): Promise<ComputerLeaseReleaseResult> {
-  const res = await fetch(`${BASE()}/lease/release`, {
-    method: "POST",
-    headers: jsonAuthHeaders(),
-    body: JSON.stringify({
+  return (await apiPost("/api/computer/lease/release", {
+    body: {
       ...leaseOwnerBody(leaseOwner),
       ...controlSessionBody(options),
-    }),
-  });
-  if (!res.ok) {
-    const text = await res.text().catch(() => "");
-    throw new Error(
-      `Failed to release computer lease: ${res.status}${text ? ` ${text}` : ""}`,
-    );
-  }
-  return (await res.json()) as ComputerLeaseReleaseResult;
+    },
+    errorMessage: failedWithBody("Failed to release computer lease"),
+  })) as ComputerLeaseReleaseResult;
 }
