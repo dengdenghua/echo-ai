@@ -1,5 +1,4 @@
-import { authHeaders, jsonAuthHeaders } from "@/core/auth/api";
-import { getBackendBaseURL } from "@/core/config";
+import { failureDetail, untypedApi, type ApiFailure } from "@/core/api/request";
 
 export interface CoordinationTask {
   id: string;
@@ -23,7 +22,14 @@ export interface CoordinationMessage {
   artifacts: { path: string; version: string; verification: string }[];
 }
 export interface CoordinationSnapshot {
-  recruitment?: { id: string; candidate_id: string; reason: string; prompt: string; status: string; roster: string[] }[];
+  recruitment?: {
+    id: string;
+    candidate_id: string;
+    reason: string;
+    prompt: string;
+    status: string;
+    roster: string[];
+  }[];
   can_manage?: boolean;
   tasks: CoordinationTask[];
   messages: CoordinationMessage[];
@@ -39,23 +45,18 @@ export async function coordinationRequest<T>(
   suffix = "",
   body?: unknown,
 ): Promise<T> {
-  const response = await fetch(
-    `${getBackendBaseURL()}/api/collab/${encodeURIComponent(threadId)}/coordination${suffix}`,
-    {
-      method: body === undefined ? "GET" : "POST",
-      headers: body === undefined ? authHeaders() : jsonAuthHeaders(),
-      ...(body === undefined ? {} : { body: JSON.stringify(body) }),
+  const path = `/api/collab/${encodeURIComponent(threadId)}/coordination${suffix}`;
+  const options = {
+    reason: "callers pass a dynamic coordination sub-route suffix",
+    body,
+    errorMessage: (failure: ApiFailure) => {
+      const detail = failureDetail(failure);
+      return typeof detail === "string"
+        ? detail
+        : `请求失败 (${failure.status})`;
     },
-  );
-  if (!response.ok) {
-    const data = (await response.json().catch(() => null)) as {
-      detail?: unknown;
-    } | null;
-    throw new Error(
-      typeof data?.detail === "string"
-        ? data.detail
-        : `请求失败 (${response.status})`,
-    );
-  }
-  return response.json() as Promise<T>;
+  };
+  return body === undefined
+    ? untypedApi.get<T>(path, options)
+    : untypedApi.post<T>(path, options);
 }

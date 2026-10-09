@@ -1,5 +1,11 @@
-import { authHeaders, jsonAuthHeaders } from "@/core/auth/api";
-import { getBackendBaseURL } from "@/core/config";
+import {
+  apiDelete,
+  apiGet,
+  apiPatch,
+  apiPost,
+  apiPut,
+  type ApiFailure,
+} from "@/core/api/request";
 
 import type {
   CollabRoomMessageInput,
@@ -26,75 +32,59 @@ import type {
 } from "./types";
 import type { CoworkTrustResponse } from "./trust";
 
-const BASE = () => `${getBackendBaseURL()}/api/cowork`;
-const COLLAB_BASE = () => `${getBackendBaseURL()}/api/collab`;
+type CoworkState = CoworkGroupResponse["state"];
 
-async function parseJson<T>(res: Response, action: string): Promise<T> {
-  if (!res.ok) {
-    const detail = await res.text().catch(() => "");
-    throw new Error(
-      `${action} failed: ${res.status}${detail ? ` ${detail}` : ` ${res.statusText}`}`,
-    );
-  }
-  return (await res.json()) as T;
+/** Keep this module's historical error wording on ``EchoAPIError``. */
+function failed(action: string) {
+  return (failure: ApiFailure): string =>
+    `${action} failed: ${failure.status}${
+      failure.text ? ` ${failure.text}` : ` ${failure.statusText}`
+    }`;
 }
 
 export async function getCoworkGroup(
   threadId: string,
 ): Promise<CoworkGroupResponse> {
-  const res = await fetch(`${BASE()}/${encodeURIComponent(threadId)}`, {
-    headers: authHeaders(),
-  });
-  return parseJson<CoworkGroupResponse>(res, "Load cowork group");
+  return (await apiGet("/api/cowork/{thread_id}", {
+    path: { thread_id: threadId },
+    errorMessage: failed("Load cowork group"),
+  })) as CoworkGroupResponse;
 }
 
 export async function getCoworkTrust(
   threadId: string,
 ): Promise<CoworkTrustResponse> {
-  const res = await fetch(`${BASE()}/${encodeURIComponent(threadId)}/trust`, {
-    headers: authHeaders(),
-  });
-  return parseJson<CoworkTrustResponse>(res, "Load cowork trust scores");
+  return (await apiGet("/api/cowork/{thread_id}/trust", {
+    path: { thread_id: threadId },
+    errorMessage: failed("Load cowork trust scores"),
+  })) as CoworkTrustResponse;
 }
 
 export async function inviteCoworkMember(
   threadId: string,
   input: CoworkInviteInput,
-): Promise<CoworkGroupResponse["state"]> {
-  const res = await fetch(`${BASE()}/${encodeURIComponent(threadId)}/members`, {
-    method: "POST",
-    headers: jsonAuthHeaders(),
-    body: JSON.stringify({
+): Promise<CoworkState> {
+  const data = (await apiPost("/api/cowork/{thread_id}/members", {
+    path: { thread_id: threadId },
+    body: {
       kind: "agent",
       role: "participant",
       grant: { scope: "all", ...(input.grant ?? {}) },
       ...input,
-    }),
-  });
-  const data = await parseJson<{
-    ok: boolean;
-    state: CoworkGroupResponse["state"];
-  }>(res, "Invite cowork member");
+    },
+    errorMessage: failed("Invite cowork member"),
+  })) as { ok: boolean; state: CoworkState };
   return data.state;
 }
 
 export async function removeCoworkMember(
   threadId: string,
   memberId: string,
-): Promise<CoworkGroupResponse["state"]> {
-  const res = await fetch(
-    `${BASE()}/${encodeURIComponent(threadId)}/members/${encodeURIComponent(
-      memberId,
-    )}`,
-    {
-      method: "DELETE",
-      headers: authHeaders(),
-    },
-  );
-  const data = await parseJson<{
-    ok: boolean;
-    state: CoworkGroupResponse["state"];
-  }>(res, "Remove cowork member");
+): Promise<CoworkState> {
+  const data = (await apiDelete("/api/cowork/{thread_id}/members/{member_id}", {
+    path: { thread_id: threadId, member_id: memberId },
+    errorMessage: failed("Remove cowork member"),
+  })) as { ok: boolean; state: CoworkState };
   return data.state;
 }
 
@@ -107,37 +97,27 @@ export async function setCoworkMemberDriver(
   threadId: string,
   memberId: string,
   driver: "ai" | "human",
-): Promise<CoworkGroupResponse["state"]> {
-  const res = await fetch(
-    `${BASE()}/${encodeURIComponent(threadId)}/members/${encodeURIComponent(
-      memberId,
-    )}/driver`,
+): Promise<CoworkState> {
+  const data = (await apiPost(
+    "/api/cowork/{thread_id}/members/{member_id}/driver",
     {
-      method: "POST",
-      headers: jsonAuthHeaders(),
-      body: JSON.stringify({ driver }),
+      path: { thread_id: threadId, member_id: memberId },
+      body: { driver },
+      errorMessage: failed("Set cowork member driver"),
     },
-  );
-  const data = await parseJson<{
-    ok: boolean;
-    state: CoworkGroupResponse["state"];
-  }>(res, "Set cowork member driver");
+  )) as { ok: boolean; state: CoworkState };
   return data.state;
 }
 
 export async function setCoworkMode(
   threadId: string,
   mode: CoworkMode,
-): Promise<CoworkGroupResponse["state"]> {
-  const res = await fetch(`${BASE()}/${encodeURIComponent(threadId)}/mode`, {
-    method: "POST",
-    headers: jsonAuthHeaders(),
-    body: JSON.stringify({ mode }),
-  });
-  const data = await parseJson<{
-    ok: boolean;
-    state: CoworkGroupResponse["state"];
-  }>(res, "Set cowork mode");
+): Promise<CoworkState> {
+  const data = (await apiPost("/api/cowork/{thread_id}/mode", {
+    path: { thread_id: threadId },
+    body: { mode },
+    errorMessage: failed("Set cowork mode"),
+  })) as { ok: boolean; state: CoworkState };
   return data.state;
 }
 
@@ -145,15 +125,14 @@ export async function replaceCoworkRoster(
   threadId: string,
   input: CoworkRosterInput,
 ): Promise<CoworkRosterResponse> {
-  const res = await fetch(`${BASE()}/${encodeURIComponent(threadId)}/roster`, {
-    method: "PUT",
-    headers: jsonAuthHeaders(),
-    body: JSON.stringify(input),
+  return (await apiPut("/api/cowork/{thread_id}/roster", {
+    path: { thread_id: threadId },
+    body: input,
     // The payload is tiny and this is the user's explicit roster save. Let the
     // browser finish it when a refresh immediately follows the click.
     keepalive: true,
-  });
-  return parseJson<CoworkRosterResponse>(res, "Replace cowork roster");
+    errorMessage: failed("Replace cowork roster"),
+  })) as CoworkRosterResponse;
 }
 
 export async function searchCowork(
@@ -161,25 +140,25 @@ export async function searchCowork(
   query: string,
   opts: { kinds?: CoworkSearchKind[]; limit?: number; untilSeq?: number } = {},
 ): Promise<CoworkSearchResponse> {
-  const params = new URLSearchParams({ q: query });
-  if (opts.kinds?.length) params.set("kinds", opts.kinds.join(","));
-  if (opts.limit != null) params.set("limit", String(opts.limit));
-  if (opts.untilSeq != null) params.set("until_seq", String(opts.untilSeq));
-  const res = await fetch(
-    `${BASE()}/${encodeURIComponent(threadId)}/search?${params.toString()}`,
-    { headers: authHeaders() },
-  );
-  return parseJson<CoworkSearchResponse>(res, "Search cowork group");
+  return (await apiGet("/api/cowork/{thread_id}/search", {
+    path: { thread_id: threadId },
+    query: {
+      q: query,
+      kinds: opts.kinds?.length ? opts.kinds.join(",") : undefined,
+      limit: opts.limit,
+      until_seq: opts.untilSeq,
+    },
+    errorMessage: failed("Search cowork group"),
+  })) as CoworkSearchResponse;
 }
 
 export async function getCoworkPresence(
   threadId: string,
 ): Promise<CoworkPresenceResponse> {
-  const res = await fetch(
-    `${BASE()}/${encodeURIComponent(threadId)}/presence`,
-    { headers: authHeaders() },
-  );
-  return parseJson<CoworkPresenceResponse>(res, "Load cowork presence");
+  return (await apiGet("/api/cowork/{thread_id}/presence", {
+    path: { thread_id: threadId },
+    errorMessage: failed("Load cowork presence"),
+  })) as CoworkPresenceResponse;
 }
 
 export async function markCoworkRead(
@@ -188,134 +167,107 @@ export async function markCoworkRead(
   seq?: number,
   messageSeq?: number,
 ): Promise<void> {
-  const res = await fetch(`${BASE()}/${encodeURIComponent(threadId)}/read`, {
-    method: "POST",
-    headers: jsonAuthHeaders(),
-    body: JSON.stringify({
+  await apiPost("/api/cowork/{thread_id}/read", {
+    path: { thread_id: threadId },
+    body: {
       member_id: memberId,
       ...(seq != null ? { seq } : {}),
       ...(messageSeq != null ? { message_seq: messageSeq } : {}),
-    }),
+    },
+    errorMessage: failed("Mark cowork read"),
   });
-  await parseJson<{ ok: boolean }>(res, "Mark cowork read");
 }
 
 export async function coworkHeartbeat(
   threadId: string,
   memberId: string,
 ): Promise<void> {
-  const res = await fetch(
-    `${BASE()}/${encodeURIComponent(threadId)}/heartbeat`,
-    {
-      method: "POST",
-      headers: jsonAuthHeaders(),
-      body: JSON.stringify({ member_id: memberId }),
-    },
-  );
-  await parseJson<{ ok: boolean }>(res, "Cowork heartbeat");
+  await apiPost("/api/cowork/{thread_id}/heartbeat", {
+    path: { thread_id: threadId },
+    body: { member_id: memberId },
+    errorMessage: failed("Cowork heartbeat"),
+  });
 }
 
 export async function getCollabSession(
   threadId: string,
 ): Promise<CollaborationSession> {
-  const res = await fetch(`${COLLAB_BASE()}/${encodeURIComponent(threadId)}`, {
-    headers: authHeaders(),
-  });
-  return parseJson<CollaborationSession>(res, "Load collaboration session");
+  return (await apiGet("/api/collab/{thread_id}", {
+    path: { thread_id: threadId },
+    errorMessage: failed("Load collaboration session"),
+  })) as CollaborationSession;
 }
 
 export async function linkCoworkRoom(
   threadId: string,
   roomId: string,
 ): Promise<void> {
-  const res = await fetch(
-    `${COLLAB_BASE()}/${encodeURIComponent(threadId)}/link-room`,
-    {
-      method: "POST",
-      headers: jsonAuthHeaders(),
-      body: JSON.stringify({ room_id: roomId }),
-    },
-  );
-  await parseJson<{ ok: boolean }>(res, "Link cowork room");
+  await apiPost("/api/collab/{thread_id}/link-room", {
+    path: { thread_id: threadId },
+    body: { room_id: roomId },
+    errorMessage: failed("Link cowork room"),
+  });
 }
 
 export async function ensureCollabRoom(
   threadId: string,
   input: CollabRoomInput,
 ): Promise<CollabRoomResponse> {
-  const res = await fetch(
-    `${COLLAB_BASE()}/${encodeURIComponent(threadId)}/room`,
-    {
-      method: "POST",
-      headers: jsonAuthHeaders(),
-      body: JSON.stringify({
-        name: input.name ?? "",
-        members: input.members ?? [],
-        leaderId: input.leaderId ?? null,
-        mode: input.mode ?? null,
-        ...(input.id ? { id: input.id } : {}),
-      }),
+  return (await apiPost("/api/collab/{thread_id}/room", {
+    path: { thread_id: threadId },
+    body: {
+      name: input.name ?? "",
+      members: input.members ?? [],
+      leaderId: input.leaderId ?? null,
+      mode: input.mode ?? null,
+      ...(input.id ? { id: input.id } : {}),
     },
-  );
-  return parseJson<CollabRoomResponse>(res, "Ensure collab room");
+    errorMessage: failed("Ensure collab room"),
+  })) as CollabRoomResponse;
 }
 
 export async function postCollabRoomMessage(
   threadId: string,
   input: CollabRoomMessageInput,
 ): Promise<CollabRoomMessageResponse> {
-  const res = await fetch(
-    `${COLLAB_BASE()}/${encodeURIComponent(threadId)}/room-message`,
-    {
-      method: "POST",
-      headers: jsonAuthHeaders(),
-      body: JSON.stringify({
-        text: input.text,
-        participant_id: input.participant_id ?? "",
-        display_name: input.display_name ?? "",
-        ...(input.source_message_id
-          ? { source_message_id: input.source_message_id }
-          : {}),
-        ...(input.message_type ? { message_type: input.message_type } : {}),
-        ...(input.entity_refs?.length
-          ? { entity_refs: input.entity_refs }
-          : {}),
-        ...(input.system_card ? { system_card: input.system_card } : {}),
-        ...(input.reply_to ? { reply_to: input.reply_to } : {}),
-        ...(input.metadata && Object.keys(input.metadata).length > 0
-          ? { metadata: input.metadata }
-          : {}),
-      }),
+  return (await apiPost("/api/collab/{thread_id}/room-message", {
+    path: { thread_id: threadId },
+    body: {
+      text: input.text,
+      participant_id: input.participant_id ?? "",
+      display_name: input.display_name ?? "",
+      ...(input.source_message_id
+        ? { source_message_id: input.source_message_id }
+        : {}),
+      ...(input.message_type ? { message_type: input.message_type } : {}),
+      ...(input.entity_refs?.length ? { entity_refs: input.entity_refs } : {}),
+      ...(input.system_card ? { system_card: input.system_card } : {}),
+      ...(input.reply_to ? { reply_to: input.reply_to } : {}),
+      ...(input.metadata && Object.keys(input.metadata).length > 0
+        ? { metadata: input.metadata }
+        : {}),
     },
-  );
-  return parseJson<CollabRoomMessageResponse>(res, "Post collab room message");
+    errorMessage: failed("Post collab room message"),
+  })) as CollabRoomMessageResponse;
 }
 
 export async function getCollabAnnotations(
   threadId: string,
 ): Promise<CoworkAnnotation[]> {
-  const res = await fetch(
-    `${COLLAB_BASE()}/${encodeURIComponent(threadId)}/annotations`,
-    { headers: authHeaders() },
-  );
-  const payload = await parseJson<{ annotations: CoworkAnnotation[] }>(
-    res,
-    "Load collaboration annotations",
-  );
+  const payload = (await apiGet("/api/collab/{thread_id}/annotations", {
+    path: { thread_id: threadId },
+    errorMessage: failed("Load collaboration annotations"),
+  })) as { annotations: CoworkAnnotation[] };
   return payload.annotations ?? [];
 }
 
 export async function getCollabMessageReactions(
   threadId: string,
 ): Promise<CoworkMessageReaction[]> {
-  const res = await fetch(
-    `${COLLAB_BASE()}/${encodeURIComponent(threadId)}/reactions`,
-    { headers: authHeaders() },
-  );
-  const payload = await parseJson<{ reactions: CoworkMessageReaction[] }>(
-    res,
-    "Load collaboration message reactions",
-  );
+  const payload = (await apiGet("/api/collab/{thread_id}/reactions", {
+    path: { thread_id: threadId },
+    errorMessage: failed("Load collaboration message reactions"),
+  })) as { reactions: CoworkMessageReaction[] };
   return payload.reactions ?? [];
 }
 
@@ -323,28 +275,21 @@ export async function toggleCollabMessageReaction(
   threadId: string,
   input: CoworkMessageReactionInput,
 ): Promise<CoworkMessageReaction> {
-  const res = await fetch(
-    `${COLLAB_BASE()}/${encodeURIComponent(threadId)}/reactions`,
-    { method: "POST", headers: jsonAuthHeaders(), body: JSON.stringify(input) },
-  );
-  const payload = await parseJson<{ reaction: CoworkMessageReaction }>(
-    res,
-    "Toggle collaboration message reaction",
-  );
+  const payload = (await apiPost("/api/collab/{thread_id}/reactions", {
+    path: { thread_id: threadId },
+    body: input,
+    errorMessage: failed("Toggle collaboration message reaction"),
+  })) as { reaction: CoworkMessageReaction };
   return payload.reaction;
 }
 
 export async function getCollabPinnedMessages(
   threadId: string,
 ): Promise<CoworkPinnedMessage[]> {
-  const res = await fetch(
-    `${COLLAB_BASE()}/${encodeURIComponent(threadId)}/pinned-messages`,
-    { headers: authHeaders() },
-  );
-  const payload = await parseJson<{ pinned_messages: CoworkPinnedMessage[] }>(
-    res,
-    "Load collaboration pinned messages",
-  );
+  const payload = (await apiGet("/api/collab/{thread_id}/pinned-messages", {
+    path: { thread_id: threadId },
+    errorMessage: failed("Load collaboration pinned messages"),
+  })) as { pinned_messages: CoworkPinnedMessage[] };
   return payload.pinned_messages ?? [];
 }
 
@@ -352,17 +297,11 @@ export async function toggleCollabPinnedMessage(
   threadId: string,
   messageId: string,
 ): Promise<{ message_id: string; pinned: boolean }> {
-  const res = await fetch(
-    `${COLLAB_BASE()}/${encodeURIComponent(threadId)}/pinned-messages`,
-    {
-      method: "POST",
-      headers: jsonAuthHeaders(),
-      body: JSON.stringify({ message_id: messageId }),
-    },
-  );
-  const payload = await parseJson<{
-    pin: { message_id: string; pinned: boolean };
-  }>(res, "Toggle pinned message");
+  const payload = (await apiPost("/api/collab/{thread_id}/pinned-messages", {
+    path: { thread_id: threadId },
+    body: { message_id: messageId },
+    errorMessage: failed("Toggle pinned message"),
+  })) as { pin: { message_id: string; pinned: boolean } };
   return payload.pin;
 }
 
@@ -370,14 +309,11 @@ export async function createCollabAnnotation(
   threadId: string,
   input: CoworkAnnotationInput,
 ): Promise<CoworkAnnotation> {
-  const res = await fetch(
-    `${COLLAB_BASE()}/${encodeURIComponent(threadId)}/annotations`,
-    { method: "POST", headers: jsonAuthHeaders(), body: JSON.stringify(input) },
-  );
-  const payload = await parseJson<{ annotation: CoworkAnnotation }>(
-    res,
-    "Create collaboration annotation",
-  );
+  const payload = (await apiPost("/api/collab/{thread_id}/annotations", {
+    path: { thread_id: threadId },
+    body: input,
+    errorMessage: failed("Create collaboration annotation"),
+  })) as { annotation: CoworkAnnotation };
   return payload.annotation;
 }
 
@@ -386,18 +322,14 @@ export async function setCollabAnnotationResolved(
   annotationId: string,
   resolved: boolean,
 ): Promise<CoworkAnnotation> {
-  const res = await fetch(
-    `${COLLAB_BASE()}/${encodeURIComponent(threadId)}/annotations/${encodeURIComponent(annotationId)}`,
+  const payload = (await apiPatch(
+    "/api/collab/{thread_id}/annotations/{annotation_id}",
     {
-      method: "PATCH",
-      headers: jsonAuthHeaders(),
-      body: JSON.stringify({ resolved }),
+      path: { thread_id: threadId, annotation_id: annotationId },
+      body: { resolved },
+      errorMessage: failed("Update collaboration annotation"),
     },
-  );
-  const payload = await parseJson<{ annotation: CoworkAnnotation }>(
-    res,
-    "Update collaboration annotation",
-  );
+  )) as { annotation: CoworkAnnotation };
   return payload.annotation;
 }
 
@@ -405,11 +337,10 @@ export async function deleteCollabAnnotation(
   threadId: string,
   annotationId: string,
 ): Promise<void> {
-  const res = await fetch(
-    `${COLLAB_BASE()}/${encodeURIComponent(threadId)}/annotations/${encodeURIComponent(annotationId)}`,
-    { method: "DELETE", headers: authHeaders() },
-  );
-  await parseJson<{ ok: boolean }>(res, "Delete collaboration annotation");
+  await apiDelete("/api/collab/{thread_id}/annotations/{annotation_id}", {
+    path: { thread_id: threadId, annotation_id: annotationId },
+    errorMessage: failed("Delete collaboration annotation"),
+  });
 }
 
 export async function createCollabAnnotationReply(
@@ -417,14 +348,14 @@ export async function createCollabAnnotationReply(
   annotationId: string,
   input: CoworkAnnotationReplyInput,
 ) {
-  const res = await fetch(
-    `${COLLAB_BASE()}/${encodeURIComponent(threadId)}/annotations/${encodeURIComponent(annotationId)}/replies`,
-    { method: "POST", headers: jsonAuthHeaders(), body: JSON.stringify(input) },
-  );
-  return parseJson<{ reply: CoworkAnnotation["replies"][number] }>(
-    res,
-    "Reply to collaboration annotation",
-  );
+  return (await apiPost(
+    "/api/collab/{thread_id}/annotations/{annotation_id}/replies",
+    {
+      path: { thread_id: threadId, annotation_id: annotationId },
+      body: input,
+      errorMessage: failed("Reply to collaboration annotation"),
+    },
+  )) as { reply: CoworkAnnotation["replies"][number] };
 }
 
 /** Promote one timeline message into the bound Project OS project. */
@@ -433,18 +364,12 @@ export async function applyCollabRoomMessageProjectAction(
   messageSeq: number,
   input: CoworkMessageProjectActionInput,
 ): Promise<CoworkMessageProjectActionResponse> {
-  const res = await fetch(
-    `${COLLAB_BASE()}/${encodeURIComponent(threadId)}/room-messages/${encodeURIComponent(
-      String(messageSeq),
-    )}/project-actions`,
+  return (await apiPost(
+    "/api/collab/{thread_id}/room-messages/{message_seq}/project-actions",
     {
-      method: "POST",
-      headers: jsonAuthHeaders(),
-      body: JSON.stringify(input),
+      path: { thread_id: threadId, message_seq: messageSeq },
+      body: input,
+      errorMessage: failed("Apply room message project action"),
     },
-  );
-  return parseJson<CoworkMessageProjectActionResponse>(
-    res,
-    "Apply room message project action",
-  );
+  )) as CoworkMessageProjectActionResponse;
 }
