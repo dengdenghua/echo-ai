@@ -76,3 +76,45 @@ def test_database_from_a_newer_build_is_refused(tmp_path: Path) -> None:
 def test_migrations_must_be_numbered_in_order(tmp_path: Path) -> None:
     with pytest.raises(ValueError, match="1..N"):
         migrate(_db(tmp_path), (Migration(2, "SELECT 1"),), name="items")
+
+
+def test_stores_sharing_a_database_keep_separate_versions(tmp_path: Path) -> None:
+    conn = _db(tmp_path)
+    migrate(conn, STEPS, name="items")
+    guest = (Migration(1, "CREATE TABLE IF NOT EXISTS notes (id TEXT PRIMARY KEY);\n"),)
+
+    assert migrate(conn, guest, name="notes", shared=True) == 1
+    assert schema_version(conn) == 2  # the owner's user_version is untouched
+    rows = conn.execute("SELECT component, version FROM schema_versions").fetchall()
+    assert rows == [("notes", 1)]
+
+
+def test_a_dropped_table_is_rebuilt_by_rerunning_every_step(tmp_path: Path) -> None:
+    conn = _db(tmp_path)
+    migrate(conn, STEPS, name="items")
+    conn.execute("DROP TABLE items")
+
+    migrate(conn, STEPS, name="items", expect_tables=("items",))
+
+    assert has_column(conn, "items", "tenant_id")
+
+
+def test_a_current_database_leaves_an_open_transaction_alone(tmp_path: Path) -> None:
+    conn = _db(tmp_path)
+    migrate(conn, STEPS, name="items")
+    conn.execute("INSERT INTO items(id) VALUES ('pending')")
+    assert conn.in_transaction
+
+    migrate(conn, STEPS, name="items")
+
+    assert conn.in_transaction  # not committed behind the caller's back
+    conn.rollback()
+    assert conn.execute("SELECT COUNT(*) FROM items").fetchone()[0] == 0
+
+
+def test_pending_steps_refuse_to_run_inside_a_transaction(tmp_path: Path) -> None:
+    conn = _db(tmp_path)
+    conn.execute("CREATE TABLE other (x)")
+    conn.execute("INSERT INTO other VALUES (1)")
+    with pytest.raises(RuntimeError, match="before opening a transaction"):
+        migrate(conn, STEPS, name="items")

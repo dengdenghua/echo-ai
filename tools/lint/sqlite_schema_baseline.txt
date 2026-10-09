@@ -1,0 +1,14 @@
+# Unversioned SQLite schema calls (executescript / PRAGMA table_info) per file,
+# captured by tools/lint/sqlite_schema_check.py
+# Moved a store onto sqlite_schema.migrate? Lower or delete its line.
+
+runtime/memory/diagnostics/_trace_store_storage.py	3
+runtime/cloud_edge/accounts.py	1
+runtime/cloud_edge/store.py	1
+runtime/memory/cowork/group_store.py	1
+runtime/memory/cowork/team_invitation_store.py	1
+runtime/memory/knowledge_graph/sqlite_kg.py	1
+runtime/memory/runtime_state/blackboard_store.py	1
+runtime/platform/plugins/bundled/mx2025_viewer/cloud_sync.py	1
+runtime/sensing/gateway/hotspot_store.py	1
+runtime/sensing/gateway/team_store.py	1

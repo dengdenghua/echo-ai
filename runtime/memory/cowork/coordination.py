@@ -12,6 +12,8 @@ import json
 import time
 from typing import Any
 
+from runtime.platform.io.sqlite_schema import Migration, add_column, migrate
+
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS coordination_recruitment (
  id TEXT PRIMARY KEY, thread_id TEXT NOT NULL, status TEXT NOT NULL,
@@ -96,17 +98,24 @@ def message_row(row: Any) -> dict[str, Any]:
     return result
 
 
+_MIGRATIONS = (
+    Migration(1, SCHEMA),
+    Migration(
+        2,
+        lambda conn: add_column(
+            conn, "coordination_resources", "held", "INTEGER NOT NULL DEFAULT 0"
+        ),
+    ),
+)
+
+
 class CoordinationStore:
     def __init__(self, collaboration_store: Any) -> None:
         self.store = collaboration_store
         with self.store._lock, self.store._connect() as conn:
-            conn.executescript(SCHEMA)
-            if "held" not in {
-                r[1] for r in conn.execute("PRAGMA table_info(coordination_resources)")
-            }:
-                conn.execute(
-                    "ALTER TABLE coordination_resources ADD COLUMN held INTEGER NOT NULL DEFAULT 0"
-                )
+            # collaboration.db belongs to CollaborationStore; version our
+            # tables separately so the two step sequences never collide.
+            migrate(conn, _MIGRATIONS, name="coordination", shared=True)
 
     @staticmethod
     def _event(conn: Any, thread: str, task: str, kind: str, detail: str = "") -> None:

@@ -29,6 +29,13 @@ from runtime.memory.cowork.ids import (
 )
 from runtime.platform.integrity.chain import GENESIS, canonical, seal_step, verify_chain
 from runtime.platform.io.sqlite import connect_closing
+from runtime.platform.io.sqlite_schema import (
+    Migration,
+    add_column,
+    configure,
+    execute_script,
+    migrate,
+)
 
 # Server-resolved sender attribution (see ``group.sender_identity``). Empty on
 # legacy rows — the UI must treat empty as "unknown", not as "agent".
@@ -68,6 +75,25 @@ ON room_message_receipts(room_id, updated_at);
 """
 
 
+def _adopt_v1(conn: sqlite3.Connection) -> None:
+    # Desktop databases from before message acknowledgements have a narrower
+    # room_messages table; add its columns before _SCHEMA indexes them.
+    conn.execute(
+        "CREATE TABLE IF NOT EXISTS room_messages ("
+        "room_id TEXT NOT NULL, seq INTEGER NOT NULL, "
+        "participant_id TEXT, display_name TEXT, text TEXT NOT NULL, "
+        "ts TEXT NOT NULL, PRIMARY KEY (room_id, seq))"
+    )
+    for column in ("message_id", "client_message_id", "sender_kind", "sender_driver"):
+        add_column(conn, "room_messages", column, "TEXT NOT NULL DEFAULT ''")
+    add_column(conn, "room_messages", "seal_prev", "TEXT NOT NULL DEFAULT ''")
+    add_column(conn, "room_messages", "seal", "TEXT NOT NULL DEFAULT ''")
+    execute_script(conn, _SCHEMA)
+
+
+_MIGRATIONS = (Migration(1, _adopt_v1),)
+
+
 def _default_dir() -> Path:
     from runtime.platform.process.paths import app_paths
 
@@ -83,51 +109,14 @@ class RoomMessageStore:
         self._db = self._dir / "room_messages.db"
         self._lock = threading.Lock()
         with self._lock, self._connect() as conn:
-            # Existing desktop databases predate message acknowledgements.
-            # Add the nullable-compatible columns before creating the new
-            # idempotency index; fresh databases get them from ``_SCHEMA``.
-            conn.execute(
-                "CREATE TABLE IF NOT EXISTS room_messages ("
-                "room_id TEXT NOT NULL, seq INTEGER NOT NULL, "
-                "participant_id TEXT, display_name TEXT, text TEXT NOT NULL, "
-                "ts TEXT NOT NULL, PRIMARY KEY (room_id, seq))"
-            )
-            columns = {
-                str(row[1]) for row in conn.execute("PRAGMA table_info(room_messages)").fetchall()
-            }
-            if "message_id" not in columns:
-                conn.execute(
-                    "ALTER TABLE room_messages ADD COLUMN message_id TEXT NOT NULL DEFAULT ''"
-                )
-            if "client_message_id" not in columns:
-                conn.execute(
-                    "ALTER TABLE room_messages "
-                    "ADD COLUMN client_message_id TEXT NOT NULL DEFAULT ''"
-                )
-            if "sender_kind" not in columns:
-                conn.execute(
-                    "ALTER TABLE room_messages ADD COLUMN sender_kind TEXT NOT NULL DEFAULT ''"
-                )
-            if "sender_driver" not in columns:
-                conn.execute(
-                    "ALTER TABLE room_messages ADD COLUMN sender_driver TEXT NOT NULL DEFAULT ''"
-                )
-            if "seal_prev" not in columns:
-                conn.execute(
-                    "ALTER TABLE room_messages ADD COLUMN seal_prev TEXT NOT NULL DEFAULT ''"
-                )
-            if "seal" not in columns:
-                conn.execute("ALTER TABLE room_messages ADD COLUMN seal TEXT NOT NULL DEFAULT ''")
-            conn.executescript(_SCHEMA)
+            migrate(conn, _MIGRATIONS, name="room_messages")
 
     @property
     def base_dir(self) -> Path:
         return self._dir
 
     def _connect(self) -> sqlite3.Connection:
-        conn = connect_closing(str(self._db), timeout=10.0)
-        conn.execute("PRAGMA journal_mode=WAL")
-        return conn
+        return configure(connect_closing(str(self._db), timeout=10.0))
 
     def append(
         self,

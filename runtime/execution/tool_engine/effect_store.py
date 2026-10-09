@@ -28,6 +28,13 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Literal, Protocol, runtime_checkable
 
+from runtime.platform.io.sqlite_schema import (
+    Migration,
+    add_column,
+    has_column,
+    migrate,
+    schema_version,
+)
 from runtime.platform.models import Step
 
 _SCHEMA = """
@@ -217,6 +224,20 @@ class EffectStore(Protocol):
     ) -> bool: ...
 
 
+def _add_receipt_summary(conn: sqlite3.Connection) -> None:
+    """Add the small result-presence summary to pre-existing stores."""
+    if has_column(conn, "tool_effect_receipts", "has_result"):
+        return
+    add_column(conn, "tool_effect_receipts", "has_result", "INTEGER NOT NULL DEFAULT 0")
+    conn.execute(
+        "UPDATE tool_effect_receipts SET has_result = 1 "
+        "WHERE step_json IS NOT NULL AND step_json <> ''"
+    )
+
+
+_MIGRATIONS = (Migration(1, _SCHEMA), Migration(2, _add_receipt_summary))
+
+
 class SQLiteEffectStore:
     """A fork-safe SQLite receipt store.
 
@@ -250,17 +271,16 @@ class SQLiteEffectStore:
         try:
             conn.row_factory = sqlite3.Row
             conn.execute(f"PRAGMA busy_timeout={self._busy_timeout_ms}")
-            table_exists = conn.execute(
-                """
-                SELECT 1
-                FROM sqlite_master
-                WHERE type = 'table' AND name = 'tool_effect_receipts'
-                """
-            ).fetchone()
-            if table_exists is None:
+            if schema_version(conn) == 0:
+                # New or replaced file: set the persistent journal mode first.
                 conn.execute("PRAGMA journal_mode=WAL")
                 conn.execute("PRAGMA synchronous=FULL")
-                conn.executescript(_SCHEMA)
+            migrate(
+                conn,
+                _MIGRATIONS,
+                name="tool_effect_receipts",
+                expect_tables=("tool_effect_receipts",),
+            )
             return conn
         except Exception:
             conn.close()
@@ -273,8 +293,6 @@ class SQLiteEffectStore:
                 with contextlib.closing(self._connect()) as conn:
                     conn.execute("PRAGMA journal_mode=WAL")
                     conn.execute("PRAGMA synchronous=FULL")
-                    conn.executescript(_SCHEMA)
-                    self._migrate_receipt_summary(conn)
                 break
             except sqlite3.OperationalError as exc:
                 if "locked" not in str(exc).lower() or time.monotonic() >= deadline:
@@ -282,35 +300,6 @@ class SQLiteEffectStore:
                 time.sleep(0.02)
         with contextlib.suppress(OSError):
             os.chmod(self.path, 0o600)
-
-    @staticmethod
-    def _migrate_receipt_summary(conn: sqlite3.Connection) -> None:
-        """Add the small result-presence summary to pre-existing stores."""
-
-        conn.execute("BEGIN IMMEDIATE")
-        try:
-            columns = {
-                str(row["name"]) for row in conn.execute("PRAGMA table_info(tool_effect_receipts)")
-            }
-            if "has_result" not in columns:
-                conn.execute(
-                    """
-                    ALTER TABLE tool_effect_receipts
-                    ADD COLUMN has_result INTEGER NOT NULL DEFAULT 0
-                    """
-                )
-                conn.execute(
-                    """
-                    UPDATE tool_effect_receipts
-                    SET has_result = 1
-                    WHERE step_json IS NOT NULL AND step_json <> ''
-                    """
-                )
-            conn.execute("COMMIT")
-        except Exception:
-            with contextlib.suppress(sqlite3.Error):
-                conn.execute("ROLLBACK")
-            raise
 
     def ping(self) -> bool:
         try:

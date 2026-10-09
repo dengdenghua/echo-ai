@@ -202,7 +202,6 @@ class CollaborationContextLifecycleStoreMixin:
         plan_sha256 = _digest(canonical_receipt)
         timestamp = _now()
         with self._lock, self._connect() as conn:
-            conn.executescript(CONTEXT_LIFECYCLE_SCHEMA)
             conn.execute("BEGIN IMMEDIATE")
             existing = conn.execute(
                 f"SELECT {_TURN_COLUMNS} FROM collaboration_context_turns "
@@ -286,7 +285,6 @@ class CollaborationContextLifecycleStoreMixin:
 
         timestamp = _now()
         with self._lock, self._connect() as conn:
-            conn.executescript(CONTEXT_LIFECYCLE_SCHEMA)
             conn.execute("BEGIN IMMEDIATE")
             turn = conn.execute(
                 "SELECT status FROM collaboration_context_turns WHERE session_id=? AND turn_id=?",
@@ -364,7 +362,6 @@ class CollaborationContextLifecycleStoreMixin:
         turn_id = require_cowork_id(turn_id, label="turn_id")
         timestamp = _now()
         with self._lock, self._connect() as conn:
-            conn.executescript(CONTEXT_LIFECYCLE_SCHEMA)
             conn.execute("BEGIN IMMEDIATE")
             row = conn.execute(
                 "SELECT status,committed_members FROM collaboration_context_turns "
@@ -405,7 +402,6 @@ class CollaborationContextLifecycleStoreMixin:
         session_id = require_cowork_id(session_id, label="session_id")
         turn_id = require_cowork_id(turn_id, label="turn_id")
         with self._lock, self._connect() as conn:
-            conn.executescript(CONTEXT_LIFECYCLE_SCHEMA)
             turn = conn.execute(
                 f"SELECT {_TURN_COLUMNS} FROM collaboration_context_turns "
                 "WHERE session_id=? AND turn_id=?",

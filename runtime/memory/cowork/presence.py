@@ -30,6 +30,7 @@ from typing import Any
 
 from runtime.memory.cowork.ids import require_cowork_id
 from runtime.platform.io.sqlite import connect_closing
+from runtime.platform.io.sqlite_schema import Migration, add_column, configure, migrate
 
 _SCHEMA = """
 CREATE TABLE IF NOT EXISTS read_state (
@@ -42,6 +43,17 @@ CREATE TABLE IF NOT EXISTS read_state (
     PRIMARY KEY (thread_id, member_id)
 );
 """
+
+_MIGRATIONS = (
+    Migration(1, _SCHEMA),
+    # Databases from before message-level cursors lack the column.
+    Migration(
+        2,
+        lambda conn: add_column(
+            conn, "read_state", "last_read_message_seq", "INTEGER NOT NULL DEFAULT 0"
+        ),
+    ),
+)
 
 DEFAULT_ONLINE_WINDOW_S = 60
 
@@ -85,21 +97,10 @@ class PresenceStore:
         self._db = self._dir / "presence.db"
         self._lock = threading.Lock()
         with self._lock, self._connect() as conn:
-            # Create the legacy table first; the column migration below also
-            # handles databases written before message-level cursors existed.
-            conn.executescript(_SCHEMA)
-            columns = {
-                str(row[1]) for row in conn.execute("PRAGMA table_info(read_state)").fetchall()
-            }
-            if "last_read_message_seq" not in columns:
-                conn.execute(
-                    "ALTER TABLE read_state ADD COLUMN last_read_message_seq INTEGER NOT NULL DEFAULT 0"
-                )
+            migrate(conn, _MIGRATIONS, name="presence")
 
     def _connect(self) -> sqlite3.Connection:
-        conn = connect_closing(str(self._db), timeout=10.0)
-        conn.execute("PRAGMA journal_mode=WAL")
-        return conn
+        return configure(connect_closing(str(self._db), timeout=10.0))
 
     def mark_read(
         self,

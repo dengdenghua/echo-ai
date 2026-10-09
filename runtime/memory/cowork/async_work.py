@@ -35,12 +35,35 @@ from runtime.memory.cowork.ids import (
     require_cowork_id,
 )
 from runtime.platform.io.sqlite import connect_closing
+from runtime.platform.io.sqlite_schema import Migration, add_column, has_column, migrate
 
 _STATUSES = ("pending", "working", "done", "failed", "cancelled")
 _ACTIVE_STATUSES = ("staged", "pending", "working")
 _ASYNC_TEXT_MAX_LENGTH = MAX_COWORK_MESSAGE_TEXT_LENGTH
 _DEFAULT_MAX_ACTIVE_PER_THREAD = 512
 _DEFAULT_MAX_ACTIVE_TOTAL = 4096
+
+
+def _add_task_bookkeeping(conn: sqlite3.Connection) -> None:
+    # Rows from before retries tracked neither field; backfill both.
+    if not has_column(conn, "async_tasks", "updated_at"):
+        add_column(conn, "async_tasks", "updated_at", "TEXT")
+        conn.execute("UPDATE async_tasks SET updated_at = COALESCE(created_at, ?)", (_now(),))
+    if not has_column(conn, "async_tasks", "attempts"):
+        add_column(conn, "async_tasks", "attempts", "INTEGER DEFAULT 0")
+        conn.execute("UPDATE async_tasks SET attempts = COALESCE(attempts, 0)")
+
+
+_MIGRATIONS = (
+    Migration(
+        1,
+        "CREATE TABLE IF NOT EXISTS async_tasks ("
+        "task_id TEXT PRIMARY KEY, thread_id TEXT NOT NULL, assignee TEXT, "
+        "prompt TEXT, status TEXT, result TEXT, created_by TEXT, created_at TEXT);",
+    ),
+    Migration(2, _add_task_bookkeeping),
+    Migration(3, "CREATE INDEX IF NOT EXISTS idx_async_thread ON async_tasks(thread_id, status);"),
+)
 
 
 class AsyncWorkQueueFullError(RuntimeError):
@@ -197,25 +220,8 @@ class AsyncWorkStore:
         )
 
     def _ensure_schema(self, conn: sqlite3.Connection) -> None:
-        conn.execute(
-            "CREATE TABLE IF NOT EXISTS async_tasks ("
-            "task_id TEXT PRIMARY KEY, thread_id TEXT NOT NULL, assignee TEXT, "
-            "prompt TEXT, status TEXT, result TEXT, created_by TEXT, created_at TEXT)"
-        )
-        self._migrate_schema(conn)
-        conn.execute(
-            "CREATE INDEX IF NOT EXISTS idx_async_thread ON async_tasks(thread_id, status)"
-        )
-        conn.commit()
-
-    def _migrate_schema(self, conn: sqlite3.Connection) -> None:
-        columns = {row[1] for row in conn.execute("PRAGMA table_info(async_tasks)").fetchall()}
-        if "updated_at" not in columns:
-            conn.execute("ALTER TABLE async_tasks ADD COLUMN updated_at TEXT")
-            conn.execute("UPDATE async_tasks SET updated_at = COALESCE(created_at, ?)", (_now(),))
-        if "attempts" not in columns:
-            conn.execute("ALTER TABLE async_tasks ADD COLUMN attempts INTEGER DEFAULT 0")
-            conn.execute("UPDATE async_tasks SET attempts = COALESCE(attempts, 0)")
+        # Cheap when current; also recreates the table if the file was reset.
+        migrate(conn, _MIGRATIONS, name="async_work", expect_tables=("async_tasks",))
 
     def _row_to_task(self, row) -> AsyncTask:
         return AsyncTask(

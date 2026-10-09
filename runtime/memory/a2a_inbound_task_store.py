@@ -17,6 +17,7 @@ from a2a.utils.errors import InvalidParamsError
 from a2a.utils.task import decode_page_token, encode_page_token
 
 from runtime.platform.io.sqlite import connect_closing
+from runtime.platform.io.sqlite_schema import Migration, migrate
 
 _SCHEMA = """
 CREATE TABLE IF NOT EXISTS a2a_inbound_tasks (
@@ -34,6 +35,8 @@ CREATE INDEX IF NOT EXISTS idx_a2a_inbound_context
 ON a2a_inbound_tasks(owner, context_id, updated_at DESC);
 """
 
+_MIGRATIONS = (Migration(1, _SCHEMA),)
+
 
 class A2ASqliteTaskStore(TaskStore):
     """Cross-restart, owner-scoped implementation of the official A2A store API."""
@@ -50,12 +53,12 @@ class A2ASqliteTaskStore(TaskStore):
         self._lock = threading.RLock()
         self._owner_resolver = owner_resolver
         with self._lock, self._connect() as conn:
-            conn.executescript(_SCHEMA)
+            migrate(conn, _MIGRATIONS, name="a2a_inbound_tasks")
 
     def _connect(self) -> sqlite3.Connection:
         conn = connect_closing(str(self._db), timeout=10.0)
         conn.execute("PRAGMA journal_mode=WAL")
-        conn.executescript(_SCHEMA)
+        migrate(conn, _MIGRATIONS, name="a2a_inbound_tasks")
         return conn
 
     def _save(self, task: Task, owner: str) -> None:

@@ -14,6 +14,7 @@ from datetime import UTC, datetime, timedelta
 from typing import Any
 
 from runtime.memory.cowork.ids import normalize_actor_id, require_cowork_id
+from runtime.platform.io.sqlite_schema import add_column, has_column
 
 COLLABORATION_COLLECTOR_SCHEMA = """
 CREATE TABLE IF NOT EXISTS collaboration_collectors (
@@ -92,28 +93,13 @@ class CollaborationSteeringConflictError(ValueError):
 def ensure_collaboration_collector_schema(conn: Any) -> None:
     """Apply the additive/rebuild migration for pre-attempt collectors."""
 
-    collector_columns = {
-        str(row[1]) for row in conn.execute("PRAGMA table_info(collaboration_collectors)")
-    }
-    if "retry_json" not in collector_columns:
-        conn.execute(
-            "ALTER TABLE collaboration_collectors ADD COLUMN retry_json TEXT NOT NULL DEFAULT '[]'"
-        )
-    if "generation" not in collector_columns:
-        conn.execute(
-            "ALTER TABLE collaboration_collectors ADD COLUMN generation INTEGER NOT NULL DEFAULT 1"
-        )
-    if "archived_at" not in collector_columns:
-        conn.execute("ALTER TABLE collaboration_collectors ADD COLUMN archived_at TEXT")
-    if "archive_json" not in collector_columns:
-        conn.execute(
-            "ALTER TABLE collaboration_collectors "
-            "ADD COLUMN archive_json TEXT NOT NULL DEFAULT '{}'"
-        )
-    result_columns = {
-        str(row[1]) for row in conn.execute("PRAGMA table_info(collaboration_collector_results)")
-    }
-    if result_columns and "attempt" not in result_columns:
+    table = "collaboration_collectors"
+    add_column(conn, table, "retry_json", "TEXT NOT NULL DEFAULT '[]'")
+    add_column(conn, table, "generation", "INTEGER NOT NULL DEFAULT 1")
+    add_column(conn, table, "archived_at", "TEXT")
+    add_column(conn, table, "archive_json", "TEXT NOT NULL DEFAULT '{}'")
+    results = "collaboration_collector_results"
+    if has_column(conn, results, "run_id") and not has_column(conn, results, "attempt"):
         conn.execute(
             "ALTER TABLE collaboration_collector_results "
             "RENAME TO collaboration_collector_results_v1"
@@ -403,7 +389,6 @@ class CollaborationCollectorStoreMixin:
             target = len(children) if policy == "all" else 1
         timestamp = _now()
         with self._lock, self._connect() as conn:
-            conn.executescript(COLLABORATION_COLLECTOR_SCHEMA)
             conn.execute("BEGIN IMMEDIATE")
             run_status_row = conn.execute(
                 "SELECT status FROM collaboration_runs WHERE run_id=?", (run_id,)
@@ -457,7 +442,6 @@ class CollaborationCollectorStoreMixin:
             raise ValueError("collector close status must be failed | cancelled")
         timestamp = _now()
         with self._lock, self._connect() as conn:
-            conn.executescript(COLLABORATION_COLLECTOR_SCHEMA)
             conn.execute("BEGIN IMMEDIATE")
             current = self._collector_snapshot(conn, run_id)
             if current is None or current["status"] in _TERMINAL:
@@ -490,13 +474,11 @@ class CollaborationCollectorStoreMixin:
     def collaboration_collector(self, run_id: str) -> dict[str, Any] | None:
         run_id = require_cowork_id(run_id, label="run_id")
         with self._lock, self._connect() as conn:
-            conn.executescript(COLLABORATION_COLLECTOR_SCHEMA)
             return self._collector_snapshot(conn, run_id)
 
     def collaboration_collector_attempts(self, run_id: str) -> list[dict[str, Any]]:
         run_id = require_cowork_id(run_id, label="run_id")
         with self._lock, self._connect() as conn:
-            conn.executescript(COLLABORATION_COLLECTOR_SCHEMA)
             return self._collector_attempts(conn, run_id)
 
     def submit_collaboration_collector_steering(
@@ -520,7 +502,6 @@ class CollaborationCollectorStoreMixin:
         actor = normalize_actor_id(actor_id or "user", label="actor_id") or "user"
         timestamp = _now()
         with self._lock, self._connect() as conn:
-            conn.executescript(COLLABORATION_COLLECTOR_SCHEMA)
             conn.execute("BEGIN IMMEDIATE")
             collector = self._collector_snapshot(conn, run_id)
             if collector is None:
@@ -604,7 +585,6 @@ class CollaborationCollectorStoreMixin:
         except (TypeError, ValueError):
             after = 0
         with self._lock, self._connect() as conn:
-            conn.executescript(COLLABORATION_COLLECTOR_SCHEMA)
             row = conn.execute(
                 "SELECT generation,archived_at,archive_json FROM collaboration_collectors "
                 "WHERE run_id=?",
@@ -766,7 +746,6 @@ class CollaborationCollectorStoreMixin:
             return []
         timestamp = _now()
         with self._lock, self._connect() as conn:
-            conn.executescript(COLLABORATION_COLLECTOR_SCHEMA)
             conn.execute("BEGIN IMMEDIATE")
             return [
                 self._archive_collector_in_connection(
@@ -803,7 +782,6 @@ class CollaborationCollectorStoreMixin:
         cutoff = now - timedelta(seconds=ttl) if ttl else None
         timestamp = now.isoformat()
         with self._lock, self._connect() as conn:
-            conn.executescript(COLLABORATION_COLLECTOR_SCHEMA)
             conn.execute("BEGIN IMMEDIATE")
             sql = (
                 "SELECT c.run_id,r.session_id,c.updated_at "
@@ -869,7 +847,6 @@ class CollaborationCollectorStoreMixin:
         task_id = require_cowork_id(task_id, label="task_id")
         timestamp = _now()
         with self._lock, self._connect() as conn:
-            conn.executescript(COLLABORATION_COLLECTOR_SCHEMA)
             conn.execute("BEGIN IMMEDIATE")
             collector = self._collector_snapshot(conn, run_id)
             if collector is None:
@@ -931,7 +908,6 @@ class CollaborationCollectorStoreMixin:
     def collaboration_collector_retry_task(self, task_id: str) -> dict[str, Any] | None:
         task_id = require_cowork_id(task_id, label="task_id")
         with self._lock, self._connect() as conn:
-            conn.executescript(COLLABORATION_COLLECTOR_SCHEMA)
             row = conn.execute(
                 "SELECT run_id,child_id,generation,created_at "
                 "FROM collaboration_collector_retry_tasks WHERE task_id=?",
@@ -967,7 +943,6 @@ class CollaborationCollectorStoreMixin:
             params.append(generation)
         sql += " ORDER BY generation,created_at,task_id"
         with self._lock, self._connect() as conn:
-            conn.executescript(COLLABORATION_COLLECTOR_SCHEMA)
             rows = conn.execute(sql, tuple(params)).fetchall()
         return [
             {
@@ -993,7 +968,6 @@ class CollaborationCollectorStoreMixin:
             return 0
         placeholders = ",".join("?" for _ in normalized)
         with self._lock, self._connect() as conn:
-            conn.executescript(COLLABORATION_COLLECTOR_SCHEMA)
             conn.execute("BEGIN IMMEDIATE")
             deleted = conn.execute(
                 "DELETE FROM collaboration_collector_retry_tasks "
@@ -1018,7 +992,6 @@ class CollaborationCollectorStoreMixin:
         run_id = require_cowork_id(run_id, label="run_id")
         timestamp = _now()
         with self._lock, self._connect() as conn:
-            conn.executescript(COLLABORATION_COLLECTOR_SCHEMA)
             conn.execute("BEGIN IMMEDIATE")
             current = self._collector_snapshot(conn, run_id)
             if current is None:
@@ -1084,7 +1057,6 @@ class CollaborationCollectorStoreMixin:
         _payload, result_blob, digest = _normalize_result(result)
         timestamp = _now()
         with self._lock, self._connect() as conn:
-            conn.executescript(COLLABORATION_COLLECTOR_SCHEMA)
             # Serialize policy settlement across independent worker processes,
             # not merely threads sharing one CollaborationStore instance.
             conn.execute("BEGIN IMMEDIATE")

@@ -17,6 +17,8 @@ from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any
 
+from runtime.platform.io.sqlite_schema import Migration, migrate
+
 _SCHEMA = """
 CREATE TABLE IF NOT EXISTS subagent_governance_roots (
     root_id       TEXT PRIMARY KEY,
@@ -54,6 +56,8 @@ CREATE TABLE IF NOT EXISTS subagent_governance_leases (
 CREATE INDEX IF NOT EXISTS idx_subagent_governance_leases_active
 ON subagent_governance_leases(released_at, expires_at, root_id);
 """
+
+_MIGRATIONS = (Migration(1, _SCHEMA),)
 
 
 def _now() -> datetime:
@@ -106,7 +110,7 @@ class SubagentGovernanceStore:
         self.path.parent.mkdir(parents=True, exist_ok=True)
         self._lock = threading.RLock()
         with self._connect() as conn:
-            conn.executescript(_SCHEMA)
+            migrate(conn, _MIGRATIONS, name="subagent_governance")
 
     def _connect(self) -> sqlite3.Connection:
         conn = sqlite3.connect(self.path, timeout=15, isolation_level=None)

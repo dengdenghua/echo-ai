@@ -175,7 +175,6 @@ class CollaborationDeliveryStoreMixin:
         timestamp = _iso(now)
         deadline = _iso(now + timedelta(seconds=deadline_seconds))
         with self._lock, self._connect() as conn:
-            conn.executescript(COLLABORATION_DELIVERY_SCHEMA)
             conn.execute("BEGIN IMMEDIATE")
             row = conn.execute(
                 f"SELECT {_COLUMNS} FROM collaboration_deliveries WHERE delivery_id=?",

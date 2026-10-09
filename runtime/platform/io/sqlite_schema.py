@@ -19,6 +19,10 @@ must be safe on databases created before versioning existed (version 0 with
 the tables already present): use ``IF NOT EXISTS`` and ``add_column``.
 A database whose version is newer than the code is refused instead of being
 written with a schema the code does not understand.
+
+The version normally lives in ``PRAGMA user_version``. When several stores
+share one database file each keeps its own row in ``schema_versions`` instead
+(``migrate(..., shared=True)``), so their step numbers never collide.
 """
 
 from __future__ import annotations
@@ -62,14 +66,14 @@ def add_column(conn: sqlite3.Connection, table: str, column: str, ddl: str) -> N
         conn.execute(f'ALTER TABLE "{table}" ADD COLUMN "{column}" {ddl}')
 
 
-def _run_step(conn: sqlite3.Connection, step: Migration) -> None:
-    if isinstance(step.apply, str):
-        # executescript would COMMIT first; run statements inside our transaction.
-        for statement in _statements(step.apply):
-            conn.execute(statement)
-    else:
-        step.apply(conn)
-    conn.execute(f"PRAGMA user_version={int(step.version)}")
+def execute_script(conn: sqlite3.Connection, script: str) -> None:
+    """Run a multi-statement script inside the caller's transaction.
+
+    ``Connection.executescript`` COMMITs first, which would split a migration
+    step from its version bump.
+    """
+    for statement in _statements(script):
+        conn.execute(statement)
 
 
 def _statements(script: str) -> list[str]:
@@ -86,25 +90,97 @@ def _statements(script: str) -> list[str]:
     return statements
 
 
-def migrate(conn: sqlite3.Connection, migrations: Sequence[Migration], *, name: str) -> int:
-    """Bring *conn* to the newest version in *migrations*; return that version."""
+_VERSIONS_TABLE = (
+    "CREATE TABLE IF NOT EXISTS schema_versions "
+    "(component TEXT PRIMARY KEY, version INTEGER NOT NULL)"
+)
+
+
+def _shared_version(conn: sqlite3.Connection, name: str) -> int:
+    exists = conn.execute(
+        "SELECT 1 FROM sqlite_master WHERE type='table' AND name='schema_versions'"
+    ).fetchone()
+    if not exists:
+        return 0
+    row = conn.execute("SELECT version FROM schema_versions WHERE component=?", (name,)).fetchone()
+    return int(row[0]) if row else 0
+
+
+def _record_version(conn: sqlite3.Connection, name: str, version: int, *, shared: bool) -> None:
+    if not shared:
+        conn.execute(f"PRAGMA user_version={int(version)}")
+        return
+    conn.execute(_VERSIONS_TABLE)
+    conn.execute(
+        "INSERT INTO schema_versions(component, version) VALUES(?, ?) "
+        "ON CONFLICT(component) DO UPDATE SET version=excluded.version",
+        (name, int(version)),
+    )
+
+
+def _missing_table(conn: sqlite3.Connection, tables: Sequence[str]) -> bool:
+    if not tables:
+        return False
+    marks = ",".join("?" for _ in tables)
+    found = conn.execute(
+        f"SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name IN ({marks})",  # nosec B608 - placeholders only
+        tuple(tables),
+    ).fetchone()[0]
+    return int(found) < len(set(tables))
+
+
+def migrate(
+    conn: sqlite3.Connection,
+    migrations: Sequence[Migration],
+    *,
+    name: str,
+    shared: bool = False,
+    expect_tables: Sequence[str] = (),
+) -> int:
+    """Bring *conn* to the newest version in *migrations*; return that version.
+
+    A current database costs one read and leaves the connection untouched, so
+    stores may call this on every connect. Pending steps need the connection
+    outside a transaction. ``shared=True`` records the version under *name* in
+    ``schema_versions`` for databases that more than one store writes to.
+    If any of *expect_tables* is missing (a table dropped behind the store's
+    back) every step runs again, which is safe because steps must already
+    tolerate tables that exist.
+    """
     versions = [step.version for step in migrations]
     if versions != list(range(1, len(versions) + 1)):
         raise ValueError(f"{name}: migrations must be numbered 1..N in order, got {versions}")
     latest = versions[-1] if versions else 0
-    current = schema_version(conn)
+
+    def stored() -> int:
+        return _shared_version(conn, name) if shared else schema_version(conn)
+
+    rebuild = _missing_table(conn, expect_tables)
+    current = 0 if rebuild else stored()
     if current > latest:
         raise SchemaTooNewError(
             f"{name} database is at schema version {current}, newer than this build "
             f"({latest}); refusing to write to it"
         )
+    if current == latest:
+        return latest
+    if conn.in_transaction:
+        raise RuntimeError(f"{name}: run migrations before opening a transaction")
     previous_isolation = conn.isolation_level
     conn.isolation_level = None  # explicit BEGIN/COMMIT around each step
     try:
         for step in migrations[current:]:
             conn.execute("BEGIN IMMEDIATE")
             try:
-                _run_step(conn, step)
+                # Another process may have applied it while we waited.
+                if not rebuild and stored() >= step.version:
+                    conn.execute("COMMIT")
+                    continue
+                if isinstance(step.apply, str):
+                    execute_script(conn, step.apply)
+                else:
+                    step.apply(conn)
+                _record_version(conn, name, step.version, shared=shared)
             except BaseException:
                 conn.execute("ROLLBACK")
                 raise
@@ -119,6 +195,7 @@ __all__ = [
     "SchemaTooNewError",
     "add_column",
     "configure",
+    "execute_script",
     "has_column",
     "migrate",
     "schema_version",

@@ -40,6 +40,8 @@ from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
+from runtime.platform.io.sqlite_schema import Migration, migrate
+
 # Long enough that guessing is hopeless; matches the invitation store.
 _TOKEN_BYTES = 32
 
@@ -63,6 +65,8 @@ CREATE TABLE IF NOT EXISTS remote_approval_tokens (
 CREATE INDEX IF NOT EXISTS idx_remote_approval_call
     ON remote_approval_tokens(thread_id, tool_call_id);
 """
+
+_MIGRATIONS = (Migration(1, _SCHEMA),)
 
 
 def _hash_token(token: str) -> str:
@@ -102,7 +106,7 @@ class RemoteApprovalTokenStore:
         self._lock = threading.Lock()
         self._clock = clock or _utc_now
         with self._lock, self._connect() as conn:
-            conn.executescript(_SCHEMA)
+            migrate(conn, _MIGRATIONS, name="remote_approval_tokens")
 
     def _connect(self) -> sqlite3.Connection:
         conn = sqlite3.connect(str(self._db), isolation_level=None)

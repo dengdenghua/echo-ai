@@ -197,7 +197,6 @@ class CollaborationRunStoreMixin:
         input_payload = _json_dict(input, label="run input")
         timestamp = _iso(_now())
         with self._lock, self._connect() as conn:
-            conn.executescript(COLLABORATION_RUN_SCHEMA)
             conn.execute("BEGIN IMMEDIATE")
             row = conn.execute(
                 f"SELECT {_RUN_COLUMNS} FROM collaboration_runs WHERE run_id=?", (run_id,)
@@ -244,7 +243,6 @@ class CollaborationRunStoreMixin:
     def collaboration_run(self, run_id: str) -> dict[str, Any] | None:
         run_id = require_cowork_id(run_id, label="run_id")
         with self._lock, self._connect() as conn:
-            conn.executescript(COLLABORATION_RUN_SCHEMA)
             row = conn.execute(
                 f"SELECT {_RUN_COLUMNS} FROM collaboration_runs WHERE run_id=?", (run_id,)
             ).fetchone()
@@ -253,7 +251,6 @@ class CollaborationRunStoreMixin:
     def collaboration_run_events(self, run_id: str) -> list[dict[str, Any]]:
         run_id = require_cowork_id(run_id, label="run_id")
         with self._lock, self._connect() as conn:
-            conn.executescript(COLLABORATION_RUN_SCHEMA)
             rows = conn.execute(
                 "SELECT seq,event_type,status,payload_json,created_at "
                 "FROM collaboration_run_events WHERE run_id=? ORDER BY seq",
@@ -296,7 +293,6 @@ class CollaborationRunStoreMixin:
         sql += " ORDER BY updated_at DESC, created_at DESC LIMIT ?"
         params.append(limit)
         with self._lock, self._connect() as conn:
-            conn.executescript(COLLABORATION_RUN_SCHEMA)
             rows = conn.execute(sql, tuple(params)).fetchall()
         return [_run_from_row(row) for row in rows]
 
@@ -316,7 +312,6 @@ class CollaborationRunStoreMixin:
         timestamp = _iso(now)
         expires = _iso(now + timedelta(seconds=lease_seconds))
         with self._lock, self._connect() as conn:
-            conn.executescript(COLLABORATION_RUN_SCHEMA)
             conn.execute("BEGIN IMMEDIATE")
             row = conn.execute(
                 f"SELECT {_RUN_COLUMNS} FROM collaboration_runs WHERE run_id=?", (run_id,)
@@ -373,7 +368,6 @@ class CollaborationRunStoreMixin:
         timestamp = _iso(_now())
         expires = _iso(_now() + timedelta(seconds=lease_seconds))
         with self._lock, self._connect() as conn:
-            conn.executescript(COLLABORATION_RUN_SCHEMA)
             conn.execute("BEGIN IMMEDIATE")
             changed = conn.execute(
                 "UPDATE collaboration_runs SET lease_expires_at=?,updated_at=?,version=version+1 "
@@ -419,7 +413,6 @@ class CollaborationRunStoreMixin:
         event_payload = _json_dict(payload, label="run event payload")
         timestamp = _iso(_now())
         with self._lock, self._connect() as conn:
-            conn.executescript(COLLABORATION_RUN_SCHEMA)
             conn.execute("BEGIN IMMEDIATE")
             row = conn.execute(
                 f"SELECT {_RUN_COLUMNS} FROM collaboration_runs WHERE run_id=?", (run_id,)
@@ -498,7 +491,6 @@ class CollaborationRunStoreMixin:
         sql += " ORDER BY updated_at ASC LIMIT ?"
         params.append(limit)
         with self._lock, self._connect() as conn:
-            conn.executescript(COLLABORATION_RUN_SCHEMA)
             rows = conn.execute(sql, tuple(params)).fetchall()
         return [_run_from_row(row) for row in rows]
 
@@ -514,7 +506,6 @@ class CollaborationRunStoreMixin:
         timestamp = _iso(_now())
         interrupted: list[str] = []
         with self._lock, self._connect() as conn:
-            conn.executescript(COLLABORATION_RUN_SCHEMA)
             conn.execute("BEGIN IMMEDIATE")
             rows = conn.execute(
                 "SELECT run_id,lease_owner,lease_expires_at FROM collaboration_runs "

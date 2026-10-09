@@ -37,6 +37,7 @@ from typing import Any
 from uuid import uuid4
 
 from runtime.platform.io.sqlite import connect_closing
+from runtime.platform.io.sqlite_schema import Migration, migrate
 from runtime.workspace.org import (
     VALID_CHANNEL_KINDS,
     VALID_CHANNEL_ROLES,
@@ -100,6 +101,8 @@ CREATE INDEX IF NOT EXISTS idx_org_members_member ON org_members(member_id);
 CREATE INDEX IF NOT EXISTS idx_channels_org ON channels(org_id);
 CREATE INDEX IF NOT EXISTS idx_channel_members_member ON channel_members(member_id);
 """
+
+_MIGRATIONS = (Migration(1, _SCHEMA),)
 
 
 def _default_db_path() -> Path:
@@ -186,7 +189,7 @@ class OrgStore:
 
     def _ensure_schema(self) -> None:
         with self._lock, self._connect() as conn:
-            conn.executescript(_SCHEMA)
+            migrate(conn, _MIGRATIONS, name="organizations")
 
     def _require_exists(
         self, conn: sqlite3.Connection, table: str, pk_col: str, value: str

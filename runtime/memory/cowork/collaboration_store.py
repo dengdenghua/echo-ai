@@ -65,6 +65,13 @@ from runtime.memory.cowork.ids import (
     require_message_text,
 )
 from runtime.platform.io.sqlite import connect_closing
+from runtime.platform.io.sqlite_schema import (
+    Migration,
+    add_column,
+    configure,
+    execute_script,
+    migrate,
+)
 
 _MAX_JSON_BYTES = 512 * 1024
 _MAX_LIST_ITEMS = 512
@@ -383,6 +390,26 @@ def _normalize_task_payload(
     return payload
 
 
+def _adopt_v1(conn: sqlite3.Connection) -> None:
+    """Schema as of versioning, adopting databases from every earlier release."""
+    execute_script(conn, _SCHEMA)
+    ensure_collaboration_collector_schema(conn)
+    # Installations from before structured messages lack the metadata column.
+    add_column(conn, "collaboration_messages", "metadata_json", "TEXT NOT NULL DEFAULT '{}'")
+    conn.execute(
+        "CREATE UNIQUE INDEX IF NOT EXISTS idx_collab_messages_source "
+        "ON collaboration_messages("
+        "session_id, CASE WHEN json_valid(metadata_json) "
+        "THEN json_extract(metadata_json, '$.source_message_id') END"
+        ") WHERE CASE WHEN json_valid(metadata_json) "
+        "THEN COALESCE(json_extract(metadata_json, '$.source_message_id'), '') != '' "
+        "ELSE 0 END"
+    )
+
+
+_MIGRATIONS = (Migration(1, _adopt_v1),)
+
+
 class CollaborationStore(
     CollaborationCollectorStoreMixin,
     CollaborationDeliveryStoreMixin,
@@ -397,8 +424,8 @@ class CollaborationStore(
         self._dir.mkdir(parents=True, exist_ok=True)
         self._db = self._dir / "collaboration.db"
         self._lock = threading.Lock()
-        with self._lock, self._connect() as conn:
-            conn.executescript(_SCHEMA)
+        with self._lock, self._connect():
+            pass
 
     @property
     def base_dir(self) -> Path:
@@ -616,29 +643,9 @@ class CollaborationStore(
 
     def _connect(self) -> sqlite3.Connection:
         self._dir.mkdir(parents=True, exist_ok=True)
-        conn = connect_closing(str(self._db), timeout=10.0)
-        conn.execute("PRAGMA journal_mode=WAL")
-        conn.executescript(_SCHEMA)
-        ensure_collaboration_collector_schema(conn)
-        # ``CREATE TABLE IF NOT EXISTS`` does not add columns to installations
-        # created before structured messages existed.  Keep the migration
-        # inline/idempotent because this store intentionally has no external
-        # migration runner.
-        columns = {str(row[1]) for row in conn.execute("PRAGMA table_info(collaboration_messages)")}
-        if "metadata_json" not in columns:
-            conn.execute(
-                "ALTER TABLE collaboration_messages "
-                "ADD COLUMN metadata_json TEXT NOT NULL DEFAULT '{}'"
-            )
-        conn.execute(
-            "CREATE UNIQUE INDEX IF NOT EXISTS idx_collab_messages_source "
-            "ON collaboration_messages("
-            "session_id, CASE WHEN json_valid(metadata_json) "
-            "THEN json_extract(metadata_json, '$.source_message_id') END"
-            ") WHERE CASE WHEN json_valid(metadata_json) "
-            "THEN COALESCE(json_extract(metadata_json, '$.source_message_id'), '') != '' "
-            "ELSE 0 END"
-        )
+        conn = configure(connect_closing(str(self._db), timeout=10.0))
+        # Cheap when current (one PRAGMA read); recreates a deleted database.
+        migrate(conn, _MIGRATIONS, name="collaboration")
         return conn
 
     def room_for_session(self, session_id: str) -> dict[str, Any] | None:

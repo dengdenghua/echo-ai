@@ -10,6 +10,7 @@ from dataclasses import dataclass
 from typing import Protocol, cast
 from uuid import uuid4
 
+from runtime.platform.io.sqlite_schema import add_column, execute_script
 from runtime.projectos._store_helpers import _json_dict, _require_id, _require_kind
 from runtime.projectos.model import Project
 from runtime.safety.auth.scope import TenantScope
@@ -383,22 +384,14 @@ class ProjectThreadDeleteLease:
 
 
 def ensure_project_delete_schema(conn: sqlite3.Connection) -> None:
-    conn.executescript(_DELETE_SCHEMA)
-    columns = {str(row[1]) for row in conn.execute("PRAGMA table_info(project_delete_tombstones)")}
-    if "tenant_id" not in columns:
-        conn.execute(
-            "ALTER TABLE project_delete_tombstones ADD COLUMN tenant_id TEXT NOT NULL DEFAULT ''"
-        )
-    if "owner_id" not in columns:
-        conn.execute(
-            "ALTER TABLE project_delete_tombstones ADD COLUMN owner_id TEXT NOT NULL DEFAULT ''"
-        )
-    for table in ("project_thread_delete_claims", "project_thread_delete_tombstones"):
-        thread_columns = {str(row[1]) for row in conn.execute(f"PRAGMA table_info({table})")}
-        if "tenant_id" not in thread_columns:
-            conn.execute(f"ALTER TABLE {table} ADD COLUMN tenant_id TEXT NOT NULL DEFAULT ''")
-        if "owner_id" not in thread_columns:
-            conn.execute(f"ALTER TABLE {table} ADD COLUMN owner_id TEXT NOT NULL DEFAULT ''")
+    execute_script(conn, _DELETE_SCHEMA)
+    for table in (
+        "project_delete_tombstones",
+        "project_thread_delete_claims",
+        "project_thread_delete_tombstones",
+    ):
+        add_column(conn, table, "tenant_id", "TEXT NOT NULL DEFAULT ''")
+        add_column(conn, table, "owner_id", "TEXT NOT NULL DEFAULT ''")
 
 
 def _delete_token(conn: sqlite3.Connection, project_id: str) -> str:

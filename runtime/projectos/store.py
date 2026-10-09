@@ -16,6 +16,14 @@ from uuid import uuid4
 
 from runtime.platform.integrity.chain import GENESIS, seal_step
 from runtime.platform.io.sqlite import connect_closing
+from runtime.platform.io.sqlite_schema import (
+    Migration,
+    add_column,
+    configure,
+    execute_script,
+    has_column,
+    migrate,
+)
 from runtime.projectos._store_helpers import (
     _MAX_NAME_LENGTH,
     _available_milestone_id,
@@ -100,16 +108,13 @@ def _migrate_project_event_seal_columns(conn: sqlite3.Connection) -> None:
     re-seal consistently. Sealed rows keep their original seq; legacy unsealed
     rows (seq=0) are left alone and verified as a gap-free prefix failure.
     """
-    columns = {str(row[1]) for row in conn.execute("PRAGMA table_info(project_events)").fetchall()}
-    if "seq" not in columns:
-        conn.execute("ALTER TABLE project_events ADD COLUMN seq INTEGER NOT NULL DEFAULT 0")
+    if not has_column(conn, "project_events", "seq"):
+        add_column(conn, "project_events", "seq", "INTEGER NOT NULL DEFAULT 0")
         # Legacy rows get their insertion order (rowid is monotonic on this
         # append-only table); new rows take MAX(seq)+1 per project from here on.
         conn.execute("UPDATE project_events SET seq = rowid WHERE seq = 0")
-    if "seal_prev" not in columns:
-        conn.execute("ALTER TABLE project_events ADD COLUMN seal_prev TEXT NOT NULL DEFAULT ''")
-    if "seal" not in columns:
-        conn.execute("ALTER TABLE project_events ADD COLUMN seal TEXT NOT NULL DEFAULT ''")
+    add_column(conn, "project_events", "seal_prev", "TEXT NOT NULL DEFAULT ''")
+    add_column(conn, "project_events", "seal", "TEXT NOT NULL DEFAULT ''")
 
 
 _SCHEMA = """
@@ -151,6 +156,16 @@ CREATE INDEX IF NOT EXISTS idx_project_events_project
 """
 
 
+def _adopt_v1(conn: sqlite3.Connection) -> None:
+    """Schema as of versioning, adopting databases from every earlier release."""
+    execute_script(conn, _SCHEMA)
+    ensure_project_delete_schema(conn)
+    _migrate_project_event_seal_columns(conn)
+
+
+_MIGRATIONS = (Migration(1, _adopt_v1),)
+
+
 def _default_dir() -> Path:
     from runtime.platform.process.paths import app_paths
 
@@ -174,10 +189,8 @@ class ProjectStore(
         self._db = d / "projectos.db"
         self._lock = threading.Lock()
         self._scope = scope
-        with self._lock, connect_closing(str(self._db)) as conn:
-            conn.executescript(_SCHEMA)
-            ensure_project_delete_schema(conn)
-            _migrate_project_event_seal_columns(conn)
+        with self._lock, configure(connect_closing(str(self._db)), wal=False) as conn:
+            migrate(conn, _MIGRATIONS, name="projectos")
             conn.execute("BEGIN IMMEDIATE")
             conn.execute(
                 "INSERT OR IGNORE INTO thread_project_generations(thread_id, generation) "

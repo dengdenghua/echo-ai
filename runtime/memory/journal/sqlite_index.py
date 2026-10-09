@@ -25,6 +25,7 @@ from typing import Any
 from runtime.platform.io.atomic import (
     atomic_write_json,  # noqa: F401  # available for companion JSON
 )
+from runtime.platform.io.sqlite_schema import Migration, add_column, migrate
 
 # ═══════════════════════════════════════════════════════════
 # Schema
@@ -56,6 +57,16 @@ CREATE TABLE IF NOT EXISTS state (
     last_indexed_at   TEXT
 );
 """
+
+
+def _add_scope_columns(conn: sqlite3.Connection) -> None:
+    # Indexes from before tenant scoping lack the owner columns.
+    add_column(conn, "events", "tenant_id", "TEXT")
+    add_column(conn, "events", "owner_actor_id", "TEXT")
+    conn.execute("CREATE INDEX IF NOT EXISTS idx_events_scope ON events(tenant_id, owner_actor_id)")
+
+
+_MIGRATIONS = (Migration(1, _SCHEMA), Migration(2, _add_scope_columns))
 
 
 def _now_iso() -> str:
@@ -111,18 +122,7 @@ class JournalIndex:
         # PRAGMA returns one row; we don't need the value but execute it.
         self._conn.execute("PRAGMA journal_mode=WAL;")
         self._conn.execute("PRAGMA synchronous=NORMAL;")
-        # Lazy schema creation — idempotent thanks to IF NOT EXISTS.
-        self._conn.executescript(_SCHEMA)
-        columns = {
-            str(row[1]) for row in self._conn.execute("PRAGMA table_info(events)").fetchall()
-        }
-        if "tenant_id" not in columns:
-            self._conn.execute("ALTER TABLE events ADD COLUMN tenant_id TEXT")
-        if "owner_actor_id" not in columns:
-            self._conn.execute("ALTER TABLE events ADD COLUMN owner_actor_id TEXT")
-        self._conn.execute(
-            "CREATE INDEX IF NOT EXISTS idx_events_scope ON events(tenant_id, owner_actor_id)"
-        )
+        migrate(self._conn, _MIGRATIONS, name="journal_index")
 
     # ── Indexing ─────────────────────────────────────────────
 

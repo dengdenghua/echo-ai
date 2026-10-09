@@ -14,11 +14,11 @@ from typing import Any
 
 from runtime.memory.cowork.collaboration_runs import (
     _RUN_COLUMNS,
-    COLLABORATION_RUN_SCHEMA,
     _run_from_row,
 )
 from runtime.memory.cowork.collaboration_store import CollaborationStore
 from runtime.memory.cowork.ids import require_cowork_id
+from runtime.platform.io.sqlite_schema import Migration, migrate
 
 _SCHEMA = """
 CREATE TABLE IF NOT EXISTS execution_nodes (
@@ -28,12 +28,14 @@ CREATE TABLE IF NOT EXISTS execution_nodes (
 );
 """
 
+_MIGRATIONS = (Migration(1, _SCHEMA),)
+
 
 class ExecutionNodeControl:
     def __init__(self, store: CollaborationStore):
         self.store = store
         with store._connect() as conn:
-            conn.executescript(_SCHEMA + COLLABORATION_RUN_SCHEMA)
+            migrate(conn, _MIGRATIONS, name="node_control", shared=True)
 
     def advertise(
         self,
