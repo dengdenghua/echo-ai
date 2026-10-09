@@ -671,7 +671,7 @@ export const MessageListItem = memo(function MessageListItem({
       {
         onSuccess: (result) => {
           toast.success(t.conversation.forkedThread);
-          navigate(`/workspace/realtime/${result.thread_id}`);
+          void navigate(`/workspace/realtime/${result.thread_id}`);
         },
         onError: () => toast.error(t.conversation.forkFailed),
       },

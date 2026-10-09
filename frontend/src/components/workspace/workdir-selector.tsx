@@ -732,7 +732,7 @@ export function WorkDirSelector({
       <FolderOpenIcon className={isMutedVariant ? "size-3.5" : "size-4"} />
     ),
     label: folderPickerLabel,
-    onClick: handlePrimaryAction,
+    onClick: () => void handlePrimaryAction(),
     disabled: false,
   });
 

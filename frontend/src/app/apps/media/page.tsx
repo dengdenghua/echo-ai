@@ -190,11 +190,11 @@ export default function MediaAppPage({ kind }: MediaAppPageProps) {
       window.close();
       return;
     }
-    navigate("/desktop");
+    void navigate("/desktop");
   };
 
   const openStorage = () => {
-    navigate(
+    void navigate(
       `/workspace/storage?surface=company&library=${isPhotos ? "images" : "videos"}`,
     );
   };

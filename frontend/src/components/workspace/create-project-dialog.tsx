@@ -175,7 +175,7 @@ export function CreateProjectDialog({
         onSuccess: ({ threadId }) => {
           resetForm();
           onOpenChange(false);
-          navigate(`/workspace/realtime/${encodeURIComponent(threadId)}`, {
+          void navigate(`/workspace/realtime/${encodeURIComponent(threadId)}`, {
             state: {
               openProjectWorkbench: true,
               ...(invitePeopleAfterCreate

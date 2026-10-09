@@ -88,7 +88,7 @@ export function InlineSubagentCardExpansion({
     }
     params.set("sandbox", "true");
     if (currentThreadId) params.set("parent_thread_id", currentThreadId);
-    navigate(`/workspace/realtime/new?${params.toString()}`);
+    void navigate(`/workspace/realtime/new?${params.toString()}`);
     toast.info(`已为【${name}】开辟独立的方案推演沙盒`);
   };
 

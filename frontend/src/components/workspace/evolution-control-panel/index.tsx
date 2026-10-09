@@ -329,14 +329,14 @@ function BudgetSection() {
   }, []);
 
   useEffect(() => {
-    load();
+    void load();
   }, [load]);
 
   const resetBreaker = useCallback(
     async (component: string) => {
       try {
         await apiPost("/api/evolution/budget/breaker/reset", { component });
-        load();
+        void load();
       } catch (e) {
         swallow(e);
         setError(e instanceof Error ? e.message : String(e));
@@ -506,7 +506,7 @@ function SkillProposalsSection() {
   }, []);
 
   useEffect(() => {
-    load();
+    void load();
   }, [load]);
 
   const decide = useCallback(
@@ -616,7 +616,7 @@ function ModelProposalsSection() {
   }, []);
 
   useEffect(() => {
-    load();
+    void load();
   }, [load]);
 
   const runBenchmarks = useCallback(async () => {
@@ -716,7 +716,7 @@ function McpProposalsSection() {
   }, []);
 
   useEffect(() => {
-    load();
+    void load();
   }, [load]);
 
   const vetAll = useCallback(async () => {
@@ -849,7 +849,7 @@ function CurriculumSection() {
   }, []);
 
   useEffect(() => {
-    load();
+    void load();
   }, [load]);
 
   const runCycle = useCallback(async () => {
@@ -964,7 +964,7 @@ function FrameworkBenchmarksSection() {
   }, []);
 
   useEffect(() => {
-    load();
+    void load();
   }, [load]);
 
   return (
@@ -1059,7 +1059,7 @@ function ProtocolDriftSection() {
   }, []);
 
   useEffect(() => {
-    load();
+    void load();
   }, [load]);
 
   const scan = useCallback(async () => {
@@ -1247,7 +1247,7 @@ function DispatchSection() {
   }, []);
 
   useEffect(() => {
-    load();
+    void load();
   }, [load]);
 
   const rows = useMemo(() => Object.entries(snap), [snap]);

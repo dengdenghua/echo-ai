@@ -247,7 +247,7 @@ export function SubagentProcessView({
     event.preventDefault();
     const params = new URLSearchParams({ agent: agent.name, private: "1" });
     if (followupText.trim()) params.set("prompt", followupText.trim());
-    navigate(`/workspace/realtime/new?${params.toString()}`);
+    void navigate(`/workspace/realtime/new?${params.toString()}`);
     setFollowupText("");
   };
 

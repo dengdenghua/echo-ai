@@ -184,7 +184,7 @@ export default function DesktopShellPage() {
       window.open(desktopWindowURL(app.route), windowName);
       return;
     }
-    navigate(app.route);
+    void navigate(app.route);
   };
 
   useEffect(() => {
@@ -291,8 +291,8 @@ export default function DesktopShellPage() {
         }
       } catch {}
     };
-    poll();
-    const id = setInterval(poll, 3000);
+    void poll();
+    const id = setInterval(() => void poll(), 3000);
     return () => {
       alive = false;
       clearInterval(id);
@@ -504,7 +504,7 @@ export default function DesktopShellPage() {
       openApp(app);
       return;
     }
-    navigate(
+    void navigate(
       `${BROWSER_WORKSPACE_ROUTE}?q=${encodeURIComponent(query.trim())}`,
     );
   };

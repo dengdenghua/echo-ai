@@ -1343,7 +1343,7 @@ export function ChatComposer({
         !e.defaultPrevented
       ) {
         e.preventDefault();
-        handleSubmit();
+        void handleSubmit();
       }
     },
     [

@@ -472,7 +472,7 @@ export function RemoteWorkbenchSurface({
       ) {
         return;
       }
-      navigate(`${target.pathname}${target.search}${target.hash}`);
+      void navigate(`${target.pathname}${target.search}${target.hash}`);
     };
     window.addEventListener("message", receive);
     return () => window.removeEventListener("message", receive);

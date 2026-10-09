@@ -568,7 +568,7 @@ export function ChannelCredentialDialog({
       return;
     }
     let cancelled = false;
-    (async () => {
+    void (async () => {
       try {
         const r = await fetch(
           `${getBackendBaseURL()}/api/channels/credentials`,

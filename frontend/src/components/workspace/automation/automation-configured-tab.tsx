@@ -142,7 +142,7 @@ export function AutomationConfiguredTab() {
       try {
         const lock = await wakeLock.request("screen");
         if (cancelled) {
-          lock.release?.();
+          lock.release?.().catch(() => {});
           return;
         }
         wakeLockRef.current = lock;
@@ -158,14 +158,14 @@ export function AutomationConfiguredTab() {
       }
     };
     if (keepAwake) {
-      requestWakeLock();
+      void requestWakeLock();
       const onVisibility = () => {
         if (
           document.visibilityState === "visible" &&
           keepAwake &&
           !wakeLockRef.current
         ) {
-          requestWakeLock();
+          void requestWakeLock();
         }
       };
       document.addEventListener("visibilitychange", onVisibility);

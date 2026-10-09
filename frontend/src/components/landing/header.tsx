@@ -95,7 +95,7 @@ function StarCounter() {
   const [stars, setStars] = useState(10000);
   useEffect(() => {
     let cancelled = false;
-    (async () => {
+    void (async () => {
       try {
         const response = await fetch(
           "https://api.github.com/repos/echo/echo",

@@ -444,7 +444,7 @@ export default function PrivacySettingsPage() {
       toast.success(t.accountSettings.factoryResetSuccess);
       setShowFactoryResetDialog(false);
       setFactoryResetConfirmText("");
-      navigate("/workspace/realtime/new", { replace: true });
+      void navigate("/workspace/realtime/new", { replace: true });
     } catch {
       toast.error(t.accountSettings.factoryResetFailed);
     } finally {

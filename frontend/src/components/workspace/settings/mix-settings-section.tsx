@@ -51,7 +51,7 @@ export function MixSettingsSection() {
 
   useEffect(() => {
     let cancelled = false;
-    (async () => {
+    void (async () => {
       try {
         const r = await fetch(`${getBackendBaseURL()}/api/mix-config`, {
           headers: authHeaders(),

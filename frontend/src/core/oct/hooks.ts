@@ -147,8 +147,8 @@ export function useClaimDailyCredits() {
   return useMutation<Record<string, unknown>, Error, boolean>({
     mutationFn: () => octApi.dailyClaim(),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: dailyClaimKey });
-      qc.invalidateQueries({ queryKey: octKey });
+      void qc.invalidateQueries({ queryKey: dailyClaimKey });
+      void qc.invalidateQueries({ queryKey: octKey });
     },
   });
 }
@@ -198,7 +198,7 @@ export function useFindOrder(orderNo: string | null) {
     queryFn: async () => {
       const o = await octApi.orders.findByOrderNo(orderNo as string);
       if (o?.status === "PAID") {
-        qc.invalidateQueries({ queryKey: octKey });
+        void qc.invalidateQueries({ queryKey: octKey });
       }
       return o;
     },

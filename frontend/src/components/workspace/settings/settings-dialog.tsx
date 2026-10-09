@@ -335,7 +335,7 @@ export function SettingsDialog(props: SettingsDialogProps) {
 
       // Prefetch the oct account bridge; individual account tabs can fetch
       // their own optional data when opened.
-      queryClient.prefetchQuery({
+      void queryClient.prefetchQuery({
         queryKey: ["account", "oct"],
         queryFn: () => octApi.get().catch(() => null),
         staleTime: 30_000,
@@ -355,7 +355,7 @@ export function SettingsDialog(props: SettingsDialogProps) {
       await logout();
       toast.success(t.auth.logoutSuccess);
       dialogProps.onOpenChange?.(false);
-      navigate("/");
+      void navigate("/");
     } catch {
       toast.error(t.auth.logoutFailed);
     }
@@ -804,7 +804,7 @@ export function SettingsDialog(props: SettingsDialogProps) {
                   className="h-8 px-2.5 text-ui shadow-none"
                   onClick={() => {
                     dialogProps.onOpenChange?.(false);
-                    navigate("/login");
+                    void navigate("/login");
                   }}
                 >
                   <LogOutIcon className="mr-1 size-3.5" />
@@ -1121,7 +1121,7 @@ export function SettingsDialog(props: SettingsDialogProps) {
                     className="w-full sm:w-auto"
                     onClick={() => {
                       dialogProps.onOpenChange?.(false);
-                      navigate("/workspace/observability");
+                      void navigate("/workspace/observability");
                     }}
                   >
                     {settingsUxCopy.observability.openDashboard}

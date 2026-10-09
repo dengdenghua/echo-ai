@@ -94,7 +94,7 @@ export function ProjectCollaborationLandmark({
     const params = new URLSearchParams();
     params.set("sandbox", "true");
     params.set("prompt", match.body);
-    navigate(`/workspace/realtime/new?${params.toString()}`);
+    void navigate(`/workspace/realtime/new?${params.toString()}`);
     toast.info("正在进入方案推演沙盒分支");
   };
 

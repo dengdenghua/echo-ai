@@ -259,7 +259,7 @@ function AgentWorkbenchPanelImpl({
       }
     };
 
-    restoreFromCache();
+    void restoreFromCache();
   }, [enableCache, threadId, events, cachedSnapshot]);
 
   const workbenchSnapshot = useAgentWorkbenchSnapshot(events, {
@@ -306,7 +306,7 @@ function AgentWorkbenchPanelImpl({
     };
 
     // 防抖保存，避免频繁写入
-    const timer = setTimeout(saveToCache, 500);
+    const timer = setTimeout(() => void saveToCache(), 500);
     return () => clearTimeout(timer);
   }, [enableCache, threadId, workbenchSnapshot, events]);
 

@@ -95,7 +95,7 @@ export default function TeamJoinPage() {
         toast.error(t.teamJoin.missingDestination);
         return;
       }
-      navigate(teamRealtimeTarget(canonicalThreadId), { replace: true });
+      void navigate(teamRealtimeTarget(canonicalThreadId), { replace: true });
     },
     [navigate, t.teamJoin],
   );

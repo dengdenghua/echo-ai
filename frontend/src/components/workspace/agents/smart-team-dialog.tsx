@@ -113,7 +113,7 @@ export function SmartTeamDialog({
         openPicker: true,
       });
       onOpenChange(false);
-      navigate(taskCollaboratorRouteForLeader(runtimeLead));
+      void navigate(taskCollaboratorRouteForLeader(runtimeLead));
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "智能组队失败");
     } finally {

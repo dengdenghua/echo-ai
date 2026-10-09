@@ -65,7 +65,7 @@ function SettingsRoute() {
       : "/workspace/realtime/new";
     // Carry the intent to the mounted destination; an event from this route
     // can be lost when navigation unmounts its effect.
-    navigate(target, {
+    void navigate(target, {
       replace: true,
       state: { settingsSection: section ?? "appearance" },
     });

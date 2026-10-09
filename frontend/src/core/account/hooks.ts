@@ -47,8 +47,8 @@ export function useUpdateProfile() {
   return useMutation<UserProfile, Error, UpdateProfileRequest>({
     mutationFn: (data) => accountApi.updateProfile(data),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: queryKeys.profile() });
-      queryClient.invalidateQueries({ queryKey: queryKeys.overview() });
+      void queryClient.invalidateQueries({ queryKey: queryKeys.profile() });
+      void queryClient.invalidateQueries({ queryKey: queryKeys.overview() });
       toast.success(t.accountSettings.profileUpdated);
     },
     onError: (error) => {
@@ -64,7 +64,7 @@ export function useUploadAvatar() {
   return useMutation<{ success: boolean; avatar_url: string }, Error, File>({
     mutationFn: (file) => accountApi.uploadAvatar(file),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: queryKeys.profile() });
+      void queryClient.invalidateQueries({ queryKey: queryKeys.profile() });
       toast.success(t.accountSettings.avatarUploaded);
     },
     onError: (error) => {
@@ -91,8 +91,8 @@ export function useLinkAccount() {
   >({
     mutationFn: (data) => accountApi.linkAccount(data),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: queryKeys.linkedAccounts() });
-      queryClient.invalidateQueries({ queryKey: queryKeys.profile() });
+      void queryClient.invalidateQueries({ queryKey: queryKeys.linkedAccounts() });
+      void queryClient.invalidateQueries({ queryKey: queryKeys.profile() });
       toast.success("Account linked successfully");
     },
     onError: (error) => {
@@ -108,8 +108,8 @@ export function useUnlinkAccount() {
   return useMutation<UserProfile, Error, string>({
     mutationFn: (provider) => accountApi.unlinkAccount(provider),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: queryKeys.linkedAccounts() });
-      queryClient.invalidateQueries({ queryKey: queryKeys.profile() });
+      void queryClient.invalidateQueries({ queryKey: queryKeys.linkedAccounts() });
+      void queryClient.invalidateQueries({ queryKey: queryKeys.profile() });
       toast.success(t.accountSettings.accountUnlinked);
     },
     onError: (error) => {
@@ -136,7 +136,7 @@ export function useUpdatePrivacySettings() {
   return useMutation<PrivacySettings, Error, Partial<PrivacySettings>>({
     mutationFn: (data) => accountApi.updatePrivacySettings(data),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: queryKeys.privacy() });
+      void queryClient.invalidateQueries({ queryKey: queryKeys.privacy() });
       toast.success(t.accountSettings.privacyUpdated);
     },
     onError: (error) => {
@@ -176,9 +176,9 @@ export function useSubscribe() {
     mutationFn: ({ planId, autoRenew }) =>
       accountApi.subscribe(planId, autoRenew),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: queryKeys.subscription() });
-      queryClient.invalidateQueries({ queryKey: queryKeys.usage() });
-      queryClient.invalidateQueries({ queryKey: queryKeys.overview() });
+      void queryClient.invalidateQueries({ queryKey: queryKeys.subscription() });
+      void queryClient.invalidateQueries({ queryKey: queryKeys.usage() });
+      void queryClient.invalidateQueries({ queryKey: queryKeys.overview() });
       toast.success("Subscription updated successfully");
     },
     onError: (error) => {
@@ -194,7 +194,7 @@ export function useCancelSubscription() {
   return useMutation<UserSubscription, Error>({
     mutationFn: () => accountApi.cancelSubscription(),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: queryKeys.subscription() });
+      void queryClient.invalidateQueries({ queryKey: queryKeys.subscription() });
       toast.success(t.subscriptionSettings.cancelled);
     },
     onError: (error) => {

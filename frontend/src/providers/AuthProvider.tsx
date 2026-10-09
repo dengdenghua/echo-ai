@@ -235,7 +235,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     if (initializedRef.current) return;
     initializedRef.current = true;
-    initAuth();
+    void initAuth();
   }, [initAuth]);
 
   useEffect(() => {

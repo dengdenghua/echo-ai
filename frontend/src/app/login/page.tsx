@@ -166,7 +166,7 @@ function EmailLoginForm({ returnTo }: { returnTo: string }) {
     if (!addr && trimmedCode === ACCOUNT_FREE_EASTER_EGG_CODE) {
       startAccountFreeMode();
       toast.success(t.auth.success.loginSuccess);
-      navigate(returnTo, { replace: true });
+      void navigate(returnTo, { replace: true });
       return;
     }
     const nextEmailError = !addr
@@ -194,7 +194,7 @@ function EmailLoginForm({ returnTo }: { returnTo: string }) {
     try {
       await emailLogin(addr, trimmedCode);
       toast.success(t.auth.success.loginSuccess);
-      navigate(returnTo, { replace: true });
+      void navigate(returnTo, { replace: true });
     } catch (err) {
       const message = loginErrorMessage(err, (e) =>
         octErrorMessage(e, t.auth.errors.loginFailed),
@@ -431,7 +431,7 @@ function LocalLoginForm({
         }
       }
       toast.success(t.auth.success.loginSuccess);
-      navigate(returnTo, { replace: true });
+      void navigate(returnTo, { replace: true });
     } catch (err) {
       const message = loginErrorMessage(err, (e) =>
         e instanceof Error ? e.message : t.auth.errors.loginFailed,
@@ -701,11 +701,11 @@ export default function LoginPage() {
   useEffect(() => {
     if (isLoading) return;
     if (isAuthenticated) {
-      navigate(returnTo, { replace: true });
+      void navigate(returnTo, { replace: true });
       return;
     }
     if (authStatus && !authStatus.enabled) {
-      navigate(returnTo, { replace: true });
+      void navigate(returnTo, { replace: true });
     }
   }, [isLoading, isAuthenticated, authStatus, navigate, returnTo]);
 

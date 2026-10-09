@@ -59,7 +59,7 @@ export function SlashCommandPicker({
   useEffect(() => {
     if (_cache) return;
     let cancelled = false;
-    loadCatalog().then((cmds) => {
+    void loadCatalog().then((cmds) => {
       if (!cancelled) setCatalog(cmds);
     });
     return () => {

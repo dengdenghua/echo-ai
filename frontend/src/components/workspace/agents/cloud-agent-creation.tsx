@@ -29,7 +29,7 @@ export function CloudAgentCreation({ sourceId }: { sourceId: string }) {
       const result = await installCloudExpert(source.id);
       const id = result.agent_id || result.agent_name;
       if (!(result.installed || result.already_exists) || !id) throw new Error(result.message || "未确认创建结果，请返回目录核实后重试。");
-      navigate(`/workspace/agents?surface=chat&hud=1&agent=${encodeURIComponent(id)}`);
+      void navigate(`/workspace/agents?surface=chat&hud=1&agent=${encodeURIComponent(id)}`);
     } catch (err) { setError(err instanceof Error ? err.message : "创建失败"); }
     finally { submitting.current = false; setBusy(false); }
   }

@@ -52,7 +52,7 @@ export function SandboxMergeBanner({
 
     if (parentThreadId) {
       // 导航回父项目群并载入合并结论
-      navigate(`/workspace/realtime/${parentThreadId}`);
+      void navigate(`/workspace/realtime/${parentThreadId}`);
       setTimeout(() => {
         eventBus.emit("composer:insert-mention", {
           text: mergePayload,

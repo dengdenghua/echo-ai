@@ -226,8 +226,8 @@ export function A2AAgentsPanel({ className }: { className?: string }) {
   }, []);
 
   useEffect(() => {
-    fetchAgents();
-    const timer = setInterval(fetchAgents, 30000);
+    void fetchAgents();
+    const timer = setInterval(() => void fetchAgents(), 30000);
     return () => clearInterval(timer);
   }, [fetchAgents]);
 
@@ -300,7 +300,7 @@ export function A2AAgentsPanel({ className }: { className?: string }) {
         <RegisterForm
           onRegistered={() => {
             setShowRegister(false);
-            fetchAgents();
+            void fetchAgents();
           }}
           onCancel={() => setShowRegister(false)}
         />
@@ -567,7 +567,7 @@ function AgentDetailView({
   }, [agent.agent_id]);
 
   useEffect(() => {
-    fetchTasks();
+    void fetchTasks();
   }, [fetchTasks]);
 
   useEffect(() => {

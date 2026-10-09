@@ -64,7 +64,7 @@ export function PluginNodeFrame({
 
   useEffect(() => {
     let active = true;
-    const onMessage = async (
+    const handleMessage = async (
       event: MessageEvent<PluginStateRequest | ClipStudioRequest>,
     ) => {
       const target = frameRef.current?.contentWindow;
@@ -184,6 +184,9 @@ export function PluginNodeFrame({
         });
       }
     };
+    const onMessage = (
+      event: MessageEvent<PluginStateRequest | ClipStudioRequest>,
+    ) => void handleMessage(event);
     window.addEventListener("message", onMessage);
     return () => {
       active = false;

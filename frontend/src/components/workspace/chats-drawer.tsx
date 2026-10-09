@@ -254,7 +254,7 @@ export function ChatsDrawer({ open, onOpenChange }: ChatsDrawerProps) {
         {
           onSuccess: () => {
             if (pathname === threadHref(thread)) {
-              navigate(`/workspace/realtime/${uuid()}`, { replace: true });
+              void navigate(`/workspace/realtime/${uuid()}`, { replace: true });
             }
           },
         },

@@ -384,7 +384,7 @@ export function CloudSkillsPanel({
     const prompt = /^[A-Za-z0-9][A-Za-z0-9._/-]*$/.test(id)
       ? serializeComposerDraft({ refs: [{ type: "skill", id }], body: "" })
       : `请使用「${displayName(entry)}」技能，`;
-    navigate(`/workspace/realtime/new?${new URLSearchParams({ prompt })}`);
+    void navigate(`/workspace/realtime/new?${new URLSearchParams({ prompt })}`);
   };
 
   const stateFor = (entry: SkillEntry) => skillStates[runtimeId(entry)];

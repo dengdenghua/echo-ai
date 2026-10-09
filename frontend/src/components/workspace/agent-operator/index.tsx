@@ -365,7 +365,7 @@ export function AgentOperatorPanel() {
 
   useEffect(() => {
     void refreshAll();
-    const timer = window.setInterval(refreshAll, 8000);
+    const timer = window.setInterval(() => void refreshAll(), 8000);
     return () => window.clearInterval(timer);
   }, [refreshAll]);
 

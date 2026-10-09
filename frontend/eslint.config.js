@@ -59,15 +59,72 @@ export default tseslint.config(
       "@typescript-eslint/no-unsafe-argument": "off",
       "@typescript-eslint/no-unsafe-return": "off",
       "@typescript-eslint/require-await": "off",
+      // Needs type information; enabled for src/ in the type-aware block.
       "@typescript-eslint/no-misused-promises": "off",
       "@typescript-eslint/no-redundant-type-constituents": "off",
       "@typescript-eslint/prefer-nullish-coalescing": "off",
+      // Needs type information; enabled for src/ in the type-aware block
+      // below. Files outside tsconfig.json (e2e, electron, tests) keep it off.
       "@typescript-eslint/no-floating-promises": "off",
       "@typescript-eslint/no-inferrable-types": "warn",
       "@typescript-eslint/non-nullable-type-assertion-style": "off",
       "@typescript-eslint/prefer-optional-chain": "off",
       "@typescript-eslint/prefer-regexp-exec": "off",
       "@typescript-eslint/no-base-to-string": "off",
+    },
+  },
+  {
+    // Type-aware rules. Scoped to the files tsconfig.json covers (tests are
+    // excluded there), so the type checker can see every file linted here.
+    files: ["src/**/*.ts", "src/**/*.tsx"],
+    ignores: ["src/**/*.test.ts", "src/**/*.test.tsx", "src/test/setup.ts"],
+    languageOptions: {
+      parserOptions: {
+        projectService: true,
+        tsconfigRootDir: import.meta.dirname,
+      },
+    },
+    rules: {
+      // An un-awaited promise swallows its rejection. Mark intentional
+      // fire-and-forget calls with `void`, await the rest, or `.catch` them.
+      "@typescript-eslint/no-floating-promises": "error",
+      // Passing an async function where a void callback is expected (timers,
+      // event listeners, option callbacks, conditionals) drops its rejection.
+      // JSX event props are exempt: React ignores handler return values and
+      // `onClick={asyncHandler}` is the idiomatic form across the app.
+      "@typescript-eslint/no-misused-promises": [
+        "error",
+        { checksVoidReturn: { attributes: false } },
+      ],
+    },
+  },
+  {
+    // RATCHET — legacy files that still have floating promises. This is a
+    // ratchet: fix a file, then delete it from this list; never add to it.
+    // New files must pass.
+    files: [
+      "src/app/browser/page.tsx",
+      // The realtime page is being split up in a parallel change; narrow
+      // this glob to the resulting files once that lands.
+      "src/app/workspace/realtime/**",
+      "src/components/browser/assistant-panel.tsx",
+      "src/components/workspace/browser-preview-panel.tsx",
+    ],
+    rules: {
+      "@typescript-eslint/no-floating-promises": "off",
+    },
+  },
+  {
+    // RATCHET — legacy files that still pass promises where a void callback
+    // is expected. Fix a file, then delete it from this list; never add to
+    // it. New files must pass.
+    files: [
+      "src/components/browser/assistant-panel.tsx",
+      "src/components/browser/password-prompt.tsx",
+      "src/components/workspace/browser-preview-panel.tsx",
+    ],
+    rules: {
+      "@typescript-eslint/no-misused-promises": "off",
     },
   },
   {

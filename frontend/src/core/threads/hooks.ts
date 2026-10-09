@@ -529,7 +529,7 @@ export function useForkThread() {
       atMessageIndex?: number;
     }) => apiClient.threads.forkThread(threadId, atMessageIndex),
     onSuccess() {
-      queryClient.invalidateQueries({
+      void queryClient.invalidateQueries({
         queryKey: ["threads", "search"],
         exact: false,
       });

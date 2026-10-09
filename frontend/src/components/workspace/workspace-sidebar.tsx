@@ -635,7 +635,7 @@ export function WorkspaceSidebar(props: React.ComponentProps<typeof Sidebar>) {
     if (!routeState || typeof routeState.settingsSection !== "string") return;
     openSettingsSection(routeState.settingsSection);
     const { settingsSection: _consumed, ...remainingState } = routeState;
-    navigateSettings(
+    void navigateSettings(
       { pathname, search },
       { replace: true, state: remainingState },
     );
@@ -844,7 +844,7 @@ export function WorkspaceSidebar(props: React.ComponentProps<typeof Sidebar>) {
             workspace_path: "",
           },
         });
-        queryClient.invalidateQueries({ queryKey: ["threads", "search"] });
+        void queryClient.invalidateQueries({ queryKey: ["threads", "search"] });
       } catch (error) {
         console.error("Failed to switch workspace", error);
       }

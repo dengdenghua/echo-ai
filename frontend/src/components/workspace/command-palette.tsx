@@ -52,7 +52,7 @@ export function CommandPalette() {
   }, []);
 
   const handleNewChat = useCallback(() => {
-    navigate("/workspace/realtime/new");
+    void navigate("/workspace/realtime/new");
     setOpen(false);
   }, [navigate]);
 
@@ -99,7 +99,7 @@ export function CommandPalette() {
   // cmdk library filters both groups from the same input value.
   const handleNavigate = useCallback(
     (to: string) => {
-      navigate(to);
+      void navigate(to);
       setOpen(false);
     },
     [navigate],
@@ -232,7 +232,7 @@ export function CommandPalette() {
               </CommandItem>
               <CommandItem
                 onSelect={() => {
-                  navigate("/workspace/evolution");
+                  void navigate("/workspace/evolution");
                   setOpen(false);
                 }}
               >

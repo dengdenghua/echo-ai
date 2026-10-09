@@ -64,7 +64,7 @@ export function DepartmentScenarios({ additional = [] }: { additional?: Addition
       writeTaskCollaboratorPreset({ leaderId, collaboratorIds: memberIds, mode: "cluster", label: name.trim(), openPicker: false });
       setDraft(null);
       const route = team.thread_id ? `/workspace/realtime/${encodeURIComponent(team.thread_id)}` : taskCollaboratorRouteForLeader(leaderId);
-      navigate(`${route}${route.includes("?") ? "&" : "?"}welcome_team=${encodeURIComponent(team.id)}`);
+      void navigate(`${route}${route.includes("?") ? "&" : "?"}welcome_team=${encodeURIComponent(team.id)}`);
     } catch {
       setSaveError("团队创建失败，请重试。你的成员选择已保留。");
     } finally { setSaving(false); }

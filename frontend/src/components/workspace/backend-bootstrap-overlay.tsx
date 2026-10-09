@@ -90,7 +90,7 @@ export function BackendBootstrapOverlay() {
 
     // Immediate check (avoids a flash when the backend is already up), then poll.
     void check();
-    const timer = setInterval(check, HEALTH_POLL_MS);
+    const timer = setInterval(() => void check(), HEALTH_POLL_MS);
 
     return () => {
       active = false;

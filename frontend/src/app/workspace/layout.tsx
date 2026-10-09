@@ -92,7 +92,7 @@ export default function WorkspaceLayout() {
     "task:new",
     (taskIdentity) => {
       const taskNonce = uuid();
-      navigate(
+      void navigate(
         taskWorkspaceRoute({
           agentId: taskIdentity?.agentId,
           workspacePath: taskIdentity?.workspacePath,

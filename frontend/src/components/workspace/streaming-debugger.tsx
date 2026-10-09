@@ -99,7 +99,7 @@ function EnabledStreamingDebugger({
 
   const handleCopyEvent = () => {
     if (!selectedEvent) return;
-    navigator.clipboard.writeText(JSON.stringify(selectedEvent, null, 2));
+    void navigator.clipboard.writeText(JSON.stringify(selectedEvent, null, 2));
     toast.success("事件已复制到剪贴板");
   };
 

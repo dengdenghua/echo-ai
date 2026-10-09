@@ -58,10 +58,10 @@ export function PromoteGroupToProjectDialog({
         goal: goal.trim(),
       },
       {
-        onSuccess: async ({ project }) => {
+        onSuccess: ({ project }) => {
           toast.success(copy.success);
           onOpenChange(false);
-          await onPromoted?.(project);
+          void onPromoted?.(project);
         },
         onError: () => toast.error(copy.failed),
       },

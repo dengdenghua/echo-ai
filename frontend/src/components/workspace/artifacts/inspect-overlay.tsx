@@ -256,7 +256,7 @@ export function InspectOverlay({
                 onKeyDown={(event) => {
                   if (event.key === "Enter" && !event.nativeEvent.isComposing) {
                     event.preventDefault();
-                    submitEdit();
+                    void submitEdit();
                   }
                   if (event.key === "Escape") dismissSelection();
                 }}

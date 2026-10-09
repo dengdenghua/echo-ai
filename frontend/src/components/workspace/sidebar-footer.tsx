@@ -170,7 +170,7 @@ export function AgentFooter() {
     setActiveName(name);
     emitAgentChanged(name);
     if (!pathname.startsWith("/workspace/realtime/")) {
-      _navigate(taskWorkspaceRoute({ agentId: name }));
+      void _navigate(taskWorkspaceRoute({ agentId: name }));
     }
   };
 
@@ -197,7 +197,7 @@ export function AgentFooter() {
         event.preventDefault();
         event.stopPropagation();
         setAgentMenuOpen(false);
-        _navigate(agentLibraryHref(undefined, agent.name));
+        void _navigate(agentLibraryHref(undefined, agent.name));
       }}
       className={cn(
         "flex min-h-[36px] min-w-[56px] shrink-0 cursor-pointer items-center justify-center gap-1 rounded-md px-1 text-xs font-normal text-muted-foreground/80 transition-colors",

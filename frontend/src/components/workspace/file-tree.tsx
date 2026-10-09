@@ -216,9 +216,9 @@ export function FileTree({
   useEffect(() => {
     if (!initializedRef.current) {
       initializedRef.current = true;
-      fetchTree();
+      void fetchTree();
     } else {
-      fetchTree();
+      void fetchTree();
     }
     void fetchGitStatus();
   }, [fetchTree, fetchGitStatus]);

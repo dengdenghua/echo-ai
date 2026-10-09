@@ -73,7 +73,7 @@ export function AgentCard({
 
   function handleChat() {
     if (isPrimaryIdentity) {
-      navigate(taskWorkspaceRoute({ agentId: agent.name }));
+      void navigate(taskWorkspaceRoute({ agentId: agent.name }));
       return;
     }
     const leaderId = isPrimaryPersonaAgentId(activeAgentId)
@@ -86,7 +86,7 @@ export function AgentCard({
       label: agent.display_name || agent.name,
       openPicker: true,
     });
-    navigate(taskCollaboratorRouteForLeader(leaderId));
+    void navigate(taskCollaboratorRouteForLeader(leaderId));
   }
 
   async function handleDelete() {

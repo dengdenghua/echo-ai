@@ -86,7 +86,7 @@ export function ModuleEditorDialog({
               installLabel={t.sidebar.moduleInstallAction}
               onInstall={(to) => {
                 onOpenChange(false);
-                navigate(to);
+                void navigate(to);
               }}
             />
           ))}

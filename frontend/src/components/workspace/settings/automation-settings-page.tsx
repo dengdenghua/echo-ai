@@ -107,7 +107,7 @@ export default function AutomationSettingsPage() {
 
   const openAutomationChat = () => {
     window.dispatchEvent(new Event("echo:close-settings"));
-    navigate("/workspace/realtime/new");
+    void navigate("/workspace/realtime/new");
   };
 
   async function onSave() {
@@ -353,7 +353,7 @@ function LocalToolsSection() {
   const navigate = useNavigate();
   const openTool = (path: string) => {
     window.dispatchEvent(new Event("echo:close-settings"));
-    navigate(path);
+    void navigate(path);
   };
 
   return (

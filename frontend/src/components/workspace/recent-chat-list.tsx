@@ -153,10 +153,11 @@ export function RecentChatList() {
   const handleOpenProject = useCallback(
     (project: Project) => {
       ensureProjectHome.mutate(project, {
-        onSuccess: ({ threadId }) =>
-          navigate(`/workspace/realtime/${encodeURIComponent(threadId)}`, {
+        onSuccess: ({ threadId }) => {
+          void navigate(`/workspace/realtime/${encodeURIComponent(threadId)}`, {
             state: { openProjectWorkbench: true },
-          }),
+          });
+        },
         onError: () => toast.error("项目工作群打开失败，请重试"),
       });
     },

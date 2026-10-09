@@ -496,8 +496,8 @@ export default function ProjectsPage() {
         return;
       }
       toast.success(`${spec.label} 已执行`);
-      detailQuery.refetch();
-      projectsQuery.refetch();
+      void detailQuery.refetch();
+      void projectsQuery.refetch();
       void portfolioQuery.refetch();
     } catch {
       toast.error(PROJECT_ACTION_ERROR_MESSAGE);
@@ -524,10 +524,11 @@ export default function ProjectsPage() {
 
   const openProjectGroup = (project: Project) => {
     ensureProjectHome.mutate(project, {
-      onSuccess: ({ threadId }) =>
-        navigate(`/workspace/realtime/${encodeURIComponent(threadId)}`, {
+      onSuccess: ({ threadId }) => {
+        void navigate(`/workspace/realtime/${encodeURIComponent(threadId)}`, {
           state: { openProjectWorkbench: true },
-        }),
+        });
+      },
       onError: () => toast.error("项目工作群打开失败，请重试"),
     });
   };

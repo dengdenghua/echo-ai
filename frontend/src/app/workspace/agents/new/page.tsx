@@ -986,7 +986,7 @@ export default function NewAgentPage() {
                             label: agent.display_name || agent.name,
                             openPicker: true,
                           });
-                          navigate(taskCollaboratorRouteForLeader(leaderId));
+                          void navigate(taskCollaboratorRouteForLeader(leaderId));
                         }}
                       >
                         {t.agentCard.addOnDemand}

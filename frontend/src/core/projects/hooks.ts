@@ -326,9 +326,9 @@ export function useCreateProject() {
       };
     },
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["projects"] });
-      qc.invalidateQueries({ queryKey: ["thread-map"] });
-      qc.invalidateQueries({ queryKey: ["threads"] });
+      void qc.invalidateQueries({ queryKey: ["projects"] });
+      void qc.invalidateQueries({ queryKey: ["thread-map"] });
+      void qc.invalidateQueries({ queryKey: ["threads"] });
     },
   });
 }
@@ -495,9 +495,9 @@ export function useMoveThreadToProject() {
       return { ok: true, thread_id: threadId, project_id: projectId };
     },
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["projects"] });
-      qc.invalidateQueries({ queryKey: ["thread-map"] });
-      qc.invalidateQueries({ queryKey: ["threads"] });
+      void qc.invalidateQueries({ queryKey: ["projects"] });
+      void qc.invalidateQueries({ queryKey: ["thread-map"] });
+      void qc.invalidateQueries({ queryKey: ["threads"] });
     },
   });
 }

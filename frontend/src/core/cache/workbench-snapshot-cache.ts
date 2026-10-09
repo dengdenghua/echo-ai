@@ -315,7 +315,7 @@ export function useCachedWorkbenchSnapshot(
   useEffect(() => {
     let cancelled = false;
 
-    cache.current.load(threadId, turnId).then((cached) => {
+    void cache.current.load(threadId, turnId).then((cached) => {
       if (cancelled) return;
 
       if (cached) {
@@ -335,7 +335,7 @@ export function useCachedWorkbenchSnapshot(
   // 保存到缓存
   useEffect(() => {
     if (computedSnapshot && !isLoadingFromCache) {
-      cache.current.save(threadId, turnId, computedSnapshot, events);
+      void cache.current.save(threadId, turnId, computedSnapshot, events);
     }
   }, [threadId, turnId, computedSnapshot, events, isLoadingFromCache]);
 

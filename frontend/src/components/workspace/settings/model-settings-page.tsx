@@ -1289,7 +1289,7 @@ export default function ModelSettingsPage() {
   }, []);
 
   useEffect(() => {
-    fetchModels();
+    void fetchModels();
   }, [fetchModels]);
 
   useEffect(() => {
@@ -1412,7 +1412,7 @@ export default function ModelSettingsPage() {
   };
 
   const handleReconnect = () => {
-    checkGateway();
+    void checkGateway();
   };
 
   const handleDiagnose = useCallback(async () => {
@@ -1942,7 +1942,7 @@ export default function ModelSettingsPage() {
                             onCancel={() => setEditingModel(null)}
                             onSaved={() => {
                               setEditingModel(null);
-                              fetchModels();
+                              void fetchModels();
                             }}
                           />
                         </div>
@@ -1965,7 +1965,7 @@ export default function ModelSettingsPage() {
                   onCancel={() => setShowAdd(false)}
                   onSaved={() => {
                     setShowAdd(false);
-                    fetchModels();
+                    void fetchModels();
                   }}
                 />
               </div>
@@ -2950,7 +2950,7 @@ function EditModelForm({
   // different model is selected (key={modelName} at the call site).
   useEffect(() => {
     let cancelled = false;
-    (async () => {
+    void (async () => {
       try {
         // Backend doesn't return api_key (stays on server). List
         // endpoint gives us everything else; we look up this model id.
