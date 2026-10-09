@@ -8,6 +8,12 @@
 
 import type { DevicePreset } from "@/components/workspace/embedded-browser/browser-context";
 
+/** One back / forward history entry of a browser tab. */
+export interface BrowserNavigationEntry {
+  url: string;
+  title: string;
+}
+
 export interface BrowserExtensionInfo {
   id: string;
   name: string;
@@ -168,6 +174,18 @@ export interface EchoElectronAPI {
     ) => Promise<{ ok: boolean; error?: string }>;
     openDownload: (id: string) => Promise<{ ok: boolean; error?: string }>;
     print: (webContentsId: number) => Promise<{ ok: boolean; error?: string }>;
+    getNavigationHistory: (webContentsId: number) => Promise<{
+      ok: boolean;
+      entries: BrowserNavigationEntry[];
+      index: number;
+      error?: string;
+    }>;
+    /** History for the next webview that attaches with this src. */
+    queueNavigationRestore: (
+      src: string,
+      entries: BrowserNavigationEntry[],
+      index: number,
+    ) => Promise<{ ok: boolean; error?: string }>;
     importBookmarks: (browser: "chrome" | "edge") => Promise<{
       ok: boolean;
       entries: { title: string; url: string }[];
@@ -377,6 +395,7 @@ export interface EchoElectronAPI {
       | "browser:keyboard-shortcut"
       | "browser:download-event"
       | "browser:ask-selection"
+      | "browser:webview-pointer"
       | "desktop:organize-now"
       | "desktop:items-changed"
       | "backend:bootstrap-progress"

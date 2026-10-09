@@ -90,7 +90,10 @@ const WEBVIEW_FLAG_ATTRIBUTES = {
 
 interface Props {
   tab: BrowserTab;
+  /** The focused tab: address bar, automation bridge and shortcuts. */
   active: boolean;
+  /** Shown on screen; defaults to `active` (split view shows two). */
+  visible?: boolean;
   onPatch: (patch: Partial<BrowserTab>) => void;
   onClose?: () => void;
   renderDevice?: BrowserTab["device"];
@@ -112,6 +115,7 @@ type WebviewElement = HTMLElement & {
   canGoBack: () => boolean;
   canGoForward: () => boolean;
   getTitle: () => string;
+  getURL: () => string;
   isLoading: () => boolean;
   loadURL: (url: string) => Promise<void>;
   stop: () => void;
@@ -1792,9 +1796,10 @@ function DesktopAppIcon({
 
 export const WebviewTab = forwardRef<WebviewTabHandle, Props>(
   function WebviewTab(
-    { tab, active, onPatch, onClose, renderDevice },
+    { tab, active, visible, onPatch, onClose, renderDevice },
     imperativeRef,
   ) {
+    const shown = visible ?? active;
     useWorkbenchAvailabilitySync();
     const activeAgentId = useActiveAgentId() ?? "general";
     const enabledModuleIds = useEnabledModuleIds(activeAgentId);
@@ -1826,6 +1831,18 @@ export const WebviewTab = forwardRef<WebviewTabHandle, Props>(
     // "The WebView must be attached to the DOM and the dom-ready event
     // emitted before this method can be called."
     const readyRef = useRef(false);
+    // Saved back / forward history is handed to the desktop shell before the
+    // page loads (it can only be restored into a fresh webContents); the
+    // webview gets its src once that is queued.
+    const [restoreHistory] = useState(() =>
+      window.echo?.browser?.queueNavigationRestore &&
+      !tab.private &&
+      (tab.navHistory?.entries.length ?? 0) > 1
+        ? tab.navHistory!
+        : null,
+    );
+    const [restoreQueued, setRestoreQueued] = useState(!restoreHistory);
+    const isPrivateTab = Boolean(tab.private);
 
     // Implementation note.
     const safe = <T,>(fn: () => T, fallback: T): T => {
@@ -1890,19 +1907,17 @@ export const WebviewTab = forwardRef<WebviewTabHandle, Props>(
             return undefined;
           }, undefined),
         loadURL: (url) => {
-          if (!ref.current || !readyRef.current) {
-            // Implementation note.
-            if (ref.current) ref.current.src = url;
+          const wv = ref.current;
+          if (!wv) return;
+          // Navigate through the src attribute, the same path as the tab's
+          // src={tab.url}: callers also patch tab.url, and Electron ignores
+          // setting src to the value it already has. Calling wv.loadURL here
+          // as well would start the navigation twice (two back entries).
+          if (readyRef.current && safe(() => wv.getURL(), "") === url) {
+            safe(() => wv.reload(), undefined);
             return;
           }
-          try {
-            void ref.current.loadURL(url).catch((e) => {
-              swallow(e);
-            });
-          } catch (e) {
-            swallow(e);
-            ref.current.src = url;
-          }
+          wv.src = url;
         },
         canGoBack: () => safe(() => ref.current!.canGoBack(), false),
         canGoForward: () => safe(() => ref.current!.canGoForward(), false),
@@ -2078,7 +2093,20 @@ export const WebviewTab = forwardRef<WebviewTabHandle, Props>(
       const onStart = () => onPatch({ isLoading: true });
       const onStop = () => onPatch({ isLoading: false });
       const onNavigated = (e: Event & { url?: string }) => {
-        if (e.url) onPatch({ url: e.url });
+        if (!e.url) return;
+        onPatch({ url: e.url });
+        if (isPrivateTab) return;
+        const api = window.echo?.browser;
+        if (!api?.getNavigationHistory) return;
+        void api
+          .getNavigationHistory(wv.getWebContentsId())
+          .then((result) => {
+            if (result.ok && result.entries.length > 0)
+              onPatch({
+                navHistory: { entries: result.entries, index: result.index },
+              });
+          })
+          .catch(swallow);
       };
 
       // Implementation note.
@@ -2143,7 +2171,28 @@ export const WebviewTab = forwardRef<WebviewTabHandle, Props>(
           onCrashed as EventListener,
         );
       };
-    }, [adoptionLease, onPatch, reloadSeed]);
+    }, [adoptionLease, isPrivateTab, onPatch, reloadSeed]);
+
+    useEffect(() => {
+      const api = window.echo?.browser;
+      if (!restoreHistory || !api?.queueNavigationRestore) return;
+      let cancelled = false;
+      api
+        .queueNavigationRestore(
+          tab.url,
+          restoreHistory.entries,
+          restoreHistory.index,
+        )
+        .catch(swallow)
+        // Without the shell's help the tab just loads its address.
+        .finally(() => {
+          if (!cancelled) setRestoreQueued(true);
+        });
+      return () => {
+        cancelled = true;
+      };
+      // eslint-disable-next-line react-hooks/exhaustive-deps -- once, for the history captured at mount
+    }, []);
 
     useEffect(
       () => () => {
@@ -2200,7 +2249,7 @@ export const WebviewTab = forwardRef<WebviewTabHandle, Props>(
       };
     }, [active, reloadSeed]);
 
-    const style: CSSProperties = active
+    const style: CSSProperties = shown
       ? { display: "inline-flex", width: "100%", height: "100%" }
       : {
           display: "inline-flex",
@@ -2328,7 +2377,7 @@ export const WebviewTab = forwardRef<WebviewTabHandle, Props>(
       );
     }
 
-    if (crash && active) {
+    if (crash && shown) {
       return (
         <div
           style={{ width: "100%", height: "100%" }}
@@ -2407,7 +2456,7 @@ export const WebviewTab = forwardRef<WebviewTabHandle, Props>(
         <webview
           key={`wv-${tab.id}-${reloadSeed}`}
           ref={ref as unknown as React.RefObject<HTMLElement>}
-          src={tab.url}
+          src={restoreQueued ? tab.url : undefined}
           // Private tabs get an in-memory session that is dropped on quit.
           partition={tab.private ? "echo-private" : "persist:echo-browser"}
           {...WEBVIEW_FLAG_ATTRIBUTES}

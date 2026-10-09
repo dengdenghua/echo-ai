@@ -899,6 +899,61 @@ async function importChromiumBookmarks(browser) {
   }
 }
 
+// ── per-tab back / forward history ─────────────────────────────
+// Only URL and title are kept (no page state: it can hold form input), at
+// most NAV_HISTORY_LIMIT entries around the current one.
+const NAV_HISTORY_LIMIT = 50;
+
+function trimNavigationHistory(entries, index) {
+  const usable = [];
+  let active = -1;
+  entries.forEach((entry, i) => {
+    const url = String(entry?.url || "");
+    if (!/^https?:\/\//i.test(url)) return;
+    if (i === index) active = usable.length;
+    usable.push({ url, title: String(entry?.title || "").slice(0, 300) });
+  });
+  if (usable.length === 0) return { entries: [], index: -1 };
+  if (active < 0) active = usable.length - 1;
+  const start = Math.max(
+    0,
+    Math.min(
+      active - (NAV_HISTORY_LIMIT - 10),
+      usable.length - NAV_HISTORY_LIMIT,
+    ),
+  );
+  return {
+    entries: usable.slice(start, start + NAV_HISTORY_LIMIT),
+    index: active - start,
+  };
+}
+
+// A tab's history is queued by its src just before its webview attaches.
+// The webview is then created without an initial load and the history is
+// restored into it (restore() refuses a webContents that loaded a page).
+const pendingNavigationRestores = new Map();
+const webviewAttachQueue = [];
+
+function restoreQueuedNavigation(contents) {
+  contents.on("will-attach-webview", (_event, _webPreferences, params) => {
+    const now = Date.now();
+    for (const [src, item] of pendingNavigationRestores) {
+      if (now - item.queuedAt > 30_000) pendingNavigationRestores.delete(src);
+    }
+    const pending = pendingNavigationRestores.get(params.src);
+    pendingNavigationRestores.delete(params.src);
+    webviewAttachQueue.push(pending ? { ...pending, src: params.src } : null);
+    if (pending) params.src = "";
+  });
+  contents.on("did-attach-webview", (_event, guest) => {
+    const pending = webviewAttachQueue.shift();
+    if (!pending) return;
+    guest.navigationHistory
+      .restore({ entries: pending.entries, index: pending.index })
+      .catch(() => guest.loadURL(pending.src).catch(() => {}));
+  });
+}
+
 // ── webview keyboard shortcuts + context menu ──────────────────
 // A focused page swallows keys, so tab shortcuts are forwarded to the
 // browser UI; the renderer decides what they do.
@@ -1524,6 +1579,26 @@ function registerIpc() {
   handle("browser:importBookmarks", (browser) =>
     importChromiumBookmarks(browser),
   );
+  handle("browser:getNavigationHistory", (id) => {
+    const history = wc(id).navigationHistory;
+    return {
+      ok: true,
+      ...trimNavigationHistory(
+        history.getAllEntries(),
+        history.getActiveIndex(),
+      ),
+    };
+  });
+  handle("browser:queueNavigationRestore", (src, entries, index) => {
+    const trimmed = trimNavigationHistory(
+      Array.isArray(entries) ? entries : [],
+      Number(index),
+    );
+    if (typeof src !== "string" || trimmed.entries.length === 0)
+      return { ok: false, error: "nothing to restore" };
+    pendingNavigationRestores.set(src, { ...trimmed, queuedAt: Date.now() });
+    return { ok: true };
+  });
   handle("browser:listSitePermissions", () => ({
     ok: true,
     entries: readSitePermissions().sort((a, b) => b.updatedAt - a.updatedAt),
@@ -1927,6 +2002,12 @@ if (!app.requestSingleInstanceLock()) {
       return { action: "deny" };
     });
     forwardBrowserShortcuts(contents);
+    // Clicks inside a page never reach the app's DOM; split view needs to
+    // know which pane was clicked to focus it.
+    contents.on("before-mouse-event", (_e, mouse) => {
+      if (mouse.type === "mouseDown")
+        mainWindow?.webContents.send("browser:webview-pointer", contents.id);
+    });
     contents.on("context-menu", (_e, params) =>
       showBrowserContextMenu(contents, params),
     );
@@ -1963,6 +2044,7 @@ if (!app.requestSingleInstanceLock()) {
     configureBrowserPermissionRequests(privateSession);
     trackDownloads(privateSession);
     mainWindow = createMainWindow();
+    restoreQueuedNavigation(mainWindow.webContents);
     try {
       const bridgeDataDir =
         process.env.ECHO_DATA_DIR ||
@@ -2040,8 +2122,10 @@ if (!app.requestSingleInstanceLock()) {
     }
 
     app.on("activate", () => {
-      if (BrowserWindow.getAllWindows().length === 0)
+      if (BrowserWindow.getAllWindows().length === 0) {
         mainWindow = createMainWindow();
+        restoreQueuedNavigation(mainWindow.webContents);
+      }
     });
   });
 

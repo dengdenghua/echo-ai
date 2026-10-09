@@ -6,6 +6,7 @@ import { swallow } from "@/core/utils/log";
 import { useI18n } from "@/core/i18n/hooks";
 import { cn } from "@/lib/utils";
 import {
+  ArrowLeftRightIcon,
   ClockIcon,
   CopyIcon,
   ExternalLinkIcon,
@@ -109,6 +110,7 @@ function BrowserShell() {
     recordVisit,
     setCopilotOpen,
     setCopilotWidth,
+    setSplit,
   } = useBrowserStore();
   // Implementation note.
   const handlesRef = useRef<Map<string, WebviewTabHandle | null>>(new Map());
@@ -204,6 +206,46 @@ function BrowserShell() {
   }, [activeTabId, activeTabUrl]);
 
   const activeDevice = activeTab?.device ?? "desktop";
+  // Split view: both tabs are on screen while either one is focused.
+  const split =
+    state.split &&
+    window.echo?.isElectron &&
+    (state.activeId === state.split.leftId ||
+      state.activeId === state.split.rightId) &&
+    activeDevice === "desktop"
+      ? state.split
+      : null;
+  const [splitDragging, setSplitDragging] = useState(false);
+  // A click inside the other pane's page focuses that tab.
+  const splitKey = split ? `${split.leftId}|${split.rightId}` : "";
+  useEffect(() => {
+    if (!splitKey || !window.echo?.on) return;
+    const [leftId, rightId] = splitKey.split("|");
+    return window.echo.on("browser:webview-pointer", (...args) => {
+      const id = Number(args[0]);
+      const tabId = document
+        .querySelector(`webview[data-echo-adopted-web-contents-id="${id}"]`)
+        ?.closest("[data-browser-pane]")
+        ?.getAttribute("data-browser-pane");
+      if (tabId && (tabId === leftId || tabId === rightId)) activateTab(tabId);
+    });
+  }, [activateTab, splitKey]);
+  const paneStyle = (tabId: string): React.CSSProperties => {
+    if (split && (tabId === split.leftId || tabId === split.rightId)) {
+      const left = tabId === split.leftId;
+      const share = left ? split.ratio : 1 - split.ratio;
+      return {
+        position: "absolute",
+        top: 0,
+        bottom: 0,
+        [left ? "left" : "right"]: 0,
+        width: `calc(${share * 100}% - 3px)`,
+      };
+    }
+    return tabId === state.activeId
+      ? { position: "absolute", inset: 0 }
+      : { position: "absolute", width: 0, height: 0, overflow: "hidden" };
+  };
   const renderDevice =
     activeTabUrl === BROWSER_HOME_URL &&
     activeDevice === "desktop" &&
@@ -803,31 +845,113 @@ function BrowserShell() {
                           />
                         ) : null
                       ) : (
-                        <WebviewTab
+                        <div
                           key={tab.id}
-                          tab={tab}
-                          active={tab.id === state.activeId}
-                          renderDevice={
-                            tab.id === state.activeId
-                              ? renderDevice
-                              : tab.device
-                          }
-                          onPatch={(patch) => patchTab(tab.id, patch)}
-                          onClose={() => closeTab(tab.id)}
-                          ref={(handle) => {
-                            if (handle) {
-                              handlesRef.current.set(tab.id, handle);
-                              if (tab.id === state.activeId) {
-                                setActiveHandle((prev) => prev ?? handle);
-                              }
-                            } else {
-                              handlesRef.current.delete(tab.id);
-                            }
+                          data-browser-pane={tab.id}
+                          style={paneStyle(tab.id)}
+                          onFocusCapture={() => {
+                            if (split && tab.id !== state.activeId)
+                              activateTab(tab.id);
                           }}
-                        />
+                          onMouseDownCapture={() => {
+                            if (split && tab.id !== state.activeId)
+                              activateTab(tab.id);
+                          }}
+                        >
+                          {split && tab.id === state.activeId ? (
+                            <div className="pointer-events-none absolute inset-x-0 top-0 z-10 h-0.5 bg-primary" />
+                          ) : null}
+                          <WebviewTab
+                            tab={tab}
+                            active={tab.id === state.activeId}
+                            visible={
+                              tab.id === state.activeId ||
+                              (!!split &&
+                                (tab.id === split.leftId ||
+                                  tab.id === split.rightId))
+                            }
+                            renderDevice={
+                              tab.id === state.activeId
+                                ? renderDevice
+                                : tab.device
+                            }
+                            onPatch={(patch) => patchTab(tab.id, patch)}
+                            onClose={() => closeTab(tab.id)}
+                            ref={(handle) => {
+                              if (handle) {
+                                handlesRef.current.set(tab.id, handle);
+                                if (tab.id === state.activeId) {
+                                  setActiveHandle((prev) => prev ?? handle);
+                                }
+                              } else {
+                                handlesRef.current.delete(tab.id);
+                              }
+                            }}
+                          />
+                        </div>
                       ),
                     )}
                   </Suspense>
+                  {split ? (
+                    <div
+                      role="separator"
+                      aria-orientation="vertical"
+                      aria-label="调整分屏宽度"
+                      aria-valuenow={Math.round(split.ratio * 100)}
+                      className="group absolute inset-y-0 z-20 flex w-1.5 cursor-col-resize items-center justify-center bg-border-default hover:bg-primary/40"
+                      style={{ left: `calc(${split.ratio * 100}% - 3px)` }}
+                      onPointerDown={(event) => {
+                        event.preventDefault();
+                        setSplitDragging(true);
+                      }}
+                      onDoubleClick={() => setSplit({ ...split, ratio: 0.5 })}
+                    >
+                      <div className="absolute top-2 flex flex-col gap-1 opacity-0 transition-opacity group-hover:opacity-100">
+                        <button
+                          type="button"
+                          title="左右交换"
+                          aria-label="左右交换"
+                          onPointerDown={(event) => event.stopPropagation()}
+                          onClick={() =>
+                            setSplit({
+                              leftId: split.rightId,
+                              rightId: split.leftId,
+                              ratio: 1 - split.ratio,
+                            })
+                          }
+                          className="grid size-6 place-items-center rounded-full border border-border-subtle bg-popover text-muted-foreground shadow-sm hover:text-foreground"
+                        >
+                          <ArrowLeftRightIcon className="size-3" />
+                        </button>
+                        <button
+                          type="button"
+                          title="退出分屏"
+                          aria-label="退出分屏"
+                          onPointerDown={(event) => event.stopPropagation()}
+                          onClick={() => setSplit(null)}
+                          className="grid size-6 place-items-center rounded-full border border-border-subtle bg-popover text-muted-foreground shadow-sm hover:text-foreground"
+                        >
+                          <XIcon className="size-3" />
+                        </button>
+                      </div>
+                    </div>
+                  ) : null}
+                  {split && splitDragging ? (
+                    // Pages swallow pointer events; this layer keeps the drag.
+                    <div
+                      className="absolute inset-0 z-30 cursor-col-resize"
+                      onPointerMove={(event) => {
+                        const box = event.currentTarget.getBoundingClientRect();
+                        if (box.width <= 0) return;
+                        setSplit({
+                          ...split,
+                          ratio: (event.clientX - box.left) / box.width,
+                        });
+                      }}
+                      onPointerUp={() => setSplitDragging(false)}
+                      onPointerLeave={() => setSplitDragging(false)}
+                    />
+                  ) : null}
                 </div>
               </div>
             </div>

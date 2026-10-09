@@ -20,6 +20,7 @@ const EVENT_CHANNELS = [
   "browser:keyboard-shortcut",
   "browser:download-event",
   "browser:ask-selection",
+  "browser:webview-pointer",
   "desktop:organize-now",
   "desktop:items-changed",
   "backend:bootstrap-progress",
@@ -65,6 +66,8 @@ const api = {
     retryDownload: invoke("browser:retryDownload"),
     print: invoke("browser:print"),
     importBookmarks: invoke("browser:importBookmarks"),
+    getNavigationHistory: invoke("browser:getNavigationHistory"),
+    queueNavigationRestore: invoke("browser:queueNavigationRestore"),
   },
 
   dialog: {

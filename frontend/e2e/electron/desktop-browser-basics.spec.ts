@@ -317,3 +317,111 @@ test("desktop extensions run in browser tabs only", async () => {
     await rm(root, { recursive: true, force: true });
   }
 });
+
+test("desktop restores a tab's back/forward history and reports pane clicks", async () => {
+  const root = await mkdtemp(path.join(tmpdir(), "echo-browser-history-"));
+  const server = createServer((req, res) => {
+    res.setHeader("Content-Type", "text/html; charset=utf-8");
+    res.end(`<title>${req.url}</title><p>${req.url}</p>`);
+  });
+  await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
+  const base = `http://127.0.0.1:${(server.address() as { port: number }).port}`;
+  const app = await electron.launch({
+    args: [
+      path.resolve("electron/main.cjs"),
+      "--hidden",
+      `--user-data-dir=${root}/profile`,
+    ],
+    env: {
+      ...process.env,
+      ELECTRON_START_URL: base,
+      ECHO_DATA_DIR: root,
+      ECHO_PET_DISABLED: "1",
+    },
+  });
+  try {
+    const win = await app.firstWindow();
+    await win.waitForLoadState("domcontentloaded");
+    const restored = await win.evaluate(async (base) => {
+      const entries = ["/a", "/b", "/c"].map((p) => ({
+        url: base + p,
+        title: p,
+      }));
+      // Non-web entries are dropped; the index follows the active entry.
+      entries.splice(1, 0, { url: "file:///etc/passwd", title: "x" });
+      const pointer: number[] = [];
+      window.echo!.on("browser:webview-pointer", (id) =>
+        pointer.push(Number(id)),
+      );
+      (window as unknown as { __pointer: number[] }).__pointer = pointer;
+      const queued = await window.echo!.browser.queueNavigationRestore(
+        `${base}/c`,
+        entries,
+        3,
+      );
+      const webview = document.createElement("webview") as HTMLElement & {
+        getWebContentsId(): number;
+        getURL(): string;
+        canGoBack(): boolean;
+        canGoForward(): boolean;
+        goBack(): void;
+      };
+      const loaded = new Promise<void>((resolve) =>
+        webview.addEventListener("did-finish-load", () => resolve(), {
+          once: true,
+        }),
+      );
+      webview.setAttribute("src", `${base}/c`);
+      document.body.append(webview);
+      await loaded;
+      const before = {
+        url: webview.getURL(),
+        canGoBack: webview.canGoBack(),
+      };
+      const history = await window.echo!.browser.getNavigationHistory(
+        webview.getWebContentsId(),
+      );
+      webview.goBack();
+      await new Promise((resolve) => setTimeout(resolve, 800));
+      return {
+        queued,
+        before,
+        history,
+        afterBack: webview.getURL(),
+        canGoForward: webview.canGoForward(),
+        id: webview.getWebContentsId(),
+      };
+    }, base);
+    expect(restored.queued).toEqual({ ok: true });
+    expect(restored.before).toEqual({ url: `${base}/c`, canGoBack: true });
+    expect(restored.history).toEqual({
+      ok: true,
+      entries: ["/a", "/b", "/c"].map((p) => ({ url: base + p, title: p })),
+      index: 2,
+    });
+    expect(restored.afterBack).toBe(`${base}/b`);
+    expect(restored.canGoForward).toBe(true);
+
+    // A click inside the page is reported with its webContents id.
+    await app.evaluate(({ webContents }, id) => {
+      webContents.fromId(id)!.sendInputEvent({
+        type: "mouseDown",
+        x: 10,
+        y: 10,
+        button: "left",
+        clickCount: 1,
+      });
+    }, restored.id);
+    await expect
+      .poll(() =>
+        win.evaluate(
+          () => (window as unknown as { __pointer: number[] }).__pointer,
+        ),
+      )
+      .toContain(restored.id);
+  } finally {
+    await app.close();
+    await new Promise<void>((resolve) => server.close(() => resolve()));
+    await rm(root, { recursive: true, force: true });
+  }
+});
