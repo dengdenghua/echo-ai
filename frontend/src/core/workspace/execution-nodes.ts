@@ -1,5 +1,9 @@
-import { authHeaders } from "@/core/auth/api";
-import { getBackendBaseURL } from "@/core/config";
+import {
+  apiFetch,
+  failureDetail,
+  untypedApi,
+  type ApiFailure,
+} from "@/core/api/request";
 
 export interface ExecutionNode {
   node_id: string;
@@ -40,30 +44,34 @@ export async function executionRequest<T>(
   path: string,
   body?: unknown,
 ): Promise<T> {
-  const response = await fetch(`${getBackendBaseURL()}/api/execution${path}`, {
-    method: body === undefined ? "GET" : "POST",
-    headers: { ...authHeaders(), "Content-Type": "application/json" },
-    ...(body === undefined ? {} : { body: JSON.stringify(body) }),
-  });
-  const data = await response.json();
-  if (!response.ok)
-    throw new Error(
-      typeof data.detail === "string"
-        ? data.detail
-        : "Execution request failed",
-    );
-  return data as T;
+  const options = {
+    reason: "callers pass a dynamic /api/execution sub-route",
+    body,
+    // Historically sent on every call, including bodiless GETs.
+    headers: { "Content-Type": "application/json" },
+    errorMessage: (failure: ApiFailure) => {
+      const detail = failureDetail(failure);
+      return typeof detail === "string" ? detail : "Execution request failed";
+    },
+  };
+  return body === undefined
+    ? untypedApi.get<T>(`/api/execution${path}`, options)
+    : untypedApi.post<T>(`/api/execution${path}`, options);
 }
 export async function downloadNodeArtifact(
   runId: string,
   index: number,
   name: string,
 ) {
-  const response = await fetch(
-    `${getBackendBaseURL()}/api/execution/tasks/${encodeURIComponent(runId)}/artifacts/${index}`,
-    { headers: authHeaders() },
+  // Binary body: take the raw Response and read it as a Blob.
+  const response = await apiFetch(
+    "get",
+    "/api/execution/tasks/{run_id}/artifacts/{index}",
+    {
+      path: { run_id: runId, index },
+      errorMessage: () => "Artifact download failed",
+    },
   );
-  if (!response.ok) throw new Error("Artifact download failed");
   const url = URL.createObjectURL(await response.blob());
   const anchor = document.createElement("a");
   anchor.href = url;

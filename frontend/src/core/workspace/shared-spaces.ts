@@ -1,5 +1,9 @@
-import { authHeaders } from "@/core/auth/api";
-import { getBackendBaseURL } from "@/core/config";
+import {
+  failureDetail,
+  untypedApi,
+  type ApiFailure,
+  type HttpMethod,
+} from "@/core/api/request";
 
 export interface SharedSpace {
   id: string;
@@ -21,25 +25,25 @@ export interface SyncPreview {
 async function request<T>(
   threadId: string,
   suffix = "",
-  method = "GET",
+  method: Uppercase<HttpMethod> = "GET",
   body?: unknown,
 ): Promise<T> {
-  const response = await fetch(
-    `${getBackendBaseURL()}/api/threads/${encodeURIComponent(threadId)}/shared-spaces${suffix}`,
+  const verb = method.toLowerCase() as HttpMethod;
+  return untypedApi[verb]<T>(
+    `/api/threads/${encodeURIComponent(threadId)}/shared-spaces${suffix}`,
     {
-      method,
-      headers: { ...authHeaders(), "Content-Type": "application/json" },
-      ...(body === undefined ? {} : { body: JSON.stringify(body) }),
+      reason: "thread shared-space routes are not in the OpenAPI snapshot",
+      body,
+      // Historically sent on every call, including bodiless GET/DELETE.
+      headers: { "Content-Type": "application/json" },
+      errorMessage: (failure: ApiFailure) => {
+        const detail = failureDetail(failure);
+        return typeof detail === "string"
+          ? detail
+          : "Shared workspace request failed";
+      },
     },
   );
-  const data = await response.json();
-  if (!response.ok)
-    throw new Error(
-      typeof data.detail === "string"
-        ? data.detail
-        : "Shared workspace request failed",
-    );
-  return data as T;
 }
 
 export const listSharedSpaces = (threadId: string) =>

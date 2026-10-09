@@ -1,8 +1,4 @@
-import type { components } from "@/core/api/openapi-types";
-import { authHeaders } from "@/core/auth/api";
-import { getBackendBaseURL } from "@/core/config";
-
-type PickDirectoryResponse = components["schemas"]["FsPickDirectoryResponse"];
+import { apiGet } from "@/core/api/request";
 
 export async function pickLocalDirectory(
   defaultPath = "",
@@ -21,23 +17,14 @@ export async function pickLocalDirectory(
     return result.canceled ? null : result.filePaths[0] || null;
   }
 
-  const params = new URLSearchParams();
-  if (defaultPath) params.set("default_path", defaultPath);
-  const query = params.toString();
-  const response = await fetch(
-    `${getBackendBaseURL()}/api/fs/pick-directory${query ? `?${query}` : ""}`,
-    {
-      headers: authHeaders(),
-      signal: options.signal
-        ? AbortSignal.any([options.signal, AbortSignal.timeout(30_000)])
-        : AbortSignal.timeout(30_000),
-    },
-  );
-  if (!response.ok) {
-    throw new Error(`Folder picker request failed (${response.status})`);
-  }
-
-  const result = (await response.json()) as PickDirectoryResponse;
+  const result = await apiGet("/api/fs/pick-directory", {
+    query: { default_path: defaultPath || undefined },
+    signal: options.signal
+      ? AbortSignal.any([options.signal, AbortSignal.timeout(30_000)])
+      : AbortSignal.timeout(30_000),
+    errorMessage: (failure) =>
+      `Folder picker request failed (${failure.status})`,
+  });
   if (result.error) throw new Error(result.error);
   if (result.canceled || !result.path) return null;
   return result.path;

@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 
-import { authHeaders } from "@/core/auth/api";
-import { getBackendBaseURL } from "@/core/config";
+import { apiGet } from "@/core/api/request";
 import { swallow } from "@/core/utils/log";
 
 /**
@@ -104,16 +103,13 @@ export function useGitSummary(
     lastFetchAtRef.current = Date.now();
     setIsLoading(true);
     try {
-      const response = await fetch(
-        `${getBackendBaseURL()}/api/git/summary?path=${encodeURIComponent(workDir)}`,
-        { headers: authHeaders(), signal: controller.signal },
-      );
-      if (!response.ok) {
-        throw new Error(`git summary unavailable (${response.status})`);
-      }
-      const payload = normalizeGitSummary(
-        (await response.json()) as GitSummaryPayload,
-      );
+      const data = await apiGet("/api/git/summary", {
+        query: { path: workDir },
+        signal: controller.signal,
+        errorMessage: (failure) =>
+          `git summary unavailable (${failure.status})`,
+      });
+      const payload = normalizeGitSummary(data as GitSummaryPayload);
       if (controller.signal.aborted) return;
       setSummary(payload);
       setError(null);
