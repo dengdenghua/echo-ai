@@ -11,6 +11,10 @@ tier: "core"
 
 **Source**: `runtime/core/cerebrum/`
 
+## Package summary
+
+Native planner exports, loaded only when a caller actually requests them.
+
 ## Exports
 
 - `LLMPlanner`
@@ -52,7 +56,10 @@ tier: "core"
 | `checkpoint_mirror.py` | Distributed checkpoint mirror — P3 fourth slice. |
 | `completion_decision.py` | — |
 | `completion_receipt.py` | — |
+| `deliverable_rendering.py` | Deterministic rendering for the ``## 交付文件`` section. |
+| `design_capabilities.py` | One server-owned design selection contract for previews and all engines. |
 | `env_health.py` | Startup execution-health canary. |
+| `file_edit_journal.py` | Turn-scoped file-edit journal: per-file before/after for replay, undo and "what did this turn change". |
 | `guard_model_policy.py` | Model-aware guard routing — apply code-smell guards only to cheap models. |
 | `input_mentions.py` | Parse @plugin/@skill/@agent and runtime surface mentions from prompts. |
 | `leader.py` | Leader Process · single-owner supervisor for long-running tasks. |
@@ -85,7 +92,7 @@ tier: "core"
 | `react_in_flight_nudges.py` | In-flight nudges for the ReAct main loop (PHASE 6e, first half). |
 | `react_loop.py` | — |
 | `react_loop_controls.py` | Operator controls + run-budget knobs for the ReAct loop. |
-| `react_loop_state.py` | Shared per-turn state for the ReAct main-loop phases (Wave 2). |
+| `react_loop_state.py` | Shared per-turn state for the ReAct main-loop phases. |
 | `react_model_deadlines.py` | Model-call deadline machinery for the ReAct loop. |
 | `react_model_stream.py` | PHASE 6b — LLM call + Final-Answer anchor streaming for the ReAct loop. |
 | `react_native.py` | Native tool-use path for the single-agent ReAct loop. |
@@ -93,6 +100,7 @@ tier: "core"
 | `react_parsing.py` | ReAct trajectory parsing + post-step quality checks. |
 | `react_phase_6c.py` | PHASE 6c of the ReAct main loop: parse step / format-violation check. |
 | `react_prompt_assembly.py` | PHASE 3 — system + volatile prompt assembly for the ReAct loop. |
+| `react_prompt_contracts.py` | Static output/turn contracts shared by the ReAct prompt assembly. |
 | `react_public_updates.py` | Public progress-update plumbing for the ReAct loop. |
 | `react_quiet_evidence.py` | Quiet-evidence accumulation for the ReAct loop's public narrative. |
 | `react_repeat_tool_guards.py` | Repeat tool call detection guards. |
@@ -239,6 +247,31 @@ tier: "core"
 | class | `class CompletionReceipt` | Machine-readable proof that a run reached a defensible terminal state. |
 | func | `def build_completion_receipt(statuses, contract_issues, contract_warnings, artifact_count, output_present)` |  |
 
+### `deliverable_rendering.py`
+
+| Kind | Symbol | Doc |
+| --- | --- | --- |
+| func | `def deliverable_label(path)` | Label for ``path``: bare file name, no directory, no extension. |
+| func | `def deliverable_target(path)` | Absolute, forward-slash target path for a markdown link. |
+| func | `def deliverable_line(path)` | One canonical entry: ``- [label](absolute/path)``. |
+| func | `def unique_paths(paths)` | Deduplicate paths, keeping first-touch order and dropping blanks. |
+| func | `def render_deliverables_section(paths, limit)` | Canonical ``## 交付文件`` section, or ``""`` when nothing was produced. |
+| func | `def strip_deliverables_section(text)` | Remove a trailing, hand-written deliverable section. |
+| func | `def finalize_deliverables(text, paths, limit)` | Answer text carrying exactly one canonical deliverable section. |
+
+### `design_capabilities.py`
+
+| Kind | Symbol | Doc |
+| --- | --- | --- |
+| func | `def design_context(context)` |  |
+| func | `def is_design_context(context)` |  |
+| func | `def design_preferences(value)` |  |
+| func | `def skill_available(registry, name, agent)` |  |
+| func | `def plugin_skill_names(registry, plugin_id, agent)` |  |
+| func | `def resolve_design_plan(goal, context, registry, agent)` |  |
+| func | `def design_priority(goal, context, registry)` |  |
+| func | `def design_instructions(goal, context, registry, agent, goal_skills_loaded)` |  |
+
 ### `env_health.py`
 
 | Kind | Symbol | Doc |
@@ -248,6 +281,19 @@ tier: "core"
 | func | `def execution_canary_degraded()` | Whether the startup probe found execution degraded (False if unknown). |
 | func | `def probe_execution_health(cwd, timeout_s)` | Run one harmless command through the configured sandbox backend. |
 | func | `def run_startup_canary(cwd)` | Probe and record execution health; return the degraded flag. |
+
+### `file_edit_journal.py`
+
+| Kind | Symbol | Doc |
+| --- | --- | --- |
+| func | `def normalize_journal_path(path, root)` | Canonical journal path, or ``""`` when ``path`` is not a path at all. |
+| func | `def journal_path_key(path)` | Dedupe key for a normalised journal path. |
+| func | `def same_journal_path(left, right)` | True when two paths name the same journal entry. |
+| class | `class FileEditEntry` | One file as this turn left it, plus what it looked like beforehand. |
+| func | `def make_entry(path, op, after, diff, origin, root)` | Build one entry, or ``None`` when the input cannot be journalled. |
+| func | `def entries_from_file_change_item(item, contents, origin, root)` | Build journal entries from a ``FileChangeItem`` (or its dict shape). |
+| func | `def read_text_bounded(path, limit)` | Read a file's text for the journal, or ``None`` when that is not possible. |
+| class | `class FileEditJournal` | Per-turn accumulator: one merged entry per file, in first-touch order. |
 
 ### `guard_model_policy.py`
 
@@ -400,6 +446,21 @@ tier: "core"
 | func | `def step_from_tool_calls(tool_calls, text, thinking, iteration, evidence_round)` | Synthesise a ``ReActStep`` from native ``tool_calls``. |
 | func | `def trim_text_protocol_for_native(system_prompt)` | Phase 1: drop the redundant text-protocol scaffolding for native mode. |
 
+### `react_prompt_contracts.py`
+
+| Kind | Symbol | Doc |
+| --- | --- | --- |
+| func | `def has_deliverables_section(text)` | Whether a final answer carries the fixed deliverable section. |
+| func | `def extract_deliverables(text)` | Return ``(label, target)`` for every entry inside the section. |
+| func | `def deliverable_label_is_canonical(label)` | ``label`` must be a bare file name: no directory, no extension. |
+| func | `def citation_display_text(label)` | The source-chip text for a ``citation:`` label, else ``None``. |
+| func | `def find_bare_urls(text)` | URLs that leaked into prose without markdown-link wrapping. |
+| func | `def irreversible_request_detected(text)` | Whether the text asks for an action that cannot be undone. |
+| func | `def explicit_confirmation_given(text)` | Whether the user's message is *itself* an unambiguous go-ahead. |
+| func | `def requires_confirmation_before_execution(user_message)` | The gate: may the irreversible action described here run *this* turn? |
+| func | `def goal_is_explanatory(text)` | Whether the turn asks *about* an action rather than *for* it. |
+| func | `def irreversible_turn_note_for(goal)` | ``IRREVERSIBLE_TURN_NOTE`` when this turn is turn A, else ``""``. |
+
 ### `react_step_evaluator.py`
 
 | Kind | Symbol | Doc |
@@ -523,7 +584,7 @@ tier: "core"
 
 ## Who imports this
 
-**63** file(s) reference this package:
+**68** file(s) reference this package:
 
 - **`runtime/cli_code.py/`** · 1 file(s)
   - `runtime/cli_code.py`
@@ -541,37 +602,37 @@ tier: "core"
   - `runtime/core/graph_runtime/runtime.py`
 - **`runtime/evals/`** · 1 file(s)
   - `runtime/evals/multi_agent_benchmark.py`
-- **`runtime/execution/`** · 9 file(s)
-  - `runtime/execution/codex_backend/dynamic_tools.py`
-  - `runtime/execution/codex_backend/role_context.py`
+- **`runtime/execution/`** · 10 file(s)
+  - `runtime/execution/graph_planning.py`
   - `runtime/execution/loops/_controller_attempt.py`
   - `runtime/execution/misc/parallel_runner.py`
   - `runtime/execution/parallel_agents/_orchestrator_models.py`
-  - _… and 4 more_
+  - `runtime/execution/parallel_agents/stack_runner.py`
+  - _… and 5 more_
 - **`runtime/memory/`** · 4 file(s)
   - `runtime/memory/cowork/turn_plan.py`
   - `runtime/memory/diagnostics/_trace_store_recovery.py`
   - `runtime/memory/threads/compaction.py`
   - `runtime/memory/threads/llm_summariser.py`
-- **`runtime/platform/`** · 7 file(s)
+- **`runtime/platform/`** · 6 file(s)
   - `runtime/platform/config/builder.py`
   - `runtime/platform/lifecycle/demo.py`
-  - `runtime/platform/ui/_app_collab.py`
   - `runtime/platform/ui/_app_parallel.py`
   - `runtime/platform/ui/_app_stack.py`
-  - _… and 2 more_
+  - `runtime/platform/ui/_reflex_admin_gepa_apply.py`
+  - `runtime/platform/ui/_reflex_admin_gepa_run.py`
 - **`runtime/safety/`** · 4 file(s)
   - `runtime/safety/experiments/prompt_optimizer.py`
   - `runtime/safety/recovery/gepa_bridge.py`
   - `runtime/safety/recovery/workflow_applier.py`
   - `runtime/safety/validation/trust_signal.py`
-- **`runtime/sensing/`** · 28 file(s)
+- **`runtime/sensing/`** · 33 file(s)
   - `runtime/sensing/gateway/_agents_endpoints.py`
   - `runtime/sensing/gateway/_agents_endpoints_conversations.py`
   - `runtime/sensing/gateway/_agents_endpoints_tasks.py`
   - `runtime/sensing/gateway/_config_endpoints_system.py`
   - `runtime/sensing/gateway/_observability_journal.py`
-  - _… and 23 more_
+  - _… and 28 more_
 - **`runtime/tentacle/`** · 2 file(s)
   - `runtime/tentacle/coordinator.py`
   - `runtime/tentacle/mobile/cerebrum_adapter.py`

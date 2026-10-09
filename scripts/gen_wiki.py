@@ -122,15 +122,11 @@ def _symbols_of(path: Path) -> list[dict[str, str]]:
     out: list[dict[str, str]] = []
     for node in tree.body:
         if isinstance(node, ast.ClassDef) and not node.name.startswith("_"):
-            out.append(
-                {"kind": "class", "sig": _class_signature(node), "doc": _symbol_doc(node)}
-            )
-        elif isinstance(
-            node, (ast.FunctionDef, ast.AsyncFunctionDef)
-        ) and not node.name.startswith("_"):
-            out.append(
-                {"kind": "func", "sig": _func_signature(node), "doc": _symbol_doc(node)}
-            )
+            out.append({"kind": "class", "sig": _class_signature(node), "doc": _symbol_doc(node)})
+        elif isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)) and not node.name.startswith(
+            "_"
+        ):
+            out.append({"kind": "func", "sig": _func_signature(node), "doc": _symbol_doc(node)})
     return out
 
 
@@ -1328,7 +1324,8 @@ def main() -> int:
                 print(f"[drift] {path.relative_to(ROOT)}", file=sys.stderr)
             else:
                 path.parent.mkdir(parents=True, exist_ok=True)
-                path.write_text(content, encoding="utf-8")
+                # LF on every OS: text-mode write would emit CRLF on Windows.
+                path.write_text(content, encoding="utf-8", newline="\n")
                 print(f"[write] {path.relative_to(ROOT)}")
 
     for p in stale:

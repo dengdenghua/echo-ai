@@ -9,7 +9,7 @@ tier: "core"
 
 > 自动从仓库结构提取。Echo · The Open-Source Multi-Agent AI Workspace.
 
-> v0.3.0 Beta · Apache-2.0
+> v0.1.0 · Apache-2.0
 
 ## 仓库结构
 
@@ -26,7 +26,7 @@ tier: "core"
 
 ## 规模
 
-- Python 模块：**1514** 个（runtime/）
-- TSX 组件：**690** 个（frontend/src）
-- 后端测试：**1048** 个
+- Python 模块：**1620** 个（runtime/）
+- TSX 组件：**844** 个（frontend/src）
+- 后端测试：**1218** 个
 

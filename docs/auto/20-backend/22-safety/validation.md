@@ -55,7 +55,7 @@ tier: "core"
 
 | Kind | Symbol | Doc |
 | --- | --- | --- |
-| func | `def llm_judge_enabled(explicit, config_value)` | Resolve the judge opt-in. Precedence, highest first: 1. ``explicit`` kwarg (tests). 2. ``ECHO_ENABLE_LLM_JUDGE`` env var (emergency overr |
+| func | `def llm_judge_enabled(explicit, config_value)` | Resolve the judge opt-in. Precedence, highest first: 1. ``explicit`` kwarg (tests). 2. ``ECHO_ENABLE_LLM_JUDGE`` env var (emergency override |
 | func | `def maybe_register_llm_judge(router, enabled, config_value, model)` | Register the LLM judge when enabled and a router is available. |
 
 ### `events.py`
@@ -140,7 +140,7 @@ tier: "core"
 
 ## Who imports this
 
-**19** file(s) reference this package:
+**20** file(s) reference this package:
 
 - **`runtime/adapters/`** · 1 file(s)
   - `runtime/adapters/channels/base.py`
@@ -153,10 +153,10 @@ tier: "core"
   - `runtime/core/cerebrum/react_resume.py`
 - **`runtime/execution/`** · 7 file(s)
   - `runtime/execution/agents/loader.py`
-  - `runtime/execution/codex_backend/dynamic_tools.py`
   - `runtime/execution/misc/parallel_runner.py`
   - `runtime/execution/parallel_agents/orchestrator.py`
   - `runtime/execution/subagents/bridge.py`
+  - `runtime/execution/suckers/ephemeral_injection_gate.py`
   - _… and 2 more_
 - **`runtime/memory/`** · 1 file(s)
   - `runtime/memory/threads/llm_summariser.py`
@@ -165,6 +165,7 @@ tier: "core"
   - `runtime/safety/evolution/weekly_report.py`
   - `runtime/safety/experiments/prompt_evolver.py`
   - `runtime/safety/governance/execution_policy.py`
-- **`runtime/sensing/`** · 1 file(s)
+- **`runtime/sensing/`** · 2 file(s)
   - `runtime/sensing/gateway/_config_endpoints_security.py`
+  - `runtime/sensing/gateway/realtime_remote_approval.py`
 

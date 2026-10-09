@@ -100,7 +100,7 @@ Agent runtime hooks · lifecycle events for the agent loop.
 | class | `class HookDecision` | Structured handler response. |
 | class | `class HookRegistry` | In-memory handler registration · one registry per app. |
 | func | `def get_global_registry()` | Process-global HookRegistry · used by ``register_hook`` decorator + runtime dispatch points. Tests needing isolation should call ``.clear()` |
-| func | `def register_hook(event_type)` | Decorator · register ``handler`` for ``event_type`` on the global registry. Community hooks in ``~/.echo/hooks/*.py`` use this to plug in |
+| func | `def register_hook(event_type)` | Decorator · register ``handler`` for ``event_type`` on the global registry. Community hooks in ``~/.echo/hooks/*.py`` use this to plug in. |
 
 ### `runner.py`
 

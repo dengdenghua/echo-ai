@@ -23,6 +23,7 @@ tier: "standard"
 | `oct/router_account.py` | oct 账号管理路由 · /api/account/oct/*。 |
 | `oct/router_auth.py` | — |
 | `oct/router_proxy.py` | oct LLM 代理路由 · /api/oct/openai/v1/*。 |
+| `social_auth.py` | Google/GitHub sign-in; provider tokens never leave the server. |
 
 ## Key classes & functions
 
@@ -32,6 +33,8 @@ tier: "standard"
 
 | Kind | Symbol | Doc |
 | --- | --- | --- |
+| func | `def development_login_enabled(config)` | Passwordless and fixed-account shortcuts are development-only. |
+| func | `def local_login_enabled(config)` | Allow configured password accounts in deployments, never dev shortcuts. |
 | func | `def hash_password(plaintext)` | Hash a password using bcrypt with a random salt. |
 | func | `def verify_password(plaintext, hashed)` | Verify a plaintext password against a bcrypt or legacy sha256 hash. |
 | class | `class LocalAuthConfig(BaseModel)` |  |
@@ -88,11 +91,20 @@ tier: "standard"
 | --- | --- | --- |
 | func | `def create_proxy_router(config, link_store, identity_store, require_auth, jwt_secret, jwt_issuer, jwt_audience, http_client)` |  |
 
+### `social_auth.py`
+
+| Kind | Symbol | Doc |
+| --- | --- | --- |
+| func | `def safe_return_to(value)` |  |
+| func | `def create_social_auth_router(identity_store, jwt_secret, data_dir, jwt_issuer, jwt_audience)` |  |
+
 
 ## Who imports this
 
-**1** file(s) reference this package:
+**2** file(s) reference this package:
 
 - **`runtime/platform/`** · 1 file(s)
   - `runtime/platform/ui/_app_auth_routers.py`
+- **`runtime/sensing/`** · 1 file(s)
+  - `runtime/sensing/gateway/meta_router.py`
 

@@ -11,6 +11,10 @@ tier: "core"
 
 **Source**: `runtime/execution/tool_engine/`
 
+## Package summary
+
+Tool contracts are available without constructing the executor import graph.
+
 ## Exports
 
 - `NormalizedToolCall`
@@ -42,16 +46,21 @@ tier: "core"
 | --- | --- |
 | `_executor_fileops.py` | — |
 | `_executor_helpers.py` | — |
+| `coordination_guard.py` | Host-wide exclusion for declared device resources, including direct tools. |
 | `effect_receipts.py` | Crash-safe tool effect receipts for durable agent turns. |
 | `effect_store.py` | Transactional cross-process coordination for tool side effects. |
 | `executor.py` | — |
+| `host_mcp.py` | Ephemeral, authenticated MCP transport for one Echo turn's host tools. |
+| `host_tool_broker.py` | Shared Echo tools for external execution engines. |
 | `native_tool_execution.py` | Execute a model-native tool call through the Echo executor boundary. |
 | `redis_effect_store.py` | Redis-backed, cross-host tool-effect receipts. |
+| `role_instructions.py` | Shared role, mode, memory and explicit Skill instructions for execution engines. |
 | `session_metadata.py` | Project caller context into the metadata trusted by tool sessions. |
 | `session_projection.py` | Byte-bounded projection of a session's conversation surface. |
 | `session_reference.py` | Echo Native cross-session reference resolver. |
 | `session_reference_uri.py` | Canonical Echo session URI and inline mention encoding. |
 | `skill_gate.py` | Shared pre-execution safety gate for direct skill dispatch. |
+| `tool_images.py` | Bounded screenshot observations for external engines; never fetch remote URLs. |
 | `tool_output_pruner.py` | Deterministic head/middle/tail pruning for over-budget tool results. |
 | `tool_output_spill.py` | Session-scoped spill storage for oversized plain-text tool results. |
 | `tool_protocol.py` | — |
@@ -68,6 +77,16 @@ tier: "core"
 | --- | --- | --- |
 | class | `class StepExecutionError(RuntimeError)` |  |
 | class | `class ReadBeforeWriteRequired(RuntimeError)` |  |
+
+### `coordination_guard.py`
+
+| Kind | Symbol | Doc |
+| --- | --- | --- |
+| func | `def current_group_coordination()` | Resolve a real group from host state, never from model-supplied context. |
+| func | `def coordination_scope(service)` |  |
+| func | `def invoke_coordinated(skill, args, service)` | Use the ambient host guard for meta-tool and composite dispatch. |
+| func | `def resource_for_skill(skill)` |  |
+| func | `def coordinated_resource(service, skill)` |  |
 
 ### `effect_receipts.py`
 
@@ -98,17 +117,40 @@ tier: "core"
 | --- | --- | --- |
 | class | `class ToolExecutor` | Skill-step executor with read-before-write + diff/rollback wiring. |
 
+### `host_mcp.py`
+
+| Kind | Symbol | Doc |
+| --- | --- | --- |
+| class | `class HostMCPBridge` |  |
+
+### `host_tool_broker.py`
+
+| Kind | Symbol | Doc |
+| --- | --- | --- |
+| class | `class HostToolRequest` | Adapter-owned coordinates; never resolve policy from engine arguments. |
+| class | `class HostToolCatalog` | One immutable per-turn host tool advertisement. |
+| func | `def dynamic_tool_failure(reason)` | Return the only fail-closed result shape exposed to App Server. |
+| func | `def validate_dynamic_tool_response(value)` | Validate and bound a broker response before it crosses JSON-RPC. |
+| class | `class HostToolBroker` | Execute one frozen host tool catalog for one exact engine turn. |
+
 ### `native_tool_execution.py`
 
 | Kind | Symbol | Doc |
 | --- | --- | --- |
-| func | `def execute_native_tool_call(stack, call, max_chars, prune_middle, spill_oversized, task_id, step_id, arm_id, budget)` | Run one native tool request through the normal executor chokepoint. |
+| func | `def execute_native_tool_call(stack, call, max_chars, prune_middle, spill_oversized, task_id, step_id, arm_id, budget, image_items)` | Run one native tool request through the normal executor chokepoint. |
 
 ### `redis_effect_store.py`
 
 | Kind | Symbol | Doc |
 | --- | --- | --- |
 | class | `class RedisEffectStore` |  |
+
+### `role_instructions.py`
+
+| Kind | Symbol | Doc |
+| --- | --- | --- |
+| func | `def resolve_explicit_skill_instructions(text, registry, agent)` | Resolve explicit ``$skill``/``@skill:name`` mentions from the registry. |
+| func | `def compose_role_instructions(agent, context, goal, registry)` | Render the same role/mode contract used by Echo' native engine. |
 
 ### `session_metadata.py`
 
@@ -166,6 +208,16 @@ tier: "core"
 | func | `def antigen_for(skill)` |  |
 | class | `class GateBlock` | A definitive block verdict from :func:`gate_inner_dispatch`. |
 | func | `def gate_inner_dispatch(skill, args, caller, defer_taint_if_handled)` | Apply the executor's pre-execution safety gates to a skill that a meta-skill is about to dispatch DIRECTLY (``use_capability``, a forged com |
+| class | `class PreparedInnerDispatch` | Result of :func:`prepare_inner_dispatch`. |
+| func | `def inner_dispatch_risk(skill, args)` | Approval risk for an inner action a meta-skill is about to run. |
+| func | `def prepare_inner_dispatch(skill, args, caller, require_approval)` | Run the executor's pre-execution pipeline for a meta-skill's inner call. |
+
+### `tool_images.py`
+
+| Kind | Symbol | Doc |
+| --- | --- | --- |
+| func | `def valid_inline_image(value)` |  |
+| func | `def screenshot_observation(tool_name, output, images)` | Detach image bytes before text pruning, keeping coordinate metadata. |
 
 ### `tool_output_pruner.py`
 
@@ -231,26 +283,28 @@ tier: "core"
 
 ## Who imports this
 
-**28** file(s) reference this package:
+**36** file(s) reference this package:
 
 - **`runtime/cli_core.py/`** · 1 file(s)
   - `runtime/cli_core.py`
+- **`runtime/cli_execution.py/`** · 1 file(s)
+  - `runtime/cli_execution.py`
 - **`runtime/cli_run.py/`** · 1 file(s)
   - `runtime/cli_run.py`
-- **`runtime/core/`** · 7 file(s)
+- **`runtime/core/`** · 8 file(s)
   - `runtime/core/cerebrum/_react_execution_dispatch.py`
   - `runtime/core/cerebrum/_react_execution_phase6d.py`
   - `runtime/core/cerebrum/_react_execution_results.py`
+  - `runtime/core/cerebrum/design_capabilities.py`
   - `runtime/core/cerebrum/react_action_outcomes.py`
-  - `runtime/core/cerebrum/react_execution_receipts.py`
-  - _… and 2 more_
-- **`runtime/execution/`** · 6 file(s)
+  - _… and 3 more_
+- **`runtime/execution/`** · 12 file(s)
   - `runtime/execution/codex_backend/dynamic_tools.py`
-  - `runtime/execution/subagents/sessions.py`
-  - `runtime/execution/suckers/_ephemeral_tool_exec.py`
-  - `runtime/execution/suckers/agent_meta_skills.py`
-  - `runtime/execution/suckers/capability_skills.py`
-  - `runtime/execution/suckers/forged_persistence.py`
+  - `runtime/execution/codex_backend/role_context.py`
+  - `runtime/execution/graph_planning.py`
+  - `runtime/execution/opencode_roles.py`
+  - `runtime/execution/subagents/bridge.py`
+  - _… and 7 more_
 - **`runtime/platform/`** · 1 file(s)
   - `runtime/platform/config/builder.py`
 - **`runtime/safety/`** · 2 file(s)

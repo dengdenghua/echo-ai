@@ -11,6 +11,10 @@ tier: "standard"
 
 **Source**: `runtime/sensing/model_router/`
 
+## Package summary
+
+Public model interfaces; provider implementations load on first access.
+
 ## Exports
 
 - `AllKeysExhausted`
@@ -147,11 +151,10 @@ tier: "standard"
 | Kind | Symbol | Doc |
 | --- | --- | --- |
 | func | `def read_custom_models()` |  |
-| func | `def entry_matches_model(entry, model)` |  |
-| func | `def custom_model_entry_for(model)` |  |
-| func | `def model_supports_tool_use(model)` | Return False when ``custom_models.json`` (or per-model env overrides) marks this model id as not supporting native function calling. |
-| func | `def model_omits_sampling_parameters(model)` | Return True for strict OpenAI-compatible coding endpoints. |
-| func | `def custom_model_supports_thinking(model)` |  |
+| func | `def custom_model_entry_for(model, base_url)` | Resolve the operator entry behind ``model``. |
+| func | `def model_supports_tool_use(model, base_url)` | Return False when ``custom_models.json`` (or per-model env overrides) marks this model id as not supporting native function calling. |
+| func | `def model_omits_sampling_parameters(model, base_url)` | Return True for strict OpenAI-compatible coding endpoints. |
+| func | `def custom_model_supports_thinking(model, base_url)` |  |
 | func | `def model_context_window(model)` | Return the operator-declared input window for a custom model. |
 
 ### `dispatch_router.py`
@@ -256,14 +259,14 @@ tier: "standard"
 
 | Kind | Symbol | Doc |
 | --- | --- | --- |
-| class | `class OpenAIResponsesRouterError(LLMResponseFormatError)` | An API-key Responses provider could not complete a request. |
+| class | `class OpenAIResponsesRouterError(ModelProviderHTTPError)` | An API-key Responses provider could not complete a request. |
 | class | `class OpenAIResponsesModelRouter(Provider, ModelRouter)` | Run a Responses-only upstream while retaining the Echo native loop. |
 
 ### `openai_router.py`
 
 | Kind | Symbol | Doc |
 | --- | --- | --- |
-| class | `class OpenAIRouterError(LLMResponseFormatError)` |  |
+| class | `class OpenAIRouterError(ModelProviderHTTPError)` |  |
 | class | `class OpenAIModelRouter(Provider, ModelRouter)` |  |
 | func | `def build_fallback_router_from_custom_models(prefer)` | Build a ModelRouter from the user's custom_models.json — a self-configured upstream usable as the dispatch *fallback*. |
 
@@ -310,7 +313,7 @@ tier: "standard"
 
 ## Who imports this
 
-**40** file(s) reference this package:
+**41** file(s) reference this package:
 
 - **`runtime/cli_core.py/`** · 1 file(s)
   - `runtime/cli_core.py`
@@ -333,11 +336,11 @@ tier: "standard"
 - **`runtime/research/`** · 2 file(s)
   - `runtime/research/pipeline.py`
   - `runtime/research/query_rewrite.py`
-- **`runtime/sensing/`** · 24 file(s)
+- **`runtime/sensing/`** · 25 file(s)
   - `runtime/sensing/gateway/_config_endpoints_custom_models.py`
   - `runtime/sensing/gateway/_config_endpoints_models.py`
   - `runtime/sensing/gateway/_config_helpers.py`
   - `runtime/sensing/gateway/_evolution_helpers.py`
   - `runtime/sensing/gateway/_openai_gateway_router_helpers.py`
-  - _… and 19 more_
+  - _… and 20 more_
 

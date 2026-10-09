@@ -57,6 +57,7 @@ Suckers = skill pool.
 | `_ephemeral_events.py` | Event emission helpers for ephemeral sub-agent runs. |
 | `_ephemeral_tool_exec.py` | Tool execution helpers for ephemeral sub-agent runs. |
 | `_ephemeral_verification.py` | Verification gate for ephemeral sub-agents. |
+| `_html_text.py` | Dependency-free HTML text extraction for web fetch fallback. |
 | `_lsp_candidates.py` | Seed a language server with the files a reference search must cover. |
 | `_memory_skills_handlers.py` | Registrar for memory_skills · extracted from memory_skills.py. |
 | `_write_skills_background.py` | Background-process machinery for write_skills · extracted from write_skills.py. |
@@ -69,6 +70,7 @@ Suckers = skill pool.
 | `agent_doc_skills.py` | Agent documentation skills loaded from ``skills/public``. |
 | `agent_meta_skills.py` | — |
 | `ask_user_question.py` | ask_user_question · pause-and-ask skill. |
+| `authority_sources.py` | Publisher discovery hints, not a cache of standards or proof of compliance. |
 | `blackboard_skills.py` | blackboard_skills · expose the turn-scoped shared dict as 3 skills. |
 | `browser_act_skills.py` | — |
 | `browser_backend.py` | Unified browser automation backend — the seam over three tracks. |
@@ -84,6 +86,7 @@ Suckers = skill pool.
 | `code_intelligence_skills.py` | — |
 | `code_navigation.py` | Cross-file symbol lookup and Python import-graph analysis. |
 | `codex_plugin_skills.py` | — |
+| `collaboration_skills.py` | One shared tool surface for native, Codex and OpenCode group execution. |
 | `computer_api_skills.py` | Agent-facing computer automation skills. |
 | `computer_macos.py` | — |
 | `computer_skills.py` | — |
@@ -102,6 +105,7 @@ Suckers = skill pool.
 | `ephemeral_injection_gate.py` | Prompt-injection taint gate for ephemeral sub-agent tool calls. |
 | `ephemeral_limits.py` | Round, truncation, and model-selection policy for ephemeral agents. |
 | `ephemeral_runner.py` | LLM-backed runner for ephemeral sub-agent roles. |
+| `find_capability.py` | Read-only capability fallback; execution stays in the normal tool loop. |
 | `forged_persistence.py` | — |
 | `fs_search_skills.py` | — |
 | `history_skill.py` | history_skill · cross-thread conversation history retrieval. |
@@ -116,6 +120,7 @@ Suckers = skill pool.
 | `loader/md_loader.py` | — |
 | `lsp_skills.py` | LSP (Language Server Protocol) integration skills. |
 | `market_skills.py` | — |
+| `media_gateway.py` | Server-owned media adapter. No credential or endpoint arguments from the agent. |
 | `memory_file_ops.py` | Low-level append operations for Markdown-backed agent memory. |
 | `memory_skills.py` | memory_skills · per-agent long-term memory / user-profile / diary skills. |
 | `notebook_skills.py` | — |
@@ -132,6 +137,7 @@ Suckers = skill pool.
 | `verdict_repair.py` | Verdict-gated repair loop — the closed-loop orchestration echo lacked. |
 | `verify_skills.py` | Project verification · detect project type and run checks. |
 | `video_album_skills.py` | Video album skills (local AI video library). |
+| `visual_skills.py` | Small visual entry points; detailed authoring guidance loads only on demand. |
 | `web_skills.py` | — |
 | `workflow_skill.py` | Model-facing ``workflow`` skill (dsh ``tool-workflow``). |
 | `write_skills.py` | — |
@@ -188,6 +194,12 @@ Suckers = skill pool.
 | func | `def recover_background_processes()` | Scan persisted background jobs and converge stale metadata. |
 | func | `def background_process_identity_matches(metadata)` | Fail closed if a recovered PID no longer belongs to our process group. |
 
+### `_write_skills_common.py`
+
+| Kind | Symbol | Doc |
+| --- | --- | --- |
+| func | `def file_change_entry(path, op)` | One ``file_changes`` entry, in the shape the realtime bridge consumes. |
+
 ### `agent_doc_skills.py`
 
 | Kind | Symbol | Doc |
@@ -205,6 +217,13 @@ Suckers = skill pool.
 | Kind | Symbol | Doc |
 | --- | --- | --- |
 | func | `def register_ask_user_question_skill(registry)` | Register the ask_user_question skill. Returns 1. |
+
+### `authority_sources.py`
+
+| Kind | Symbol | Doc |
+| --- | --- | --- |
+| func | `def resolve_discovery_purpose(query, purpose)` |  |
+| func | `def authority_plan(query, purpose, standard_family)` |  |
 
 ### `blackboard_skills.py`
 
@@ -271,7 +290,7 @@ Suckers = skill pool.
 | Kind | Symbol | Doc |
 | --- | --- | --- |
 | func | `def register_builtins(registry)` |  |
-| func | `def register_all(registry)` |  |
+| func | `def register_all(registry, refresh_prompt_catalog)` |  |
 
 ### `capability_skills.py`
 
@@ -302,6 +321,12 @@ Suckers = skill pool.
 | class | `class CodexPluginSkillLoad` |  |
 | class | `class CodexPluginSkillLoadReport` |  |
 | func | `def load_codex_plugin_skills(registry, plugin_ids, roots, verify_tests)` | Register prompt actions from Codex-format plugins for this registry. |
+
+### `collaboration_skills.py`
+
+| Kind | Symbol | Doc |
+| --- | --- | --- |
+| func | `def register_collaboration_skills(registry, service)` |  |
 
 ### `computer_api_skills.py`
 
@@ -344,7 +369,7 @@ Suckers = skill pool.
 | class | `class VisionPlanner(Protocol)` |  |
 | class | `class MockVisionPlanner` |  |
 | class | `class ModelRouterVisionPlanner` |  |
-| func | `def make_computer_use_loop_skill(planner, journal, default_screenshot_dir, default_sandbox_dir, default_max_iterations, default_wait_between_ms, default_stop_on_error)` |  |
+| func | `def make_computer_use_loop_skill(planner, journal, default_screenshot_dir, default_sandbox_dir, default_max_iterations, default_wait_between_ms, default_stop_on_error, cancellation_check)` |  |
 | func | `def register_computer_use_loop(registry, planner, **kwargs)` |  |
 
 ### `computer_use_record.py`
@@ -460,6 +485,12 @@ Suckers = skill pool.
 | class | `class EphemeralConvergedIncomplete(RuntimeError)` | Raised when the convergence guard stops a sub-agent early because it only repeated identical tool calls (a loop, not progress). |
 | func | `def make_llm_ephemeral_runner(router, registry, default_model, max_tokens, temperature, system_provider, token_budget)` | Build an ephemeral runner that calls ``router.call(request)`` per invocation. |
 
+### `find_capability.py`
+
+| Kind | Symbol | Doc |
+| --- | --- | --- |
+| func | `def find_capability_handler(registry)` |  |
+
 ### `forged_persistence.py`
 
 | Kind | Symbol | Doc |
@@ -559,6 +590,15 @@ Suckers = skill pool.
 | func | `def immutable_prompt_catalog_required()` | Whether startup must use only the catalog shipped in this build. |
 | func | `def register_prompt_market_skills(registry, resource_dir, bundled_dir, refresh_deadline_s)` | Bootstrap and register the external prompt catalog with a bundled fallback. |
 | func | `def load_single_market_skill(registry, skill_id, all_skills_dir, ignore_frontmatter_enabled, verify_tests)` |  |
+
+### `media_gateway.py`
+
+| Kind | Symbol | Doc |
+| --- | --- | --- |
+| func | `def selected()` |  |
+| func | `def model_catalog()` |  |
+| func | `def configuration_error(kind)` |  |
+| func | `def generate(kind, prompt, model, task_id, **parameters)` |  |
 
 ### `memory_file_ops.py`
 
@@ -669,6 +709,12 @@ Suckers = skill pool.
 | --- | --- | --- |
 | func | `def register_video_album_skills(registry)` |  |
 
+### `visual_skills.py`
+
+| Kind | Symbol | Doc |
+| --- | --- | --- |
+| func | `def register_visual_skills(registry)` |  |
+
 ### `web_skills.py`
 
 | Kind | Symbol | Doc |
@@ -697,7 +743,7 @@ Suckers = skill pool.
 
 ## Who imports this
 
-**91** file(s) reference this package:
+**107** file(s) reference this package:
 
 - **`runtime/_cli_commands.py/`** · 1 file(s)
   - `runtime/_cli_commands.py`
@@ -707,36 +753,39 @@ Suckers = skill pool.
   - `runtime/cli_code.py`
 - **`runtime/cli_core.py/`** · 1 file(s)
   - `runtime/cli_core.py`
+- **`runtime/cli_execution.py/`** · 1 file(s)
+  - `runtime/cli_execution.py`
 - **`runtime/cli_reflect.py/`** · 1 file(s)
   - `runtime/cli_reflect.py`
 - **`runtime/cli_run.py/`** · 1 file(s)
   - `runtime/cli_run.py`
-- **`runtime/core/`** · 8 file(s)
+- **`runtime/core/`** · 9 file(s)
   - `runtime/core/cerebrum/_react_context_helpers.py`
   - `runtime/core/cerebrum/_react_context_project.py`
   - `runtime/core/cerebrum/_react_execution_dispatch.py`
   - `runtime/core/cerebrum/_react_prompt_assembly_guidance.py`
   - `runtime/core/cerebrum/capability_router.py`
-  - _… and 3 more_
+  - _… and 4 more_
 - **`runtime/evals/`** · 1 file(s)
   - `runtime/evals/multi_agent_benchmark.py`
-- **`runtime/execution/`** · 14 file(s)
+- **`runtime/execution/`** · 19 file(s)
   - `runtime/execution/all_skills/__init__.py`
+  - `runtime/execution/all_skills/documents/__init__.py`
+  - `runtime/execution/all_skills/presentations/__init__.py`
+  - `runtime/execution/all_skills/spreadsheets/__init__.py`
   - `runtime/execution/arms/base.py`
-  - `runtime/execution/codex_backend/dynamic_tools.py`
-  - `runtime/execution/codex_backend/role_context.py`
-  - `runtime/execution/loops/verifiers.py`
-  - _… and 9 more_
-- **`runtime/memory/`** · 2 file(s)
+  - _… and 14 more_
+- **`runtime/memory/`** · 3 file(s)
+  - `runtime/memory/cowork/recruitment.py`
   - `runtime/memory/cowork/runtime.py`
   - `runtime/memory/hemolymph/composer.py`
-- **`runtime/platform/`** · 24 file(s)
+- **`runtime/platform/`** · 30 file(s)
+  - `runtime/platform/assets/skill_lifecycle.py`
   - `runtime/platform/config/builder.py`
   - `runtime/platform/lifecycle/demo.py`
-  - `runtime/platform/plugins/bundled/clip_studio/__init__.py`
-  - `runtime/platform/plugins/bundled/comfyui_bridge/__init__.py`
-  - `runtime/platform/plugins/bundled/director_stage/__init__.py`
-  - _… and 19 more_
+  - `runtime/platform/plugins/automation.py`
+  - `runtime/platform/plugins/automation_diagnostics.py`
+  - _… and 25 more_
 - **`runtime/research/`** · 2 file(s)
   - `runtime/research/pipeline.py`
   - `runtime/research/prefetch.py`
@@ -747,13 +796,13 @@ Suckers = skill pool.
   - `runtime/safety/evolution/browser_desktop_quality.py`
   - `runtime/safety/evolution/runtime_deployment.py`
   - _… and 3 more_
-- **`runtime/sensing/`** · 25 file(s)
+- **`runtime/sensing/`** · 27 file(s)
   - `runtime/sensing/gateway/_agent_world_helpers.py`
   - `runtime/sensing/gateway/_computer_appshot_routes.py`
   - `runtime/sensing/gateway/_meta_mentions.py`
   - `runtime/sensing/gateway/_realtime_react_stream_drive.py`
   - `runtime/sensing/gateway/_realtime_react_stream_helpers.py`
-  - _… and 20 more_
+  - _… and 22 more_
 - **`runtime/tour.py/`** · 1 file(s)
   - `runtime/tour.py`
 

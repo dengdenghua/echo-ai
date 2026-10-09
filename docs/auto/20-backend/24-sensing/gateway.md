@@ -52,6 +52,7 @@ tier: "standard"
 | `_config_helpers.py` | Pure helper functions for the config router. |
 | `_config_models.py` | Pydantic response models for the config router. |
 | `_conversation_error_diagnostics.py` | Privacy-bounded diagnostics for errors persisted in conversation snapshots. |
+| `_cowork_coordination.py` | Group-scoped coordination HTTP API; identity comes only from request ACLs. |
 | `_cowork_group_access.py` | Authorization helpers for the cowork group HTTP router. |
 | `_cowork_group_models.py` | Pydantic request bodies for the cowork group HTTP API. |
 | `_cowork_group_room_ensure.py` | Atomic ensure-room workflow for collaboration sessions. |
@@ -89,6 +90,7 @@ tier: "standard"
 | `_realtime_cerebrum_steering.py` | Active-turn lease + steering management for the realtime runtime. |
 | `_realtime_cerebrum_thread.py` | Thread/session + emit helpers for the realtime runtime. |
 | `_realtime_claim_aware_emitter.py` | Thread-claim-aware event emitter used by the realtime gateway. |
+| `_realtime_cowork_delivery.py` | Resume an authorized coordinator once its durable member batch settles. |
 | `_realtime_detached_turn.py` | Connection-detached emitter for server-resident turns (audit T-01). |
 | `_realtime_gateway_approval.py` | Per-connection approval manager and gateway-wide interrupt registry. |
 | `_realtime_gateway_connection.py` | Per-WebSocket RPC connection (``RpcConnection``). |
@@ -117,6 +119,7 @@ tier: "standard"
 | `_team_tasks_access.py` | Authorization helpers for the persistent team-tasks router. |
 | `_team_tasks_helpers.py` | Module-level helpers for the persistent team tasks router. |
 | `_team_tasks_models.py` | Pydantic wire models for the persistent team tasks API. |
+| `_thread_history_fork.py` | Verified conversation-only forks, without live requests or native bindings. |
 | `_thread_state_auto_title.py` | Auto-title service wiring shared by the thread state router. |
 | `_thread_state_delete.py` | Fail-closed thread deletion with a durable Project OS binding fence. |
 | `_thread_state_search_projection.py` | Search projection helpers for the thread-state HTTP router. |
@@ -127,13 +130,11 @@ tier: "standard"
 | `_tool_bridge_protocol.py` | Public checkpoint / protocol-tag cleaning + narration helpers. |
 | `_tool_bridge_scoring.py` | Per-turn quality scoring + auto-evolution tick helpers. |
 | `_tool_bridge_session.py` | Session metadata + browser operation guidance helpers. |
+| `_untrusted_content.py` | Response hardening for user/agent-generated files served inline. |
 | `a2a_router.py` | A2A (Agent-to-Agent) remote agent registry + relay router. |
 | `a2a_server.py` | Official A2A v1 inbound server mounted on the Echo runtime. |
 | `account_usage_router.py` | — |
 | `adaptive_delta_buffer.py` | 自适应流式刷新策略（纯决策，不存内容） |
-| `agent_market_sources/financial-services/agent-plugins/model-builder/skills/dcf-model/scripts/validate_dcf.py` | DCF Model Validation Script Validates Excel DCF models for formula errors and common DCF mistakes |
-| `agent_market_sources/financial-services/agent-plugins/pitch-agent/skills/dcf-model/scripts/validate_dcf.py` | DCF Model Validation Script Validates Excel DCF models for formula errors and common DCF mistakes |
-| `agent_market_sources/financial-services/agent-plugins/pitch-agent/skills/ib-check-deck/scripts/extract_numbers.py` | Extract numerical values from presentation content for consistency checking. |
 | `agent_modes_router.py` | Agent project/code mode detection endpoints. |
 | `agent_trace_dependencies.py` | State factories and promotion helpers for the agent-trace API. |
 | `agent_trace_router.py` | Read-only API for the durable agent trace store. |
@@ -147,10 +148,13 @@ tier: "standard"
 | `anthropic_compat/router.py` | Anthropic Managed Agents REST + SSE router. |
 | `anthropic_compat/session_manager.py` | Session lifecycle manager for the Anthropic compat layer. |
 | `apps_router.py` | — |
+| `artifact_proposals.py` | Disk-backed HTML edit proposals. Callers hold the artifact's shared edit lock. |
 | `asset_registry_router.py` | 统一资产仓库路由 —— 插件 / 技能 / 角色(WorkBuddy + Codex + 本地 + 内置)归一视图。 |
 | `capability_router.py` | 统一「插件」市场路由 —— 所有外部能力(WorkBuddy MCP 服务 + Codex 插件)统一叫插件。 |
 | `channels_router.py` | — |
+| `codex_hotspot.py` | Codex task and Responses hotspot. Loopback transport; remote access via SSH. |
 | `collaboration_delivery_outbox.py` | Replay collaboration delivery outbox rows into durable thread logs. |
+| `collaboration_events.py` | Best-effort wake-up hints after authoritative collaboration writes. |
 | `comfyui_manager.py` | User-triggered managed ComfyUI installation and update jobs. |
 | `comfyui_supervisor.py` | User-triggered lifecycle control for an existing local ComfyUI installation. |
 | `completion_router.py` | Inline code completion endpoint — Tab-complete skeleton. |
@@ -163,8 +167,11 @@ tier: "standard"
 | `computer_router_state.py` | Shared mutable state for the computer-automation router family. |
 | `computer_runtime_readiness.py` | Runtime-readiness aggregation for the computer-automation router. |
 | `computer_vision.py` | Vision-model config resolution + OpenAI-compatible vision call for the computer-automation router. |
+| `computer_window_preview.py` | Read-only Windows window previews. Never activate a window or fall back to the screen. |
 | `config_router.py` | Config router · identity-lock + providers + custom-models. |
 | `connector_router.py` | 连接器网关路由 — 浏览/安装/认证编排/启停。 |
+| `context_breakdown.py` | Thread-scoped context window breakdown for the composer ring. |
+| `context_snapshot.py` | Backward-compatibility re-export of context_snapshot from platform.models. |
 | `control_sessions_router.py` | Unified control-session API. |
 | `cowork_group_router.py` | Thread-group API: WeChat-style membership + mode + shared blackboard. |
 | `cron_router.py` | Cron settings compatibility router. |
@@ -184,7 +191,12 @@ tier: "standard"
 | `evolution_ops/utils.py` | Shared utility functions for evolution operator subsystems. |
 | `evolution_ops_router.py` | Evolution operator console control-plane routes. |
 | `evolution_router.py` | — |
+| `execution_nodes_router.py` | Authenticated task dispatch, node claims and verified result collection. |
 | `fs_router.py` | Filesystem router · ``/api/fs/{tree,read,write}``. |
+| `hotspot_control.py` | Local Echo control plane for the separate invitation-authenticated listener. |
+| `hotspot_discovery.py` | Read an invited hotspot's models from the receiving Echo backend. |
+| `hotspot_store.py` | Durable, atomic invitation budgets; no upstream credentials in this store. |
+| `inbound_role_execution.py` | Give an inbound role the same host task boundary as local delegation. |
 | `index_router.py` | Code index router · ``/api/index/*``. |
 | `intelligence_router.py` | — |
 | `invariants_router.py` | Invariants router · catalog of the 34-rule constitution and which functions enforce each rule. |
@@ -193,12 +205,14 @@ tier: "standard"
 | `local_brain_router.py` | Local-brain setup router · ``/api/local-brain/*``. |
 | `loop_router.py` | — |
 | `lsp_router.py` | Thin HTTP wrapper around the registered LSP skills. |
+| `mailbox_router.py` | Authenticated mailbox API. Reading never marks a message read implicitly. |
 | `mcp_router.py` | MCP router · declare / enable / disable MCP servers at runtime. |
 | `media_router.py` | Media (video understanding) web API. |
 | `memory_router.py` | Local memory compatibility API. |
 | `meta_router.py` | Meta router · feedback / skills / auth-provider listing. |
 | `meta_skill_router.py` | FastAPI router for the 能力包 / Meta-Skill catalog. |
 | `metrics_router.py` | Metrics router — Prometheus text export of the in-process registry. |
+| `model_catalog_refresh.py` | Cadenced re-discovery of connected model-provider catalogs. |
 | `observability_router.py` | Observability router · journal / reflect / kg / progress / stream / run. |
 | `openai_formatting.py` | Pure-function formatters for the OpenAI-compat gateway. |
 | `openai_gateway/context_manager.py` | — |
@@ -215,20 +229,31 @@ tier: "standard"
 | `parallel_agents_router.py` | — |
 | `plugin_hub_router.py` | PluginHub management REST API. |
 | `plugins_router.py` | — |
+| `project_intent_hint.py` | Server-side project-intent detection, so every entry point gets the hint. |
 | `projects_router.py` | Project OS API — drive milestone-driven projects over HTTP. |
 | `prompts_router.py` | Prompts router · ``/api/prompts/*``. |
+| `published_roles.py` | Owner-published role endpoints: stable identities, receiver-owned execution. |
 | `realtime_approval.py` | Approval bridge between the blocking react loop and the async gateway. |
 | `realtime_cerebrum.py` | Cerebrum-backed realtime runtime. |
 | `realtime_codex_backend.py` | Realtime driver for the isolated Codex App Server execution backend. |
 | `realtime_echo.py` | Echo runtime — reference :class:`RealtimeRuntime` implementation. |
+| `realtime_engine_history.py` | Project the authorized Echo journal into an external engine's missing context. |
 | `realtime_event_bridge.py` | React-event → ``item/*`` bridge state for the realtime runtime. |
 | `realtime_execution.py` | Realtime adapters for the engine-neutral execution supervisor. |
 | `realtime_execution_context.py` | Project a validated realtime turn into the shared engine request. |
+| `realtime_execution_node.py` | Run a chat turn on a selected execution node (work location ``node``). |
 | `realtime_frame_bounds.py` | Last-resort frame bounding for realtime WebSocket notifications. |
 | `realtime_gateway.py` | Realtime gateway — JSON-RPC 2.0 over WebSocket. |
 | `realtime_interrupt_control.py` | Authoritative cross-worker interrupt control for realtime turns. |
+| `realtime_opencode_backend.py` | Translate an official OpenCode session into Echo's ordinary realtime items. |
+| `realtime_preparation.py` | Role preparation before starting an engine; ownership comes from validated TurnParams. |
+| `realtime_project_acceptance.py` | Review actual deliverables before advancing an owner-gated milestone. |
+| `realtime_project_initiation.py` | Owner-approved staffing before a chat becomes a managed project. |
+| `realtime_project_phase.py` | Activate only the reviewed phase team, after an owner decision. |
 | `realtime_react_policy.py` | Routing policy and event translation for realtime agent streams. |
 | `realtime_react_stream.py` | Single-agent stream drivers for the realtime runtime. |
+| `realtime_remote_approval.py` | Route an approval to a message channel only once nobody is at the UI. |
+| `realtime_remote_echo.py` | Run a chat turn on a remote Echo over SSH or WSL (work location ``remote``). |
 | `realtime_team_stream.py` | Multi-agent team-topology stream driver for the realtime runtime. |
 | `realtime_thread_history.py` | Realtime turn ↔ legacy conversation history adapters. |
 | `realtime_thread_ops.py` | Thread maintenance operations for the realtime runtime. |
@@ -241,6 +266,8 @@ tier: "standard"
 | `recorder_store.py` | Durable, privacy-aware event store for the optional Echo REC plugin. |
 | `registry_consumer_router.py` | 资产 Registry 消费路由(母体接 registry · 只读浏览 + 安装 prompt-skill)。 |
 | `remote_backends_router.py` | Remote backends router · ``/api/remote-backends/*``. |
+| `remote_credentials.py` | Private bearer credentials for invitation-protected A2A endpoints. |
+| `remote_group_member.py` | Explicit, membership-checked A2A lanes for group conversations. |
 | `remote_transport.py` | Remote Transport · connect a desktop session to a remote echo-ai runtime over authenticated HTTP and WebSocket. |
 | `retrieve_router.py` | Retrieval router · ``/api/retrieve/rank``. |
 | `skill_market_router.py` | — |
@@ -253,28 +280,36 @@ tier: "standard"
 | `system_router.py` | System-level local maintenance endpoints. |
 | `task_runs_router.py` | — |
 | `teach_repeat_router.py` | Teach & Repeat API. |
+| `team_connections.py` | Durable receiving-side team connections; secrets never need a browser roundtrip. |
+| `team_control.py` | Local Echo settings bridge to the independent team gateway. |
+| `team_gateway.py` | Standalone Echo team gateway. Run with python -m ...team_gateway. |
 | `team_invitations_router.py` | Human invitation HTTP surface for Team Rooms. |
 | `team_role_models_router.py` | Team role-model settings router · ``/api/team/role-models``. |
 | `team_rooms_models.py` | Wire and request models shared by the Team Rooms HTTP and WS surfaces. |
 | `team_rooms_router.py` | Persistent team rooms API. |
 | `team_rooms_ws.py` | Realtime Team Room WebSocket handler. |
 | `team_speaker_policy.py` | Pure team-room governance helpers. |
+| `team_store.py` | Team model catalog and single-use invitation exchange, backed by SQLite. |
 | `team_tasks_router.py` | Persistent team tasks API. |
 | `tentacle_join_router.py` | Tentacle join router · ``/api/tentacle/join-info``. |
 | `terminal_router.py` | terminal_router · WebSocket-based persistent shell sessions. |
 | `thread_access.py` | Shared authorization for canonical threads linked to Team Rooms. |
 | `thread_share_relay.py` | Narrow server-to-server client for the public share relay. |
 | `thread_share_store.py` | Durable, privacy-bounded snapshots for public thread sharing. |
+| `thread_shared_spaces.py` | Owner-authorized shared-directory attachments and explicit sync actions. |
 | `thread_state_router.py` | Thread state HTTP router used by the realtime UI. |
 | `thread_workspace.py` | Server-managed workspace paths for authenticated thread filesystem access. |
 | `tool_bridge.py` | tool_bridge · the agentic-loop helper that turns Echo skills into Claude-native ``tool_use`` calls and loops result → next turn. |
 | `turn_session.py` | Turn session metadata assembly for realtime execution. |
 | `uploads_router.py` | Thread uploads / artifacts router. |
 | `verify_router.py` | Verification router · ``/api/verify/*``. |
+| `visuals_router.py` | Authenticated browser receipt endpoint; accepts no code or file paths. |
 | `waiting_escalation.py` | Waiting-user escalation watchdog — side-channel notifications when an operator approval blocks longer than a threshold. |
 | `wiki_generic.py` | Project-agnostic wiki generator · scans an arbitrary user-selected folder and writes a navigable static documentation tree under ``<root>/.echo-wiki/``. |
 | `wiki_router.py` | — |
+| `work_locations.py` | Where a conversation can run, besides this computer and execution nodes. |
 | `workbench_packages_router.py` | Static delivery contract for installed remote workbench surfaces. |
+| `workbuddy_bridge.py` | Standalone loopback A2A role backed by the installed WorkBuddy CLI. |
 | `workspace_api_router.py` | Workspace HTTP API · ``/api/workspaces/*``. |
 | `workspaces_router.py` | Workspace manifest API. |
 
@@ -312,6 +347,12 @@ tier: "standard"
 | --- | --- | --- |
 | func | `def register_trace_endpoints(router, deps)` |  |
 
+### `_agent_world_helpers.py`
+
+| Kind | Symbol | Doc |
+| --- | --- | --- |
+| func | `def template_to_agent_dict(template, installed, private_skills, available_skills, source_kind)` | 模板 → 与 ``_list_local_agents`` 同形状的 dict(供按 id 直查 / 安装用, 不进入列表)。 |
+
 ### `_channels_constructors.py`
 
 | Kind | Symbol | Doc |
@@ -331,6 +372,15 @@ tier: "standard"
 | func | `def classify_conversation_error(code, message)` | Return a stable category, operator action, and retryability hint. |
 | func | `def build_conversation_error_diagnostics(threads, message_limit, sample_limit)` | Summarize bounded thread snapshots without exposing error details. |
 
+### `_cowork_coordination.py`
+
+| Kind | Symbol | Doc |
+| --- | --- | --- |
+| class | `class TaskBody(BaseModel)` |  |
+| class | `class ReceiptBody(BaseModel)` |  |
+| class | `class RecruitmentDecision(BaseModel)` |  |
+| func | `def mount_coordination_routes(router, service, access, runtime, invite)` |  |
+
 ### `_cowork_group_access.py`
 
 | Kind | Symbol | Doc |
@@ -345,6 +395,7 @@ tier: "standard"
 | class | `class GrantBody(BaseModel)` |  |
 | class | `class InviteBody(BaseModel)` |  |
 | class | `class ModeBody(BaseModel)` |  |
+| class | `class DriverBody(BaseModel)` |  |
 | class | `class RosterBody(BaseModel)` |  |
 | class | `class BoardBody(BaseModel)` |  |
 | class | `class AssignBody(BaseModel)` |  |
@@ -446,7 +497,7 @@ tier: "standard"
 
 | Kind | Symbol | Doc |
 | --- | --- | --- |
-| func | `def create_observability_router(journal, registry, planner, effect_store, identity_store, require_auth, jwt_secret, jwt_issuer, jwt_audience)` | Build the router. |
+| func | `def create_observability_router(journal, registry, planner, planner_provider, effect_store, identity_store, require_auth, jwt_secret, jwt_issuer, jwt_audience)` | Build the router. |
 
 ### `_observability_state.py`
 
@@ -471,6 +522,14 @@ tier: "standard"
 | Kind | Symbol | Doc |
 | --- | --- | --- |
 | class | `class BackgroundThreadWriteFenced(RuntimeError)` | A late background projection lost thread write authority. |
+
+### `_realtime_cowork_delivery.py`
+
+| Kind | Symbol | Doc |
+| --- | --- | --- |
+| func | `def delivery_service(gateway)` |  |
+| func | `def authorized_connection(gateway, batch)` |  |
+| func | `async def maybe_deliver(gateway, thread)` |  |
 
 ### `_realtime_gateway_approval.py`
 
@@ -560,6 +619,12 @@ tier: "standard"
 | class | `class CreateTeamTaskRequest(BaseModel)` |  |
 | class | `class UpdateTeamTaskRequest(BaseModel)` |  |
 
+### `_thread_history_fork.py`
+
+| Kind | Symbol | Doc |
+| --- | --- | --- |
+| func | `def seed_history(logs_root, parent_id, child)` |  |
+
 ### `_thread_state_auto_title.py`
 
 | Kind | Symbol | Doc |
@@ -591,6 +656,15 @@ tier: "standard"
 | --- | --- | --- |
 | func | `def strip_leaked_protocol_tags(text)` | Remove structural protocol tags that leaked into literal text. |
 
+### `_untrusted_content.py`
+
+| Kind | Symbol | Doc |
+| --- | --- | --- |
+| func | `def is_html_media_type(media_type)` |  |
+| func | `def guess_media_type(path)` | Mirror Starlette's ``FileResponse`` guess so headers match the body. |
+| func | `def untrusted_content_headers(media_type, allow_scripts, download)` | Headers for serving untrusted file bytes from the app origin. |
+| func | `def untrusted_file_response(path, filename, download, media_type, allow_scripts, headers, **kwargs)` | ``FileResponse`` for user/agent-generated content with sandbox headers. |
+
 ### `a2a_router.py`
 
 | Kind | Symbol | Doc |
@@ -601,7 +675,7 @@ tier: "standard"
 
 | Kind | Symbol | Doc |
 | --- | --- | --- |
-| func | `def mount_a2a_server(app, identity_store, require_auth, jwt_secret, jwt_issuer, jwt_audience, data_dir)` | Mount official Agent Card, JSON-RPC and REST A2A endpoints. |
+| func | `def mount_a2a_server(app, identity_store, require_auth, jwt_secret, jwt_issuer, jwt_audience, data_dir, role_id, role_name, public_prefix)` | Mount official Agent Card, JSON-RPC and REST A2A endpoints. |
 
 ### `account_usage_router.py`
 
@@ -615,33 +689,6 @@ tier: "standard"
 | --- | --- | --- |
 | class | `class BufferMetrics` | 批处理策略性能指标（快照，getter 不改状态） |
 | class | `class AdaptiveFlushPolicy` | 自适应刷新策略 |
-
-### `agent_market_sources/financial-services/agent-plugins/model-builder/skills/dcf-model/scripts/validate_dcf.py`
-
-| Kind | Symbol | Doc |
-| --- | --- | --- |
-| class | `class DCFModelValidator` | Validates DCF models for errors and quality issues |
-| func | `def validate_dcf_model(excel_path)` | Validate a DCF model Excel file |
-| func | `def main()` | Command-line interface |
-
-### `agent_market_sources/financial-services/agent-plugins/pitch-agent/skills/dcf-model/scripts/validate_dcf.py`
-
-| Kind | Symbol | Doc |
-| --- | --- | --- |
-| class | `class DCFModelValidator` | Validates DCF models for errors and quality issues |
-| func | `def validate_dcf_model(excel_path)` | Validate a DCF model Excel file |
-| func | `def main()` | Command-line interface |
-
-### `agent_market_sources/financial-services/agent-plugins/pitch-agent/skills/ib-check-deck/scripts/extract_numbers.py`
-
-| Kind | Symbol | Doc |
-| --- | --- | --- |
-| class | `class NumberInstance` | A numerical value found in the presentation. |
-| func | `def normalize_number(value_str, unit)` | Convert a number string with unit to a normalized float value. |
-| func | `def detect_category(context, unit)` | Detect the category of a number based on context and unit. |
-| func | `def extract_numbers(content)` | Extract all numbers from presentation content. |
-| func | `def find_inconsistencies(numbers)` | Find potential inconsistencies in extracted numbers. |
-| func | `def main()` |  |
 
 ### `agent_modes_router.py`
 
@@ -752,6 +799,13 @@ tier: "standard"
 | func | `def discover_apps(roots)` |  |
 | func | `def create_apps_router(app_roots, identity_store, require_auth, jwt_secret, jwt_issuer, jwt_audience)` |  |
 
+### `artifact_proposals.py`
+
+| Kind | Symbol | Doc |
+| --- | --- | --- |
+| func | `def digest(content)` |  |
+| class | `class ArtifactProposals` |  |
+
 ### `asset_registry_router.py`
 
 | Kind | Symbol | Doc |
@@ -771,12 +825,27 @@ tier: "standard"
 | class | `class LocalChannelManager` | Small channel manager for dashboard-only sessions. |
 | func | `def create_channels_router(manager, identity_store, require_auth, jwt_secret, jwt_issuer, jwt_audience, state_path)` |  |
 
+### `codex_hotspot.py`
+
+| Kind | Symbol | Doc |
+| --- | --- | --- |
+| func | `def owner_token(root)` |  |
+| func | `async def bounded_body(request)` |  |
+| func | `def create_hotspot(root, source_home, port, auth, transport, task_runner)` |  |
+| func | `def main()` |  |
+
 ### `collaboration_delivery_outbox.py`
 
 | Kind | Symbol | Doc |
 | --- | --- | --- |
 | func | `def persist_collaboration_delivery(store, delivery, log, worker_id)` | Write one claimed row to the event log and acknowledge it atomically enough. |
 | func | `def drain_collaboration_delivery_outbox(store, logs_root, session_id, limit, worker_id)` | Deliver all currently due rows; retain failures for scheduled retry. |
+
+### `collaboration_events.py`
+
+| Kind | Symbol | Doc |
+| --- | --- | --- |
+| func | `async def broadcast_thread_update(router, room_id, thread_id, reason)` |  |
 
 ### `comfyui_manager.py`
 
@@ -824,6 +893,14 @@ tier: "standard"
 | --- | --- | --- |
 | class | `class ComputerRouterState` |  |
 
+### `computer_window_preview.py`
+
+| Kind | Symbol | Doc |
+| --- | --- | --- |
+| func | `def list_window_targets()` |  |
+| func | `def foreground_window_target()` |  |
+| func | `def capture_window_preview(target)` |  |
+
 ### `config_router.py`
 
 | Kind | Symbol | Doc |
@@ -836,6 +913,15 @@ tier: "standard"
 | Kind | Symbol | Doc |
 | --- | --- | --- |
 | func | `def create_connector_router(registry, orchestrator, identity_store, require_auth, jwt_secret, jwt_issuer, jwt_audience, auth_injection_rules)` |  |
+
+### `context_breakdown.py`
+
+| Kind | Symbol | Doc |
+| --- | --- | --- |
+| func | `def estimate_tokens(text)` |  |
+| func | `def breakdown_messages(messages)` | Return Claude-style segment totals for one thread's messages. |
+| func | `def breakdown_for_thread(thread_id, messages)` | Segments for one thread, preferring the last measured request. |
+| func | `def handle_thread_context_breakdown(request, thread_id, auth_fn, tenant_fn, require_store_fn, require_thread_id_fn, get_thread_fn)` |  |
 
 ### `control_sessions_router.py`
 
@@ -889,6 +975,7 @@ tier: "standard"
 | Kind | Symbol | Doc |
 | --- | --- | --- |
 | class | `class WorkflowImport(BaseModel)` |  |
+| class | `class DesignCapabilityRequest(BaseModel)` |  |
 | class | `class WorkflowSave(BaseModel)` |  |
 | class | `class QueueRequest(BaseModel)` |  |
 | class | `class CanvasSave(BaseModel)` |  |
@@ -899,7 +986,7 @@ tier: "standard"
 | class | `class ComfyModelDownload(BaseModel)` |  |
 | class | `class ComfyModelAction(BaseModel)` |  |
 | class | `class ComfyModelRestore(BaseModel)` |  |
-| func | `def create_design_studio_router(project_store, identity_store, require_auth, jwt_secret, jwt_issuer, jwt_audience, plugin_node_state_store)` |  |
+| func | `def create_design_studio_router(skill_registry, project_store, identity_store, require_auth, jwt_secret, jwt_issuer, jwt_audience, plugin_node_state_store)` |  |
 
 ### `enterprise_assets_router.py`
 
@@ -911,7 +998,7 @@ tier: "standard"
 
 | Kind | Symbol | Doc |
 | --- | --- | --- |
-| func | `def create_evolution_ops_router(journal, registry, planner, thread_store, forged_skill_dir, identity_store, require_auth, jwt_secret, jwt_issuer, jwt_audience, jwt_leeway_seconds)` | Create evolution operator control-plane routes. |
+| func | `def create_evolution_ops_router(journal, registry, planner, planner_provider, thread_store, forged_skill_dir, identity_store, require_auth, jwt_secret, jwt_issuer, jwt_audience, jwt_leeway_seconds)` | Create evolution operator control-plane routes. |
 
 ### `evolution_router.py`
 
@@ -919,11 +1006,53 @@ tier: "standard"
 | --- | --- | --- |
 | func | `def create_evolution_router(stack, agent_registry, project_root, identity_store, require_auth, jwt_secret, jwt_issuer, jwt_audience)` |  |
 
+### `execution_nodes_router.py`
+
+| Kind | Symbol | Doc |
+| --- | --- | --- |
+| class | `class NodeAdvertisement(BaseModel)` |  |
+| class | `class NodeTaskRequest(BaseModel)` |  |
+| class | `class NodeClaim(BaseModel)` |  |
+| class | `class NodeArtifact(BaseModel)` |  |
+| class | `class NodeResult(NodeClaim)` |  |
+| class | `class TaskAction(BaseModel)` |  |
+| func | `def create_execution_nodes_router(collaboration_store, workspace_store, lease_store, identity_store, require_auth, jwt_secret, jwt_issuer, jwt_audience)` |  |
+
 ### `fs_router.py`
 
 | Kind | Symbol | Doc |
 | --- | --- | --- |
 | func | `def create_fs_router(thread_store, identity_store, require_auth, allow_local_workspace_access, jwt_secret, jwt_issuer, jwt_audience, workspace_root, workspace_store, lease_store, mount_registry, group_store)` | Build the FastAPI router. State is per-request (the path parameter); auth, when an identity store is wired and ``require_auth`` is set, is e |
+
+### `hotspot_control.py`
+
+| Kind | Symbol | Doc |
+| --- | --- | --- |
+| func | `def require_local_owner(request)` |  |
+| func | `async def running()` |  |
+| func | `async def ensure_running()` |  |
+| func | `async def control(method, path, body)` |  |
+| func | `def mount_control(router)` |  |
+| func | `async def register_local_role(engine)` |  |
+
+### `hotspot_discovery.py`
+
+| Kind | Symbol | Doc |
+| --- | --- | --- |
+| func | `def normalize_hotspot_url(value)` |  |
+| func | `async def discover_hotspot(body, transport)` |  |
+
+### `hotspot_store.py`
+
+| Kind | Symbol | Doc |
+| --- | --- | --- |
+| class | `class HotspotStore` |  |
+
+### `inbound_role_execution.py`
+
+| Kind | Symbol | Doc |
+| --- | --- | --- |
+| func | `def execute_role(call, role_id, prompt, data_dir, actor_id)` |  |
 
 ### `index_router.py`
 
@@ -976,6 +1105,18 @@ tier: "standard"
 | --- | --- | --- |
 | func | `def create_lsp_router(registry, thread_store, workspace_root, identity_store, require_auth, jwt_secret, jwt_issuer, jwt_audience)` |  |
 
+### `mailbox_router.py`
+
+| Kind | Symbol | Doc |
+| --- | --- | --- |
+| class | `class ConnectBody(BaseModel)` |  |
+| class | `class GoogleClientBody(BaseModel)` |  |
+| class | `class DraftBody(BaseModel)` |  |
+| class | `class SendBody(DraftBody)` |  |
+| class | `class FlagsBody(BaseModel)` |  |
+| class | `class AssistBody(BaseModel)` |  |
+| func | `def create_mailbox_router(stack, identity_store, require_auth, jwt_secret, jwt_issuer, jwt_audience)` |  |
+
 ### `mcp_router.py`
 
 | Kind | Symbol | Doc |
@@ -1019,7 +1160,13 @@ tier: "standard"
 
 | Kind | Symbol | Doc |
 | --- | --- | --- |
-| func | `def create_metrics_router(registry)` | Build the FastAPI router exposing process metrics. |
+| func | `def create_metrics_router(registry, identity_store, require_auth, jwt_secret, jwt_issuer, jwt_audience, public)` | Build the FastAPI router exposing process metrics. |
+
+### `model_catalog_refresh.py`
+
+| Kind | Symbol | Doc |
+| --- | --- | --- |
+| class | `class ModelCatalogRefreshLoop` | Keep provider catalogs fresh without blocking startup or traffic. |
 
 ### `openai_formatting.py`
 
@@ -1090,6 +1237,12 @@ tier: "standard"
 | func | `def is_public_plugin_asset_request(method, path, plugins)` |  |
 | func | `def create_plugins_router(plugin_roots, identity_store, require_auth, jwt_secret, jwt_issuer, jwt_audience, approval_policy_path, promotion_audit_path, publisher_trust_store_path, plugin_registry_path)` |  |
 
+### `project_intent_hint.py`
+
+| Kind | Symbol | Doc |
+| --- | --- | --- |
+| func | `def detect_project_intent(text)` | Return the normalized text when it reads like proposing a new project. |
+
 ### `projects_router.py`
 
 | Kind | Symbol | Doc |
@@ -1103,13 +1256,19 @@ tier: "standard"
 | class | `class TaskInterventionBody(BaseModel)` |  |
 | class | `class FromGroupBody(BaseModel)` |  |
 | class | `class DetachFromGroupBody(BaseModel)` |  |
-| func | `def create_projects_router(store, group_store, collaboration_store, team_rooms_router, thread_store, workspace_root, logs_root, model_router, subagent_runner, identity_store, require_auth, jwt_secret, jwt_issuer, jwt_audience)` | Create the ``/api/projects/*`` router. |
+| func | `def create_projects_router(store, group_store, collaboration_store, team_rooms_router, thread_store, workspace_root, logs_root, model_router, planning_model, subagent_runner, identity_store, require_auth, jwt_secret, jwt_issuer, jwt_audience)` | Create the ``/api/projects/*`` router. |
 
 ### `prompts_router.py`
 
 | Kind | Symbol | Doc |
 | --- | --- | --- |
 | func | `def create_prompts_router(registry, identity_store, require_auth, jwt_secret, jwt_issuer, jwt_audience)` | Factory. Bind a router to a specific ``PromptRegistry`` instance. |
+
+### `published_roles.py`
+
+| Kind | Symbol | Doc |
+| --- | --- | --- |
+| func | `def mount_published_roles(app, data_dir, **auth)` |  |
 
 ### `realtime_approval.py`
 
@@ -1136,16 +1295,26 @@ tier: "standard"
 | --- | --- | --- |
 | class | `class EchoRuntime` | Single-process runtime with file-backed event logs. |
 
+### `realtime_engine_history.py`
+
+| Kind | Symbol | Doc |
+| --- | --- | --- |
+| class | `class EngineHistory` |  |
+| func | `def engine_history_for_turn(log, turn, engine)` |  |
+
 ### `realtime_execution.py`
 
 | Kind | Symbol | Doc |
 | --- | --- | --- |
 | func | `def is_coding_task(intent)` | Use explicit work modes and parsed intent, not an extra model hop. |
+| func | `def turn_requires_vision(turn, intent)` | True when the turn carries an image the model is expected to look at. |
+| func | `def turn_capability_request(turn, intent)` | What this turn structurally needs from its engine. |
 | func | `def codex_readiness_for_turn(runtime, turn, agent)` |  |
 | func | `async def select_turn_execution(runtime, turn, agent, intent, project_command, group_fanout, topology_id, codex_partner, reflection_fast_path, coordinated)` |  |
 | class | `class TurnExecutionRequest` |  |
 | class | `class NativeExecutionAdapter` |  |
 | class | `class CodexExecutionAdapter` |  |
+| class | `class OpenCodeExecutionAdapter` |  |
 | func | `def bind_turn_execution(runtime, turn, log, emitter, provider, agent, route, topology_id)` | Bind an authenticated turn and persist every invocation before dispatch. |
 
 ### `realtime_execution_context.py`
@@ -1153,6 +1322,13 @@ tier: "standard"
 | Kind | Symbol | Doc |
 | --- | --- | --- |
 | class | `class RealtimeExecutionContext` | One task and Session per bound turn; no additional lifecycle store. |
+
+### `realtime_execution_node.py`
+
+| Kind | Symbol | Doc |
+| --- | --- | --- |
+| func | `def node_work_location(context)` | Return the requested node location, or ``None`` for this computer. |
+| func | `async def drive_execution_node(runtime, turn, log, emitter, intent, text)` |  |
 
 ### `realtime_gateway.py`
 
@@ -1175,6 +1351,38 @@ tier: "standard"
 | func | `def claim_is_held_for_turn(logs_root, thread_id, turn_id)` | No-TTL liveness check used by stale-turn recovery. |
 | func | `def acquire_stale_recovery_claim(logs_root, thread_id)` | Acquire recovery authority; conflict means a live owner, never stale. |
 
+### `realtime_opencode_backend.py`
+
+| Kind | Symbol | Doc |
+| --- | --- | --- |
+| func | `def scope_for_turn(turn)` |  |
+| func | `async def drive_opencode(runtime, turn, log, emitter, intent, agent, provider, text)` |  |
+
+### `realtime_preparation.py`
+
+| Kind | Symbol | Doc |
+| --- | --- | --- |
+| func | `async def require_role_connections(turn, agent, registry)` |  |
+
+### `realtime_project_acceptance.py`
+
+| Kind | Symbol | Doc |
+| --- | --- | --- |
+| func | `async def accept_delivery(runtime, turn, log, emitter, project_store, thread_id, milestone_id, owner_id, tenant_id)` |  |
+
+### `realtime_project_initiation.py`
+
+| Kind | Symbol | Doc |
+| --- | --- | --- |
+| func | `async def initiate_project(runtime, turn, log, emitter, thread_id, goal, owner_id, tenant_id, leader, prepare, explicit_project_request, review_id, refine_id, feedback)` |  |
+
+### `realtime_project_phase.py`
+
+| Kind | Symbol | Doc |
+| --- | --- | --- |
+| func | `async def adjust_budget(runtime, turn, log, emitter, store, project, value, owner_id, tenant_id)` |  |
+| func | `async def authorize_phase(runtime, turn, log, emitter, store, project, owner_id, tenant_id)` |  |
+
 ### `realtime_react_policy.py`
 
 | Kind | Symbol | Doc |
@@ -1182,11 +1390,32 @@ tier: "standard"
 | func | `def agentic_stream_event_to_react_event(kind, delta, final)` | Translate native tool-loop tuple events into realtime bridge events. |
 | func | `def should_use_native_tool_loop(stack, intent, planning_mode)` | Return whether a turn should use protocol-native tool calls first. |
 
+### `realtime_remote_approval.py`
+
+| Kind | Symbol | Doc |
+| --- | --- | --- |
+| func | `def client_is_connected(emitter)` | Whether any live client could answer an approval right now. |
+| class | `class ReconnectGraceProvider(ApprovalProvider)` | The gateway provider, but only while somebody can actually answer. |
+| func | `def wrap_with_remote_notification(gateway_provider, emitter, transport, grace_s)` | Add the channel leg when — and only when — a transport is installed. |
+
+### `realtime_remote_echo.py`
+
+| Kind | Symbol | Doc |
+| --- | --- | --- |
+| func | `def remote_work_location(context)` | Return the selected SSH/WSL connection id, or ``None``. |
+| func | `async def drive_remote_echo(runtime, turn, log, emitter, intent, text, open_upstream)` |  |
+
 ### `realtime_thread_ops.py`
 
 | Kind | Symbol | Doc |
 | --- | --- | --- |
 | func | `async def compact_thread(runtime, thread_id, emitter)` | Manually compact a thread using the same durable event-log path as automatic compaction. |
+
+### `realtime_turn_input.py`
+
+| Kind | Symbol | Doc |
+| --- | --- | --- |
+| func | `def external_model_owner(params)` | Identify model ownership for shaping input, not execution admission. |
 
 ### `realtime_turn_routing.py`
 
@@ -1224,11 +1453,28 @@ tier: "standard"
 | --- | --- | --- |
 | func | `def create_remote_backends_router(store_path, identity_store, require_auth, jwt_secret, jwt_issuer, jwt_audience)` | Factory. ``store_path`` defaults to ``<data>/remote_backends.json``; tests pass a tmp path. |
 
+### `remote_credentials.py`
+
+| Kind | Symbol | Doc |
+| --- | --- | --- |
+| func | `def save_token(token)` |  |
+| func | `def read_token(entry)` |  |
+| func | `async def remote_client(entry, token)` |  |
+
+### `remote_group_member.py`
+
+| Kind | Symbol | Doc |
+| --- | --- | --- |
+| func | `def remote_profile(agent_id)` |  |
+| func | `def resolve_remote_mentions(text, roster_ids)` | Resolve unique registered display names only within the durable roster. |
+| func | `async def call_remote_group_member(runtime, turn, agent_id, text, history, authorization, timeout_s, should_cancel)` | Never send private runtime metadata or resume a stale permission context. |
+
 ### `remote_transport.py`
 
 | Kind | Symbol | Doc |
 | --- | --- | --- |
 | class | `class SshTunnel` | SSH transport descriptor. Mirrors ``SshBackend`` config so an existing SSH-trusted host can be reused without re-entering credentials. |
+| class | `class WslTarget` | An Echo runtime inside a local WSL distro, reached on loopback. |
 | class | `class RemoteBackend` | One named remote echo-ai runtime. |
 | class | `class SshTunnelError(RuntimeError)` | Raised when a configured SSH transport cannot be established. |
 | class | `class SshTunnelForwarder` | Own one fail-closed OpenSSH local forward for a remote backend. |
@@ -1267,7 +1513,7 @@ tier: "standard"
 
 | Kind | Symbol | Doc |
 | --- | --- | --- |
-| func | `def resolve_storage_command()` | Resolve the argv that launches ``echo-storage serve``, or ``None`` if it can't be found. Priority: ``ECHO_STORAGE_CMD`` (explicit) → t |
+| func | `def resolve_storage_command()` | Resolve the argv that launches ``echo-storage serve``, or ``None`` if it can't be found. Priority: ``ECHO_STORAGE_CMD`` (explicit) → the sib |
 | func | `def storage_status()` | Snapshot of storage liveness for a status endpoint / UI light. Returns the heartbeat-cached value when the heartbeat is running; otherwise p |
 | func | `def maybe_start_storage(force)` | Co-launch storage when opt-in + not already up + resolvable. Returns a status: ``disabled`` / ``already_running`` / ``not_found`` / ``starte |
 | func | `def start_storage_heartbeat()` | Start the ongoing supervision heartbeat once (idempotent, daemon thread). |
@@ -1316,6 +1562,28 @@ tier: "standard"
 | class | `class StopRecordingRequest(BaseModel)` |  |
 | class | `class TemplateUpdateRequest(BaseModel)` |  |
 | func | `def create_teach_repeat_router(journal, registry, auto_persist_dir, capability_registry, identity_store, require_auth, jwt_secret, jwt_issuer, jwt_audience, recording_store)` |  |
+
+### `team_connections.py`
+
+| Kind | Symbol | Doc |
+| --- | --- | --- |
+| class | `class TeamConnections` |  |
+
+### `team_control.py`
+
+| Kind | Symbol | Doc |
+| --- | --- | --- |
+| func | `async def control(method, path, body)` |  |
+| func | `async def ensure_running()` |  |
+| func | `def mount_team_control(router, require_admin, connections)` |  |
+
+### `team_gateway.py`
+
+| Kind | Symbol | Doc |
+| --- | --- | --- |
+| class | `class ModelConfig(BaseModel)` |  |
+| class | `class Invitation(BaseModel)` |  |
+| func | `def create_team_gateway(root, transport)` |  |
 
 ### `team_invitations_router.py`
 
@@ -1370,6 +1638,13 @@ tier: "standard"
 | func | `def apply_floor_grant(team, actor_participant, target)` | Moderator hands the floor to ``target`` (None re-opens it). roll_call + moderated only. None when the policy doesn't apply OR the caller isn |
 | func | `def advance_round_robin(team, participant_id)` | Hand the round_robin floor to the next eligible speaker after ``participant_id`` — called once a message lands. |
 
+### `team_store.py`
+
+| Kind | Symbol | Doc |
+| --- | --- | --- |
+| func | `def digest(value)` |  |
+| class | `class TeamStore(HotspotStore)` |  |
+
 ### `team_tasks_router.py`
 
 | Kind | Symbol | Doc |
@@ -1380,7 +1655,7 @@ tier: "standard"
 
 | Kind | Symbol | Doc |
 | --- | --- | --- |
-| func | `def create_tentacle_join_router(ws_port, auth_token)` | Build the router. ``ws_port``/``auth_token`` come from the coordinator the main app started. |
+| func | `def create_tentacle_join_router(ws_port, auth_token, identity_store, require_auth, jwt_secret, jwt_issuer, jwt_audience)` | Build the router. ``ws_port``/``auth_token`` come from the coordinator the main app started; the auth arguments gate the token behind an ope |
 
 ### `terminal_router.py`
 
@@ -1413,11 +1688,18 @@ tier: "standard"
 | func | `def build_public_thread_snapshot(thread, state)` | Project a thread state onto the intentionally small public contract. |
 | class | `class ThreadShareStore` | Small file-backed share store with hashed capability-token lookup. |
 
+### `thread_shared_spaces.py`
+
+| Kind | Symbol | Doc |
+| --- | --- | --- |
+| class | `class SyncRequest(BaseModel)` |  |
+| func | `def shared_spaces_router(store, authorize, managed, workspace_root, workspace_store, lease_store)` |  |
+
 ### `thread_state_router.py`
 
 | Kind | Symbol | Doc |
 | --- | --- | --- |
-| func | `def create_thread_state_router(store, logs_root, session_titles, identity_store, require_auth, allow_local_workspace_access, jwt_secret, jwt_issuer, jwt_audience, workspace_root, group_store, collaboration_store, team_rooms_router, project_store)` |  |
+| func | `def create_thread_state_router(store, logs_root, session_titles, identity_store, require_auth, allow_local_workspace_access, jwt_secret, jwt_issuer, jwt_audience, workspace_root, group_store, collaboration_store, team_rooms_router, project_store, workspace_store, lease_store)` |  |
 
 ### `thread_workspace.py`
 
@@ -1448,6 +1730,13 @@ tier: "standard"
 | --- | --- | --- |
 | func | `def create_verify_router(identity_store, require_auth, jwt_secret, jwt_issuer, jwt_audience)` |  |
 
+### `visuals_router.py`
+
+| Kind | Symbol | Doc |
+| --- | --- | --- |
+| class | `class VisualReceipt(BaseModel)` |  |
+| func | `def create_visuals_router(identity_store, require_auth, jwt_secret, jwt_issuer, jwt_audience)` |  |
+
 ### `waiting_escalation.py`
 
 | Kind | Symbol | Doc |
@@ -1476,11 +1765,29 @@ tier: "standard"
 | --- | --- | --- |
 | func | `def create_wiki_router(model_router, model, identity_store, require_auth, jwt_secret, jwt_issuer, jwt_audience)` | Build + return the FastAPI router. Call site: ``app.include_router(create_wiki_router(model_router=..., model=...))``. |
 
+### `work_locations.py`
+
+| Kind | Symbol | Doc |
+| --- | --- | --- |
+| func | `def parse_wsl_list(text)` | Parse ``wsl.exe --list --verbose`` output. |
+| func | `def wsl_distros(refresh)` | Installed WSL distros on this Windows host (cached briefly). |
+| func | `def remote_connections(registry)` | SSH and WSL entries of the remote backend registry, for the picker. |
+
 ### `workbench_packages_router.py`
 
 | Kind | Symbol | Doc |
 | --- | --- | --- |
 | func | `def create_workbench_packages_router(store, identity_store, require_auth, jwt_secret, jwt_issuer, jwt_audience)` | Serve installed workbench packages behind the standard auth dependency. |
+
+### `workbuddy_bridge.py`
+
+| Kind | Symbol | Doc |
+| --- | --- | --- |
+| class | `class RoleBridgeConfig(Protocol)` |  |
+| class | `class WorkBuddyExecutor(AgentExecutor)` |  |
+| func | `def create_app(config, public_url, executor, label, path_prefix)` |  |
+| func | `def main()` |  |
+| func | `async def register_local_role(port)` | Register a running bridge in the existing local Echo role directory. |
 
 ### `workspace_api_router.py`
 
@@ -1490,7 +1797,7 @@ tier: "standard"
 | class | `class AddMemberBody(BaseModel)` |  |
 | class | `class AcquireLeaseBody(BaseModel)` |  |
 | class | `class RenewLeaseBody(BaseModel)` |  |
-| func | `def create_workspace_api_router(workspace_store, lease_store, registry, identity_store, require_auth, jwt_secret, jwt_issuer, jwt_audience)` | Create the ``/api/workspaces/*`` router for the Workspace entity. |
+| func | `def create_workspace_api_router(workspace_store, lease_store, registry, identity_store, require_auth, jwt_secret, jwt_issuer, jwt_audience, mount_host_allowlist)` | Create the ``/api/workspaces/*`` router for the Workspace entity. |
 | func | `def register_workspace_api_router(app, **kwargs)` | Build the router and attach it to ``app``. |
 
 ### `workspaces_router.py`
@@ -1502,7 +1809,7 @@ tier: "standard"
 
 ## Who imports this
 
-**20** file(s) reference this package:
+**19** file(s) reference this package:
 
 - **`runtime/_cli_commands.py/`** · 1 file(s)
   - `runtime/_cli_commands.py`
@@ -1512,8 +1819,6 @@ tier: "standard"
   - `runtime/evals/multi_agent_benchmark.py`
 - **`runtime/kernel/`** · 1 file(s)
   - `runtime/kernel/kernel.py`
-- **`runtime/memory/`** · 1 file(s)
-  - `runtime/memory/cowork/runtime.py`
 - **`runtime/platform/`** · 14 file(s)
   - `runtime/platform/plugins/bundled/comfyui_bridge/__init__.py`
   - `runtime/platform/plugins/cloud_expert_store.py`
