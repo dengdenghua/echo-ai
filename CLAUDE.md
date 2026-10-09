@@ -53,7 +53,7 @@ Frontend (in `frontend/`): `pnpm dev` (port 3310), `pnpm build`, `pnpm test`
   active project rules (LINT-02/03/04/05/09; 01 and 10 retired with their
   target packages, 06/07/08 unimplemented) — run it, not just ruff, before
   assuming lint is green.
-- **pytest**: `testpaths=tests`, strict markers/config, 60s timeout. Markers:
+- **pytest**: `testpaths=tests`, strict markers/config, 120s per-test timeout (`timeout` in pyproject). Markers:
   `slow`, `integration`.
 - Two generated artifacts drift easily — regenerate, don't hand-edit:
   `docs/openapi-snapshot.json` (`make openapi-snapshot`) and the frontend

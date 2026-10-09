@@ -23,6 +23,7 @@ jobs:
   secret-scan:
     name: Secret scan (gitleaks)
     runs-on: ubuntu-24.04
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
@@ -43,6 +44,7 @@ jobs:
   lint-and-test:
     name: Lint + Test (Python ${{ matrix.python-version }})
     runs-on: ubuntu-24.04
+    timeout-minutes: 120
     strategy:
       fail-fast: false
       matrix:
@@ -278,6 +280,7 @@ jobs:
     # gates once in the Linux/Python 3.11 lane above.
     name: pytest (${{ matrix.os }}, Python ${{ matrix.python-version }})
     runs-on: ${{ matrix.os }}
+    timeout-minutes: 60
     strategy:
       fail-fast: false
       matrix:
@@ -335,6 +338,7 @@ jobs:
   security-scan:
     name: Security scan
     runs-on: ubuntu-24.04
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
       - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
@@ -349,7 +353,7 @@ jobs:
       - name: Install locked security environment
         env:
           UV_PYTHON_DOWNLOADS: never
-        run: uv sync --locked --python 3.12.11 --extra dev --extra web --extra serve
+        run: uv sync --locked --python 3.12.11 --extra dev --extra web --extra serve --extra desktop-core
       - name: Activate locked environment
         run: echo "${GITHUB_WORKSPACE}/.venv/bin" >> "${GITHUB_PATH}"
       - name: Bandit SAST (zero MEDIUM+ severity findings)
@@ -358,12 +362,14 @@ jobs:
         # nosec markers with a reason comment.
         run: bandit -r runtime/ -ll -ii
       - name: pip-audit
-        # The locked graph must be vulnerability-clean without suppressions.
+        # The locked graph must be vulnerability-clean without suppressions,
+        # including the desktop-core runtime that ships in the installer.
         run: pip-audit
 
   frontend:
     name: Frontend lint + build
     runs-on: ubuntu-24.04
+    timeout-minutes: 45
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
       - uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4
@@ -403,6 +409,7 @@ jobs:
     # granularity) goal in .trae/specs/scale-focus-control/spec.md Delta 2.
     name: PR scale guard (files / lines)
     runs-on: ubuntu-24.04
+    timeout-minutes: 30
     if: github.event_name == 'pull_request'
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
@@ -469,6 +476,7 @@ jobs:
   full-stack-smoke:
     name: Full-stack browser smoke
     runs-on: ubuntu-24.04
+    timeout-minutes: 45
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
       - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
@@ -516,6 +524,7 @@ jobs:
   docker-build:
     name: Docker build test
     runs-on: ubuntu-24.04
+    timeout-minutes: 45
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
       - name: Build Docker image
@@ -556,6 +565,7 @@ jobs:
   tracing-smoke:
     name: Tracing smoke test (with OTel installed)
     runs-on: ubuntu-24.04
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
       - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
@@ -570,6 +580,7 @@ jobs:
   cli-smoke:
     name: CLI argparse wiring smoke
     runs-on: ubuntu-24.04
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
       - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
@@ -587,6 +598,7 @@ jobs:
   demos:
     name: End-to-end demos (bugfix/reflection/evolution)
     runs-on: ubuntu-24.04
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
       - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
@@ -606,6 +618,7 @@ jobs:
   openapi-contract:
     name: OpenAPI schema + TS types contract gate
     runs-on: ubuntu-24.04
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
       - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
@@ -652,6 +665,7 @@ jobs:
   commitlint:
     name: Commit message lint
     runs-on: ubuntu-24.04
+    timeout-minutes: 30
     if: github.event_name == 'pull_request'
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4

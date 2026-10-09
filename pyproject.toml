@@ -114,7 +114,7 @@ desktop-core = [
     "python-docx>=1.2.0",
     "openpyxl>=3.1.5",
     "python-pptx>=1.0.2",
-    "pypdf>=6.15.0",
+    "pypdf>=6.19.0",
     "reportlab>=4.4.4",
 ]
 # Build-only toolchain for the self-contained Windows backend. Keep the direct
@@ -136,7 +136,7 @@ reach = [
 # ── Web content extraction (Readability-style main content) ─
 extract = [
     "trafilatura>=2.0",
-    "pypdf>=6.15.0",
+    "pypdf>=6.19.0",
 ]
 # Local Office authoring/editing. Kept as an explicit extra for headless
 # server installs while desktop-core includes it so the shipped app never
@@ -145,7 +145,7 @@ office = [
     "python-docx>=1.2.0",
     "openpyxl>=3.1.5",
     "python-pptx>=1.0.2",
-    "pypdf>=6.15.0",
+    "pypdf>=6.19.0",
     "reportlab>=4.4.4",
 ]
 # File Agent's echo-storage backend is an independently deployed service,
@@ -160,7 +160,7 @@ anthropic = [
 mcp = [
     "mcp>=2.0.0,<3.0",
     "pydantic-settings>=2.14.2",
-    "pyjwt[crypto]>=2.13.0",
+    "pyjwt[crypto]>=2.15.0",
 ]
 # ── A2A (Agent-to-Agent) client ─────────────────────────
 a2a = [
@@ -252,7 +252,7 @@ all = [
     "httpx>=0.27",
     "feedparser>=6.0.11",
     "yt-dlp>=2026.8.12",
-    "pypdf>=6.15.0",
+    "pypdf>=6.19.0",
     "python-docx>=1.2.0",
     "openpyxl>=3.1.5",
     "python-pptx>=1.0.2",
@@ -262,7 +262,7 @@ all = [
     # MCP client
     "mcp>=2.0.0,<3.0",
     "pydantic-settings>=2.14.2",
-    "pyjwt[crypto]>=2.13.0",
+    "pyjwt[crypto]>=2.15.0",
     # browsers
     "playwright>=1.48",
     # desktop
@@ -348,6 +348,9 @@ addopts = [
     "--strict-config",
     "-ra",
 ]
+# A hung test (deadlocked thread, never-closing socket) fails instead of
+# stalling the whole run. Opt a test out with @pytest.mark.timeout(...).
+timeout = 120
 markers = [
     "slow: marks tests as slow (deselect with '-m \"not slow\"')",
     "integration: end-to-end integration tests",
