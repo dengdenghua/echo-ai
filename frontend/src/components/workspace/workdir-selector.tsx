@@ -42,6 +42,11 @@ import { useProjects } from "@/core/projects/hooks";
 import { managedWorkdirThreadId, workdirDisplayName } from "./workdir-label";
 import { MountPointDialog } from "./mount-point-dialog";
 import { SharedSpacesDialog } from "./shared-spaces-dialog";
+import {
+  useWorkLocationMenu,
+  WorkLocationIcon,
+  type WorkLocationBinding,
+} from "./work-location-picker";
 
 interface WorkDirSelectorProps {
   threadId?: string;
@@ -59,6 +64,12 @@ interface WorkDirSelectorProps {
   workspaceId?: string | null;
   /** Fired when the user picks a remote workspace in the Remote tab. */
   onWorkspaceIdChange?: (workspaceId: string) => void;
+  /**
+   * Where the conversation runs. When given, this one control picks both the
+   * location (the icon) and the address (the label): this computer's folder,
+   * or an execution node / WSL / SSH connection.
+   */
+  location?: WorkLocationBinding;
 }
 
 type FsTreeEntry = components["schemas"]["FsTreeEntry"];
@@ -235,6 +246,7 @@ export function WorkDirSelector({
   enableRemoteTab = true,
   workspaceId,
   onWorkspaceIdChange,
+  location,
 }: WorkDirSelectorProps) {
   const isMutedVariant = variant === "muted";
   const { t, locale } = useI18n();
@@ -251,6 +263,8 @@ export function WorkDirSelector({
   const [isPicking, setIsPicking] = useState(false);
   const pickerRequestRef = useRef<AbortController | null>(null);
   const [showMenu, setShowMenu] = useState(false);
+  const workLocation = useWorkLocationMenu(location, showMenu);
+  const runsElsewhere = workLocation.label !== null;
   const [mountOpen, setMountOpen] = useState(false);
   const [sharedOpen, setSharedOpen] = useState(false);
   // ``browsePath`` drives the in-menu folder browser. When the user
@@ -600,16 +614,19 @@ export function WorkDirSelector({
   const updateMenuPosition = useCallback(() => {
     if (!containerRef.current) return;
     const rect = containerRef.current.getBoundingClientRect();
-    const compactMutedMenu = isMutedVariant && !noBridgeHint;
-    const targetWidth = compactMutedMenu ? 136 : MENU_WIDTH;
-    const minWidth = compactMutedMenu ? 128 : 280;
+    const compactMutedMenu = isMutedVariant && !noBridgeHint && !location;
+    // The location list sits under the trigger, like the other composer menus.
+    const locationMenu = Boolean(location) && !noBridgeHint;
+    const targetWidth = compactMutedMenu ? 136 : locationMenu ? 272 : MENU_WIDTH;
+    const minWidth = compactMutedMenu ? 128 : locationMenu ? 240 : 280;
     const _estimatedHeight = compactMutedMenu ? 56 : 260;
     const minHeight = compactMutedMenu ? 48 : 240;
     const width = Math.min(
       targetWidth,
       Math.max(minWidth, window.innerWidth - MENU_MARGIN * 2),
     );
-    const preferredLeft = compactMutedMenu ? rect.left : rect.right - width;
+    const preferredLeft =
+      compactMutedMenu || locationMenu ? rect.left : rect.right - width;
     const left = Math.min(
       Math.max(MENU_MARGIN, preferredLeft),
       window.innerWidth - MENU_MARGIN - width,
@@ -629,7 +646,7 @@ export function WorkDirSelector({
         ? { bottom: window.innerHeight - rect.top + 6 }
         : { top: rect.bottom + 6 }),
     });
-  }, [isMutedVariant, noBridgeHint]);
+  }, [isMutedVariant, noBridgeHint, location]);
 
   useEffect(() => {
     if (!showMenu) {
@@ -704,9 +721,9 @@ export function WorkDirSelector({
     <div
       className={cn(
         "flex max-h-full flex-col overflow-hidden",
-        // When wrapped in Tabs we drop the outer chrome — Tabs adds its own
-        // border/rounded corners. When standalone we keep the original frame.
-        remoteWorkspaceEnabled
+        // When wrapped in Tabs or the location menu we drop the outer chrome —
+        // the wrapper adds its own. When standalone we keep the original frame.
+        remoteWorkspaceEnabled || location
           ? ""
           : "border border-border-default bg-popover/95 backdrop-blur " +
               (isMutedVariant
@@ -1036,11 +1053,14 @@ export function WorkDirSelector({
   // so the user can flip between local-folder and remote-mount entry
   // points. Otherwise we render the local panel as before — no visual
   // change for existing callers.
-  const menuContent = remoteWorkspaceEnabled && enableRemoteTab ? (
+  const folderMenuContent = remoteWorkspaceEnabled && enableRemoteTab ? (
     <div
       className={cn(
-        "flex max-h-full flex-col overflow-hidden rounded-lg border border-border-default bg-popover/95 backdrop-blur",
-        isMutedVariant ? "shadow-[var(--shadow-md)]" : "shadow-2xl",
+        "flex max-h-full flex-col overflow-hidden",
+        !location &&
+          "rounded-lg border border-border-default bg-popover/95 backdrop-blur",
+        !location &&
+          (isMutedVariant ? "shadow-[var(--shadow-md)]" : "shadow-2xl"),
       )}
     >
       <Tabs
@@ -1073,6 +1093,27 @@ export function WorkDirSelector({
   ) : (
     localMenuContent
   );
+  // With a location binding the folder menu becomes the "本地" branch of the
+  // location list; one frame wraps both.
+  const menuContent = location ? (
+    <div
+      className={cn(
+        "flex max-h-full flex-col overflow-y-auto rounded-lg border border-border-default bg-popover/95 backdrop-blur",
+        isMutedVariant ? "shadow-[var(--shadow-md)]" : "shadow-2xl",
+      )}
+    >
+      {workLocation.renderSection({
+        localContent: folderMenuContent,
+        close: () => setShowMenu(false),
+      })}
+    </div>
+  ) : (
+    folderMenuContent
+  );
+  const shownLabel = workLocation.label ?? triggerLabel;
+  const shownTitle = runsElsewhere
+    ? [workLocation.label, workLocation.detail].filter(Boolean).join(" · ")
+    : triggerTitle;
 
   return (
     <div
@@ -1085,7 +1126,7 @@ export function WorkDirSelector({
           chromeless
             ? "h-8 rounded-lg px-1.5 text-muted-foreground hover:bg-muted/55 hover:text-foreground"
             : "h-8 rounded-lg border border-transparent bg-transparent px-2 text-muted-foreground hover:border-border-default hover:bg-muted/55 hover:text-foreground",
-          isEmpty ? emptyTriggerClass : activeTriggerClass,
+          isEmpty && !runsElsewhere ? emptyTriggerClass : activeTriggerClass,
           isPicking && "cursor-wait opacity-50",
         )}
         onClick={() => {
@@ -1094,10 +1135,15 @@ export function WorkDirSelector({
         }}
         aria-expanded={showMenu}
         aria-busy={isPicking}
-        title={isPicking ? t.common.cancel : triggerTitle}
+        title={isPicking ? t.common.cancel : shownTitle}
         type="button"
+        data-testid={location ? "work-location-trigger" : undefined}
       >
-        <FolderOpenIcon className="size-3.5 shrink-0" />
+        {location ? (
+          <WorkLocationIcon location={workLocation.value} className="size-3.5 shrink-0" />
+        ) : (
+          <FolderOpenIcon className="size-3.5 shrink-0" />
+        )}
         <span
           className={cn(
             isMutedVariant
@@ -1106,8 +1152,11 @@ export function WorkDirSelector({
             isEmpty ? "font-medium" : "tracking-normal",
           )}
         >
-          {isPicking ? t.common.cancel : triggerLabel}
+          {isPicking ? t.common.cancel : shownLabel}
         </span>
+        {workLocation.unhealthy ? (
+          <span className="size-1.5 shrink-0 rounded-full bg-destructive" aria-hidden="true" />
+        ) : null}
         <ChevronDownIcon className="size-3 shrink-0 opacity-35 transition-opacity group-hover:opacity-60" />
       </button>
 
@@ -1143,6 +1192,7 @@ export function WorkDirSelector({
           setShowMenu(true);
         }}
       />}
+      {workLocation.dialogs}
       {remoteWorkspaceEnabled && enableRemoteTab && threadId && threadId !== "new" && <SharedSpacesDialog
         key={threadId} threadId={threadId} open={sharedOpen} onOpenChange={setSharedOpen}
       />}

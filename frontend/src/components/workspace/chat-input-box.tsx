@@ -23,6 +23,7 @@ import {
   type AgentModeName,
   type DetectResponse,
 } from "./mode-selector";
+import type { WorkLocationBinding } from "./work-location-picker";
 import { WorkDirSelector } from "./workdir-selector";
 
 import { ChatComposer } from "./chat-input-box/ChatComposer";
@@ -76,7 +77,8 @@ export interface ChatInputBoxProps {
   /** Optional compact content appended to the workspace/mode status row. */
   statusTrailing?: ReactNode;
   /** Where the conversation runs; rendered first in the status row. */
-  workLocationControl?: ReactNode;
+  /** Where turns run; merged into the folder control (icon = location). */
+  workLocation?: WorkLocationBinding;
   /** Stable browser tab / desktop window bound to this conversation. */
   automationTarget?: AutomationTarget | null;
   onAutomationTargetChange?: (target: AutomationTarget | null) => void;
@@ -387,7 +389,7 @@ function ChatInputBoxImpl(props: ChatInputBoxProps) {
     groupTaskStrategy = "auto",
     onGroupTaskStrategyChange,
     statusTrailing,
-    workLocationControl,
+    workLocation,
     workspaceControl,
     contextActions,
   } = props;
@@ -431,7 +433,8 @@ function ChatInputBoxImpl(props: ChatInputBoxProps) {
   // directory before the picker appeared, so there was no inline way to choose
   // one. When the parent opts into the picker (``showWorkDirSelector``), show it
   // so picking a folder is the entry point into a project/code workflow.
-  const showWorkDirSegment = Boolean(workspaceControl) || isProjectMode || hasWorkDir || showWorkDirSelector;
+  const showWorkDirSegment =
+    Boolean(workspaceControl) || isProjectMode || hasWorkDir || showWorkDirSelector || Boolean(workLocation);
   // Personal and project workspaces share the same two work modes. A folder
   // changes scope only; it must not replace the mode selector with another
   // vocabulary or another backend contract.
@@ -470,7 +473,6 @@ function ChatInputBoxImpl(props: ChatInputBoxProps) {
       Boolean(props.isCompressingContext) ||
       Boolean(props.contextSegments?.length));
   const statusSegmentCount =
-    (workLocationControl ? 1 : 0) +
     (showGroupMembers ? 1 : 0) +
     (showAgentSegment ? 1 : 0) +
     (showWorkDirSegment ? 1 : 0) +
@@ -506,14 +508,6 @@ function ChatInputBoxImpl(props: ChatInputBoxProps) {
           className="flex min-h-8 flex-wrap items-center gap-x-2 px-2 pt-1.5 text-ui text-muted-foreground"
         >
           <div className="inline-flex max-w-full items-center gap-1.5 rounded-lg px-0.5 py-0.5">
-            {workLocationControl ? (
-              <>
-                {workLocationControl}
-                {(showAgentSegment || showWorkDirSegment || showModeSegment || showGroupMembers) && (
-                  <span className="h-3 w-px shrink-0 bg-border/35" aria-hidden="true" />
-                )}
-              </>
-            ) : null}
             {showAgentSegment ? (
               <>
                 <div
@@ -555,6 +549,7 @@ function ChatInputBoxImpl(props: ChatInputBoxProps) {
                   onOpenWorkDirInNewTask={onOpenWorkDirInNewTask}
                   variant="muted"
                   chromeless
+                  location={workLocation}
                 />}
                 </div>
               </>

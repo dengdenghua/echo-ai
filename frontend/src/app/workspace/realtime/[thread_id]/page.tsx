@@ -209,7 +209,6 @@ import { useThreadSettings } from "@/core/settings";
 import { applyCoderModelProfileBoundary } from "@/core/coder/api";
 import { useExecutionEngine } from "@/core/threads/use-execution-engine";
 import { ExecutionEnginePicker } from "@/components/workspace/execution-engine-picker";
-import { WorkLocationPicker } from "@/components/workspace/work-location-picker";
 import {
   useThreadWorkLocation,
   workLocationContext,
@@ -4844,17 +4843,11 @@ function RealtimePageContent({
                             disabled={researchLoading || !canWriteConversation}
                             workDir={effectiveWorkDir}
                             displayAgent={perspectiveComposerAgent}
-                            showWorkDirSelector={
-                              !embeddedDesignChat && workLocation.kind === "local"
-                            }
-                            workLocationControl={
-                              !embeddedDesignChat && !isGroupConversation ? (
-                                <WorkLocationPicker
-                                  value={workLocation}
-                                  onChange={setWorkLocation}
-                                  disabled={thread.isLoading}
-                                />
-                              ) : undefined
+                            showWorkDirSelector={!embeddedDesignChat}
+                            workLocation={
+                              !embeddedDesignChat && !isGroupConversation
+                                ? { value: workLocation, onChange: setWorkLocation }
+                                : undefined
                             }
                             showModeSelector
                             onWorkDirChange={handleWorkDirChange}

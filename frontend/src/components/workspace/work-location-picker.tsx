@@ -1,7 +1,7 @@
 import { useQueryClient } from "@tanstack/react-query";
 import {
   CheckIcon,
-  ChevronDownIcon,
+  ChevronRightIcon,
   CloudIcon,
   KeyRoundIcon,
   LaptopIcon,
@@ -9,25 +9,13 @@ import {
   RadioTowerIcon,
   SquareTerminalIcon,
 } from "lucide-react";
-import { useState, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
-  DropdownMenuSub,
-  DropdownMenuSubContent,
-  DropdownMenuSubTrigger,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
 import { RemoteConnectionDialog } from "@/components/workspace/remote-connection-dialog";
 import { RemoteControlGuideDialog } from "@/components/workspace/remote-control-guide-dialog";
 import {
   LOCAL_WORK_LOCATION,
   useWorkLocations,
-  type ExecutionNodeLocation,
   type RemoteConnection,
   type RemoteTransport,
   type WorkLocation,
@@ -35,69 +23,76 @@ import {
 import { useI18n } from "@/core/i18n/hooks";
 import { cn } from "@/lib/utils";
 
+/** A conversation's work location and how to change it. */
+export interface WorkLocationBinding {
+  value: WorkLocation;
+  onChange: (location: WorkLocation) => void;
+}
+
+type Category = "local" | "node" | "wsl" | "ssh";
 type DialogState =
   | { kind: "ssh" }
   | { kind: "wsl"; distro?: string }
   | { kind: "guide" }
   | null;
 
-function Note({
-  children,
-  tone = "muted",
+function categoryOf(location: WorkLocation): Category {
+  if (location.kind === "node") return "node";
+  if (location.kind === "remote")
+    return location.transport === "wsl" ? "wsl" : "ssh";
+  return "local";
+}
+
+/** Laptop for this computer; any other icon means the turn runs elsewhere. */
+export function WorkLocationIcon({
+  location,
+  className,
 }: {
-  children: ReactNode;
-  tone?: "muted" | "error";
+  location: WorkLocation;
+  className?: string;
 }) {
-  return (
-    <p
-      className={cn(
-        "max-w-64 px-2 py-1.5 text-xs leading-relaxed",
-        tone === "error" ? "text-destructive" : "text-muted-foreground",
-      )}
-    >
-      {children}
-    </p>
-  );
+  const category = categoryOf(location);
+  const Icon =
+    category === "node"
+      ? RadioTowerIcon
+      : category === "wsl"
+        ? SquareTerminalIcon
+        : category === "ssh"
+          ? KeyRoundIcon
+          : LaptopIcon;
+  return <Icon className={className} aria-hidden="true" />;
 }
 
-function Check({ on }: { on: boolean }) {
-  return on ? (
-    <CheckIcon className="ml-auto size-4 shrink-0 text-primary" />
-  ) : null;
-}
-
-function locationIcon(location: WorkLocation, className: string) {
-  if (location.kind === "node") return <RadioTowerIcon className={className} />;
-  if (location.kind === "remote") {
-    return location.transport === "wsl" ? (
-      <SquareTerminalIcon className={className} />
-    ) : (
-      <KeyRoundIcon className={className} />
-    );
-  }
-  return <LaptopIcon className={className} />;
-}
+const ROW =
+  "flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-xs font-medium text-muted-foreground transition-colors hover:bg-muted/60 hover:text-foreground disabled:pointer-events-none disabled:opacity-50";
 
 /**
- * Where this conversation's turns run: this computer, another machine that
- * connected as an execution node (remote control), WSL, or an SSH host.
+ * The location half of the composer's location/address control.
+ *
+ * Owns the location data, the inline menu section and the add-connection
+ * dialogs (which outlive the popover). ``label`` is ``null`` for this
+ * computer so the caller shows its own address (the chosen folder).
  */
-export function WorkLocationPicker({
-  value,
-  onChange,
-  disabled,
-}: {
-  value: WorkLocation;
-  onChange: (location: WorkLocation) => void;
-  disabled?: boolean;
-}) {
+export function useWorkLocationMenu(
+  binding: WorkLocationBinding | undefined,
+  menuOpen: boolean,
+) {
   const { locale } = useI18n();
   const zh = locale.startsWith("zh");
   const queryClient = useQueryClient();
-  const [open, setOpen] = useState(false);
+  const value = binding?.value ?? LOCAL_WORK_LOCATION;
   const [dialog, setDialog] = useState<DialogState>(null);
-  // Fetch once the user looks, and keep a non-local selection's status fresh.
-  const locations = useWorkLocations(open || value.kind !== "local");
+  const [expanded, setExpanded] = useState<Category | null>(categoryOf(value));
+  // Re-open on the current location's branch each time the menu opens.
+  const wasOpen = useRef(false);
+  useEffect(() => {
+    if (menuOpen && !wasOpen.current) setExpanded(categoryOf(value));
+    wasOpen.current = menuOpen;
+  }, [menuOpen, value]);
+
+  const locations = useWorkLocations(
+    Boolean(binding) && (menuOpen || value.kind !== "local"),
+  );
   const data = locations.data;
   const nodes = data?.execution_nodes ?? [];
   const connections = data?.remote.connections ?? [];
@@ -119,341 +114,326 @@ export function WorkLocationPicker({
     value.kind === "remote"
       ? connections.find((c) => c.id === value.backend_id)
       : undefined;
-  const triggerLabel =
+  const label =
     value.kind === "node"
       ? currentNode?.label || value.label || value.node_id
       : value.kind === "remote"
         ? currentConnection?.name ||
           value.label ||
           (value.transport === "wsl" ? "WSL" : "SSH")
-        : zh
-          ? "本地"
-          : "Local";
+        : null;
+  const detail =
+    value.kind === "node"
+      ? (value.workspace_name ?? value.workspace_id)
+      : value.kind === "remote"
+        ? currentConnection?.target
+        : undefined;
   const unhealthy =
     (value.kind === "node" &&
       currentNode !== undefined &&
       !currentNode.online) ||
     (value.kind === "remote" && currentConnection?.health === "error");
-  const title = zh ? "工作位置" : "Work location";
 
-  const chooseNode = (
-    node: ExecutionNodeLocation,
-    workspace: { id: string; name: string },
-    role: string,
-  ) =>
-    onChange({
-      kind: "node",
-      node_id: node.node_id,
-      workspace_id: workspace.id,
-      role,
-      label: node.label,
-      workspace_name: workspace.name,
-    });
   const chooseConnection = (connection: {
     id: string;
     name: string;
     transport: RemoteTransport;
   }) =>
-    onChange({
+    binding?.onChange({
       kind: "remote",
       backend_id: connection.id,
       transport: connection.transport,
       label: connection.name,
     });
-  const isConnection = (id: string) =>
-    value.kind === "remote" && value.backend_id === id;
 
-  const remoteUnavailable = !data ? null : !data.remote.enabled ? (
-    <Note>
-      {zh
-        ? "远程连接尚未开启：需要开启实验功能 ui.remote_transport。"
-        : "Remote connections are off: enable the experimental ui.remote_transport flag."}
-    </Note>
-  ) : !data.remote.can_manage ? (
-    <Note>
-      {zh
-        ? "只有管理员可以配置远程连接。"
-        : "Only admins can configure remote connections."}
-    </Note>
-  ) : null;
-
-  const connectionItem = (connection: RemoteConnection) => (
-    <DropdownMenuItem
-      key={connection.id}
-      onSelect={() => chooseConnection(connection)}
-      className="items-start gap-2.5 py-2"
-    >
-      <span className="min-w-0 flex-1">
-        <span className="flex items-center gap-1.5 truncate font-medium">
-          {connection.name}
-          {connection.health === "error" ? (
-            <span
-              className="size-1.5 shrink-0 rounded-full bg-destructive"
-              aria-hidden="true"
-            />
-          ) : null}
-        </span>
-        <span className="mt-0.5 block truncate text-xs text-muted-foreground">
-          {connection.health === "error" && connection.health_detail
-            ? connection.health_detail
-            : connection.target}
-        </span>
-      </span>
-      <Check on={isConnection(connection.id)} />
-    </DropdownMenuItem>
-  );
-
-  const nodeItems = nodes.flatMap((node) =>
-    node.workspaces.map((workspace) => {
-      const unavailable = !node.online || !workspace.ready;
-      const hint = !node.online
-        ? zh
-          ? "离线"
-          : "Offline"
-        : !workspace.ready
-          ? zh
-            ? "共享空间未挂载到本机"
-            : "Workspace is not mounted here"
-          : workspace.name;
-      const selected =
-        value.kind === "node" &&
-        value.node_id === node.node_id &&
-        value.workspace_id === workspace.id;
-      const body = (
-        <>
-          <span className="min-w-0 flex-1">
-            <span className="block truncate font-medium">{node.label}</span>
-            <span className="mt-0.5 block truncate text-xs text-muted-foreground">
-              {hint}
-            </span>
-          </span>
-          <Check on={selected} />
-        </>
-      );
-      const key = `${node.node_id}:${workspace.id}`;
-      if (node.roles.length > 1 && !unavailable) {
-        return (
-          <DropdownMenuSub key={key}>
-            <DropdownMenuSubTrigger className="items-start gap-2.5 py-2">
-              {body}
-            </DropdownMenuSubTrigger>
-            <DropdownMenuSubContent className="w-48">
-              <DropdownMenuLabel className="text-xs font-medium text-muted-foreground">
-                {zh ? "由哪个角色执行" : "Run as role"}
-              </DropdownMenuLabel>
-              {node.roles.map((role) => (
-                <DropdownMenuItem
-                  key={role}
-                  onSelect={() => chooseNode(node, workspace, role)}
-                >
-                  <span className="flex-1 truncate">{role}</span>
-                  <Check
-                    on={
-                      selected && value.kind === "node" && value.role === role
-                    }
-                  />
-                </DropdownMenuItem>
-              ))}
-            </DropdownMenuSubContent>
-          </DropdownMenuSub>
-        );
-      }
-      return (
-        <DropdownMenuItem
-          key={key}
-          disabled={unavailable}
-          onSelect={() => chooseNode(node, workspace, node.roles[0]!)}
-          className="items-start gap-2.5 py-2"
-        >
-          {body}
-        </DropdownMenuItem>
-      );
-    }),
-  );
-
-  const loadingOrError = locations.isLoading ? (
-    <Note>{zh ? "正在查找…" : "Looking…"}</Note>
-  ) : locations.isError ? (
-    <Note tone="error">
-      {zh ? "暂时无法读取工作位置" : "Work locations are unavailable"}
-    </Note>
-  ) : null;
-
-  const subTrigger = (
-    icon: ReactNode,
-    label: string,
-    active: boolean,
-    testId: string,
-  ) => (
-    <DropdownMenuSubTrigger className="gap-2.5 py-1.5" data-testid={testId}>
-      {icon}
-      <span className="flex-1">{label}</span>
-      {active ? (
-        <span className="size-1.5 rounded-full bg-primary" aria-hidden="true" />
-      ) : null}
-    </DropdownMenuSubTrigger>
-  );
-
-  return (
-    <>
-      <DropdownMenu open={open} onOpenChange={setOpen}>
-        <DropdownMenuTrigger asChild>
-          <button
-            type="button"
-            disabled={disabled}
-            aria-label={`${title}: ${triggerLabel}`}
-            title={
-              value.kind === "node"
-                ? `${title}: ${triggerLabel} · ${value.workspace_name ?? value.workspace_id}`
-                : `${title}: ${triggerLabel}`
-            }
-            data-testid="work-location-trigger"
-            className={cn(
-              "group flex h-8 max-w-[160px] items-center gap-1.5 rounded-lg px-1.5 text-ui font-medium text-muted-foreground transition-colors hover:bg-muted/55 hover:text-foreground disabled:opacity-50",
-              value.kind !== "local" && "text-foreground",
-            )}
-          >
-            {locationIcon(value, "size-3.5 shrink-0")}
-            <span className="truncate">{triggerLabel}</span>
-            {unhealthy ? (
+  const renderSection = ({
+    localContent,
+    close,
+  }: {
+    localContent: ReactNode;
+    close: () => void;
+  }) => {
+    if (!binding) return localContent;
+    const pick = (location: WorkLocation) => {
+      binding.onChange(location);
+      close();
+    };
+    const openDialog = (next: DialogState) => {
+      close();
+      setDialog(next);
+    };
+    const toggle = (category: Category) =>
+      setExpanded((current) => (current === category ? null : category));
+    const note = (text: string, tone: "muted" | "error" = "muted") => (
+      <p
+        className={cn(
+          "px-2 py-1.5 text-xs leading-relaxed",
+          tone === "error" ? "text-destructive" : "text-muted-foreground",
+        )}
+      >
+        {text}
+      </p>
+    );
+    const pending = locations.isLoading
+      ? note(zh ? "正在查找…" : "Looking…")
+      : locations.isError
+        ? note(
+            zh ? "暂时无法读取工作位置" : "Work locations are unavailable",
+            "error",
+          )
+        : null;
+    const remoteBlocked = !data
+      ? null
+      : !data.remote.enabled
+        ? note(
+            zh
+              ? "远程连接尚未开启：需要开启实验功能 ui.remote_transport。"
+              : "Remote connections are off: enable the experimental ui.remote_transport flag.",
+          )
+        : !data.remote.can_manage
+          ? note(
+              zh
+                ? "只有管理员可以配置远程连接。"
+                : "Only admins can configure remote connections.",
+            )
+          : null;
+    const entry = ({
+      key,
+      title,
+      subtitle,
+      selected,
+      disabled,
+      danger,
+      onClick,
+    }: {
+      key: string;
+      title: string;
+      subtitle?: string;
+      selected: boolean;
+      disabled?: boolean;
+      danger?: boolean;
+      onClick: () => void;
+    }) => (
+      <button
+        key={key}
+        type="button"
+        disabled={disabled}
+        aria-pressed={selected}
+        onClick={onClick}
+        className={cn(
+          ROW,
+          "items-start",
+          selected && "bg-muted/60 text-foreground",
+        )}
+      >
+        <span className="min-w-0 flex-1">
+          <span className="flex items-center gap-1.5 truncate text-foreground">
+            {title}
+            {danger ? (
               <span
                 className="size-1.5 shrink-0 rounded-full bg-destructive"
                 aria-hidden="true"
               />
             ) : null}
-            <ChevronDownIcon className="size-3 shrink-0 opacity-60" />
-          </button>
-        </DropdownMenuTrigger>
-        <DropdownMenuContent
-          align="start"
-          className="w-52"
-          data-testid="work-location-menu"
-        >
-          <DropdownMenuItem
-            onSelect={() => onChange(LOCAL_WORK_LOCATION)}
-            className="gap-2.5 py-1.5"
-          >
-            <LaptopIcon className="size-4 shrink-0" />
-            <span className="flex-1">{zh ? "本地" : "Local"}</span>
-            <Check on={value.kind === "local"} />
-          </DropdownMenuItem>
-
-          <DropdownMenuSub>
-            {subTrigger(
-              <CloudIcon className="size-4 shrink-0" />,
-              zh ? "云端" : "Cloud",
-              false,
-              "work-location-cloud",
-            )}
-            <DropdownMenuSubContent className="w-64">
-              <DropdownMenuItem disabled className="items-start py-2">
-                <span className="min-w-0">
-                  <span className="block font-medium">
-                    {zh ? "即将推出" : "Coming soon"}
-                  </span>
-                  <span className="mt-0.5 block text-xs leading-relaxed text-muted-foreground">
-                    {zh
-                      ? "在云端沙箱里运行，不占用这台电脑。需要 Echo 云服务。"
-                      : "Run in a cloud sandbox without using this computer. Needs the Echo cloud service."}
-                  </span>
-                </span>
-              </DropdownMenuItem>
-            </DropdownMenuSubContent>
-          </DropdownMenuSub>
-
-          <DropdownMenuSub>
-            {subTrigger(
-              <RadioTowerIcon className="size-4 shrink-0" />,
-              zh ? "远程控制" : "Remote Control",
-              value.kind === "node",
-              "work-location-remote-control",
-            )}
-            <DropdownMenuSubContent className="w-64">
-              {loadingOrError ??
-                (nodeItems.length > 0 ? (
-                  nodeItems
-                ) : (
-                  <Note>
-                    {zh
-                      ? "还没有连上来的机器。"
-                      : "No machines are connected yet."}
-                  </Note>
-                ))}
-              <DropdownMenuSeparator />
-              <DropdownMenuItem
-                onSelect={() => setDialog({ kind: "guide" })}
-                className="gap-2.5"
-              >
-                <PlusIcon className="size-4 shrink-0" />
-                {zh ? "连接另一台机器…" : "Connect another machine…"}
-              </DropdownMenuItem>
-            </DropdownMenuSubContent>
-          </DropdownMenuSub>
-
-          {showWsl ? (
-            <DropdownMenuSub>
-              {subTrigger(
-                <SquareTerminalIcon className="size-4 shrink-0" />,
-                "WSL",
-                value.kind === "remote" && value.transport === "wsl",
-                "work-location-wsl",
-              )}
-              <DropdownMenuSubContent className="w-64">
-                {loadingOrError ?? remoteUnavailable ?? (
-                  <>
-                    {wslConnections.map(connectionItem)}
-                    {wslConnections.length > 0 &&
-                    unconnectedDistros.length > 0 ? (
-                      <DropdownMenuSeparator />
-                    ) : null}
-                    {unconnectedDistros.map((distro) => (
-                      <DropdownMenuItem
-                        key={distro.name}
-                        onSelect={() =>
-                          setDialog({ kind: "wsl", distro: distro.name })
-                        }
-                        className="gap-2.5"
-                      >
-                        <PlusIcon className="size-4 shrink-0" />
-                        <span className="truncate">
-                          {zh
-                            ? `连接 ${distro.name}…`
-                            : `Connect ${distro.name}…`}
-                        </span>
-                      </DropdownMenuItem>
-                    ))}
-                  </>
-                )}
-              </DropdownMenuSubContent>
-            </DropdownMenuSub>
+          </span>
+          {subtitle ? (
+            <span className="mt-0.5 block truncate font-normal text-muted-foreground">
+              {subtitle}
+            </span>
           ) : null}
-
-          <DropdownMenuSub>
-            {subTrigger(
-              <KeyRoundIcon className="size-4 shrink-0" />,
-              "SSH",
-              value.kind === "remote" && value.transport === "ssh_tunnel",
-              "work-location-ssh",
-            )}
-            <DropdownMenuSubContent className="w-64">
-              {loadingOrError ?? remoteUnavailable ?? (
-                <>
-                  {sshConnections.map(connectionItem)}
-                  {sshConnections.length > 0 ? <DropdownMenuSeparator /> : null}
-                  <DropdownMenuItem
-                    onSelect={() => setDialog({ kind: "ssh" })}
-                    className="gap-2.5"
-                  >
-                    <PlusIcon className="size-4 shrink-0" />
-                    {zh ? "添加 SSH 连接…" : "Add SSH connection…"}
-                  </DropdownMenuItem>
-                </>
+        </span>
+        {selected ? (
+          <CheckIcon className="mt-0.5 size-3.5 shrink-0 text-primary" />
+        ) : null}
+      </button>
+    );
+    const action = (key: string, text: string, onClick: () => void) => (
+      <button key={key} type="button" onClick={onClick} className={ROW}>
+        <PlusIcon className="size-3.5 shrink-0" />
+        <span className="min-w-0 flex-1 truncate">{text}</span>
+      </button>
+    );
+    const connectionEntry = (connection: RemoteConnection) =>
+      entry({
+        key: connection.id,
+        title: connection.name,
+        subtitle:
+          connection.health === "error" && connection.health_detail
+            ? connection.health_detail
+            : connection.target,
+        selected: value.kind === "remote" && value.backend_id === connection.id,
+        danger: connection.health === "error",
+        onClick: () => {
+          chooseConnection(connection);
+          close();
+        },
+      });
+    const branch = (
+      category: Category,
+      icon: ReactNode,
+      text: string,
+      body: ReactNode,
+    ) => {
+      const open = expanded === category;
+      const active = categoryOf(value) === category;
+      return (
+        <div key={category}>
+          <button
+            type="button"
+            aria-expanded={open}
+            data-testid={`work-location-${category}`}
+            onClick={() => {
+              if (category === "local" && value.kind !== "local")
+                binding.onChange(LOCAL_WORK_LOCATION);
+              toggle(category);
+            }}
+            className={cn(ROW, active && "text-foreground")}
+          >
+            {icon}
+            <span className="min-w-0 flex-1 truncate">{text}</span>
+            {active && !open ? (
+              <span
+                className="size-1.5 shrink-0 rounded-full bg-primary"
+                aria-hidden="true"
+              />
+            ) : null}
+            <ChevronRightIcon
+              className={cn(
+                "size-3.5 shrink-0 opacity-50 transition-transform",
+                open && "rotate-90",
               )}
-            </DropdownMenuSubContent>
-          </DropdownMenuSub>
-        </DropdownMenuContent>
-      </DropdownMenu>
+            />
+          </button>
+          {open ? (
+            <div className="ml-3 border-l border-border/60 pl-1">{body}</div>
+          ) : null}
+        </div>
+      );
+    };
 
+    const nodeEntries = nodes.flatMap((node) =>
+      node.workspaces.flatMap((workspace) =>
+        node.roles.map((role) => {
+          const offline = !node.online;
+          const unmounted = !workspace.ready;
+          const scope =
+            node.roles.length > 1
+              ? `${workspace.name} · ${role}`
+              : workspace.name;
+          return entry({
+            key: `${node.node_id}:${workspace.id}:${role}`,
+            title: node.label,
+            subtitle: offline
+              ? zh
+                ? "离线"
+                : "Offline"
+              : unmounted
+                ? zh
+                  ? "共享空间未挂载到本机"
+                  : "Workspace is not mounted here"
+                : scope,
+            selected:
+              value.kind === "node" &&
+              value.node_id === node.node_id &&
+              value.workspace_id === workspace.id &&
+              value.role === role,
+            disabled: offline || unmounted,
+            onClick: () =>
+              pick({
+                kind: "node",
+                node_id: node.node_id,
+                workspace_id: workspace.id,
+                role,
+                label: node.label,
+                workspace_name: workspace.name,
+              }),
+          });
+        }),
+      ),
+    );
+
+    return (
+      <div className="p-1.5" data-testid="work-location-menu">
+        {branch(
+          "local",
+          <LaptopIcon className="size-3.5 shrink-0" />,
+          zh ? "本地" : "Local",
+          localContent,
+        )}
+        <button
+          type="button"
+          disabled
+          className={ROW}
+          data-testid="work-location-cloud"
+        >
+          <CloudIcon className="size-3.5 shrink-0" />
+          <span className="min-w-0 flex-1 truncate">
+            {zh ? "云端" : "Cloud"}
+          </span>
+          <span className="shrink-0 text-xs font-normal">
+            {zh ? "即将推出" : "Coming soon"}
+          </span>
+        </button>
+        {branch(
+          "node",
+          <RadioTowerIcon className="size-3.5 shrink-0" />,
+          zh ? "远程控制" : "Remote Control",
+          <>
+            {pending ??
+              (nodeEntries.length > 0
+                ? nodeEntries
+                : note(
+                    zh
+                      ? "还没有连上来的机器。"
+                      : "No machines are connected yet.",
+                  ))}
+            {action(
+              "guide",
+              zh ? "连接另一台机器…" : "Connect another machine…",
+              () => openDialog({ kind: "guide" }),
+            )}
+          </>,
+        )}
+        {showWsl
+          ? branch(
+              "wsl",
+              <SquareTerminalIcon className="size-3.5 shrink-0" />,
+              "WSL",
+              pending ?? remoteBlocked ?? (
+                <>
+                  {wslConnections.map(connectionEntry)}
+                  {unconnectedDistros.map((distro) =>
+                    action(
+                      distro.name,
+                      zh ? `连接 ${distro.name}…` : `Connect ${distro.name}…`,
+                      () => openDialog({ kind: "wsl", distro: distro.name }),
+                    ),
+                  )}
+                </>
+              ),
+            )
+          : null}
+        {branch(
+          "ssh",
+          <KeyRoundIcon className="size-3.5 shrink-0" />,
+          "SSH",
+          pending ?? remoteBlocked ?? (
+            <>
+              {sshConnections.map(connectionEntry)}
+              {action(
+                "add-ssh",
+                zh ? "添加 SSH 连接…" : "Add SSH connection…",
+                () => openDialog({ kind: "ssh" }),
+              )}
+            </>
+          ),
+        )}
+      </div>
+    );
+  };
+
+  const dialogs = binding ? (
+    <>
       <RemoteConnectionDialog
         open={dialog?.kind === "ssh" || dialog?.kind === "wsl"}
         onOpenChange={(next) => {
@@ -476,5 +456,7 @@ export function WorkLocationPicker({
         }}
       />
     </>
-  );
+  ) : null;
+
+  return { value, label, detail, unhealthy, renderSection, dialogs };
 }
