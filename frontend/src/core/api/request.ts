@@ -125,20 +125,30 @@ type JsonContentOf<R> = R extends { content: { "application/json": infer C } }
   ? C
   : undefined;
 
-/**
- * Loosely-declared responses (``unknown`` or ``{ [key: string]: unknown }``,
- * i.e. FastAPI handlers returning a plain ``dict``) collapse to ``unknown`` so
- * call sites narrow them explicitly instead of double-casting.
- */
-type Tighten<T> = unknown extends T
-  ? unknown
+type IsLoose<T> = unknown extends T
+  ? true
   : T extends { [key: string]: infer V }
     ? string extends keyof T
       ? unknown extends V
-        ? unknown
+        ? true
+        : false
+      : false
+    : false;
+
+/**
+ * Loosely-declared responses (``unknown`` or ``{ [key: string]: unknown }``,
+ * i.e. FastAPI handlers returning a plain ``dict``) collapse to ``unknown``,
+ * and lists of them (``list[dict]``) to ``unknown[]``, so call sites narrow
+ * them with a single cast instead of double-casting.
+ */
+type Tighten<T> =
+  IsLoose<T> extends true
+    ? unknown
+    : T extends readonly (infer E)[]
+      ? IsLoose<E> extends true
+        ? unknown[]
         : T
-      : T
-    : T;
+      : T;
 
 type ResponseOf<Op> = Op extends { responses: infer Rs }
   ? [Extract<keyof Rs, SuccessStatus>] extends [never]

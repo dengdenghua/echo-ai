@@ -92,6 +92,8 @@ export function requestTypeContract(threadId: string): void {
 
   // Loose ``dict`` responses collapse to ``unknown``; precise ones survive.
   assertType<Equals<ApiData<"/api/teams", "get">, unknown>>();
+  // ``list[dict]`` collapses to ``unknown[]``.
+  assertType<Equals<ApiData<"/api/apps", "get">, unknown[]>>();
   assertType<
     Equals<
       ApiData<"/api/coder/codex/model-profile", "get">,

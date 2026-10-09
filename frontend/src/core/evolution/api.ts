@@ -512,47 +512,43 @@ export async function getEvolutionStory(): Promise<EvolutionStory> {
 export async function getLearningCurve(
   weeks?: number,
 ): Promise<LearningCurvePoint[]> {
-  // ``List[dict]`` rows are loose records; widen before narrowing.
   return (await withEvolutionTimeout((signal) =>
     apiGet("/api/evolution/learning-curve", {
       query: { weeks },
       signal,
       errorMessage: failed("Failed to load learning curve"),
     }),
-  )) as unknown as LearningCurvePoint[];
+  )) as LearningCurvePoint[];
 }
 
 export async function getSkillPerformance(): Promise<SkillPerformance[]> {
-  // ``List[dict]`` rows are loose records; widen before narrowing.
   return (await withEvolutionTimeout((signal) =>
     apiGet("/api/evolution/skills/performance", {
       signal,
       errorMessage: failed("Failed to load skill performance"),
     }),
-  )) as unknown as SkillPerformance[];
+  )) as SkillPerformance[];
 }
 
 export async function getMemoryGrowth(
   days?: number,
 ): Promise<MemoryGrowthPoint[]> {
-  // ``List[dict]`` rows are loose records; widen before narrowing.
   return (await withEvolutionTimeout((signal) =>
     apiGet("/api/evolution/memory/growth", {
       query: { days },
       signal,
       errorMessage: failed("Failed to load memory growth"),
     }),
-  )) as unknown as MemoryGrowthPoint[];
+  )) as MemoryGrowthPoint[];
 }
 
 export async function getRecommendations(): Promise<Recommendation[]> {
-  // ``List[dict]`` rows are loose records; widen before narrowing.
   return (await withEvolutionTimeout((signal) =>
     apiGet("/api/evolution/recommendations", {
       signal,
       errorMessage: failed("Failed to load recommendations"),
     }),
-  )) as unknown as Recommendation[];
+  )) as Recommendation[];
 }
 
 export async function getFitness(
