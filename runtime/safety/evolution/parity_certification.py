@@ -247,7 +247,7 @@ REQUIREMENTS: tuple[CertificationRequirement, ...] = (
             "tests/test_browser_router.py",
             "tests/test_computer_use_loop.py",
             "tests/test_browser_desktop_repair_recipes.py",
-            "frontend/src/components/workspace/embedded-browser/browser-panel.tsx",
+            "frontend/src/components/workspace/browser-preview-panel.tsx",
             "frontend/src/components/workspace/replay-panel.tsx",
             "frontend/src/components/workspace/agent-operator/index.tsx",
         ),

@@ -209,7 +209,7 @@ CAPABILITIES: tuple[GapCapability, ...] = (
             "runtime/execution/suckers/browser_act_skills.py",
             "runtime/safety/replay/browser_desktop_replay.py",
             "runtime/safety/replay/browser_pixel_assertions.py",
-            "frontend/src/components/workspace/embedded-browser/browser-panel.tsx",
+            "frontend/src/components/workspace/browser-preview-panel.tsx",
         ),
         test_paths=(
             "tests/test_computer_router.py",
@@ -237,7 +237,7 @@ CAPABILITIES: tuple[GapCapability, ...] = (
             "runtime/sensing/gateway/deep_research_router.py",
             "runtime/sensing/gateway/team_tasks_router.py",
             "frontend/src/components/workspace/deep-research-panel.tsx",
-            "frontend/src/components/workspace/parallel-tasks-panel.tsx",
+            "frontend/src/components/workspace/collab/team-tasks-panel.tsx",
         ),
         test_paths=(
             "tests/test_call_agent_vote.py",

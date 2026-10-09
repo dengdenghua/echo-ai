@@ -282,7 +282,7 @@ CHECKS: tuple[BrowserDesktopCheck, ...] = (
             "frontend/src/components/workspace/agent-operator-panel.tsx",
             "frontend/src/components/workspace/agent-operator-panel.test.tsx",
             "frontend/src/components/workspace/browser-preview-panel.tsx",
-            "frontend/src/components/workspace/embedded-browser/browser-panel.tsx",
+            "frontend/src/components/workspace/agent-operator/cards/PluginHealthCard.tsx",
         ),
         required_terms=(
             "browser",

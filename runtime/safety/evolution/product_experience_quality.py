@@ -155,8 +155,8 @@ CHECKS: tuple[ProductExperienceCheck, ...] = (
         id="shared_quality_strip",
         title="Shared quality strip",
         paths=(
-            "frontend/src/components/workspace/capability-quality-strip.tsx",
-            "frontend/src/components/workspace/capability-quality-strip.test.tsx",
+            "frontend/src/components/workspace/agent-operator/index.tsx",
+            "frontend/src/components/workspace/agent-operator/cards/CompetitorScorecardCard.tsx",
             "frontend/src/core/agent-trace/api.ts",
         ),
         required_terms=(
@@ -171,7 +171,6 @@ CHECKS: tuple[ProductExperienceCheck, ...] = (
         id="browser_preview_product_loop",
         title="Browser preview product loop",
         paths=(
-            "frontend/src/components/workspace/embedded-browser/browser-panel.tsx",
             "frontend/src/components/workspace/browser-preview-panel.tsx",
             "runtime/platform/ui/browser_router.py",
             "tests/test_browser_router.py",
