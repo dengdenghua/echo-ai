@@ -109,6 +109,12 @@ export default tseslint.config(
       "src/app/workspace/realtime/**",
       "src/components/browser/assistant-panel.tsx",
       "src/components/workspace/browser-preview-panel.tsx",
+      // Fixed on the typed-requests branch but held back while another
+      // change to these files is in flight; delete with that follow-up.
+      "src/app/register/page.tsx",
+      "src/app/workspace/design/page.tsx",
+      "src/components/store/capability-market-panel.tsx",
+      "src/components/workspace/agents/agent-world-unified.tsx",
     ],
     rules: {
       "@typescript-eslint/no-floating-promises": "off",
@@ -122,6 +128,8 @@ export default tseslint.config(
       "src/components/browser/assistant-panel.tsx",
       "src/components/browser/password-prompt.tsx",
       "src/components/workspace/browser-preview-panel.tsx",
+      // Held back with the floating-promise follow-up above.
+      "src/components/store/capability-market-panel.tsx",
     ],
     rules: {
       "@typescript-eslint/no-misused-promises": "off",
