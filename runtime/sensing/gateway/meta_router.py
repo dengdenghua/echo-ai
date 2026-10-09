@@ -41,11 +41,13 @@ binding the tests monkeypatch stays the one the factory resolves):
 * ``_meta_skill_install.py`` · skills/public install + uninstall helpers
 * ``_meta_skill_metadata.py``· skill-market classification + catalog parse
 * ``_meta_mentions.py``      · @-mention autocomplete builder
+* ``_meta_router_deps.py``   · injected values shared by the route groups
+* ``_meta_skill_routes.py``  · capability catalog, skill toggles, install, permissions
+* ``_meta_auth_routes.py``   · auth status, strict /api/auth/me + logout, providers
 """
 
 from __future__ import annotations
 
-import asyncio
 import json
 import logging
 import time
@@ -67,21 +69,14 @@ except ImportError:  # pragma: no cover
     Response = None  # type: ignore[assignment, misc]
 
 from runtime.sensing._fastapi_guard import require_fastapi
+from runtime.sensing.gateway._meta_auth_routes import _register_auth_routes
 from runtime.sensing.gateway._meta_mentions import _build_mentions_autocomplete
 from runtime.sensing.gateway._meta_models import (
-    AuthProvidersResponse,
-    CapabilityPermissionsResponse,
-    CapabilityPermissionWire,
     FeedbackListResponse,
     FeedbackPostResponse,
     SkillsResponse,
-    SlashCommandsResponse,
 )
-from runtime.sensing.gateway._meta_skill_install import (
-    _install_public_skill_dir,
-    _require_safe_skill_install_name,
-    _uninstall_public_skill_dir,
-)
+from runtime.sensing.gateway._meta_router_deps import MetaRouterDeps
 from runtime.sensing.gateway._meta_skill_metadata import (
     SKILL_CATEGORIES,
     _default_skill_library_dir,
@@ -94,6 +89,11 @@ from runtime.sensing.gateway._meta_skill_metadata import (
     _skill_group_for,
     _skill_kind,
     _skill_market_profile,
+)
+from runtime.sensing.gateway._meta_skill_routes import (
+    _register_capability_catalog_routes,
+    _register_capability_permission_routes,
+    _register_skill_install_routes,
 )
 
 # ═══════════════════════════════════════════════════════════
@@ -218,6 +218,46 @@ def create_meta_router(
         roles = getattr(identity, "roles", ()) or ()
         if "admin" not in {str(r).lower() for r in roles}:
             raise HTTPException(403, f"admin role required to {purpose}")
+
+    d = MetaRouterDeps(
+        registry=registry,
+        tool_registry=tool_registry,
+        mobile_skills_root=mobile_skills_root,
+        oct_config=oct_config,
+        local_auth_config=local_auth_config,
+        identity_store=identity_store,
+        jwt_secret=jwt_secret,
+        jwt_issuer=jwt_issuer,
+        jwt_audience=jwt_audience,
+        require_auth=require_auth,
+        feedback_path=_feedback_path,
+        skill_library_dirs=_skill_library_dirs,
+        require_admin=_require_admin,
+    )
+
+    # Registration order is FastAPI's path-matching priority — keep it.
+    _register_feedback_and_skills_routes(router, d)
+    _register_capability_catalog_routes(router, d)
+    _register_skill_install_routes(router, d)
+    _register_capability_permission_routes(router, d)
+    _register_auth_routes(router, d)
+    _register_architecture_and_mention_routes(router, d)
+
+    return router
+
+
+# Stays in this module: tests monkeypatch ``meta_router._dynamic_plugin_skill_names``
+# (read by ``/api/skills``), and the feedback handler logs via ``__name__``.
+def _register_feedback_and_skills_routes(router: APIRouter, d: MetaRouterDeps) -> None:
+    """Reply feedback (record + admin read-back) and the registered skill catalog."""
+    registry = d.registry
+    identity_store = d.identity_store
+    jwt_secret = d.jwt_secret
+    jwt_issuer = d.jwt_issuer
+    jwt_audience = d.jwt_audience
+    _feedback_path = d.feedback_path
+    _skill_library_dirs = d.skill_library_dirs
+    _require_admin = d.require_admin
 
     # ─── Feedback ───────────────────────────────────────────
 
@@ -388,449 +428,10 @@ def create_meta_router(
         )
         return {"skills": skills}
 
-    @router.get("/api/capability-catalog")
-    def api_capability_catalog(
-        q: str | None = Query(default=None),
-        source: str | None = Query(default=None),
-        kind: str | None = Query(default=None),
-        risk_level: str | None = Query(default=None),
-        permission_group: str | None = Query(default=None),
-        available_only: bool = Query(default=False),
-        limit: int = Query(default=500, ge=1, le=2000),
-        offset: int = Query(default=0, ge=0),
-    ) -> dict[str, Any]:
-        from runtime.execution.misc.capability_catalog import (
-            build_capability_catalog,
-            filter_capability_entries,
-        )
 
-        catalog = build_capability_catalog(
-            registry=registry,
-            tool_registry=tool_registry,
-            mobile_skills_root=mobile_skills_root,
-        )
-        filtered = filter_capability_entries(
-            catalog["capabilities"],
-            q=q,
-            source=source,
-            kind=kind,
-            risk_level=risk_level,
-            permission_group=permission_group,
-            available_only=available_only,
-            limit=limit,
-            offset=offset,
-        )
-        filtered["summary"] = catalog["summary"]
-        return filtered
-
-    @router.post("/api/skills/{skill_name}/enable")
-    def api_enable_skill(request: Request, skill_name: str) -> dict[str, Any]:
-        _require_admin(request, purpose="modify skills")
-        try:
-            registry.enable(skill_name)
-        except KeyError as exc:
-            raise HTTPException(404, f"skill not found: {skill_name}") from exc
-        return {"ok": True, "name": skill_name, "enabled": True}
-
-    @router.post("/api/skills/{skill_name}/disable")
-    def api_disable_skill(request: Request, skill_name: str) -> dict[str, Any]:
-        _require_admin(request, purpose="modify skills")
-        try:
-            registry.disable(skill_name)
-        except KeyError as exc:
-            raise HTTPException(404, f"skill not found: {skill_name}") from exc
-        return {"ok": True, "name": skill_name, "enabled": False}
-
-    # ─── Skills-market enable / disable ────────────────────
-    #
-    #
-    @router.post("/api/skills-market/{skill_id}/enable")
-    def api_market_enable(request: Request, skill_id: str) -> dict[str, Any]:
-        _require_admin(request, purpose="modify skills")
-        if not registry.has(skill_id):
-            from runtime.execution.suckers.market_skills import (
-                load_single_market_skill,
-            )
-
-            loaded = load_single_market_skill(registry, skill_id)
-            if not loaded:
-                raise HTTPException(
-                    404,
-                    f"skill not found: {skill_id} (no SKILL.md in all_skills/)",
-                )
-        try:
-            registry.enable(skill_id)
-        except KeyError as exc:
-            raise HTTPException(404, f"skill not found: {skill_id}") from exc
-        return {"ok": True, "skill_id": skill_id, "enabled": True}
-
-    @router.post("/api/skills-market/{skill_id}/disable")
-    def api_market_disable(request: Request, skill_id: str) -> dict[str, Any]:
-        _require_admin(request, purpose="modify skills")
-        try:
-            registry.disable(skill_id)
-        except KeyError as exc:
-            raise HTTPException(404, f"skill not found: {skill_id}") from exc
-        return {"ok": True, "skill_id": skill_id, "enabled": False}
-
-    # ─── Skill install / uninstall ─────────────────────────
-    @router.post("/api/skills/install")
-    async def api_install_skill(request: Request) -> dict[str, Any]:
-        import tempfile
-
-        from runtime.execution.suckers.market_skills import immutable_prompt_catalog_required
-
-        # Auth: this endpoint mutates skills/public which is auto-loaded
-        # as Python code on next boot. It's effectively arbitrary-code
-        # installation, so we require BOTH:
-        #   1. authenticated caller (require_auth=True regardless of
-        #      router config)
-        #   2. admin role
-        _require_admin(request, purpose="install skills")
-        if immutable_prompt_catalog_required():
-            raise HTTPException(
-                403,
-                "URL-based prompt installation is disabled in shared/commercial deployments; "
-                "ship prompt changes in a reviewed release artifact",
-            )
-
-        try:
-            body = await request.json()
-        except (json.JSONDecodeError, TypeError, ValueError) as exc:
-            raise HTTPException(400, f"body: {exc}") from exc
-        url = (body or {}).get("url", "")
-        if not isinstance(url, str) or not url.startswith("http"):
-            raise HTTPException(400, "url required (https://...)")
-        name_override = (body or {}).get("name")
-
-        # SSRF guard + DNS-rebinding-proof fetch. ``check_url`` alone
-        # would re-resolve on connect; use safe_httpx_get which pins
-        # the resolved IP as the connect target while keeping the
-        # original host name in the Host header.
-        from runtime.safety.auth.url_guard import check_url, safe_httpx_get
-
-        verdict = check_url(url, allow_private=False)
-        if not verdict.allow:
-            raise HTTPException(400, f"url rejected: {verdict.reason}")
-
-        # Validate the new name *now* before any network I/O so we
-        # fail fast on hostile filenames (path traversal in
-        # ``skills/public/<name>``).
-        if name_override is not None:
-            if not isinstance(name_override, str) or not name_override:
-                raise HTTPException(400, "name must be a non-empty string")
-            try:
-                name_override = _require_safe_skill_install_name(name_override, label="name")
-            except ValueError as exc:
-                raise HTTPException(400, str(exc)) from exc
-
-        # The download + extract + install chain is all blocking
-        # (sync httpx, zip extraction, directory copy). Offload it to a
-        # worker thread so the event loop isn't frozen for the ~30s
-        # network timeout. HTTPException propagates through to_thread.
-        def _do_install_blocking() -> dict[str, Any]:
-            try:
-                import httpx as _httpx
-            except ImportError as e:
-                raise HTTPException(500, "httpx required for skill install") from e
-
-            # follow_redirects=False on the transport; safe_httpx_get
-            # re-validates the next hop through check_url if we ever
-            # enable follow_redirects. We keep it off so the network
-            # topology of an outbound skill install stays one hop, one
-            # check.
-            try:
-                r = safe_httpx_get(url, timeout=30.0, follow_redirects=False)
-                r.raise_for_status()
-            except ValueError as exc:
-                raise HTTPException(400, f"url rejected: {exc}") from exc
-            except (_httpx.HTTPError, ConnectionError, TimeoutError) as exc:
-                raise HTTPException(502, f"download failed: {exc}") from exc
-            if len(r.content) > 50 * 1024 * 1024:
-                raise HTTPException(413, "archive too large (>50MB)")
-
-            with tempfile.TemporaryDirectory() as tmpdir:
-                tmp = Path(tmpdir)
-                archive = tmp / "skill.zip"
-                archive.write_bytes(r.content)
-                extract_dir = tmp / "extracted"
-                extract_dir.mkdir(parents=True, exist_ok=True)
-                # Use the hardened extractor (zip-slip + symlink-component +
-                # size caps) instead of ``shutil.unpack_archive`` which has
-                # none of those defenses.
-                try:
-                    from runtime.execution.suckers.hub.installer import (
-                        ArchiveSafetyError,
-                        safe_extract_zip,
-                    )
-
-                    safe_extract_zip(r.content, extract_dir)
-                except ArchiveSafetyError as exc:
-                    raise HTTPException(400, f"unsafe archive: {exc}") from exc
-                except (OSError, ValueError) as exc:
-                    raise HTTPException(400, f"unpack failed: {exc}") from exc
-
-                skill_dirs = list(extract_dir.rglob("SKILL.md"))
-                if not skill_dirs:
-                    raise HTTPException(400, "no SKILL.md found in archive")
-                skill_root = skill_dirs[0].parent
-                skill_name = name_override or skill_root.name
-                try:
-                    target = _install_public_skill_dir(skill_root, skill_name)
-                    skill_name = target.name
-                except FileExistsError as exc:
-                    raise HTTPException(409, str(exc)) from exc
-                except (FileNotFoundError, NotADirectoryError, ValueError) as exc:
-                    raise HTTPException(400, str(exc)) from exc
-                except OSError as exc:
-                    raise HTTPException(
-                        500,
-                        f"skill install failed: {type(exc).__name__}: {exc}",
-                    ) from exc
-
-            return {"ok": True, "name": skill_name, "path": str(target)}
-
-        return await asyncio.to_thread(_do_install_blocking)
-
-    @router.delete("/api/skills/{skill_name}/uninstall")
-    def api_uninstall_skill(request: Request, skill_name: str) -> dict[str, Any]:
-        _require_admin(request, purpose="uninstall skills")
-        try:
-            _uninstall_public_skill_dir(skill_name)
-        except ValueError as exc:
-            raise HTTPException(400, str(exc)) from exc
-        except FileExistsError as exc:
-            raise HTTPException(409, str(exc)) from exc
-        except FileNotFoundError as exc:
-            raise HTTPException(404, f"skill directory not found: {skill_name}") from exc
-        except NotADirectoryError as exc:
-            raise HTTPException(400, f"not a directory: {skill_name}") from exc
-        except OSError as exc:
-            raise HTTPException(
-                500,
-                f"skill uninstall failed: {type(exc).__name__}: {exc}",
-            ) from exc
-        return {"ok": True, "name": skill_name, "removed": True}
-
-    @router.get(
-        "/api/capability-permissions",
-        response_model=CapabilityPermissionsResponse,
-    )
-    def api_capability_permissions() -> dict[str, Any]:
-        from runtime.execution.misc.capability_permissions import (
-            list_capability_permissions,
-        )
-
-        return {
-            "permissions": list_capability_permissions(
-                registered_skill_names=set(registry.all_names()),
-            ),
-        }
-
-    @router.put(
-        "/api/capability-permissions/{group}",
-        response_model=CapabilityPermissionWire,
-    )
-    def api_capability_permission_update(
-        request: Request,
-        group: str,
-        body: dict[str, Any],
-    ) -> dict[str, Any]:
-        _require_admin(request, purpose="modify capability permissions")
-        from runtime.execution.misc.capability_permissions import (
-            list_capability_permissions,
-            set_capability_group_enabled,
-        )
-
-        try:
-            set_capability_group_enabled(group, bool(body.get("enabled")))
-        except KeyError as exc:
-            raise HTTPException(404, f"unknown capability group: {group}") from exc
-        updated = list_capability_permissions(
-            registered_skill_names=set(registry.all_names()),
-        )
-        return next(item for item in updated if item["id"] == group)
-
-    # ─── Slash commands ─────────────────────────────────────
-
-    @router.get(
-        "/api/slash-commands",
-        response_model=SlashCommandsResponse,
-    )
-    def api_slash_commands() -> dict[str, Any]:
-        """Return the merged slash-command catalog (global ∪ project).
-
-        Frontend `/` typeahead uses this to show the user what
-        commands are available. Body is intentionally NOT sent — it
-        can be long and the client doesn't need to render it until
-        expansion time (server-side, via the run endpoint).
-        """
-        import os
-
-        from runtime.execution.slash_commands import load_slash_commands
-
-        project_dir = os.getcwd()
-        try:
-            cmds = load_slash_commands(project_dir=project_dir)
-        except (OSError, KeyError, ValueError):
-            cmds = []
-        return {"commands": [c.as_dict() for c in cmds]}
-
-    # ─── Auth status ────────────────────────────────────────
-
-    _oct_enabled = bool(oct_config is not None and getattr(oct_config, "enabled", False))
-    _local_auth_enabled = bool(
-        local_auth_config is not None and getattr(local_auth_config, "enabled", False)
-    )
-    _any_auth_enabled = _oct_enabled or _local_auth_enabled
-
-    @router.get("/api/auth/status")
-    def auth_status() -> dict[str, Any]:
-        has_jwt = _oct_enabled or _local_auth_enabled
-        return {
-            "enabled": _any_auth_enabled,
-            "jwt_available": has_jwt,
-            "allow_registration": False,
-            "exempt_paths": [],
-        }
-
-    def auth_me(request: Request) -> dict[str, Any]:
-        """Return the authenticated actor from the real identity store.
-
-        This endpoint used to exist only in the optional stub router. With
-        production auth enabled the frontend therefore made a guaranteed 404
-        request on every reload even though the bearer token was valid.
-        """
-        if identity_store is None:
-            raise HTTPException(
-                401,
-                "authentication required",
-                headers={"X-Echo-Auth-Expired": "1"},
-            )
-
-        from runtime.sensing.gateway.openai_gateway import _resolve_actor
-
-        actor = _resolve_actor(
-            request,
-            identity_store,
-            True,
-            jwt_secret=jwt_secret,
-            jwt_issuer=jwt_issuer,
-            jwt_audience=jwt_audience,
-        )
-        if not actor:
-            raise HTTPException(
-                401,
-                "authentication required",
-                headers={"X-Echo-Auth-Expired": "1"},
-            )
-
-        identity = identity_store.get(actor) if hasattr(identity_store, "get") else None
-        metadata = dict(getattr(identity, "metadata", None) or {})
-        roles = [str(role) for role in (getattr(identity, "roles", None) or ())]
-        fallback_name = actor.split(":", 1)[-1] if ":" in actor else actor
-        username = next(
-            (
-                str(metadata[key]).strip()
-                for key in ("username", "display_name", "email", "mobile")
-                if isinstance(metadata.get(key), str) and str(metadata[key]).strip()
-            ),
-            fallback_name,
-        )
-        permissions_raw = metadata.get("permissions")
-        permissions = (
-            [str(value) for value in permissions_raw]
-            if isinstance(permissions_raw, (list, tuple))
-            else []
-        )
-        response: dict[str, Any] = {
-            "user_id": actor,
-            "actor_id": actor,
-            "username": username,
-            "roles": roles,
-            "permissions": permissions,
-            "is_active": True,
-        }
-        for key in ("email", "mobile", "provider"):
-            value = metadata.get(key)
-            if isinstance(value, str) and value.strip():
-                response[key] = value.strip()
-        return response
-
-    def auth_logout(request: Request, response: Response) -> None:
-        """Revoke the presented JWT and clear the browser session cookie."""
-
-        from runtime.safety.auth.principal import clear_session_cookie
-        from runtime.safety.auth.session_revocation import revoke_request_session
-
-        revoke_request_session(
-            request, identity_store, secret=jwt_secret, issuer=jwt_issuer, audience=jwt_audience
-        )
-        clear_session_cookie(response, request)
-        response.status_code = 204
-
-    # Leave the route to the compatibility stub when auth is disabled
-    # (require_auth=False). The stub returns anonymous on bad/missing JWT
-    # instead of 401, which is the desired behavior in dev mode. Only
-    # register the strict handler when the app is actually enforcing auth —
-    # at that point stub_router is disabled, so there's no route conflict.
-    if identity_store is not None and require_auth:
-        router.add_api_route("/api/auth/me", auth_me, methods=["GET"])
-        router.add_api_route(
-            "/api/auth/logout",
-            auth_logout,
-            methods=["POST"],
-            status_code=204,
-        )
-
-    # ─── Auth providers ─────────────────────────────────────
-
-    @router.get(
-        "/api/auth/providers",
-        response_model=AuthProvidersResponse,
-    )
-    def auth_providers() -> dict[str, Any]:
-        """Return the list of configured login methods.
-
-        The frontend Login page hides tabs whose id isn't in the
-        returned set — so an empty response means "no providers
-        configured, don't show a broken form".
-        """
-        providers: list[dict[str, Any]] = []
-        if oct_config is not None and getattr(oct_config, "enabled", False):
-            providers.append(
-                {
-                    "id": "oct",
-                    "label": "邮箱登录",
-                    "mock_mode": bool(getattr(oct_config, "mock_mode", False)),
-                    "endpoint_send": "/api/auth/oct/email/send",
-                    "endpoint_verify": "/api/auth/oct/email/login",
-                }
-            )
-        from runtime.adapters.integrations.local_auth.config import local_login_enabled
-
-        if local_login_enabled(local_auth_config):
-            pw_required = bool(getattr(local_auth_config, "users", {}))
-            providers.append(
-                {
-                    "id": "local",
-                    "label": (
-                        "账号密码登录"
-                        if pw_required
-                        and not getattr(local_auth_config, "password_only_username", None)
-                        else "开发者登录"
-                    ),
-                    "allow_any_username": bool(
-                        getattr(local_auth_config, "allow_any_username", True),
-                    ),
-                    "password_required": pw_required,
-                    "password_only_username": getattr(
-                        local_auth_config, "password_only_username", None
-                    ),
-                    "endpoint": "/api/auth/local/login",
-                }
-            )
-        return {"providers": providers}
+def _register_architecture_and_mention_routes(router: APIRouter, d: MetaRouterDeps) -> None:
+    """Architecture docs, @-mention autocomplete, and a thread's active agents."""
+    registry = d.registry
 
     #
     #
@@ -925,8 +526,6 @@ def create_meta_router(
                 }
             )
         return {"agents": results, "count": len(results)}
-
-    return router
 
 
 __all__ = [
