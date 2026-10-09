@@ -11,7 +11,7 @@ runtime/tentacle/dashboard.py::create_tentacle_router	984
 runtime/execution/tool_engine/executor.py::ToolExecutor.execute_step	1001
 runtime/sensing/gateway/agent_world_router.py::create_agent_world_router	961
 runtime/core/cerebrum/react_model_stream.py::_phase_6b_model_stream	946
-runtime/sensing/gateway/computer_router.py::create_computer_router	926
+runtime/sensing/gateway/computer_router.py::create_computer_router	269
 runtime/sensing/gateway/team_tasks_router.py::create_team_tasks_router	918
 runtime/core/cerebrum/react_loop.py::_stream_react_loop_impl	899
 runtime/sensing/gateway/team_rooms_router.py::create_team_rooms_router	872
