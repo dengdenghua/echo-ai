@@ -537,7 +537,8 @@
   --secondary: #f8eaf0;
   --secondary-foreground: #1d1d1f;
   --muted: #f5f5f5;
-  --muted-foreground: #6e6e73;
+  /* #6e6e73 fell to ~4.1:1 on the grey composer surface; this keeps 4.5:1+. */
+  --muted-foreground: #636368;
   --accent: #f8eaf0;
   --accent-foreground: #1d1d1f;
   --destructive: oklch(0.577 0.245 27.325);
@@ -555,8 +556,9 @@
   --chart-7: oklch(0.62 0.17 50);
   --chart-8: oklch(0.6 0.16 140);
   /* Status colors (light scheme) */
-  --success: oklch(0.6 0.15 160);
-  --warning: oklch(0.63 0.15 60);
+  /* Darkened to clear 4.5:1 on white; these are used for small status text. */
+  --success: oklch(0.53 0.15 160);
+  --warning: oklch(0.57 0.15 60);
   --info: oklch(0.56 0.16 250);
   --sidebar: #fdf7fa;
   --sidebar-foreground: #1d1d1f;
@@ -599,7 +601,7 @@
   --secondary: #f3f3f3;
   --secondary-foreground: #1d1d1f;
   --muted: #f5f5f5;
-  --muted-foreground: #6e6e73;
+  --muted-foreground: #636368;
   --accent: #eeeeee;
   --accent-foreground: #1d1d1f;
   --destructive: oklch(0.577 0.245 27.325);
@@ -716,7 +718,7 @@
   --secondary: #fbece5;
   --secondary-foreground: #1d1d1f;
   --muted: #f5f5f5;
-  --muted-foreground: #6e6e73;
+  --muted-foreground: #636368;
   --accent: #fbece5;
   --accent-foreground: #1d1d1f;
   --border: #e2e2e2;
@@ -775,7 +777,7 @@
   --secondary: #f3f3f3;
   --secondary-foreground: #1d1d1f;
   --muted: #f5f5f5;
-  --muted-foreground: #6e6e73;
+  --muted-foreground: #636368;
   --accent: #eeeeee;
   --accent-foreground: #1d1d1f;
   --border: #e2e2e2;
@@ -833,7 +835,7 @@
   --secondary: #f7f0dd;
   --secondary-foreground: #1d1d1f;
   --muted: #f5f5f5;
-  --muted-foreground: #6e6e73;
+  --muted-foreground: #636368;
   --accent: #f7f0dd;
   --accent-foreground: #1d1d1f;
   --border: #e2e2e2;
@@ -892,7 +894,7 @@
   --secondary: #f1eafa;
   --secondary-foreground: #1d1d1f;
   --muted: #f5f5f5;
-  --muted-foreground: #6e6e73;
+  --muted-foreground: #636368;
   --accent: #f1eafa;
   --accent-foreground: #1d1d1f;
   --border: #e2e2e2;
@@ -951,7 +953,7 @@
   --secondary: #f3f3f3;
   --secondary-foreground: #1d1d1f;
   --muted: #f5f5f5;
-  --muted-foreground: #6e6e73;
+  --muted-foreground: #636368;
   --accent: #eeeeee;
   --accent-foreground: #1d1d1f;
   --border: #e2e2e2;
@@ -1009,7 +1011,7 @@
   --secondary: #f3f3f3;
   --secondary-foreground: #1d1d1f;
   --muted: #f5f5f5;
-  --muted-foreground: #6e6e73;
+  --muted-foreground: #636368;
   --accent: #eeeeee;
   --accent-foreground: #1d1d1f;
   --border: #e2e2e2;
@@ -2352,3 +2354,13 @@
     width: 100%;
     min-width: 0;
   }
+
+/* Touch screens: composer controls are rem-sized and shrink with the density
+   scale (32px became 30px), well under the 44px touch target. */
+@media (pointer: coarse) {
+  [data-composer-root] .composer-footer button,
+  [data-composer-root] [data-composer-context-strip] button {
+    min-width: 44px;
+    min-height: 44px;
+  }
+}

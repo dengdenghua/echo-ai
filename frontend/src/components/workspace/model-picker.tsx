@@ -772,6 +772,7 @@ export function ModelPicker({
         "bg-transparent px-1.5 py-1 text-ui text-muted-foreground transition outline-none",
         "hover:border-border-default hover:bg-muted/60 hover:text-foreground",
         "data-[state=open]:bg-muted data-[state=open]:text-foreground",
+        "focus-visible:ring-2 focus-visible:ring-ring/50",
       )}
       aria-label={t.modelPicker.selectModel}
       title={

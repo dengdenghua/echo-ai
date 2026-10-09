@@ -8,6 +8,7 @@ import {
 } from "react-router-dom";
 
 import { ProtectedRoute } from "@/components/auth/protected-route";
+import { EchoBrandMark } from "@/components/brand/echo-brand-mark";
 import { ErrorBoundary } from "@/components/ui/error-boundary";
 import {
   ElectronTitleBar,
@@ -135,28 +136,20 @@ export function PageLoading() {
       role="status"
       aria-live="polite"
       aria-busy="true"
-      className="flex h-full min-h-[320px] w-full items-start justify-center p-4 sm:p-6"
+      className="flex h-full min-h-[320px] w-full items-center justify-center p-4 sm:p-6"
     >
       {!isSlow ? <span className="sr-only">{t.common.loading}</span> : null}
+      {/* This fallback serves every lazy route, so it must not sketch any one
+          page's layout: a card grid flashed before the login page and the
+          chat alike. A centered brand mark is honest for all of them. */}
       <div
-        className="w-full max-w-6xl animate-pulse space-y-4"
+        className="flex flex-col items-center gap-4"
         data-testid="page-loading-skeleton"
       >
-        <div className="flex items-center justify-between gap-4">
-          <div className="space-y-2">
-            <div className="h-5 w-32 rounded-md bg-muted" />
-            <div className="h-3 w-56 max-w-[60vw] rounded bg-muted/70" />
-          </div>
-          <div className="h-8 w-24 rounded-lg bg-muted" />
-        </div>
-        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-          {Array.from({ length: 6 }).map((_, index) => (
-            <div
-              key={index}
-              className="h-28 rounded-xl border border-border-subtle bg-muted/35"
-            />
-          ))}
-        </div>
+        <EchoBrandMark
+          size="lg"
+          className="animate-pulse motion-reduce:animate-none"
+        />
         {isSlow ? (
           <div className="flex animate-none flex-col items-center gap-2 pt-2 text-center">
             <div className="text-sm text-muted-foreground">

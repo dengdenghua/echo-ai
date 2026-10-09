@@ -1,17 +1,15 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" fill="none" role="img" aria-label="Echo">
-  <!-- Head -->
-  <circle cx="16" cy="12" r="7" fill="currentColor"/>
-  <!-- Eyes -->
-  <circle cx="13.5" cy="11" r="1.5" fill="white"/>
-  <circle cx="18.5" cy="11" r="1.5" fill="white"/>
-  <circle cx="13.8" cy="11.3" r="0.7" fill="#1a1a1e"/>
-  <circle cx="18.8" cy="11.3" r="0.7" fill="#1a1a1e"/>
-  <!-- Tentacles -->
-  <g stroke="currentColor" stroke-width="2.2" stroke-linecap="round" fill="none">
-    <path d="M10 17 C7 21, 6 25, 7.5 28"/>
-    <path d="M13 18 C11.5 22, 11 26, 12 28.5"/>
-    <path d="M16 18.5 C15.5 23, 15.5 26.5, 16 29"/>
-    <path d="M19 18 C20.5 22, 21 26, 20 28.5"/>
-    <path d="M22 17 C25 21, 26 25, 24.5 28"/>
-  </g>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" fill="none" role="img" aria-label="Echo">
+  <!-- The Echo orb; keep in sync with components/brand/echo-brand-mark.tsx. -->
+  <defs>
+    <radialGradient id="core" cx="38%" cy="30%" r="72%">
+      <stop offset="0" stop-color="#dce7ff"/>
+      <stop offset="0.07" stop-color="#7f97e6"/>
+      <stop offset="0.42" stop-color="#25357a"/>
+      <stop offset="1" stop-color="#060914"/>
+    </radialGradient>
+  </defs>
+  <ellipse cx="24" cy="24" rx="22.5" ry="11" transform="rotate(-28 24 24)" stroke="#7a97f6" stroke-opacity="0.55"/>
+  <circle cx="24" cy="24" r="15.5" fill="url(#core)" stroke="#97b1ff" stroke-opacity="0.5"/>
+  <ellipse cx="24" cy="24" rx="21" ry="12.5" transform="rotate(42 24 24)" stroke="#b977ff" stroke-opacity="0.45"/>
+  <text x="24" y="29.4" text-anchor="middle" font-family="Inter, system-ui, sans-serif" font-size="15.5" font-weight="400" fill="#f1f5ff">E</text>
 </svg>

@@ -190,7 +190,7 @@ export const ROLE_AVATAR: Record<string, string> = {
   evaluator: "⚖️",
   generator: "✨",
 };
-export const DEFAULT_AVATAR = "🐙";
+export const DEFAULT_AVATAR = "🤖";
 
 // Role → one-line description of what the role does. The nameplate
 // (角色卡) is each role's 说明 (identity/responsibility), not the turn's

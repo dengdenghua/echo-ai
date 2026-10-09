@@ -3351,7 +3351,7 @@ describe("avatarForRole", () => {
   });
 
   test("default avatar is echo", () => {
-    expect(DEFAULT_AVATAR).toBe("🐙");
+    expect(DEFAULT_AVATAR).toBe("🤖");
   });
 
   test("ROLE_AVATAR has the canonical role keys", () => {

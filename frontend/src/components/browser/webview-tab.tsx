@@ -41,6 +41,7 @@ import {
 } from "lucide-react";
 
 import { swallow } from "@/core/utils/log";
+import { EchoBrandMark } from "@/components/brand/echo-brand-mark";
 import { authHeaders, jsonAuthHeaders } from "@/core/auth/api";
 import { copyTextToClipboard } from "@/core/clipboard";
 import { getBackendBaseURL } from "@/core/config";
@@ -1999,11 +2000,21 @@ export const WebviewTab = forwardRef<WebviewTabHandle, Props>(
       return (
         <Suspense
           fallback={
+            // Matches the start page's night sky so the first paint already
+            // looks like home instead of an empty grey pane.
             <div
-              className="size-full animate-pulse bg-muted/25"
+              className="grid size-full place-items-center bg-[radial-gradient(ellipse_at_50%_38%,#1a2456_0%,#0a0f26_48%,#04060f_100%)]"
               role="status"
               aria-label="加载浏览器桌面"
-            />
+            >
+              <div className="flex flex-col items-center gap-3 text-sm text-white/70">
+                <EchoBrandMark
+                  size="lg"
+                  className="animate-pulse motion-reduce:animate-none"
+                />
+                正在打开主页…
+              </div>
+            </div>
           }
         >
           <BrowserHome

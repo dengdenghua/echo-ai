@@ -183,7 +183,7 @@ export interface LiveToolEvent {
    * sub-agent-attributable events so the workbench can group them
    * under one tile. */
   subagentCodename?: string;
-  /** Emoji avatar derived from role. Falls back to 🐙 for unknown
+  /** Emoji avatar derived from role. Falls back to 🤖 for unknown
    * roles. */
   subagentAvatar?: string;
   /** Real avatar image URL from the agent market ("我的安装"), when the

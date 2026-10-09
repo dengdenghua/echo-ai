@@ -4,7 +4,7 @@
  * because the surrounding UI uses another supported locale.
  */
 const ABOUT_MARKDOWN = {
-  en: `# 🐙 [About Echo](https://github.com/dengdenghua/echo-ai)
+  en: `# [About Echo](https://github.com/dengdenghua/echo-ai)
 
 > **From Open Source, Back to Open Source**
 
@@ -40,7 +40,7 @@ Thank you to the open-source projects and contributors who make Echo possible, i
 
 Special thanks to [Daniel Walnut](https://github.com/hetaoBackend/) and [Henry Li](https://github.com/magiccube/) for their vision and dedication.
 `,
-  zh: `# 🐙 [关于 Echo](https://github.com/dengdenghua/echo-ai)
+  zh: `# [关于 Echo](https://github.com/dengdenghua/echo-ai)
 
 > **源于开源，回馈开源**
 
@@ -76,7 +76,7 @@ Echo 采用 **Apache License 2.0** 开源发布。
 
 特别感谢 [Daniel Walnut](https://github.com/hetaoBackend/) 与 [Henry Li](https://github.com/magiccube/) 的愿景、热情和长期投入。
 `,
-  ja: `# 🐙 [Echo について](https://github.com/dengdenghua/echo-ai)
+  ja: `# [Echo について](https://github.com/dengdenghua/echo-ai)
 
 > **オープンソースから生まれ、オープンソースへ還元する**
 
@@ -112,7 +112,7 @@ Echo を支えるすべてのオープンソースプロジェクトと貢献者
 
 ビジョンと継続的な貢献を寄せてくださった [Daniel Walnut](https://github.com/hetaoBackend/) と [Henry Li](https://github.com/magiccube/) に、心より感謝します。
 `,
-  ko: `# 🐙 [Echo 소개](https://github.com/dengdenghua/echo-ai)
+  ko: `# [Echo 소개](https://github.com/dengdenghua/echo-ai)
 
 > **오픈 소스에서 시작해 오픈 소스로 돌려드립니다**
 
