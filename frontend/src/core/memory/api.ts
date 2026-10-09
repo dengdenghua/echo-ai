@@ -1,5 +1,12 @@
-import { getBackendBaseURL } from "@/core/config";
-import { authHeaders, jsonAuthHeaders } from "@/core/auth/api";
+import {
+  apiDelete,
+  apiGet,
+  apiPatch,
+  apiPost,
+  failureDetail,
+  untypedApi,
+  type ApiFailure,
+} from "@/core/api/request";
 
 import type {
   FactCreateRequest,
@@ -13,40 +20,50 @@ import type {
   MemorySearchResult,
 } from "./types";
 
+/** Keep this module's historical ``"<label>: <statusText>"`` wording. */
+function failed(label: string) {
+  return (failure: ApiFailure): string => `${label}: ${failure.statusText}`;
+}
+
+/** The body's ``detail`` when present, else ``"<label>: <statusText>"``. */
+function detailOr(label: string) {
+  return (failure: ApiFailure): string => {
+    const detail = failureDetail(failure);
+    return detail === undefined || detail === null
+      ? `${label}: ${failure.statusText}`
+      : String(detail);
+  };
+}
+
 export async function listMemoryAssets(
   query: MemoryAssetQuery = {},
 ): Promise<MemoryAssetList> {
-  const params = new URLSearchParams();
-  for (const [key, value] of Object.entries(query)) {
-    if (value !== undefined && value !== "") params.set(key, String(value));
-  }
-  const suffix = params.size ? `?${params.toString()}` : "";
-  const res = await fetch(`${getBackendBaseURL()}/api/memory/assets${suffix}`, {
-    headers: authHeaders(),
-  });
-  if (!res.ok)
-    throw new Error(`Failed to list memory assets: ${res.statusText}`);
-  return (await res.json()) as MemoryAssetList;
+  // Empty strings mean "no filter" and are dropped like ``undefined``; the
+  // caller's key order is kept.
+  const params = Object.fromEntries(
+    Object.entries(query).filter(
+      ([, value]) => value !== undefined && value !== "",
+    ),
+  ) as MemoryAssetQuery;
+  return (await apiGet("/api/memory/assets", {
+    query: params,
+    errorMessage: failed("Failed to list memory assets"),
+  })) as MemoryAssetList;
 }
 
 export async function getMemoryAssetTrace(
   assetId: string,
 ): Promise<MemoryAssetTrace> {
-  const res = await fetch(
-    `${getBackendBaseURL()}/api/memory/assets/${encodeURIComponent(assetId)}/trace`,
-    { headers: authHeaders() },
-  );
-  if (!res.ok)
-    throw new Error(`Failed to load memory trace: ${res.statusText}`);
-  return (await res.json()) as MemoryAssetTrace;
+  return (await apiGet("/api/memory/assets/{asset_id}/trace", {
+    path: { asset_id: assetId },
+    errorMessage: failed("Failed to load memory trace"),
+  })) as MemoryAssetTrace;
 }
 
 export async function getMemory(): Promise<MemoryData> {
-  const res = await fetch(`${getBackendBaseURL()}/api/memory`, {
-    headers: authHeaders(),
-  });
-  if (!res.ok) throw new Error(`Failed to get memory: ${res.statusText}`);
-  return (await res.json()) as MemoryData;
+  return (await apiGet("/api/memory", {
+    errorMessage: failed("Failed to get memory"),
+  })) as MemoryData;
 }
 
 export const loadMemory = getMemory;
@@ -55,56 +72,41 @@ export async function searchMemory(
   query: string,
   limit = 20,
 ): Promise<MemorySearchResult[]> {
-  const res = await fetch(
-    `${getBackendBaseURL()}/api/memory/search?q=${encodeURIComponent(query)}&limit=${limit}`,
-    { headers: authHeaders() },
-  );
-  if (!res.ok) throw new Error(`Failed to search memory: ${res.statusText}`);
-  return (await res.json()) as MemorySearchResult[];
+  return untypedApi.get<MemorySearchResult[]>("/api/memory/search", {
+    reason: "the `limit` query param is not declared in the OpenAPI snapshot",
+    query: { q: query, limit },
+    errorMessage: failed("Failed to search memory"),
+  });
 }
 
 export async function reloadMemory(): Promise<MemoryData> {
-  const res = await fetch(`${getBackendBaseURL()}/api/memory/reload`, {
-    method: "POST",
-    headers: authHeaders(),
-  });
-  if (!res.ok) throw new Error(`Failed to reload memory: ${res.statusText}`);
-  return (await res.json()) as MemoryData;
+  return (await apiPost("/api/memory/reload", {
+    errorMessage: failed("Failed to reload memory"),
+  })) as MemoryData;
 }
 
 export async function clearMemory(): Promise<MemoryData> {
-  const res = await fetch(`${getBackendBaseURL()}/api/memory`, {
-    method: "DELETE",
-    headers: authHeaders(),
-  });
-  if (!res.ok) throw new Error(`Failed to clear memory: ${res.statusText}`);
-  return (await res.json()) as MemoryData;
+  return (await apiDelete("/api/memory", {
+    errorMessage: failed("Failed to clear memory"),
+  })) as MemoryData;
 }
 
 export async function createFact(
   request: FactCreateRequest,
 ): Promise<MemoryData> {
-  const res = await fetch(`${getBackendBaseURL()}/api/memory/facts`, {
-    method: "POST",
-    headers: jsonAuthHeaders(),
-    body: JSON.stringify(request),
-  });
-  if (!res.ok) {
-    const err = (await res.json().catch(() => ({}))) as { detail?: string };
-    throw new Error(err.detail ?? `Failed to create fact: ${res.statusText}`);
-  }
-  return (await res.json()) as MemoryData;
+  return (await apiPost("/api/memory/facts", {
+    body: request,
+    errorMessage: detailOr("Failed to create fact"),
+  })) as MemoryData;
 }
 
 export const createMemoryFact = createFact;
 
 export async function deleteFact(factId: string): Promise<MemoryData> {
-  const res = await fetch(
-    `${getBackendBaseURL()}/api/memory/facts/${encodeURIComponent(factId)}`,
-    { method: "DELETE", headers: authHeaders() },
-  );
-  if (!res.ok) throw new Error(`Failed to delete fact: ${res.statusText}`);
-  return (await res.json()) as MemoryData;
+  return (await apiDelete("/api/memory/facts/{fact_id}", {
+    path: { fact_id: factId },
+    errorMessage: failed("Failed to delete fact"),
+  })) as MemoryData;
 }
 
 export const deleteMemoryFact = deleteFact;
@@ -113,59 +115,40 @@ export async function updateFact(
   factId: string,
   request: FactPatchRequest,
 ): Promise<MemoryData> {
-  const res = await fetch(
-    `${getBackendBaseURL()}/api/memory/facts/${encodeURIComponent(factId)}`,
-    {
-      method: "PATCH",
-      headers: jsonAuthHeaders(),
-      body: JSON.stringify(request),
-    },
-  );
-  if (!res.ok) {
-    const err = (await res.json().catch(() => ({}))) as { detail?: string };
-    throw new Error(err.detail ?? `Failed to update fact: ${res.statusText}`);
-  }
-  return (await res.json()) as MemoryData;
+  return (await apiPatch("/api/memory/facts/{fact_id}", {
+    path: { fact_id: factId },
+    body: request,
+    errorMessage: detailOr("Failed to update fact"),
+  })) as MemoryData;
 }
 
 export const updateMemoryFact = updateFact;
 
 export async function getMemoryConfig(): Promise<MemoryConfig> {
-  const res = await fetch(`${getBackendBaseURL()}/api/memory/config`, {
-    headers: authHeaders(),
-  });
-  if (!res.ok)
-    throw new Error(`Failed to get memory config: ${res.statusText}`);
-  return (await res.json()) as MemoryConfig;
+  return (await apiGet("/api/memory/config", {
+    errorMessage: failed("Failed to get memory config"),
+  })) as MemoryConfig;
 }
 
 export async function updateMemoryConfig(
   patch: MemoryConfigPatch,
 ): Promise<MemoryConfig> {
-  const res = await fetch(`${getBackendBaseURL()}/api/memory/config`, {
-    method: "PUT",
-    headers: jsonAuthHeaders(),
-    body: JSON.stringify(patch),
+  return untypedApi.put<MemoryConfig>("/api/memory/config", {
+    reason: "the snapshot declares no request body for PUT /api/memory/config",
+    body: patch,
+    errorMessage: failed("Failed to update memory config"),
   });
-  if (!res.ok)
-    throw new Error(`Failed to update memory config: ${res.statusText}`);
-  return (await res.json()) as MemoryConfig;
 }
 
 export async function exportMemory(): Promise<MemoryData> {
-  const res = await fetch(`${getBackendBaseURL()}/api/memory/export`, {
-    headers: authHeaders(),
-  });
-  if (!res.ok) throw new Error(`Failed to export memory: ${res.statusText}`);
-  return (await res.json()) as MemoryData;
+  return (await apiGet("/api/memory/export", {
+    errorMessage: failed("Failed to export memory"),
+  })) as MemoryData;
 }
 
 export async function importMemory(data: MemoryData): Promise<MemoryData> {
-  const res = await fetch(`${getBackendBaseURL()}/api/memory/import`, {
-    method: "POST",
-    headers: jsonAuthHeaders(),
-    body: JSON.stringify(data),
-  });
-  if (!res.ok) throw new Error(`Failed to import memory: ${res.statusText}`);
-  return (await res.json()) as MemoryData;
+  return (await apiPost("/api/memory/import", {
+    body: data,
+    errorMessage: failed("Failed to import memory"),
+  })) as MemoryData;
 }

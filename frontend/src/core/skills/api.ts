@@ -1,5 +1,10 @@
-import { getBackendBaseURL } from "@/core/config";
-import { authHeaders, jsonAuthHeaders } from "@/core/auth/api";
+import {
+  apiFetch,
+  apiGet,
+  failureDetail,
+  untypedApi,
+  type ApiFailure,
+} from "@/core/api/request";
 
 import type {
   CustomSkillContent,
@@ -12,66 +17,74 @@ import type {
   SkillUpdateRequest,
 } from "./types";
 
+/** Keep this module's historical ``"<label>: <statusText>"`` wording. */
+function failed(label: string) {
+  return (failure: ApiFailure): string => `${label}: ${failure.statusText}`;
+}
+
+/** The body's ``detail`` when present, else ``"<label>: <statusText>"``. */
+function detailOr(label: string) {
+  return (failure: ApiFailure): string => {
+    const detail = failureDetail(failure);
+    return detail === undefined || detail === null
+      ? `${label}: ${failure.statusText}`
+      : String(detail);
+  };
+}
+
+const SKILL_ROUTE_MISSING =
+  "the per-skill /api/skills/{name} routes are not in the OpenAPI snapshot";
+const CUSTOM_SKILL_ROUTE_MISSING =
+  "the /api/skills/custom/{name} routes are not in the OpenAPI snapshot";
+
 export async function listSkills(): Promise<SkillInfo[]> {
-  const res = await fetch(`${getBackendBaseURL()}/api/skills`, {
-    headers: authHeaders(),
+  const data = await apiGet("/api/skills", {
+    errorMessage: failed("Failed to list skills"),
   });
-  if (!res.ok) throw new Error(`Failed to list skills: ${res.statusText}`);
-  const data = (await res.json()) as { skills: SkillInfo[] };
-  return data.skills;
+  return data.skills as SkillInfo[];
 }
 
 export async function getSkill(name: string): Promise<SkillInfo> {
-  const res = await fetch(
-    `${getBackendBaseURL()}/api/skills/${encodeURIComponent(name)}`,
-    { headers: authHeaders() },
-  );
-  if (!res.ok) throw new Error(`Failed to get skill: ${res.statusText}`);
-  return (await res.json()) as SkillInfo;
+  return untypedApi.get<SkillInfo>(`/api/skills/${encodeURIComponent(name)}`, {
+    reason: SKILL_ROUTE_MISSING,
+    errorMessage: failed("Failed to get skill"),
+  });
 }
 
 export async function updateSkill(
   name: string,
   request: SkillUpdateRequest,
 ): Promise<SkillInfo> {
-  const res = await fetch(
-    `${getBackendBaseURL()}/api/skills/${encodeURIComponent(name)}`,
-    {
-      method: "PUT",
-      headers: jsonAuthHeaders(),
-      body: JSON.stringify(request),
-    },
-  );
-  if (!res.ok) throw new Error(`Failed to update skill: ${res.statusText}`);
-  return (await res.json()) as SkillInfo;
+  return untypedApi.put<SkillInfo>(`/api/skills/${encodeURIComponent(name)}`, {
+    reason: SKILL_ROUTE_MISSING,
+    body: request,
+    errorMessage: failed("Failed to update skill"),
+  });
 }
 
 export async function enableSkill(
   skillName: string,
   enabled: boolean,
 ): Promise<void> {
-  const endpoint = enabled ? "enable" : "disable";
-  const res = await fetch(
-    `${getBackendBaseURL()}/api/skills/${encodeURIComponent(skillName)}/${endpoint}`,
-    { method: "POST", headers: authHeaders() },
+  // The success body was never read; ``apiFetch`` only checks the status.
+  await apiFetch(
+    "post",
+    enabled
+      ? "/api/skills/{skill_name}/enable"
+      : "/api/skills/{skill_name}/disable",
+    {
+      path: { skill_name: skillName },
+      errorMessage: failed(`Failed to ${enabled ? "enable" : "disable"} skill`),
+    },
   );
-  if (!res.ok)
-    throw new Error(
-      `Failed to ${enabled ? "enable" : "disable"} skill: ${res.statusText}`,
-    );
 }
 
 export async function enableMarketSkill(skillName: string): Promise<void> {
-  const res = await fetch(
-    `${getBackendBaseURL()}/api/skills-market/${encodeURIComponent(skillName)}/enable`,
-    { method: "POST", headers: authHeaders() },
-  );
-  if (!res.ok) {
-    const err = (await res.json().catch(() => ({}))) as { detail?: string };
-    throw new Error(
-      err.detail ?? `Failed to enable market skill: ${res.statusText}`,
-    );
-  }
+  // The success body was never read; ``apiFetch`` only checks the status.
+  await apiFetch("post", "/api/skills-market/{skill_id}/enable", {
+    path: { skill_id: skillName },
+    errorMessage: detailOr("Failed to enable market skill"),
+  });
 }
 
 export async function loadSkills(): Promise<SkillInfo[]> {
@@ -81,102 +94,81 @@ export async function loadSkills(): Promise<SkillInfo[]> {
 export async function installSkill(
   request: SkillInstallRequest,
 ): Promise<SkillInstallResponse> {
-  const res = await fetch(`${getBackendBaseURL()}/api/skills/install`, {
-    method: "POST",
-    headers: jsonAuthHeaders(),
-    body: JSON.stringify(request),
+  return untypedApi.post<SkillInstallResponse>("/api/skills/install", {
+    reason:
+      "the snapshot declares no request body for POST /api/skills/install",
+    body: request,
+    errorMessage: detailOr("Failed to install skill"),
   });
-  if (!res.ok) {
-    const err = (await res.json().catch(() => ({}))) as { detail?: string };
-    throw new Error(err.detail ?? `Failed to install skill: ${res.statusText}`);
-  }
-  return (await res.json()) as SkillInstallResponse;
 }
 
 export async function listCustomSkills(): Promise<SkillInfo[]> {
-  const res = await fetch(`${getBackendBaseURL()}/api/skills/custom`, {
-    headers: authHeaders(),
-  });
-  if (!res.ok)
-    throw new Error(`Failed to list custom skills: ${res.statusText}`);
-  const data = (await res.json()) as { skills: SkillInfo[] };
+  const data = (await apiGet("/api/skills/custom", {
+    errorMessage: failed("Failed to list custom skills"),
+  })) as { skills: SkillInfo[] };
   return data.skills;
 }
 
 export async function getCustomSkill(
   name: string,
 ): Promise<CustomSkillContent> {
-  const res = await fetch(
-    `${getBackendBaseURL()}/api/skills/custom/${encodeURIComponent(name)}`,
-    { headers: authHeaders() },
+  return untypedApi.get<CustomSkillContent>(
+    `/api/skills/custom/${encodeURIComponent(name)}`,
+    {
+      reason: CUSTOM_SKILL_ROUTE_MISSING,
+      errorMessage: failed("Failed to get custom skill"),
+    },
   );
-  if (!res.ok) throw new Error(`Failed to get custom skill: ${res.statusText}`);
-  return (await res.json()) as CustomSkillContent;
 }
 
 export async function updateCustomSkill(
   name: string,
   request: CustomSkillUpdateRequest,
 ): Promise<CustomSkillContent> {
-  const res = await fetch(
-    `${getBackendBaseURL()}/api/skills/custom/${encodeURIComponent(name)}`,
+  return untypedApi.put<CustomSkillContent>(
+    `/api/skills/custom/${encodeURIComponent(name)}`,
     {
-      method: "PUT",
-      headers: jsonAuthHeaders(),
-      body: JSON.stringify(request),
+      reason: CUSTOM_SKILL_ROUTE_MISSING,
+      body: request,
+      errorMessage: detailOr("Failed to update custom skill"),
     },
   );
-  if (!res.ok) {
-    const err = (await res.json().catch(() => ({}))) as { detail?: string };
-    throw new Error(
-      err.detail ?? `Failed to update custom skill: ${res.statusText}`,
-    );
-  }
-  return (await res.json()) as CustomSkillContent;
 }
 
 export async function deleteCustomSkill(
   name: string,
 ): Promise<{ success: boolean }> {
-  const res = await fetch(
-    `${getBackendBaseURL()}/api/skills/custom/${encodeURIComponent(name)}`,
-    { method: "DELETE", headers: authHeaders() },
+  return untypedApi.delete<{ success: boolean }>(
+    `/api/skills/custom/${encodeURIComponent(name)}`,
+    {
+      reason: CUSTOM_SKILL_ROUTE_MISSING,
+      errorMessage: failed("Failed to delete custom skill"),
+    },
   );
-  if (!res.ok)
-    throw new Error(`Failed to delete custom skill: ${res.statusText}`);
-  return (await res.json()) as { success: boolean };
 }
 
 export async function rollbackCustomSkill(
   name: string,
   request: SkillRollbackRequest,
 ): Promise<CustomSkillContent> {
-  const res = await fetch(
-    `${getBackendBaseURL()}/api/skills/custom/${encodeURIComponent(name)}/rollback`,
+  return untypedApi.post<CustomSkillContent>(
+    `/api/skills/custom/${encodeURIComponent(name)}/rollback`,
     {
-      method: "POST",
-      headers: jsonAuthHeaders(),
-      body: JSON.stringify(request),
+      reason: CUSTOM_SKILL_ROUTE_MISSING,
+      body: request,
+      errorMessage: failed("Failed to rollback skill"),
     },
   );
-  if (!res.ok) throw new Error(`Failed to rollback skill: ${res.statusText}`);
-  return (await res.json()) as CustomSkillContent;
 }
 
 export async function getSkillPerformance(): Promise<SkillPerformance[]> {
-  const res = await fetch(`${getBackendBaseURL()}/api/skills/performance`, {
-    headers: authHeaders(),
-  });
-  if (!res.ok)
-    throw new Error(`Failed to get skill performance: ${res.statusText}`);
-  return (await res.json()) as SkillPerformance[];
+  return (await apiGet("/api/skills/performance", {
+    errorMessage: failed("Failed to get skill performance"),
+  })) as SkillPerformance[];
 }
 
 export async function getDecliningSkills(): Promise<SkillPerformance[]> {
-  const res = await fetch(`${getBackendBaseURL()}/api/skills/declining`, {
-    headers: authHeaders(),
-  });
-  if (!res.ok)
-    throw new Error(`Failed to get declining skills: ${res.statusText}`);
-  return (await res.json()) as SkillPerformance[];
+  return (await apiGet("/api/skills/declining", {
+    errorMessage: failed("Failed to get declining skills"),
+  })) as SkillPerformance[];
 }
