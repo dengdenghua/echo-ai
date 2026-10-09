@@ -7,7 +7,6 @@ import {
   FolderOpenIcon,
   HardDriveIcon,
   Loader2Icon,
-  RefreshCwIcon,
   ServerIcon,
   TerminalIcon,
   type LucideIcon,
@@ -1114,7 +1113,8 @@ export function WorkDirSelector({
   );
   // With a location binding the trigger opens a cascading menu: one row per
   // location, and 本地 opens the folders this computer can work in. Picking a
-  // folder also makes this computer the location again.
+  // folder also makes this computer the location again. Shared spaces keep
+  // their own switcher in the sidebar.
   const zhUi = locale.startsWith("zh");
   const runsLocally = !runsElsewhere;
   const toLocal = () => {
@@ -1126,87 +1126,45 @@ export function WorkDirSelector({
     toLocal();
     if (normalizePathKey(dir) !== normalizePathKey(workDir)) applyWorkDir(dir);
   };
-  const showSharedSpaces = remoteWorkspaceEnabled && enableRemoteTab;
-  const sharedKeys = new Set(
-    remoteWorkspaces.map((ws) => normalizePathKey(ws.mount_target)),
-  );
-  const isActiveShared = (ws: Workspace) =>
-    ws.id === workspaceId ||
-    (Boolean(workDir) &&
-      normalizePathKey(ws.mount_target) === normalizePathKey(workDir));
-  const otherRecents = recentWorkdirs.filter(
-    (dir) => !sharedKeys.has(normalizePathKey(dir)),
-  );
+  // The current folder is always listed, even when it never was "recent"
+  // (e.g. a shared space or a folder set by a project).
+  const folders = dedupePaths([
+    ...(workDir ? [workDir] : []),
+    ...recentWorkdirs,
+  ]).slice(0, MAX_RECENT_WORKDIRS);
   const locationLocalItems = (
     <>
       {isWorkDirLocked ? <LocationNote>{lockedCopy.hint}</LocationNote> : null}
-      {isWorkDirLocked && workDir ? (
-        <LocationItem
-          icon={<FolderIcon className="size-3.5" />}
-          title={folderName}
-          subtitle={shortenPath(workDir)}
-          hint={workDir}
-          selected={runsLocally}
-          onSelect={toLocal}
-        />
-      ) : (
+      {isWorkDirLocked ? null : (
         <LocationItem
           icon={<FolderIcon className="size-3.5" />}
           title={personalSpaceLabel}
           selected={runsLocally && !workDir}
           onSelect={() => {
             toLocal();
-            if (workDir && !isWorkDirLocked) clearWorkDir();
+            if (workDir) clearWorkDir();
           }}
         />
       )}
-      {otherRecents.length > 0 ? (
+      {folders.length > 0 ? (
         <>
           <LocationLabel>{t.codeMode.recentWorkspaces}</LocationLabel>
-          {otherRecents.map((dir) => (
+          {folders.map((dir) => (
             <LocationItem
               key={dir}
               icon={<FolderIcon className="size-3.5" />}
-              title={basename(dir) || dir}
+              title={
+                dir === workDir ? folderName : basename(dir) || dir
+              }
               subtitle={shortenPath(dir)}
               hint={dir}
-              selected={runsLocally && dir === workDir}
+              selected={
+                runsLocally &&
+                normalizePathKey(dir) === normalizePathKey(workDir)
+              }
               onSelect={() => chooseFolder(dir)}
             />
           ))}
-        </>
-      ) : null}
-      {showSharedSpaces &&
-      (remoteWorkspaces.length > 0 || remoteLoading || remoteError) ? (
-        <>
-          <LocationLabel>{zhUi ? "共享空间" : "Shared spaces"}</LocationLabel>
-          {remoteError ? (
-            <LocationNote tone="error">
-              {trRemote.remoteLoadFailed(remoteError)}
-            </LocationNote>
-          ) : null}
-          {remoteLoading && remoteWorkspaces.length === 0 ? (
-            <LocationNote>{trRemote.remoteLoading}</LocationNote>
-          ) : (
-            remoteWorkspaces.map((ws) => {
-              const Icon = MOUNT_TYPE_ICON[ws.mount_type];
-              return (
-                <LocationItem
-                  key={ws.id}
-                  icon={<Icon className="size-3.5" />}
-                  title={ws.name}
-                  subtitle={shortenPath(ws.mount_target)}
-                  hint={ws.mount_target}
-                  selected={runsLocally && isActiveShared(ws)}
-                  disabled={remoteLoading}
-                  onSelect={() => {
-                    toLocal();
-                    if (!isActiveShared(ws)) void handlePickRemote(ws);
-                  }}
-                />
-              );
-            })
-          )}
         </>
       ) : null}
       <LocationSeparator />
@@ -1223,24 +1181,12 @@ export function WorkDirSelector({
           void handlePrimaryAction();
         }}
       >
-        {folderPickerLabel}…
+        {isWorkDirLocked
+          ? lockedCopy.openFolder
+          : zhUi
+            ? "打开文件夹…"
+            : "Open folder…"}
       </LocationAction>
-      {showSharedSpaces ? (
-        <LocationAction
-          icon={<ServerIcon className="size-3.5" />}
-          onSelect={() => setMountOpen(true)}
-        >
-          {zhUi ? "接入共享目录…" : "Connect a shared directory…"}
-        </LocationAction>
-      ) : null}
-      {showSharedSpaces && threadId && threadId !== "new" ? (
-        <LocationAction
-          icon={<RefreshCwIcon className="size-3.5" />}
-          onSelect={() => setSharedOpen(true)}
-        >
-          {zhUi ? "同步共享空间…" : "Sync a shared space…"}
-        </LocationAction>
-      ) : null}
     </>
   );
   const shownLabel = workLocation.label ?? triggerLabel;

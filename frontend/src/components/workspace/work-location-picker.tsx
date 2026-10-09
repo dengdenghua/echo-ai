@@ -1,7 +1,6 @@
 import { useQueryClient } from "@tanstack/react-query";
 import {
   CheckIcon,
-  CloudIcon,
   KeyRoundIcon,
   LaptopIcon,
   PlusIcon,
@@ -18,8 +17,7 @@ import {
   DropdownMenuSubContent,
   DropdownMenuSubTrigger,
 } from "@/components/ui/dropdown-menu";
-import { RemoteConnectionDialog } from "@/components/workspace/remote-connection-dialog";
-import { RemoteControlGuideDialog } from "@/components/workspace/remote-control-guide-dialog";
+import { AddConnectionDialog } from "@/components/workspace/remote-connection-dialog";
 import {
   LOCAL_WORK_LOCATION,
   useWorkLocations,
@@ -37,11 +35,6 @@ export interface WorkLocationBinding {
 }
 
 type Category = "local" | "node" | "wsl" | "ssh";
-type DialogState =
-  | { kind: "ssh" }
-  | { kind: "wsl"; distro?: string }
-  | { kind: "guide" }
-  | null;
 
 function categoryOf(location: WorkLocation): Category {
   if (location.kind === "node") return "node";
@@ -220,7 +213,7 @@ export function useWorkLocationMenu(
   const zh = locale.startsWith("zh");
   const queryClient = useQueryClient();
   const value = binding?.value ?? LOCAL_WORK_LOCATION;
-  const [dialog, setDialog] = useState<DialogState>(null);
+  const [adding, setAdding] = useState(false);
 
   const locations = useWorkLocations(
     Boolean(binding) && (menuOpen || value.kind !== "local"),
@@ -233,10 +226,6 @@ export function useWorkLocationMenu(
   );
   const wslConnections = connections.filter((c) => c.transport === "wsl");
   const distros = data?.wsl.distros ?? [];
-  const unconnectedDistros = distros.filter(
-    (d) => !wslConnections.some((c) => c.target === d.name),
-  );
-  const showWsl = Boolean(data?.wsl.available) || wslConnections.length > 0;
 
   const currentNode =
     value.kind === "node"
@@ -278,7 +267,10 @@ export function useWorkLocationMenu(
       label: connection.name,
     });
 
-  /** Items for a ``DropdownMenuContent``: one row per location, each a submenu. */
+  /**
+   * Items for a ``DropdownMenuContent``: 本地, then only the kinds that have
+   * somewhere to go, each a submenu; one "添加连接…" adds any kind.
+   */
   const renderMenu = ({
     localItems,
     localSummary,
@@ -288,26 +280,6 @@ export function useWorkLocationMenu(
     localSummary?: string;
   }) => {
     if (!binding) return localItems;
-    const pending = locations.isLoading ? (
-      <LocationNote>{zh ? "正在查找…" : "Looking…"}</LocationNote>
-    ) : locations.isError ? (
-      <LocationNote tone="error">
-        {zh ? "暂时无法读取工作位置" : "Work locations are unavailable"}
-      </LocationNote>
-    ) : null;
-    const remoteBlocked = !data ? null : !data.remote.enabled ? (
-      <LocationNote>
-        {zh
-          ? "远程连接尚未开启：需要开启实验功能 ui.remote_transport。"
-          : "Remote connections are off: enable the experimental ui.remote_transport flag."}
-      </LocationNote>
-    ) : !data.remote.can_manage ? (
-      <LocationNote>
-        {zh
-          ? "只有管理员可以配置远程连接。"
-          : "Only admins can configure remote connections."}
-      </LocationNote>
-    ) : null;
 
     const connectionItem = (connection: RemoteConnection) => (
       <LocationItem
@@ -406,6 +378,20 @@ export function useWorkLocationMenu(
         }),
       ),
     );
+    const missing = (
+      <LocationNote>
+        {locations.isLoading
+          ? zh
+            ? "正在查找…"
+            : "Looking…"
+          : zh
+            ? "这个位置已不可用，请换一个"
+            : "This location is no longer available"}
+      </LocationNote>
+    );
+    // A selected location stays listed even while its kind is still loading.
+    const show = (category: Category, count: number) =>
+      count > 0 || categoryOf(value) === category;
 
     return (
       <div data-testid="work-location-menu">
@@ -416,111 +402,61 @@ export function useWorkLocationMenu(
           localItems,
           localSummary,
         )}
-        <DropdownMenuItem
-          disabled
-          className={cn(ITEM, "font-medium")}
-          data-testid="work-location-cloud"
-        >
-          <span className="flex size-3.5 shrink-0 items-center justify-center">
-            <CloudIcon className="size-3.5" />
-          </span>
-          <span className="flex-1">{zh ? "云端" : "Cloud"}</span>
-          <span className="shrink-0 font-normal">
-            {zh ? "即将推出" : "Coming soon"}
-          </span>
-        </DropdownMenuItem>
-        {submenu(
-          "node",
-          <RadioTowerIcon className="size-3.5" />,
-          zh ? "远程控制" : "Remote Control",
-          <>
-            {pending ??
-              (nodeItems.length > 0 ? (
-                nodeItems
-              ) : (
-                <LocationNote>
-                  {zh
-                    ? "还没有连上来的机器。"
-                    : "No machines are connected yet."}
-                </LocationNote>
-              ))}
-            <DropdownMenuSeparator />
-            <LocationAction onSelect={() => setDialog({ kind: "guide" })}>
-              {zh ? "连接另一台机器…" : "Connect another machine…"}
-            </LocationAction>
-          </>,
-          label ?? undefined,
-        )}
-        {showWsl
+        {show("node", nodeItems.length)
+          ? submenu(
+              "node",
+              <RadioTowerIcon className="size-3.5" />,
+              zh ? "远程控制" : "Remote Control",
+              nodeItems.length > 0 ? nodeItems : missing,
+              label ?? undefined,
+            )
+          : null}
+        {show("wsl", wslConnections.length)
           ? submenu(
               "wsl",
               <SquareTerminalIcon className="size-3.5" />,
               "WSL",
-              (pending ?? remoteBlocked) || (
-                <>
-                  {wslConnections.map(connectionItem)}
-                  {wslConnections.length > 0 &&
-                  unconnectedDistros.length > 0 ? (
-                    <DropdownMenuSeparator />
-                  ) : null}
-                  {unconnectedDistros.map((distro) => (
-                    <LocationAction
-                      key={distro.name}
-                      onSelect={() =>
-                        setDialog({ kind: "wsl", distro: distro.name })
-                      }
-                    >
-                      {zh ? `连接 ${distro.name}…` : `Connect ${distro.name}…`}
-                    </LocationAction>
-                  ))}
-                </>
-              ),
+              wslConnections.length > 0
+                ? wslConnections.map(connectionItem)
+                : missing,
               label ?? undefined,
             )
           : null}
-        {submenu(
-          "ssh",
-          <KeyRoundIcon className="size-3.5" />,
-          "SSH",
-          (pending ?? remoteBlocked) || (
-            <>
-              {sshConnections.map(connectionItem)}
-              {sshConnections.length > 0 ? <DropdownMenuSeparator /> : null}
-              <LocationAction onSelect={() => setDialog({ kind: "ssh" })}>
-                {zh ? "添加 SSH 连接…" : "Add SSH connection…"}
-              </LocationAction>
-            </>
-          ),
-          label ?? undefined,
-        )}
+        {show("ssh", sshConnections.length)
+          ? submenu(
+              "ssh",
+              <KeyRoundIcon className="size-3.5" />,
+              "SSH",
+              sshConnections.length > 0
+                ? sshConnections.map(connectionItem)
+                : missing,
+              label ?? undefined,
+            )
+          : null}
+        <DropdownMenuSeparator />
+        <LocationAction onSelect={() => setAdding(true)}>
+          {zh ? "添加连接…" : "Add connection…"}
+        </LocationAction>
       </div>
     );
   };
 
   const dialogs = binding ? (
-    <>
-      <RemoteConnectionDialog
-        open={dialog?.kind === "ssh" || dialog?.kind === "wsl"}
-        onOpenChange={(next) => {
-          if (!next) setDialog(null);
-        }}
-        transport={dialog?.kind === "wsl" ? "wsl" : "ssh_tunnel"}
-        distros={distros}
-        initialDistro={dialog?.kind === "wsl" ? dialog.distro : undefined}
-        onAdded={(connection) => {
-          chooseConnection(connection);
-          void queryClient.invalidateQueries({
-            queryKey: ["execution", "locations"],
-          });
-        }}
-      />
-      <RemoteControlGuideDialog
-        open={dialog?.kind === "guide"}
-        onOpenChange={(next) => {
-          if (!next) setDialog(null);
-        }}
-      />
-    </>
+    <AddConnectionDialog
+      open={adding}
+      onOpenChange={setAdding}
+      distros={distros}
+      remote={{
+        enabled: Boolean(data?.remote.enabled),
+        canManage: Boolean(data?.remote.can_manage),
+      }}
+      onAdded={(connection) => {
+        chooseConnection(connection);
+        void queryClient.invalidateQueries({
+          queryKey: ["execution", "locations"],
+        });
+      }}
+    />
   ) : null;
 
   return { value, label, detail, unhealthy, renderMenu, dialogs };

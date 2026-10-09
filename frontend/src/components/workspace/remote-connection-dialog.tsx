@@ -12,6 +12,7 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { SegmentedControl } from "@/components/ui/segmented-control";
 import {
   Select,
   SelectContent,
@@ -28,6 +29,10 @@ import {
   type WslDistro,
 } from "@/core/execution/work-location";
 import { useI18n } from "@/core/i18n/hooks";
+
+import { RemoteControlGuide } from "./remote-control-guide";
+
+type ConnectionKind = RemoteTransport | "node";
 
 const DEFAULT_PORT: Record<RemoteTransport, string> = {
   ssh_tunnel: "8310",
@@ -120,20 +125,22 @@ function Field({
   );
 }
 
-/** Add an SSH host or a WSL distro that runs Echo, mirroring "Add SSH connection". */
-export function RemoteConnectionDialog({
+/**
+ * The one place to add somewhere else to run: an SSH host or a WSL distro
+ * that runs Echo, or another machine that connects back (remote control).
+ */
+export function AddConnectionDialog({
   open,
   onOpenChange,
-  transport,
   distros = [],
-  initialDistro,
+  remote,
   onAdded,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  transport: RemoteTransport;
   distros?: WslDistro[];
-  initialDistro?: string;
+  /** Whether SSH / WSL connections can be added here at all. */
+  remote: { enabled: boolean; canManage: boolean };
   onAdded: (connection: {
     id: string;
     name: string;
@@ -142,7 +149,9 @@ export function RemoteConnectionDialog({
 }) {
   const { locale } = useI18n();
   const zh = locale.startsWith("zh");
-  const ssh = transport === "ssh_tunnel";
+  const [kind, setKind] = useState<ConnectionKind>("ssh_tunnel");
+  const transport: RemoteTransport = kind === "wsl" ? "wsl" : "ssh_tunnel";
+  const ssh = kind === "ssh_tunnel";
   const [name, setName] = useState("");
   const [host, setHost] = useState("");
   const [sshPort, setSshPort] = useState("");
@@ -165,15 +174,22 @@ export function RemoteConnectionDialog({
     if (!opening) return;
     const fallback =
       distros.find((d) => d.default)?.name ?? distros[0]?.name ?? "";
-    setName(ssh ? "" : (initialDistro ?? fallback));
+    setKind("ssh_tunnel");
+    setName("");
     setHost("");
     setSshPort("");
     setKeyPath("");
-    setDistro(initialDistro ?? fallback);
-    setEchoPort(DEFAULT_PORT[transport]);
+    setDistro(fallback);
+    setEchoPort(DEFAULT_PORT.ssh_tunnel);
     setToken("");
     setResult(null);
-  }, [open, ssh, transport, distros, initialDistro]);
+  }, [open, distros]);
+
+  const switchKind = (next: ConnectionKind) => {
+    setKind(next);
+    setResult(null);
+    if (next !== "node") setEchoPort(DEFAULT_PORT[next]);
+  };
 
   const port = Number(echoPort || DEFAULT_PORT[transport]);
   const portValid = Number.isInteger(port) && port >= 1 && port <= 65535;
@@ -258,13 +274,30 @@ export function RemoteConnectionDialog({
     }
   };
 
-  const title = ssh
-    ? zh
-      ? "添加 SSH 连接"
-      : "Add SSH connection"
-    : zh
-      ? "添加 WSL 连接"
-      : "Add WSL connection";
+  const blocked =
+    kind === "node"
+      ? null
+      : !remote.enabled
+        ? zh
+          ? "SSH / WSL 连接尚未开启：需要开启实验功能 ui.remote_transport。"
+          : "SSH / WSL connections are off: enable the experimental ui.remote_transport flag."
+        : !remote.canManage
+          ? zh
+            ? "只有管理员可以添加 SSH / WSL 连接。"
+            : "Only admins can add SSH / WSL connections."
+          : null;
+  const description =
+    kind === "node"
+      ? zh
+        ? "让另一台运行 Echo 的机器主动连过来，把任务派给它。"
+        : "Let another machine running Echo connect here and take tasks."
+      : ssh
+        ? zh
+          ? "连接到一台运行着 Echo 的远程机器，对话会在那台机器上执行。"
+          : "Connect to a remote machine running Echo; turns run on that machine."
+        : zh
+          ? "连接到在 WSL 发行版里运行的 Echo，对话会在 Linux 环境中执行。"
+          : "Connect to Echo running inside a WSL distro; turns run in Linux.";
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -273,198 +306,222 @@ export function RemoteConnectionDialog({
         data-testid="remote-connection-dialog"
       >
         <DialogHeader className="text-left">
-          <DialogTitle>{title}</DialogTitle>
-          <DialogDescription>
-            {ssh
-              ? zh
-                ? "连接到一台运行着 Echo 的远程机器，对话会在那台机器上执行。"
-                : "Connect to a remote machine running Echo; turns run on that machine."
-              : zh
-                ? "连接到在 WSL 发行版里运行的 Echo，对话会在 Linux 环境中执行。"
-                : "Connect to Echo running inside a WSL distro; turns run in Linux."}
-          </DialogDescription>
+          <DialogTitle>{zh ? "添加连接" : "Add connection"}</DialogTitle>
+          <DialogDescription>{description}</DialogDescription>
         </DialogHeader>
-        <div className="grid gap-4 py-1">
-          <Field
-            id="remote-name"
-            label={zh ? "名称" : "Name"}
-            hint={
-              zh
-                ? "给这个连接起个好认的名字。"
-                : "A friendly name for this connection."
-            }
-          >
-            <Input
+        <SegmentedControl<ConnectionKind>
+          value={kind}
+          onChange={switchKind}
+          size="sm"
+          fullWidth
+          aria-label={zh ? "连接方式" : "Connection type"}
+          options={[
+            { value: "ssh_tunnel", label: "SSH" },
+            ...(distros.length > 0
+              ? [{ value: "wsl" as const, label: "WSL" }]
+              : []),
+            { value: "node", label: zh ? "远程控制" : "Remote control" },
+          ]}
+        />
+        {kind === "node" ? (
+          <RemoteControlGuide />
+        ) : blocked ? (
+          <p className="rounded-lg border border-dashed px-3 py-4 text-center text-xs text-muted-foreground">
+            {blocked}
+          </p>
+        ) : (
+          <div className="grid gap-4 py-1">
+            <Field
               id="remote-name"
-              value={name}
-              autoFocus
-              placeholder={ssh ? (zh ? "工作笔记本" : "Work laptop") : "Ubuntu"}
-              onChange={(event) => setName(event.target.value)}
-            />
-          </Field>
-          {ssh ? (
-            <>
-              <Field
-                id="remote-host"
-                label={zh ? "SSH 主机" : "SSH host"}
-                hint={
-                  zh
-                    ? "user@myserver.com，或 ~/.ssh/config 里的主机名。"
-                    : "user@myserver.com or a host from ~/.ssh/config."
-                }
-              >
-                <Input
-                  id="remote-host"
-                  value={host}
-                  placeholder="user@hostname"
-                  autoComplete="off"
-                  spellCheck={false}
-                  onChange={(event) => setHost(event.target.value)}
-                />
-              </Field>
-              <Field
-                id="remote-ssh-port"
-                label={zh ? "SSH 端口" : "SSH port"}
-                hint={
-                  zh
-                    ? "留空则用 22 或你的 SSH 配置。"
-                    : "Leave empty to use 22 or your SSH configuration."
-                }
-              >
-                <Input
-                  id="remote-ssh-port"
-                  value={sshPort}
-                  inputMode="numeric"
-                  placeholder="22"
-                  onChange={(event) =>
-                    setSshPort(event.target.value.replace(/\D/g, ""))
-                  }
-                />
-              </Field>
-              <Field
-                id="remote-key"
-                label={zh ? "SSH 密钥（可选）" : "SSH key (optional)"}
-                hint={
-                  zh
-                    ? "私钥路径。留空则使用 SSH 配置或 ssh-agent；不支持密码登录。"
-                    : "Path to a private key. Leave empty to use your SSH config or agent; passwords are not supported."
-                }
-              >
-                <Input
-                  id="remote-key"
-                  value={keyPath}
-                  placeholder="~/.ssh/id_ed25519"
-                  spellCheck={false}
-                  onChange={(event) => setKeyPath(event.target.value)}
-                />
-              </Field>
-            </>
-          ) : (
-            <Field id="remote-distro" label={zh ? "发行版" : "Distro"}>
-              <Select value={distro} onValueChange={setDistro}>
-                <SelectTrigger id="remote-distro">
-                  <SelectValue
-                    placeholder={zh ? "选择发行版" : "Choose a distro"}
-                  />
-                </SelectTrigger>
-                <SelectContent>
-                  {distros.map((item) => (
-                    <SelectItem key={item.name} value={item.name}>
-                      {item.name}
-                      {item.version === 1 ? " (WSL 1)" : ""}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </Field>
-          )}
-          <Field
-            id="remote-echo-port"
-            label={zh ? "Echo 端口" : "Echo port"}
-            hint={
-              ssh
-                ? zh
-                  ? "远端机器上 Echo 后端的端口。只需监听 127.0.0.1，流量走 SSH 加密隧道。"
-                  : "Port of the Echo backend on that machine. It only needs to listen on 127.0.0.1; traffic goes through SSH."
-                : zh
-                  ? "WSL 里 Echo 后端的端口，避免与本机 Echo 冲突。WSL 2 会把它转发到本机 127.0.0.1。"
-                  : "Port of the Echo backend inside WSL; avoid this computer's own port. WSL 2 forwards it to 127.0.0.1."
-            }
-          >
-            <Input
-              id="remote-echo-port"
-              value={echoPort}
-              inputMode="numeric"
-              placeholder={DEFAULT_PORT[transport]}
-              onChange={(event) =>
-                setEchoPort(event.target.value.replace(/\D/g, ""))
+              label={zh ? "名称" : "Name"}
+              hint={
+                zh
+                  ? "给这个连接起个好认的名字。"
+                  : "A friendly name for this connection."
               }
-            />
-          </Field>
-          <Field
-            id="remote-token"
-            label={zh ? "访问令牌（可选）" : "Access token (optional)"}
-            hint={
-              zh
-                ? "远端 Echo 开启了登录时填写，会加密保存在本机。"
-                : "Needed when the remote Echo requires sign-in. Stored encrypted on this computer."
-            }
-          >
-            <Input
-              id="remote-token"
-              type="password"
-              value={token}
-              autoComplete="off"
-              onChange={(event) => setToken(event.target.value)}
-            />
-          </Field>
-          <div className="flex flex-wrap items-center gap-3">
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              disabled={!ready || testing}
-              onClick={runTest}
             >
-              {testing ? (
-                <LoaderCircleIcon className="size-3.5 animate-spin" />
-              ) : null}
-              {zh ? "测试连接" : "Test connection"}
-            </Button>
-            {result ? (
-              <span
-                role="status"
-                className={
-                  "flex min-w-0 items-start gap-1.5 text-xs " +
-                  (result.ok
-                    ? "text-emerald-600 dark:text-emerald-400"
-                    : "text-destructive")
+              <Input
+                id="remote-name"
+                value={name}
+                autoFocus
+                placeholder={
+                  ssh ? (zh ? "工作笔记本" : "Work laptop") : "Ubuntu"
                 }
+                onChange={(event) => setName(event.target.value)}
+              />
+            </Field>
+            {ssh ? (
+              <>
+                <Field
+                  id="remote-host"
+                  label={zh ? "SSH 主机" : "SSH host"}
+                  hint={
+                    zh
+                      ? "user@myserver.com，或 ~/.ssh/config 里的主机名。"
+                      : "user@myserver.com or a host from ~/.ssh/config."
+                  }
+                >
+                  <Input
+                    id="remote-host"
+                    value={host}
+                    placeholder="user@hostname"
+                    autoComplete="off"
+                    spellCheck={false}
+                    onChange={(event) => setHost(event.target.value)}
+                  />
+                </Field>
+                <Field
+                  id="remote-ssh-port"
+                  label={zh ? "SSH 端口" : "SSH port"}
+                  hint={
+                    zh
+                      ? "留空则用 22 或你的 SSH 配置。"
+                      : "Leave empty to use 22 or your SSH configuration."
+                  }
+                >
+                  <Input
+                    id="remote-ssh-port"
+                    value={sshPort}
+                    inputMode="numeric"
+                    placeholder="22"
+                    onChange={(event) =>
+                      setSshPort(event.target.value.replace(/\D/g, ""))
+                    }
+                  />
+                </Field>
+                <Field
+                  id="remote-key"
+                  label={zh ? "SSH 密钥（可选）" : "SSH key (optional)"}
+                  hint={
+                    zh
+                      ? "私钥路径。留空则使用 SSH 配置或 ssh-agent；不支持密码登录。"
+                      : "Path to a private key. Leave empty to use your SSH config or agent; passwords are not supported."
+                  }
+                >
+                  <Input
+                    id="remote-key"
+                    value={keyPath}
+                    placeholder="~/.ssh/id_ed25519"
+                    spellCheck={false}
+                    onChange={(event) => setKeyPath(event.target.value)}
+                  />
+                </Field>
+              </>
+            ) : (
+              <Field id="remote-distro" label={zh ? "发行版" : "Distro"}>
+                <Select value={distro} onValueChange={setDistro}>
+                  <SelectTrigger id="remote-distro">
+                    <SelectValue
+                      placeholder={zh ? "选择发行版" : "Choose a distro"}
+                    />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {distros.map((item) => (
+                      <SelectItem key={item.name} value={item.name}>
+                        {item.name}
+                        {item.version === 1 ? " (WSL 1)" : ""}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </Field>
+            )}
+            <Field
+              id="remote-echo-port"
+              label={zh ? "Echo 端口" : "Echo port"}
+              hint={
+                ssh
+                  ? zh
+                    ? "远端机器上 Echo 后端的端口。只需监听 127.0.0.1，流量走 SSH 加密隧道。"
+                    : "Port of the Echo backend on that machine. It only needs to listen on 127.0.0.1; traffic goes through SSH."
+                  : zh
+                    ? "WSL 里 Echo 后端的端口，避免与本机 Echo 冲突。WSL 2 会把它转发到本机 127.0.0.1。"
+                    : "Port of the Echo backend inside WSL; avoid this computer's own port. WSL 2 forwards it to 127.0.0.1."
+              }
+            >
+              <Input
+                id="remote-echo-port"
+                value={echoPort}
+                inputMode="numeric"
+                placeholder={DEFAULT_PORT[transport]}
+                onChange={(event) =>
+                  setEchoPort(event.target.value.replace(/\D/g, ""))
+                }
+              />
+            </Field>
+            <Field
+              id="remote-token"
+              label={zh ? "访问令牌（可选）" : "Access token (optional)"}
+              hint={
+                zh
+                  ? "远端 Echo 开启了登录时填写，会加密保存在本机。"
+                  : "Needed when the remote Echo requires sign-in. Stored encrypted on this computer."
+              }
+            >
+              <Input
+                id="remote-token"
+                type="password"
+                value={token}
+                autoComplete="off"
+                onChange={(event) => setToken(event.target.value)}
+              />
+            </Field>
+            <div className="flex flex-wrap items-center gap-3">
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                disabled={!ready || testing}
+                onClick={runTest}
               >
-                {result.ok ? (
-                  <CheckCircle2Icon className="mt-px size-3.5 shrink-0" />
-                ) : (
-                  <XCircleIcon className="mt-px size-3.5 shrink-0" />
-                )}
-                <span className="break-all">{result.text}</span>
-              </span>
-            ) : null}
+                {testing ? (
+                  <LoaderCircleIcon className="size-3.5 animate-spin" />
+                ) : null}
+                {zh ? "测试连接" : "Test connection"}
+              </Button>
+              {result ? (
+                <span
+                  role="status"
+                  className={
+                    "flex min-w-0 items-start gap-1.5 text-xs " +
+                    (result.ok
+                      ? "text-emerald-600 dark:text-emerald-400"
+                      : "text-destructive")
+                  }
+                >
+                  {result.ok ? (
+                    <CheckCircle2Icon className="mt-px size-3.5 shrink-0" />
+                  ) : (
+                    <XCircleIcon className="mt-px size-3.5 shrink-0" />
+                  )}
+                  <span className="break-all">{result.text}</span>
+                </span>
+              ) : null}
+            </div>
           </div>
-        </div>
+        )}
         <DialogFooter>
-          <Button
-            type="button"
-            variant="outline"
-            onClick={() => onOpenChange(false)}
-          >
-            {zh ? "取消" : "Cancel"}
-          </Button>
-          <Button type="button" disabled={!ready || saving} onClick={save}>
-            {saving ? (
-              <LoaderCircleIcon className="size-3.5 animate-spin" />
-            ) : null}
-            {title}
-          </Button>
+          {kind === "node" || blocked ? (
+            <Button type="button" onClick={() => onOpenChange(false)}>
+              {zh ? "知道了" : "Got it"}
+            </Button>
+          ) : (
+            <>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => onOpenChange(false)}
+              >
+                {zh ? "取消" : "Cancel"}
+              </Button>
+              <Button type="button" disabled={!ready || saving} onClick={save}>
+                {saving ? (
+                  <LoaderCircleIcon className="size-3.5 animate-spin" />
+                ) : null}
+                {zh ? "添加" : "Add"}
+              </Button>
+            </>
+          )}
         </DialogFooter>
       </DialogContent>
     </Dialog>
