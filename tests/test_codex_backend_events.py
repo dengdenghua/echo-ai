@@ -402,3 +402,29 @@ def test_nested_tool_catalog_error_has_plain_public_message() -> None:
         CodexEventState(),
     )
     assert events[0]["completion_receipt"]["message"] == TOOL_CATALOG_MESSAGE
+
+
+def test_nested_provider_rejection_shows_only_the_provider_message() -> None:
+    import json
+
+    reason = "The 'gpt-6.1-sol' model is not supported when using Codex with a ChatGPT account."
+    wrapped = {
+        "additionalDetails": None,
+        "codexErrorInfo": "other",
+        "message": json.dumps(
+            {
+                "type": "error",
+                "status": 400,
+                "error": {"type": "invalid_request_error", "message": reason},
+            }
+        ),
+    }
+    events = translate_notification(
+        _notification("error", error=wrapped, willRetry=False), CodexEventState()
+    )
+    assert events[0]["message"] == reason
+    completed = translate_notification(
+        _notification("turn/completed", turn={"status": "failed", "error": wrapped}),
+        CodexEventState(),
+    )
+    assert completed[0]["completion_receipt"]["message"] == reason

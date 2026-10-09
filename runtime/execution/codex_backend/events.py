@@ -31,6 +31,28 @@ _MAX_PREVIEW_CHARS = 8_000
 _MAX_ERROR_CHARS = 4_000
 
 
+def _provider_error_message(value: Any) -> str | None:
+    """Return ``error.message`` from a provider rejection nested in App Server JSON.
+
+    App Server reports e.g. an unsupported model as an object whose
+    ``message`` is itself a JSON string; users saw both layers verbatim.
+    """
+    candidate: Any = value
+    for _ in range(3):
+        if isinstance(candidate, str):
+            try:
+                candidate = json.loads(candidate)
+            except ValueError:
+                return None
+        if not isinstance(candidate, dict):
+            return None
+        error = candidate.get("error")
+        if isinstance(error, dict) and isinstance(error.get("message"), str):
+            return _text(error["message"], limit=_MAX_ERROR_CHARS) or None
+        candidate = candidate.get("message")
+    return None
+
+
 def _public_error_text(value: Any) -> str:
     detail = _text(value, limit=_MAX_ERROR_CHARS)
     if TOOL_CATALOG_ERROR in detail or TOOL_CATALOG_MESSAGE in detail:
@@ -45,7 +67,7 @@ def _public_error_text(value: Any) -> str:
     ):
         if message in detail:
             return message
-    return detail
+    return _provider_error_message(value) or detail
 
 
 @dataclass(slots=True)
