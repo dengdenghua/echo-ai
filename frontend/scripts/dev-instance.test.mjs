@@ -27,7 +27,7 @@ const cleanEnv = Object.fromEntries(
   ),
 );
 const kind = "ai";
-const healthy = { status: "ok", runtime: { name: "echo-agent-runtime" } };
+const healthy = { status: "ok", runtime: { name: "echo-ai-runtime" } };
 const expected = devIdentity(root, resolve(root, "isolated-test-state"));
 function json(res, value) {
   res.writeHead(200, { "Content-Type": "application/json" });

@@ -325,7 +325,7 @@ export async function probeOwnedService(
     const health = await readJson(port, "/api/health", timeoutMs);
     if (
       health?.status !== "ok" ||
-      health?.runtime?.name !== "echo-agent-runtime"
+      health?.runtime?.name !== "echo-ai-runtime"
     )
       throw new Error("Echo runtime is not healthy");
     return {
