@@ -23,7 +23,11 @@ function isStubResponse(value: unknown): boolean {
   );
 }
 
-function warnOnStubResponse(method: string, path: string, value: unknown) {
+export function warnOnStubResponse(
+  method: string,
+  path: string,
+  value: unknown,
+): void {
   if (!isStubResponse(value)) return;
   const key = `${method} ${path}`;
   if (warnedStubResponses.has(key)) return;
@@ -51,6 +55,97 @@ export class EchoAPIError extends Error {
   }
 }
 
+// ---------------------------------------------------------------------
+// Shared request plumbing
+//
+// ``EchoClient`` and the typed request layer (``./request``) build their
+// headers, read failures and raise ``EchoAPIError`` through these helpers
+// so both paths share a single implementation.
+// ---------------------------------------------------------------------
+
+/** ``X-CSRF-Token`` echoed from the ``csrf_token`` cookie, when present. */
+export function csrfHeaders(): Record<string, string> {
+  if (typeof document === "undefined") return {};
+  const match = document.cookie.match(/(?:^|;\s*)csrf_token=([^;]*)/);
+  const csrfToken = match?.[1] ? decodeURIComponent(match[1]) : "";
+  if (!csrfToken) return {};
+  return { "X-CSRF-Token": csrfToken };
+}
+
+/** JSON content type (when a JSON body is sent) + auth + CSRF headers. */
+export function echoRequestHeaders(
+  auth: Record<string, string>,
+  hasJsonBody: boolean,
+): Record<string, string> {
+  const base = hasJsonBody
+    ? { "Content-Type": "application/json", ...auth }
+    : { ...auth };
+  return { ...base, ...csrfHeaders() };
+}
+
+/** Everything known about a non-2xx response, read once. */
+export interface ApiFailure {
+  method: string;
+  path: string;
+  status: number;
+  statusText: string;
+  /** Raw response body ("" when it could not be read). */
+  text: string;
+  /** JSON-decoded body, or ``undefined`` when the body is not JSON. */
+  payload: unknown;
+  /** ``payload.detail`` when present, else ``payload``, else ``text``. */
+  detail: unknown;
+}
+
+export async function readApiFailure(
+  method: string,
+  path: string,
+  resp: Response,
+): Promise<ApiFailure> {
+  let text = "";
+  let payload: unknown = undefined;
+  if (typeof resp.text === "function") {
+    text = await resp.text().catch(() => "");
+    try {
+      payload = JSON.parse(text);
+    } catch {
+      // Preserve HTTP status even when a proxy returns a non-JSON error.
+    }
+  } else if (typeof resp.json === "function") {
+    // Minimal Response-like test doubles may only implement ``json()``.
+    payload = await (resp.json() as Promise<unknown>).catch(() => undefined);
+    text = payload === undefined ? "" : JSON.stringify(payload);
+  }
+  const detail =
+    payload === undefined
+      ? text
+      : payload && typeof payload === "object" && "detail" in payload
+        ? payload.detail
+        : payload;
+  return {
+    method,
+    path,
+    status: resp.status,
+    statusText: resp.statusText ?? "",
+    text,
+    payload,
+    detail,
+  };
+}
+
+export function defaultApiErrorMessage(failure: ApiFailure): string {
+  return `${failure.method} ${failure.path} failed: ${failure.status}${
+    failure.text ? ` - ${failure.text}` : ""
+  }`;
+}
+
+export function apiErrorFromFailure(
+  failure: ApiFailure,
+  message: string = defaultApiErrorMessage(failure),
+): EchoAPIError {
+  return new EchoAPIError(message, failure.status, failure.detail);
+}
+
 export class EchoClient {
   private baseUrl: string;
   private getToken?: () => string | null;
@@ -66,21 +161,8 @@ export class EchoClient {
     return { Authorization: `Bearer ${token}` };
   }
 
-  private _jsonHeaders(): Record<string, string> {
-    return { "Content-Type": "application/json", ...this._authHeaders() };
-  }
-
-  private _csrfHeaders(): Record<string, string> {
-    if (typeof document === "undefined") return {};
-    const match = document.cookie.match(/(?:^|;\s*)csrf_token=([^;]*)/);
-    const csrfToken = match?.[1] ? decodeURIComponent(match[1]) : "";
-    if (!csrfToken) return {};
-    return { "X-CSRF-Token": csrfToken };
-  }
-
   private _safeHeaders(hasBody: boolean): Record<string, string> {
-    const base = hasBody ? this._jsonHeaders() : this._authHeaders();
-    return { ...base, ...this._csrfHeaders() };
+    return echoRequestHeaders(this._authHeaders(), hasBody);
   }
 
   // ---------------------------------------------------------------------
@@ -135,22 +217,7 @@ export class EchoClient {
     }
     const resp = await fetch(this._resolveUrl(path), init);
     if (!resp.ok) {
-      const text = await resp.text().catch(() => "");
-      let detail: unknown = text;
-      try {
-        const payload: unknown = JSON.parse(text);
-        detail =
-          payload && typeof payload === "object" && "detail" in payload
-            ? payload.detail
-            : payload;
-      } catch {
-        // Preserve HTTP status even when a proxy returns a non-JSON error.
-      }
-      throw new EchoAPIError(
-        `${method} ${path} failed: ${resp.status}${text ? ` - ${text}` : ""}`,
-        resp.status,
-        detail,
-      );
+      throw apiErrorFromFailure(await readApiFailure(method, path, resp));
     }
     if (resp.status === 204) return undefined as T;
     // Return the raw JSON unmodified; call sites (e.g. the account hooks)
