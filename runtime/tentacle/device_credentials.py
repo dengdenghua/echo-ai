@@ -356,7 +356,7 @@ def device_ws_url(server: Any) -> str:
     configured = (os.environ.get("ECHO_TENTACLE_PUBLIC_WS_URL") or "").strip()
     if configured:
         return configured
-    from runtime.sensing.gateway.tentacle_join_router import _lan_ip
+    from runtime.platform.lan import lan_ip as _lan_ip
 
     return f"ws://{_lan_ip()}:{getattr(server, 'port', 8765)}"
 

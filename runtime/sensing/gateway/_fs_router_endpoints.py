@@ -91,6 +91,29 @@ def _assert_expected_content(current: bytes, expected_sha256: object) -> None:
         )
 
 
+async def _write_if_unchanged(
+    backend: Any, rel_path: str, payload: bytes, expected_sha256: object, lock_path: Path
+) -> None:
+    """Read, check and write the remote file as one step against other writers.
+
+    The coordination lock is a non-blocking cross-process try-lock (timeout 0)
+    owned per task: a concurrent writer gets ``FileCoordinationConflict`` (409)
+    instead of blocking the event loop, so awaiting under it is safe.
+    """
+    with coordinate_file_mutations([lock_path]):
+        try:
+            current = await backend.read_file(rel_path)
+        except FileNotFoundError:
+            current = b""
+        current_bytes = (
+            bytes(current)
+            if isinstance(current, (bytes, bytearray))
+            else str(current).encode("utf-8")
+        )
+        _assert_expected_content(current_bytes, expected_sha256)
+        await backend.write_file(rel_path, payload)
+
+
 def _empty_git_summary(error: str) -> dict[str, Any]:
     """Zeroed summary used when git itself is unavailable or timed out."""
     return {
@@ -568,18 +591,7 @@ def register_endpoints(router: Any, ctx: _FsContext) -> None:
                     if probe["ready"]
                     else app_paths().data_dir / "remote-files" / ws.id / rel_path.lstrip("/\\")
                 )
-                with coordinate_file_mutations([lock_path]):
-                    try:
-                        current = await backend.read_file(rel_path)
-                    except FileNotFoundError:
-                        current = b""
-                    current_bytes = (
-                        bytes(current)
-                        if isinstance(current, (bytes, bytearray))
-                        else str(current).encode("utf-8")
-                    )
-                    _assert_expected_content(current_bytes, expected_sha256)
-                    await backend.write_file(rel_path, payload)
+                await _write_if_unchanged(backend, rel_path, payload, expected_sha256, lock_path)
             except FileCoordinationConflict as exc:
                 raise HTTPException(409, str(exc)) from exc
             except HTTPException:

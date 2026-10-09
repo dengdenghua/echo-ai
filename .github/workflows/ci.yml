@@ -128,6 +128,11 @@ jobs:
         if: always() && matrix.python-version == '3.11.9'
         run: python tools/lint/god_file_check.py --strict
 
+      - name: Function-length ratchet (no NEW functions >=200 lines, none grow)
+        # Style/ratchet gate: must not mask pytest below (see note at job top).
+        if: always() && matrix.python-version == '3.11.9'
+        run: python tools/lint/function_length_check.py --strict
+
       - name: Import-direction ratchet (no NEW kernel→sensing/web imports)
         # Style/ratchet gate: must not mask pytest below (see note at job top).
         if: always() && matrix.python-version == '3.11.9'
