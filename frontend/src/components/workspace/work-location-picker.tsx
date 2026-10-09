@@ -1,7 +1,6 @@
 import { useQueryClient } from "@tanstack/react-query";
 import {
   CheckIcon,
-  ChevronRightIcon,
   CloudIcon,
   KeyRoundIcon,
   LaptopIcon,
@@ -9,8 +8,16 @@ import {
   RadioTowerIcon,
   SquareTerminalIcon,
 } from "lucide-react";
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import { useState, type ReactNode } from "react";
 
+import {
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuSub,
+  DropdownMenuSubContent,
+  DropdownMenuSubTrigger,
+} from "@/components/ui/dropdown-menu";
 import { RemoteConnectionDialog } from "@/components/workspace/remote-connection-dialog";
 import { RemoteControlGuideDialog } from "@/components/workspace/remote-control-guide-dialog";
 import {
@@ -64,11 +71,11 @@ export function WorkLocationIcon({
   return <Icon className={className} aria-hidden="true" />;
 }
 
-/** Keep a path's head and tail — the tail names the folder: ``C:/Users/…/proj/src``. */
+/** Keep a path's head and tail — the tail names the folder: ``C:/…/proj/src``. */
 export function shortenPath(path: string, max = 34): string {
   if (path.length <= max) return path;
   const sep = path.includes("\\") && !path.includes("/") ? "\\" : "/";
-  const parts = path.split(/[\/]/).filter(Boolean);
+  const parts = path.split(/[\\/]/).filter(Boolean);
   if (parts.length <= 3) return `…${path.slice(-(max - 1))}`;
   const head = /^[A-Za-z]:$/.test(parts[0]!)
     ? parts[0]!
@@ -78,13 +85,12 @@ export function shortenPath(path: string, max = 34): string {
   return short.length <= max + 6 ? short : `…${sep}${parts[parts.length - 1]}`;
 }
 
-// ── Menu rows shared by every branch, including the local folder list ──
+// ── Menu items shared by every submenu, including the local folders ──
 
-const ROW =
-  "flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-xs transition-colors hover:bg-muted/60 disabled:pointer-events-none disabled:opacity-50";
+const ITEM = "gap-2 rounded-md px-2 py-1.5 text-xs";
 
 /** A choosable address: a folder, a node, a connection. */
-export function LocationMenuEntry({
+export function LocationItem({
   icon,
   title,
   subtitle,
@@ -92,7 +98,7 @@ export function LocationMenuEntry({
   disabled,
   danger,
   hint,
-  onClick,
+  onSelect,
 }: {
   icon?: ReactNode;
   title: string;
@@ -102,16 +108,14 @@ export function LocationMenuEntry({
   danger?: boolean;
   /** Native tooltip, e.g. the full path. */
   hint?: string;
-  onClick: () => void;
+  onSelect: () => void;
 }) {
   return (
-    <button
-      type="button"
+    <DropdownMenuItem
       disabled={disabled}
-      aria-pressed={selected}
       title={hint}
-      onClick={onClick}
-      className={cn(ROW, "text-foreground")}
+      onSelect={onSelect}
+      className={cn(ITEM, subtitle && "items-start")}
     >
       {icon ? (
         <span className="flex size-3.5 shrink-0 items-center justify-center text-muted-foreground">
@@ -142,46 +146,45 @@ export function LocationMenuEntry({
       {selected ? (
         <CheckIcon className="size-3.5 shrink-0 text-primary" />
       ) : null}
-    </button>
+    </DropdownMenuItem>
   );
 }
 
-/** "Add …" style row; ends a branch. */
-export function LocationMenuAction({
+/** "Add …" style item; ends a submenu. */
+export function LocationAction({
   icon,
   children,
   disabled,
-  onClick,
+  onSelect,
 }: {
   icon?: ReactNode;
   children: ReactNode;
   disabled?: boolean;
-  onClick: () => void;
+  onSelect: () => void;
 }) {
   return (
-    <button
-      type="button"
+    <DropdownMenuItem
       disabled={disabled}
-      onClick={onClick}
-      className={cn(ROW, "text-muted-foreground hover:text-foreground")}
+      onSelect={onSelect}
+      className={cn(ITEM, "text-muted-foreground")}
     >
       <span className="flex size-3.5 shrink-0 items-center justify-center">
         {icon ?? <PlusIcon className="size-3.5" />}
       </span>
       <span className="min-w-0 flex-1 truncate">{children}</span>
-    </button>
+    </DropdownMenuItem>
   );
 }
 
-export function LocationMenuLabel({ children }: { children: ReactNode }) {
+export function LocationLabel({ children }: { children: ReactNode }) {
   return (
-    <div className="px-2 pb-0.5 pt-2 text-[11px] font-medium text-muted-foreground/80">
+    <DropdownMenuLabel className="px-2 pb-0.5 pt-1.5 text-[11px] font-medium text-muted-foreground/80">
       {children}
-    </div>
+    </DropdownMenuLabel>
   );
 }
 
-export function LocationMenuNote({
+export function LocationNote({
   children,
   tone = "muted",
 }: {
@@ -191,7 +194,7 @@ export function LocationMenuNote({
   return (
     <p
       className={cn(
-        "px-2 py-1.5 text-xs leading-relaxed",
+        "max-w-64 px-2 py-1.5 text-xs leading-relaxed",
         tone === "error" ? "text-destructive" : "text-muted-foreground",
       )}
     >
@@ -200,12 +203,14 @@ export function LocationMenuNote({
   );
 }
 
+export { DropdownMenuSeparator as LocationSeparator };
+
 /**
  * The location half of the composer's location/address control.
  *
- * Owns the location data, the inline menu section and the add-connection
- * dialogs (which outlive the popover). ``label`` is ``null`` for this
- * computer so the caller shows its own address (the chosen folder).
+ * Owns the location data, the cascading menu items and the add-connection
+ * dialogs (which outlive the menu). ``label`` is ``null`` for this computer
+ * so the caller shows its own address (the chosen folder).
  */
 export function useWorkLocationMenu(
   binding: WorkLocationBinding | undefined,
@@ -216,13 +221,6 @@ export function useWorkLocationMenu(
   const queryClient = useQueryClient();
   const value = binding?.value ?? LOCAL_WORK_LOCATION;
   const [dialog, setDialog] = useState<DialogState>(null);
-  const [expanded, setExpanded] = useState<Category | null>(categoryOf(value));
-  // Re-open on the current location's branch each time the menu opens.
-  const wasOpen = useRef(false);
-  useEffect(() => {
-    if (menuOpen && !wasOpen.current) setExpanded(categoryOf(value));
-    wasOpen.current = menuOpen;
-  }, [menuOpen, value]);
 
   const locations = useWorkLocations(
     Boolean(binding) && (menuOpen || value.kind !== "local"),
@@ -280,48 +278,39 @@ export function useWorkLocationMenu(
       label: connection.name,
     });
 
-  const renderSection = ({
-    localContent,
+  /** Items for a ``DropdownMenuContent``: one row per location, each a submenu. */
+  const renderMenu = ({
+    localItems,
     localSummary,
-    close,
   }: {
-    localContent: ReactNode;
-    /** The chosen folder, shown on the collapsed "本地" row. */
+    localItems: ReactNode;
+    /** The chosen folder, shown beside "本地" while it is the location. */
     localSummary?: string;
-    close: () => void;
   }) => {
-    if (!binding) return localContent;
-    const pick = (location: WorkLocation) => {
-      binding.onChange(location);
-      close();
-    };
-    const openDialog = (next: DialogState) => {
-      close();
-      setDialog(next);
-    };
+    if (!binding) return localItems;
     const pending = locations.isLoading ? (
-      <LocationMenuNote>{zh ? "正在查找…" : "Looking…"}</LocationMenuNote>
+      <LocationNote>{zh ? "正在查找…" : "Looking…"}</LocationNote>
     ) : locations.isError ? (
-      <LocationMenuNote tone="error">
+      <LocationNote tone="error">
         {zh ? "暂时无法读取工作位置" : "Work locations are unavailable"}
-      </LocationMenuNote>
+      </LocationNote>
     ) : null;
     const remoteBlocked = !data ? null : !data.remote.enabled ? (
-      <LocationMenuNote>
+      <LocationNote>
         {zh
           ? "远程连接尚未开启：需要开启实验功能 ui.remote_transport。"
           : "Remote connections are off: enable the experimental ui.remote_transport flag."}
-      </LocationMenuNote>
+      </LocationNote>
     ) : !data.remote.can_manage ? (
-      <LocationMenuNote>
+      <LocationNote>
         {zh
           ? "只有管理员可以配置远程连接。"
           : "Only admins can configure remote connections."}
-      </LocationMenuNote>
+      </LocationNote>
     ) : null;
 
-    const connectionEntry = (connection: RemoteConnection) => (
-      <LocationMenuEntry
+    const connectionItem = (connection: RemoteConnection) => (
+      <LocationItem
         key={connection.id}
         title={connection.name}
         subtitle={
@@ -331,61 +320,47 @@ export function useWorkLocationMenu(
         }
         selected={value.kind === "remote" && value.backend_id === connection.id}
         danger={connection.health === "error"}
-        onClick={() => {
-          chooseConnection(connection);
-          close();
-        }}
+        onSelect={() => chooseConnection(connection)}
       />
     );
 
-    const branch = (
+    const submenu = (
       category: Category,
       icon: ReactNode,
       text: string,
       body: ReactNode,
       summary?: string,
     ) => {
-      const open = expanded === category;
       const active = categoryOf(value) === category;
       return (
-        <div key={category}>
-          <button
-            type="button"
-            aria-expanded={open}
-            data-testid={`work-location-${category}`}
-            onClick={() => {
-              if (category === "local" && value.kind !== "local") {
-                binding.onChange(LOCAL_WORK_LOCATION);
-              }
-              setExpanded(open ? null : category);
-            }}
+        <DropdownMenuSub key={category}>
+          <DropdownMenuSubTrigger
             className={cn(
-              ROW,
+              ITEM,
               "font-medium",
-              active ? "text-foreground" : "text-muted-foreground",
-              "hover:text-foreground",
+              !active && "text-muted-foreground",
             )}
+            data-testid={`work-location-${category}`}
           >
             <span className="flex size-3.5 shrink-0 items-center justify-center">
               {icon}
             </span>
             <span className="shrink-0">{text}</span>
             <span className="min-w-0 flex-1 truncate text-right font-normal text-muted-foreground">
-              {active && !open ? summary : null}
+              {active ? summary : null}
             </span>
-            <ChevronRightIcon
-              className={cn(
-                "size-3.5 shrink-0 opacity-50 transition-transform",
-                open && "rotate-90",
-              )}
-            />
-          </button>
-          {open ? <div className="pb-1 pl-[22px]">{body}</div> : null}
-        </div>
+          </DropdownMenuSubTrigger>
+          <DropdownMenuSubContent
+            className="w-72"
+            data-testid={`work-location-${category}-menu`}
+          >
+            {body}
+          </DropdownMenuSubContent>
+        </DropdownMenuSub>
       );
     };
 
-    const nodeEntries = nodes.flatMap((node) =>
+    const nodeItems = nodes.flatMap((node) =>
       node.workspaces.flatMap((workspace) =>
         node.roles.map((role) => {
           const offline = !node.online;
@@ -395,7 +370,7 @@ export function useWorkLocationMenu(
               ? `${workspace.name} · ${role}`
               : workspace.name;
           return (
-            <LocationMenuEntry
+            <LocationItem
               key={`${node.node_id}:${workspace.id}:${role}`}
               title={node.label}
               subtitle={
@@ -416,8 +391,8 @@ export function useWorkLocationMenu(
                 value.role === role
               }
               disabled={offline || unmounted}
-              onClick={() =>
-                pick({
+              onSelect={() =>
+                binding.onChange({
                   kind: "node",
                   node_id: node.node_id,
                   workspace_id: workspace.id,
@@ -433,18 +408,17 @@ export function useWorkLocationMenu(
     );
 
     return (
-      <div className="p-1" data-testid="work-location-menu">
-        {branch(
+      <div data-testid="work-location-menu">
+        {submenu(
           "local",
           <LaptopIcon className="size-3.5" />,
           zh ? "本地" : "Local",
-          localContent,
+          localItems,
           localSummary,
         )}
-        <button
-          type="button"
+        <DropdownMenuItem
           disabled
-          className={cn(ROW, "font-medium text-muted-foreground")}
+          className={cn(ITEM, "font-medium")}
           data-testid="work-location-cloud"
         >
           <span className="flex size-3.5 shrink-0 items-center justify-center">
@@ -454,61 +428,67 @@ export function useWorkLocationMenu(
           <span className="shrink-0 font-normal">
             {zh ? "即将推出" : "Coming soon"}
           </span>
-        </button>
-        {branch(
+        </DropdownMenuItem>
+        {submenu(
           "node",
           <RadioTowerIcon className="size-3.5" />,
           zh ? "远程控制" : "Remote Control",
           <>
             {pending ??
-              (nodeEntries.length > 0 ? (
-                nodeEntries
+              (nodeItems.length > 0 ? (
+                nodeItems
               ) : (
-                <LocationMenuNote>
+                <LocationNote>
                   {zh
                     ? "还没有连上来的机器。"
                     : "No machines are connected yet."}
-                </LocationMenuNote>
+                </LocationNote>
               ))}
-            <LocationMenuAction onClick={() => openDialog({ kind: "guide" })}>
+            <DropdownMenuSeparator />
+            <LocationAction onSelect={() => setDialog({ kind: "guide" })}>
               {zh ? "连接另一台机器…" : "Connect another machine…"}
-            </LocationMenuAction>
+            </LocationAction>
           </>,
           label ?? undefined,
         )}
         {showWsl
-          ? branch(
+          ? submenu(
               "wsl",
               <SquareTerminalIcon className="size-3.5" />,
               "WSL",
               (pending ?? remoteBlocked) || (
                 <>
-                  {wslConnections.map(connectionEntry)}
+                  {wslConnections.map(connectionItem)}
+                  {wslConnections.length > 0 &&
+                  unconnectedDistros.length > 0 ? (
+                    <DropdownMenuSeparator />
+                  ) : null}
                   {unconnectedDistros.map((distro) => (
-                    <LocationMenuAction
+                    <LocationAction
                       key={distro.name}
-                      onClick={() =>
-                        openDialog({ kind: "wsl", distro: distro.name })
+                      onSelect={() =>
+                        setDialog({ kind: "wsl", distro: distro.name })
                       }
                     >
                       {zh ? `连接 ${distro.name}…` : `Connect ${distro.name}…`}
-                    </LocationMenuAction>
+                    </LocationAction>
                   ))}
                 </>
               ),
               label ?? undefined,
             )
           : null}
-        {branch(
+        {submenu(
           "ssh",
           <KeyRoundIcon className="size-3.5" />,
           "SSH",
           (pending ?? remoteBlocked) || (
             <>
-              {sshConnections.map(connectionEntry)}
-              <LocationMenuAction onClick={() => openDialog({ kind: "ssh" })}>
+              {sshConnections.map(connectionItem)}
+              {sshConnections.length > 0 ? <DropdownMenuSeparator /> : null}
+              <LocationAction onSelect={() => setDialog({ kind: "ssh" })}>
                 {zh ? "添加 SSH 连接…" : "Add SSH connection…"}
-              </LocationMenuAction>
+              </LocationAction>
             </>
           ),
           label ?? undefined,
@@ -543,5 +523,5 @@ export function useWorkLocationMenu(
     </>
   ) : null;
 
-  return { value, label, detail, unhealthy, renderSection, dialogs };
+  return { value, label, detail, unhealthy, renderMenu, dialogs };
 }

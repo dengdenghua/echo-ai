@@ -44,10 +44,17 @@ import { managedWorkdirThreadId, workdirDisplayName } from "./workdir-label";
 import { MountPointDialog } from "./mount-point-dialog";
 import { SharedSpacesDialog } from "./shared-spaces-dialog";
 import {
-  LocationMenuAction,
-  LocationMenuEntry,
-  LocationMenuLabel,
-  LocationMenuNote,
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { LOCAL_WORK_LOCATION } from "@/core/execution/work-location";
+import {
+  LocationAction,
+  LocationItem,
+  LocationLabel,
+  LocationNote,
+  LocationSeparator,
   shortenPath,
   useWorkLocationMenu,
   WorkLocationIcon,
@@ -538,8 +545,12 @@ export function WorkDirSelector({
     if (!workDir && (!isMutedVariant || noBridgeHint)) setBrowserOpen(true);
   }, [isMutedVariant, noBridgeHint, showMenu, workDir]);
 
+  // With a location binding a Radix cascading menu owns open/close. Typing a
+  // path needs a text field, which a menu cannot hold: when the system folder
+  // picker is unavailable, fall back to the folder popover.
+  const cascadingMenu = Boolean(location) && !noBridgeHint;
   useEffect(() => {
-    if (!showMenu && !isPicking) return;
+    if (cascadingMenu ? !isPicking : !showMenu && !isPicking) return;
     const handleClickOutside = (event: MouseEvent) => {
       const target = event.target as Node;
       if (
@@ -548,7 +559,7 @@ export function WorkDirSelector({
       ) {
         pickerRequestRef.current?.abort();
         setIsPicking(false);
-        setShowMenu(false);
+        if (!cascadingMenu) setShowMenu(false);
       }
     };
     window.addEventListener("mousedown", handleClickOutside);
@@ -563,7 +574,13 @@ export function WorkDirSelector({
       window.removeEventListener("mousedown", handleClickOutside);
       window.removeEventListener("keydown", handleEscape);
     };
-  }, [showMenu, isPicking]);
+  }, [showMenu, isPicking, cascadingMenu]);
+
+  // The typed-path fallback ends with its popover; next time the location
+  // menu opens again.
+  useEffect(() => {
+    if (location && !showMenu) setNoBridgeHint(false);
+  }, [location, showMenu]);
 
   useEffect(() => () => pickerRequestRef.current?.abort(), []);
 
@@ -620,19 +637,16 @@ export function WorkDirSelector({
   const updateMenuPosition = useCallback(() => {
     if (!containerRef.current) return;
     const rect = containerRef.current.getBoundingClientRect();
-    const compactMutedMenu = isMutedVariant && !noBridgeHint && !location;
-    // The location list sits under the trigger, like the other composer menus.
-    const locationMenu = Boolean(location) && !noBridgeHint;
-    const targetWidth = compactMutedMenu ? 136 : locationMenu ? 272 : MENU_WIDTH;
-    const minWidth = compactMutedMenu ? 128 : locationMenu ? 240 : 280;
+    const compactMutedMenu = isMutedVariant && !noBridgeHint;
+    const targetWidth = compactMutedMenu ? 136 : MENU_WIDTH;
+    const minWidth = compactMutedMenu ? 128 : 280;
     const _estimatedHeight = compactMutedMenu ? 56 : 260;
     const minHeight = compactMutedMenu ? 48 : 240;
     const width = Math.min(
       targetWidth,
       Math.max(minWidth, window.innerWidth - MENU_MARGIN * 2),
     );
-    const preferredLeft =
-      compactMutedMenu || locationMenu ? rect.left : rect.right - width;
+    const preferredLeft = compactMutedMenu ? rect.left : rect.right - width;
     const left = Math.min(
       Math.max(MENU_MARGIN, preferredLeft),
       window.innerWidth - MENU_MARGIN - width,
@@ -652,7 +666,7 @@ export function WorkDirSelector({
         ? { bottom: window.innerHeight - rect.top + 6 }
         : { top: rect.bottom + 6 }),
     });
-  }, [isMutedVariant, noBridgeHint, location]);
+  }, [isMutedVariant, noBridgeHint]);
 
   useEffect(() => {
     if (!showMenu) {
@@ -755,9 +769,9 @@ export function WorkDirSelector({
     <div
       className={cn(
         "flex max-h-full flex-col overflow-hidden",
-        // When wrapped in Tabs or the location menu we drop the outer chrome —
-        // the wrapper adds its own. When standalone we keep the original frame.
-        remoteWorkspaceEnabled || location
+        // When wrapped in Tabs we drop the outer chrome — Tabs adds its own
+        // border/rounded corners. When standalone we keep the original frame.
+        remoteWorkspaceEnabled
           ? ""
           : "border border-border-default bg-popover/95 backdrop-blur " +
               (isMutedVariant
@@ -1061,14 +1075,11 @@ export function WorkDirSelector({
   // so the user can flip between local-folder and remote-mount entry
   // points. Otherwise we render the local panel as before — no visual
   // change for existing callers.
-  const folderMenuContent = remoteWorkspaceEnabled && enableRemoteTab ? (
+  const menuContent = remoteWorkspaceEnabled && enableRemoteTab ? (
     <div
       className={cn(
-        "flex max-h-full flex-col overflow-hidden",
-        !location &&
-          "rounded-lg border border-border-default bg-popover/95 backdrop-blur",
-        !location &&
-          (isMutedVariant ? "shadow-[var(--shadow-md)]" : "shadow-2xl"),
+        "flex max-h-full flex-col overflow-hidden rounded-lg border border-border-default bg-popover/95 backdrop-blur",
+        isMutedVariant ? "shadow-[var(--shadow-md)]" : "shadow-2xl",
       )}
     >
       <Tabs
@@ -1101,10 +1112,20 @@ export function WorkDirSelector({
   ) : (
     localMenuContent
   );
-  // With a location binding the folders become the "本地" branch of the
-  // location list: the same rows as the remote branches, no tabs, and shared
-  // spaces as one more group of folders this computer can work in.
+  // With a location binding the trigger opens a cascading menu: one row per
+  // location, and 本地 opens the folders this computer can work in. Picking a
+  // folder also makes this computer the location again.
   const zhUi = locale.startsWith("zh");
+  const runsLocally = !runsElsewhere;
+  const toLocal = () => {
+    if (location && location.value.kind !== "local") {
+      location.onChange(LOCAL_WORK_LOCATION);
+    }
+  };
+  const chooseFolder = (dir: string) => {
+    toLocal();
+    if (normalizePathKey(dir) !== normalizePathKey(workDir)) applyWorkDir(dir);
+  };
   const showSharedSpaces = remoteWorkspaceEnabled && enableRemoteTab;
   const sharedKeys = new Set(
     remoteWorkspaces.map((ws) => normalizePathKey(ws.mount_target)),
@@ -1113,177 +1134,186 @@ export function WorkDirSelector({
     ws.id === workspaceId ||
     (Boolean(workDir) &&
       normalizePathKey(ws.mount_target) === normalizePathKey(workDir));
-  const locationLocalContent = (
+  const otherRecents = recentWorkdirs.filter(
+    (dir) => !sharedKeys.has(normalizePathKey(dir)),
+  );
+  const locationLocalItems = (
     <>
-      {isWorkDirLocked ? (
-        <LocationMenuNote>{lockedCopy.hint}</LocationMenuNote>
+      {isWorkDirLocked ? <LocationNote>{lockedCopy.hint}</LocationNote> : null}
+      {isWorkDirLocked && workDir ? (
+        <LocationItem
+          icon={<FolderIcon className="size-3.5" />}
+          title={folderName}
+          subtitle={shortenPath(workDir)}
+          hint={workDir}
+          selected={runsLocally}
+          onSelect={toLocal}
+        />
       ) : (
-        <LocationMenuEntry
+        <LocationItem
           icon={<FolderIcon className="size-3.5" />}
           title={personalSpaceLabel}
-          selected={!workDir}
-          onClick={clearWorkDir}
+          selected={runsLocally && !workDir}
+          onSelect={() => {
+            toLocal();
+            if (workDir && !isWorkDirLocked) clearWorkDir();
+          }}
         />
       )}
-      {recentWorkdirs.some((dir) => !sharedKeys.has(normalizePathKey(dir))) ? (
+      {otherRecents.length > 0 ? (
         <>
-          <LocationMenuLabel>{t.codeMode.recentWorkspaces}</LocationMenuLabel>
-          {recentWorkdirs
-            .filter((dir) => !sharedKeys.has(normalizePathKey(dir)))
-            .map((dir) => (
-              <LocationMenuEntry
-                key={dir}
-                icon={<FolderIcon className="size-3.5" />}
-                title={basename(dir) || dir}
-                subtitle={shortenPath(dir)}
-                hint={dir}
-                selected={dir === workDir}
-                onClick={() => applyWorkDir(dir)}
-              />
-            ))}
+          <LocationLabel>{t.codeMode.recentWorkspaces}</LocationLabel>
+          {otherRecents.map((dir) => (
+            <LocationItem
+              key={dir}
+              icon={<FolderIcon className="size-3.5" />}
+              title={basename(dir) || dir}
+              subtitle={shortenPath(dir)}
+              hint={dir}
+              selected={runsLocally && dir === workDir}
+              onSelect={() => chooseFolder(dir)}
+            />
+          ))}
         </>
       ) : null}
       {showSharedSpaces &&
       (remoteWorkspaces.length > 0 || remoteLoading || remoteError) ? (
         <>
-          <LocationMenuLabel>{zhUi ? "共享空间" : "Shared spaces"}</LocationMenuLabel>
+          <LocationLabel>{zhUi ? "共享空间" : "Shared spaces"}</LocationLabel>
           {remoteError ? (
-            <LocationMenuNote tone="error">
+            <LocationNote tone="error">
               {trRemote.remoteLoadFailed(remoteError)}
-            </LocationMenuNote>
+            </LocationNote>
           ) : null}
           {remoteLoading && remoteWorkspaces.length === 0 ? (
-            <LocationMenuNote>{trRemote.remoteLoading}</LocationMenuNote>
+            <LocationNote>{trRemote.remoteLoading}</LocationNote>
           ) : (
             remoteWorkspaces.map((ws) => {
               const Icon = MOUNT_TYPE_ICON[ws.mount_type];
               return (
-                <LocationMenuEntry
+                <LocationItem
                   key={ws.id}
                   icon={<Icon className="size-3.5" />}
                   title={ws.name}
                   subtitle={shortenPath(ws.mount_target)}
                   hint={ws.mount_target}
-                  selected={isActiveShared(ws)}
+                  selected={runsLocally && isActiveShared(ws)}
                   disabled={remoteLoading}
-                  onClick={() => void handlePickRemote(ws)}
+                  onSelect={() => {
+                    toLocal();
+                    if (!isActiveShared(ws)) void handlePickRemote(ws);
+                  }}
                 />
               );
             })
           )}
         </>
       ) : null}
-      <div className="mt-1 border-t border-border/60 pt-1">
-        <LocationMenuAction
-          icon={
-            isPicking ? (
-              <Loader2Icon className="size-3.5 animate-spin" />
-            ) : (
-              <FolderOpenIcon className="size-3.5" />
-            )
-          }
-          onClick={() => void handlePrimaryAction()}
+      <LocationSeparator />
+      <LocationAction
+        icon={
+          isPicking ? (
+            <Loader2Icon className="size-3.5 animate-spin" />
+          ) : (
+            <FolderOpenIcon className="size-3.5" />
+          )
+        }
+        onSelect={() => {
+          toLocal();
+          void handlePrimaryAction();
+        }}
+      >
+        {folderPickerLabel}…
+      </LocationAction>
+      {showSharedSpaces ? (
+        <LocationAction
+          icon={<ServerIcon className="size-3.5" />}
+          onSelect={() => setMountOpen(true)}
         >
-          {folderPickerLabel}…
-        </LocationMenuAction>
-        {showSharedSpaces ? (
-          <LocationMenuAction
-            icon={<ServerIcon className="size-3.5" />}
-            onClick={() => {
-              setShowMenu(false);
-              setMountOpen(true);
-            }}
-          >
-            {zhUi ? "接入共享目录…" : "Connect a shared directory…"}
-          </LocationMenuAction>
-        ) : null}
-        {showSharedSpaces && threadId && threadId !== "new" ? (
-          <LocationMenuAction
-            icon={<RefreshCwIcon className="size-3.5" />}
-            onClick={() => {
-              setShowMenu(false);
-              setSharedOpen(true);
-            }}
-          >
-            {zhUi ? "同步共享空间…" : "Sync a shared space…"}
-          </LocationMenuAction>
-        ) : null}
-      </div>
-      {noBridgeHint ? (
-        <div className="px-1 pb-1">
-          <LocationMenuNote>{webPickerHint(locale)}</LocationMenuNote>
-          {manualPathForm}
-        </div>
+          {zhUi ? "接入共享目录…" : "Connect a shared directory…"}
+        </LocationAction>
+      ) : null}
+      {showSharedSpaces && threadId && threadId !== "new" ? (
+        <LocationAction
+          icon={<RefreshCwIcon className="size-3.5" />}
+          onSelect={() => setSharedOpen(true)}
+        >
+          {zhUi ? "同步共享空间…" : "Sync a shared space…"}
+        </LocationAction>
       ) : null}
     </>
-  );
-  const menuContent = location ? (
-    <div
-      className={cn(
-        "flex max-h-full flex-col overflow-y-auto rounded-lg border border-border-default bg-popover",
-        isMutedVariant ? "shadow-[var(--shadow-md)]" : "shadow-2xl",
-      )}
-    >
-      {workLocation.renderSection({
-        localContent: locationLocalContent,
-        localSummary: workDir ? folderName : personalSpaceLabel,
-        close: () => setShowMenu(false),
-      })}
-    </div>
-  ) : (
-    folderMenuContent
   );
   const shownLabel = workLocation.label ?? triggerLabel;
   const shownTitle = runsElsewhere
     ? [workLocation.label, workLocation.detail].filter(Boolean).join(" · ")
     : triggerTitle;
 
+  const triggerButton = (
+    <button
+      className={cn(
+        "group flex min-w-0 max-w-full items-center gap-1.5 text-ui font-medium shadow-none transition-colors duration-base",
+        chromeless
+          ? "h-8 rounded-lg px-1.5 text-muted-foreground hover:bg-muted/55 hover:text-foreground"
+          : "h-8 rounded-lg border border-transparent bg-transparent px-2 text-muted-foreground hover:border-border-default hover:bg-muted/55 hover:text-foreground",
+        isEmpty && !runsElsewhere ? emptyTriggerClass : activeTriggerClass,
+        isPicking && "cursor-wait opacity-50",
+      )}
+      onClick={() => {
+        if (isPicking) void handlePrimaryAction();
+        else if (!cascadingMenu) setShowMenu((open) => !open);
+      }}
+      aria-expanded={showMenu}
+      aria-busy={isPicking}
+      title={isPicking ? t.common.cancel : shownTitle}
+      type="button"
+      data-testid={location ? "work-location-trigger" : undefined}
+    >
+      {location ? (
+        <WorkLocationIcon location={workLocation.value} className="size-3.5 shrink-0" />
+      ) : (
+        <FolderOpenIcon className="size-3.5 shrink-0" />
+      )}
+      <span
+        className={cn(
+          isMutedVariant
+            ? "min-w-0 max-w-[120px] truncate"
+            : "max-w-[160px] truncate",
+          isEmpty ? "font-medium" : "tracking-normal",
+        )}
+      >
+        {isPicking ? t.common.cancel : shownLabel}
+      </span>
+      {workLocation.unhealthy ? (
+        <span className="size-1.5 shrink-0 rounded-full bg-destructive" aria-hidden="true" />
+      ) : null}
+      <ChevronDownIcon className="size-3 shrink-0 opacity-35 transition-opacity group-hover:opacity-60" />
+    </button>
+  );
+
   return (
     <div
       ref={containerRef}
       className={cn("relative flex items-center gap-1.5", className)}
     >
-      <button
-        className={cn(
-          "group flex items-center gap-1.5 text-ui font-medium shadow-none transition-colors duration-base",
-          chromeless
-            ? "h-8 rounded-lg px-1.5 text-muted-foreground hover:bg-muted/55 hover:text-foreground"
-            : "h-8 rounded-lg border border-transparent bg-transparent px-2 text-muted-foreground hover:border-border-default hover:bg-muted/55 hover:text-foreground",
-          isEmpty && !runsElsewhere ? emptyTriggerClass : activeTriggerClass,
-          isPicking && "cursor-wait opacity-50",
-        )}
-        onClick={() => {
-          if (isPicking) void handlePrimaryAction();
-          else setShowMenu((open) => !open);
-        }}
-        aria-expanded={showMenu}
-        aria-busy={isPicking}
-        title={isPicking ? t.common.cancel : shownTitle}
-        type="button"
-        data-testid={location ? "work-location-trigger" : undefined}
-      >
-        {location ? (
-          <WorkLocationIcon location={workLocation.value} className="size-3.5 shrink-0" />
-        ) : (
-          <FolderOpenIcon className="size-3.5 shrink-0" />
-        )}
-        <span
-          className={cn(
-            isMutedVariant
-              ? "max-w-[120px] truncate"
-              : "max-w-[160px] truncate",
-            isEmpty ? "font-medium" : "tracking-normal",
-          )}
-        >
-          {isPicking ? t.common.cancel : shownLabel}
-        </span>
-        {workLocation.unhealthy ? (
-          <span className="size-1.5 shrink-0 rounded-full bg-destructive" aria-hidden="true" />
-        ) : null}
-        <ChevronDownIcon className="size-3 shrink-0 opacity-35 transition-opacity group-hover:opacity-60" />
-      </button>
+      {cascadingMenu ? (
+        <DropdownMenu open={showMenu} onOpenChange={setShowMenu}>
+          <DropdownMenuTrigger asChild>{triggerButton}</DropdownMenuTrigger>
+          <DropdownMenuContent
+            align="start"
+            className="w-56"
+            onCloseAutoFocus={(event) => event.preventDefault()}
+          >
+            {workLocation.renderMenu({
+              localItems: locationLocalItems,
+              localSummary: workDir ? folderName : personalSpaceLabel,
+            })}
+          </DropdownMenuContent>
+        </DropdownMenu>
+      ) : (
+        triggerButton
+      )}
 
-      {menuRect && typeof document !== "undefined"
+      {!cascadingMenu && menuRect && typeof document !== "undefined"
         ? createPortal(
             <div
               ref={menuRef}

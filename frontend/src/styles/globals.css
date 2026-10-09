@@ -2344,11 +2344,14 @@
     padding: 0;
     justify-content: flex-start;
   }
+  /* Holds the location/address chip: sized by its label (a folder, or an
+     SSH / WSL / node name), truncating long ones. */
   .composer-workspace-control {
     display: flex;
-    width: 104px;
+    width: auto;
+    max-width: 160px;
     min-width: 0;
-    flex-shrink: 0;
+    flex-shrink: 1;
   }
   .composer-workspace-control > * {
     width: 100%;
