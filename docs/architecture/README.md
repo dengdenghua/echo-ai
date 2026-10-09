@@ -16,6 +16,7 @@ This folder contains the current architecture map for Echo-Agent.
 - `blocks-commit-checklist.md` is the landed 13-commit record of the composition layer.
 - `user-work-commit-plan.md` is a read-only suggested grouping of the worktree's uncommitted work.
 - `blocks.md` defines the composition layer (BlockManifest + ServiceBus + lifecycle + event conventions) — the "building blocks" contract.
+- `windows-job-objects.md` covers Windows Job Object process-tree containment and the pending, review-gated plan for the kernel `sandbox.py` / `streaming.py` paths.
 - Historical snapshots have moved to `../archive/`.
 - The root organ `README.md` files are compatibility notes, not the primary
   source of truth.
