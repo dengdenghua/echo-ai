@@ -34,7 +34,6 @@ frontend/src/components/workspace/agent-workbench-panel/project-os-tab.tsx	2193
 frontend/src/components/workspace/agents/agent-role-profile-dialog.tsx	1944
 frontend/src/components/workspace/agents/agent-world-unified.tsx	2285
 frontend/src/components/workspace/agents/arms-editor.tsx	1028
-frontend/src/components/workspace/api-publish-panel.tsx	1366
 frontend/src/components/workspace/artifacts/artifact-file-detail.tsx	1330
 frontend/src/components/workspace/browser-preview-panel.tsx	2358
 frontend/src/components/workspace/channel-credential-dialog.tsx	1070
@@ -57,7 +56,6 @@ frontend/src/components/workspace/messages/message-list.tsx	3721
 frontend/src/components/workspace/messages/message-output-summary.test.tsx	1218
 frontend/src/components/workspace/messages/message-output-summary.tsx	1251
 frontend/src/components/workspace/model-picker.tsx	1053
-frontend/src/components/workspace/quest-panel.tsx	1174
 frontend/src/components/workspace/settings/memory-settings-page.tsx	1334
 frontend/src/components/workspace/settings/model-settings-page.test.tsx	1294
 frontend/src/components/workspace/settings/model-settings-page.tsx	4333
