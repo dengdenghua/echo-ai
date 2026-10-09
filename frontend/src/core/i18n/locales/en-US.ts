@@ -87,6 +87,7 @@ export const enUS: Translations = {
       "Welcome to 🦌 Echo, an open source super agent. With built-in and custom skills, Echo helps you search on the web, analyze data, and generate artifacts like slides, web pages and do almost anything.",
     echoTagline: "Multi-agent collaboration · One input, direct solutions",
 
+    brandLine: "Every interaction leaves an echo.",
     createYourOwnSkill: "Create Your Own Skill",
     createYourOwnSkillDescription:
       "Create your own skill to release the power of Echo. With customized skills,\nEcho can help you search on the web, analyze data, and generate\n artifacts like slides, web pages and do almost anything.",
@@ -2088,6 +2089,11 @@ export const enUS: Translations = {
     newChatTooltip: "New chat",
     searchTooltip: "Search (⌘K)",
     settingsTooltip: "Settings",
+    notInstalledBadge: "Not installed",
+    notInstalledLabel: (name: string) => `${name} (not installed)`,
+    activeRoleLine: (name: string) => `Role: ${name}`,
+    accountMenuLabel: (account: string, role: string) => `${account}, current role ${role}`,
+    accountFallback: "My account",
     // Project + chat list actions
     deleteProjectTooltip: "Delete project",
     deleteProjectFailed: "Failed to delete project. Please try again.",

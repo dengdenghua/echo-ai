@@ -7,16 +7,19 @@ import {
 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
+import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
 import {
   fetchWorkbenchInstalled,
   fetchRuntimePluginStatus,
+  installCloudPlugin,
   setCloudPluginEnabled,
   setRuntimePluginEnabled,
 } from "@/core/agents/agent-world-api";
 import { authHeaders } from "@/core/auth/api";
 import { getBackendBaseURL } from "@/core/config";
+import { setModuleAvailable } from "@/core/modules/enabled-modules";
 
 import type { WorkbenchBuiltinApp } from "./apps";
 
@@ -152,12 +155,15 @@ function SurfaceState({
   issue,
   retry,
   enable,
+  install,
   actionBusy = false,
 }: {
   app: WorkbenchBuiltinApp;
   issue?: SurfaceIssue;
   retry?: () => void;
   enable?: () => void;
+  /** Install in place, so a missing app is one click away instead of a detour. */
+  install?: () => void;
   actionBusy?: boolean;
 }) {
   const navigate = useNavigate();
@@ -178,18 +184,38 @@ function SurfaceState({
   return (
     <div className="flex size-full min-h-80 items-center justify-center p-5">
       <section className="w-full max-w-md rounded-2xl border border-border/70 bg-card/75 p-6 text-center shadow-sm">
-        <div className="mx-auto grid size-11 place-items-center rounded-2xl bg-amber-500/10 text-amber-600 dark:text-amber-300">
-          <AlertTriangleIcon className="size-5" />
-        </div>
+        {install ? (
+          <div className="mx-auto grid size-11 place-items-center rounded-2xl bg-primary/10 text-primary">
+            <CloudDownloadIcon className="size-5" />
+          </div>
+        ) : (
+          <div className="mx-auto grid size-11 place-items-center rounded-2xl bg-amber-500/10 text-amber-600 dark:text-amber-300">
+            <AlertTriangleIcon className="size-5" />
+          </div>
+        )}
         <h1 className="mt-4 text-base font-semibold">
-          {issue.kind === "disabled"
-            ? `${app.name}已停用`
-            : `${app.name}暂时不可用`}
+          {install
+            ? `安装${app.name}`
+            : issue.kind === "disabled"
+              ? `${app.name}已停用`
+              : `${app.name}暂时不可用`}
         </h1>
         <p className="mt-2 text-sm leading-6 text-muted-foreground">
-          {issue.message}
+          {install
+            ? `${app.description || app.name}。安装后即可在这里直接使用。`
+            : issue.message}
         </p>
         <div className="mt-5 flex flex-wrap justify-center gap-2">
+          {install ? (
+            <Button size="sm" disabled={actionBusy} onClick={install}>
+              {actionBusy ? (
+                <Loader2Icon className="mr-1.5 size-3.5 animate-spin" />
+              ) : (
+                <CloudDownloadIcon className="mr-1.5 size-3.5" />
+              )}
+              {actionBusy ? "正在安装…" : "安装"}
+            </Button>
+          ) : null}
           {enable ? (
             <Button size="sm" disabled={actionBusy} onClick={enable}>
               {actionBusy ? (
@@ -207,16 +233,18 @@ function SurfaceState({
             </Button>
           ) : null}
           <Button
-            variant={enable || retry ? "outline" : "default"}
+            variant={install || enable || retry ? "outline" : "default"}
             size="sm"
             onClick={() =>
               navigate("/workspace/agents?surface=chat&tab=plugins")
             }
           >
-            <CloudDownloadIcon className="mr-1.5 size-3.5" />
-            {issue.kind === "corrupt" || issue.kind === "incompatible"
-              ? "前往重新安装"
-              : "前往应用中心"}
+            {install ? null : <CloudDownloadIcon className="mr-1.5 size-3.5" />}
+            {install
+              ? "在应用中心查看"
+              : issue.kind === "corrupt" || issue.kind === "incompatible"
+                ? "前往重新安装"
+                : "前往应用中心"}
           </Button>
         </div>
       </section>
@@ -395,6 +423,24 @@ export function RemoteWorkbenchSurface({
     }
   }, [app.cloudId, app.runtimePlugin]);
 
+  const installApp = useCallback(async () => {
+    if (!app.cloudId) return;
+    setActionBusy(true);
+    try {
+      await installCloudPlugin(app.cloudId);
+      setModuleAvailable(app.moduleId, true);
+      toast.success(`${app.name}已安装`);
+      setAttempt((value) => value + 1);
+    } catch (installError) {
+      setIssue({
+        kind: "unknown",
+        message: `安装失败：${installError instanceof Error ? installError.message : String(installError)}`,
+      });
+    } finally {
+      setActionBusy(false);
+    }
+  }, [app.cloudId, app.moduleId, app.name]);
+
   useEffect(() => {
     const receive = (event: MessageEvent) => {
       if (event.source !== iframeRef.current?.contentWindow) return;
@@ -461,6 +507,9 @@ export function RemoteWorkbenchSurface({
         issue={issue || undefined}
         retry={issue ? () => setAttempt((value) => value + 1) : undefined}
         enable={issue?.kind === "disabled" ? enableRuntime : undefined}
+        install={
+          issue?.kind === "missing" && app.cloudId ? installApp : undefined
+        }
         actionBusy={actionBusy}
       />
     );

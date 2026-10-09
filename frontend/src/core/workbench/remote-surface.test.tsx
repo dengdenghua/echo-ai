@@ -14,6 +14,7 @@ import { RemoteWorkbenchSurface } from "./remote-surface";
 const apiMocks = vi.hoisted(() => ({
   fetchWorkbenchInstalled: vi.fn(),
   fetchRuntimePluginStatus: vi.fn(),
+  installCloudPlugin: vi.fn(),
   setCloudPluginEnabled: vi.fn(),
   setRuntimePluginEnabled: vi.fn(),
 }));
@@ -234,15 +235,31 @@ describe("RemoteWorkbenchSurface", () => {
 
     renderSurface();
     expect(
-      await screen.findByRole("heading", { name: "叙事工坊暂时不可用" }),
+      await screen.findByRole("heading", { name: "安装叙事工坊" }),
     ).toBeInTheDocument();
-    expect(screen.getByText(/尚未安装/)).toBeInTheDocument();
+    expect(screen.getByText(/安装后即可在这里直接使用/)).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole("button", { name: /重新检查/ }));
     await waitFor(() =>
       expect(screen.getByTitle("Narrative Studio")).toBeInTheDocument(),
     );
     expect(fetch).toHaveBeenCalledTimes(2);
+  });
+
+  it("installs a missing app in place and then mounts it", async () => {
+    vi.mocked(fetch)
+      .mockReset()
+      .mockResolvedValueOnce(new Response("missing", { status: 404 }))
+      .mockResolvedValueOnce(manifestResponse());
+    apiMocks.installCloudPlugin.mockResolvedValueOnce({ operation: "install" });
+
+    renderSurface();
+    fireEvent.click(await screen.findByRole("button", { name: "安装" }));
+
+    await waitFor(() =>
+      expect(screen.getByTitle("Narrative Studio")).toBeInTheDocument(),
+    );
+    expect(apiMocks.installCloudPlugin).toHaveBeenCalledWith(APP.cloudId);
   });
 
   it("starts independent reads together but waits for lifecycle checks before mounting", async () => {

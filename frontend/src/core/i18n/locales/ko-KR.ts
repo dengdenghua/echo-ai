@@ -87,6 +87,7 @@ export const koKR: Translations = {
       "멀티 Agent AI · 요청을 직접 말하거나, Agent 모드로 전환하여 심층 처리하세요.",
     echoTagline: "멀티 에이전트 협업 · 하나의 입력으로 직접 해결",
 
+    brandLine: "모든 상호작용은 울림을 남깁니다.",
     createYourOwnSkill: "나만의 Agent 스킬 만들기",
     createYourOwnSkillDescription:
       "나만의 스킬을 만들어 Echo의 힘을 발휘하세요. 커스텀 스킬로,\nEcho가 웹 검색, 데이터 분석, 슬라이드 및 웹 페이지 같은\n산출물 생성 등 거의 모든 작업을 수행할 수 있습니다.",
@@ -2050,6 +2051,11 @@ export const koKR: Translations = {
     newChatTooltip: "새 채팅",
     searchTooltip: "검색 (⌘K)",
     settingsTooltip: "설정",
+    notInstalledBadge: "미설치",
+    notInstalledLabel: (name: string) => `${name} (미설치)`,
+    activeRoleLine: (name: string) => `역할: ${name}`,
+    accountMenuLabel: (account: string, role: string) => `${account}, 현재 역할 ${role}`,
+    accountFallback: "내 계정",
     // Project + chat list actions
     deleteProjectTooltip: "프로젝트 삭제",
     deleteProjectFailed: "프로젝트 삭제에 실패했습니다. 다시 시도해 주세요.",

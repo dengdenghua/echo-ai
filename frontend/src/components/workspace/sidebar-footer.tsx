@@ -278,6 +278,10 @@ export function AgentFooter() {
         ? t.sidebar.agentsLoadFailed
         : t.sidebar.noAgents);
   const accountName = user ? getAccountDisplayName(user) : "";
+  // The bottom-left slot is the person, by convention; the active role rides
+  // along as a badge and a second line so switching agents stays one click.
+  const accountLabel = accountName || t.sidebar.accountFallback;
+  const accountInitial = accountName.trim().charAt(0).toUpperCase();
 
   // Calculate evolution level and stars
   const level = evolutionData
@@ -299,45 +303,62 @@ export function AgentFooter() {
                   )
                 : displayAgent?.description || agentTriggerLabel
             }
-            aria-label={agentTriggerLabel}
+            aria-label={t.sidebar.accountMenuLabel(accountLabel, agentTriggerLabel)}
             className={cn(
               "group/agent flex min-w-0 flex-1 items-center gap-2 rounded-md px-1.5 py-1 text-left",
-              "opacity-85 transition-[opacity,background-color] duration-fast",
+              "opacity-90 transition-[opacity,background-color] duration-fast",
               "hover:opacity-100 hover:bg-muted/50 outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring/45",
               "group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:px-0",
             )}
           >
-            {displayAgent ? (
-              <AgentAvatar agent={displayAgent} />
-            ) : (
+            <span className="relative shrink-0" aria-hidden="true">
+              <span className="flex size-7 items-center justify-center rounded-full bg-primary/15 text-xs font-semibold text-primary">
+                {accountInitial || <UserCircleIcon className="size-4" />}
+              </span>
+              {displayAgent ? (
+                <AgentAvatar
+                  agent={displayAgent}
+                  className="absolute -right-1 -bottom-1 size-4 rounded-full border-0 text-[9px] ring-2 ring-sidebar"
+                />
+              ) : showAgentLoading || showAgentError ? (
+                <span
+                  className={cn(
+                    "absolute -right-1 -bottom-1 flex size-4 items-center justify-center rounded-full bg-muted text-muted-foreground ring-2 ring-sidebar",
+                    showAgentError && "text-destructive",
+                  )}
+                >
+                  {showAgentLoading ? (
+                    <LoaderCircleIcon className="size-2.5 animate-spin" />
+                  ) : (
+                    <AlertCircleIcon className="size-2.5" />
+                  )}
+                </span>
+              ) : null}
+            </span>
+            <span className="flex min-w-0 flex-1 flex-col gap-0.5 group-data-[collapsible=icon]:hidden">
+              <span className="truncate text-xs font-medium leading-tight">
+                {accountLabel}
+              </span>
               <span
-                aria-hidden="true"
                 className={cn(
-                  "flex size-6 shrink-0 items-center justify-center rounded-md border border-border-default bg-muted text-muted-foreground",
+                  "truncate text-2xs leading-tight text-muted-foreground",
                   showAgentError && "text-destructive",
                 )}
               >
-                {showAgentLoading ? (
-                  <LoaderCircleIcon className="size-3.5 animate-spin" />
-                ) : showAgentError ? (
-                  <AlertCircleIcon className="size-3.5" />
-                ) : (
-                  <UserCircleIcon className="size-3.5" />
+                {displayAgent
+                  ? t.sidebar.activeRoleLine(agentTriggerLabel)
+                  : agentTriggerLabel}
+                {level !== null && (
+                  <span className="ml-1.5">
+                    Lv.{level}
+                    {stars !== null && stars > 0 && (
+                      <span className="ml-0.5">
+                        {"⭐".repeat(Math.min(stars, 5))}
+                      </span>
+                    )}
+                  </span>
                 )}
               </span>
-            )}
-            <span className="min-w-0 flex-1 truncate text-xs font-medium leading-tight group-data-[collapsible=icon]:hidden">
-              {agentTriggerLabel}
-              {level !== null && (
-                <span className="ml-1.5 text-2xs font-normal text-muted-foreground/80">
-                  Lv.{level}
-                  {stars !== null && stars > 0 && (
-                    <span className="ml-0.5">
-                      {"⭐".repeat(Math.min(stars, 5))}
-                    </span>
-                  )}
-                </span>
-              )}
             </span>
             {lock ? (
               <span
@@ -370,10 +391,27 @@ export function AgentFooter() {
           sideOffset={6}
           className="max-h-[calc(100vh-1rem)] w-[288px] max-w-[calc(100vw-1rem)] overflow-y-auto overscroll-contain rounded-lg border-border-default p-1.5 shadow-[var(--shadow-floating)]"
         >
+          <DropdownMenuItem
+            onSelect={() => setCreditsOpen(true)}
+            className="flex min-h-9 items-center gap-2 rounded-lg px-2 py-1.5 text-xs focus:bg-foreground/[0.035]"
+          >
+            <UserCircleIcon className="size-4 shrink-0 opacity-70" />
+            <span className="min-w-0 flex-1 truncate font-medium">
+              {accountLabel}
+            </span>
+            {typeof credits === "number" && Number.isFinite(credits) && (
+              <>
+                <CoinsIcon className="size-3.5 shrink-0 opacity-70" />
+                <span className="shrink-0 text-xs tabular-nums text-foreground/80">
+                  {credits.toLocaleString()}
+                </span>
+              </>
+            )}
+          </DropdownMenuItem>
+          <DropdownMenuSeparator />
           <DropdownMenuLabel className="px-2 py-1.5 text-xs font-medium text-muted-foreground">
             {t.sidebar.switchAgentMenuTitle}
           </DropdownMenuLabel>
-          <DropdownMenuSeparator />
           {hasPersonaAgents ? (
             personaAgents.map(renderAgentItem)
           ) : showAgentLoading ? (
@@ -401,23 +439,6 @@ export function AgentFooter() {
             </div>
           )}
           <DropdownMenuSeparator />
-          <DropdownMenuItem
-            onSelect={() => setCreditsOpen(true)}
-            className="flex min-h-8 items-center gap-2 rounded-lg px-2 py-1.5 text-xs focus:bg-foreground/[0.035]"
-          >
-            <UserCircleIcon className="size-4 shrink-0 opacity-70" />
-            <span className="min-w-0 flex-1 truncate text-muted-foreground">
-              {accountName}
-            </span>
-            {typeof credits === "number" && Number.isFinite(credits) && (
-              <>
-                <CoinsIcon className="size-3.5 shrink-0 opacity-70" />
-                <span className="shrink-0 text-xs tabular-nums text-foreground/80">
-                  {credits.toLocaleString()}
-                </span>
-              </>
-            )}
-          </DropdownMenuItem>
           <DropdownMenuItem
             onSelect={() => void logout()}
             className="flex min-h-8 items-center gap-2 rounded-lg px-2 py-1.5 text-xs text-muted-foreground focus:bg-foreground/[0.035] focus:text-foreground"

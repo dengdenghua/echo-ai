@@ -153,8 +153,14 @@ import {
 
 import { ModuleEditorDialog } from "@/components/workspace/module-editor-dialog";
 import { modulesInSection } from "@/core/modules/catalog";
-import { useEnabledModuleIds } from "@/core/modules/enabled-modules";
-import { filterRoutesByEnabled } from "@/core/modules/module-routing";
+import {
+  useEnabledModuleIds,
+  useUserEnabledModuleIds,
+} from "@/core/modules/enabled-modules";
+import {
+  filterRoutesByEnabled,
+  removableModuleForRoute,
+} from "@/core/modules/module-routing";
 import type { ModuleSection } from "@/core/modules/types";
 
 import { AvatarCell } from "@/components/workspace/avatar-cell";
@@ -509,15 +515,25 @@ export function WorkspaceSidebar(props: React.ComponentProps<typeof Sidebar>) {
     [t],
   );
   const activeAgentId = useActiveAgentId();
-  const enabledModuleIds = useEnabledModuleIds(activeAgentId ?? "general");
+  // The sidebar follows the user's module preference; install state only marks
+  // an entry. Removing entries once the availability check lands made the
+  // navigation jump, and the route still opens an install-ready page.
+  const enabledModuleIds = useUserEnabledModuleIds(activeAgentId ?? "general");
+  const availableModuleIds = useEnabledModuleIds(activeAgentId ?? "general");
   const workspaceWebShortcuts = useWorkspaceWebShortcuts();
   const resolveRoutes = useCallback(
-    (routes: NavRoute[]) =>
-      filterRoutesByEnabled(routes, enabledModuleIds).map((r) => ({
-        ...r,
-        label: r.label ?? (r.labelKey ? resolveLabel(r.labelKey) : r.to),
-      })),
-    [enabledModuleIds, resolveLabel],
+    (routes: NavRoute[]): NavItem[] => {
+      const available = new Set(availableModuleIds);
+      return filterRoutesByEnabled(routes, enabledModuleIds).map((r) => {
+        const descriptor = removableModuleForRoute(r.to);
+        return {
+          ...r,
+          label: r.label ?? (r.labelKey ? resolveLabel(r.labelKey) : r.to),
+          notInstalled: descriptor ? !available.has(descriptor.id) : false,
+        };
+      });
+    },
+    [availableModuleIds, enabledModuleIds, resolveLabel],
   );
   const chatCapabilityItems = useMemo(
     () => resolveRoutes(CHAT_CAPABILITY_ROUTES),
@@ -1222,7 +1238,7 @@ export function WorkspaceSidebar(props: React.ComponentProps<typeof Sidebar>) {
   );
 }
 
-type NavItem = NavRoute & { label: string };
+type NavItem = NavRoute & { label: string; notInstalled?: boolean };
 
 const primaryNavClassName =
   "group/nav relative h-8 w-full text-ui text-foreground/85 transition-colors hover:bg-foreground/[0.035] hover:text-foreground data-[active=true]:bg-foreground/[0.065] data-[active=true]:font-medium data-[active=true]:text-foreground outline-none [&:focus:not(:focus-visible)]:ring-0 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-inset focus-visible:ring-foreground/30";
@@ -1619,6 +1635,10 @@ function NavRow({
           new URLSearchParams(search).get("url") === item.externalUrl
         : isNavRouteActive(pathname, item.to);
   const Icon = item.icon;
+  const { t } = useI18n();
+  const accessibleLabel = item.notInstalled
+    ? t.sidebar.notInstalledLabel(item.label)
+    : item.label;
 
   const removeWebShortcut = () => {
     if (!item.externalUrl) return;
@@ -1638,7 +1658,7 @@ function NavRow({
       <SidebarMenuButton
         asChild
         isActive={active}
-        tooltip={item.label}
+        tooltip={accessibleLabel}
         className={cn(primaryNavClassName)}
       >
         <Link
@@ -1649,7 +1669,7 @@ function NavRow({
           onFocus={() => {
             if (!item.externalUrl) preloadWorkspaceRoute(item.to);
           }}
-          aria-label={item.label}
+          aria-label={accessibleLabel}
           aria-current={active ? "page" : undefined}
           className={cn(
             "flex items-center gap-2 group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:gap-0",
@@ -1661,7 +1681,9 @@ function NavRow({
               "flex size-6 shrink-0 items-center justify-center rounded-lg transition-colors",
               active
                 ? "text-foreground"
-                : "text-muted-foreground/85 group-hover/nav:text-foreground",
+                : item.notInstalled
+                  ? "text-muted-foreground group-hover/nav:text-foreground"
+                  : "text-muted-foreground/85 group-hover/nav:text-foreground",
             )}
           >
             {item.iconUrl ? (
@@ -1674,9 +1696,24 @@ function NavRow({
               <Icon className="size-[16px]" strokeWidth={1.75} />
             )}
           </span>
-          <span className="min-w-0 flex-1 truncate group-data-[collapsible=icon]:hidden">
+          <span
+            className={cn(
+              "min-w-0 flex-1 truncate group-data-[collapsible=icon]:hidden",
+              item.notInstalled &&
+                !active &&
+                "text-muted-foreground group-hover/nav:text-foreground",
+            )}
+          >
             {item.label}
           </span>
+          {item.notInstalled ? (
+            <span
+              aria-hidden="true"
+              className="shrink-0 rounded-full border border-border-subtle px-1.5 text-2xs leading-4 text-muted-foreground group-data-[collapsible=icon]:hidden"
+            >
+              {t.sidebar.notInstalledBadge}
+            </span>
+          ) : null}
         </Link>
       </SidebarMenuButton>
       {item.externalUrl ? (

@@ -70,6 +70,7 @@ export interface Translations {
     greeting: string;
     description: string;
     echoTagline: string;
+    brandLine: string;
     createYourOwnSkill: string;
     createYourOwnSkillDescription: string;
     scenes: {
@@ -1815,6 +1816,11 @@ export interface Translations {
     newChatTooltip: string;
     searchTooltip: string;
     settingsTooltip: string;
+    notInstalledBadge: string;
+    notInstalledLabel: (name: string) => string;
+    activeRoleLine: (name: string) => string;
+    accountMenuLabel: (account: string, role: string) => string;
+    accountFallback: string;
     // Project + chat list actions
     deleteProjectTooltip: string;
     deleteProjectFailed: string;

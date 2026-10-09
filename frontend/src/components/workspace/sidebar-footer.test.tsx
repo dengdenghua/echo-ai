@@ -126,7 +126,7 @@ describe("AgentFooter roster states", () => {
         locale: "zh-CN",
       });
       await user.click(
-        screen.getByRole("button", { name: "Eve", exact: true }),
+        screen.getByRole("button", { name: /当前角色 Eve$/ }),
       );
       expect(screen.getByText("办公统筹")).toBeVisible();
       const account = screen.getByRole("menuitem", {
@@ -169,7 +169,7 @@ describe("AgentFooter roster states", () => {
         },
       );
       await user.click(
-        screen.getByRole("button", { name: "Eve", exact: true }),
+        screen.getByRole("button", { name: /当前角色 Eve$/ }),
       );
       const profileButton = screen.getByRole("button", {
         name: "查看 Kane 的资料",
@@ -201,7 +201,7 @@ describe("AgentFooter roster states", () => {
     });
 
     expect(
-      screen.getByRole("button", { name: "正在加载智能体…" }),
+      screen.getByRole("button", { name: /当前角色 正在加载智能体…$/ }),
     ).toBeInTheDocument();
     expect(screen.queryByText("?")).not.toBeInTheDocument();
     expect(screen.queryByText("EchoAI")).not.toBeInTheDocument();
@@ -217,7 +217,7 @@ describe("AgentFooter roster states", () => {
     });
 
     await user.click(
-      screen.getByRole("button", { name: "智能体列表加载失败" }),
+      screen.getByRole("button", { name: /当前角色 智能体列表加载失败$/ }),
     );
     expect(screen.getAllByText("智能体列表加载失败")).toHaveLength(2);
 
@@ -243,7 +243,7 @@ describe("AgentFooter roster states", () => {
       locale: "zh-CN",
     });
 
-    expect(screen.getByRole("button", { name: "Eve" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /当前角色 Eve$/ })).toBeInTheDocument();
     expect(screen.queryByText("EchoAI")).not.toBeInTheDocument();
   });
 });

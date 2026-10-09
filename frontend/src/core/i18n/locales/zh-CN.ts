@@ -86,6 +86,7 @@ export const zhCN: Translations = {
     description: "多智能体 AI · 直接说需求，或切到 Agent 模式深入处理。",
     echoTagline: "多智能体协作 · 一个输入框，直接解决问题",
 
+    brandLine: "每一次交互，都留下回响。",
     createYourOwnSkill: "创建你自己的 Agent Skill",
     createYourOwnSkillDescription:
       "创建自定义 Agent Skill 是 Echo 的核心功能之一,Echo\n会根据你的描述自动生成代码,你可以随时修改和优化\n这个 Skill,让它更好地为你服务。",
@@ -1992,6 +1993,11 @@ export const zhCN: Translations = {
     newChatTooltip: "新对话",
     searchTooltip: "搜索 (Ctrl/⌘+K)",
     settingsTooltip: "设置",
+    notInstalledBadge: "未安装",
+    notInstalledLabel: (name: string) => `${name}（未安装）`,
+    activeRoleLine: (name: string) => `角色：${name}`,
+    accountMenuLabel: (account: string, role: string) => `${account}，当前角色 ${role}`,
+    accountFallback: "我的账户",
     // Project + chat list actions
     deleteProjectTooltip: "删除项目",
     deleteProjectFailed: "删除项目失败，请重试",

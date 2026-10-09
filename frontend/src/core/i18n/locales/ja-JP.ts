@@ -87,6 +87,7 @@ export const jaJP: Translations = {
       "🦌 Echoへようこそ。オープンソースのスーパーエージェントです。ビルトインスキルとカスタムスキルを使って、ウェブ検索、データ分析、スライドやウェブページなどのアーティファクト生成など、ほぼ何でもこなせます。",
     echoTagline: "マルチエージェント協働 · 一つの入力で直接解決",
 
+    brandLine: "すべての対話が、エコーを残す。",
     createYourOwnSkill: "スキルを自作する",
     createYourOwnSkillDescription:
       "Echoの力を解放する独自のスキルを作成しましょう。カスタムスキルがあれば、\nEchoはウェブ検索、データ分析、スライドやウェブページなどの\nアーティファクト生成など、ほぼ何でもこなせます。",
@@ -2066,6 +2067,11 @@ export const jaJP: Translations = {
     newChatTooltip: "新しいチャット",
     searchTooltip: "検索 (⌘K)",
     settingsTooltip: "設定",
+    notInstalledBadge: "未インストール",
+    notInstalledLabel: (name: string) => `${name}（未インストール）`,
+    activeRoleLine: (name: string) => `ロール：${name}`,
+    accountMenuLabel: (account: string, role: string) => `${account}、現在のロール ${role}`,
+    accountFallback: "マイアカウント",
     // Project + chat list actions
     deleteProjectTooltip: "プロジェクトを削除",
     deleteProjectFailed:

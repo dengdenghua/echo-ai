@@ -73,6 +73,12 @@ export function isLocationBlocked(
   return !enabledIds.includes(descriptor.id);
 }
 
+/** The removable module behind a sidebar route spec, if any. */
+export function removableModuleForRoute(to: string): ModuleDescriptor | undefined {
+  const descriptor = MODULE_CATALOG.find((m) => m.to === to);
+  return descriptor?.removable ? descriptor : undefined;
+}
+
 /** Filter route specs down to enabled modules, preserving input order. */
 export function filterRoutesByEnabled<T extends { to: string }>(
   routes: T[],
