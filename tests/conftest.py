@@ -70,6 +70,23 @@ def _isolate_execution_security_environment():
 
 
 @pytest.fixture
+def enabled_device_plugin_manifests(monkeypatch):
+    """Exercise device behavior with first-party manifests, without host installs.
+
+    Opt in explicitly: plugin lifecycle tests must still cover the real
+    installed/enabled/trusted package boundary.
+    """
+    from runtime.tentacle import device_plugins
+
+    plugins_root = Path(__file__).resolve().parents[1] / "extensions" / "codex-plugins"
+    monkeypatch.setattr(
+        device_plugins,
+        "device_plugin_tools_root",
+        lambda platform: plugins_root / f"echo-{platform}" / "tool-manifests",
+    )
+
+
+@pytest.fixture
 def bypass_serve_port_guard(monkeypatch):
     """Keep mocked-Uvicorn assembly tests independent of host listeners."""
     import runtime.cli_serve as cli_serve

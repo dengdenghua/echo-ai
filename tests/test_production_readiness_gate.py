@@ -1037,6 +1037,7 @@ def test_windows_artifact_workflow_is_signed_and_commit_bound() -> None:
     steps = {step.get("name"): step for step in job["steps"] if step.get("name")}
 
     identity = steps["Validate protected Windows signing identity"]
+    assert identity["if"] == "env.HAS_WINDOWS_SIGNING == 'true'"
     assert identity["env"]["CSC_LINK"] == ("${{ secrets.WINDOWS_CODE_SIGNING_CERTIFICATE_BASE64 }}")
     assert identity["env"]["CSC_KEY_PASSWORD"] == (
         "${{ secrets.WINDOWS_CODE_SIGNING_CERTIFICATE_PASSWORD }}"
@@ -1047,9 +1048,9 @@ def test_windows_artifact_workflow_is_signed_and_commit_bound() -> None:
 
     electron_build = steps["Build canonical Electron EXE"]
     assert electron_build["env"] == identity["env"]
-    signature_check = steps["Verify Authenticode signatures and create commit-bound checksums"][
-        "run"
-    ]
+    signature_step = steps["Verify Authenticode signatures and create commit-bound checksums"]
+    assert signature_step["if"] == "env.HAS_WINDOWS_SIGNING == 'true'"
+    signature_check = signature_step["run"]
     assert "win-unpacked/Echo.exe" in signature_check
     assert "win-unpacked/resources/backend/echo-backend.exe" in signature_check
     assert "win-unpacked/resources/codex/bin/codex.exe" in signature_check
@@ -1062,11 +1063,18 @@ def test_windows_artifact_workflow_is_signed_and_commit_bound() -> None:
     assert "$env:GITHUB_SHA" in signature_check
 
     installer_upload = steps["Upload EXE installer"]
-    assert installer_upload["with"]["name"] == ("Echo-Setup-Windows-${{ github.sha }}")
+    # Unsigned diagnostic artifacts cannot satisfy the signed names consumed
+    # by release.yml (checked separately by the release-workflow contract).
+    unsigned_suffix = "${{ env.HAS_WINDOWS_SIGNING != 'true' && '-UNSIGNED' || '' }}"
+    assert installer_upload["with"]["name"] == (
+        "Echo-Setup-Windows-${{ github.sha }}" + unsigned_suffix
+    )
     assert "frontend/release/SHA256SUMS" in installer_upload["with"]["path"]
     assert "frontend/release/windows-signing-proof.json" in installer_upload["with"]["path"]
     portable_upload = steps["Upload portable (unpacked)"]
-    assert portable_upload["with"]["name"] == ("Echo-Portable-Windows-${{ github.sha }}")
+    assert portable_upload["with"]["name"] == (
+        "Echo-Portable-Windows-${{ github.sha }}" + unsigned_suffix
+    )
 
     build_config = yaml.safe_load(
         (REPO_ROOT / "packaging" / "desktop" / "build.yml").read_text(encoding="utf-8")

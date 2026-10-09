@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import os
 import sys
 import time
 from pathlib import Path
@@ -10,6 +11,32 @@ import pytest
 from runtime.platform.process.streaming import stream_run
 from runtime.safety.sandboxing import sandbox as sandbox_mod
 from runtime.safety.sandboxing.sandbox import DirectBackend, SandboxViolation
+
+
+@pytest.mark.skipif(sys.platform != "win32", reason="Windows cmd.exe quoting")
+@pytest.mark.parametrize("switches", [["/C"], ["/d", "/s", "/c"]])
+def test_stream_run_cmd_preserves_quoted_command(tmp_path, monkeypatch, switches) -> None:
+    monkeypatch.setenv("ECHO_PROCESS_SANDBOX", "soft")
+    workspace = tmp_path / "workspace with spaces"
+    workspace.mkdir()
+    script = workspace / "quoted script.py"
+    script.write_text("import json,sys; print(json.dumps(sys.argv[1:]))", encoding="utf-8")
+    command = f'"{sys.executable}" "{script}" "a&b" "" "two words" && echo chain-ok'
+
+    result = stream_run(
+        [os.environ.get("COMSPEC") or "cmd.exe", *switches, command],
+        cwd=str(workspace),
+        sandbox_dir=str(workspace),
+        sandbox_required=True,
+        timeout=10,
+    )
+
+    assert result["exit_code"] == 0, result
+    lines = result["stdout"].splitlines()
+    assert json.loads(lines[0]) == ["a&b", "", "two words"]
+    assert lines[1:] == ["chain-ok"]
+    assert result["execution_policy"]["sandbox_requested"] is True
+    assert result["execution_policy"]["result"]["status"] == "completed"
 
 
 def test_stream_run_reports_direct_sandbox_backend(

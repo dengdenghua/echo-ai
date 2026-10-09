@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import threading
 import time
 from dataclasses import dataclass
 from types import SimpleNamespace
@@ -3000,6 +3001,9 @@ def test_retryable_provider_error_switches_model_before_first_step(monkeypatch) 
 def test_silent_model_stream_is_interrupted_by_wall_clock_deadline(monkeypatch) -> None:
     from runtime.sensing.model_router.models import ModelResponse, ModelStreamEvent
 
+    release_provider = threading.Event()
+    provider_finished = threading.Event()
+
     class SilentThenConvergingRouter:
         def __init__(self) -> None:
             self.calls = 0
@@ -3007,7 +3011,8 @@ def test_silent_model_stream_is_interrupted_by_wall_clock_deadline(monkeypatch) 
         def call_stream(self, request: Any):  # noqa: ARG002
             self.calls += 1
             if self.calls == 1:
-                time.sleep(0.2)
+                release_provider.wait(timeout=5)
+                provider_finished.set()
                 return
             text = "Final Answer: recovered after a silent provider stream"
             yield ModelStreamEvent(type="text_delta", delta=text)
@@ -3024,12 +3029,14 @@ def test_silent_model_stream_is_interrupted_by_wall_clock_deadline(monkeypatch) 
     intent = _intent("perform a long analysis")
     intent.user_context["mode"] = "react"
 
-    started_at = time.monotonic()
-    events, result = _drain(
-        stream_react_loop(_FakeStack(router), intent, agent=None, max_iterations=3)
-    )
-
-    assert time.monotonic() - started_at < 0.15
+    try:
+        events, result = _drain(
+            stream_react_loop(_FakeStack(router), intent, agent=None, max_iterations=3)
+        )
+        assert not provider_finished.is_set(), "fallback must not wait for the stalled provider"
+    finally:
+        release_provider.set()
+        assert provider_finished.wait(timeout=5)
     assert result is not None
     assert result.final_answer == "recovered after a silent provider stream"
     assert router.calls == 2

@@ -33,6 +33,24 @@ from typing import Any
 _EXECUTION_POLICY_SCHEMA = "echo.execution_policy.v1"
 
 
+def _popen_args(argv: list[str]) -> list[str] | str:
+    """Keep a cmd.exe command string out of C-runtime argument escaping."""
+    if (
+        sys.platform == "win32"
+        and len(argv) >= 3
+        and Path(argv[0]).name.lower() in {"cmd", "cmd.exe"}
+        and argv[-2].lower() in {"/c", "/k"}
+    ):
+        prefix = argv[:-1]
+        if not any(option.lower() == "/s" for option in prefix[1:-1]):
+            prefix = [prefix[0], "/s", *prefix[1:]]
+        # /s removes only the outer quote pair. list2cmdline would instead
+        # insert backslashes before the command's quotes, which cmd does not
+        # treat as escapes. All sandbox checks still receive the original argv.
+        return f'{subprocess.list2cmdline(prefix)} "{argv[-1]}"'
+    return argv
+
+
 def _child_text_encoding(argv: list[str], env: Mapping[str, str] | None) -> str:
     """Infer Python stdio settings; native programs retain the system codec."""
     executable = Path(argv[0]).name.lower() if argv else ""
@@ -473,7 +491,7 @@ def stream_run(
         )
 
         proc = subprocess.Popen(
-            argv,
+            _popen_args(argv),
             stdin=subprocess.PIPE if input_data is not None else subprocess.DEVNULL,
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,

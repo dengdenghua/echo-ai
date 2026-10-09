@@ -395,9 +395,10 @@ class TestExecShell:
         assert "error" in r
         assert "escapes_sandbox" in r["error"]
 
-    def test_sandbox_dir_defaults_cwd_to_workspace(self, tmp_path: Path):
+    def test_sandbox_dir_defaults_cwd_to_workspace(self, tmp_path: Path, monkeypatch):
         import sys
 
+        monkeypatch.setenv("ECHO_PROCESS_SANDBOX", "soft")
         r = _exec_shell(
             command=[
                 sys.executable,
@@ -424,6 +425,7 @@ class TestExecShell:
     ):
         import sys
 
+        monkeypatch.setenv("ECHO_PROCESS_SANDBOX", "soft")
         monkeypatch.setenv("ECHO_TEST_SECRET", "do-not-inherit")
 
         r = _exec_shell(

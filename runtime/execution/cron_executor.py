@@ -745,11 +745,9 @@ def _process_group_alive(pid: int) -> bool:
     if pid <= 0:
         return False
     if sys.platform == "win32":
-        try:
-            os.kill(pid, 0)
-            return True
-        except OSError:
-            return False
+        from runtime.platform.process.tree import windows_pid_alive
+
+        return windows_pid_alive(pid)
     try:
         os.killpg(pid, 0)
         return True

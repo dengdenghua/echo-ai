@@ -18,6 +18,9 @@ from runtime.tentacle.mobile.capabilities import android_capabilities
 def test_device_plugin_install_activation_and_removal(
     tmp_path, monkeypatch, platform, count, capabilities
 ):
+    # Install the checked-in package deterministically, not a developer's
+    # cached or remote content pack. Production activation checks stay live.
+    monkeypatch.setenv("ECHO_MARKETPLACE_DEV_SOURCES", "1")
     for field, suffix in {
         "PLUGIN_INSTALL_ROOT": "plugins",
         "SKILLS_ROOT": "skills",

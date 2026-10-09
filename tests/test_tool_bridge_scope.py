@@ -654,7 +654,8 @@ def test_agentic_stream_rebinds_workspace_on_every_generator_resume(tmp_path):
     assert "fresh-con" in tool_end[1]["output"]
 
 
-def test_registered_run_tests_gets_workspace_in_fresh_resume_context(tmp_path):
+def test_registered_run_tests_gets_workspace_in_fresh_resume_context(tmp_path, monkeypatch):
+    monkeypatch.setenv("ECHO_PROCESS_SANDBOX", "soft")
     (tmp_path / "pyproject.toml").write_text("[tool.pytest.ini_options]\n", encoding="utf-8")
     tests_dir = tmp_path / "tests"
     tests_dir.mkdir()

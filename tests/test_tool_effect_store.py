@@ -601,9 +601,16 @@ def test_process_crash_after_handler_entry_fails_closed_without_repeating(
         args=(store_path, effect_path, task_id, entered),
     )
     worker.start()
-    assert entered.wait(timeout=4)
-    worker.join(timeout=4)
-    assert worker.exitcode == 23
+    try:
+        # Windows spawn imports the runtime before entering the handler. That
+        # startup cost is unrelated to the crash/replay contract below.
+        assert entered.wait(timeout=30)
+        worker.join(timeout=10)
+        assert worker.exitcode == 23
+    finally:
+        if worker.is_alive():
+            worker.terminate()
+            worker.join(timeout=5)
     time.sleep(0.25)
 
     calls = 0

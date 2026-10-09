@@ -65,7 +65,7 @@ def output_indicates_missing_tool(output: str) -> bool:
 
 def _legacy_shell_argv(command: str) -> list[str]:
     if sys.platform == "win32":
-        return [os.environ.get("COMSPEC") or "cmd.exe", "/C", command]
+        return [os.environ.get("COMSPEC") or "cmd.exe", "/D", "/S", "/C", command]
     return [shutil.which("sh") or "/bin/sh", "-c", command]
 
 

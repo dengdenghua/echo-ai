@@ -1113,22 +1113,25 @@ def test_quality_tools_are_scope_sensitive() -> None:
     )
 
 
-def test_parallel_path_yields_concurrency_speedup() -> None:
+def test_parallel_path_yields_concurrency_speedup(monkeypatch) -> None:
+    # Serial dispatch breaks this barrier; scheduler speed does not affect it.
+    entered = threading.Barrier(3, timeout=5)
+
+    def concurrent_sum(a=0, b=0, **_kwargs):
+        entered.wait()
+        return {"sum": a + b}
+
+    monkeypatch.setattr(sys.modules[__name__], "_slow_sum_handler", concurrent_sum)
     calls = [
         ToolCall(id=f"t-{i}", name="slow_sum", input={"a": i, "b": 1, "sleep_ms": 80})
         for i in range(3)
     ]
     router = _RouterEmitting(calls)
-    started = time.monotonic()
     events = list(stream_agentic_fallback(_make_stack(router), _intent(), _agent()))
-    elapsed = time.monotonic() - started
-
-    # Serial would take ~240ms (3 × 80ms). Parallel should be ~80ms +
-    # overhead. Generous bound (180ms) to absorb thread-pool spin-up
-    # and CI jitter while still proving real concurrency.
     tool_end_events = [e for e in events if e[0] == "tool_end"]
     assert len(tool_end_events) == 3
-    assert elapsed < 0.18, f"parallel exec slower than expected: {elapsed:.3f}s"
+    assert not entered.broken
+    assert all(not event[1].get("is_error") for event in tool_end_events)
 
 
 def test_parallel_tools_keep_code_workspace_scope(tmp_path) -> None:

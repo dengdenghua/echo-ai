@@ -16,6 +16,8 @@ from runtime.tentacle.dashboard import create_tentacle_router
 from runtime.tentacle.mobile.cerebrum_adapter import CerebrumDecisionAdapter
 from runtime.tentacle.mobile.device import MobileDevice
 
+pytestmark = pytest.mark.usefixtures("enabled_device_plugin_manifests")
+
 
 @pytest.fixture
 def app_and_coord(tmp_path):
