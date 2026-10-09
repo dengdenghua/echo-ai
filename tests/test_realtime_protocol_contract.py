@@ -48,6 +48,7 @@ ACTIVE_REDUCED_NOTIFICATIONS = {
     ServerMethod.TURN_COMPACTED.value,
     ServerMethod.TURN_DIFF_UPDATED.value,
     ServerMethod.TURN_PLAN_UPDATED.value,
+    ServerMethod.TURN_EXECUTION_UPDATED.value,
     ServerMethod.WORKBENCH_SNAPSHOT.value,
     ServerMethod.TURN_HEARTBEAT.value,
     ServerMethod.TURN_META_SKILL_HINT.value,
@@ -68,6 +69,14 @@ COMPONENT_NOTIFICATIONS = {
     ServerMethod.WORKFLOW_COMPLETED.value,
 }
 
+# Emitted for every entry point, but meant for clients that bypass the web
+# composer (channel adapters). The web UI derives the same hint locally while
+# the user types (frontend/src/core/threads/project-intent.ts), so its
+# reducer intentionally ignores the notification.
+NON_WEB_NOTIFICATIONS = {
+    ServerMethod.TURN_PROJECT_INTENT_HINT.value,
+}
+
 
 def _read_frontend(path: str) -> str:
     return (FRONTEND_REALTIME / path).read_text(encoding="utf-8")
@@ -79,6 +88,7 @@ def test_server_methods_are_partitioned_by_frontend_contract() -> None:
         | RESERVED_NOT_EMITTED
         | ACTIVE_REDUCED_NOTIFICATIONS
         | COMPONENT_NOTIFICATIONS
+        | NON_WEB_NOTIFICATIONS
     )
     actual = {method.value for method in ServerMethod}
     assert actual == known

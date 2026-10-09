@@ -96,7 +96,8 @@ class TestBasicRoutes:
     def test_index_html(self, client: TestClient):
         r = client.get("/")
         assert r.status_code == 200
-        assert "echo-ai" in r.text
+        # The built-in dashboard is branded "Echo" (pages._INDEX_HTML).
+        assert "<title>Echo dashboard</title>" in r.text
         assert "<html" in r.text.lower()
 
     def test_status_endpoint(self, client: TestClient):
@@ -113,6 +114,10 @@ class TestBasicRoutes:
             journal_path=None,
             server_host="localhost",
             server_port=8000,
+            # The unconfigured Vite proxy default is the dev-stack gateway
+            # port (8310), not this test's backend port; pin the alignment
+            # explicitly instead of depending on GATEWAY_PORT in the env.
+            frontend_proxy_target="http://127.0.0.1:8000",
         )
         client = TestClient(app, base_url="http://localhost:8000")
 
@@ -420,6 +425,8 @@ class TestBasicRoutes:
             journal_path=tmp_path / "events.jsonl",
             server_host="localhost",
             server_port=8000,
+            # Keep the Vite proxy check green so only the webui warn is under test.
+            frontend_proxy_target="http://127.0.0.1:8000",
         )
         client = TestClient(app, base_url="http://localhost:8000")
 

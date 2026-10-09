@@ -23,6 +23,7 @@ from runtime.adapters.channels import (  # noqa: E402
 )
 from runtime.core.graph_runtime import GraphRuntime  # noqa: E402
 from runtime.execution.agents import AgentRegistry, make_general_agent  # noqa: E402
+from runtime.execution.agents.aliases import canonical_agent_id  # noqa: E402
 from runtime.safety.auth import Identity, IdentityStore  # noqa: E402
 from runtime.sensing.gateway.channels_router import create_channels_router  # noqa: E402
 
@@ -1275,7 +1276,8 @@ class TestInboundSlack:
         data = r.json()
         assert data["ok"] is True
         assert data["dispatched"] is True
-        assert data["agent_id"] == "general"
+        # Legacy "general" routes to the canonical built-in persona id.
+        assert data["agent_id"] == canonical_agent_id("general")
         assert data["conversation_id"]
         # Implementation note.
         assert len(http.calls) == 1

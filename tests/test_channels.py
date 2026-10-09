@@ -29,6 +29,12 @@ from runtime.execution.agents import (
     make_coder_agent,
     make_general_agent,
 )
+from runtime.execution.agents.aliases import canonical_agent_id
+
+# Built-in personas carry canonical ids now (general -> eve, coder -> kane).
+# Legacy ids still route, but dispatch reports the canonical persona id.
+GENERAL_ID = canonical_agent_id("general")
+CODER_ID = canonical_agent_id("coder")
 
 
 class _FakeExecutor:
@@ -399,7 +405,7 @@ class TestManagerProcessInbound:
         assert isinstance(out, OutboundMessage)
         assert out.channel_id == "slack"
         assert out.thread_id == "C:1.0"
-        assert out.metadata["agent_id"] == "general"
+        assert out.metadata["agent_id"] == GENERAL_ID
         assert out.metadata["conversation_id"]
         assert len(ch.sent) == 1
         assert ch.sent[0].content
@@ -571,7 +577,7 @@ class TestManagerProcessInbound:
                 metadata={"agent_id": "coder"},
             )
         )
-        assert out.metadata["agent_id"] == "coder"
+        assert out.metadata["agent_id"] == CODER_ID
 
     def test_saved_channel_assignment_is_used_for_real_dispatch(
         self,
@@ -594,8 +600,8 @@ class TestManagerProcessInbound:
             InboundMessage(channel_id="slack", thread_id="T", content="help")
         )
 
-        assert out.metadata["agent_id"] == "coder"
-        assert out.content == "handled by coder"
+        assert out.metadata["agent_id"] == CODER_ID
+        assert out.content == f"handled by {CODER_ID}"
 
     def test_saved_group_assignment_runs_members_and_returns_team_metadata(
         self,
@@ -628,11 +634,11 @@ class TestManagerProcessInbound:
         )
 
         assert out.metadata["group_id"] == "delivery-team"
-        assert out.metadata["member_agent_ids"] == ["general", "coder"]
+        assert out.metadata["member_agent_ids"] == [GENERAL_ID, CODER_ID]
         assert out.metadata["collaboration_spoke"] == 2
         assert "交付小队 · 团队回复" in out.content
-        assert "general 已完成验证" in out.content
-        assert "coder 已完成验证" in out.content
+        assert f"{GENERAL_ID} 已完成验证" in out.content
+        assert f"{CODER_ID} 已完成验证" in out.content
 
     def test_metadata_unknown_agent_raises(
         self,
@@ -1073,7 +1079,7 @@ class TestEndToEnd:
         msg = slack.parse_event(event_payload)
         assert msg is not None
         out = m.process_inbound(msg)
-        assert out.metadata["agent_id"] == "general"
+        assert out.metadata["agent_id"] == GENERAL_ID
         assert len(http.calls) == 1
         post_body = http.calls[0]["json"]
         assert post_body["channel"] == "C_test"
@@ -1103,7 +1109,7 @@ class TestEndToEnd:
         events = stack.journal.read_all()
         assert events
         # Implementation note.
-        agent_events = [e for e in events if e.agent_id == "general"]
+        agent_events = [e for e in events if e.agent_id == GENERAL_ID]
         conv_events = [e for e in events if e.conversation_id == out.metadata["conversation_id"]]
         assert agent_events, "no events tagged agent_id=general"
         assert conv_events, "no events with conversation_id"

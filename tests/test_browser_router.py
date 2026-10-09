@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import base64
 import json
+import sys
 import threading
 import time
 from pathlib import Path
@@ -205,6 +206,13 @@ def test_browser_relay_persisted_strict_allowlist_blocks_after_restart(
     assert detail["site_policy"]["policy_path"].endswith("browser_policy.json")
 
 
+@pytest.mark.skipif(
+    sys.platform == "win32",
+    reason=(
+        "macOS app-bundle candidates are POSIX-absolute; on Windows they are "
+        "drive-relative, so discovery never probes them (macOS-only by design)"
+    ),
+)
 def test_browser_system_info_detects_macos_chrome_path(
     client: TestClient,
     monkeypatch: pytest.MonkeyPatch,
@@ -215,8 +223,6 @@ def test_browser_system_info_detects_macos_chrome_path(
     monkeypatch.setattr("shutil.which", lambda _candidate: None)
 
     def fake_exists(path: Path) -> bool:
-        # as_posix: on Windows str() yields backslashes and would never
-        # match the posix literal above.
         return path.as_posix() == chrome_path or original_exists(path)
 
     monkeypatch.setattr(Path, "exists", fake_exists)

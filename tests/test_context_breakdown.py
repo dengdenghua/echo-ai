@@ -15,7 +15,7 @@ from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
 from runtime.memory.threads import ThreadStateStore
-from runtime.sensing.gateway import context_snapshot as snapshot
+from runtime.platform.models import context_snapshot as snapshot
 from runtime.sensing.gateway.context_snapshot import (
     measure_request,
     record_request_context,
@@ -188,6 +188,8 @@ class TestSnapshotStore:
         assert snapshot.get_request_context("") is None
 
     def test_the_map_stays_bounded(self) -> None:
+        # ``snapshot`` is runtime.platform.models.context_snapshot, which owns
+        # the private bound; the gateway module only re-exports the public API.
         for index in range(snapshot._MAX_THREADS + 5):
             record_request_context(f"trn_{index}", [{"role": "user", "content": "x"}], [])
 

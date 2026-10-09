@@ -35,6 +35,7 @@ def test_browser_session_center_snapshots_without_runtime_objects() -> None:
         "viewport_height": 900,
         "mode": "mock",
         "runtime": "mock",
+        "launch_error": None,
         "has_page": False,
         "healthy": True,
         "current_url": "",
