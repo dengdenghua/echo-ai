@@ -3,22 +3,41 @@ import { join } from "node:path";
 
 import { describe, expect, it } from "vitest";
 
-const pageSource = readFileSync(
-  join(process.cwd(), "src/app/workspace/realtime/[thread_id]/page.tsx"),
-  "utf8",
-).replace(/\r\n/g, "\n");
+const realtimeDir = join(process.cwd(), "src/app/workspace/realtime/[thread_id]");
+const readSource = (file: string) =>
+  readFileSync(join(realtimeDir, file), "utf8").replace(/\r\n/g, "\n");
 
-function sourceBetween(start: string, end: string): string {
-  const startIndex = pageSource.indexOf(start);
+const pageSource = readSource("page.tsx");
+// Right-panel openers/closers live in use-right-panel-navigation.ts and the
+// workbench surface in realtime-secondary-panel.tsx since the page split.
+const navigationSource = readSource("use-right-panel-navigation.ts");
+const secondaryPanelSource = readSource("realtime-secondary-panel.tsx");
+// The page plus the modules it was split into, for contracts about the
+// realtime surface as a whole.
+const surfaceSource = [
+  "page.tsx",
+  "realtime-chat-header.tsx",
+  "realtime-chat-input.tsx",
+  "realtime-composer-area.tsx",
+  "realtime-secondary-panel.tsx",
+  "realtime-stream-context.ts",
+  "use-collaboration-roster.ts",
+  "use-right-panel-navigation.ts",
+]
+  .map(readSource)
+  .join("\n");
+
+function sourceBetween(source: string, start: string, end: string): string {
+  const startIndex = source.indexOf(start);
   expect(startIndex).toBeGreaterThanOrEqual(0);
-  const endIndex = pageSource.indexOf(end, startIndex + start.length);
+  const endIndex = source.indexOf(end, startIndex + start.length);
   expect(endIndex).toBeGreaterThan(startIndex);
-  return pageSource.slice(startIndex, endIndex);
+  return source.slice(startIndex, endIndex);
 }
 
 describe("realtime unified right panel contract", () => {
   it("routes utility views and the workbench through one secondary surface", () => {
-    const layout = sourceBetween("<ChatPageLayout", "</ChatBox>");
+    const layout = sourceBetween(pageSource, "<ChatPageLayout", "</ChatBox>");
 
     expect(layout.match(/secondaryPanel=\{/g)).toHaveLength(1);
     expect(layout).not.toContain("sidebar={");
@@ -42,6 +61,7 @@ describe("realtime unified right panel contract", () => {
 
   it("dismisses only the temporary utility so the prior workbench can return", () => {
     const activePanel = sourceBetween(
+      navigationSource,
       "const hasResearchPanel",
       "const openAgentPanel = useCallback",
     );
@@ -49,6 +69,7 @@ describe("realtime unified right panel contract", () => {
     expect(activePanel).toContain("isEchoAssistant && showAutomationPanel");
 
     const closeHandler = sourceBetween(
+      navigationSource,
       "const closeUnifiedRightPanel = useCallback",
       "const closeRightPanel = closeUnifiedRightPanel",
     );
@@ -60,6 +81,7 @@ describe("realtime unified right panel contract", () => {
     expect(closeHandler).toContain("closeAgentWorkbenchPanel()");
 
     const planOpener = sourceBetween(
+      navigationSource,
       "const openAgentPlanPanel = useCallback",
       "const openPreviewPanel = useCallback",
     );
@@ -82,6 +104,7 @@ describe("realtime unified right panel contract", () => {
     for (const [opener, next] of openerBoundaries) {
       expect(
         sourceBetween(
+          navigationSource,
           `const ${opener} = useCallback`,
           `const ${next} = useCallback`,
         ),
@@ -89,18 +112,19 @@ describe("realtime unified right panel contract", () => {
       ).toContain("closeSpecialUtilityPanels();");
     }
 
-    expect(pageSource).toContain(
+    expect(navigationSource).toContain(
       "const closeRightPanel = closeUnifiedRightPanel;",
     );
-    expect(pageSource).toContain("onClick={toggleAutomationPanel}");
-    expect(pageSource).toContain("openTeachRepeatPanel();");
+    expect(surfaceSource).toContain("onClick={toggleAutomationPanel}");
+    expect(surfaceSource).toContain("openTeachRepeatPanel();");
   });
 
   it("keeps members in the compact header control without duplicating avatars beside the composer", () => {
-    expect(pageSource).toContain("<TaskCollaboratorControl");
-    expect(pageSource).not.toContain("<ConversationRosterStrip");
+    expect(surfaceSource).toContain("<TaskCollaboratorControl");
+    expect(surfaceSource).not.toContain("<ConversationRosterStrip");
 
     const workbench = sourceBetween(
+      secondaryPanelSource,
       "<AgentWorkbenchPanel",
       "onClose={closeAgentWorkbenchPanel}",
     );
@@ -110,6 +134,7 @@ describe("realtime unified right panel contract", () => {
 
   it("keeps a group role switch in the same conversation viewpoint", () => {
     const roleSwitch = sourceBetween(
+      pageSource,
       'useEvent(\n    "agent:changed"',
       "const streamOptions = useMemo",
     );
@@ -117,7 +142,7 @@ describe("realtime unified right panel contract", () => {
     expect(roleSwitch).toContain("groupPerspectiveAgentIds.has(name)");
     expect(roleSwitch).toContain("setGroupPerspectiveAgentId(name)");
     expect(roleSwitch).toContain("return;");
-    expect(pageSource).toContain("const mainPerspectiveAgentId");
-    expect(pageSource).toContain("agent_name: mainPerspectiveAgentId");
+    expect(surfaceSource).toContain("const mainPerspectiveAgentId");
+    expect(surfaceSource).toContain("agent_name: mainPerspectiveAgentId");
   });
 });
