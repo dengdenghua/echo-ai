@@ -2,6 +2,8 @@ import { KeyRoundIcon, XIcon } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 
+import { Button } from "@/components/ui/button";
+
 export const PASSWORDS_CHANGED_EVENT = "echo:browser-passwords-changed";
 
 type PasswordOffer = {
@@ -204,6 +206,48 @@ export function SavedPasswordButton({
           ))}
         </div>
       ) : null}
+    </div>
+  );
+}
+
+/** Sites set to "never ask", in the browsing data dialog; removable. */
+export function PasswordNeverSites() {
+  const [origins, setOrigins] = useState<string[]>([]);
+  const refresh = useCallback(async () => {
+    const result = await window.echo?.browser?.listPasswordNeverSites?.();
+    setOrigins(result?.ok ? result.origins : []);
+  }, []);
+  useEffect(() => {
+    void refresh();
+    window.addEventListener(PASSWORDS_CHANGED_EVENT, refresh);
+    return () => window.removeEventListener(PASSWORDS_CHANGED_EVENT, refresh);
+  }, [refresh]);
+
+  if (origins.length === 0) return null;
+  return (
+    <div className="mt-3 space-y-1">
+      <div className="text-xs font-medium text-muted-foreground">
+        从不询问保存密码的网站
+      </div>
+      {origins.map((origin) => (
+        <div
+          key={origin}
+          className="flex items-center gap-2 rounded-lg bg-background/70 px-2.5 py-1.5"
+        >
+          <span className="min-w-0 flex-1 truncate text-xs">{origin}</span>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() =>
+              void window.echo?.browser
+                .removePasswordNeverSite(origin)
+                .then(refresh)
+            }
+          >
+            移除
+          </Button>
+        </div>
+      ))}
     </div>
   );
 }
