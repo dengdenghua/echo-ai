@@ -258,21 +258,67 @@ class DurableIdentityStore(IdentityStore):
         self._path = Path(path)
         self._session_revocations = SessionRevocations(self._path.with_suffix(".revocations.db"))
         self._log = logging.getLogger(__name__)
+        # Set when the file exists but could not be read: writing then would
+        # replace every stored identity with whatever this process holds.
+        self._persist_blocked = False
         self._load()
 
     # ── disk mirror ────────────────────────────────────────────
 
-    def _load(self) -> None:
+    @staticmethod
+    def _read(path: Path) -> list[Any]:
+        """The ``identities`` rows of *path*; raises ``ValueError`` if corrupt."""
         try:
-            raw = json.loads(self._path.read_text(encoding="utf-8"))
-        except FileNotFoundError:
-            return
-        except (OSError, json.JSONDecodeError, UnicodeDecodeError) as exc:
-            self._log.warning("identity store %s unreadable (%s); starting empty", self._path, exc)
-            return
+            raw = json.loads(path.read_text(encoding="utf-8"))
+        except (json.JSONDecodeError, UnicodeDecodeError) as exc:
+            raise ValueError(str(exc)) from exc
         items = raw.get("identities") if isinstance(raw, dict) else None
         if not isinstance(items, list):
+            raise ValueError("missing identities list")
+        return items
+
+    def _load(self) -> None:
+        items: list[Any] | None = None
+        try:
+            items = self._read(self._path)
+        except FileNotFoundError:
+            pass
+        except ValueError as exc:
+            # Keep the damaged file for recovery instead of overwriting it on
+            # the next save, then fall back to the last good copy.
+            quarantine = self._path.with_name(
+                f"{self._path.name}.corrupt-{time.strftime('%Y%m%d-%H%M%S')}"
+            )
+            try:
+                os.replace(self._path, quarantine)
+                self._log.error(
+                    "identity store %s is corrupt (%s); moved to %s", self._path, exc, quarantine
+                )
+            except OSError as move_exc:
+                self._persist_blocked = True
+                self._log.error(
+                    "identity store %s is corrupt (%s) and could not be moved aside (%s); "
+                    "not saving identities this run",
+                    self._path,
+                    exc,
+                    move_exc,
+                )
+        except OSError as exc:
+            # Exists but unreadable (locked, permissions): never overwrite it.
+            self._persist_blocked = True
+            self._log.error(
+                "identity store %s unreadable (%s); not saving identities this run",
+                self._path,
+                exc,
+            )
             return
+        if items is None:
+            backup = self._path.with_suffix(self._path.suffix + ".bak")
+            try:
+                items = self._read(backup)
+            except (OSError, ValueError):
+                return
+            self._log.warning("identity store restored from %s", backup)
         for item in items:
             if not isinstance(item, dict) or not str(item.get("actor_id") or "").strip():
                 continue
@@ -304,11 +350,18 @@ class DurableIdentityStore(IdentityStore):
                 for actor_id, identity in self._by_actor.items()
             ]
         payload = {"version": self._VERSION, "identities": rows}
+        if self._persist_blocked:
+            self._log.warning(
+                "identity store %s left untouched (unreadable at startup)", self._path
+            )
+            return
+        from runtime.platform.io.atomic import atomic_write_json
+
         try:
             self._path.parent.mkdir(parents=True, exist_ok=True)
-            tmp = self._path.with_suffix(self._path.suffix + ".tmp")
-            tmp.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
-            os.replace(tmp, self._path)
+            # Rotates the previous file to ``.bak`` (the load fallback); 0600
+            # because the rows hold API-key hashes.
+            atomic_write_json(self._path, payload, mode=0o600)
         except OSError as exc:
             # Persisting is an optimization for token continuity; failing to
             # write must never take down the auth path itself.

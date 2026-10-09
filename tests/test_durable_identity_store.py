@@ -84,3 +84,46 @@ def test_missing_file_behaves_like_empty_store(tmp_path: Path) -> None:
     assert len(store) == 0
     store.add(Identity("local:late", ("user",)))
     assert (tmp_path / "does-not-exist.json").exists()
+
+
+def test_corrupt_file_is_kept_aside_not_overwritten(tmp_path: Path) -> None:
+    path = tmp_path / "identities.json"
+    path.write_text("{not json", encoding="utf-8")
+
+    store = DurableIdentityStore(path)
+    store.add(Identity("local:x", ("user",)))
+
+    kept = list(tmp_path.glob("identities.json.corrupt-*"))
+    assert len(kept) == 1 and kept[0].read_text(encoding="utf-8") == "{not json"
+
+
+def test_corrupt_file_falls_back_to_the_last_good_copy(tmp_path: Path) -> None:
+    path = tmp_path / "identities.json"
+    store = DurableIdentityStore(path)
+    store.add(Identity("local:a", ("user",)), api_key_plaintext="sk-a")
+    store.add(Identity("local:b", ("admin",)))  # rotates the 1-identity file to .bak
+    path.write_text('{"identities": "truncated', encoding="utf-8")
+
+    restored = DurableIdentityStore(path)
+
+    assert restored.get("local:a") is not None
+    assert restored.verify_api_key("sk-a") is not None
+
+
+def test_unreadable_file_is_never_overwritten(tmp_path: Path, monkeypatch) -> None:
+    path = tmp_path / "identities.json"
+    DurableIdentityStore(path).add(Identity("local:keep", ("admin",)))
+    before = path.read_bytes()
+    real_read_text = Path.read_text
+
+    def locked(self: Path, *args, **kwargs):
+        if self == path:
+            raise PermissionError("locked by another process")
+        return real_read_text(self, *args, **kwargs)
+
+    monkeypatch.setattr(Path, "read_text", locked)
+    store = DurableIdentityStore(path)
+    store.add(Identity("local:new", ("user",)))
+
+    assert store.get("local:new") is not None  # still works in memory
+    assert path.read_bytes() == before
