@@ -17,6 +17,7 @@ import {
   moduleById,
   pinnedModuleIds,
 } from "./catalog";
+import { WORKBENCH_BUILTIN_APPS } from "@/core/workbench/apps";
 import { defaultModuleIdsForAgent } from "@/core/workspace/workspace-presets";
 
 export type PersonaModuleOverrides = Record<string, Record<string, boolean>>;
@@ -26,10 +27,25 @@ export interface ModuleStateProvider {
   writeDisabled(ids: string[]): void;
   readOverrides?(): PersonaModuleOverrides;
   writeOverrides?(overrides: PersonaModuleOverrides): void;
+  /** Last known install state, so the next launch renders it without waiting. */
+  readAvailability?(): Record<string, boolean> | null;
+  writeAvailability?(availability: Record<string, boolean>): void;
 }
 
 const STORAGE_KEY = "echo.modules.disabled";
 const OVERRIDES_STORAGE_KEY = "echo.modules.persona-overrides.v1";
+const AVAILABILITY_STORAGE_KEY = "echo.modules.availability.v1";
+
+/** Modules delivered as separately installed packages rather than with the shell. */
+const INSTALLABLE_MODULE_IDS: ReadonlySet<string> = new Set(
+  WORKBENCH_BUILTIN_APPS.filter((app) => app.delivery === "remote").map(
+    (app) => app.moduleId,
+  ),
+);
+
+export function isInstallableModule(id: string): boolean {
+  return INSTALLABLE_MODULE_IDS.has(id);
+}
 
 const localStorageProvider: ModuleStateProvider = {
   readDisabled() {
@@ -73,6 +89,28 @@ const localStorageProvider: ModuleStateProvider = {
       /* private mode / quota — this session only */
     }
   },
+  readAvailability() {
+    try {
+      const raw = window.localStorage.getItem(AVAILABILITY_STORAGE_KEY);
+      if (!raw) return null;
+      const parsed = JSON.parse(raw);
+      return parsed && typeof parsed === "object"
+        ? (parsed as Record<string, boolean>)
+        : null;
+    } catch {
+      return null;
+    }
+  },
+  writeAvailability(availability) {
+    try {
+      window.localStorage.setItem(
+        AVAILABILITY_STORAGE_KEY,
+        JSON.stringify(availability),
+      );
+    } catch {
+      /* private mode / quota — this session only */
+    }
+  },
 };
 
 let provider: ModuleStateProvider = localStorageProvider;
@@ -82,6 +120,7 @@ export function setModuleStateProvider(next: ModuleStateProvider): void {
   provider = next;
   cache = null;
   overridesCache = null;
+  availabilityHydrated = false;
   snapshots.clear();
   notify();
 }
@@ -94,7 +133,34 @@ let overridesCache: PersonaModuleOverrides | null = null;
  * module is known to be unavailable, no persona override can resurrect it.
  */
 let availabilityCache: ReadonlyMap<string, boolean> | null = null;
+let availabilityHydrated = false;
 const listeners = new Set<() => void>();
+
+function toAvailabilityMap(
+  availability: Readonly<Record<string, unknown>>,
+): Map<string, boolean> {
+  return new Map(
+    Object.entries(availability).filter(
+      (entry): entry is [string, boolean] =>
+        moduleById(entry[0]) !== undefined && typeof entry[1] === "boolean",
+    ),
+  );
+}
+
+/** Seed install state from the last session once, before the backend answers. */
+function hydrateAvailability(): void {
+  if (availabilityHydrated) return;
+  availabilityHydrated = true;
+  if (availabilityCache) return;
+  const stored = provider.readAvailability?.();
+  if (stored) availabilityCache = toAvailabilityMap(stored);
+}
+
+function persistAvailability(): void {
+  if (availabilityCache) {
+    provider.writeAvailability?.(Object.fromEntries(availabilityCache));
+  }
+}
 
 function notify(): void {
   for (const listener of listeners) listener();
@@ -157,6 +223,7 @@ function computeModuleIds(
   }
 
   for (const id of pinnedModuleIds()) enabled.add(id);
+  hydrateAvailability();
   if (respectAvailability && availabilityCache) {
     for (const [id, available] of availabilityCache) {
       if (!available) enabled.delete(id);
@@ -178,13 +245,9 @@ export function userEnabledModuleIds(agentId?: string | null): string[] {
 export function setModuleAvailabilitySnapshot(
   availability: Readonly<Record<string, boolean>> | null,
 ): void {
-  availabilityCache = availability
-    ? new Map(
-        Object.entries(availability).filter(
-          ([id]) => moduleById(id) !== undefined,
-        ),
-      )
-    : null;
+  availabilityHydrated = true;
+  availabilityCache = availability ? toAvailabilityMap(availability) : null;
+  persistAvailability();
   snapshots.clear();
   notify();
 }
@@ -192,11 +255,35 @@ export function setModuleAvailabilitySnapshot(
 /** Update one module after an install/enable/disable/uninstall mutation. */
 export function setModuleAvailable(id: string, available: boolean): void {
   if (!moduleById(id)) return;
+  hydrateAvailability();
   const next = new Map(availabilityCache ?? []);
   next.set(id, available);
   availabilityCache = next;
+  persistAvailability();
   snapshots.clear();
   notify();
+}
+
+export function isModuleAvailabilityKnown(): boolean {
+  hydrateAvailability();
+  return availabilityCache !== null;
+}
+
+const NO_MODULE_IDS: readonly string[] = [];
+let unavailableSnapshot: readonly string[] = NO_MODULE_IDS;
+
+function getUnavailableSnapshot(): readonly string[] {
+  hydrateAvailability();
+  const ids = availabilityCache
+    ? [...availabilityCache]
+        .filter(([, available]) => !available)
+        .map(([id]) => id)
+        .sort()
+    : [];
+  if (ids.join("|") !== unavailableSnapshot.join("|")) {
+    unavailableSnapshot = ids.length ? ids : NO_MODULE_IDS;
+  }
+  return unavailableSnapshot;
 }
 
 /** Enable/disable one module. Pinned modules are silently ignored. */
@@ -289,11 +376,31 @@ export function useUserEnabledModuleIds(agentId?: string | null): string[] {
   );
 }
 
+/**
+ * Whether install state is known (this session or cached from the last one).
+ * Until then installable apps stay out of the sidebar, so it never shows an
+ * entry only to remove it a moment later.
+ */
+export function useModuleAvailabilityKnown(): boolean {
+  return useSyncExternalStore(subscribe, isModuleAvailabilityKnown, () => false);
+}
+
+/** Installable modules known to be missing, for surfaces that offer to install them. */
+export function useUnavailableModuleIds(): readonly string[] {
+  return useSyncExternalStore(
+    subscribe,
+    getUnavailableSnapshot,
+    () => NO_MODULE_IDS,
+  );
+}
+
 /** Test seam: drop the memoized state. */
 export function resetModuleStateCache(): void {
   cache = null;
   overridesCache = null;
   availabilityCache = null;
+  availabilityHydrated = false;
+  unavailableSnapshot = NO_MODULE_IDS;
   snapshots.clear();
   notify();
 }

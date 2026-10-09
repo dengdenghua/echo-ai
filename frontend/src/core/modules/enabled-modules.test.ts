@@ -3,6 +3,8 @@ import { beforeEach, describe, expect, it } from "vitest";
 import { MODULE_CATALOG, pinnedModuleIds } from "./catalog";
 import {
   enabledModuleIds,
+  isInstallableModule,
+  isModuleAvailabilityKnown,
   isModuleEnabled,
   resetModuleStateCache,
   setModuleAvailabilitySnapshot,
@@ -122,6 +124,38 @@ describe("enabled modules", () => {
 
     setModuleAvailable("narrative", true);
     expect(enabledModuleIds("general")).toContain("narrative");
+  });
+
+  it("reports install state as unknown until the backend answers", () => {
+    expect(isModuleAvailabilityKnown()).toBe(false);
+    setModuleAvailabilitySnapshot({ narrative: false });
+    expect(isModuleAvailabilityKnown()).toBe(true);
+  });
+
+  it("treats only separately delivered apps as installable", () => {
+    expect(isInstallableModule("narrative")).toBe(true);
+    expect(isInstallableModule("mail")).toBe(false);
+  });
+
+  it("restores the last known install state on the next launch", () => {
+    let stored: Record<string, boolean> | null = null;
+    const persisting = () => ({
+      ...memoryProvider(),
+      readAvailability: () => stored,
+      writeAvailability: (next: Record<string, boolean>) => {
+        stored = { ...next };
+      },
+    });
+    setModuleStateProvider(persisting());
+    setModuleAvailabilitySnapshot({ narrative: false, design: true });
+    expect(stored).toEqual({ narrative: false, design: true });
+
+    // A fresh session knows the install state before the backend answers.
+    setModuleStateProvider(persisting());
+    resetModuleStateCache();
+    expect(isModuleAvailabilityKnown()).toBe(true);
+    expect(enabledModuleIds()).not.toContain("narrative");
+    expect(enabledModuleIds()).toContain("design");
   });
 
   it("does not allow persona overrides to resurrect an uninstalled module", () => {

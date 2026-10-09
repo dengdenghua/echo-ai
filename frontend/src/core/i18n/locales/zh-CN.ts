@@ -1994,7 +1994,7 @@ export const zhCN: Translations = {
     searchTooltip: "搜索 (Ctrl/⌘+K)",
     settingsTooltip: "设置",
     notInstalledBadge: "未安装",
-    notInstalledLabel: (name: string) => `${name}（未安装）`,
+    moduleInstallAction: "去安装",
     activeRoleLine: (name: string) => `角色：${name}`,
     accountMenuLabel: (account: string, role: string) => `${account}，当前角色 ${role}`,
     accountFallback: "我的账户",

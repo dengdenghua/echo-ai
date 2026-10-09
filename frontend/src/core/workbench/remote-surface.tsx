@@ -19,7 +19,11 @@ import {
 } from "@/core/agents/agent-world-api";
 import { authHeaders } from "@/core/auth/api";
 import { getBackendBaseURL } from "@/core/config";
-import { setModuleAvailable } from "@/core/modules/enabled-modules";
+import { useActiveAgentId } from "@/core/agents/active";
+import {
+  setModuleAvailable,
+  setModuleEnabled,
+} from "@/core/modules/enabled-modules";
 
 import type { WorkbenchBuiltinApp } from "./apps";
 
@@ -270,6 +274,7 @@ export function RemoteWorkbenchSurface({
   const [issue, setIssue] = useState<SurfaceIssue | null>(null);
   const [actionBusy, setActionBusy] = useState(false);
   const [attempt, setAttempt] = useState(0);
+  const activeAgentId = useActiveAgentId();
   const packageId = app.packageId;
   const effectiveHostPath =
     hostPath ?? `${location.pathname}${location.search}${location.hash}`;
@@ -429,6 +434,9 @@ export function RemoteWorkbenchSurface({
     try {
       await installCloudPlugin(app.cloudId);
       setModuleAvailable(app.moduleId, true);
+      // Installing from here is an explicit "I want this", so it joins the
+      // sidebar, as it does when installed from the app center.
+      setModuleEnabled(app.moduleId, true, activeAgentId);
       toast.success(`${app.name}已安装`);
       setAttempt((value) => value + 1);
     } catch (installError) {
@@ -439,7 +447,7 @@ export function RemoteWorkbenchSurface({
     } finally {
       setActionBusy(false);
     }
-  }, [app.cloudId, app.moduleId, app.name]);
+  }, [activeAgentId, app.cloudId, app.moduleId, app.name]);
 
   useEffect(() => {
     const receive = (event: MessageEvent) => {

@@ -2068,7 +2068,7 @@ export const jaJP: Translations = {
     searchTooltip: "検索 (⌘K)",
     settingsTooltip: "設定",
     notInstalledBadge: "未インストール",
-    notInstalledLabel: (name: string) => `${name}（未インストール）`,
+    moduleInstallAction: "インストール",
     activeRoleLine: (name: string) => `ロール：${name}`,
     accountMenuLabel: (account: string, role: string) => `${account}、現在のロール ${role}`,
     accountFallback: "マイアカウント",

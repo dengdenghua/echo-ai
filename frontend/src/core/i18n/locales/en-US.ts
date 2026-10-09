@@ -2090,7 +2090,7 @@ export const enUS: Translations = {
     searchTooltip: "Search (⌘K)",
     settingsTooltip: "Settings",
     notInstalledBadge: "Not installed",
-    notInstalledLabel: (name: string) => `${name} (not installed)`,
+    moduleInstallAction: "Install",
     activeRoleLine: (name: string) => `Role: ${name}`,
     accountMenuLabel: (account: string, role: string) => `${account}, current role ${role}`,
     accountFallback: "My account",

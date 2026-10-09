@@ -8,7 +8,8 @@
  * 未显示的入口对应 chunk 自然不会被请求。远端加载是另一条更重的路径
  * （见 docs/architecture/blocks.md §2）。
  */
-import { CheckIcon, PlusIcon } from "lucide-react";
+import { CheckIcon, CloudDownloadIcon, PlusIcon } from "lucide-react";
+import { useNavigate } from "react-router-dom";
 import { WebShortcutEditor } from "./web-shortcut-editor";
 
 import {
@@ -27,6 +28,7 @@ import {
 import {
   setModuleEnabled,
   useEnabledModuleIds,
+  useUnavailableModuleIds,
 } from "@/core/modules/enabled-modules";
 import type { ModuleGroup } from "@/core/modules/types";
 import { cn } from "@/lib/utils";
@@ -46,6 +48,8 @@ export function ModuleEditorDialog({
   const preset = workspacePresetForAgent(activeAgentId);
   const enabledIds = useEnabledModuleIds(activeAgentId);
   const enabled = new Set(enabledIds);
+  const unavailable = new Set(useUnavailableModuleIds());
+  const navigate = useNavigate();
 
   const label = (key: string) =>
     (t.sidebar as unknown as Record<string, string>)[key] ?? key;
@@ -74,9 +78,16 @@ export function ModuleEditorDialog({
               key={group}
               group={group}
               enabled={enabled}
+              unavailable={unavailable}
               activeAgentId={activeAgentId}
               label={label}
               pinnedLabel={t.sidebar.modulePinned}
+              notInstalledLabel={t.sidebar.notInstalledBadge}
+              installLabel={t.sidebar.moduleInstallAction}
+              onInstall={(to) => {
+                onOpenChange(false);
+                navigate(to);
+              }}
             />
           ))}
         </div>
@@ -88,15 +99,23 @@ export function ModuleEditorDialog({
 function ModuleGroupSection({
   group,
   enabled,
+  unavailable,
   activeAgentId,
   label,
   pinnedLabel,
+  notInstalledLabel,
+  installLabel,
+  onInstall,
 }: {
   group: ModuleGroup;
   enabled: Set<string>;
+  unavailable: Set<string>;
   activeAgentId: string;
   label: (key: string) => string;
   pinnedLabel: string;
+  notInstalledLabel: string;
+  installLabel: string;
+  onInstall: (to: string) => void;
 }) {
   const modules = MODULE_CATALOG.filter((m) => m.group === group);
   if (modules.length === 0) return null;
@@ -109,6 +128,29 @@ function ModuleGroupSection({
       <ul className="grid grid-cols-1 gap-2 sm:grid-cols-2">
         {modules.map((m) => {
           const isOn = enabled.has(m.id);
+          // A missing app can't be shown in the sidebar, so a toggle would look
+          // broken; offer the install page instead.
+          if (unavailable.has(m.id)) {
+            return (
+              <li key={m.id}>
+                <div className="flex items-center justify-between gap-2 rounded-lg border border-dashed border-border-default px-3 py-2">
+                  <span className="min-w-0 truncate text-sm text-muted-foreground">
+                    {label(m.labelKey)}
+                    <span className="ml-1.5 text-xs">· {notInstalledLabel}</span>
+                  </span>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="h-7 shrink-0 gap-1 px-2 text-xs"
+                    onClick={() => onInstall(m.to)}
+                  >
+                    <CloudDownloadIcon className="size-3.5" />
+                    {installLabel}
+                  </Button>
+                </div>
+              </li>
+            );
+          }
           return (
             <li key={m.id}>
               <ModuleCard

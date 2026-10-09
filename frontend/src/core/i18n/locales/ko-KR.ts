@@ -2052,7 +2052,7 @@ export const koKR: Translations = {
     searchTooltip: "검색 (⌘K)",
     settingsTooltip: "설정",
     notInstalledBadge: "미설치",
-    notInstalledLabel: (name: string) => `${name} (미설치)`,
+    moduleInstallAction: "설치",
     activeRoleLine: (name: string) => `역할: ${name}`,
     accountMenuLabel: (account: string, role: string) => `${account}, 현재 역할 ${role}`,
     accountFallback: "내 계정",

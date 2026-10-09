@@ -1817,7 +1817,7 @@ export interface Translations {
     searchTooltip: string;
     settingsTooltip: string;
     notInstalledBadge: string;
-    notInstalledLabel: (name: string) => string;
+    moduleInstallAction: string;
     activeRoleLine: (name: string) => string;
     accountMenuLabel: (account: string, role: string) => string;
     accountFallback: string;
