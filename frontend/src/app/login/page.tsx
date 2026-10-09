@@ -38,6 +38,7 @@ import { toast } from "sonner";
 import "./login.css";
 import { EchoAgeField } from "./components/EchoAgeField";
 import {
+  loginErrorMessage,
   normalizeEmailVerificationCode,
   remainingCooldownSeconds,
 } from "./login-utils";
@@ -145,7 +146,7 @@ function EmailLoginForm({ returnTo }: { returnTo: string }) {
       const message =
         err instanceof OctApiError && err.status === 503
           ? t.auth.errors.gatewayNotEnabled
-          : octErrorMessage(err, t.auth.errors.sendFailed);
+          : loginErrorMessage(err, (e) => octErrorMessage(e, t.auth.errors.sendFailed));
       setSendStatus({ kind: "error", message });
       if (err instanceof OctApiError && err.status === 503) {
         toast.error(message);
@@ -195,7 +196,9 @@ function EmailLoginForm({ returnTo }: { returnTo: string }) {
       toast.success(t.auth.success.loginSuccess);
       navigate(returnTo, { replace: true });
     } catch (err) {
-      const message = octErrorMessage(err, t.auth.errors.loginFailed);
+      const message = loginErrorMessage(err, (e) =>
+        octErrorMessage(e, t.auth.errors.loginFailed),
+      );
       setLoginError(message);
       toast.error(message);
       focusCodeAfterSubmit = true;
@@ -430,8 +433,9 @@ function LocalLoginForm({
       toast.success(t.auth.success.loginSuccess);
       navigate(returnTo, { replace: true });
     } catch (err) {
-      const message =
-        err instanceof Error ? err.message : t.auth.errors.loginFailed;
+      const message = loginErrorMessage(err, (e) =>
+        e instanceof Error ? e.message : t.auth.errors.loginFailed,
+      );
       setLoginError(message);
       toast.error(message);
     } finally {
