@@ -541,6 +541,15 @@ class CodexExecutionSession:
             except RemoteError as exc:
                 if _thread_not_found(exc, binding.inner_thread_id):
                     return await self._create_thread(context, replace_binding=True)
+                if (
+                    self.request.tool_free or self.request.host_tools_only
+                ) and _environment_sandbox_refused(exc):
+                    # thread/resume cannot carry the empty ``environments`` that
+                    # thread/start accepts, so Codex reloads the default local
+                    # environment and the Windows unelevated sandbox refuses it.
+                    # A fresh thread gets the empty list again; Echo replays the
+                    # conversation through ``fresh_thread_prompt``.
+                    return await self._create_thread(context, replace_binding=True)
                 if _unsupported_api(exc):
                     raise CodexBackendUnavailable(
                         "required Codex App Server thread/resume API is unavailable"
@@ -841,6 +850,11 @@ def _unsupported_api(error: RemoteError) -> bool:
 
 def _thread_not_found(error: RemoteError, thread_id: str) -> bool:
     return error.code == _INVALID_REQUEST and error.message == f"thread not found: {thread_id}"
+
+
+def _environment_sandbox_refused(error: RemoteError) -> bool:
+    """Resume failed only because the default local environment's sandbox could not start."""
+    return "failed to prepare fs sandbox" in error.message
 
 
 def _notification_matches(
