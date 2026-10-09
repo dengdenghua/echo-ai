@@ -524,11 +524,10 @@ export default function ProjectsPage() {
 
   const openProjectGroup = (project: Project) => {
     ensureProjectHome.mutate(project, {
-      onSuccess: ({ threadId }) => {
+      onSuccess: ({ threadId }) =>
         void navigate(`/workspace/realtime/${encodeURIComponent(threadId)}`, {
           state: { openProjectWorkbench: true },
-        });
-      },
+        }),
       onError: () => toast.error("项目工作群打开失败，请重试"),
     });
   };
