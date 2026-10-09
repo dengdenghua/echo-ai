@@ -61,6 +61,7 @@ from ._security_support import (
     _validate_workspace,
     _write_marker,
 )
+from .feature_support import supported_codex_features
 from .types import CodexProviderProfile
 
 CodexSandboxMode = Literal["read-only", "workspace-write", "danger-full-access"]
@@ -126,6 +127,11 @@ _LOCKED_OFF_FEATURES = (
     "shell_snapshot",
     "tool_suggest",
 )
+# Default-on in newer Codex builds and locked off there. Written only when the
+# executable defines them: older pinned builds reject an unknown
+# ``features.<name>`` key under --strict-config. If one is enabled but was not
+# written, validate_effective_config still rejects it as unknown.
+_VERSIONED_LOCKED_OFF_FEATURES = ("api_key_model_discovery",)
 _ALLOWED_ENABLED_FEATURES = frozenset({"mentions_v2"})
 _PROTECTED_WORKSPACE_SUBPATHS = (".git", ".agents", ".codex")
 
@@ -220,6 +226,8 @@ class CodexSidecarContext:
     selected_app_ids: tuple[str, ...] = ()
     _scratch_allocation: _CleanupAllocation | None = field(default=None, repr=False)
     _task_allocation: _CleanupAllocation | None = field(default=None, repr=False)
+    # The base list plus any versioned features this executable defines.
+    locked_off_features: tuple[str, ...] = _LOCKED_OFF_FEATURES
 
     def launch_env(self) -> dict[str, str]:
         """Return a mutable copy suitable for ``subprocess.Popen(env=...)``."""
@@ -314,7 +322,7 @@ class CodexSidecarContext:
 
         features = _mapping_at(config, "features", errors)
         if features is not None:
-            for feature_name in _LOCKED_OFF_FEATURES:
+            for feature_name in self.locked_off_features:
                 _expect_value(
                     features,
                     feature_name,
@@ -324,7 +332,7 @@ class CodexSidecarContext:
                 )
             for feature_name, enabled in features.items():
                 if (
-                    feature_name not in _LOCKED_OFF_FEATURES
+                    feature_name not in self.locked_off_features
                     and feature_name not in _ALLOWED_ENABLED_FEATURES
                     and enabled not in (None, False)
                 ):
@@ -512,6 +520,7 @@ class CodexSidecarSecurity:
         selected_app_ids: tuple[str, ...] = (),
         outer_hard_sandbox_active: bool = False,
         host_env: Mapping[str, str] | None = None,
+        codex_executable: str | None = None,
     ) -> CodexSidecarContext:
         """Provision one tenant/thread/task sidecar, failing closed on drift."""
 
@@ -659,6 +668,7 @@ class CodexSidecarSecurity:
                 scratch_root, root=state_root, kind="scratch"
             ),
             _task_allocation=_capture_cleanup_allocation(task_root, root=state_root, kind="task"),
+            locked_off_features=_locked_off_features_for(codex_executable),
         )
         _read_binding_file(context)
         config_text = _render_codex_config(context)
@@ -760,6 +770,15 @@ def _tool_environment(context: CodexSidecarContext) -> dict[str, str]:
     return tool_env
 
 
+def _locked_off_features_for(codex_executable: str | None) -> tuple[str, ...]:
+    supported = supported_codex_features(codex_executable)
+    if not supported:
+        return _LOCKED_OFF_FEATURES
+    return _LOCKED_OFF_FEATURES + tuple(
+        name for name in _VERSIONED_LOCKED_OFF_FEATURES if name in supported
+    )
+
+
 def _render_codex_config(context: CodexSidecarContext) -> str:
     tool_env = _tool_environment(context)
     lines = [
@@ -837,7 +856,7 @@ def _render_codex_config(context: CodexSidecarContext) -> str:
             "[features]",
             *[
                 f"{name} = {str(bool(context.selected_app_ids) if name == 'apps' else False).lower()}"
-                for name in _LOCKED_OFF_FEATURES
+                for name in context.locked_off_features
             ],
             "",
             f"[permissions.{PERMISSION_PROFILE}]",

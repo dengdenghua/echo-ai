@@ -327,6 +327,9 @@ class CodexExecutionSession:
                 approval_reviewer=self.request.approval_reviewer,
                 provider_profile=self.request.provider_profile,
                 selected_app_ids=self.request.selected_app_ids,
+                # Locks off newer default-on features only where this build
+                # defines them; see feature_support.
+                codex_executable=self.request.command[0],
                 # This attestation is derived from the effective BackendChoice
                 # that will actually wrap the process, never from a
                 # caller-owned bool or a bypassed nested-incompatible backend.
