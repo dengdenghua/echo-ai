@@ -302,6 +302,8 @@ export function useWorkLocationMenu(
       text: string,
       body: ReactNode,
       summary?: string,
+      /** Shown instead of the summary when nothing in the kind is reachable. */
+      unavailable?: boolean,
     ) => {
       const active = categoryOf(value) === category;
       return (
@@ -318,8 +320,19 @@ export function useWorkLocationMenu(
               {icon}
             </span>
             <span className="shrink-0">{text}</span>
-            <span className="min-w-0 flex-1 truncate text-right font-normal text-muted-foreground">
-              {active ? summary : null}
+            <span
+              className={cn(
+                "min-w-0 flex-1 truncate text-right font-normal text-muted-foreground",
+                unavailable && active && "text-destructive",
+              )}
+            >
+              {unavailable
+                ? zh
+                  ? "离线"
+                  : "Offline"
+                : active
+                  ? summary
+                  : null}
             </span>
           </DropdownMenuSubTrigger>
           <DropdownMenuSubContent
@@ -409,6 +422,7 @@ export function useWorkLocationMenu(
               zh ? "远程控制" : "Remote Control",
               nodeItems.length > 0 ? nodeItems : missing,
               label ?? undefined,
+              nodes.length > 0 && nodes.every((node) => !node.online),
             )
           : null}
         {show("wsl", wslConnections.length)
@@ -420,6 +434,8 @@ export function useWorkLocationMenu(
                 ? wslConnections.map(connectionItem)
                 : missing,
               label ?? undefined,
+              wslConnections.length > 0 &&
+                wslConnections.every((c) => c.health === "error"),
             )
           : null}
         {show("ssh", sshConnections.length)
@@ -431,6 +447,8 @@ export function useWorkLocationMenu(
                 ? sshConnections.map(connectionItem)
                 : missing,
               label ?? undefined,
+              sshConnections.length > 0 &&
+                sshConnections.every((c) => c.health === "error"),
             )
           : null}
         <DropdownMenuSeparator />

@@ -1,4 +1,9 @@
-import { CheckCircle2Icon, LoaderCircleIcon, XCircleIcon } from "lucide-react";
+import {
+  CheckCircle2Icon,
+  ChevronRightIcon,
+  LoaderCircleIcon,
+  XCircleIcon,
+} from "lucide-react";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 
 import { Button } from "@/components/ui/button";
@@ -159,11 +164,15 @@ export function AddConnectionDialog({
   const [distro, setDistro] = useState("");
   const [echoPort, setEchoPort] = useState(DEFAULT_PORT[transport]);
   const [token, setToken] = useState("");
-  const [testing, setTesting] = useState(false);
-  const [saving, setSaving] = useState(false);
-  const [result, setResult] = useState<{ ok: boolean; text: string } | null>(
-    null,
-  );
+  const [advanced, setAdvanced] = useState(false);
+  const [busy, setBusy] = useState<"idle" | "testing" | "saving">("idle");
+  // Outcome of the last probe, tied to the exact settings it probed.
+  const [probe, setProbe] = useState<{
+    key: string;
+    ok: boolean;
+    text: string;
+  } | null>(null);
+  const [error, setError] = useState("");
 
   // Start blank each time the dialog opens; the distro list is refetched in
   // the background and must not wipe what the user is typing.
@@ -182,26 +191,28 @@ export function AddConnectionDialog({
     setDistro(fallback);
     setEchoPort(DEFAULT_PORT.ssh_tunnel);
     setToken("");
-    setResult(null);
+    setAdvanced(false);
+    setProbe(null);
+    setError("");
   }, [open, distros]);
 
   const switchKind = (next: ConnectionKind) => {
     setKind(next);
-    setResult(null);
+    setProbe(null);
+    setError("");
     if (next !== "node") setEchoPort(DEFAULT_PORT[next]);
   };
 
   const port = Number(echoPort || DEFAULT_PORT[transport]);
   const portValid = Number.isInteger(port) && port >= 1 && port <= 65535;
   const sshPortNumber = sshPort.trim() ? Number(sshPort) : 22;
+  const sshPortValid =
+    Number.isInteger(sshPortNumber) &&
+    sshPortNumber >= 1 &&
+    sshPortNumber <= 65535;
   const ready =
-    portValid &&
-    (ssh
-      ? Boolean(host.trim()) &&
-        Number.isInteger(sshPortNumber) &&
-        sshPortNumber >= 1 &&
-        sshPortNumber <= 65535
-      : Boolean(distro));
+    portValid && (ssh ? Boolean(host.trim()) && sshPortValid : Boolean(distro));
+  const defaultName = ssh ? splitSshTarget(host).host : distro;
 
   const draft = (): Omit<RemoteConnectionDraft, "name"> => {
     const base = {
@@ -220,58 +231,58 @@ export function AddConnectionDialog({
       },
     };
   };
+  const draftKey = ready ? JSON.stringify(draft()) : "";
+  const current = probe?.key === draftKey ? probe : null;
 
-  const runTest = async () => {
-    setTesting(true);
-    setResult(null);
+  const runProbe = async (): Promise<boolean> => {
+    setBusy("testing");
+    setError("");
     try {
       const outcome = await testRemoteConnection(draft());
-      setResult(
-        outcome.status === "ok"
-          ? {
-              ok: true,
-              text: zh
-                ? "连接正常，远端 Echo 已响应"
-                : "Connected — the remote Echo answered",
-            }
-          : {
-              ok: false,
-              text: outcome.detail
-                ? connectionErrorHint(outcome.detail, zh)
-                : zh
-                  ? "连接失败"
-                  : "Connection failed",
-            },
-      );
-    } catch (error) {
-      setResult({
-        ok: false,
-        text: error instanceof Error ? error.message : String(error),
-      });
+      const ok = outcome.status === "ok";
+      const text = ok
+        ? zh
+          ? "连接正常，远端 Echo 已响应"
+          : "Connected — the remote Echo answered"
+        : outcome.detail
+          ? connectionErrorHint(outcome.detail, zh)
+          : zh
+            ? "连接失败"
+            : "Connection failed";
+      setProbe({ key: draftKey, ok, text });
+      // Most fixes (port, key, token) live in the advanced section.
+      if (!ok) setAdvanced(true);
+      return ok;
+    } catch (failure) {
+      setError(failure instanceof Error ? failure.message : String(failure));
+      return false;
     } finally {
-      setTesting(false);
+      setBusy("idle");
     }
   };
 
   const save = async () => {
-    setSaving(true);
-    setResult(null);
+    setBusy("saving");
+    setError("");
     try {
-      const fallbackName = ssh ? splitSshTarget(host).host : distro;
       const added = await addRemoteConnection({
         ...draft(),
-        name: name.trim() || fallbackName,
+        name: name.trim() || defaultName,
       });
       onAdded({ ...added, transport });
       onOpenChange(false);
-    } catch (error) {
-      setResult({
-        ok: false,
-        text: error instanceof Error ? error.message : String(error),
-      });
+    } catch (failure) {
+      setError(failure instanceof Error ? failure.message : String(failure));
     } finally {
-      setSaving(false);
+      setBusy("idle");
     }
+  };
+
+  // "添加" checks the connection first; after a failed check the same
+  // settings can still be saved on purpose ("仍要添加").
+  const add = async () => {
+    if (current && !current.ok) return save();
+    if (current?.ok || (await runProbe())) await save();
   };
 
   const blocked =
@@ -289,15 +300,20 @@ export function AddConnectionDialog({
   const description =
     kind === "node"
       ? zh
-        ? "让另一台运行 Echo 的机器主动连过来，把任务派给它。"
+        ? "让另一台运行 Echo 的机器连过来，把任务派给它。"
         : "Let another machine running Echo connect here and take tasks."
       : ssh
         ? zh
-          ? "连接到一台运行着 Echo 的远程机器，对话会在那台机器上执行。"
-          : "Connect to a remote machine running Echo; turns run on that machine."
+          ? "在一台运行 Echo 的远程机器上执行对话。"
+          : "Run conversations on a remote machine that runs Echo."
         : zh
-          ? "连接到在 WSL 发行版里运行的 Echo，对话会在 Linux 环境中执行。"
-          : "Connect to Echo running inside a WSL distro; turns run in Linux.";
+          ? "在 WSL 里运行的 Echo 中执行对话（Linux 环境）。"
+          : "Run conversations in Echo inside WSL (Linux).";
+  const status = error
+    ? { ok: false, text: error }
+    : current
+      ? { ok: current.ok, text: current.text }
+      : null;
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -330,83 +346,33 @@ export function AddConnectionDialog({
             {blocked}
           </p>
         ) : (
-          <div className="grid gap-4 py-1">
-            <Field
-              id="remote-name"
-              label={zh ? "名称" : "Name"}
-              hint={
-                zh
-                  ? "给这个连接起个好认的名字。"
-                  : "A friendly name for this connection."
-              }
-            >
-              <Input
-                id="remote-name"
-                value={name}
-                autoFocus
-                placeholder={
-                  ssh ? (zh ? "工作笔记本" : "Work laptop") : "Ubuntu"
-                }
-                onChange={(event) => setName(event.target.value)}
-              />
-            </Field>
+          <form
+            className="grid gap-4"
+            onSubmit={(event) => {
+              event.preventDefault();
+              if (ready && busy === "idle") void add();
+            }}
+          >
             {ssh ? (
-              <>
-                <Field
+              <Field
+                id="remote-host"
+                label={zh ? "SSH 主机" : "SSH host"}
+                hint={
+                  zh
+                    ? "也可以填 ~/.ssh/config 里的主机名。"
+                    : "Or a host name from ~/.ssh/config."
+                }
+              >
+                <Input
                   id="remote-host"
-                  label={zh ? "SSH 主机" : "SSH host"}
-                  hint={
-                    zh
-                      ? "user@myserver.com，或 ~/.ssh/config 里的主机名。"
-                      : "user@myserver.com or a host from ~/.ssh/config."
-                  }
-                >
-                  <Input
-                    id="remote-host"
-                    value={host}
-                    placeholder="user@hostname"
-                    autoComplete="off"
-                    spellCheck={false}
-                    onChange={(event) => setHost(event.target.value)}
-                  />
-                </Field>
-                <Field
-                  id="remote-ssh-port"
-                  label={zh ? "SSH 端口" : "SSH port"}
-                  hint={
-                    zh
-                      ? "留空则用 22 或你的 SSH 配置。"
-                      : "Leave empty to use 22 or your SSH configuration."
-                  }
-                >
-                  <Input
-                    id="remote-ssh-port"
-                    value={sshPort}
-                    inputMode="numeric"
-                    placeholder="22"
-                    onChange={(event) =>
-                      setSshPort(event.target.value.replace(/\D/g, ""))
-                    }
-                  />
-                </Field>
-                <Field
-                  id="remote-key"
-                  label={zh ? "SSH 密钥（可选）" : "SSH key (optional)"}
-                  hint={
-                    zh
-                      ? "私钥路径。留空则使用 SSH 配置或 ssh-agent；不支持密码登录。"
-                      : "Path to a private key. Leave empty to use your SSH config or agent; passwords are not supported."
-                  }
-                >
-                  <Input
-                    id="remote-key"
-                    value={keyPath}
-                    placeholder="~/.ssh/id_ed25519"
-                    spellCheck={false}
-                    onChange={(event) => setKeyPath(event.target.value)}
-                  />
-                </Field>
-              </>
+                  value={host}
+                  autoFocus
+                  placeholder="user@hostname"
+                  autoComplete="off"
+                  spellCheck={false}
+                  onChange={(event) => setHost(event.target.value)}
+                />
+              </Field>
             ) : (
               <Field id="remote-distro" label={zh ? "发行版" : "Distro"}>
                 <Select value={distro} onValueChange={setDistro}>
@@ -427,99 +393,188 @@ export function AddConnectionDialog({
               </Field>
             )}
             <Field
-              id="remote-echo-port"
-              label={zh ? "Echo 端口" : "Echo port"}
-              hint={
-                ssh
-                  ? zh
-                    ? "远端机器上 Echo 后端的端口。只需监听 127.0.0.1，流量走 SSH 加密隧道。"
-                    : "Port of the Echo backend on that machine. It only needs to listen on 127.0.0.1; traffic goes through SSH."
-                  : zh
-                    ? "WSL 里 Echo 后端的端口，避免与本机 Echo 冲突。WSL 2 会把它转发到本机 127.0.0.1。"
-                    : "Port of the Echo backend inside WSL; avoid this computer's own port. WSL 2 forwards it to 127.0.0.1."
-              }
+              id="remote-name"
+              label={zh ? "名称（可选）" : "Name (optional)"}
             >
               <Input
-                id="remote-echo-port"
-                value={echoPort}
-                inputMode="numeric"
-                placeholder={DEFAULT_PORT[transport]}
-                onChange={(event) =>
-                  setEchoPort(event.target.value.replace(/\D/g, ""))
+                id="remote-name"
+                value={name}
+                placeholder={
+                  defaultName ||
+                  (ssh ? (zh ? "工作笔记本" : "Work laptop") : "Ubuntu")
                 }
+                onChange={(event) => setName(event.target.value)}
               />
             </Field>
-            <Field
-              id="remote-token"
-              label={zh ? "访问令牌（可选）" : "Access token (optional)"}
-              hint={
-                zh
-                  ? "远端 Echo 开启了登录时填写，会加密保存在本机。"
-                  : "Needed when the remote Echo requires sign-in. Stored encrypted on this computer."
-              }
-            >
-              <Input
-                id="remote-token"
-                type="password"
-                value={token}
-                autoComplete="off"
-                onChange={(event) => setToken(event.target.value)}
-              />
-            </Field>
-            <div className="flex flex-wrap items-center gap-3">
-              <Button
+            <div className="grid gap-3">
+              <button
                 type="button"
-                variant="outline"
-                size="sm"
-                disabled={!ready || testing}
-                onClick={runTest}
+                aria-expanded={advanced}
+                onClick={() => setAdvanced((open) => !open)}
+                className="flex w-fit items-center gap-1 text-xs font-medium text-muted-foreground transition-colors hover:text-foreground"
               >
-                {testing ? (
-                  <LoaderCircleIcon className="size-3.5 animate-spin" />
-                ) : null}
-                {zh ? "测试连接" : "Test connection"}
-              </Button>
-              {result ? (
-                <span
-                  role="status"
+                <ChevronRightIcon
                   className={
-                    "flex min-w-0 items-start gap-1.5 text-xs " +
-                    (result.ok
-                      ? "text-emerald-600 dark:text-emerald-400"
-                      : "text-destructive")
+                    "size-3.5 transition-transform" +
+                    (advanced ? " rotate-90" : "")
                   }
-                >
-                  {result.ok ? (
-                    <CheckCircle2Icon className="mt-px size-3.5 shrink-0" />
-                  ) : (
-                    <XCircleIcon className="mt-px size-3.5 shrink-0" />
-                  )}
-                  <span className="break-all">{result.text}</span>
-                </span>
+                />
+                {zh ? "高级选项" : "Advanced"}
+              </button>
+              {advanced ? (
+                <div className="grid gap-3 rounded-lg border border-border/70 p-3">
+                  <div
+                    className={ssh ? "grid grid-cols-2 gap-3" : "grid gap-3"}
+                  >
+                    {ssh ? (
+                      <Field
+                        id="remote-ssh-port"
+                        label={zh ? "SSH 端口" : "SSH port"}
+                      >
+                        <Input
+                          id="remote-ssh-port"
+                          value={sshPort}
+                          inputMode="numeric"
+                          placeholder="22"
+                          onChange={(event) =>
+                            setSshPort(event.target.value.replace(/\D/g, ""))
+                          }
+                        />
+                      </Field>
+                    ) : null}
+                    <Field
+                      id="remote-echo-port"
+                      label={zh ? "Echo 端口" : "Echo port"}
+                    >
+                      <Input
+                        id="remote-echo-port"
+                        value={echoPort}
+                        inputMode="numeric"
+                        placeholder={DEFAULT_PORT[transport]}
+                        onChange={(event) =>
+                          setEchoPort(event.target.value.replace(/\D/g, ""))
+                        }
+                      />
+                    </Field>
+                  </div>
+                  <p className="-mt-1 text-xs leading-relaxed text-muted-foreground">
+                    {ssh
+                      ? zh
+                        ? "Echo 端口是远端 Echo 后端的端口，它只需监听 127.0.0.1，流量走 SSH 隧道。"
+                        : "The Echo port is the remote backend's port; it only needs to listen on 127.0.0.1."
+                      : zh
+                        ? "WSL 里 Echo 后端的端口，别和这台电脑上的 Echo 冲突。"
+                        : "The Echo backend's port inside WSL; avoid this computer's own port."}
+                  </p>
+                  {ssh ? (
+                    <Field
+                      id="remote-key"
+                      label={zh ? "SSH 密钥" : "SSH key"}
+                      hint={
+                        zh
+                          ? "留空则用 SSH 配置或 ssh-agent；不支持密码登录。"
+                          : "Leave empty to use your SSH config or agent; passwords are not supported."
+                      }
+                    >
+                      <Input
+                        id="remote-key"
+                        value={keyPath}
+                        placeholder="~/.ssh/id_ed25519"
+                        spellCheck={false}
+                        onChange={(event) => setKeyPath(event.target.value)}
+                      />
+                    </Field>
+                  ) : null}
+                  <Field
+                    id="remote-token"
+                    label={zh ? "访问令牌" : "Access token"}
+                    hint={
+                      zh
+                        ? "远端 Echo 开启登录时需要，加密保存在本机。"
+                        : "Needed when the remote Echo requires sign-in; stored encrypted here."
+                    }
+                  >
+                    <Input
+                      id="remote-token"
+                      type="password"
+                      value={token}
+                      autoComplete="off"
+                      onChange={(event) => setToken(event.target.value)}
+                    />
+                  </Field>
+                </div>
               ) : null}
             </div>
-          </div>
+            {status ? (
+              <p
+                role="status"
+                className={
+                  "flex min-w-0 items-start gap-1.5 text-xs " +
+                  (status.ok
+                    ? "text-emerald-600 dark:text-emerald-400"
+                    : "text-destructive")
+                }
+              >
+                {status.ok ? (
+                  <CheckCircle2Icon className="mt-px size-3.5 shrink-0" />
+                ) : (
+                  <XCircleIcon className="mt-px size-3.5 shrink-0" />
+                )}
+                <span className="break-all">{status.text}</span>
+              </p>
+            ) : null}
+            {/* Enter in any field submits through the footer's 添加. */}
+            <button type="submit" hidden />
+          </form>
         )}
-        <DialogFooter>
+        <DialogFooter className="items-center sm:justify-between">
           {kind === "node" || blocked ? (
-            <Button type="button" onClick={() => onOpenChange(false)}>
+            <Button
+              type="button"
+              className="sm:ml-auto"
+              onClick={() => onOpenChange(false)}
+            >
               {zh ? "知道了" : "Got it"}
             </Button>
           ) : (
             <>
               <Button
                 type="button"
-                variant="outline"
-                onClick={() => onOpenChange(false)}
+                variant="ghost"
+                size="sm"
+                disabled={!ready || busy !== "idle"}
+                onClick={() => void runProbe()}
               >
-                {zh ? "取消" : "Cancel"}
-              </Button>
-              <Button type="button" disabled={!ready || saving} onClick={save}>
-                {saving ? (
+                {busy === "testing" ? (
                   <LoaderCircleIcon className="size-3.5 animate-spin" />
                 ) : null}
-                {zh ? "添加" : "Add"}
+                {zh ? "测试连接" : "Test connection"}
               </Button>
+              <div className="flex gap-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => onOpenChange(false)}
+                >
+                  {zh ? "取消" : "Cancel"}
+                </Button>
+                <Button
+                  type="button"
+                  disabled={!ready || busy !== "idle"}
+                  onClick={() => void add()}
+                >
+                  {busy === "saving" ? (
+                    <LoaderCircleIcon className="size-3.5 animate-spin" />
+                  ) : null}
+                  {current && !current.ok
+                    ? zh
+                      ? "仍要添加"
+                      : "Add anyway"
+                    : zh
+                      ? "添加"
+                      : "Add"}
+                </Button>
+              </div>
             </>
           )}
         </DialogFooter>
