@@ -237,6 +237,28 @@ const knownExtensionSessions = new Set();
 const loadedExtensionIdsBySession = new WeakMap();
 const downloadListenerSessions = new WeakSet();
 const browserDownloads = new Map();
+// Live DownloadItems by id, for pause / resume / cancel. Finished downloads
+// leave this map but stay in ``browserDownloads`` (path, url for retry).
+const browserDownloadItems = new Map();
+const BROWSER_SESSION_PARTITION = "persist:echo-browser";
+
+const HIGH_RISK_DOWNLOAD = /\.(exe|msi|msix|bat|cmd|ps1|psm1|vbs|vbe|js|jse|wsf|scr|com|cpl|hta|jar|lnk|reg|apk|dmg|pkg|app|sh|run|appimage|deb|rpm)$/i;
+const ARCHIVE_DOWNLOAD = /\.(zip|rar|7z|tar|gz|tgz|bz2|xz|iso)$/i;
+
+function downloadRisk(filename) {
+  if (HIGH_RISK_DOWNLOAD.test(filename || "")) return "high";
+  if (ARCHIVE_DOWNLOAD.test(filename || "")) return "medium";
+  return "low";
+}
+
+function downloadSourceOrigin(item) {
+  const chain = item.getURLChain?.() || [];
+  for (const url of [item.getURL(), ...chain]) {
+    const origin = browserCredentialOrigin(url);
+    if (origin) return origin;
+  }
+  return "";
+}
 
 function browserPasswordVaultPath() {
   return path.join(app.getPath("userData"), "browser-passwords.json");
@@ -273,6 +295,155 @@ function browserCredentialOrigin(value) {
   } catch {
     return "";
   }
+}
+
+// ── Site permissions for the in-app browser ─────────────
+// Pages in browser tabs ask through a native dialog (a page cannot spoof
+// it); decisions are kept per origin and listed in 浏览器数据与隐私.
+const SITE_PERMISSIONS = [
+  "camera",
+  "microphone",
+  "camera-microphone",
+  "location",
+  "notifications",
+  "clipboard",
+];
+const ALWAYS_ALLOWED_PERMISSIONS = new Set([
+  "fullscreen",
+  "clipboard-sanitized-write",
+]);
+const permissionHandlerSessions = new WeakSet();
+
+function sitePermissionsPath() {
+  return path.join(app.getPath("userData"), "browser-site-permissions.json");
+}
+
+function readSitePermissions() {
+  try {
+    const file = sitePermissionsPath();
+    if (!fs.existsSync(file)) return [];
+    const parsed = JSON.parse(fs.readFileSync(file, "utf8"));
+    return Array.isArray(parsed)
+      ? parsed.filter(
+          (entry) =>
+            entry &&
+            typeof entry.origin === "string" &&
+            SITE_PERMISSIONS.includes(entry.permission) &&
+            (entry.decision === "allow" || entry.decision === "block"),
+        )
+      : [];
+  } catch {
+    return [];
+  }
+}
+
+function writeSitePermissions(entries) {
+  const file = sitePermissionsPath();
+  fs.mkdirSync(path.dirname(file), { recursive: true });
+  fs.writeFileSync(file, JSON.stringify(entries, null, 2));
+}
+
+function storedSiteDecision(origin, permission) {
+  return readSitePermissions().find(
+    (entry) => entry.origin === origin && entry.permission === permission,
+  )?.decision;
+}
+
+function rememberSiteDecision(origin, permission, decision) {
+  const entries = readSitePermissions().filter(
+    (entry) => !(entry.origin === origin && entry.permission === permission),
+  );
+  if (decision === "allow" || decision === "block") {
+    entries.push({ origin, permission, decision, updatedAt: Date.now() });
+  }
+  writeSitePermissions(entries);
+}
+
+function sitePermissionName(permission, mediaTypes) {
+  if (permission === "media") {
+    const types = new Set(mediaTypes || []);
+    if (types.has("video") && types.has("audio")) return "camera-microphone";
+    if (types.has("video")) return "camera";
+    if (types.has("audio")) return "microphone";
+    return null;
+  }
+  if (permission === "geolocation") return "location";
+  if (permission === "notifications") return "notifications";
+  if (permission === "clipboard-read") return "clipboard";
+  return null;
+}
+
+function sitePermissionLabel(name, zh) {
+  const labels = {
+    camera: ["摄像头", "your camera"],
+    microphone: ["麦克风", "your microphone"],
+    "camera-microphone": ["摄像头和麦克风", "your camera and microphone"],
+    location: ["你的位置", "your location"],
+    notifications: ["发送通知", "to send notifications"],
+    clipboard: ["读取剪贴板", "to read your clipboard"],
+    openExternal: ["打开外部应用", "to open an external app"],
+  };
+  const pair = labels[name] || [name, name];
+  return zh ? pair[0] : pair[1];
+}
+
+async function askSitePermission(origin, name, { remember = true } = {}) {
+  const parent = mainWindow && !mainWindow.isDestroyed() ? mainWindow : undefined;
+  const zh = /^zh/i.test(app.getLocale() || "");
+  const label = sitePermissionLabel(name, zh);
+  const result = await dialog.showMessageBox(parent, {
+    type: "question",
+    buttons: zh ? ["允许", "阻止"] : ["Allow", "Block"],
+    defaultId: 1,
+    cancelId: 1,
+    title: zh ? "网站权限" : "Site permission",
+    message: zh ? `${origin} 想使用${label}` : `${origin} wants ${label}`,
+    detail: zh
+      ? "可以随时在「浏览器数据与隐私」里修改。"
+      : "You can change this anytime in Browser data & privacy.",
+    ...(remember
+      ? {
+          checkboxLabel: zh ? "记住我对这个网站的选择" : "Remember for this site",
+          checkboxChecked: true,
+        }
+      : {}),
+  });
+  const allow = result.response === 0;
+  if (remember && result.checkboxChecked) {
+    rememberSiteDecision(origin, name, allow ? "allow" : "block");
+  }
+  return allow;
+}
+
+function installSitePermissionHandlers(ses) {
+  if (!ses || permissionHandlerSessions.has(ses)) return;
+  permissionHandlerSessions.add(ses);
+  ses.setPermissionRequestHandler((_wc, permission, callback, details) => {
+    if (ALWAYS_ALLOWED_PERMISSIONS.has(permission)) return callback(true);
+    const origin = browserCredentialOrigin(details?.requestingUrl);
+    if (!origin) return callback(false);
+    if (permission === "openExternal") {
+      askSitePermission(origin, "openExternal", { remember: false })
+        .then(callback, () => callback(false));
+      return;
+    }
+    const name = sitePermissionName(permission, details?.mediaTypes);
+    if (!name) return callback(false);
+    const stored = storedSiteDecision(origin, name);
+    if (stored) return callback(stored === "allow");
+    askSitePermission(origin, name).then(callback, () => callback(false));
+  });
+  ses.setPermissionCheckHandler((_wc, permission, requestingOrigin, details) => {
+    if (ALWAYS_ALLOWED_PERMISSIONS.has(permission)) return true;
+    const origin = browserCredentialOrigin(requestingOrigin);
+    const mediaType = details?.mediaType;
+    const name = sitePermissionName(
+      permission,
+      mediaType ? [mediaType] : undefined,
+    );
+    if (!origin || !name) return false;
+    return storedSiteDecision(origin, name) === "allow";
+  });
 }
 
 function extensionsStatePath() {
@@ -450,8 +621,11 @@ function attachDownloadListener(ses) {
     const url = item.getURL();
     browserDownloads.set(id, { id, filename, url, path: "", state: "progressing" });
 
+    const risk = downloadRisk(filename);
+    const sourceOrigin = downloadSourceOrigin(item);
     const snapshot = (state) => {
       const pathValue = item.getSavePath?.() || "";
+      const live = state === "progressing" || state === "interrupted";
       const payload = {
         id,
         filename,
@@ -461,6 +635,10 @@ function attachDownloadListener(ses) {
         totalBytes: item.getTotalBytes(),
         savePath: pathValue,
         createdAt,
+        paused: live && item.isPaused(),
+        canResume: live && item.canResume(),
+        risk,
+        sourceOrigin,
       };
       browserDownloads.set(id, {
         id,
@@ -472,11 +650,17 @@ function attachDownloadListener(ses) {
       sendBrowserDownloadEvent(payload);
     };
 
+    browserDownloadItems.set(id, {
+      item,
+      refresh: () =>
+        snapshot(item.getState() === "interrupted" ? "interrupted" : "progressing"),
+    });
     snapshot("progressing");
     item.on("updated", (_event, state) => {
       snapshot(state === "interrupted" ? "interrupted" : "progressing");
     });
     item.once("done", (_event, state) => {
+      browserDownloadItems.delete(id);
       snapshot(state);
     });
   });
@@ -1174,7 +1358,13 @@ async function handleBridgeAction(url, wcId, data) {
     return { ok: true, activeWebContentsId: activeWebContentsId, pid: process.pid };
   }
   const wc = wcId == null ? null : webContents.fromId(Number(wcId));
-  if (!wc) return { ok: false, error: "webContents not found" };
+  if (!wc || wc.isDestroyed()) return { ok: false, error: "webContents not found" };
+  // Same rule as the IPC handlers: never the privileged main renderer, only
+  // a <webview> hosted by the main window.
+  if (!mainWindow || mainWindow.isDestroyed()
+      || wc.hostWebContents !== mainWindow.webContents) {
+    return { ok: false, error: "target is not a browser tab" };
+  }
 
   switch (op) {
     case "click": {
@@ -1266,6 +1456,7 @@ app.whenReady().then(async () => {
   prepareDesktopRuntime();
   loadExtensionRegistry();
   attachDownloadListener(session.defaultSession);
+  installSitePermissionHandlers(session.fromPartition(BROWSER_SESSION_PARTITION));
   void loadEnabledExtensionsIntoSession(session.defaultSession);
   buildMenu();
   await startBackend();
@@ -1850,6 +2041,62 @@ ipcMain.handle("browser:fill-password", async (event, args) => {
   return result?.ok ? { ok: true } : { ok: false, error: result?.error || "fill failed" };
 });
 
+function fromMainRenderer(event) {
+  return Boolean(
+    mainWindow && !mainWindow.isDestroyed() && event?.sender === mainWindow.webContents,
+  );
+}
+
+for (const [channel, act] of [
+  ["browser:pause-download", (item) => item.pause()],
+  ["browser:resume-download", (item) => {
+    if (!item.canResume()) throw new Error("this download cannot be resumed");
+    item.resume();
+  }],
+  ["browser:cancel-download", (item) => item.cancel()],
+]) {
+  ipcMain.handle(channel, async (event, args) => {
+    if (!fromMainRenderer(event)) return { ok: false, error: "forbidden" };
+    const live = browserDownloadItems.get(args?.id);
+    if (!live) return { ok: false, error: "download is no longer active" };
+    try {
+      act(live.item);
+      live.refresh();
+      return { ok: true };
+    } catch (e) {
+      return { ok: false, error: e?.message || String(e) };
+    }
+  });
+}
+
+ipcMain.handle("browser:retry-download", async (event, args) => {
+  if (!fromMainRenderer(event)) return { ok: false, error: "forbidden" };
+  const record = browserDownloads.get(args?.id);
+  if (!record?.url || !/^https?:/i.test(record.url)) {
+    return { ok: false, error: "download url not found" };
+  }
+  session.fromPartition(BROWSER_SESSION_PARTITION).downloadURL(record.url);
+  return { ok: true };
+});
+
+ipcMain.handle("browser:list-site-permissions", async (event) => {
+  if (!fromMainRenderer(event)) return { ok: false, entries: [], error: "forbidden" };
+  return { ok: true, entries: readSitePermissions() };
+});
+
+ipcMain.handle("browser:set-site-permission", async (event, args) => {
+  if (!fromMainRenderer(event)) return { ok: false, error: "forbidden" };
+  const origin = browserCredentialOrigin(args?.origin);
+  const permission = String(args?.permission || "");
+  const decision = String(args?.decision || "");
+  if (!origin || !SITE_PERMISSIONS.includes(permission)
+      || !["ask", "allow", "block"].includes(decision)) {
+    return { ok: false, error: "invalid site permission" };
+  }
+  rememberSiteDecision(origin, permission, decision);
+  return { ok: true };
+});
+
 ipcMain.handle("browser:show-download-in-folder", async (_event, args) => {
   const item = browserDownloads.get(args?.id);
   if (!item?.path) return { ok: false, error: "download path not found" };
@@ -2340,6 +2587,22 @@ ipcMain.handle("desktop:undo-moves", async () => {
   }
 });
 
+// CPU usage is the busy share since the previous call (the first call
+// reports the average since boot), so a polling widget shows current load.
+let lastCpuTimes = null;
+function cpuUsagePercent(cpus) {
+  const idle = cpus.reduce((acc, cpu) => acc + cpu.times.idle, 0);
+  const total = cpus.reduce(
+    (acc, cpu) => acc + Object.values(cpu.times).reduce((a, b) => a + b, 0),
+    0,
+  );
+  const previous = lastCpuTimes;
+  lastCpuTimes = { idle, total };
+  const dIdle = previous ? idle - previous.idle : idle;
+  const dTotal = previous ? total - previous.total : total;
+  return dTotal > 0 ? Math.round((1 - dIdle / dTotal) * 100) : 0;
+}
+
 ipcMain.handle("desktop:get-system-info", async () => {
   try {
     const cpus = os.cpus();
@@ -2350,7 +2613,7 @@ ipcMain.handle("desktop:get-system-info", async () => {
       cpu: {
         model: cpus[0]?.model || "Unknown",
         cores: cpus.length,
-        usage: Math.round((1 - cpus.reduce((acc, cpu) => acc + cpu.times.idle, 0) / cpus.reduce((acc, cpu) => acc + Object.values(cpu.times).reduce((a, b) => a + b, 0), 0)) * 100),
+        usage: cpuUsagePercent(cpus),
       },
       memory: {
         total: Math.round(totalMem / 1024 / 1024 / 1024 * 100) / 100,

@@ -29,6 +29,7 @@ import {
   HomeIcon,
   ImageIcon,
   LayoutGridIcon,
+  Loader2Icon,
   MessageCircleIcon,
   PaletteIcon,
   PanelLeftIcon,
@@ -781,16 +782,25 @@ function BackendBrowserTab({
         />
       ) : (
         <div className="flex h-full flex-col items-center justify-center gap-2 px-6 text-center">
+          {loading ? (
+            <Loader2Icon
+              className="mb-1 size-5 animate-spin text-muted-foreground"
+              aria-hidden="true"
+            />
+          ) : null}
           <div className="text-sm font-medium">{wt.connectingPlugin}</div>
           <div className="max-w-sm text-xs leading-relaxed text-muted-foreground">
             {wt.connectingPluginDesc}
           </div>
         </div>
       )}
-      {loading && (
-        <div className="absolute inset-0 grid place-items-center bg-background/60 text-xs text-muted-foreground">
-          Loading...
-        </div>
+      {/* Over a page: a thin bar, so the last screenshot stays readable. */}
+      {loading && screenshot && (
+        <div
+          role="progressbar"
+          aria-label={wt.connectingPlugin}
+          className="absolute inset-x-0 top-0 h-0.5 animate-pulse bg-primary/70"
+        />
       )}
       {error && (
         <div className="absolute left-3 right-3 top-3 rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-xs text-destructive">

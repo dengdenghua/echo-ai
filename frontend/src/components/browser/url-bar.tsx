@@ -689,6 +689,7 @@ export function UrlBar({ webviewHandle, onOpenExtensions }: Props) {
               if (addressSuggestions.length > 0) setSuggestionsOpen(true);
             }}
             placeholder={ub.searchOrUrl}
+            data-browser-address=""
             className="min-w-0 flex-1 bg-transparent px-2 text-sm font-medium outline-none placeholder:text-muted-foreground"
           />
           {canManageSiteData && (

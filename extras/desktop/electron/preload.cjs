@@ -90,6 +90,17 @@ const api = {
     showDownloadInFolder: (id) =>
       ipcRenderer.invoke("browser:show-download-in-folder", { id }),
     openDownload: (id) => ipcRenderer.invoke("browser:open-download", { id }),
+    pauseDownload: (id) => ipcRenderer.invoke("browser:pause-download", { id }),
+    resumeDownload: (id) => ipcRenderer.invoke("browser:resume-download", { id }),
+    cancelDownload: (id) => ipcRenderer.invoke("browser:cancel-download", { id }),
+    retryDownload: (id) => ipcRenderer.invoke("browser:retry-download", { id }),
+    listSitePermissions: () => ipcRenderer.invoke("browser:list-site-permissions"),
+    setSitePermission: (origin, permission, decision) =>
+      ipcRenderer.invoke("browser:set-site-permission", {
+        origin,
+        permission,
+        decision,
+      }),
   },
 
   // ── Native dialog ──────────────────────────────────

@@ -344,8 +344,9 @@ function BrowserShell() {
       // Implementation note.
       if (k === "l") {
         e.preventDefault();
+        // By attribute, not placeholder text: the placeholder is localized.
         const input = document.querySelector<HTMLInputElement>(
-          'input[placeholder="搜索或输入网址"]',
+          "input[data-browser-address]",
         );
         input?.focus();
         input?.select();

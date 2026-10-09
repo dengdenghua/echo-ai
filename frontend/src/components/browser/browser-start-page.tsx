@@ -32,6 +32,7 @@ import { useAuth } from "@/providers/AuthProvider";
 import { cn } from "@/lib/utils";
 import { StaticEchoCosmos } from "./StaticEchoCosmos";
 import { resolveBrowserInput } from "./task-browser-start";
+import { describeWeather, useWeather } from "./weather";
 import "./browser-start-page.css";
 
 const CUSTOM_WALLPAPER_KEY = "echo.browser.start.custom-wallpaper.v1";
@@ -169,11 +170,22 @@ export function BrowserStartPage({
 }: Props) {
   const { user, isAuthenticated } = useAuth();
   const navigate = useNavigate();
-  const [panel, setPanel] = useState<"apps" | "settings" | "account" | null>(
-    null,
-  );
+  const [panel, setPanel] = useState<
+    "apps" | "settings" | "account" | "weather" | null
+  >(null);
   const [appQuery, setAppQuery] = useState("");
   const [suggestOpen, setSuggestOpen] = useState(false);
+  const {
+    city,
+    setCity,
+    weather,
+    loading: weatherLoading,
+    error: weatherError,
+  } = useWeather();
+  const [cityDraft, setCityDraft] = useState("");
+  const weatherLook = weather
+    ? describeWeather(weather.code, true, weather.isDay)
+    : null;
   const [activeOption, setActiveOption] = useState(0);
   const [wallpaper, setWallpaper] = useState(() => {
     try {
@@ -356,16 +368,30 @@ export function BrowserStartPage({
           <button
             type="button"
             className="browser-start-weather"
-            title="查看天气"
-            onClick={() =>
-              onOpen(
-                "https://www.bing.com/search?q=" +
-                  encodeURIComponent("当地天气"),
-              )
+            title={
+              weather && weatherLook
+                ? `${weather.city} · ${weatherLook.text}`
+                : "设置天气城市"
             }
+            aria-haspopup="dialog"
+            onClick={() => {
+              setCityDraft(city);
+              setPanel("weather");
+            }}
           >
-            <CloudSun size={20} strokeWidth={1.75} />
-            <span>天气</span>
+            {weather && weatherLook ? (
+              <>
+                <span aria-hidden="true">{weatherLook.emoji}</span>
+                <span>
+                  {Math.round(weather.temperature)}° {weather.city}
+                </span>
+              </>
+            ) : (
+              <>
+                <CloudSun size={20} strokeWidth={1.75} />
+                <span>天气</span>
+              </>
+            )}
           </button>
           <button
             type="button"
@@ -559,14 +585,18 @@ export function BrowserStartPage({
                 ? "应用"
                 : panel === "account"
                   ? "账号"
-                  : "主页设置"}
+                  : panel === "weather"
+                    ? "天气"
+                    : "主页设置"}
             </DialogTitle>
             <DialogDescription>
               {panel === "apps"
                 ? "打开常用网站与 Echo 工作台"
                 : panel === "account"
                   ? "当前 Echo 登录账号"
-                  : "设置主页背景、搜索引擎与应用"}
+                  : panel === "weather"
+                    ? "数据来自 Open-Meteo，只会发送你填的城市名"
+                    : "设置主页背景、搜索引擎与应用"}
             </DialogDescription>
           </DialogHeader>
           <div className="min-h-0 overflow-y-auto overscroll-contain">
@@ -611,6 +641,69 @@ export function BrowserStartPage({
                   <ArrowUpRight size={16} />
                 </button>
               </>
+            ) : panel === "weather" ? (
+              <div className="grid gap-4">
+                {weather && weatherLook ? (
+                  <div className="flex items-center gap-3">
+                    <span className="text-3xl" aria-hidden="true">
+                      {weatherLook.emoji}
+                    </span>
+                    <div>
+                      <p className="text-2xl font-semibold">
+                        {Math.round(weather.temperature)}°C
+                      </p>
+                      <p className="text-sm text-muted-foreground">
+                        {weather.city} · {weatherLook.text}
+                      </p>
+                    </div>
+                  </div>
+                ) : city && weatherLoading ? (
+                  <p className="text-sm text-muted-foreground">正在获取天气…</p>
+                ) : city && weatherError ? (
+                  <p className="text-sm text-destructive">
+                    找不到「{city}
+                    」的天气，换个写法试试（如「杭州」「Hangzhou」）。
+                  </p>
+                ) : null}
+                <form
+                  className="flex gap-2"
+                  onSubmit={(event) => {
+                    event.preventDefault();
+                    setCity(cityDraft);
+                  }}
+                >
+                  <input
+                    aria-label="城市"
+                    value={cityDraft}
+                    onChange={(event) => setCityDraft(event.target.value)}
+                    placeholder="输入城市，如 杭州"
+                    className="h-9 min-w-0 flex-1 rounded-lg border bg-background px-3 text-sm outline-none focus:border-ring"
+                  />
+                  <button
+                    type="submit"
+                    className="h-9 rounded-lg bg-primary px-4 text-sm font-medium text-primary-foreground hover:bg-primary/90"
+                  >
+                    保存
+                  </button>
+                </form>
+                {city ? (
+                  <button
+                    type="button"
+                    className="w-fit text-sm text-primary hover:underline"
+                    onClick={() => {
+                      setPanel(null);
+                      onOpen(
+                        "https://www.bing.com/search?q=" +
+                          encodeURIComponent(
+                            `${weather?.city ?? city} 天气预报`,
+                          ),
+                      );
+                    }}
+                  >
+                    查看未来几天的预报
+                  </button>
+                ) : null}
+              </div>
             ) : panel === "account" ? (
               <>
                 <p className="mb-4 text-sm font-medium">

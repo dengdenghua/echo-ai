@@ -57,6 +57,7 @@ import {
 import { swallow } from "@/core/utils/log";
 import { BrowserStartPage, topSitesFromHistory } from "./browser-start-page";
 import { requestBrowserAssistantAsk } from "./assistant-ask";
+import { SystemWidgetBody, WeatherWidgetBody } from "./desktop-widgets";
 import { cn } from "@/lib/utils";
 import { useI18n } from "@/core/i18n/hooks";
 import { useConfirmDialog } from "@/components/ui/confirm-dialog";
@@ -2437,24 +2438,8 @@ export function BrowserHome({
                             </div>
                           </div>
                         )}
-                        {widget.type === "weather" && (
-                          <div className="flex items-center gap-2">
-                            <span className="text-xl">☀️</span>
-                            <span className="text-lg text-muted-foreground">
-                              26°C
-                            </span>
-                          </div>
-                        )}
-                        {widget.type === "system" && (
-                          <div className="space-y-1.5">
-                            <div className="h-1.5 rounded-full bg-muted-foreground/12">
-                              <div className="h-full bg-primary rounded-full w-[23%]" />
-                            </div>
-                            <div className="h-1.5 rounded-full bg-muted-foreground/12">
-                              <div className="h-full bg-accent-foreground/60 rounded-full w-[45%]" />
-                            </div>
-                          </div>
-                        )}
+                        {widget.type === "weather" && <WeatherWidgetBody />}
+                        {widget.type === "system" && <SystemWidgetBody />}
                         {widget.type === "ai-tools" && (
                           <div className="grid grid-cols-3 gap-1.5">
                             {["ChatGPT", "Claude", "Gemini"].map((name) => (
