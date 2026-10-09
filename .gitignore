@@ -258,8 +258,10 @@ runtime/execution/all_skills/.preinstalled
 /skills/public/*/
 .trae/tmp/
 
-# Local assistant/IDE state generated during development.
-.workbuddy/
+# Local assistant/IDE state generated during development. The unsigned
+# electron-builder config is the one tracked file (see fdb0fcc2).
+.workbuddy/*
+!.workbuddy/electron-builder.unsigned.yml
 .trae/skills/
 
 # Godot editor cache for the desktop-pet sidecar (never commit; regenerated).
