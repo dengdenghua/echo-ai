@@ -164,6 +164,15 @@ async def select_turn_execution(
     ):
         # Host dispatch only: each member owns its backend and credentials.
         return ExecutionRoute(EngineId.ECHO, "group_fanout", "remote_group_member")
+    from runtime.sensing.gateway.realtime_execution_node import (
+        NODE_LOCATION_REASON,
+        node_work_location,
+    )
+
+    if node_work_location(context) is not None:
+        # The node runs its own installed role and engine; this host only
+        # dispatches the task and relays the result.
+        return ExecutionRoute(EngineId.ECHO, "execution_node", NODE_LOCATION_REASON)
     requested = getattr(turn.params, "execution_engine", "auto")
     config = getattr(getattr(runtime, "_stack", None), "config", None)
     default_member = getattr(getattr(config, "execution", None), "member_engine", "echo")
@@ -262,6 +271,10 @@ async def _dispatch_host_driver(
         await host.runtime._drive_group_fanout(*args, text=request.text)
     elif driver == "swarm_mesh":
         await host.runtime._drive_swarm_mesh(*args, text=request.text, topology_id=host.topology_id)
+    elif driver == "execution_node":
+        from runtime.sensing.gateway.realtime_execution_node import drive_execution_node
+
+        await drive_execution_node(host.runtime, *args, text=request.text)
     else:
         return False
     return True

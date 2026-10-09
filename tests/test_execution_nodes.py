@@ -508,3 +508,30 @@ def test_real_http_worker_survives_lost_completion_response(setup, tmp_path, mon
         server.should_exit = True
         thread.join(5)
         sock.close()
+
+
+def test_locations_list_nodes_with_the_callers_writable_workspaces(setup):
+    user, node, _, spaces, ws, _ = setup
+    other = spaces.create_workspace(
+        name="Private",
+        mount_type="local",
+        mount_target=str(Path(ws.mount_target).parent),
+        mount_options={},
+        owner_id="bob",
+        tenant_id="team",
+    )
+    node.post(
+        "/api/execution/nodes",
+        json=dict(
+            node_id="nas-a", label="书房 NAS", workspace_ids=[ws.id, other.id], roles=["coder"]
+        ),
+    )
+
+    body = user.get("/api/execution/locations").json()
+
+    listed = {n["node_id"]: n for n in body["execution_nodes"]}
+    assert set(listed) == {"nas-a", "nas-b"}
+    # alice cannot write bob's workspace, so it is not offered as a location.
+    assert [w["name"] for w in listed["nas-a"]["workspaces"]] == ["Project"]
+    assert listed["nas-a"]["label"] == "书房 NAS" and listed["nas-a"]["online"] is True
+    assert body["remote_backends"]["enabled"] in {True, False}

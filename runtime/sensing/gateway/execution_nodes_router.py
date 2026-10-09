@@ -68,6 +68,25 @@ class TaskAction(BaseModel):
     action: Literal["pause", "resume", "cancel", "apply"]
 
 
+def _remote_backends() -> dict:
+    """Registered remote Echo backends, only while remote transport is enabled."""
+    from runtime.platform import feature_flags
+
+    if not feature_flags.is_on("ui.remote_transport"):
+        return {"enabled": False, "backends": []}
+    from runtime.platform.process.paths import app_paths
+    from runtime.sensing.gateway.remote_transport import BackendRegistry
+
+    registry = BackendRegistry(app_paths().data_dir / "remote_backends.json")
+    return {
+        "enabled": True,
+        "backends": [
+            {"id": b.id, "name": b.name, "health": b.last_health, "has_auth": b.has_auth}
+            for b in registry.list()
+        ],
+    }
+
+
 def create_execution_nodes_router(
     *,
     collaboration_store=None,
@@ -155,6 +174,33 @@ def create_execution_nodes_router(
         tenant, actor = principal(request)
         workspace(workspace_id, tenant, actor)
         return {"nodes": [n for n in control.nodes(tenant) if workspace_id in n["workspace_ids"]]}
+
+    @router.get("/locations")
+    def locations(request: Request):
+        """Where a conversation can run, for the composer's work-location picker."""
+        tenant, actor = principal(request)
+        nodes = []
+        for node in control.nodes(tenant):
+            workspaces = []
+            for workspace_id in node["workspace_ids"]:
+                try:
+                    ws = workspace(workspace_id, tenant, actor)
+                except HTTPException:
+                    continue
+                workspaces.append(
+                    {"id": ws.id, "name": ws.name, "ready": bool(execution_directory(ws)["ready"])}
+                )
+            if workspaces:
+                nodes.append(
+                    {
+                        "node_id": node["node_id"],
+                        "label": node["label"],
+                        "online": node["online"],
+                        "roles": node["roles"],
+                        "workspaces": workspaces,
+                    }
+                )
+        return {"execution_nodes": nodes, "remote_backends": _remote_backends()}
 
     @router.post("/tasks")
     def submit(request: Request, body: NodeTaskRequest):
