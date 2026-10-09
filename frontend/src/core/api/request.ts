@@ -76,13 +76,25 @@ type QueryParamsOf<Op> = [ParametersOf<Op>] extends [never]
  * field that has a server-side default is emitted as *required*. Clients may
  * legitimately omit those, so request bodies are matched against a deep
  * partial of the schema: field names and value types are still checked.
+ *
+ * Free-form ``Dict[str, Any]`` fields (``{ [key: string]: unknown }``) accept
+ * any object: TS interfaces carry no index signature, so the literal schema
+ * type would reject perfectly valid domain objects.
  */
+type IsLooseRecord<T> = string extends keyof T
+  ? unknown extends T[keyof T]
+    ? true
+    : false
+  : false;
+
 type RequestShape<T> = T extends readonly (infer U)[]
   ? RequestShape<U>[]
   : T extends Blob | FormData
     ? T
     : T extends object
-      ? { [K in keyof T]?: RequestShape<T[K]> }
+      ? IsLooseRecord<T> extends true
+        ? object
+        : { [K in keyof T]?: RequestShape<T[K]> }
       : T;
 
 type RequestBodyContent<Op> = Op extends { requestBody?: infer RB }

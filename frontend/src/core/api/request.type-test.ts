@@ -70,6 +70,21 @@ export function requestTypeContract(threadId: string): void {
     body: {},
   });
 
+  // Free-form ``Dict[str, Any]`` fields accept interface-typed objects.
+  interface ReplyRef {
+    message_id: string;
+  }
+  const replyTo: ReplyRef = { message_id: "m1" };
+  void apiPost("/api/collab/{thread_id}/room-message", {
+    path: { thread_id: threadId },
+    body: { text: "hi", reply_to: replyTo },
+  });
+  void apiPost("/api/collab/{thread_id}/room-message", {
+    path: { thread_id: threadId },
+    // @ts-expect-error -- still not a free-for-all: text must be a string
+    body: { text: 1 },
+  });
+
   // Untyped fallbacks must say why.
   // @ts-expect-error -- reason is required
   void untypedApi.get("/api/x", {});
