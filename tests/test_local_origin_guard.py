@@ -124,7 +124,7 @@ def test_foreign_host_rejected_when_auth_off(base_url: str):
 
 def test_foreign_host_rejected_for_websocket_when_auth_off():
     client = _client(base_url="http://evil.example")
-    assert _ws_code(client) == 4403
+    assert _ws_code(client) == 1008
 
 
 def test_host_allowlist_env(monkeypatch):
@@ -139,12 +139,12 @@ def test_authenticated_app_accepts_remote_host_but_checks_browser_origin():
     assert client.get("/probe").status_code == 200
     assert client.post("/probe", headers={"Origin": "https://echo.example"}).status_code == 200
     assert client.post("/probe", headers={"Origin": "https://evil.example"}).status_code == 403
-    assert _ws_code(client, {"Origin": "https://evil.example"}) == 4403
-    assert _ws_code(client, {"Origin": "null"}) == 4403
+    assert _ws_code(client, {"Origin": "https://evil.example"}) == 1008
+    assert _ws_code(client, {"Origin": "null"}) == 1008
     assert _ws_code(client, {"Origin": "https://echo.example"}) == "hello"
     assert _ws_code(client, {"Origin": "https://echo.example:443"}) == "hello"
-    assert _ws_code(client, {"Origin": "http://echo.example"}) == 4403
-    assert _ws_code(client, {"Origin": "https://echo.example:8443"}) == 4403
+    assert _ws_code(client, {"Origin": "http://echo.example"}) == 1008
+    assert _ws_code(client, {"Origin": "https://echo.example:8443"}) == 1008
 
 
 # ── Origin on WebSocket handshakes ─────────────────────────────
@@ -182,24 +182,24 @@ def test_websocket_without_origin_allowed():
     ],
 )
 def test_websocket_foreign_or_opaque_origin_rejected(origin: str):
-    assert _ws_code(_client(), {"Origin": origin}) == 4403
+    assert _ws_code(_client(), {"Origin": origin}) == 1008
 
 
 def test_websocket_same_host_origin_allowed_for_allowlisted_host(monkeypatch):
     monkeypatch.setenv(ALLOWED_HOSTS_ENV, "echo.lan")
     client = _client(base_url="http://echo.lan:8310")
     assert _ws_code(client, {"Origin": "http://echo.lan:8310"}) == "hello"
-    assert _ws_code(client, {"Origin": "http://echo.lan:3310"}) == 4403
+    assert _ws_code(client, {"Origin": "http://echo.lan:3310"}) == 1008
     monkeypatch.setenv(ALLOWED_ORIGINS_ENV, "http://echo.lan:3310")
     assert _ws_code(client, {"Origin": "http://echo.lan:3310"}) == "hello"
-    assert _ws_code(client, {"Origin": "http://evil.lan"}) == 4403
+    assert _ws_code(client, {"Origin": "http://evil.lan"}) == 1008
 
 
 def test_origin_allowlist_env(monkeypatch):
     monkeypatch.setenv(ALLOWED_ORIGINS_ENV, "https://Tools.Example.com:8443")
     client = _client()
     assert _ws_code(client, {"Origin": "https://tools.example.com:8443"}) == "hello"
-    assert _ws_code(client, {"Origin": "https://tools.example.com"}) == 4403
+    assert _ws_code(client, {"Origin": "https://tools.example.com"}) == 1008
 
 
 # ── Origin on HTTP (CSRF) ──────────────────────────────────────
@@ -242,7 +242,7 @@ def test_terminal_ws_refuses_cross_site_page_before_spawning(monkeypatch):
         ) as ws,
     ):
         ws.receive_text()
-    assert ei.value.code == 4403
+    assert ei.value.code == 1008
     assert terminal_router._sessions == {}  # no shell was ever created
 
 

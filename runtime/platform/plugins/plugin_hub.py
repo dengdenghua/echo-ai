@@ -23,6 +23,7 @@ from __future__ import annotations
 
 import importlib
 import importlib.util
+import inspect
 import json
 import logging
 import sys
@@ -35,6 +36,7 @@ from runtime.platform.io import atomic_write_json
 from runtime.platform.plugins.contribution_registry import ContributionRegistry
 from runtime.platform.plugins.plugin_base import ModuleContext, ModulePlugin
 from runtime.platform.plugins.workbench_activation import WorkbenchActivationStore
+from runtime.safety.auth.websocket_auth import authenticate_websocket
 
 try:
     from fastapi import Request as _FastAPIRequest  # noqa: F401 – route annotation
@@ -1300,8 +1302,6 @@ class PluginHub:
                         if instance and hasattr(instance, _handler_name):
                             try:
                                 result = getattr(instance, _handler_name)(body, headers)
-                                import inspect
-
                                 if inspect.iscoroutine(result):
                                     result = await result
                                 return result
@@ -1319,12 +1319,7 @@ class PluginHub:
 
                 handler = _build_webhook_handler()
 
-                if method == "post":
-                    router.add_api_route(path, handler, methods=["POST"])
-                elif method == "get":
-                    router.add_api_route(path, handler, methods=["GET"])
-                else:
-                    router.add_api_route(path, handler, methods=[method.upper()])
+                router.add_api_route(path, handler, methods=[method.upper()])
 
                 _LOG.info(
                     "Mounted webhook: %s%s [%s] -> %s.%s",
@@ -1346,15 +1341,19 @@ class PluginHub:
                     _handler_name: str = handler_name,
                 ):
                     async def _handler(websocket: _FastAPIWebSocket):  # type: ignore[valid-type]
+                        # Host session + Origin, as for the plugin's HTTP
+                        # webhooks; refused with 1008 before the plugin runs.
+                        # The handler accepts with state.echo_ws_auth.subprotocol.
+                        auth = await authenticate_websocket(websocket)
+                        if auth is None:
+                            return
+                        websocket.state.echo_ws_auth = auth
                         instance = self._plugins.get(_name)
                         if instance is None or not hasattr(instance, _handler_name):
                             await websocket.close(code=4404)
                             return
                         try:
-                            fn = getattr(instance, _handler_name)
-                            result = fn(websocket)
-                            import inspect
-
+                            result = getattr(instance, _handler_name)(websocket)
                             if inspect.iscoroutine(result):
                                 await result
                         except _FastAPIWebSocketDisconnect:

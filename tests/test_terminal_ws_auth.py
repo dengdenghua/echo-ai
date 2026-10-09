@@ -2,8 +2,9 @@
 
 /api/terminal/ws opens a real shell, and used to ``accept()`` and spawn
 it for anyone. These tests lock the security guarantee: when require_auth
-is set, an unauthenticated (or wrong-token) client is closed with 4401
-BEFORE a process is ever created.
+is set, an unauthenticated (or wrong-token) client is closed with 1008
+(the shared pre-accept policy-violation code) BEFORE a process is ever
+created.
 
 (The accepted-token path spawns a real subprocess whose lifetime spans
 the TestClient's event loop, which makes deterministic cleanup flaky in
@@ -69,7 +70,8 @@ def test_ws_rejects_missing_token_when_required():
         client.websocket_connect("/api/terminal/ws/s1") as ws,
     ):
         ws.receive_text()
-    assert ei.value.code == 4401  # closed before any shell spawned
+    assert ei.value.code == 1008  # closed before any shell spawned
+    assert ei.value.reason == "authentication required"
 
 
 def test_ws_rejects_wrong_token_when_required():
@@ -82,7 +84,8 @@ def test_ws_rejects_wrong_token_when_required():
         ) as ws,
     ):
         ws.receive_text()
-    assert ei.value.code == 4401
+    assert ei.value.code == 1008
+    assert ei.value.reason == "invalid or expired credentials"
 
 
 def test_ws_require_auth_without_identity_store_rejects():
@@ -96,7 +99,8 @@ def test_ws_require_auth_without_identity_store_rejects():
         ) as ws,
     ):
         ws.receive_text()
-    assert ei.value.code == 4401
+    assert ei.value.code == 1008
+    assert ei.value.reason == "authentication unavailable"
 
 
 def test_terminal_kill_requires_auth_when_required():

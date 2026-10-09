@@ -28,6 +28,11 @@ from fastapi import APIRouter, HTTPException, Request, WebSocket
 
 from runtime.safety.auth.principal import require_operator, resolve_principal
 from runtime.safety.auth.url_guard import check_url
+from runtime.safety.auth.websocket_auth import (
+    OPERATOR_ROLES,
+    WebSocketAuthConfig,
+    authenticate_websocket,
+)
 from runtime.sensing.gateway.remote_transport import (
     BackendRegistry,
     SshTunnel,
@@ -83,8 +88,15 @@ def create_remote_backends_router(
 
     registry = BackendRegistry(store_path)
 
-    class _WsAuthError(Exception):
-        """Raised to refuse an unauthenticated remote-backend WS handshake."""
+    # The realtime relay reuses operator-held backend credentials, so the
+    # handshake requires the same operator role as the HTTP control plane.
+    ws_auth = WebSocketAuthConfig(
+        identity_store=identity_store,
+        require_auth=require_auth,
+        jwt_secret=jwt_secret,
+        jwt_issuer=jwt_issuer,
+        jwt_audience=jwt_audience,
+    )
 
     def _auth_http(request: Request) -> None:
         resolve_principal(
@@ -153,49 +165,6 @@ def create_remote_backends_router(
                     "reason": verdict.reason,
                 },
             )
-
-    def _resolve_ws_actor(ws: WebSocket) -> str | None:
-        if identity_store is None:
-            if require_auth:
-                raise _WsAuthError("identity store required for remote backend auth")
-            return None
-
-        token: str | None = None
-        auth_header = ws.headers.get("authorization") or ""
-        if auth_header.lower().startswith("bearer "):
-            token = auth_header[7:].strip()
-        if token is None:
-            subproto = ws.headers.get("sec-websocket-protocol") or ""
-            parts = [p.strip() for p in subproto.split(",") if p.strip()]
-            if len(parts) >= 2 and parts[0].lower() == "bearer":
-                token = parts[1]
-        if not token:
-            if require_auth:
-                raise _WsAuthError("missing remote backend auth token")
-            return None
-
-        if jwt_secret and token.count(".") == 2:
-            identity = identity_store.verify_jwt(
-                token,
-                secret=jwt_secret,
-                required_issuer=jwt_issuer,
-                required_audience=jwt_audience,
-                trust_jwt_sub=False,
-            )
-            if identity is not None:
-                if require_auth and not set(identity.roles).intersection({"admin", "operator"}):
-                    raise _WsAuthError("operator role required")
-                return identity.actor_id
-            if require_auth:
-                raise _WsAuthError("invalid jwt")
-        identity = identity_store.verify_api_key(token)
-        if identity is not None:
-            if require_auth and not set(identity.roles).intersection({"admin", "operator"}):
-                raise _WsAuthError("operator role required")
-            return identity.actor_id
-        if require_auth:
-            raise _WsAuthError("invalid token")
-        return None
 
     router = APIRouter()
 
@@ -392,13 +361,11 @@ def create_remote_backends_router(
         so we can send a proper JSON-RPC error frame instead of a
         bare HTTP 403 (which the WS client can't read).
         """
-        try:
-            _resolve_ws_actor(ws)
-        except _WsAuthError:
-            await ws.close(code=4401)
+        auth = await authenticate_websocket(ws, config=ws_auth, roles=OPERATOR_ROLES)
+        if auth is None:
             return
 
-        await ws.accept()
+        await ws.accept(subprotocol=auth.subprotocol)
         from runtime.platform import feature_flags as _ff
 
         if not _ff.is_on("ui.remote_transport"):

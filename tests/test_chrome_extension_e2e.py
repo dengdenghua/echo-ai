@@ -314,6 +314,12 @@ def live_extension_runtime(
         pytest.skip(f"Chromium extension mode is unavailable: {exc}")
 
     try:
+        # The relay WebSocket enforces the host Origin policy itself (shared
+        # authenticate_websocket gate) and Chrome sends the extension's
+        # ``chrome-extension://<id>`` Origin. Allowlist it exactly as a real
+        # deployment must; the extension re-dials the push socket every second.
+        extension_origin = f"chrome-extension://{loaded_extension_id(context)}"
+        monkeypatch.setenv("ECHO_ALLOWED_ORIGINS", extension_origin)
         yield f"http://127.0.0.1:{port}", context, extension, api_key
     finally:
         context.close()

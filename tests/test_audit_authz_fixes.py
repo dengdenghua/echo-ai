@@ -562,7 +562,7 @@ def test_android_device_ws_requires_token_when_auth_enabled(
     app = create_app(cocoloop_require_auth=True, cocoloop_identity_store=store)
     client = TestClient(app)
 
-    # No credentials → handshake refused (closed 4401 before accept).
+    # No credentials → handshake refused (closed 1008 before accept).
     with (
         pytest.raises(WebSocketDisconnect),
         client.websocket_connect("/api/android/ws/dev1") as ws,
@@ -570,7 +570,7 @@ def test_android_device_ws_requires_token_when_auth_enabled(
         ws.receive_text()
 
     # A valid ordinary-user token is authenticated but lacks device-control
-    # authority, so the handshake closes with the distinct role code.
+    # authority, so the handshake closes with the distinct role reason.
     with (
         pytest.raises(WebSocketDisconnect) as exc_info,
         client.websocket_connect(
@@ -579,7 +579,8 @@ def test_android_device_ws_requires_token_when_auth_enabled(
         ),
     ):
         pass
-    assert exc_info.value.code == 4403
+    assert exc_info.value.code == 1008
+    assert exc_info.value.reason == "admin/operator role required"
 
     # Valid operator token → handshake accepted.
     with client.websocket_connect(

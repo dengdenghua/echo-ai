@@ -55,6 +55,33 @@ class _SecurityHeadersMiddleware:
         await self.app(scope, receive, _send)
 
 
+def _publish_websocket_auth(
+    app: Any,
+    *,
+    identity_store: Any,
+    require_auth: bool,
+    jwt: tuple[str | None, str | None, str | None],
+) -> None:
+    """Share the HTTP identity/JWT settings with every WebSocket endpoint.
+
+    WebSocket handshakes bypass the HTTP auth middleware; publishing the same
+    settings lets ``authenticate_websocket`` (used by every WS route,
+    plugin-mounted ones included) verify exactly as ``resolve_principal``
+    does for HTTP.
+    """
+    from runtime.safety.auth.websocket_auth import APP_STATE_ATTR, WebSocketAuthConfig
+
+    secret, issuer, audience = jwt
+    config = WebSocketAuthConfig(
+        identity_store=identity_store,
+        require_auth=bool(require_auth),
+        jwt_secret=secret,
+        jwt_issuer=issuer,
+        jwt_audience=audience,
+    )
+    setattr(app.state, APP_STATE_ATTR, config)
+
+
 def setup_app(
     *,
     journal_path: Any,
@@ -210,6 +237,12 @@ def setup_app(
         audience=cocoloop_jwt_audience,
     )
 
+    _publish_websocket_auth(
+        app,
+        identity_store=cocoloop_identity_store,
+        require_auth=cocoloop_require_auth,
+        jwt=(cocoloop_jwt_secret, cocoloop_jwt_issuer, cocoloop_jwt_audience),
+    )
     _install_legacy_control_plane_auth(
         app,
         identity_store=cocoloop_identity_store,

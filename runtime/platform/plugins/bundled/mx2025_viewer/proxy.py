@@ -14,11 +14,14 @@ import json
 import logging
 import re
 from collections.abc import AsyncIterator
+from typing import Any
 from urllib.parse import unquote, urlsplit, urlunsplit
 
 import httpx
 from fastapi import APIRouter, HTTPException, Request, WebSocket
 from fastapi.responses import JSONResponse, Response, StreamingResponse
+
+from runtime.safety.auth.websocket_auth import authenticate_websocket
 
 _logger = logging.getLogger(__name__)
 
@@ -315,6 +318,45 @@ def _rewrite_login_host(body: bytes) -> bytes:
     return json.dumps(payload, ensure_ascii=False, separators=(",", ":")).encode("utf-8")
 
 
+async def _bridge_upstream(websocket: WebSocket, upstream: Any) -> None:
+    """Pump frames both ways until either side ends, then close both."""
+
+    async def browser_to_upstream() -> None:
+        while True:
+            packet = await websocket.receive()
+            if packet.get("type") == "websocket.disconnect":
+                return
+            if packet.get("text") is not None:
+                await upstream.send(packet["text"])
+            elif packet.get("bytes") is not None:
+                await upstream.send(packet["bytes"])
+
+    async def upstream_to_browser() -> None:
+        async for packet in upstream:
+            if isinstance(packet, bytes):
+                await websocket.send_bytes(packet)
+            else:
+                await websocket.send_text(packet)
+
+    tasks = {
+        asyncio.create_task(browser_to_upstream()),
+        asyncio.create_task(upstream_to_browser()),
+    }
+    try:
+        done, pending = await asyncio.wait(tasks, return_when=asyncio.FIRST_COMPLETED)
+        for task in pending:
+            task.cancel()
+        for task in done:
+            with contextlib.suppress(Exception):
+                task.result()
+        if pending:
+            await asyncio.gather(*pending, return_exceptions=True)
+    finally:
+        await upstream.close()
+        with contextlib.suppress(RuntimeError):
+            await websocket.close(code=1000)
+
+
 def register_origin_proxy(
     router: APIRouter,
     *,
@@ -330,6 +372,11 @@ def register_origin_proxy(
     @router.websocket("/origin/socket.io/")
     async def proxy_websocket(websocket: WebSocket) -> None:
         """Bridge the upstream Socket.IO transport without exposing host auth."""
+        # Shared gate first (Origin policy + host session when auth is on),
+        # then this bridge's stricter rule: the Origin must be this very host.
+        auth = await authenticate_websocket(websocket)
+        if auth is None:
+            return
         local_origin = websocket.headers.get("origin", "")
         local_host = websocket.headers.get("host", "")
         if local_origin not in {f"http://{local_host}", f"https://{local_host}"}:
@@ -364,42 +411,8 @@ def register_origin_proxy(
             await websocket.close(code=1013)
             return
 
-        await websocket.accept()
-
-        async def browser_to_upstream() -> None:
-            while True:
-                packet = await websocket.receive()
-                if packet.get("type") == "websocket.disconnect":
-                    return
-                if packet.get("text") is not None:
-                    await upstream.send(packet["text"])
-                elif packet.get("bytes") is not None:
-                    await upstream.send(packet["bytes"])
-
-        async def upstream_to_browser() -> None:
-            async for packet in upstream:
-                if isinstance(packet, bytes):
-                    await websocket.send_bytes(packet)
-                else:
-                    await websocket.send_text(packet)
-
-        tasks = {
-            asyncio.create_task(browser_to_upstream()),
-            asyncio.create_task(upstream_to_browser()),
-        }
-        try:
-            done, pending = await asyncio.wait(tasks, return_when=asyncio.FIRST_COMPLETED)
-            for task in pending:
-                task.cancel()
-            for task in done:
-                with contextlib.suppress(Exception):
-                    task.result()
-            if pending:
-                await asyncio.gather(*pending, return_exceptions=True)
-        finally:
-            await upstream.close()
-            with contextlib.suppress(RuntimeError):
-                await websocket.close(code=1000)
+        await websocket.accept(subprotocol=auth.subprotocol)
+        await _bridge_upstream(websocket, upstream)
 
     async def proxy_http(request: Request, upstream_path: str):
         safe_path = _safe_upstream_path(upstream_path)

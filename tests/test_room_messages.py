@@ -236,7 +236,6 @@ def test_room_message_projection_receives_ws_persist_lines(tmp_path) -> None:
         teams={},
         lock=__import__("threading").Lock(),
         live_sockets={},
-        auth=lambda _request: None,
         save=lambda: None,
         broadcast=lambda *args, **kwargs: None,
         broadcast_presence=lambda _team_id: None,

@@ -48,7 +48,11 @@ from runtime.execution.arms.safe_rm import SafeRmConfig, SafeRmProtector
 from runtime.execution.arms.shell_state import ShellEnvState
 from runtime.execution.arms.shell_state_manager import ShellStateManager
 from runtime.platform.process.sliding_window_limiter import SlidingWindowLimiter
-from runtime.safety.auth.websocket import accepted_auth_subprotocol, websocket_bearer_token
+from runtime.safety.auth.websocket_auth import (
+    OPERATOR_ROLES,
+    WebSocketAuthConfig,
+    authenticate_websocket,
+)
 from runtime.safety.env_scrub import scrub_credential_env
 
 _logger = logging.getLogger(__name__)
@@ -405,7 +409,7 @@ def mount_terminal_routes(
     The WebSocket opens a persistent shell, so when ``require_auth`` is
     set (and an identity store is wired) the handshake is authenticated
     before the shell starts — an unauthenticated client is closed with
-    4401 and never reaches a process.
+    1008 and never reaches a process.
     """
     try:
         from fastapi import Request, WebSocket, WebSocketDisconnect  # noqa: F401
@@ -417,51 +421,16 @@ def mount_terminal_routes(
     app.router.add_event_handler("startup", _start_reaper)
     app.router.add_event_handler("shutdown", _stop_reaper)
 
-    def _resolve_ws_actor(ws: WebSocket) -> str | None:
-        """Authenticate a terminal WS handshake. Returns actor_id, or
-        None when auth isn't required. Raises PermissionError on an
-        explicit auth failure so the caller closes the socket."""
-        if identity_store is None:
-            if require_auth:
-                raise PermissionError("identity store required for terminal auth")
-            return None
-        token: str | None = None
-        auth_header = ""
-        try:
-            auth_header = ws.headers.get("authorization") or ""
-        except Exception:  # noqa: BLE001
-            auth_header = ""
-        if auth_header.lower().startswith("bearer "):
-            token = auth_header[7:].strip()
-        if token is None:
-            # Browser clients send ``bearer.b64, <base64url(token)>``
-            # (``bearer, <token>`` for older builds); never a URL query.
-            token = websocket_bearer_token(ws)
-        if not token:
-            if require_auth:
-                raise PermissionError("missing terminal auth token")
-            return None
-        if jwt_secret and token.count(".") == 2:
-            identity = identity_store.verify_jwt(
-                token,
-                secret=jwt_secret,
-                required_issuer=jwt_issuer,
-                required_audience=jwt_audience,
-            )
-            if identity is not None:
-                if require_auth and not set(identity.roles).intersection({"admin", "operator"}):
-                    raise PermissionError("operator role required")
-                return identity.actor_id
-            if require_auth:
-                raise PermissionError("invalid jwt")
-        identity = identity_store.verify_api_key(token)
-        if identity is not None:
-            if require_auth and not set(identity.roles).intersection({"admin", "operator"}):
-                raise PermissionError("operator role required")
-            return identity.actor_id
-        if require_auth:
-            raise PermissionError("invalid token")
-        return None
+    # The handshake goes through the shared gate: Origin, then the HTTP
+    # session/token check, then the operator role. A refused client is closed
+    # with 1008 before accept() and never reaches a process.
+    ws_auth = WebSocketAuthConfig(
+        identity_store=identity_store,
+        require_auth=require_auth,
+        jwt_secret=jwt_secret,
+        jwt_issuer=jwt_issuer,
+        jwt_audience=jwt_audience,
+    )
 
     def _auth_http(request: Request) -> str | None:
         from runtime.safety.auth.principal import require_operator, resolve_principal
@@ -504,19 +473,13 @@ def mount_terminal_routes(
 
     @app.websocket("/api/terminal/ws/{session_id}")
     async def terminal_ws(ws: WebSocket, session_id: str) -> None:
-        try:
-            actor_id = _resolve_ws_actor(ws)
-        except PermissionError as exc:
-            # Refuse before accept(): no shell is ever spawned. 4401
-            # mirrors HTTP 401 in the WS application close-code range.
-            from contextlib import suppress
-
-            with suppress(Exception):
-                await ws.close(code=4401, reason=str(exc))
-            return
+        auth = await authenticate_websocket(ws, config=ws_auth, roles=OPERATOR_ROLES)
+        if auth is None:
+            return  # refused before accept(): no shell is ever spawned
+        actor_id = auth.actor_id
         # A browser that offered auth subprotocols fails the handshake unless
         # the server selects one; echo only the non-secret marker.
-        await ws.accept(subprotocol=accepted_auth_subprotocol(ws))
+        await ws.accept(subprotocol=auth.subprotocol)
         # Bound _sessions growth: free shells abandoned by clients that
         # disconnected without calling /api/terminal/kill. Never touches the
         # session we're about to (re)connect to.

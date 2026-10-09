@@ -7,6 +7,12 @@ from typing import Any
 
 from starlette.websockets import WebSocket, WebSocketDisconnect
 
+from runtime.safety.auth.websocket_auth import (
+    WebSocketCredential,
+    authenticate_websocket,
+    refuse_websocket,
+)
+
 MAX_FRAME_BYTES = 1024 * 1024
 
 
@@ -66,10 +72,16 @@ class AsgiDeviceSocket:
 
 
 async def serve_device_socket(socket: WebSocket, server: Any) -> None:
+    # Devices hold no host login: the shared gate checks only Origin here and
+    # the device credential is verified by device/hello inside
+    # ``_handle_connection`` (see WEBSOCKET_AUTH_EXEMPTIONS).
+    auth = await authenticate_websocket(socket, credential=WebSocketCredential.DEVICE)
+    if auth is None:
+        return
     # A loopback-only unauthenticated development listener must never become
     # public merely because its parent HTTP app is reverse-proxied.
     if not server.auth_token:
-        await socket.close(code=1008, reason="device authentication is not configured")
+        await refuse_websocket(socket, "device authentication is not configured")
         return
-    await socket.accept()
+    await socket.accept(subprotocol=auth.subprotocol)
     await server._handle_connection(AsgiDeviceSocket(socket))

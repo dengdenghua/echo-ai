@@ -37,8 +37,8 @@ from runtime.protocol import (
     Notification,
     decode_message,
 )
-from runtime.safety.auth.principal import SESSION_COOKIE_NAME
-from runtime.safety.auth.websocket import accepted_auth_subprotocol, websocket_bearer_token
+from runtime.safety.auth.websocket import accepted_auth_subprotocol
+from runtime.safety.auth.websocket_auth import WebSocketAuthConfig, authenticate_websocket
 from runtime.sensing.gateway._realtime_gateway_approval import SharedTurnInterrupts
 from runtime.sensing.gateway._realtime_gateway_connection import RpcConnection
 from runtime.sensing.gateway._realtime_gateway_types import _ApprovalError, _RpcError
@@ -61,7 +61,6 @@ class _RealtimeGatewaySessionMixin:
     _jwt_issuer: str | None
     _jwt_audience: str | None
     _jwt_leeway_seconds: int
-    _trust_jwt_sub: bool
     _max_connections_per_actor: int
     _conn_counts: dict[str, int]
     _approval_timeout: float
@@ -89,81 +88,30 @@ class _RealtimeGatewaySessionMixin:
         """Auto-turn hook implemented by the concrete gateway."""
         raise NotImplementedError
 
-    def _resolve_ws_actor(self, ws: WebSocket) -> str | None:
-        """Authenticate a WebSocket handshake before ``accept()``.
+    def _ws_auth_config(self) -> WebSocketAuthConfig:
+        """The gateway's auth settings for the shared WebSocket gate.
 
-        Mirrors ``_resolve_actor`` (openai_gateway) but for WS.
-        Token sources, in order of preference:
-          1. ``Authorization: Bearer <token>`` header (some proxies pass it)
-          2. ``Sec-WebSocket-Protocol`` subprotocol value (browser-safe,
-             base64url-encoded by current clients)
-          3. ``?token=...`` query parameter
-          4. The durable ``HttpOnly`` browser session cookie
-
-        Returns ``actor_id`` on success, ``None`` when ``require_auth`` is
-        false and no credentials were presented. Raises ``_RpcError`` on
-        explicit auth failure so the caller can close with 4401.
+        ``authenticate_websocket`` checks Origin, then reuses the HTTP
+        ``resolve_principal`` (``Authorization: Bearer``, the browser-safe
+        ``bearer.b64`` subprotocol, or the HttpOnly session cookie; never a
+        ``?token=`` query, which would leak into access logs). JWT subjects
+        must be registered identities, so ``trust_jwt_sub`` is not honoured.
         """
-        if self._identity_store is None:
-            if self._require_auth:
-                raise _RpcError(
-                    JsonRpcErrorCode.UNAUTHORIZED,
-                    "identity store required for realtime auth",
-                )
-            return None
-
-        token: str | None = None
-        try:
-            auth_header = ws.headers.get("authorization") or ""
-        except Exception:  # noqa: BLE001
-            auth_header = ""
-        if auth_header.lower().startswith("bearer "):
-            token = auth_header[7:].strip()
-
-        if token is None:
-            token = websocket_bearer_token(ws)
-
-        if token is None:
-            try:
-                token = str(ws.cookies.get(SESSION_COOKIE_NAME) or "").strip()
-            except Exception:  # noqa: BLE001
-                token = None
-
-        if not token:
-            if self._require_auth:
-                raise _RpcError(
-                    JsonRpcErrorCode.UNAUTHORIZED,
-                    "missing realtime auth token",
-                )
-            return None
-
-        if self._jwt_secret and token.count(".") == 2:
-            identity = self._identity_store.verify_jwt(
-                token,
-                secret=self._jwt_secret,
-                leeway_seconds=self._jwt_leeway_seconds,
-                required_issuer=self._jwt_issuer,
-                required_audience=self._jwt_audience,
-                trust_jwt_sub=self._trust_jwt_sub,
-            )
-            if identity is not None:
-                return identity.actor_id
-            if self._require_auth:
-                raise _RpcError(JsonRpcErrorCode.UNAUTHORIZED, "invalid jwt")
-
-        identity = self._identity_store.verify_api_key(token)
-        if identity is not None:
-            return identity.actor_id
-        if self._require_auth:
-            raise _RpcError(JsonRpcErrorCode.UNAUTHORIZED, "invalid token")
-        return None
+        return WebSocketAuthConfig(
+            identity_store=self._identity_store,
+            require_auth=self._require_auth,
+            jwt_secret=self._jwt_secret,
+            jwt_issuer=self._jwt_issuer,
+            jwt_audience=self._jwt_audience,
+            jwt_leeway_seconds=self._jwt_leeway_seconds,
+        )
 
     @staticmethod
     def _accept_subprotocol(ws: WebSocket) -> str | None:
         """Pick the subprotocol to acknowledge in ``accept()``.
 
         Browser clients that authenticate via ``Sec-WebSocket-Protocol``
-        offer a marker plus a token (parsed by ``_resolve_ws_actor``). RFC
+        offer a marker plus a token (parsed by the shared gate). RFC
         6455 requires the server to select one of the offered protocols.
         Only the non-secret marker is echoed; the token value itself is
         never selected. Clients that offer nothing (legacy ``?token=`` or
@@ -195,21 +143,18 @@ class _RealtimeGatewaySessionMixin:
             self._conn_counts[actor_id] = count
 
     async def _serve(self, ws: WebSocket) -> None:
-        try:
-            actor_id = self._resolve_ws_actor(ws)
-        except _RpcError as exc:
-            # Refuse the handshake. 4401 mirrors the HTTP 401 semantic
-            # in WS close-code space (the 4000–4999 range is for app use).
-            with suppress(Exception):
-                await ws.close(code=4401, reason=exc.message)
+        # Refused handshakes are closed with 1008 before accept().
+        auth = await authenticate_websocket(ws, config=self._ws_auth_config())
+        if auth is None:
             return
+        actor_id = auth.actor_id
         # Per-actor connection cap (4429 ≈ HTTP 429). Checked before
         # accept so an over-limit actor never spawns connection state.
         if not self._admit_connection(actor_id):
             with suppress(Exception):
                 await ws.close(code=4429, reason="too many connections for this actor")
             return
-        await ws.accept(subprotocol=self._accept_subprotocol(ws))
+        await ws.accept(subprotocol=auth.subprotocol)
         conn = RpcConnection(
             ws,
             approval_timeout=self._approval_timeout,
@@ -219,10 +164,8 @@ class _RealtimeGatewaySessionMixin:
         )
         conn.bind_thread_watch_handler(lambda thread_id: self._watch_thread(thread_id, conn))
         conn.actor_id = actor_id
-        if actor_id is not None and self._identity_store is not None:
-            identity = self._identity_store.get(actor_id)
-            metadata = getattr(identity, "metadata", None) or {}
-            conn.tenant_id = str(metadata.get("tenant_id") or f"legacy:{actor_id}")
+        if auth.tenant_id is not None:
+            conn.tenant_id = auth.tenant_id
         self._connections.add(conn)
         # Each inbound client Request becomes a background task so the
         # receive loop stays free to deliver the corresponding Responses

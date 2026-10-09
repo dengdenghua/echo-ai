@@ -23,6 +23,7 @@ from typing import TYPE_CHECKING, Any
 from uuid import uuid4
 
 from runtime.platform.process.sliding_window_limiter import SlidingWindowLimiter
+from runtime.safety.auth.websocket_auth import WebSocketAuthConfig, authenticate_websocket
 
 from .team_speaker_policy import (
     _TURN_POLICIES,
@@ -181,7 +182,6 @@ class TeamRoomWsContext:
     teams: dict[str, TeamRoomWire]
     lock: Lock
     live_sockets: dict[str, dict[str, WebSocket]]
-    auth: Callable[[Any], str | None]
     save: Callable[[], None]
     broadcast: Callable[..., Awaitable[None]]
     broadcast_presence: Callable[[str], Awaitable[None]]
@@ -189,6 +189,9 @@ class TeamRoomWsContext:
     active_participant: Callable[[str, str], TeamParticipantWire | None]
     refresh: Callable[[], None] = _noop_refresh
     require_auth: bool = False
+    # Handshake auth for the shared WebSocket gate; ``None`` uses the host
+    # config published on ``app.state`` (fail closed when host auth is on).
+    ws_auth: WebSocketAuthConfig | None = None
     # A TestClient connection, embedded server, or multi-loop host may own
     # different sockets from different event loops. Broadcasts must schedule
     # each send on the loop that accepted that socket; directly awaiting a
@@ -454,7 +457,6 @@ async def team_room_ws(ctx: TeamRoomWsContext, ws: WebSocket, team_id: str) -> N
     lock = ctx.lock
     live_sockets = ctx.live_sockets
     socket_loops = ctx.socket_loops
-    _auth = ctx.auth
     _save = ctx.save
     _broadcast = ctx.broadcast
     _broadcast_presence = ctx.broadcast_presence
@@ -478,20 +480,13 @@ async def team_room_ws(ctx: TeamRoomWsContext, ws: WebSocket, team_id: str) -> N
         if not has_peer:
             await _broadcast(team_id, payload, include=participant_id)
 
-    actor: str | None = None
-    auth_error: str | None = None
-    try:
-        actor = _auth(ws)
-    except Exception as exc:
-        auth_error = str(getattr(exc, "detail", None) or exc or "unauthorized")
-
-    from runtime.safety.auth.websocket import accepted_auth_subprotocol
-
-    await ws.accept(subprotocol=accepted_auth_subprotocol(ws))
-    if auth_error is not None:
-        await ws.send_json({"type": "error", "message": auth_error})
-        await ws.close(code=4401)
+    # Shared gate: Origin, then the HTTP session/token check. A refused
+    # client is closed with 1008 before accept() and never sees room state.
+    auth = await authenticate_websocket(ws, config=ctx.ws_auth)
+    if auth is None:
         return
+    actor = auth.actor_id
+    await ws.accept(subprotocol=auth.subprotocol)
 
     ctx.refresh()
     participant_id = ws.query_params.get("participant_id") or f"guest-{uuid4().hex[:10]}"

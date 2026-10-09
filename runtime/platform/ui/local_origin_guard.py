@@ -30,101 +30,22 @@ operator (or test harness) can adjust them without rebuilding the app.
 
 from __future__ import annotations
 
-import ipaddress
 import logging
-import os
-from functools import lru_cache
-from urllib.parse import urlsplit
 
 from starlette.types import ASGIApp, Receive, Scope, Send
 
+from runtime.safety.auth.origin_policy import (
+    ALLOWED_HOSTS_ENV,
+    ALLOWED_ORIGINS_ENV,
+    host_rejection,
+    is_loopback_hostname,
+    origin_rejection,
+)
+from runtime.safety.auth.websocket_auth import WS_POLICY_VIOLATION
+
 _log = logging.getLogger(__name__)
 
-ALLOWED_HOSTS_ENV = "ECHO_ALLOWED_HOSTS"
-ALLOWED_ORIGINS_ENV = "ECHO_ALLOWED_ORIGINS"
-
 _SAFE_METHODS = frozenset({"GET", "HEAD", "OPTIONS"})
-# The packaged Electron shell serves the renderer from this privileged
-# custom scheme (frontend/electron/desktop-protocol.cjs). No web page can
-# claim it, so it is first-party by construction.
-_FIRST_PARTY_ORIGINS = frozenset({"echo-app://app"})
-
-
-def _clean_host(host: str) -> str:
-    return host.strip().lower().rstrip(".").strip("[]")
-
-
-def _host_from_header(value: str) -> str:
-    """Hostname of a ``Host`` header value (``h``, ``h:p``, ``[v6]:p``)."""
-    text = value.strip()
-    if not text:
-        return ""
-    try:
-        return _clean_host(urlsplit(f"//{text}").hostname or "")
-    except ValueError:
-        return ""
-
-
-def is_loopback_hostname(host: str) -> bool:
-    cleaned = _clean_host(host)
-    if not cleaned:
-        return False
-    if cleaned == "localhost" or cleaned.endswith(".localhost"):
-        return True
-    try:
-        addr = ipaddress.ip_address(cleaned)
-    except ValueError:
-        # Other names are network-resolvable; trusting them is exactly
-        # what DNS rebinding exploits.
-        return False
-    mapped = getattr(addr, "ipv4_mapped", None)
-    return addr.is_loopback or bool(mapped is not None and mapped.is_loopback)
-
-
-@lru_cache(maxsize=8)
-def _parse_hosts(raw: str) -> frozenset[str]:
-    return frozenset(h for h in (_host_from_header(part) for part in raw.split(",")) if h)
-
-
-@lru_cache(maxsize=8)
-def _parse_origins(raw: str) -> frozenset[str]:
-    return frozenset(o for o in (_normalize_origin(part) for part in raw.split(",")) if o)
-
-
-def _normalize_origin(value: str) -> str:
-    """``scheme://host[:port]`` lowercased, or ``""`` when unparsable."""
-    text = value.strip()
-    if not text or text.lower() == "null":
-        return ""
-    try:
-        parts = urlsplit(text)
-        port = parts.port
-    except ValueError:
-        return ""
-    host = _clean_host(parts.hostname or "")
-    if (
-        not parts.scheme
-        or not host
-        or parts.username
-        or parts.password
-        or parts.path
-        or parts.query
-        or parts.fragment
-    ):
-        return ""
-    if (parts.scheme.lower(), port) in {("http", 80), ("https", 443)}:
-        port = None
-    netloc = f"[{host}]" if ":" in host else host
-    if port is not None:
-        netloc = f"{netloc}:{port}"
-    return f"{parts.scheme.lower()}://{netloc}"
-
-
-def _header(scope: Scope, name: bytes) -> str | None:
-    for key, value in scope.get("headers") or ():
-        if key.lower() == name:
-            return value.decode("latin-1")
-    return None
 
 
 class LocalOriginGuardMiddleware:
@@ -153,9 +74,10 @@ class LocalOriginGuardMiddleware:
         )
         if scope_type == "websocket":
             # Close before accept: the handshake answers 403 and no route
-            # handler (shell, realtime session) ever runs.
+            # handler (shell, realtime session) ever runs. 1008 (policy
+            # violation) is the shared pre-accept refusal code.
             await receive()  # the initial websocket.connect
-            await send({"type": "websocket.close", "code": 4403, "reason": reason})
+            await send({"type": "websocket.close", "code": WS_POLICY_VIOLATION, "reason": reason})
             return
         body = f"Forbidden: {reason}".encode()
         await send(
@@ -171,41 +93,15 @@ class LocalOriginGuardMiddleware:
         await send({"type": "http.response.body", "body": body})
 
     def _rejection(self, scope: Scope) -> str | None:
-        allowed_hosts = _parse_hosts(os.environ.get(ALLOWED_HOSTS_ENV, ""))
-        raw_host = _header(scope, b"host")
-        request_host = _host_from_header(raw_host) if raw_host is not None else ""
-        # A missing Host (HTTP/1.0, raw ASGI callers) cannot be a rebinding
-        # browser; a present one must be local or explicitly allowed.
-        if (
-            (self.require_local_host or allowed_hosts)
-            and raw_host is not None
-            and not (is_loopback_hostname(request_host) or request_host in allowed_hosts)
-        ):
-            return "host not allowed"
-
+        # The policy lives in runtime.safety.auth.origin_policy so the
+        # per-endpoint WebSocket gate (authenticate_websocket) applies the
+        # exact same allowlists.
+        reason = host_rejection(scope, require_local_host=self.require_local_host)
+        if reason is not None:
+            return reason
         if scope["type"] == "http" and str(scope.get("method") or "").upper() in _SAFE_METHODS:
             return None
-        origin = _header(scope, b"origin")
-        if origin is None:
-            return None
-        normalized = _normalize_origin(origin)
-        if not normalized:
-            return "origin not allowed"
-        if normalized in _FIRST_PARTY_ORIGINS:
-            return None
-        if normalized in _parse_origins(os.environ.get(ALLOWED_ORIGINS_ENV, "")):
-            return None
-        origin_host = _clean_host(urlsplit(normalized).hostname or "")
-        if urlsplit(normalized).scheme in {"http", "https", "capacitor"} and is_loopback_hostname(
-            origin_host
-        ):
-            return None
-        scheme = {"ws": "http", "wss": "https"}.get(
-            scope.get("scheme", ""), scope.get("scheme", "")
-        )
-        if raw_host and normalized == _normalize_origin(f"{scheme}://{raw_host}"):
-            return None
-        return "origin not allowed"
+        return origin_rejection(scope)
 
 
 __all__ = [

@@ -40,8 +40,9 @@ from runtime.platform.ui._browser_router_helpers import (
     secure_profile_dir,
 )
 from runtime.platform.ui._browser_thread_route import BrowserThreadRoute
-from runtime.safety.auth.principal import require_operator, resolve_principal
+from runtime.safety.auth.principal import require_operator
 from runtime.safety.auth.websocket import accepted_auth_subprotocol
+from runtime.safety.auth.websocket_auth import WebSocketAuthConfig, require_connection_principal
 from runtime.safety.replay.browser_desktop_replay import browser_session_replay_identity
 
 __all__ = [
@@ -114,15 +115,14 @@ def create_browser_router(
     bind sessions/relay state to the verified Principal.
     """
 
+    auth_cfg = WebSocketAuthConfig(
+        identity_store, require_auth, jwt_secret, jwt_issuer, jwt_audience
+    )
+
     def _auth_dep(request: HTTPConnection) -> None:
-        resolve_principal(
-            request,
-            identity_store,
-            require_auth,
-            jwt_secret=jwt_secret,
-            jwt_issuer=jwt_issuer,
-            jwt_audience=jwt_audience,
-        )
+        # HTTP: resolve_principal (401). Relay WebSockets: the shared gate —
+        # Origin + the same session/token check, refused with 1008 pre-accept.
+        require_connection_principal(request, auth_cfg)
         from runtime.platform.plugins.automation import require_automation_plugin
 
         require_automation_plugin(request, "browser_control")

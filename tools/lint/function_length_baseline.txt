@@ -5,9 +5,9 @@ runtime/sensing/gateway/_tool_bridge_loop.py::_stream_agentic_fallback_impl	2487
 runtime/sensing/gateway/_team_stream_group_fanout.py::_drive_group_fanout	1590
 runtime/sensing/gateway/realtime_turn_lifecycle.py::_start_turn	1566
 runtime/execution/subagents/bridge.py::call_subagent	1537
-runtime/platform/ui/browser_router.py::create_browser_router	1180
+runtime/platform/ui/browser_router.py::create_browser_router	1179
 runtime/core/cerebrum/_react_execution_phase6d.py::_phase_6d_dispatch_and_observe	1140
-runtime/tentacle/dashboard.py::create_tentacle_router	1019
+runtime/tentacle/dashboard.py::create_tentacle_router	984
 runtime/execution/tool_engine/executor.py::ToolExecutor.execute_step	1001
 runtime/sensing/gateway/projects_router.py::create_projects_router	989
 runtime/sensing/gateway/agent_world_router.py::create_agent_world_router	961
@@ -15,7 +15,7 @@ runtime/core/cerebrum/react_model_stream.py::_phase_6b_model_stream	946
 runtime/sensing/gateway/computer_router.py::create_computer_router	926
 runtime/sensing/gateway/team_tasks_router.py::create_team_tasks_router	918
 runtime/core/cerebrum/react_loop.py::_stream_react_loop_impl	899
-runtime/sensing/gateway/team_rooms_router.py::create_team_rooms_router	873
+runtime/sensing/gateway/team_rooms_router.py::create_team_rooms_router	872
 runtime/platform/ui/_app_routers.py::mount_routers_a	844
 runtime/sensing/gateway/meta_router.py::create_meta_router	826
 runtime/platform/plugins/bundled/paper_trading/__init__.py::PaperTradingPlugin.register_routes	823
@@ -41,7 +41,7 @@ runtime/sensing/gateway/loop_router.py::create_loop_router	585
 runtime/sensing/gateway/stub_router.py::create_stub_router	552
 runtime/sensing/gateway/plugins_router.py::create_plugins_router	548
 runtime/sensing/gateway/subagents_router.py::create_subagents_router	543
-runtime/sensing/gateway/team_rooms_ws.py::team_room_ws	531
+runtime/sensing/gateway/team_rooms_ws.py::team_room_ws	523
 runtime/sensing/gateway/task_runs_router.py::create_task_runs_router	530
 runtime/platform/ui/_reflex_admin_editor.py::register_reflex_editor_endpoints	517
 runtime/cloud_edge/router.py::create_cloud_edge_router	495
@@ -60,7 +60,7 @@ runtime/sensing/gateway/org_router.py::create_org_router	414
 runtime/core/cerebrum/react_parallel_dispatch.py::_dispatch_parallel_actions	408
 runtime/core/cerebrum/_react_execution_phase6g.py::_phase_6g_housekeeping	406
 runtime/execution/suckers/_memory_skills_handlers.py::register_memory_skills	406
-runtime/sensing/gateway/remote_backends_router.py::create_remote_backends_router	399
+runtime/sensing/gateway/remote_backends_router.py::create_remote_backends_router	361
 runtime/sensing/gateway/uploads_router.py::create_uploads_router	395
 runtime/core/cerebrum/_react_context_helpers.py::_format_skill_catalog	391
 runtime/sensing/gateway/realtime_project_initiation.py::initiate_project	388
@@ -115,7 +115,7 @@ runtime/execution/suckers/_delegation_skills_graph.py::_run_agent_graph	271
 runtime/sensing/gateway/_computer_appshot_routes.py::register_computer_appshot_routes	271
 runtime/execution/suckers/_delegation_skills_agent.py::_call_agent	270
 runtime/sensing/gateway/openai_gateway/stream_handler.py::_stream_chat	270
-runtime/sensing/gateway/android_router.py::create_android_router	268
+runtime/sensing/gateway/android_router.py::create_android_router	206
 runtime/projectos/cowork_bridge.py::team_execute_for_group	267
 runtime/core/cerebrum/_react_execution_phase6g.py::_phase_6d_pre_dispatch_guards	264
 runtime/core/cerebrum/_react_prompt_assembly_guidance.py::_assemble_delegation_guidance	262
@@ -181,10 +181,8 @@ runtime/adapters/integrations/oct/router_auth.py::create_auth_router	205
 runtime/platform/plugins/plugin_hub.py::PluginHub.load	205
 runtime/sensing/model_router/anthropic_router.py::AnthropicModelRouter.call	204
 runtime/execution/suckers/web_skills.py::_web_fetch	202
-runtime/platform/plugins/bundled/mx2025_viewer/proxy.py::register_origin_proxy	202
 runtime/sensing/gateway/organizations_router.py::create_organizations_router	202
 runtime/execution/suckers/kimi_compat_skills.py::register_kimi_compat_skills	201
 runtime/sensing/gateway/_agents_endpoints_tasks.py::_register_tasks	201
 runtime/execution/arms/tool_registry.py::ToolRegistry.call_tool	200
-runtime/platform/plugins/bundled/paper_trading/proxy.py::register_origin_proxy	200
 runtime/sensing/gateway/_config_endpoints_security.py::_register_security	200

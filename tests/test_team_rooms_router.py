@@ -375,11 +375,14 @@ def test_team_room_websocket_respects_auth_and_actor_binding(tmp_path: Path) -> 
     owner_id = team["participants"][0]["id"]
     url = f"/api/teams/{team['id']}/ws?participant_id={owner_id}&display_name=Alice"
 
-    with client.websocket_connect(url) as ws:
-        assert ws.receive_json() == {
-            "type": "error",
-            "message": "missing Authorization: Bearer <token>",
-        }
+    # Unauthenticated: refused by the shared gate before accept() (1008), so
+    # the client never receives a room frame at all.
+    from starlette.websockets import WebSocketDisconnect
+
+    with pytest.raises(WebSocketDisconnect) as exc_info, client.websocket_connect(url):
+        pass
+    assert exc_info.value.code == 1008
+    assert exc_info.value.reason == "authentication required"
 
     with client.websocket_connect(
         url,

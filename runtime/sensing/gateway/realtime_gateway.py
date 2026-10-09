@@ -180,8 +180,9 @@ class RealtimeGateway(_RealtimeGatewaySessionMixin):
         jwt_issuer: str | None = None,
         jwt_audience: str | None = None,
         jwt_leeway_seconds: int = 0,
-        # Claims never synthesize an identity; the subject must be registered
-        # in the configured IdentityStore before a WebSocket is accepted.
+        # Accepted for API compatibility and ignored: the shared WebSocket
+        # gate (like HTTP resolve_principal) never synthesizes an identity
+        # from claims; the subject must be registered in the IdentityStore.
         trust_jwt_sub: bool = False,
         allow_client_approval_bypass: bool = False,
         max_in_flight_requests_per_connection: int = 32,
@@ -209,7 +210,7 @@ class RealtimeGateway(_RealtimeGatewaySessionMixin):
         self._jwt_issuer = jwt_issuer
         self._jwt_audience = jwt_audience
         self._jwt_leeway_seconds = jwt_leeway_seconds
-        self._trust_jwt_sub = trust_jwt_sub
+        del trust_jwt_sub
         self._allow_client_approval_bypass = allow_client_approval_bypass
         self._thread_access_resolver = thread_access_resolver
         self._max_in_flight_requests_per_connection = max(

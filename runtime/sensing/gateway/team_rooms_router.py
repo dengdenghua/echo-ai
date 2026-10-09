@@ -18,7 +18,8 @@ from typing import Any
 
 from runtime.memory.cowork.team_invitation_store import TeamInvitationStore
 from runtime.platform.process.paths import app_paths
-from runtime.safety.auth.principal import CurrentPrincipal, resolve_principal
+from runtime.safety.auth.principal import CurrentPrincipal
+from runtime.safety.auth.websocket_auth import WebSocketAuthConfig, require_connection_principal
 
 from ._team_rooms_access import TeamRoomAccess
 from ._team_rooms_state import (
@@ -193,23 +194,22 @@ def create_team_rooms_router(
             project_id=project_id,
         )
 
+    # One auth config for HTTP (resolve_principal) and the room WebSocket
+    # (the shared gate in runtime.safety.auth.websocket_auth).
+    auth_config = WebSocketAuthConfig(
+        identity_store=identity_store,
+        require_auth=require_auth,
+        jwt_secret=jwt_secret,
+        jwt_issuer=jwt_issuer,
+        jwt_audience=jwt_audience,
+    )
+
     def _principal(request: Any) -> CurrentPrincipal | None:
         state = getattr(request, "state", None)
         cached = getattr(state, "principal", None) if state is not None else None
         if isinstance(cached, CurrentPrincipal):
             return cached
-        return resolve_principal(
-            request,
-            identity_store,
-            require_auth,
-            jwt_secret=jwt_secret,
-            jwt_issuer=jwt_issuer,
-            jwt_audience=jwt_audience,
-        )
-
-    def _auth(request: Any) -> str | None:
-        principal = _principal(request)
-        return principal.actor_id if principal is not None else None
+        return require_connection_principal(request, auth_config)
 
     def _tenant(request: Any) -> str:
         principal = _principal(request)
@@ -911,7 +911,7 @@ def create_team_rooms_router(
         lock=lock,
         live_sockets=live_sockets,
         socket_loops=socket_loops,
-        auth=_auth,
+        ws_auth=auth_config,
         save=_save,
         broadcast=_broadcast,
         broadcast_presence=_broadcast_presence,

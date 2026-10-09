@@ -33,7 +33,11 @@ from fastapi import Request as FastAPIRequest
 from fastapi.responses import HTMLResponse, Response, StreamingResponse
 
 from runtime.safety.auth import require_operator
-from runtime.safety.auth.websocket import accepted_auth_subprotocol, websocket_bearer_token
+from runtime.safety.auth.websocket_auth import (
+    OPERATOR_ROLES,
+    WebSocketAuthConfig,
+    authenticate_websocket,
+)
 from runtime.tentacle._dashboard_helpers import _auto_detect_vlm_config
 from runtime.tentacle._dashboard_html import _DASHBOARD_HTML
 from runtime.tentacle.base import ToolCall
@@ -46,10 +50,6 @@ from runtime.tentacle.simulation import ProcedureSimulator, SimulationScenario
 logger = logging.getLogger(__name__)
 
 _OPERATOR_ROLES = frozenset({"admin", "operator"})
-
-
-class _RoleRequired(PermissionError):
-    """Authenticated, but lacking the admin/operator role (WS close 4403)."""
 
 
 def _is_operator(identity: Any) -> bool:
@@ -78,6 +78,15 @@ def create_tentacle_router(
     # one; local callers that want the historical unauthenticated dashboard
     # opt into it by leaving ``require_auth`` disabled.
     _enforce_auth = require_auth
+    # Browser screen streams share the HTTP session/token check and Origin
+    # policy (runtime.safety.auth.websocket_auth); refusals close with 1008.
+    ws_auth = WebSocketAuthConfig(
+        identity_store=identity_store,
+        require_auth=_enforce_auth,
+        jwt_secret=jwt_secret,
+        jwt_issuer=jwt_issuer,
+        jwt_audience=jwt_audience,
+    )
 
     @router.websocket("/device/ws")
     async def device_socket(websocket: WebSocket) -> None:
@@ -85,7 +94,6 @@ def create_tentacle_router(
 
         # Device credentials are verified by device/hello, not dashboard JWTs.
         await serve_device_socket(websocket, coordinator.ws_server)
-
 
     def _require_http_auth(request: FastAPIRequest) -> None:
         """FastAPI dependency: enforce operator auth on HTTP endpoints when enabled.
@@ -129,7 +137,10 @@ def create_tentacle_router(
 
     from .task_workspace_api import create_task_workspace_router
 
-    router.include_router(create_task_workspace_router(lambda: coordinator), dependencies=[Depends(_require_http_auth)])
+    router.include_router(
+        create_task_workspace_router(lambda: coordinator),
+        dependencies=[Depends(_require_http_auth)],
+    )
 
     # Per-device credentials (invite / list / revoke / rotate) when the hub
     # has them installed — see runtime/tentacle/device_credentials.py.
@@ -149,50 +160,6 @@ def create_tentacle_router(
 
     # 任务历史记录（内存，重启清空）
     _task_history: list[dict[str, Any]] = []
-
-    def _resolve_ws_actor(ws: WebSocket) -> str | None:
-        if identity_store is None:
-            if _enforce_auth:
-                raise PermissionError("identity store required for tentacle auth")
-            return None
-        token: str | None = None
-        auth_header = ""
-        try:
-            auth_header = ws.headers.get("authorization") or ""
-        except Exception:  # noqa: BLE001
-            auth_header = ""
-        if auth_header.lower().startswith("bearer "):
-            token = auth_header[7:].strip()
-        if token is None:
-            token = websocket_bearer_token(ws)
-        if not token:
-            if _enforce_auth:
-                raise PermissionError("missing tentacle auth token")
-            return None
-        identity = None
-        if jwt_secret and token.count(".") == 2:
-            identity = identity_store.verify_jwt(
-                token,
-                secret=jwt_secret,
-                required_issuer=jwt_issuer,
-                required_audience=jwt_audience,
-            )
-            if identity is None and _enforce_auth:
-                raise PermissionError("invalid jwt")
-        if identity is None:
-            identity = identity_store.verify_api_key(token)
-        if identity is None:
-            if _enforce_auth:
-                raise PermissionError("invalid token")
-            return None
-        if _enforce_auth and not _is_operator(identity):
-            raise _RoleRequired("admin/operator role required")
-        return identity.actor_id
-
-    async def _reject_ws(ws: WebSocket, exc: PermissionError) -> None:
-        code = 4403 if isinstance(exc, _RoleRequired) else 4401
-        with suppress(Exception):
-            await ws.close(code=code, reason=str(exc))
 
     # ── Dashboard HTML ──────────────────────────────────
 
@@ -232,7 +199,9 @@ def create_tentacle_router(
     @router.get("/discovery", dependencies=[Depends(_require_http_auth)])
     def discovery_status() -> dict[str, Any]:
         discovery = getattr(coordinator, "discovery", None)
-        return discovery.snapshot() if discovery else {"available": False, "error": "", "devices": []}
+        return (
+            discovery.snapshot() if discovery else {"available": False, "error": "", "devices": []}
+        )
 
     # ── 设备详情 ────────────────────────────────────────
 
@@ -769,17 +738,15 @@ def create_tentacle_router(
 
         服务端推送二进制帧（格式同 ScreenRelay）.
         """
-        try:
-            _resolve_ws_actor(ws)
-        except PermissionError as exc:
-            await _reject_ws(ws, exc)
+        auth = await authenticate_websocket(ws, config=ws_auth, roles=OPERATOR_ROLES)
+        if auth is None:
             return
         screen_relay = getattr(coordinator, "screen_relay", None)
         if screen_relay is None:
             await ws.close(code=1011, reason="Screen relay not available")
             return
 
-        await ws.accept(subprotocol=accepted_auth_subprotocol(ws))
+        await ws.accept(subprotocol=auth.subprotocol)
         logger.info("screen stream client connected: %s", ws.client)
 
         try:
@@ -868,17 +835,15 @@ def create_tentacle_router(
         浏览器客户端连接此端点接收 PC 屏幕画面.
         协议与设备屏幕流相同（二进制帧格式）.
         """
-        try:
-            _resolve_ws_actor(ws)
-        except PermissionError as exc:
-            await _reject_ws(ws, exc)
+        auth = await authenticate_websocket(ws, config=ws_auth, roles=OPERATOR_ROLES)
+        if auth is None:
             return
         screen_relay = getattr(coordinator, "screen_relay", None)
         if screen_relay is None:
             await ws.close(code=1011, reason="Screen relay not available")
             return
 
-        await ws.accept(subprotocol=accepted_auth_subprotocol(ws))
+        await ws.accept(subprotocol=auth.subprotocol)
         logger.info("PC screen stream client connected: %s", ws.client)
 
         # 自动订阅 pc-host

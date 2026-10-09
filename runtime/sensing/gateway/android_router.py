@@ -15,7 +15,6 @@ Endpoints:
 from __future__ import annotations
 
 import asyncio
-import contextlib
 import time
 import uuid
 from typing import Any
@@ -23,6 +22,11 @@ from typing import Any
 from fastapi import APIRouter, Depends, HTTPException, Request, WebSocket, WebSocketDisconnect
 
 from runtime.safety.approval.device_lock import get_device_lock_manager
+from runtime.safety.auth.websocket_auth import (
+    OPERATOR_ROLES,
+    WebSocketAuthConfig,
+    authenticate_websocket,
+)
 from runtime.sensing.model_router.devices import (
     AndroidDevice,
     get_device_pool,
@@ -92,76 +96,17 @@ def create_android_router(
     lock_mgr = get_device_lock_manager()
     pending_previews: dict[str, dict[str, Any]] = {}
 
-    class _WsAuthError(Exception):
-        """Raised to refuse a device WebSocket handshake (→ close 4401)."""
-
-        close_code = 4401
-
-    class _WsRoleError(_WsAuthError):
-        """Authenticated caller lacks an operational device role."""
-
-        close_code = 4403
-
-    def _ws_actor_for_identity(identity: Any) -> str:
-        if require_auth:
-            roles = {
-                str(role).strip().lower()
-                for role in (getattr(identity, "roles", ()) or ())
-                if str(role).strip()
-            }
-            if not roles.intersection({"admin", "operator"}):
-                raise _WsRoleError("operator role required for android device access")
-        return str(identity.actor_id)
-
-    def _resolve_ws_actor(ws: WebSocket) -> str | None:
-        """Authenticate the device WebSocket before ``accept()``.
-
-        Mirrors ``realtime_gateway._resolve_ws_actor``: the token may
-        arrive as an ``Authorization: Bearer`` header, the
-        ``sec-websocket-protocol`` subprotocol (``bearer, <token>``), or
-        a ``?token=`` query param. Degrades open when ``require_auth`` is
-        false, so default (no-auth) deployments are unchanged. The HTTP
-        endpoints on this router are gated separately by the control-plane
-        auth middleware in ``app.py``; that middleware never sees WS
-        scope, so the handshake must be gated here.
-        """
-        if identity_store is None:
-            if require_auth:
-                raise _WsAuthError("identity store required for android auth")
-            return None
-        token: str | None = None
-        auth_header = ws.headers.get("authorization") or ""
-        if auth_header.lower().startswith("bearer "):
-            token = auth_header[7:].strip()
-        if token is None:
-            subproto = ws.headers.get("sec-websocket-protocol") or ""
-            parts = [p.strip() for p in subproto.split(",") if p.strip()]
-            if len(parts) >= 2 and parts[0].lower() == "bearer":
-                token = parts[1]
-        if not token:
-            if require_auth:
-                raise _WsAuthError("missing android auth token")
-            return None
-        if jwt_secret and token.count(".") == 2:
-            identity = identity_store.verify_jwt(
-                token,
-                secret=jwt_secret,
-                required_issuer=jwt_issuer,
-                required_audience=jwt_audience,
-                # JWT claims are never sufficient to create an operator;
-                # verify the subject against the configured identity store.
-                trust_jwt_sub=False,
-            )
-            if identity is not None:
-                return _ws_actor_for_identity(identity)
-            if require_auth:
-                raise _WsAuthError("invalid jwt")
-        identity = identity_store.verify_api_key(token)
-        if identity is not None:
-            return _ws_actor_for_identity(identity)
-        if require_auth:
-            raise _WsAuthError("invalid token")
-        return None
+    # The device WebSocket carries the operator's session/API key (header or
+    # ``bearer.b64`` subprotocol). The HTTP auth middleware never sees WS
+    # scope, so the handshake goes through the shared gate: Origin, the HTTP
+    # token check, and the operator role — refusals close 1008 before accept.
+    ws_auth = WebSocketAuthConfig(
+        identity_store=identity_store,
+        require_auth=require_auth,
+        jwt_secret=jwt_secret,
+        jwt_issuer=jwt_issuer,
+        jwt_audience=jwt_audience,
+    )
 
     # ── List devices ───────────────────────────────────
 
@@ -277,13 +222,10 @@ def create_android_router(
 
     @router.websocket("/ws/{device_id}")
     async def device_websocket(ws: WebSocket, device_id: str) -> None:
-        try:
-            _resolve_ws_actor(ws)
-        except _WsAuthError as exc:
-            with contextlib.suppress(Exception):
-                await ws.close(code=exc.close_code, reason=str(exc))
+        auth = await authenticate_websocket(ws, config=ws_auth, roles=OPERATOR_ROLES)
+        if auth is None:
             return
-        await ws.accept()
+        await ws.accept(subprotocol=auth.subprotocol)
 
         # Register device
         dev = AndroidDevice(device_id=device_id, ws=ws)
