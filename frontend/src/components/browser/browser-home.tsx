@@ -55,7 +55,8 @@ import {
 } from "lucide-react";
 
 import { swallow } from "@/core/utils/log";
-import { BrowserStartPage } from "./browser-start-page";
+import { BrowserStartPage, topSitesFromHistory } from "./browser-start-page";
+import { requestBrowserAssistantAsk } from "./assistant-ask";
 import { cn } from "@/lib/utils";
 import { useI18n } from "@/core/i18n/hooks";
 import { useConfirmDialog } from "@/components/ui/confirm-dialog";
@@ -965,7 +966,16 @@ export function BrowserHome({
   const wt = t.browser.webviewTab;
   const bt = t.browserHome;
   const bp = t.browserPreviewPanel;
-  const { history } = useBrowserStore();
+  const { history, setCopilotOpen } = useBrowserStore();
+  const topSites = useMemo(() => topSitesFromHistory(history), [history]);
+  // The start page's main action: hand the question to the browser AI.
+  const askAssistant = useCallback(
+    (text: string) => {
+      setCopilotOpen(true);
+      requestBrowserAssistantAsk(text);
+    },
+    [setCopilotOpen],
+  );
   const workspaceWebShortcuts = useWorkspaceWebShortcuts();
   const [desktopVisible, setDesktopVisible] = useState(false);
   const [localServices, setLocalServices] = useState<DetectedLocalService[]>(
@@ -1801,6 +1811,8 @@ export function BrowserHome({
         }))}
         onOpen={openDesktopApp}
         onManageDesktop={() => setDesktopVisible(true)}
+        onAsk={askAssistant}
+        topSites={topSites}
       />
     );
   }

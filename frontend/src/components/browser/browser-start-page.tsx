@@ -1,10 +1,22 @@
-import { useRef, useState, type ReactNode, type RefObject } from "react";
+import {
+  useRef,
+  useState,
+  type KeyboardEvent,
+  type ReactNode,
+  type RefObject,
+} from "react";
 import { useNavigate } from "react-router-dom";
 import {
   CloudSun,
+  Compass,
+  Globe,
   Grip,
+  Newspaper,
+  PlaneTakeoff,
+  Scale,
   Search,
   Settings,
+  Sparkles,
   UserRound,
   ArrowUpRight,
   type LucideIcon,
@@ -19,6 +31,7 @@ import {
 import { useAuth } from "@/providers/AuthProvider";
 import { cn } from "@/lib/utils";
 import { StaticEchoCosmos } from "./StaticEchoCosmos";
+import { resolveBrowserInput } from "./task-browser-start";
 import "./browser-start-page.css";
 
 const CUSTOM_WALLPAPER_KEY = "echo.browser.start.custom-wallpaper.v1";
@@ -51,6 +64,63 @@ const WALLPAPERS: readonly WallpaperOption[] = [
   { id: "sky", name: "晴空", url: "/images/browser-wallpapers/sky-studio.png" },
 ] as const;
 
+export interface StartSite {
+  url: string;
+  title: string;
+  favicon?: string;
+}
+
+/** The most visited web sites in browsing history, one tile per host. */
+export function topSitesFromHistory(
+  history: readonly { url: string; favicon?: string; visitedAt: number }[],
+  limit = 8,
+): StartSite[] {
+  const byHost = new Map<string, StartSite & { count: number; last: number }>();
+  for (const entry of history) {
+    if (!/^https?:\/\//i.test(entry.url)) continue;
+    let origin: URL;
+    try {
+      origin = new URL(entry.url);
+    } catch {
+      continue;
+    }
+    const host = origin.hostname.replace(/^www\./, "");
+    const seen = byHost.get(host);
+    if (seen) {
+      seen.count += 1;
+      seen.last = Math.max(seen.last, entry.visitedAt);
+      seen.favicon ||= entry.favicon;
+    } else {
+      byHost.set(host, {
+        url: `${origin.origin}/`,
+        title: host,
+        favicon: entry.favicon,
+        count: 1,
+        last: entry.visitedAt,
+      });
+    }
+  }
+  return [...byHost.values()]
+    .sort((a, b) => b.count - a.count || b.last - a.last)
+    .slice(0, limit)
+    .map(({ url, title, favicon }) => ({ url, title, favicon }));
+}
+
+const PROMPTS: readonly { icon: LucideIcon; text: string }[] = [
+  { icon: Newspaper, text: "今天有哪些值得看的科技新闻？" },
+  { icon: Scale, text: "帮我对比 iPhone 16 和 Pixel 9 的拍照与续航" },
+  { icon: Compass, text: "打开 GitHub，找本周最热门的 AI 开源项目" },
+  { icon: PlaneTakeoff, text: "帮我规划一个周末两天的杭州行程" },
+];
+
+type StartOption = {
+  kind: "open" | "ask" | "search";
+  icon: LucideIcon;
+  label: string;
+  hint: string;
+  run: () => void;
+};
+
 interface StartApp {
   name: string;
   url: string;
@@ -71,6 +141,14 @@ interface Props {
   apps: StartApp[];
   onOpen: (url: string) => void;
   onManageDesktop: () => void;
+  /**
+   * Ask the browser AI. When given, the box becomes "问 AI，或搜索、输入网址":
+   * Enter asks AI unless the text is an address, and search stays one
+   * arrow-key away.
+   */
+  onAsk?: (text: string) => void;
+  /** Most visited sites, shown under the box on an empty start page. */
+  topSites?: StartSite[];
 }
 
 export function BrowserStartPage({
@@ -86,6 +164,8 @@ export function BrowserStartPage({
   apps,
   onOpen,
   onManageDesktop,
+  onAsk,
+  topSites = [],
 }: Props) {
   const { user, isAuthenticated } = useAuth();
   const navigate = useNavigate();
@@ -93,6 +173,8 @@ export function BrowserStartPage({
     null,
   );
   const [appQuery, setAppQuery] = useState("");
+  const [suggestOpen, setSuggestOpen] = useState(false);
+  const [activeOption, setActiveOption] = useState(0);
   const [wallpaper, setWallpaper] = useState(() => {
     try {
       const v2 = localStorage.getItem(WALLPAPER_KEY_V2);
@@ -109,8 +191,11 @@ export function BrowserStartPage({
   const [uploadError, setUploadError] = useState("");
   const [uploading, setUploading] = useState(false);
   const [customWallpaper, setCustomWallpaper] = useState(() => {
-    try { return localStorage.getItem(CUSTOM_WALLPAPER_KEY) || ""; }
-    catch { return ""; }
+    try {
+      return localStorage.getItem(CUSTOM_WALLPAPER_KEY) || "";
+    } catch {
+      return "";
+    }
   });
   const uploadWallpaper = (file?: File) => {
     if (!file) return;
@@ -125,18 +210,26 @@ export function BrowserStartPage({
     }
     setUploading(true);
     const reader = new FileReader();
-    reader.onerror = () => { setUploading(false); setUploadError("图片读取失败，请重试。"); };
+    reader.onerror = () => {
+      setUploading(false);
+      setUploadError("图片读取失败，请重试。");
+    };
     reader.onload = () => {
       const url = String(reader.result);
       const img = new Image();
-      img.onerror = () => { setUploading(false); setUploadError("无法打开这张图片，请换一张。"); };
+      img.onerror = () => {
+        setUploading(false);
+        setUploadError("无法打开这张图片，请换一张。");
+      };
       img.onload = () => {
         try {
           localStorage.setItem(CUSTOM_WALLPAPER_KEY, url);
           localStorage.setItem(WALLPAPER_KEY_V2, "custom");
           setCustomWallpaper(url);
           setWallpaper("custom");
-        } catch { setUploadError("本地存储空间不足，请选择更小的图片。"); }
+        } catch {
+          setUploadError("本地存储空间不足，请选择更小的图片。");
+        }
         setUploading(false);
       };
       img.src = url;
@@ -165,6 +258,69 @@ export function BrowserStartPage({
     setPanel(null);
     onManageDesktop();
   };
+  const aiMode = Boolean(onAsk);
+  const trimmed = query.trim();
+  const engineName = engines[selectedEngine]?.name ?? "搜索引擎";
+  const directUrl = (() => {
+    if (!trimmed) return "";
+    const resolved = resolveBrowserInput(trimmed, "search:");
+    return resolved.startsWith("search:") ? "" : resolved;
+  })();
+  const options: StartOption[] =
+    aiMode && trimmed
+      ? [
+          ...(directUrl
+            ? [
+                {
+                  kind: "open" as const,
+                  icon: Globe,
+                  label: directUrl,
+                  hint: "打开网址",
+                  run: () => onOpen(directUrl),
+                },
+              ]
+            : []),
+          {
+            kind: "ask",
+            icon: Sparkles,
+            label: trimmed,
+            hint: "问 AI",
+            run: () => {
+              onAsk?.(trimmed);
+              onQueryChange("");
+            },
+          },
+          {
+            kind: "search",
+            icon: Search,
+            label: trimmed,
+            hint: `用 ${engineName} 搜索`,
+            run: onSearch,
+          },
+        ]
+      : [];
+  const current = Math.min(activeOption, Math.max(options.length - 1, 0));
+  const submit = () => {
+    if (options.length > 0) {
+      setSuggestOpen(false);
+      options[current]!.run();
+    } else if (!aiMode) {
+      onSearch();
+    }
+  };
+  const onSearchKey = (event: KeyboardEvent<HTMLInputElement>) => {
+    if (!aiMode || options.length === 0) return;
+    if (event.key === "ArrowDown" || event.key === "ArrowUp") {
+      event.preventDefault();
+      setSuggestOpen(true);
+      const step = event.key === "ArrowDown" ? 1 : -1;
+      setActiveOption((current + step + options.length) % options.length);
+    } else if (event.key === "Escape") {
+      setSuggestOpen(false);
+    }
+  };
+  const showPrompts = aiMode && !children && !trimmed;
+  const showSites = !children && !trimmed && topSites.length > 0;
   return (
     <section
       aria-label="浏览器主页"
@@ -240,33 +396,151 @@ export function BrowserStartPage({
           </button>
         </div>
       </header>
-      <form
-        className="browser-start-search"
-        role="search"
-        onSubmit={(event) => {
-          event.preventDefault();
-          onSearch();
-        }}
-      >
-        <input
-          ref={searchInputRef}
-          aria-label="搜索网页"
-          value={query}
-          onChange={(event) => onQueryChange(event.target.value)}
-          placeholder="搜索网页"
-          autoComplete="off"
-          spellCheck={false}
-          enterKeyHint="search"
-        />
-        <button
-          type="submit"
-          aria-label="搜索"
-          title={`使用 ${engines[selectedEngine]?.name ?? "搜索引擎"} 搜索`}
+      <div className="browser-start-main">
+        <form
+          className="browser-start-search"
+          role="search"
+          onSubmit={(event) => {
+            event.preventDefault();
+            submit();
+          }}
         >
-          <Search size={22} strokeWidth={1.8} />
-        </button>
-      </form>
-      {children && <div className="browser-start-task-services bg-background text-foreground">{children}</div>}
+          {aiMode ? (
+            <Sparkles
+              className="browser-start-search-mark"
+              size={18}
+              strokeWidth={1.8}
+              aria-hidden="true"
+            />
+          ) : null}
+          <input
+            ref={searchInputRef}
+            aria-label={aiMode ? "问 AI，或搜索、输入网址" : "搜索网页"}
+            role={aiMode ? "combobox" : undefined}
+            aria-expanded={
+              aiMode ? suggestOpen && options.length > 0 : undefined
+            }
+            aria-controls={aiMode ? "browser-start-suggest" : undefined}
+            aria-activedescendant={
+              aiMode && suggestOpen && options.length > 0
+                ? `browser-start-option-${current}`
+                : undefined
+            }
+            value={query}
+            onChange={(event) => {
+              onQueryChange(event.target.value);
+              setActiveOption(0);
+              setSuggestOpen(true);
+            }}
+            onKeyDown={onSearchKey}
+            onFocus={() => setSuggestOpen(true)}
+            onBlur={() => setSuggestOpen(false)}
+            placeholder={aiMode ? "问 AI，或搜索、输入网址" : "搜索网页"}
+            autoComplete="off"
+            spellCheck={false}
+            enterKeyHint={aiMode ? "go" : "search"}
+          />
+          <button
+            type="submit"
+            aria-label={aiMode ? "发送" : "搜索"}
+            title={
+              aiMode
+                ? (options[current]?.hint ?? "问 AI")
+                : `使用 ${engineName} 搜索`
+            }
+          >
+            {aiMode && options[current]?.kind !== "search" ? (
+              <Sparkles size={20} strokeWidth={1.8} />
+            ) : (
+              <Search size={22} strokeWidth={1.8} />
+            )}
+          </button>
+          {aiMode && suggestOpen && options.length > 0 ? (
+            <ul
+              id="browser-start-suggest"
+              role="listbox"
+              className="browser-start-suggest"
+            >
+              {options.map((option, index) => (
+                <li
+                  key={option.kind}
+                  id={`browser-start-option-${index}`}
+                  role="option"
+                  aria-selected={index === current}
+                  className="browser-start-suggest-row"
+                  data-active={index === current ? "true" : undefined}
+                  // Keep focus in the box; act on mouse down before blur.
+                  onMouseDown={(event) => {
+                    event.preventDefault();
+                    setSuggestOpen(false);
+                    option.run();
+                  }}
+                  onMouseEnter={() => setActiveOption(index)}
+                >
+                  <option.icon size={16} strokeWidth={1.8} aria-hidden="true" />
+                  <span className="browser-start-suggest-label">
+                    {option.label}
+                  </span>
+                  <span className="browser-start-suggest-hint">
+                    {option.hint}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          ) : null}
+        </form>
+        {showPrompts ? (
+          <div className="browser-start-prompts" aria-label="试试这样问">
+            {PROMPTS.map((prompt) => (
+              <button
+                key={prompt.text}
+                type="button"
+                className="browser-start-prompt"
+                onClick={() => {
+                  onQueryChange(prompt.text);
+                  setActiveOption(0);
+                  searchInputRef.current?.focus();
+                }}
+              >
+                <prompt.icon size={14} strokeWidth={1.8} aria-hidden="true" />
+                <span>{prompt.text}</span>
+              </button>
+            ))}
+          </div>
+        ) : null}
+        {showSites ? (
+          <nav className="browser-start-sites" aria-label="常去网站">
+            {topSites.map((site) => (
+              <button
+                key={site.url}
+                type="button"
+                className="browser-start-site"
+                title={site.url}
+                onClick={() => onOpen(site.url)}
+              >
+                <span className="browser-start-site-icon" aria-hidden="true">
+                  {site.favicon ? (
+                    <img
+                      src={site.favicon}
+                      alt=""
+                      onError={(event) => {
+                        event.currentTarget.style.display = "none";
+                      }}
+                    />
+                  ) : null}
+                  <span>{site.title.charAt(0).toUpperCase()}</span>
+                </span>
+                <span className="browser-start-site-name">{site.title}</span>
+              </button>
+            ))}
+          </nav>
+        ) : null}
+      </div>
+      {children && (
+        <div className="browser-start-task-services bg-background text-foreground">
+          {children}
+        </div>
+      )}
       <Dialog
         open={active && panel !== null}
         onOpenChange={(open) => {
@@ -375,16 +649,39 @@ export function BrowserStartPage({
                     </button>
                   ))}
                 </div>
-                <input ref={uploadRef} type="file" accept="image/jpeg,image/png,image/webp"
-                  aria-label="上传自定义壁纸" className="sr-only" disabled={uploading}
-                  onChange={event => { uploadWallpaper(event.target.files?.[0]); event.target.value = ""; }} />
-                <button type="button" className="browser-start-setting-row mt-3" disabled={uploading}
-                  onClick={() => uploadRef.current?.click()}>
-                  {uploading ? "正在保存…" : customWallpaper ? "更换自定义壁纸" : "上传自定义壁纸"}
+                <input
+                  ref={uploadRef}
+                  type="file"
+                  accept="image/jpeg,image/png,image/webp"
+                  aria-label="上传自定义壁纸"
+                  className="sr-only"
+                  disabled={uploading}
+                  onChange={(event) => {
+                    uploadWallpaper(event.target.files?.[0]);
+                    event.target.value = "";
+                  }}
+                />
+                <button
+                  type="button"
+                  className="browser-start-setting-row mt-3"
+                  disabled={uploading}
+                  onClick={() => uploadRef.current?.click()}
+                >
+                  {uploading
+                    ? "正在保存…"
+                    : customWallpaper
+                      ? "更换自定义壁纸"
+                      : "上传自定义壁纸"}
                   <ArrowUpRight size={16} />
                 </button>
-                <p className="mt-2 text-xs text-muted-foreground">支持 JPG、PNG、WebP，最大 2 MB，仅保存在当前浏览器。</p>
-                {uploadError && <p role="alert" className="mt-2 text-xs text-destructive">{uploadError}</p>}
+                <p className="mt-2 text-xs text-muted-foreground">
+                  支持 JPG、PNG、WebP，最大 2 MB，仅保存在当前浏览器。
+                </p>
+                {uploadError && (
+                  <p role="alert" className="mt-2 text-xs text-destructive">
+                    {uploadError}
+                  </p>
+                )}
                 {panel === "settings" && (
                   <label className="mt-6 block text-sm">
                     搜索引擎

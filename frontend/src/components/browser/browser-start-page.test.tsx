@@ -84,7 +84,7 @@ it("persists wallpaper and applies the selected search engine", async () => {
   renderWithProviders(<Home />, { locale: "zh-CN" });
   await user.click(screen.getByRole("button", { name: "主页设置" }));
   await user.click(screen.getByRole("button", { name: "森林" }));
-  expect(localStorage.getItem("echo.browser.start.wallpaper.v1")).toBe(
+  expect(localStorage.getItem("echo.browser.start.wallpaper.v2")).toBe(
     "forest",
   );
   expect(screen.getByRole("button", { name: "森林" })).toHaveAttribute(
@@ -115,13 +115,13 @@ it("uploads, selects and restores a custom wallpaper", async () => {
     await waitFor(() => expect(screen.getByRole("button", {name: "自定义"})).toHaveAttribute("aria-pressed", "true"));
     const saved = localStorage.getItem("echo.browser.start.custom-wallpaper.v1");
     expect(saved).toMatch(/^data:image\/png;base64,/);
-    expect(localStorage.getItem("echo.browser.start.wallpaper.v1")).toBe("custom");
+    expect(localStorage.getItem("echo.browser.start.wallpaper.v2")).toBe("custom");
     view.unmount();
     const restored = renderWithProviders(<Home />, { locale: "zh-CN" });
     expect(restored.container.querySelector(".browser-start-wallpaper")).toHaveAttribute("src", saved);
     await user.click(screen.getByRole("button", { name: "主页设置" }));
     await user.click(screen.getByRole("button", { name: "星海" }));
-    expect(localStorage.getItem("echo.browser.start.wallpaper.v1")).toBe("ocean");
+    expect(localStorage.getItem("echo.browser.start.wallpaper.v2")).toBe("ocean");
   } finally { vi.unstubAllGlobals(); }
 });
 

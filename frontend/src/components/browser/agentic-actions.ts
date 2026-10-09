@@ -334,6 +334,30 @@ export const BROWSER_ACTION_PROTOCOL = `\
 最大连续 action 轮次 8 轮,超过会强停。每条 action 简洁、明确、可验证。\
 `;
 
+/**
+ * What the user typed, without protocol text prepended for the model (the
+ * browser action protocol, the recorder-mode header). The model still gets
+ * both; the conversation and its preview show only the request.
+ */
+export function visibleUserText(
+  text: string,
+  headers: readonly string[] = [BROWSER_ACTION_PROTOCOL],
+): string {
+  let out = text;
+  for (let pass = 0; pass <= headers.length; pass += 1) {
+    const trimmed = out.trimStart();
+    const injected = headers.some((header) => {
+      const firstLine = header.trimStart().split("\n", 1)[0]?.trim();
+      return Boolean(firstLine) && trimmed.startsWith(firstLine!);
+    });
+    if (!injected) break;
+    const separator = /\n\s*---\s*\n/.exec(trimmed);
+    if (!separator) break;
+    out = trimmed.slice(separator.index + separator[0].length);
+  }
+  return out;
+}
+
 // Run an AgentAction against a WebviewTabHandle (the React webview component's
 // imperative handle), as opposed to runAction() above which drives the Electron
 // browser by webContentsId. Shared here so BOTH the standalone browser assistant

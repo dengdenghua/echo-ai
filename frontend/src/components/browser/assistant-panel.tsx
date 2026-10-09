@@ -69,7 +69,12 @@ import {
   type AgentAction,
   type ActionResult,
   type BrowserControlOptions,
+  visibleUserText,
 } from "./agentic-actions";
+import {
+  BROWSER_ASSISTANT_ASK_EVENT,
+  takeBrowserAssistantAsk,
+} from "./assistant-ask";
 import { useBrowserStore } from "./browser-store";
 import { useAssistantPresentation } from "./assistant-surface";
 
@@ -111,7 +116,7 @@ interface ResearchLogEntry {
 export function AssistantPanel({ webviewHandle, framed = false }: Props) {
   const presentation = useAssistantPresentation();
   const compact = presentation?.compact === true;
-  const { t } = useI18n();
+  const { t, locale } = useI18n();
   const recorderPluginEnabled = useCapabilitySurface("browser.recorder");
   const { activeTab, state, setCopilotOpen, setCopilotWidth } =
     useBrowserStore();
@@ -219,17 +224,24 @@ export function AssistantPanel({ webviewHandle, framed = false }: Props) {
   const recentMessage = [...thread.messages]
     .reverse()
     .find((message) => isAIMessage(message) || isHumanMessage(message));
-  const recentText = recentMessage
-    ? (typeof recentMessage.content === "string"
-        ? recentMessage.content
-        : recentMessage.content
-            .filter((part) => part.type === "text")
-            .map((part) => (part as { text: string }).text)
-            .join(" ")
-      )
-        .replace(/\s+/g, " ")
-        .trim()
+  const recentRaw = recentMessage
+    ? typeof recentMessage.content === "string"
+      ? recentMessage.content
+      : recentMessage.content
+          .filter((part) => part.type === "text")
+          .map((part) => (part as { text: string }).text)
+          .join(" ")
     : "";
+  const recentText = (
+    recentMessage && isHumanMessage(recentMessage)
+      ? visibleUserText(recentRaw, [
+          BROWSER_ACTION_PROTOCOL,
+          t.browser.assistant.recorderProtocol,
+        ])
+      : recentRaw
+  )
+    .replace(/\s+/g, " ")
+    .trim();
   useEffect(() => {
     if (
       compact &&
@@ -841,6 +853,20 @@ export function AssistantPanel({ webviewHandle, framed = false }: Props) {
     [buildOutgoingText, sendMessage, threadId],
   );
 
+  // A question asked on the start page arrives once this panel is open.
+  useEffect(() => {
+    const consume = () => {
+      const text = takeBrowserAssistantAsk();
+      if (!text) return;
+      expandConversation?.(true);
+      send(text);
+    };
+    consume();
+    window.addEventListener(BROWSER_ASSISTANT_ASK_EVENT, consume);
+    return () =>
+      window.removeEventListener(BROWSER_ASSISTANT_ASK_EVENT, consume);
+  }, [expandConversation, send]);
+
   const onKey = useCallback(
     (e: KeyboardEvent<HTMLTextAreaElement>) => {
       if (e.key === "Enter" && !e.shiftKey) {
@@ -1142,7 +1168,8 @@ export function AssistantPanel({ webviewHandle, framed = false }: Props) {
           )}
         </div>
 
-        {/* quick actions */}
+        {/* quick actions — they read the page, so not on Echo's own pages */}
+        {activeTab?.url?.startsWith("echo://") ? null : (
         <div className="flex shrink-0 flex-wrap gap-1.5 border-b border-white/20 bg-white/[0.05] px-3 py-2">
           <QuickAction
             icon={FileTextIcon}
@@ -1167,6 +1194,7 @@ export function AssistantPanel({ webviewHandle, framed = false }: Props) {
             disabled={busy}
           />
         </div>
+        )}
 
         {recorderMode && (
           <div className="shrink-0 border-b border-white/20 bg-success/50/[0.04] px-3 py-2">
@@ -1375,14 +1403,20 @@ export function AssistantPanel({ webviewHandle, framed = false }: Props) {
           {thread.messages.length === 0 && !thread.isLoading && (
             <div className="flex h-full flex-col items-center justify-center text-center text-xs text-muted-foreground">
               <SparklesIcon className="mb-2 size-6 opacity-50" />
-              <div>{t.browser.assistant.emptyHint}</div>
+              <div>
+                {activeTab?.url?.startsWith("echo://")
+                  ? locale.startsWith("zh")
+                    ? "直接问吧：我可以帮你搜索、打开网页并替你操作。"
+                    : "Ask anything: I can search, open pages and act on them for you."
+                  : t.browser.assistant.emptyHint}
+              </div>
             </div>
           )}
           {thread.messages.map((m) => {
             const isUser = isHumanMessage(m);
             const isAi = isAIMessage(m);
             if (!isUser && !isAi) return null;
-            const text =
+            const raw =
               typeof m.content === "string"
                 ? m.content
                 : m.content
@@ -1392,6 +1426,14 @@ export function AssistantPanel({ webviewHandle, framed = false }: Props) {
                     )
                     .map((c) => c.text)
                     .join("");
+            // The model also received the action protocol; the user sees
+            // only what they typed.
+            const text = isUser
+              ? visibleUserText(raw, [
+                  BROWSER_ACTION_PROTOCOL,
+                  t.browser.assistant.recorderProtocol,
+                ])
+              : raw;
             return (
               <div
                 key={m.id}
