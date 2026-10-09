@@ -52,6 +52,22 @@ old name.
 Retired biomimetic names with no current dedicated package: `eyes`, `skin`,
 `mantle`, `genome`, `ink`, `camouflage`.
 
+Functional packages that sit outside the organ groups:
+
+| Package | Responsibility |
+|---|---|
+| `runtime/kernel/` | `AgentKernel`, the embeddable facade hosts depend on instead of wiring Cerebrum, the execution stack and persistence by hand |
+| `runtime/protocol/` | Transport-agnostic realtime wire contract: JSON-RPC 2.0 envelopes and the item-oriented state model |
+| `runtime/projectos/` | Project OS: milestone-driven project execution (model/store, planning, claims, deletion) |
+| `runtime/workspace/` | Workspaces and organizations: mounts, membership, directory sync, encrypted options |
+| `runtime/research/` | Deep-research workflows and citation handling |
+| `runtime/cloud_edge/` | Cloud control-plane accounts and shares, and the local edge connector |
+| `runtime/evals/` | Reproducible product evaluation suites |
+| `runtime/pet/` | Desktop-pet bridge: maps agent state, mood and cross-device presence to pet events |
+
+`tests/test_module_map.py` fails when a top-level package is missing from this
+file or a path cited here no longer exists.
+
 ## Runtime Path
 
 Workspace turns enter through the realtime gateway and bind one execution
