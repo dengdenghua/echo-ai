@@ -425,3 +425,107 @@ test("desktop restores a tab's back/forward history and reports pane clicks", as
     await rm(root, { recursive: true, force: true });
   }
 });
+
+test("desktop offers to save a submitted login, never in private tabs", async () => {
+  const root = await mkdtemp(path.join(tmpdir(), "echo-browser-login-"));
+  const server = createServer((req, res) => {
+    res.setHeader("Content-Type", "text/html; charset=utf-8");
+    res.end(
+      req.method === "POST"
+        ? "<title>Welcome</title><p>signed in</p>"
+        : `<title>Login</title><form method="post" action="/session"><input name="user"><input type="password" name="pw"><button id="go">Sign in</button></form>`,
+    );
+  });
+  await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
+  const base = `http://127.0.0.1:${(server.address() as { port: number }).port}`;
+  const app = await electron.launch({
+    args: [
+      path.resolve("electron/main.cjs"),
+      "--hidden",
+      `--user-data-dir=${root}/profile`,
+    ],
+    env: {
+      ...process.env,
+      ELECTRON_START_URL: base,
+      ECHO_DATA_DIR: root,
+      ECHO_PET_DISABLED: "1",
+    },
+  });
+  try {
+    const win = await app.firstWindow();
+    await win.waitForLoadState("domcontentloaded");
+    const available = await win.evaluate(
+      async () => (await window.echo!.browser.listPasswords()).available,
+    );
+    test.skip(!available, "no OS encryption for the password vault here");
+    const signIn = (partition: string) =>
+      win.evaluate(
+        async ({ url, partition }) => {
+          const w = window as unknown as { __offers?: unknown[] };
+          if (!w.__offers) {
+            w.__offers = [];
+            window.echo!.on("browser:password-offer", (offer) =>
+              w.__offers!.push(offer),
+            );
+          }
+          const webview = document.createElement("webview") as HTMLElement & {
+            executeJavaScript(code: string, gesture?: boolean): Promise<void>;
+          };
+          webview.setAttribute("partition", partition);
+          const ready = new Promise<void>((resolve) =>
+            webview.addEventListener("dom-ready", () => resolve(), {
+              once: true,
+            }),
+          );
+          webview.setAttribute("src", url);
+          document.body.append(webview);
+          await ready;
+          await webview.executeJavaScript(
+            `document.querySelector('[name=user]').value = 'alice';
+             document.querySelector('[name=pw]').value = 's3cret';
+             document.querySelector('#go').click();`,
+            true,
+          );
+          await new Promise((resolve) => setTimeout(resolve, 1200));
+          return w.__offers!.length;
+        },
+        { url: `${base}/login`, partition },
+      );
+    expect(await signIn("echo-private")).toBe(0);
+    expect(await signIn("persist:echo-browser")).toBe(1);
+    const offer = await win.evaluate(
+      () =>
+        (window as unknown as { __offers: Record<string, unknown>[] })
+          .__offers[0]!,
+    );
+    expect(offer).toMatchObject({
+      origin: base,
+      username: "alice",
+      update: false,
+    });
+    expect(JSON.stringify(offer)).not.toContain("s3cret");
+    const saved = await win.evaluate(async (token) => {
+      const result = await window.echo!.browser.resolvePasswordOffer(
+        token,
+        true,
+      );
+      const again = await window.echo!.browser.resolvePasswordOffer(
+        token,
+        true,
+      );
+      return { result, again };
+    }, String(offer.token));
+    expect(saved.result).toEqual({ ok: true, saved: true });
+    expect(saved.again).toMatchObject({ ok: false });
+    const listed = await win.evaluate(
+      (origin) => window.echo!.browser.listPasswords(origin),
+      base,
+    );
+    expect(listed.entries.map((entry) => entry.username)).toEqual(["alice"]);
+    expect(JSON.stringify(listed)).not.toContain("s3cret");
+  } finally {
+    await app.close();
+    await new Promise<void>((resolve) => server.close(() => resolve()));
+    await rm(root, { recursive: true, force: true });
+  }
+});

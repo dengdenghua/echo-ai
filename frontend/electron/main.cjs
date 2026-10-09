@@ -547,6 +547,74 @@ function normalizeHttpOrigin(value) {
   return parsed.origin;
 }
 
+/** Save or update the login for origin + username. */
+function storePasswordEntry(entry) {
+  const origin = normalizeHttpOrigin(entry?.origin);
+  const username = String(entry?.username || "").trim();
+  const password = String(entry?.password || "");
+  if (!username || !password) throw new Error("username and password required");
+  const entries = readPasswordVault();
+  const existing = entries.find(
+    (item) => item.origin === origin && item.username === username,
+  );
+  const next = {
+    id:
+      existing?.id ||
+      `pwd-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 9)}`,
+    origin,
+    username,
+    password,
+    updatedAt: Date.now(),
+  };
+  writePasswordVault([next, ...entries.filter((item) => item.id !== next.id)]);
+}
+
+// Logins submitted in a browser tab wait here (password stays in the main
+// process) until the user answers the "save password?" prompt.
+const pendingPasswordOffers = new Map();
+const PASSWORD_OFFER_TTL_MS = 10 * 60 * 1000;
+
+function offerToSavePassword(event, payload) {
+  const sender = event.sender;
+  if (
+    sender.getType() !== "webview" ||
+    event.senderFrame !== sender.mainFrame ||
+    // Private tabs (and any other session) never offer to save.
+    sender.session !== browserProfileSession() ||
+    !passwordVaultAvailable()
+  )
+    return;
+  let origin;
+  try {
+    origin = normalizeHttpOrigin(event.senderFrame.url);
+  } catch {
+    return;
+  }
+  const username = String(payload?.username || "")
+    .trim()
+    .slice(0, 200);
+  const password = String(payload?.password || "").slice(0, 500);
+  if (!username || !password) return;
+  const existing = readPasswordVault().find(
+    (item) => item.origin === origin && item.username === username,
+  );
+  if (existing?.password === password) return;
+  const now = Date.now();
+  for (const [token, offer] of pendingPasswordOffers) {
+    if (now - offer.at > PASSWORD_OFFER_TTL_MS)
+      pendingPasswordOffers.delete(token);
+  }
+  const token = `offer-${now.toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
+  pendingPasswordOffers.set(token, { origin, username, password, at: now });
+  mainWindow?.webContents.send("browser:password-offer", {
+    token,
+    origin,
+    username,
+    update: Boolean(existing),
+    webContentsId: sender.id,
+  });
+}
+
 function passwordVaultAvailable() {
   return safeStorage.isEncryptionAvailable();
 }
@@ -935,7 +1003,8 @@ const pendingNavigationRestores = new Map();
 const webviewAttachQueue = [];
 
 function restoreQueuedNavigation(contents) {
-  contents.on("will-attach-webview", (_event, _webPreferences, params) => {
+  contents.on("will-attach-webview", (_event, webPreferences, params) => {
+    webPreferences.preload = path.join(__dirname, "webview-preload.cjs");
     const now = Date.now();
     for (const [src, item] of pendingNavigationRestores) {
       if (now - item.queuedAt > 30_000) pendingNavigationRestores.delete(src);
@@ -1481,33 +1550,27 @@ function registerIpc() {
   });
   handle("browser:savePassword", (entry) => {
     try {
-      const origin = normalizeHttpOrigin(entry?.origin);
-      const username = String(entry?.username || "").trim();
-      const password = String(entry?.password || "");
-      if (!username || !password)
-        throw new Error("username and password required");
-      const entries = readPasswordVault();
-      const existing = entries.find(
-        (item) => item.origin === origin && item.username === username,
-      );
-      const next = {
-        id:
-          existing?.id ||
-          `pwd-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 9)}`,
-        origin,
-        username,
-        password,
-        updatedAt: Date.now(),
-      };
-      writePasswordVault([
-        next,
-        ...entries.filter((item) => item.id !== next.id),
-      ]);
+      storePasswordEntry(entry);
       return { ok: true };
     } catch (err) {
       return { ok: false, error: err.message };
     }
   });
+  handle("browser:resolvePasswordOffer", (token, save) => {
+    const offer = pendingPasswordOffers.get(String(token));
+    pendingPasswordOffers.delete(String(token));
+    if (!offer) return { ok: false, error: "offer expired" };
+    if (!save) return { ok: true, saved: false };
+    try {
+      storePasswordEntry(offer);
+      return { ok: true, saved: true };
+    } catch (err) {
+      return { ok: false, error: err.message };
+    }
+  });
+  ipcMain.on("browser-page:login-submitted", (event, payload) =>
+    offerToSavePassword(event, payload),
+  );
   handle("browser:deletePassword", (id) => {
     try {
       const entries = readPasswordVault();

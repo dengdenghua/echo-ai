@@ -116,7 +116,7 @@ export function ExtensionsDialog({
                       </p>
                     ) : null}
                     <p
-                      className="truncate text-[11px] text-muted-foreground/70"
+                      className="truncate text-[11px] text-muted-foreground"
                       title={extension.path}
                     >
                       {extension.path}

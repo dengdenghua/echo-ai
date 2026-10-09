@@ -87,6 +87,7 @@ import {
   type HistoryEntry,
 } from "./browser-store";
 import { openBrowserFind, openBrowserReader } from "./browser-events";
+import { PasswordOfferBubble, SavedPasswordButton } from "./password-prompt";
 import { preferredSearchEngine, suggestEngineId } from "./search-engines";
 import type { WebviewTabHandle } from "./webview-tab";
 
@@ -740,6 +741,7 @@ export function UrlBar({ webviewHandle, onOpenExtensions }: Props) {
         </button>
       )}
       <div ref={addressBarRef} className="relative ml-1 min-w-0 flex-1">
+        <PasswordOfferBubble />
         <div className="flex h-9 items-center gap-1 rounded-xl border border-border-subtle bg-card/80 px-3 backdrop-blur-sm transition-colors focus-within:border-primary/30 focus-within:ring-2 focus-within:ring-primary/12">
           <input
             type="text"
@@ -817,6 +819,12 @@ export function UrlBar({ webviewHandle, onOpenExtensions }: Props) {
               )}
             </div>
           )}
+          {window.echo?.isElectron && !activeTab?.private ? (
+            <SavedPasswordButton
+              origin={siteOrigin}
+              webContentsId={webviewHandle?.getWebContentsId() ?? null}
+            />
+          ) : null}
           {/* Implementation note. */}
           {activeTab &&
             activeTab.url &&
@@ -1684,7 +1692,7 @@ function BrowserActionsMenu({
       >
         <SearchIcon className="size-4" />
         <span className="flex-1">{ub.findInPage}</span>
-        <kbd className="text-micro text-muted-foreground/70">Ctrl F</kbd>
+        <kbd className="text-micro text-muted-foreground">Ctrl F</kbd>
       </button>
       <button
         type="button"
@@ -1704,7 +1712,7 @@ function BrowserActionsMenu({
       >
         <PrinterIcon className="size-4" />
         <span className="flex-1">打印…</span>
-        <kbd className="text-micro text-muted-foreground/70">Ctrl P</kbd>
+        <kbd className="text-micro text-muted-foreground">Ctrl P</kbd>
       </button>
       {onNewPrivateTab ? (
         <button
@@ -1714,7 +1722,7 @@ function BrowserActionsMenu({
         >
           <EyeOffIcon className="size-4" />
           <span className="flex-1">新建无痕标签页</span>
-          <kbd className="text-micro text-muted-foreground/70">Ctrl ⇧ N</kbd>
+          <kbd className="text-micro text-muted-foreground">Ctrl ⇧ N</kbd>
         </button>
       ) : null}
       <button
@@ -1727,7 +1735,7 @@ function BrowserActionsMenu({
         <span className="flex-1">
           {showBookmarksBar ? "隐藏书签栏" : "显示书签栏"}
         </span>
-        <kbd className="text-micro text-muted-foreground/70">Ctrl ⇧ B</kbd>
+        <kbd className="text-micro text-muted-foreground">Ctrl ⇧ B</kbd>
       </button>
       <button
         type="button"

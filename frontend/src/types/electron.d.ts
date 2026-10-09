@@ -174,6 +174,11 @@ export interface EchoElectronAPI {
     ) => Promise<{ ok: boolean; error?: string }>;
     openDownload: (id: string) => Promise<{ ok: boolean; error?: string }>;
     print: (webContentsId: number) => Promise<{ ok: boolean; error?: string }>;
+    /** Answer a "save password?" offer; the password never leaves main. */
+    resolvePasswordOffer: (
+      token: string,
+      save: boolean,
+    ) => Promise<{ ok: boolean; saved?: boolean; error?: string }>;
     getNavigationHistory: (webContentsId: number) => Promise<{
       ok: boolean;
       entries: BrowserNavigationEntry[];
@@ -396,6 +401,7 @@ export interface EchoElectronAPI {
       | "browser:download-event"
       | "browser:ask-selection"
       | "browser:webview-pointer"
+      | "browser:password-offer"
       | "desktop:organize-now"
       | "desktop:items-changed"
       | "backend:bootstrap-progress"
