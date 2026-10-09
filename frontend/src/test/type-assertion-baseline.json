@@ -185,6 +185,7 @@
     "src/core/agents/tool-registry-hooks.ts": 1,
     "src/core/api/client.ts": 4,
     "src/core/api/request.ts": 12,
+    "src/core/api/response.ts": 1,
     "src/core/apps/api.ts": 1,
     "src/core/artifacts/loader.ts": 9,
     "src/core/artifacts/open-artifact.ts": 1,
