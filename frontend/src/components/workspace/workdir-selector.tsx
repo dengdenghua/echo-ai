@@ -7,6 +7,7 @@ import {
   FolderOpenIcon,
   HardDriveIcon,
   Loader2Icon,
+  RefreshCwIcon,
   ServerIcon,
   TerminalIcon,
   type LucideIcon,
@@ -43,6 +44,11 @@ import { managedWorkdirThreadId, workdirDisplayName } from "./workdir-label";
 import { MountPointDialog } from "./mount-point-dialog";
 import { SharedSpacesDialog } from "./shared-spaces-dialog";
 import {
+  LocationMenuAction,
+  LocationMenuEntry,
+  LocationMenuLabel,
+  LocationMenuNote,
+  shortenPath,
   useWorkLocationMenu,
   WorkLocationIcon,
   type WorkLocationBinding,
@@ -717,6 +723,34 @@ export function WorkDirSelector({
     disabled: false,
   });
 
+  const manualPathForm = (
+    <form
+      className="mt-2 flex items-center gap-1.5 rounded-lg border border-border-default bg-background/70 p-1 shadow-inner"
+      onSubmit={handleManualSubmit}
+    >
+      <input
+        ref={manualInputRef}
+        aria-label={t.codeMode.selectWorkspace}
+        value={manualPath}
+        onChange={(event) => setManualPath(event.target.value)}
+        placeholder={t.codeMode.selectWorkspace}
+        className="min-w-0 flex-1 bg-transparent px-2 py-1.5 font-mono text-xs text-foreground outline-none placeholder:text-muted-foreground"
+      />
+      <button
+        type="submit"
+        disabled={!isAbsolutePath(manualPath)}
+        className={cn(
+          "rounded-md px-2.5 py-1.5 text-xs font-medium transition-colors",
+          isAbsolutePath(manualPath)
+            ? "bg-primary text-primary-foreground hover:bg-primary/90"
+            : "cursor-not-allowed bg-muted text-muted-foreground",
+        )}
+      >
+        {t.common.confirm}
+      </button>
+    </form>
+  );
+
   const localMenuContent = (
     <div
       className={cn(
@@ -767,33 +801,7 @@ export function WorkDirSelector({
             {webPickerHint(locale)}
           </div>
         )}
-        {(!isMutedVariant || noBridgeHint) && (
-          <form
-            className="mt-2 flex items-center gap-1.5 rounded-lg border border-border-default bg-background/70 p-1 shadow-inner"
-            onSubmit={handleManualSubmit}
-          >
-            <input
-              ref={manualInputRef}
-              aria-label={t.codeMode.selectWorkspace}
-              value={manualPath}
-              onChange={(event) => setManualPath(event.target.value)}
-              placeholder={t.codeMode.selectWorkspace}
-              className="min-w-0 flex-1 bg-transparent px-2 py-1.5 font-mono text-xs text-foreground outline-none placeholder:text-muted-foreground"
-            />
-            <button
-              type="submit"
-              disabled={!isAbsolutePath(manualPath)}
-              className={cn(
-                "rounded-md px-2.5 py-1.5 text-xs font-medium transition-colors",
-                isAbsolutePath(manualPath)
-                  ? "bg-primary text-primary-foreground hover:bg-primary/90"
-                  : "cursor-not-allowed bg-muted text-muted-foreground",
-              )}
-            >
-              {t.common.confirm}
-            </button>
-          </form>
-        )}
+        {(!isMutedVariant || noBridgeHint) && manualPathForm}
       </div>
 
       {/* Recent workspaces — colored letter-tile + path subtitle + ✓ for the
@@ -1093,17 +1101,132 @@ export function WorkDirSelector({
   ) : (
     localMenuContent
   );
-  // With a location binding the folder menu becomes the "本地" branch of the
-  // location list; one frame wraps both.
+  // With a location binding the folders become the "本地" branch of the
+  // location list: the same rows as the remote branches, no tabs, and shared
+  // spaces as one more group of folders this computer can work in.
+  const zhUi = locale.startsWith("zh");
+  const showSharedSpaces = remoteWorkspaceEnabled && enableRemoteTab;
+  const sharedKeys = new Set(
+    remoteWorkspaces.map((ws) => normalizePathKey(ws.mount_target)),
+  );
+  const isActiveShared = (ws: Workspace) =>
+    ws.id === workspaceId ||
+    (Boolean(workDir) &&
+      normalizePathKey(ws.mount_target) === normalizePathKey(workDir));
+  const locationLocalContent = (
+    <>
+      {isWorkDirLocked ? (
+        <LocationMenuNote>{lockedCopy.hint}</LocationMenuNote>
+      ) : (
+        <LocationMenuEntry
+          icon={<FolderIcon className="size-3.5" />}
+          title={personalSpaceLabel}
+          selected={!workDir}
+          onClick={clearWorkDir}
+        />
+      )}
+      {recentWorkdirs.some((dir) => !sharedKeys.has(normalizePathKey(dir))) ? (
+        <>
+          <LocationMenuLabel>{t.codeMode.recentWorkspaces}</LocationMenuLabel>
+          {recentWorkdirs
+            .filter((dir) => !sharedKeys.has(normalizePathKey(dir)))
+            .map((dir) => (
+              <LocationMenuEntry
+                key={dir}
+                icon={<FolderIcon className="size-3.5" />}
+                title={basename(dir) || dir}
+                subtitle={shortenPath(dir)}
+                hint={dir}
+                selected={dir === workDir}
+                onClick={() => applyWorkDir(dir)}
+              />
+            ))}
+        </>
+      ) : null}
+      {showSharedSpaces &&
+      (remoteWorkspaces.length > 0 || remoteLoading || remoteError) ? (
+        <>
+          <LocationMenuLabel>{zhUi ? "共享空间" : "Shared spaces"}</LocationMenuLabel>
+          {remoteError ? (
+            <LocationMenuNote tone="error">
+              {trRemote.remoteLoadFailed(remoteError)}
+            </LocationMenuNote>
+          ) : null}
+          {remoteLoading && remoteWorkspaces.length === 0 ? (
+            <LocationMenuNote>{trRemote.remoteLoading}</LocationMenuNote>
+          ) : (
+            remoteWorkspaces.map((ws) => {
+              const Icon = MOUNT_TYPE_ICON[ws.mount_type];
+              return (
+                <LocationMenuEntry
+                  key={ws.id}
+                  icon={<Icon className="size-3.5" />}
+                  title={ws.name}
+                  subtitle={shortenPath(ws.mount_target)}
+                  hint={ws.mount_target}
+                  selected={isActiveShared(ws)}
+                  disabled={remoteLoading}
+                  onClick={() => void handlePickRemote(ws)}
+                />
+              );
+            })
+          )}
+        </>
+      ) : null}
+      <div className="mt-1 border-t border-border/60 pt-1">
+        <LocationMenuAction
+          icon={
+            isPicking ? (
+              <Loader2Icon className="size-3.5 animate-spin" />
+            ) : (
+              <FolderOpenIcon className="size-3.5" />
+            )
+          }
+          onClick={() => void handlePrimaryAction()}
+        >
+          {folderPickerLabel}…
+        </LocationMenuAction>
+        {showSharedSpaces ? (
+          <LocationMenuAction
+            icon={<ServerIcon className="size-3.5" />}
+            onClick={() => {
+              setShowMenu(false);
+              setMountOpen(true);
+            }}
+          >
+            {zhUi ? "接入共享目录…" : "Connect a shared directory…"}
+          </LocationMenuAction>
+        ) : null}
+        {showSharedSpaces && threadId && threadId !== "new" ? (
+          <LocationMenuAction
+            icon={<RefreshCwIcon className="size-3.5" />}
+            onClick={() => {
+              setShowMenu(false);
+              setSharedOpen(true);
+            }}
+          >
+            {zhUi ? "同步共享空间…" : "Sync a shared space…"}
+          </LocationMenuAction>
+        ) : null}
+      </div>
+      {noBridgeHint ? (
+        <div className="px-1 pb-1">
+          <LocationMenuNote>{webPickerHint(locale)}</LocationMenuNote>
+          {manualPathForm}
+        </div>
+      ) : null}
+    </>
+  );
   const menuContent = location ? (
     <div
       className={cn(
-        "flex max-h-full flex-col overflow-y-auto rounded-lg border border-border-default bg-popover/95 backdrop-blur",
+        "flex max-h-full flex-col overflow-y-auto rounded-lg border border-border-default bg-popover",
         isMutedVariant ? "shadow-[var(--shadow-md)]" : "shadow-2xl",
       )}
     >
       {workLocation.renderSection({
-        localContent: folderMenuContent,
+        localContent: locationLocalContent,
+        localSummary: workDir ? folderName : personalSpaceLabel,
         close: () => setShowMenu(false),
       })}
     </div>

@@ -38,8 +38,9 @@ type DialogState =
 
 function categoryOf(location: WorkLocation): Category {
   if (location.kind === "node") return "node";
-  if (location.kind === "remote")
+  if (location.kind === "remote") {
     return location.transport === "wsl" ? "wsl" : "ssh";
+  }
   return "local";
 }
 
@@ -63,8 +64,141 @@ export function WorkLocationIcon({
   return <Icon className={className} aria-hidden="true" />;
 }
 
+/** Keep a path's head and tail — the tail names the folder: ``C:/Users/…/proj/src``. */
+export function shortenPath(path: string, max = 34): string {
+  if (path.length <= max) return path;
+  const sep = path.includes("\\") && !path.includes("/") ? "\\" : "/";
+  const parts = path.split(/[\/]/).filter(Boolean);
+  if (parts.length <= 3) return `…${path.slice(-(max - 1))}`;
+  const head = /^[A-Za-z]:$/.test(parts[0]!)
+    ? parts[0]!
+    : `${path.startsWith(sep) ? sep : ""}${parts[0]}`;
+  const tail = parts.slice(-2).join(sep);
+  const short = `${head}${sep}…${sep}${tail}`;
+  return short.length <= max + 6 ? short : `…${sep}${parts[parts.length - 1]}`;
+}
+
+// ── Menu rows shared by every branch, including the local folder list ──
+
 const ROW =
-  "flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-xs font-medium text-muted-foreground transition-colors hover:bg-muted/60 hover:text-foreground disabled:pointer-events-none disabled:opacity-50";
+  "flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-xs transition-colors hover:bg-muted/60 disabled:pointer-events-none disabled:opacity-50";
+
+/** A choosable address: a folder, a node, a connection. */
+export function LocationMenuEntry({
+  icon,
+  title,
+  subtitle,
+  selected,
+  disabled,
+  danger,
+  hint,
+  onClick,
+}: {
+  icon?: ReactNode;
+  title: string;
+  subtitle?: string;
+  selected?: boolean;
+  disabled?: boolean;
+  danger?: boolean;
+  /** Native tooltip, e.g. the full path. */
+  hint?: string;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      disabled={disabled}
+      aria-pressed={selected}
+      title={hint}
+      onClick={onClick}
+      className={cn(ROW, "text-foreground")}
+    >
+      {icon ? (
+        <span className="flex size-3.5 shrink-0 items-center justify-center text-muted-foreground">
+          {icon}
+        </span>
+      ) : null}
+      <span className="min-w-0 flex-1">
+        <span
+          className={cn(
+            "flex items-center gap-1.5 truncate",
+            selected && "font-medium",
+          )}
+        >
+          <span className="truncate">{title}</span>
+          {danger ? (
+            <span
+              className="size-1.5 shrink-0 rounded-full bg-destructive"
+              aria-hidden="true"
+            />
+          ) : null}
+        </span>
+        {subtitle ? (
+          <span className="mt-0.5 block truncate text-muted-foreground">
+            {subtitle}
+          </span>
+        ) : null}
+      </span>
+      {selected ? (
+        <CheckIcon className="size-3.5 shrink-0 text-primary" />
+      ) : null}
+    </button>
+  );
+}
+
+/** "Add …" style row; ends a branch. */
+export function LocationMenuAction({
+  icon,
+  children,
+  disabled,
+  onClick,
+}: {
+  icon?: ReactNode;
+  children: ReactNode;
+  disabled?: boolean;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      disabled={disabled}
+      onClick={onClick}
+      className={cn(ROW, "text-muted-foreground hover:text-foreground")}
+    >
+      <span className="flex size-3.5 shrink-0 items-center justify-center">
+        {icon ?? <PlusIcon className="size-3.5" />}
+      </span>
+      <span className="min-w-0 flex-1 truncate">{children}</span>
+    </button>
+  );
+}
+
+export function LocationMenuLabel({ children }: { children: ReactNode }) {
+  return (
+    <div className="px-2 pb-0.5 pt-2 text-[11px] font-medium text-muted-foreground/80">
+      {children}
+    </div>
+  );
+}
+
+export function LocationMenuNote({
+  children,
+  tone = "muted",
+}: {
+  children: ReactNode;
+  tone?: "muted" | "error";
+}) {
+  return (
+    <p
+      className={cn(
+        "px-2 py-1.5 text-xs leading-relaxed",
+        tone === "error" ? "text-destructive" : "text-muted-foreground",
+      )}
+    >
+      {children}
+    </p>
+  );
+}
 
 /**
  * The location half of the composer's location/address control.
@@ -148,9 +282,12 @@ export function useWorkLocationMenu(
 
   const renderSection = ({
     localContent,
+    localSummary,
     close,
   }: {
     localContent: ReactNode;
+    /** The chosen folder, shown on the collapsed "本地" row. */
+    localSummary?: string;
     close: () => void;
   }) => {
     if (!binding) return localContent;
@@ -162,117 +299,51 @@ export function useWorkLocationMenu(
       close();
       setDialog(next);
     };
-    const toggle = (category: Category) =>
-      setExpanded((current) => (current === category ? null : category));
-    const note = (text: string, tone: "muted" | "error" = "muted") => (
-      <p
-        className={cn(
-          "px-2 py-1.5 text-xs leading-relaxed",
-          tone === "error" ? "text-destructive" : "text-muted-foreground",
-        )}
-      >
-        {text}
-      </p>
-    );
-    const pending = locations.isLoading
-      ? note(zh ? "正在查找…" : "Looking…")
-      : locations.isError
-        ? note(
-            zh ? "暂时无法读取工作位置" : "Work locations are unavailable",
-            "error",
-          )
-        : null;
-    const remoteBlocked = !data
-      ? null
-      : !data.remote.enabled
-        ? note(
-            zh
-              ? "远程连接尚未开启：需要开启实验功能 ui.remote_transport。"
-              : "Remote connections are off: enable the experimental ui.remote_transport flag.",
-          )
-        : !data.remote.can_manage
-          ? note(
-              zh
-                ? "只有管理员可以配置远程连接。"
-                : "Only admins can configure remote connections.",
-            )
-          : null;
-    const entry = ({
-      key,
-      title,
-      subtitle,
-      selected,
-      disabled,
-      danger,
-      onClick,
-    }: {
-      key: string;
-      title: string;
-      subtitle?: string;
-      selected: boolean;
-      disabled?: boolean;
-      danger?: boolean;
-      onClick: () => void;
-    }) => (
-      <button
-        key={key}
-        type="button"
-        disabled={disabled}
-        aria-pressed={selected}
-        onClick={onClick}
-        className={cn(
-          ROW,
-          "items-start",
-          selected && "bg-muted/60 text-foreground",
-        )}
-      >
-        <span className="min-w-0 flex-1">
-          <span className="flex items-center gap-1.5 truncate text-foreground">
-            {title}
-            {danger ? (
-              <span
-                className="size-1.5 shrink-0 rounded-full bg-destructive"
-                aria-hidden="true"
-              />
-            ) : null}
-          </span>
-          {subtitle ? (
-            <span className="mt-0.5 block truncate font-normal text-muted-foreground">
-              {subtitle}
-            </span>
-          ) : null}
-        </span>
-        {selected ? (
-          <CheckIcon className="mt-0.5 size-3.5 shrink-0 text-primary" />
-        ) : null}
-      </button>
-    );
-    const action = (key: string, text: string, onClick: () => void) => (
-      <button key={key} type="button" onClick={onClick} className={ROW}>
-        <PlusIcon className="size-3.5 shrink-0" />
-        <span className="min-w-0 flex-1 truncate">{text}</span>
-      </button>
-    );
-    const connectionEntry = (connection: RemoteConnection) =>
-      entry({
-        key: connection.id,
-        title: connection.name,
-        subtitle:
+    const pending = locations.isLoading ? (
+      <LocationMenuNote>{zh ? "正在查找…" : "Looking…"}</LocationMenuNote>
+    ) : locations.isError ? (
+      <LocationMenuNote tone="error">
+        {zh ? "暂时无法读取工作位置" : "Work locations are unavailable"}
+      </LocationMenuNote>
+    ) : null;
+    const remoteBlocked = !data ? null : !data.remote.enabled ? (
+      <LocationMenuNote>
+        {zh
+          ? "远程连接尚未开启：需要开启实验功能 ui.remote_transport。"
+          : "Remote connections are off: enable the experimental ui.remote_transport flag."}
+      </LocationMenuNote>
+    ) : !data.remote.can_manage ? (
+      <LocationMenuNote>
+        {zh
+          ? "只有管理员可以配置远程连接。"
+          : "Only admins can configure remote connections."}
+      </LocationMenuNote>
+    ) : null;
+
+    const connectionEntry = (connection: RemoteConnection) => (
+      <LocationMenuEntry
+        key={connection.id}
+        title={connection.name}
+        subtitle={
           connection.health === "error" && connection.health_detail
             ? connection.health_detail
-            : connection.target,
-        selected: value.kind === "remote" && value.backend_id === connection.id,
-        danger: connection.health === "error",
-        onClick: () => {
+            : connection.target
+        }
+        selected={value.kind === "remote" && value.backend_id === connection.id}
+        danger={connection.health === "error"}
+        onClick={() => {
           chooseConnection(connection);
           close();
-        },
-      });
+        }}
+      />
+    );
+
     const branch = (
       category: Category,
       icon: ReactNode,
       text: string,
       body: ReactNode,
+      summary?: string,
     ) => {
       const open = expanded === category;
       const active = categoryOf(value) === category;
@@ -283,20 +354,25 @@ export function useWorkLocationMenu(
             aria-expanded={open}
             data-testid={`work-location-${category}`}
             onClick={() => {
-              if (category === "local" && value.kind !== "local")
+              if (category === "local" && value.kind !== "local") {
                 binding.onChange(LOCAL_WORK_LOCATION);
-              toggle(category);
+              }
+              setExpanded(open ? null : category);
             }}
-            className={cn(ROW, active && "text-foreground")}
+            className={cn(
+              ROW,
+              "font-medium",
+              active ? "text-foreground" : "text-muted-foreground",
+              "hover:text-foreground",
+            )}
           >
-            {icon}
-            <span className="min-w-0 flex-1 truncate">{text}</span>
-            {active && !open ? (
-              <span
-                className="size-1.5 shrink-0 rounded-full bg-primary"
-                aria-hidden="true"
-              />
-            ) : null}
+            <span className="flex size-3.5 shrink-0 items-center justify-center">
+              {icon}
+            </span>
+            <span className="shrink-0">{text}</span>
+            <span className="min-w-0 flex-1 truncate text-right font-normal text-muted-foreground">
+              {active && !open ? summary : null}
+            </span>
             <ChevronRightIcon
               className={cn(
                 "size-3.5 shrink-0 opacity-50 transition-transform",
@@ -304,9 +380,7 @@ export function useWorkLocationMenu(
               )}
             />
           </button>
-          {open ? (
-            <div className="ml-3 border-l border-border/60 pl-1">{body}</div>
-          ) : null}
+          {open ? <div className="pb-1 pl-[22px]">{body}</div> : null}
         </div>
       );
     };
@@ -320,113 +394,124 @@ export function useWorkLocationMenu(
             node.roles.length > 1
               ? `${workspace.name} · ${role}`
               : workspace.name;
-          return entry({
-            key: `${node.node_id}:${workspace.id}:${role}`,
-            title: node.label,
-            subtitle: offline
-              ? zh
-                ? "离线"
-                : "Offline"
-              : unmounted
-                ? zh
-                  ? "共享空间未挂载到本机"
-                  : "Workspace is not mounted here"
-                : scope,
-            selected:
-              value.kind === "node" &&
-              value.node_id === node.node_id &&
-              value.workspace_id === workspace.id &&
-              value.role === role,
-            disabled: offline || unmounted,
-            onClick: () =>
-              pick({
-                kind: "node",
-                node_id: node.node_id,
-                workspace_id: workspace.id,
-                role,
-                label: node.label,
-                workspace_name: workspace.name,
-              }),
-          });
+          return (
+            <LocationMenuEntry
+              key={`${node.node_id}:${workspace.id}:${role}`}
+              title={node.label}
+              subtitle={
+                offline
+                  ? zh
+                    ? "离线"
+                    : "Offline"
+                  : unmounted
+                    ? zh
+                      ? "共享空间未挂载到本机"
+                      : "Workspace is not mounted here"
+                    : scope
+              }
+              selected={
+                value.kind === "node" &&
+                value.node_id === node.node_id &&
+                value.workspace_id === workspace.id &&
+                value.role === role
+              }
+              disabled={offline || unmounted}
+              onClick={() =>
+                pick({
+                  kind: "node",
+                  node_id: node.node_id,
+                  workspace_id: workspace.id,
+                  role,
+                  label: node.label,
+                  workspace_name: workspace.name,
+                })
+              }
+            />
+          );
         }),
       ),
     );
 
     return (
-      <div className="p-1.5" data-testid="work-location-menu">
+      <div className="p-1" data-testid="work-location-menu">
         {branch(
           "local",
-          <LaptopIcon className="size-3.5 shrink-0" />,
+          <LaptopIcon className="size-3.5" />,
           zh ? "本地" : "Local",
           localContent,
+          localSummary,
         )}
         <button
           type="button"
           disabled
-          className={ROW}
+          className={cn(ROW, "font-medium text-muted-foreground")}
           data-testid="work-location-cloud"
         >
-          <CloudIcon className="size-3.5 shrink-0" />
-          <span className="min-w-0 flex-1 truncate">
-            {zh ? "云端" : "Cloud"}
+          <span className="flex size-3.5 shrink-0 items-center justify-center">
+            <CloudIcon className="size-3.5" />
           </span>
-          <span className="shrink-0 text-xs font-normal">
+          <span className="flex-1">{zh ? "云端" : "Cloud"}</span>
+          <span className="shrink-0 font-normal">
             {zh ? "即将推出" : "Coming soon"}
           </span>
         </button>
         {branch(
           "node",
-          <RadioTowerIcon className="size-3.5 shrink-0" />,
+          <RadioTowerIcon className="size-3.5" />,
           zh ? "远程控制" : "Remote Control",
           <>
             {pending ??
-              (nodeEntries.length > 0
-                ? nodeEntries
-                : note(
-                    zh
-                      ? "还没有连上来的机器。"
-                      : "No machines are connected yet.",
-                  ))}
-            {action(
-              "guide",
-              zh ? "连接另一台机器…" : "Connect another machine…",
-              () => openDialog({ kind: "guide" }),
-            )}
+              (nodeEntries.length > 0 ? (
+                nodeEntries
+              ) : (
+                <LocationMenuNote>
+                  {zh
+                    ? "还没有连上来的机器。"
+                    : "No machines are connected yet."}
+                </LocationMenuNote>
+              ))}
+            <LocationMenuAction onClick={() => openDialog({ kind: "guide" })}>
+              {zh ? "连接另一台机器…" : "Connect another machine…"}
+            </LocationMenuAction>
           </>,
+          label ?? undefined,
         )}
         {showWsl
           ? branch(
               "wsl",
-              <SquareTerminalIcon className="size-3.5 shrink-0" />,
+              <SquareTerminalIcon className="size-3.5" />,
               "WSL",
-              pending ?? remoteBlocked ?? (
+              (pending ?? remoteBlocked) || (
                 <>
                   {wslConnections.map(connectionEntry)}
-                  {unconnectedDistros.map((distro) =>
-                    action(
-                      distro.name,
-                      zh ? `连接 ${distro.name}…` : `Connect ${distro.name}…`,
-                      () => openDialog({ kind: "wsl", distro: distro.name }),
-                    ),
-                  )}
+                  {unconnectedDistros.map((distro) => (
+                    <LocationMenuAction
+                      key={distro.name}
+                      onClick={() =>
+                        openDialog({ kind: "wsl", distro: distro.name })
+                      }
+                    >
+                      {zh ? `连接 ${distro.name}…` : `Connect ${distro.name}…`}
+                    </LocationMenuAction>
+                  ))}
                 </>
               ),
+              label ?? undefined,
             )
           : null}
         {branch(
           "ssh",
-          <KeyRoundIcon className="size-3.5 shrink-0" />,
+          <KeyRoundIcon className="size-3.5" />,
           "SSH",
-          pending ?? remoteBlocked ?? (
+          (pending ?? remoteBlocked) || (
             <>
               {sshConnections.map(connectionEntry)}
-              {action(
-                "add-ssh",
-                zh ? "添加 SSH 连接…" : "Add SSH connection…",
-                () => openDialog({ kind: "ssh" }),
-              )}
+              <LocationMenuAction onClick={() => openDialog({ kind: "ssh" })}>
+                {zh ? "添加 SSH 连接…" : "Add SSH connection…"}
+              </LocationMenuAction>
             </>
           ),
+          label ?? undefined,
         )}
       </div>
     );
