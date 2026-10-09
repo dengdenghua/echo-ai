@@ -1,6 +1,14 @@
 import { swallow } from "@/core/utils/log";
-import { authHeaders, jsonAuthHeaders } from "@/core/auth/api";
-import { getBackendBaseURL } from "@/core/config";
+import {
+  apiDelete,
+  apiGet,
+  apiPatch,
+  apiPost,
+  apiPut,
+  isApiErrorStatus,
+  untypedApi,
+  type ApiFailure,
+} from "@/core/api/request";
 import { eventBus } from "@/core/events";
 import type { Agent } from "@/core/agents/types";
 
@@ -213,77 +221,63 @@ export interface CreateTeamInput {
   thread_id?: string | null;
 }
 
-const BASE = () => `${getBackendBaseURL()}/api`;
 const PARTICIPANT_KEY = "echo:teamParticipantId";
 
-async function parseJson<T>(res: Response): Promise<T> {
-  if (!res.ok) {
-    const text = await res.text().catch(() => "");
-    throw new Error(text || `Request failed: ${res.status}`);
-  }
-  return res.json() as Promise<T>;
+/** Historical wording: the raw error body, else the status. */
+function teamError(failure: ApiFailure): string {
+  return failure.text || `Request failed: ${failure.status}`;
 }
 
 export async function fetchTeams(): Promise<Team[]> {
-  const res = await fetch(`${BASE()}/teams`, { headers: authHeaders() });
-  const data = await parseJson<{ teams?: Team[] } | Team[]>(res);
+  const data = (await apiGet("/api/teams", { errorMessage: teamError })) as
+    | { teams?: Team[] }
+    | Team[];
   return Array.isArray(data) ? data : (data.teams ?? []);
 }
 
 export async function createTeam(input: CreateTeamInput): Promise<Team> {
-  const res = await fetch(`${BASE()}/teams`, {
-    method: "POST",
-    headers: jsonAuthHeaders(),
-    body: JSON.stringify(input),
-  });
-  return parseJson<Team>(res);
+  return (await apiPost("/api/teams", {
+    body: input,
+    errorMessage: teamError,
+  })) as Team;
 }
 
 export async function updateTeam(
   teamId: string,
   input: CreateTeamInput,
 ): Promise<Team> {
-  const res = await fetch(`${BASE()}/teams/${encodeURIComponent(teamId)}`, {
-    method: "PUT",
-    headers: jsonAuthHeaders(),
-    body: JSON.stringify(input),
-  });
-  return parseJson<Team>(res);
+  return (await apiPut("/api/teams/{team_id}", {
+    path: { team_id: teamId },
+    body: input,
+    errorMessage: teamError,
+  })) as Team;
 }
 
 export async function deleteTeam(teamId: string): Promise<void> {
-  const res = await fetch(`${BASE()}/teams/${encodeURIComponent(teamId)}`, {
-    method: "DELETE",
-    headers: authHeaders(),
+  await apiDelete("/api/teams/{team_id}", {
+    path: { team_id: teamId },
+    errorMessage: teamError,
   });
-  await parseJson(res);
 }
 
 export async function createTeamInvite(
   teamId: string,
   input: CreateTeamInviteInput = {},
 ): Promise<TeamInvite> {
-  const res = await fetch(
-    `${BASE()}/teams/${encodeURIComponent(teamId)}/invites`,
-    {
-      method: "POST",
-      headers: jsonAuthHeaders(),
-      body: JSON.stringify(input),
-    },
-  );
-  return parseJson<TeamInvite>(res);
+  return (await apiPost("/api/teams/{team_id}/invites", {
+    path: { team_id: teamId },
+    body: input,
+    errorMessage: teamError,
+  })) as TeamInvite;
 }
 
 export async function listTeamInvites(
   teamId: string,
 ): Promise<TeamInviteRecord[]> {
-  const res = await fetch(
-    `${BASE()}/teams/${encodeURIComponent(teamId)}/invites`,
-    { headers: authHeaders() },
-  );
-  const data = await parseJson<
-    { invites?: TeamInviteRecord[] } | TeamInviteRecord[]
-  >(res);
+  const data = (await apiGet("/api/teams/{team_id}/invites", {
+    path: { team_id: teamId },
+    errorMessage: teamError,
+  })) as { invites?: TeamInviteRecord[] } | TeamInviteRecord[];
   return Array.isArray(data) ? data : (data.invites ?? []);
 }
 
@@ -291,51 +285,42 @@ export async function revokeTeamInvite(
   teamId: string,
   inviteId: string,
 ): Promise<TeamInviteRecord> {
-  const res = await fetch(
-    `${BASE()}/teams/${encodeURIComponent(teamId)}/invites/${encodeURIComponent(inviteId)}`,
-    { method: "DELETE", headers: authHeaders() },
-  );
-  const data = await parseJson<{ invite: TeamInviteRecord }>(res);
+  const data = (await apiDelete("/api/teams/{team_id}/invites/{invite_id}", {
+    path: { team_id: teamId, invite_id: inviteId },
+    errorMessage: teamError,
+  })) as { invite: TeamInviteRecord };
   return data.invite;
 }
 
 export async function getTeamJoinPolicy(
   teamId: string,
 ): Promise<TeamJoinPolicyInfo> {
-  const res = await fetch(
-    `${BASE()}/teams/${encodeURIComponent(teamId)}/join-policy`,
-    { headers: authHeaders() },
-  );
-  return parseJson<TeamJoinPolicyInfo>(res);
+  return (await apiGet("/api/teams/{team_id}/join-policy", {
+    path: { team_id: teamId },
+    errorMessage: teamError,
+  })) as TeamJoinPolicyInfo;
 }
 
 export async function updateTeamJoinPolicy(
   teamId: string,
   joinPolicy: TeamJoinPolicy,
 ): Promise<TeamJoinPolicyInfo> {
-  const res = await fetch(
-    `${BASE()}/teams/${encodeURIComponent(teamId)}/join-policy`,
-    {
-      method: "PATCH",
-      headers: jsonAuthHeaders(),
-      body: JSON.stringify({ join_policy: joinPolicy }),
-    },
-  );
-  return parseJson<TeamJoinPolicyInfo>(res);
+  return (await apiPatch("/api/teams/{team_id}/join-policy", {
+    path: { team_id: teamId },
+    body: { join_policy: joinPolicy },
+    errorMessage: teamError,
+  })) as TeamJoinPolicyInfo;
 }
 
 export async function listTeamJoinRequests(
   teamId: string,
   status: TeamJoinRequestStatus | "all" = "pending",
 ): Promise<TeamJoinRequest[]> {
-  const query = status === "all" ? "" : `?status=${encodeURIComponent(status)}`;
-  const res = await fetch(
-    `${BASE()}/teams/${encodeURIComponent(teamId)}/join-requests${query}`,
-    { headers: authHeaders() },
-  );
-  const data = await parseJson<{
-    join_requests?: TeamJoinRequest[];
-  }>(res);
+  const data = (await apiGet("/api/teams/{team_id}/join-requests", {
+    path: { team_id: teamId },
+    query: { status: status === "all" ? undefined : status },
+    errorMessage: teamError,
+  })) as { join_requests?: TeamJoinRequest[] };
   return data.join_requests ?? [];
 }
 
@@ -348,11 +333,14 @@ export async function approveTeamJoinRequest(
     join_request: TeamJoinRequest;
   }
 > {
-  const res = await fetch(
-    `${BASE()}/teams/${encodeURIComponent(teamId)}/join-requests/${encodeURIComponent(requestId)}/approve`,
-    { method: "POST", headers: jsonAuthHeaders(), body: "{}" },
+  return untypedApi.post(
+    `/api/teams/${encodeURIComponent(teamId)}/join-requests/${encodeURIComponent(requestId)}/approve`,
+    {
+      reason: "the snapshot declares no body, but the client sends {}",
+      body: {},
+      errorMessage: teamError,
+    },
   );
-  return parseJson(res);
 }
 
 export async function rejectTeamJoinRequest(
@@ -360,25 +348,23 @@ export async function rejectTeamJoinRequest(
   requestId: string,
   reason = "",
 ): Promise<{ ok: boolean; changed?: boolean; join_request: TeamJoinRequest }> {
-  const res = await fetch(
-    `${BASE()}/teams/${encodeURIComponent(teamId)}/join-requests/${encodeURIComponent(requestId)}/reject`,
+  return (await apiPost(
+    "/api/teams/{team_id}/join-requests/{request_id}/reject",
     {
-      method: "POST",
-      headers: jsonAuthHeaders(),
-      body: JSON.stringify({ reason }),
+      path: { team_id: teamId, request_id: requestId },
+      body: { reason },
+      errorMessage: teamError,
     },
-  );
-  return parseJson(res);
+  )) as { ok: boolean; changed?: boolean; join_request: TeamJoinRequest };
 }
 
 export async function inspectTeamInvite(
   token: string,
 ): Promise<TeamInvitePreview> {
-  const res = await fetch(
-    `${BASE()}/team-invites/${encodeURIComponent(token)}`,
-    { headers: authHeaders() },
-  );
-  const data = await parseJson<TeamInvitePreview | { team: Team }>(res);
+  const data = (await apiGet("/api/team-invites/{token}", {
+    path: { token },
+    errorMessage: teamError,
+  })) as TeamInvitePreview | { team: Team };
   if ("invite" in data) return data;
 
   // Transitional compatibility for a backend that still returns the full
@@ -403,36 +389,34 @@ export async function joinTeamInvite(
   token: string,
   input: JoinTeamInviteInput,
 ): Promise<JoinTeamInviteResult> {
-  const res = await fetch(
-    `${BASE()}/team-invites/${encodeURIComponent(token)}/join`,
-    {
-      method: "POST",
-      headers: jsonAuthHeaders(),
-      body: JSON.stringify(input),
-    },
-  );
-  return parseJson<JoinTeamInviteResult>(res);
+  return (await apiPost("/api/team-invites/{token}/join", {
+    path: { token },
+    body: input,
+    errorMessage: teamError,
+  })) as JoinTeamInviteResult;
 }
 
 export async function getOwnTeamJoinRequest(
   token: string,
 ): Promise<OwnTeamJoinRequestResult | null> {
-  const res = await fetch(
-    `${BASE()}/team-invites/${encodeURIComponent(token)}/join-request`,
-    { headers: authHeaders() },
-  );
-  if (res.status === 404) return null;
-  return parseJson<OwnTeamJoinRequestResult>(res);
+  try {
+    return (await apiGet("/api/team-invites/{token}/join-request", {
+      path: { token },
+      errorMessage: teamError,
+    })) as OwnTeamJoinRequestResult;
+  } catch (error) {
+    if (isApiErrorStatus(error, 404)) return null;
+    throw error;
+  }
 }
 
 export async function withdrawOwnTeamJoinRequest(
   token: string,
 ): Promise<{ ok: boolean; outcome: string; join_request: TeamJoinRequest }> {
-  const res = await fetch(
-    `${BASE()}/team-invites/${encodeURIComponent(token)}/join-request`,
-    { method: "DELETE", headers: authHeaders() },
-  );
-  return parseJson(res);
+  return (await apiDelete("/api/team-invites/{token}/join-request", {
+    path: { token },
+    errorMessage: teamError,
+  })) as { ok: boolean; outcome: string; join_request: TeamJoinRequest };
 }
 
 export async function updateTeamParticipant(
@@ -440,30 +424,25 @@ export async function updateTeamParticipant(
   participantId: string,
   input: UpdateTeamParticipantInput,
 ): Promise<UpdateTeamParticipantResult> {
-  const res = await fetch(
-    `${BASE()}/teams/${encodeURIComponent(teamId)}/participants/${encodeURIComponent(participantId)}`,
+  return (await apiPatch(
+    "/api/teams/{team_id}/participants/{participant_id}",
     {
-      method: "PATCH",
-      headers: jsonAuthHeaders(),
-      body: JSON.stringify(input),
+      path: { team_id: teamId, participant_id: participantId },
+      body: input,
+      errorMessage: teamError,
     },
-  );
-  return parseJson<UpdateTeamParticipantResult>(res);
+  )) as UpdateTeamParticipantResult;
 }
 
 export async function updateSpeakerPolicy(
   teamId: string,
   speakerPolicy: SpeakerPolicy,
 ): Promise<{ team: Team; speaker_policy: SpeakerPolicy }> {
-  const res = await fetch(
-    `${BASE()}/teams/${encodeURIComponent(teamId)}/speaker-policy`,
-    {
-      method: "PATCH",
-      headers: jsonAuthHeaders(),
-      body: JSON.stringify({ speaker_policy: speakerPolicy }),
-    },
-  );
-  return parseJson<{ team: Team; speaker_policy: SpeakerPolicy }>(res);
+  return (await apiPatch("/api/teams/{team_id}/speaker-policy", {
+    path: { team_id: teamId },
+    body: { speaker_policy: speakerPolicy },
+    errorMessage: teamError,
+  })) as { team: Team; speaker_policy: SpeakerPolicy };
 }
 
 export async function updateDelegation(
@@ -471,29 +450,27 @@ export async function updateDelegation(
   participantId: string,
   input: UpdateDelegationInput,
 ): Promise<UpdateTeamParticipantResult> {
-  const res = await fetch(
-    `${BASE()}/teams/${encodeURIComponent(teamId)}/participants/${encodeURIComponent(participantId)}/delegation`,
+  return (await apiPatch(
+    "/api/teams/{team_id}/participants/{participant_id}/delegation",
     {
-      method: "PATCH",
-      headers: jsonAuthHeaders(),
-      body: JSON.stringify(input),
+      path: { team_id: teamId, participant_id: participantId },
+      body: input,
+      errorMessage: teamError,
     },
-  );
-  return parseJson<UpdateTeamParticipantResult>(res);
+  )) as UpdateTeamParticipantResult;
 }
 
 export async function removeTeamParticipant(
   teamId: string,
   participantId: string,
 ): Promise<RemoveTeamParticipantResult> {
-  const res = await fetch(
-    `${BASE()}/teams/${encodeURIComponent(teamId)}/participants/${encodeURIComponent(participantId)}`,
+  return (await apiDelete(
+    "/api/teams/{team_id}/participants/{participant_id}",
     {
-      method: "DELETE",
-      headers: authHeaders(),
+      path: { team_id: teamId, participant_id: participantId },
+      errorMessage: teamError,
     },
-  );
-  return parseJson<RemoveTeamParticipantResult>(res);
+  )) as RemoveTeamParticipantResult;
 }
 
 export async function migrateLegacyTeamsIfNeeded(
