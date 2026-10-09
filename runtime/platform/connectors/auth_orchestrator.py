@@ -15,7 +15,6 @@ from __future__ import annotations
 import contextlib
 import json
 import os
-import platform
 import re
 import secrets
 import shlex
@@ -47,12 +46,7 @@ _ALLOWED_ENV_PREFIX = ("MCP_", "CONNECTOR_", "LARK_", "DWS_", "WECOM_", "WESTOCK
 
 
 def _platform_key() -> str:
-    sys = platform.system().lower()
-    if sys == "darwin":
-        return "darwin"
-    if sys == "windows":
-        return "win32"
-    return "linux"
+    return cli_lifecycle.platform_key()
 
 
 # ── 设备流会话(WorkBuddy ``authDeviceFlow``)──────────────
