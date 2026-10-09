@@ -13,11 +13,14 @@ sys.path.insert(0, str(TOOLS_LINT))
 import run_gates  # noqa: E402
 
 
-def test_gate_list_matches_ci_nine() -> None:
-    """The aggregator must carry exactly the nine mechanical gates."""
+def test_gate_list_matches_ci() -> None:
+    """The aggregator must carry exactly the mechanical gates CI runs."""
     expected = {
         "untracked_source_check",
         "god_file_check",
+        "function_length_check",
+        "inline_locale_check",
+        "sqlite_schema_check",
         "import_direction_check",
         "orphan_module_check",
         "feature_flag_consumption_check",
@@ -35,7 +38,7 @@ def test_select_gates_only_and_skip() -> None:
 
     picked = run_gates.select_gates(None, "root_hygiene")
     assert "root_hygiene" not in {g.name for g in picked}
-    assert len(picked) == 8
+    assert len(picked) == len(run_gates.GATES) - 1
 
 
 def test_select_gates_rejects_unknown_names() -> None:
