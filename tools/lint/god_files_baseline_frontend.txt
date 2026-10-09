@@ -14,7 +14,7 @@ frontend/src/app/workspace/narrative/page.tsx	1602
 frontend/src/app/workspace/narrative/studio-panels.tsx	1173
 frontend/src/app/workspace/observability/page.tsx	1856
 frontend/src/app/workspace/projects/page.tsx	1226
-frontend/src/app/workspace/realtime/[thread_id]/page.tsx	5130
+frontend/src/app/workspace/realtime/[thread_id]/page.tsx	1765
 frontend/src/app/workspace/reflex/gepa-panel.tsx	1790
 frontend/src/app/workspace/storage/page.tsx	3277
 frontend/src/components/browser/assistant-panel.tsx	1868
