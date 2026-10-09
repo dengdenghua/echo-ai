@@ -196,15 +196,19 @@ def _run_process(
     caller can persist the child's pid as an in-flight marker before the
     job's own work starts.
     """
-    from runtime.platform.process.tree import process_group_kwargs, terminate_process_tree
+    from runtime.platform.process.tree import (
+        detach_process_job,
+        spawn_in_job,
+        terminate_process_tree,
+    )
 
-    proc = subprocess.Popen(  # noqa: S603 — argv is explicit and shell=False
+    # On Windows the job ends the whole tree if this process dies mid-run.
+    proc = spawn_in_job(  # noqa: S603 — argv is explicit and shell=False
         argv,
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
         text=True,
         env=env,
-        **process_group_kwargs(),
     )
     if on_start is not None:
         try:
@@ -229,6 +233,8 @@ def _run_process(
             break
         try:
             stdout, stderr = proc.communicate(timeout=min(0.2, remaining))
+            # Like POSIX sessions, a job that finished keeps its daemons.
+            detach_process_job(proc)
             return (
                 subprocess.CompletedProcess(argv, proc.returncode, stdout, stderr),
                 False,
