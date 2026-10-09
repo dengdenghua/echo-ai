@@ -9,11 +9,23 @@ from __future__ import annotations
 import base64
 import hashlib
 import json
+import os
+import stat
 from pathlib import Path
 
 import pytest
 
 from runtime.adapters.mcp_client import oauth
+
+
+def _assert_owner_only(path: Path) -> None:
+    mode = stat.S_IMODE(path.stat().st_mode)
+    if os.name == "posix":
+        assert mode == 0o600
+    else:
+        # Windows has no group/other bits (the profile ACL limits access);
+        # a 0600 write there leaves an ordinary writable file.
+        assert mode == 0o666
 
 
 def _fake_urlopen(payload: bytes):
@@ -94,8 +106,7 @@ def test_save_and_bearer_and_forget(tmp_path: Path, monkeypatch: pytest.MonkeyPa
     assert store.bearer("cf") == "AT"
     assert store.has_tokens("cf")
     # token file is restricted
-    mode = (tmp_path / "mcp_oauth.json").stat().st_mode & 0o777
-    assert mode == 0o600
+    _assert_owner_only(tmp_path / "mcp_oauth.json")
     assert store.forget("cf") and not store.has_tokens("cf")
     oauth.reset_oauth_store_for_tests()
 
@@ -117,7 +128,7 @@ def test_tokens_encrypted_at_rest_when_key_set(
     blob = path.read_bytes()
     assert blob[:1] != b"{"  # encrypted, not plaintext JSON
     assert b"AT-secret" not in blob  # token unreadable on disk
-    assert (path.stat().st_mode & 0o777) == 0o600
+    _assert_owner_only(path)
     # A fresh store with the same key round-trips the tokens.
     assert oauth.MCPOAuthStore(path=path).bearer("cf") == "AT-secret"
 

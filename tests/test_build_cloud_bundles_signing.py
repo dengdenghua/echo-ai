@@ -3,6 +3,7 @@ from __future__ import annotations
 import base64
 import importlib.util
 import json
+import os
 import tarfile
 from pathlib import Path
 
@@ -188,9 +189,12 @@ def test_plugin_content_builder_signs_codex_and_connector_packages(
         "process.local",
     ]
     assert connector_trust["auth_modes"] == ["token"]
-    assert (
-        runtime_extracted / "codex" / "documents" / "content.txt"
-    ).stat().st_mode & 0o777 == 0o755
+    if os.name == "posix":
+        # Windows has no execute bit: the source chmod(0o755) is a no-op,
+        # so both the signer and the verifier see the normalized 0644 there.
+        assert (
+            runtime_extracted / "codex" / "documents" / "content.txt"
+        ).stat().st_mode & 0o777 == 0o755
 
     extracted = tmp_path / "extracted"
     extracted.mkdir()

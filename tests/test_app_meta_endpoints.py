@@ -76,6 +76,17 @@ def isolated_cwd(
 
 
 @pytest.fixture
+def empty_home(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
+    """Hide the developer's ~/.echo plugins (Windows resolves "~" via USERPROFILE)."""
+
+    home = tmp_path / "home"
+    home.mkdir()
+    monkeypatch.setenv("HOME", str(home))
+    monkeypatch.setenv("USERPROFILE", str(home))
+    return home
+
+
+@pytest.fixture
 def client(isolated_cwd: Path) -> Iterator[TestClient]:
     with TestClient(create_app()) as test_client:
         yield test_client
@@ -364,9 +375,14 @@ class TestSkills:
 
     def test_default_app_includes_file_backed_skill_library(
         self,
-        client: TestClient,
+        isolated_cwd: Path,
+        empty_home: Path,
     ) -> None:
-        data = client.get("/api/skills").json()
+        # Startup and the catalog also read ~/.echo/plugins/codex: an
+        # installed Codex "pdf" plugin legitimately takes over the bundled
+        # skill of the same name, so build the app against an empty home.
+        with TestClient(create_app()) as client:
+            data = client.get("/api/skills").json()
         skills = {s["name"]: s for s in data["skills"]}
 
         assert "pdf" in skills
@@ -751,6 +767,9 @@ class TestAuthProviders:
             enabled = True
             users = {"alice": "x"}  # password_required=True
             allow_any_username = True
+            # Outside ECHO_ENV=development, password accounts are only
+            # advertised with a strong JWT secret (local_login_enabled).
+            jwt_secret = "0123456789abcdef0123456789ABCDEF!"
 
         app = create_app(local_auth_config=_FakeLocal())
         c = TestClient(app)

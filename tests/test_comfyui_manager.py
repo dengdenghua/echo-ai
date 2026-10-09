@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import os
 from types import SimpleNamespace
 
 from runtime.sensing.gateway import comfyui_manager
@@ -12,8 +13,13 @@ def test_worker_commands_are_fixed_to_managed_stable_install(monkeypatch, tmp_pa
     install = comfyui_manager._worker_command("install")
     update = comfyui_manager._worker_command("update")
 
+    venv_comfy = (
+        tmp_path / "venv" / "Scripts" / "comfy.exe"
+        if os.name == "nt"
+        else tmp_path / "venv" / "bin" / "comfy"
+    )
     assert install == [
-        str(tmp_path / "venv" / "bin" / "comfy"),
+        str(venv_comfy),
         f"--workspace={tmp_path / 'workspace'}",
         "--skip-prompt",
         "install",

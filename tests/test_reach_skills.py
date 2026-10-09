@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import os
 import stat
 from typing import Any
 
@@ -282,7 +283,9 @@ def test_platform_collect_writes_json(tmp_path: Any, monkeypatch: Any) -> None:
     assert result["search_count"] == 1
     assert result["output_path"] == str(output)
     assert output.exists()
-    assert stat.S_IMODE(output.stat().st_mode) == 0o600
+    # Windows has no group/other bits (the profile ACL limits access); a
+    # 0600 write there leaves an ordinary writable file.
+    assert stat.S_IMODE(output.stat().st_mode) == (0o600 if os.name == "posix" else 0o666)
 
 
 def test_platform_collect_confines_output_path(tmp_path: Any, monkeypatch: Any) -> None:
