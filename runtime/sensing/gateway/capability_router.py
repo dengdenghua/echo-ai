@@ -45,6 +45,7 @@ from runtime.platform.connectors import oauth_support
 from runtime.platform.connectors.auth_orchestrator import RefreshCleanupRequiredError
 from runtime.safety.auth.scope import scope_from_request
 from runtime.sensing._fastapi_guard import require_fastapi
+from runtime.sensing.gateway._codex_catalog_reader import CodexCatalogReader
 from runtime.sensing.gateway._device_flow_models import (
     DeviceFlowCancelResponse,
     DeviceFlowResponse,
@@ -73,6 +74,7 @@ def create_capability_router(
         )
 
         registry = CapabilityRegistry()
+    codex_catalog = CodexCatalogReader(codex_accounts)
 
     async def _auth_dep(request: Request) -> AsyncIterator[None]:
         from runtime.adapters.web_auth import _resolve_actor
@@ -232,9 +234,8 @@ def create_capability_router(
         items = registry.list()
         if codex_accounts is not None and source != "connector":
             try:
-                remote_plugins = await codex_accounts.list_plugins(
-                    scope_from_request(request),
-                    force_refetch=force_refetch,
+                remote_plugins = await codex_catalog.list_plugins(
+                    scope_from_request(request), force_refetch=force_refetch
                 )
                 # The App Server catalog owns install state for personal Codex
                 # applications.  A checked-out/bundled copy is only an offline
@@ -345,7 +346,7 @@ def create_capability_router(
             if item.get("installable") is False:
                 raise HTTPException(409, "Codex marketplace plugin is not installable")
             try:
-                return await codex_accounts.install_plugin(
+                return await codex_catalog.install_plugin(
                     scope_from_request(request),
                     catalog_id=cid,
                 )
@@ -390,7 +391,7 @@ def create_capability_router(
         item = await _get_lifecycle_item(cid, request)
         if item.get("is_codex_marketplace") is True:
             try:
-                return await codex_accounts.uninstall_plugin(
+                return await codex_catalog.uninstall_plugin(
                     scope_from_request(request),
                     catalog_id=cid,
                 )

@@ -36,7 +36,7 @@ runtime/sensing/gateway/config_router.py::create_config_router	596
 runtime/sensing/gateway/workspaces_router.py::create_workspaces_router	593
 runtime/sensing/gateway/loop_router.py::create_loop_router	585
 runtime/sensing/gateway/stub_router.py::create_stub_router	552
-runtime/sensing/gateway/plugins_router.py::create_plugins_router	548
+runtime/sensing/gateway/plugins_router.py::create_plugins_router	546
 runtime/sensing/gateway/subagents_router.py::create_subagents_router	543
 runtime/sensing/gateway/team_rooms_ws.py::team_room_ws	523
 runtime/sensing/gateway/task_runs_router.py::create_task_runs_router	530

@@ -14,6 +14,7 @@ import hashlib
 import json
 import os
 import shutil
+from collections.abc import Iterator
 from pathlib import Path
 from typing import Any
 from urllib.parse import quote
@@ -538,17 +539,26 @@ def _permission_resolution(
     }
 
 
+def _plugin_identity(
+    plugin_dir: Path,
+    manifest: dict[str, Any],
+) -> tuple[dict[str, Any], str, str]:
+    """Return ``(interface, id, display name)`` exactly as listings use them."""
+
+    interface = manifest.get("interface")
+    if not isinstance(interface, dict):
+        interface = {}
+    name = _string(manifest.get("name"), plugin_dir.name)
+    return interface, name, _string(interface.get("displayName"), name)
+
+
 def _plugin_info(
     plugin_dir: Path,
     manifest: dict[str, Any],
     *,
     publisher_trust_store_path: str | Path | None = None,
 ) -> dict[str, Any]:
-    interface = manifest.get("interface")
-    if not isinstance(interface, dict):
-        interface = {}
-    name = _string(manifest.get("name"), plugin_dir.name)
-    display_name = _string(interface.get("displayName"), name)
+    interface, name, display_name = _plugin_identity(plugin_dir, manifest)
     capabilities = _capability_records(interface.get("capabilities"), name)
     logo_url = _asset_url(plugin_dir, name, interface.get("logo"))
     composer_icon_url = _asset_url(plugin_dir, name, interface.get("composerIcon"))
@@ -588,29 +598,50 @@ def _plugin_info(
     return info
 
 
+def _discovered_manifests(roots: list[Path] | None) -> Iterator[tuple[Path, dict[str, Any]]]:
+    for root in roots or _default_plugin_roots():
+        if not root.is_dir():
+            continue
+        for manifest_path in sorted(root.glob("*/.codex-plugin/plugin.json")):
+            manifest = _read_manifest(manifest_path)
+            if manifest is not None:
+                yield manifest_path.parent.parent, manifest
+
+
 def discover_codex_plugins(
     roots: list[Path] | None = None,
     *,
     publisher_trust_store_path: str | Path | None = None,
 ) -> list[dict[str, Any]]:
     out: dict[str, dict[str, Any]] = {}
-    for root in roots or _default_plugin_roots():
-        if not root.is_dir():
-            continue
-        for manifest_path in sorted(root.glob("*/.codex-plugin/plugin.json")):
-            manifest = _read_manifest(manifest_path)
-            if manifest is None:
-                continue
-            info = _plugin_info(
-                manifest_path.parent.parent,
-                manifest,
-                publisher_trust_store_path=publisher_trust_store_path,
-            )
-            out[info["id"]] = info
+    for plugin_dir, manifest in _discovered_manifests(roots):
+        info = _plugin_info(
+            plugin_dir,
+            manifest,
+            publisher_trust_store_path=publisher_trust_store_path,
+        )
+        out[info["id"]] = info
     return sorted(out.values(), key=lambda item: item["name"].lower())
 
 
+def discover_codex_capabilities(roots: list[Path] | None = None) -> list[dict[str, Any]]:
+    """Return every capability record, in ``discover_codex_plugins`` order.
+
+    Listing capabilities needs only the manifests. ``discover_codex_plugins``
+    also runs each plugin's smoke check, which hashes every plugin file for
+    publisher provenance. With a few dozen plugins that takes several seconds.
+    """
+
+    plugins: dict[str, tuple[str, list[dict[str, Any]]]] = {}
+    for plugin_dir, manifest in _discovered_manifests(roots):
+        interface, name, display_name = _plugin_identity(plugin_dir, manifest)
+        plugins[name] = (display_name, _capability_records(interface.get("capabilities"), name))
+    ordered = sorted(plugins.values(), key=lambda entry: entry[0].lower())
+    return [cap for _, caps in ordered for cap in caps]
+
+
 __all__ = [
+    "discover_codex_capabilities",
     "discover_codex_plugins",
     "is_sensitive_plugin_asset_path",
     "public_plugin_asset_paths",

@@ -10,6 +10,7 @@ from types import SimpleNamespace
 from typing import Any
 
 import httpx
+import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
@@ -19,6 +20,8 @@ from runtime.core.cerebrum.capability_router import (
 )
 from runtime.platform.capabilities.capability_registry import CapabilityRegistry
 from runtime.safety.auth import Identity, IdentityStore
+from runtime.sensing.gateway import _codex_catalog_reader
+from runtime.sensing.gateway._codex_catalog_reader import CodexCatalogReader
 from runtime.sensing.gateway.capability_router import create_capability_router
 
 
@@ -598,6 +601,83 @@ def test_capability_market_aggregates_and_manages_codex_app_server_plugins() -> 
     assert removed.json()["installed"] is False
     assert codex_accounts.install_calls == [catalog_id]
     assert codex_accounts.uninstall_calls == [catalog_id]
+
+
+class _SlowCodexAccounts(_FakeCodexAccounts):
+    """App Server stand-in: each plugin/list call takes the next delay."""
+
+    def __init__(self, *delays: float) -> None:
+        super().__init__()
+        self.delays = list(delays)
+        self.list_calls = 0
+
+    async def list_plugins(
+        self,
+        scope: object,
+        *,
+        force_refetch: bool = False,
+    ) -> list[dict[str, Any]]:
+        self.list_calls += 1
+        await asyncio.sleep(self.delays.pop(0) if self.delays else 0)
+        return await super().list_plugins(scope, force_refetch=force_refetch)
+
+
+def test_capability_list_does_not_wait_for_a_slow_codex_catalog(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # A cold App Server fetches the remote plugin directory before answering
+    # plugin/list (20-30 s on a dev instance). The list must answer from local
+    # rows and pick up the remote rows once the background fetch lands.
+    monkeypatch.setattr(_codex_catalog_reader, "LIST_WAIT_S", 0.05)
+    codex_accounts = _SlowCodexAccounts(1.0)
+    app = FastAPI()
+    app.include_router(
+        create_capability_router(registry=_FakeCapabilityRegistry(), codex_accounts=codex_accounts)
+    )
+    remote_id = "codex-marketplace:remote-one@openai-curated"
+
+    def listed_ids(response: httpx.Response) -> list[str]:
+        return [item["id"] for item in response.json()["capabilities"]]
+
+    with TestClient(app) as client:
+        started = time.monotonic()
+        first = client.get("/api/capabilities")
+        elapsed = time.monotonic() - started
+        deadline = time.monotonic() + 10
+        later = client.get("/api/capabilities")
+        while remote_id not in listed_ids(later) and time.monotonic() < deadline:
+            time.sleep(0.05)
+            later = client.get("/api/capabilities")
+
+    assert first.status_code == 200
+    assert elapsed < 1.0
+    assert listed_ids(first) == ["cli-one", "plugin-one"]
+    assert remote_id in listed_ids(later)
+    # The polls during the slow fetch shared it; at most one warm re-read follows.
+    assert codex_accounts.list_calls <= 2
+
+
+def test_codex_catalog_reader_serves_last_good_rows_until_an_install() -> None:
+    accounts = _SlowCodexAccounts(0, 60, 60)
+    catalog_id = "codex-marketplace:remote-one@openai-curated"
+
+    async def scenario() -> tuple[Any, Any, bool]:
+        reader = CodexCatalogReader(accounts, wait_s=0.05)
+        live = await reader.list_plugins(None)
+        stale = await reader.list_plugins(None)
+        await reader.install_plugin(None, catalog_id=catalog_id)
+        try:
+            await reader.list_plugins(None)
+        except TimeoutError:
+            return live, stale, True
+        return live, stale, False
+
+    live, stale, timed_out = asyncio.run(scenario())
+
+    assert stale == live
+    # Install state changed, so the stored catalog must not be served again.
+    assert timed_out is True
+    assert accounts.install_calls == [catalog_id]
 
 
 def test_personal_codex_marketplace_lifecycle_needs_login_not_operator() -> None:

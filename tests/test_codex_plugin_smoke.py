@@ -4,11 +4,13 @@ import base64
 import json
 from pathlib import Path
 
+import pytest
 from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
+from runtime.platform.plugins import codex_discovery
 from runtime.platform.plugins.codex_discovery import discover_codex_plugins
 from runtime.platform.plugins.publisher_provenance import (
     canonical_publisher_signature_payload,
@@ -237,6 +239,46 @@ def test_codex_plugin_smoke_endpoint(tmp_path: Path) -> None:
 
     assert response.status_code == 200
     assert response.json()["ok"] is True
+
+
+def test_plugin_capability_list_skips_smoke_checks(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # Smoke checks hash every plugin file: seconds for a real plugin set. The
+    # capability list (and the router's auth dependency) must not run them.
+    _write_plugin(tmp_path)
+    (tmp_path / "atlas" / ".codex-plugin").mkdir(parents=True)
+    (tmp_path / "atlas" / ".codex-plugin" / "plugin.json").write_text(
+        json.dumps(
+            {
+                "name": "atlas",
+                "interface": {
+                    "displayName": "Atlas",
+                    "capabilities": ["map", {"name": "route", "type": "tool"}],
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
+    expected = [
+        cap for plugin in discover_codex_plugins([tmp_path]) for cap in plugin["capabilities"]
+    ]
+
+    def _no_smoke(*_args: object, **_kwargs: object) -> dict[str, object]:
+        raise AssertionError("capability listing ran a plugin smoke check")
+
+    monkeypatch.setattr(codex_discovery, "_plugin_smoke_check", _no_smoke)
+    app = FastAPI()
+    app.include_router(create_plugins_router(plugin_roots=[tmp_path]))
+    client = TestClient(app)
+
+    listed = client.get("/api/plugins/capabilities")
+    tools = client.get("/api/plugins/capabilities?type=tool")
+
+    assert [cap["provider"] for cap in expected] == ["atlas", "atlas", "research"]
+    assert listed.json() == expected
+    assert tools.json() == [cap for cap in expected if cap["type"] == "tool"]
 
 
 def test_codex_plugin_smoke_summary_endpoint(tmp_path: Path) -> None:

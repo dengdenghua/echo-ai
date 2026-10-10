@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
@@ -9,6 +10,7 @@ from fastapi.responses import FileResponse
 
 from runtime.platform.plugins.codex_discovery import (  # re-exported
     _string,
+    discover_codex_capabilities,
     discover_codex_plugins,
     is_sensitive_plugin_asset_path,
     public_plugin_asset_paths,
@@ -46,8 +48,14 @@ def is_public_plugin_asset_request(
     method: str,
     path: str,
     *,
-    plugins: list[dict[str, Any]],
+    plugins: list[dict[str, Any]] | Callable[[], list[dict[str, Any]]],
 ) -> bool:
+    """Return whether ``path`` is a public asset of a discovered plugin.
+
+    A callable ``plugins`` is invoked only for asset-shaped GET/HEAD paths, so
+    every other request skips plugin discovery.
+    """
+
     if method.upper() not in {"GET", "HEAD"}:
         return False
     parts = path.split("/", 5)
@@ -65,7 +73,7 @@ def is_public_plugin_asset_request(
     requested = Path(asset_path)
     if requested.is_absolute() or ".." in requested.parts:
         return False
-    for plugin in plugins:
+    for plugin in plugins() if callable(plugins) else plugins:
         if str(plugin.get("id") or "") != plugin_id:
             continue
         plugin_dir = Path(_string(plugin.get("path"))).resolve()
@@ -111,7 +119,7 @@ def create_plugins_router(
 
     def _auth_dep(request: Request) -> None:
         path = str(getattr(getattr(request, "url", None), "path", "") or "")
-        if is_public_plugin_asset_request(request.method, path, plugins=_discover()):
+        if is_public_plugin_asset_request(request.method, path, plugins=_discover):
             return
 
         from runtime.adapters.web_auth import _resolve_actor
@@ -146,12 +154,10 @@ def create_plugins_router(
 
     @router.get("/api/plugins/capabilities")
     def _plugin_caps(type: str | None = None) -> list[dict[str, Any]]:
-        caps: list[dict[str, Any]] = []
-        for plugin in _discover():
-            for cap in plugin["capabilities"]:
-                if type is None or cap.get("type") == type:
-                    caps.append(cap)
-        return caps
+        # Manifest-only: the per-plugin smoke checks behind _discover() hash
+        # every plugin file and add nothing to a capability listing.
+        caps = discover_codex_capabilities(plugin_roots)
+        return [cap for cap in caps if type is None or cap.get("type") == type]
 
     @router.get("/api/plugins/smoke-summary")
     def _plugin_smoke_summary() -> dict[str, Any]:
