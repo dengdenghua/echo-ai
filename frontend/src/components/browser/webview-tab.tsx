@@ -2228,9 +2228,9 @@ export const WebviewTab = forwardRef<WebviewTabHandle, Props>(
         cancelled = true;
         wv.removeEventListener("dom-ready", handler);
       };
-    }, [tab.device]);
+    }, [tab.device, tab.url]);
 
-    // Implementation note.
+    // Report the active page; the <webview> only exists once off the start page.
     useEffect(() => {
       const wv = ref.current;
       if (!active || !wv) return;
@@ -2247,7 +2247,7 @@ export const WebviewTab = forwardRef<WebviewTabHandle, Props>(
         wv.removeEventListener("dom-ready", select);
         window.echo?.bridge.setActiveTab(null);
       };
-    }, [active, reloadSeed]);
+    }, [active, reloadSeed, tab.url]);
 
     const style: CSSProperties = shown
       ? { display: "inline-flex", width: "100%", height: "100%" }
