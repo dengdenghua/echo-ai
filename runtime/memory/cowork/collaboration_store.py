@@ -1282,19 +1282,36 @@ class CollaborationStore(
             None,
         )
 
+    def annotation_author_id(self, session_id: str, annotation_id: str) -> str | None:
+        """The author of one annotation in this session; ``None`` if it is not here."""
+        session_id = require_cowork_id(session_id, label="session_id")
+        annotation_id = require_cowork_id(annotation_id, label="annotation_id")
+        with self._lock, self._connect() as conn:
+            row = conn.execute(
+                "SELECT author_id FROM collaboration_annotations "
+                "WHERE session_id=? AND annotation_id=?",
+                (session_id, annotation_id),
+            ).fetchone()
+        return None if row is None else str(row[0] or "")
+
     def delete_annotation(self, session_id: str, annotation_id: str) -> bool:
         session_id = require_cowork_id(session_id, label="session_id")
         annotation_id = require_cowork_id(annotation_id, label="annotation_id")
         with self._lock, self._connect() as conn:
-            conn.execute(
-                "DELETE FROM collaboration_annotation_replies WHERE annotation_id=?",
-                (annotation_id,),
-            )
+            # Replies carry no session id of their own. Remove them only once
+            # the annotation is proven to belong to this session, so a caller
+            # with access to one thread cannot wipe another thread's replies.
             cur = conn.execute(
                 "DELETE FROM collaboration_annotations WHERE session_id=? AND annotation_id=?",
                 (session_id, annotation_id),
             )
-            return cur.rowcount > 0
+            if cur.rowcount == 0:
+                return False
+            conn.execute(
+                "DELETE FROM collaboration_annotation_replies WHERE annotation_id=?",
+                (annotation_id,),
+            )
+            return True
 
     def add_annotation_reply(
         self,

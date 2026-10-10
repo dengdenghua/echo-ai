@@ -36,6 +36,7 @@ def _register_room_social(router: APIRouter, d: CoworkGroupDeps) -> None:
     group_store = d.group_store
     _collaboration_store = d.collaboration_store
     _require_room_member = d.require_room_member
+    _can_moderate = d.access.can_moderate
     _actor = d.actor
     _auth_dep = d.auth_dep
     _broadcast_social_change = d.broadcast_social_change
@@ -183,7 +184,16 @@ def _register_room_social(router: APIRouter, d: CoworkGroupDeps) -> None:
         background_tasks: BackgroundTasks,
     ) -> dict[str, Any]:
         room_id = _annotation_room_id(thread_id, request)
-        if not _collaboration_store().delete_annotation(thread_id, annotation_id):
+        store = _collaboration_store()
+        author_id = store.annotation_author_id(thread_id, annotation_id)
+        if author_id is None:
+            raise HTTPException(404, "annotation not found")
+        # Only the author, or whoever moderates the thread (thread owner or
+        # linked-room owner/admin), may delete an annotation and its replies.
+        actor_id = str(_actor(request) or "anonymous").strip() or "anonymous"
+        if author_id != actor_id and not _can_moderate(thread_id, request):
+            raise HTTPException(403, "only the author or a room admin can delete this annotation")
+        if not store.delete_annotation(thread_id, annotation_id):
             raise HTTPException(404, "annotation not found")
         background_tasks.add_task(_broadcast_social_change, room_id, thread_id, "annotation")
         return {"ok": True}
@@ -369,6 +379,7 @@ def _register_room_messages(router: APIRouter, d: CoworkGroupDeps) -> None:
     _project_store = d.project_store
     _room_message_store = d.room_message_store
     _require_room_member = d.require_room_member
+    _bind_caller_member = d.access.bind_caller_member
     _actor = d.actor
     _broadcast_social_change = d.broadcast_social_change
     _owner_dep = d.owner_dep
@@ -403,14 +414,26 @@ def _register_room_messages(router: APIRouter, d: CoworkGroupDeps) -> None:
             metadata["entity_refs"] = body.entity_refs
         if body.system_card is not None:
             metadata["system_card"] = body.system_card
+        # Who is speaking comes from the login, not the body: in shared mode
+        # ``participant_id`` must be one of the caller's own ids and the display
+        # name is the server-owned seat name (local no-auth mode keeps the
+        # body as its only identity source).
+        participant_id, server_display_name = _bind_caller_member(
+            request, body.participant_id, room_id=str(room_id)
+        )
+        display_name = body.display_name if server_display_name is None else server_display_name
         # Sender attribution is resolved HERE, from the roster — never taken
         # from the request body. An AI must not be able to label its own output
         # as human work by posting a metadata field. A sender that is not on the
         # roster records as ("unknown", "unknown"): unattributable beats a
         # fabricated "agent".
-        sender_kind, sender_driver = sender_identity(
-            group_store.state(thread_id), str(body.participant_id or "")
-        )
+        sender_kind, sender_driver = sender_identity(group_store.state(thread_id), participant_id)
+        if server_display_name is not None and sender_driver == "ai":
+            # The reverse forgery: an authenticated person must not mint an
+            # AI-attributed line. AI-side output reaches the room only through
+            # server-internal writers (Team Room socket projection, realtime
+            # turn persistence, Project OS system cards), never this endpoint.
+            raise HTTPException(403, "an authenticated caller cannot post as an AI member")
         metadata["sender_kind"] = sender_kind
         metadata["sender_driver"] = sender_driver
         try:
@@ -425,8 +448,8 @@ def _register_room_messages(router: APIRouter, d: CoworkGroupDeps) -> None:
                 thread_id,
                 room_id=room_id,
                 text=body.text,
-                participant_id=body.participant_id,
-                display_name=body.display_name,
+                participant_id=participant_id,
+                display_name=display_name,
                 metadata=metadata,
             )
             message = canonical_store.message_for_session(thread_id, seq)
@@ -437,8 +460,8 @@ def _register_room_messages(router: APIRouter, d: CoworkGroupDeps) -> None:
                 _room_message_store().append(
                     room_id,
                     text=body.text,
-                    participant_id=body.participant_id,
-                    display_name=body.display_name,
+                    participant_id=participant_id,
+                    display_name=display_name,
                     sender_kind=sender_kind,
                     sender_driver=sender_driver,
                 )
