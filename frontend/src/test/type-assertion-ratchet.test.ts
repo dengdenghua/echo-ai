@@ -98,8 +98,13 @@ function sourceFiles(dir: string, out: string[] = []): string[] {
 function scan(): Baseline {
   const assertions: Counts = {};
   const doubleCasts: Counts = {};
-  for (const file of sourceFiles(SRC_ROOT).sort()) {
-    const rel = path.relative(FRONTEND_ROOT, file).split(path.sep).join("/");
+  const files = sourceFiles(SRC_ROOT).map((file) => ({
+    file,
+    rel: path.relative(FRONTEND_ROOT, file).split(path.sep).join("/"),
+  }));
+  // Sort by the POSIX-style key so the baseline order is the same on every OS.
+  files.sort((a, b) => (a.rel < b.rel ? -1 : a.rel > b.rel ? 1 : 0));
+  for (const { file, rel } of files) {
     const counts = countFile(file);
     if (counts.assertions) assertions[rel] = counts.assertions;
     if (counts.doubleCasts) doubleCasts[rel] = counts.doubleCasts;
