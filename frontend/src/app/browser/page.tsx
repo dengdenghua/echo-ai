@@ -58,6 +58,7 @@ import {
 import { ExtensionsDialog } from "@/components/browser/extensions-dialog";
 import { FindBar } from "@/components/browser/find-bar";
 import { ReaderView } from "@/components/browser/reader-view";
+import { useShellTabEvents } from "@/components/browser/use-shell-tab-events";
 import type { WebviewTabHandle } from "@/components/browser/webview-tab";
 import { WorkspaceSurfaceHeader } from "@/components/workspace/workspace-surface-header";
 import { BrowserPreviewPanel } from "@/components/workspace/browser-preview-panel";
@@ -338,17 +339,6 @@ function BrowserShell() {
     return () => off();
   }, [setCopilotOpen]);
 
-  // Implementation note.
-  useEffect(() => {
-    if (!window.echo) return;
-    const off = window.echo.on("browser:open-tab", (...args) => {
-      const payload = args[0] as { url?: string } | string | undefined;
-      const url = typeof payload === "string" ? payload : payload?.url;
-      if (url) openTab(url);
-    });
-    return () => off();
-  }, [openTab]);
-
   useEffect(() => {
     try {
       const rawRequest = localStorage.getItem(BROWSER_OPEN_URL_REQUEST_KEY);
@@ -530,6 +520,13 @@ function BrowserShell() {
   const [findOpen, setFindOpen] = useState(false);
   const [readerOpen, setReaderOpen] = useState(false);
   const [extensionsOpen, setExtensionsOpen] = useState(false);
+  const openExtensions = () => setExtensionsOpen(true);
+  useShellTabEvents(handlesRef, {
+    openTab,
+    activateTab,
+    closeTab,
+    openManager: openExtensions,
+  });
   useEffect(() => {
     const onFind = () => setFindOpen(true);
     const onReader = () => setReaderOpen(true);
@@ -649,7 +646,7 @@ function BrowserShell() {
           {!activeTab?.taskPreview && (
             <UrlBar
               webviewHandle={activeHandle}
-              onOpenExtensions={() => setExtensionsOpen(true)}
+              onOpenExtensions={openExtensions}
             />
           )}
           {settings.showBookmarksBar && !activeTab?.taskPreview ? (

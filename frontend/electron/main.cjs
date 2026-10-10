@@ -37,6 +37,7 @@ const desktopProtocol = require("./desktop-protocol.cjs");
 const mcpOAuthDeepLink = require("./mcp-oauth-deep-link.cjs");
 const { startBrowserControlBridge } = require("./browser-control-bridge.cjs");
 const extensionStore = require("./extension-store.cjs");
+const { createExtensionHost } = require("./extension-host.cjs");
 let browserControlBridge = null;
 let activeBrowserTabId = null;
 const {
@@ -164,6 +165,8 @@ function setupAutoUpdater() {
 }
 
 let mainWindow = null;
+// Toolbar actions, menus and the other extension APIs Electron lacks.
+let extensionHost = null;
 const auxiliaryWindows = new Map();
 const BROWSER_PARTITION = "persist:echo-browser";
 // Private tabs: in-memory session, nothing written to disk.
@@ -915,6 +918,9 @@ async function installExtensionFromDir(dir, source = "folder") {
     await fsp.readFile(path.join(dir, "manifest.json"), "utf8"),
   );
   const loaded = await browserExtensions().loadExtension(dir);
+  const previous = readExtensionRegistry().find(
+    (e) => e.path === dir || e.id === loaded.id,
+  );
   // Store packages name themselves with __MSG_…__ placeholders; the
   // loaded extension carries the localized values.
   const info = {
@@ -927,6 +933,8 @@ async function installExtensionFromDir(dir, source = "folder") {
     enabled: true,
     installedAt: new Date().toISOString(),
     source,
+    // A fresh install shows on the toolbar; an update keeps its place.
+    pinned: previous?.pinned ?? true,
   };
   const registry = readExtensionRegistry().filter(
     (e) => e.path !== dir && e.id !== info.id,
@@ -1214,6 +1222,11 @@ function showBrowserContextMenu(contents, params) {
     separate();
   } else if (selection) {
     template.push({ role: "copy", label: "复制" });
+    separate();
+  }
+  const extensionItems = extensionHost?.contextMenuItems(contents, params);
+  if (extensionItems?.length) {
+    template.push(...extensionItems);
     separate();
   }
   const history = contents.navigationHistory;
@@ -1909,7 +1922,23 @@ function registerIpc() {
       return { ok: false, error: err.message };
     }
   });
+  handle("extensions:actions", (tabId) =>
+    extensionHost
+      ? extensionHost.listActions(tabId)
+      : { ok: true, actions: [] },
+  );
+  handle("extensions:clickAction", (id, tabId, anchor) =>
+    extensionHost?.clickAction(id, tabId, anchor),
+  );
+  handle("extensions:showActionMenu", (id, tabId) =>
+    extensionHost?.showActionMenu(id, tabId),
+  );
+  handle("extensions:setPinned", (id, pinned) =>
+    extensionHost?.setPinned(id, pinned),
+  );
+  handle("extensions:openOptions", (id) => extensionHost?.openOptions(id));
   handle("extensions:remove", async (id) => {
+    extensionHost?.forget(id, { purge: true });
     try {
       browserExtensions().removeExtension(id);
     } catch {
@@ -1942,6 +1971,7 @@ function registerIpc() {
       const target = wc(id);
       if (target.hostWebContents?.id === event.sender.id)
         activeBrowserTabId = id;
+      extensionHost?.tabActivated(activeBrowserTabId);
     } catch {
       /* invalid or destroyed tab */
     }
@@ -2223,6 +2253,17 @@ if (!app.requestSingleInstanceLock()) {
     trackDownloads(browserProfileSession());
     const privateSession = session.fromPartition(PRIVATE_BROWSER_PARTITION);
     configureBrowserPermissionRequests(privateSession);
+    extensionHost = createExtensionHost({
+      session: browserProfileSession(),
+      getMainWindow: () => mainWindow,
+      getActiveTab: activeBrowserTarget,
+      openUrlInTab: openUrlInBrowserTab,
+      sendToRenderer: (channel, ...args) =>
+        mainWindow?.webContents.send(channel, ...args),
+      readRegistry: readExtensionRegistry,
+      writeRegistry: writeExtensionRegistry,
+    });
+    extensionHost.install();
     trackDownloads(privateSession);
     mainWindow = createMainWindow();
     restoreQueuedNavigation(mainWindow.webContents);

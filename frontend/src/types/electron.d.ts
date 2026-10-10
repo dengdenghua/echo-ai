@@ -25,6 +25,34 @@ export interface BrowserExtensionInfo {
   installedAt: string;
   /** "folder", or the store it was installed from ("chrome" / "edge"). */
   source?: string;
+  /** Shown on the toolbar rather than only in the extensions menu. */
+  pinned?: boolean;
+}
+
+/** An extension's toolbar button as it stands for one tab. */
+export interface BrowserExtensionAction {
+  id: string;
+  name: string;
+  title: string;
+  /** data: URL, or null when the extension ships no icon. */
+  icon: string | null;
+  badgeText: string;
+  badgeColor?: string;
+  badgeTextColor?: string;
+  /** The manifest declares a toolbar action. */
+  hasAction: boolean;
+  hasPopup: boolean;
+  hasOptions: boolean;
+  enabled: boolean;
+  pinned: boolean;
+}
+
+/** Toolbar button position, in the app window's CSS pixels. */
+export interface ExtensionActionAnchor {
+  left: number;
+  top: number;
+  right: number;
+  bottom: number;
 }
 
 export interface NativeDesktopItem {
@@ -243,6 +271,22 @@ export interface EchoElectronAPI {
       error?: string;
     }>;
     remove: (id: string) => Promise<{ ok: boolean; error?: string }>;
+    /** Toolbar buttons of the enabled extensions, for one tab. */
+    actions: (
+      tabWebContentsId: number | null,
+    ) => Promise<{ ok: boolean; actions: BrowserExtensionAction[] }>;
+    /** Open the popup / side panel, or tell the extension it was clicked. */
+    clickAction: (
+      id: string,
+      tabWebContentsId: number | null,
+      anchor: ExtensionActionAnchor,
+    ) => Promise<{ ok: boolean; error?: string }>;
+    showActionMenu: (
+      id: string,
+      tabWebContentsId: number | null,
+    ) => Promise<{ ok: boolean }>;
+    setPinned: (id: string, pinned: boolean) => Promise<{ ok: boolean }>;
+    openOptions: (id: string) => Promise<{ ok: boolean; error?: string }>;
   };
 
   app: {
@@ -413,6 +457,10 @@ export interface EchoElectronAPI {
       | "browser:ask-selection"
       | "browser:webview-pointer"
       | "browser:password-offer"
+      | "browser:extension-actions-changed"
+      | "browser:open-extensions"
+      | "browser:focus-webcontents"
+      | "browser:close-webcontents"
       | "desktop:organize-now"
       | "desktop:items-changed"
       | "backend:bootstrap-progress"

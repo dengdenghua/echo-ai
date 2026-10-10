@@ -87,6 +87,7 @@ import {
   type HistoryEntry,
 } from "./browser-store";
 import { openBrowserFind, openBrowserReader } from "./browser-events";
+import { ExtensionToolbar } from "./extension-toolbar";
 import {
   PasswordNeverSites,
   PasswordOfferBubble,
@@ -761,6 +762,8 @@ export function UrlBar({ webviewHandle, onOpenExtensions }: Props) {
               if (addressSuggestions.length > 0) setSuggestionsOpen(true);
             }}
             placeholder={ub.searchOrUrl}
+            spellCheck={false}
+            autoComplete="off"
             data-browser-address=""
             className="min-w-0 flex-1 bg-transparent px-2 text-sm font-medium outline-none placeholder:text-muted-foreground"
           />
@@ -914,6 +917,13 @@ export function UrlBar({ webviewHandle, onOpenExtensions }: Props) {
           </div>
         )}
       </div>
+
+      {window.echo?.isElectron && !activeTab?.private ? (
+        <ExtensionToolbar
+          webContentsId={webviewHandle?.getWebContentsId() ?? null}
+          onManage={onOpenExtensions}
+        />
+      ) : null}
 
       {/* Implementation note. */}
       <div className="relative">

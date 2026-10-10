@@ -22,6 +22,10 @@ const EVENT_CHANNELS = [
   "browser:ask-selection",
   "browser:webview-pointer",
   "browser:password-offer",
+  "browser:extension-actions-changed",
+  "browser:open-extensions",
+  "browser:focus-webcontents",
+  "browser:close-webcontents",
   "desktop:organize-now",
   "desktop:items-changed",
   "backend:bootstrap-progress",
@@ -85,6 +89,11 @@ const api = {
     installFromStore: invoke("extensions:installFromStore"),
     setEnabled: invoke("extensions:setEnabled"),
     remove: invoke("extensions:remove"),
+    actions: invoke("extensions:actions"),
+    clickAction: invoke("extensions:clickAction"),
+    showActionMenu: invoke("extensions:showActionMenu"),
+    setPinned: invoke("extensions:setPinned"),
+    openOptions: invoke("extensions:openOptions"),
   },
 
   app: {
