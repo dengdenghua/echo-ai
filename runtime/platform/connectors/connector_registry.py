@@ -23,7 +23,7 @@ from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
-from runtime.platform.io import JsonMutation, mutate_json_file, read_json_file
+from runtime.platform.io import JsonMutation, mutate_json_file, read_json_file, snapshot_read
 
 CONNECTOR_ROOT = Path(os.path.expanduser("~/.echo/connectors"))
 STATE_FILE = CONNECTOR_ROOT / "state.json"
@@ -154,8 +154,12 @@ class ConnectorRegistry:
             permission_store = CapabilityPermissionStore(permission_path)
         self._permissions = permission_store
 
-    def _requirements(self, connector_id: str) -> dict[str, Any]:
-        conn = self.get(connector_id)
+    def _requirements(
+        self,
+        connector_id: str,
+        conn: ConnectorDefinition | None = None,
+    ) -> dict[str, Any]:
+        conn = conn or self.get(connector_id)
         if conn is None:
             raise KeyError(f"connector not found: {connector_id}")
         from runtime.platform.plugins.marketplace_package import (
@@ -201,6 +205,14 @@ class ConnectorRegistry:
     # ── 定义加载 ──────────────────────────────────────────────
     def _manifest(self) -> dict[str, Any]:
         manifest_path = self._root / ".codebuddy-connector" / "connectors.json"
+        # Read-only callers; get() re-reads it once per connector during a listing.
+        return snapshot_read(
+            ("connector-manifest", manifest_path),
+            lambda: self._read_manifest(manifest_path),
+        )
+
+    @staticmethod
+    def _read_manifest(manifest_path: Path) -> dict[str, Any]:
         if not manifest_path.exists():
             return {"connectors": []}
         try:
@@ -282,7 +294,7 @@ class ConnectorRegistry:
                 installed=bool(st.get("installed")),
                 enabled=bool(st.get("enabled")),
             )
-            item.update(self._requirements(conn.id))
+            item.update(self._requirements(conn.id, conn))
             projection = self._permission_projection(
                 conn.id,
                 installed=bool(st.get("installed")),

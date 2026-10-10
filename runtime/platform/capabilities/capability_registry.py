@@ -29,7 +29,7 @@ from runtime.platform.capabilities._icon_metadata import (
 from runtime.platform.capabilities._icon_metadata import (
     _ICON_PRIORITY as _ICON_PRIORITY,
 )
-from runtime.platform.io import JsonMutation, mutate_json_file, read_json_file
+from runtime.platform.io import JsonMutation, mutate_json_file, read_json_file, read_snapshot
 from runtime.platform.process.paths import app_paths
 
 # ── 默认路径 ────────────────────────────────────────────────
@@ -110,7 +110,8 @@ class CapabilityRegistry:
 
     # ── 统一列表 ────────────────────────────────────────────
     def list(self) -> list[dict[str, Any]]:
-        return [*self._list_connectors(), *self._list_codex_plugins()]
+        with read_snapshot():  # one read of each grant file and manifest per walk
+            return [*self._list_connectors(), *self._list_codex_plugins()]
 
     def get(self, cid: str) -> dict[str, Any] | None:
         for item in self.list():
@@ -461,7 +462,6 @@ class CapabilityRegistry:
             if pid in seen:
                 continue
             seen.add(pid)
-            pid = str(manifest.get("name") or root.name)
             skills_dir = self._plugin_skills_dir(root, manifest)
             st = state.get(pid) or {}
             author = (

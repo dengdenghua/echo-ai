@@ -46,6 +46,26 @@ def test_codex_plugin_discovery_includes_smoke_metadata(tmp_path: Path) -> None:
     assert plugin_dir.name == "research"
 
 
+def test_discovery_keeps_root_precedence_and_order_across_parallel_checks(
+    tmp_path: Path,
+) -> None:
+    first, second = tmp_path / "first", tmp_path / "second"
+    _write_plugin(first)
+    _write_plugin(second)
+    (second / "atlas" / ".codex-plugin").mkdir(parents=True)
+    (second / "atlas" / ".codex-plugin" / "plugin.json").write_text(
+        json.dumps({"name": "atlas", "interface": {"displayName": "Atlas"}}),
+        encoding="utf-8",
+    )
+
+    plugins = discover_codex_plugins([first, second])
+
+    assert [plugin["id"] for plugin in plugins] == ["atlas", "research"]
+    # A later root overrides an earlier copy of the same plugin id.
+    assert Path(plugins[1]["path"]) == second / "research"
+    assert all(plugin["smoke"]["schema"] == "echo.codex_plugin_smoke.v1" for plugin in plugins)
+
+
 def test_plugin_content_provenance_changes_with_runtime_content(tmp_path: Path) -> None:
     plugin_dir = _write_plugin(tmp_path)
     first = discover_codex_plugins([tmp_path])[0]["smoke"]["content_provenance"]

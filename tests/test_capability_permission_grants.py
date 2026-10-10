@@ -7,16 +7,22 @@ from pathlib import Path
 from types import SimpleNamespace
 from uuid import uuid4
 
+import pytest
+
 from runtime.execution.suckers import Skill, SkillRegistry
 from runtime.execution.tool_engine import ToolExecutor
 from runtime.execution.tool_engine.skill_gate import GATE_CAPABILITY, gate_inner_dispatch
 from runtime.memory.journal import InMemoryJournal
+from runtime.platform.capabilities import permission_grants
 from runtime.platform.capabilities.capability_registry import CapabilityRegistry
 from runtime.platform.capabilities.permission_grants import (
     CapabilityPermissionStore,
     use_capability_permission_store,
 )
 from runtime.platform.capabilities.tenant_context import use_capability_scope
+from runtime.platform.connectors import connector_registry
+from runtime.platform.connectors.connector_registry import ConnectorRegistry
+from runtime.platform.io import read_snapshot
 from runtime.platform.models import ArmId, Budget, BudgetLimits, SkillId, TaskId
 from runtime.safety.auth import TrustEngine
 from runtime.safety.auth.scope import TenantScope
@@ -385,3 +391,70 @@ def test_partitioned_permission_snapshot_restores_generation_and_principal(
         assert store.require_granted("documents", require_active=True)["manifest_digest"] == (
             "sha256:first"
         )
+
+
+def test_registry_listing_reads_grants_and_connector_manifest_once(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # Each listed capability asks for its grant and connector definition. The
+    # walk used to re-read the grant file ~440 times and re-parse the connector
+    # manifest ~220 times per call (0.9 s warm on a dev profile).
+    grant_path = tmp_path / "permission-grants.json"
+    store = CapabilityPermissionStore(grant_path)
+    store.stage("documents", kind="codex", required=["content.read"], manifest_digest="sha256:a")
+    cache = tmp_path / "codex-cache"
+    for plugin_id in ("documents", "atlas"):
+        manifest = cache / plugin_id / ".codex-plugin" / "plugin.json"
+        manifest.parent.mkdir(parents=True)
+        manifest.write_text(json.dumps({"name": plugin_id, "version": "1.0.0"}), "utf-8")
+    fork = Path(__file__).resolve().parents[1] / "extensions" / "workbuddy-connectors"
+    registry = CapabilityRegistry(
+        connector_registry=ConnectorRegistry(
+            marketplace_root=fork,
+            skills_root=tmp_path / "skills",
+            state_file=tmp_path / "connectors.json",
+        ),
+        codex_cache=cache,
+        capability_state_file=tmp_path / "capabilities.json",
+        skills_root=tmp_path / "skills",
+        permission_store=store,
+    )
+    expected = registry.list()
+    grant_reads: list[Path] = []
+    manifest_reads: list[Path] = []
+    read_grants = permission_grants.read_json_file
+    read_manifest = ConnectorRegistry._read_manifest
+
+    def counted_grants(path: Path, **kwargs: object) -> object:
+        grant_reads.append(Path(path))
+        return read_grants(path, **kwargs)  # type: ignore[arg-type]
+
+    def counted_manifest(path: Path) -> dict[str, object]:
+        manifest_reads.append(path)
+        return read_manifest(path)
+
+    monkeypatch.setattr(permission_grants, "read_json_file", counted_grants)
+    monkeypatch.setattr(
+        connector_registry.ConnectorRegistry, "_read_manifest", staticmethod(counted_manifest)
+    )
+
+    listed = registry.list()
+
+    assert listed == expected
+    assert len(listed) > 100
+    assert grant_reads == [grant_path]
+    assert len(manifest_reads) == 1
+
+
+def test_permission_snapshot_serves_the_scope_its_own_writes(tmp_path: Path) -> None:
+    store = CapabilityPermissionStore(tmp_path / "permission-grants.json")
+    store.stage("documents", kind="codex", required=["content.read"], manifest_digest="sha256:a")
+
+    with read_snapshot():
+        before = store.get("documents")
+        store.grant("documents", ["content.read"])
+        after = store.get("documents")
+
+    assert before is not None and before["granted"] == []
+    assert after is not None and after["granted"] == ["content.read"]
