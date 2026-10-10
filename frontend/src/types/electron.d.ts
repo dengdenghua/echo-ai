@@ -83,6 +83,30 @@ export interface DesktopNotificationClick {
   tag: string | null;
 }
 
+/** ``window.echo.auth.desktopOwnerLogin`` result. */
+export type DesktopOwnerLoginResult =
+  | {
+      ok: true;
+      access_token: string;
+      expires_in?: number;
+      user?: {
+        actor_id?: string;
+        username?: string;
+        display_name?: string | null;
+        provider?: string;
+      };
+    }
+  | {
+      ok: false;
+      reason:
+        | "forbidden"
+        | "backend-not-owned"
+        | "backend-unreachable"
+        | "rejected";
+      status?: number;
+      detail?: string;
+    };
+
 export interface EchoElectronAPI {
   isElectron: true;
   platform: NodeJS.Platform;
@@ -405,6 +429,13 @@ export interface EchoElectronAPI {
     ensureOptionalDeps: (
       group: string,
     ) => Promise<{ ok: boolean; reason?: string }>;
+  };
+
+  /** Desktop owner sign-in. The main process signs in with the per-launch
+   * token it gave the backend it spawned and returns only the session.
+   * Optional: shells built before it existed lack it. */
+  auth?: {
+    desktopOwnerLogin: () => Promise<DesktopOwnerLoginResult>;
   };
 
   /** OS notifications raised by the main process. Clicking one restores and

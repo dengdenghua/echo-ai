@@ -224,6 +224,39 @@ export async function login(request: LoginRequest): Promise<LoginResponse> {
   return data;
 }
 
+export function hasDesktopOwnerLogin(): boolean {
+  return (
+    typeof window !== "undefined" &&
+    typeof window.echo?.auth?.desktopOwnerLogin === "function"
+  );
+}
+
+/**
+ * Sign the desktop owner in through the Electron shell, which holds the
+ * per-launch token of the backend it spawned. Returns null outside the
+ * desktop shell or when the shell does not own the backend (dev servers).
+ */
+export async function desktopOwnerLogin(): Promise<User | null> {
+  if (!hasDesktopOwnerLogin()) return null;
+  const result = await window.echo!.auth!.desktopOwnerLogin();
+  if (!result.ok) {
+    if (result.reason === "rejected" || result.reason === "backend-unreachable") {
+      throw new Error(result.detail ?? "本机登录失败，请重试");
+    }
+    return null;
+  }
+  const actorId = result.user?.actor_id;
+  const user: User = {
+    user_id: actorId || "local:owner",
+    ...(actorId ? { actor_id: actorId } : {}),
+    username:
+      result.user?.display_name || result.user?.username || "owner",
+    provider: result.user?.provider ?? "local",
+  };
+  _writeToken(result.access_token, user);
+  return user;
+}
+
 export async function register(request: RegisterRequest): Promise<User> {
   const res = await fetch(`${getBackendBaseURL()}/api/auth/register`, {
     method: "POST",

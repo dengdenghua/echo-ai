@@ -611,6 +611,54 @@ async function ensureOptionalDeps(group, onProgress) {
 
 let backendChild = null;
 
+// The desktop owner signs in with this per-launch secret. Only the backend
+// this shell spawns receives it (as ECHO_DESKTOP_OWNER_TOKEN, which serve pops
+// from its environment), and only the main process uses it, so other local
+// processes — including other OS accounts reaching the loopback port — and
+// renderers never see it. Backend restarts within one launch reuse it.
+const DESKTOP_OWNER_TOKEN = crypto.randomBytes(32).toString("base64url");
+const DESKTOP_OWNER_USERNAME = "owner";
+let desktopOwnerTokenIssued = false;
+
+async function loginDesktopOwner(backendBaseURL, { displayName } = {}) {
+  if (!desktopOwnerTokenIssued) {
+    // A backend started outside this shell (pnpm dev:full) never got the
+    // token; the renderer falls back to its regular login page.
+    return { ok: false, reason: "backend-not-owned" };
+  }
+  const body = {
+    username: DESKTOP_OWNER_USERNAME,
+    password: DESKTOP_OWNER_TOKEN,
+  };
+  const name = String(displayName || "").trim().slice(0, 128);
+  if (name) body.display_name = name;
+  let response;
+  try {
+    response = await fetch(`${backendBaseURL}/api/auth/local/login`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    });
+  } catch (err) {
+    return { ok: false, reason: "backend-unreachable", detail: err.message };
+  }
+  const payload = await response.json().catch(() => ({}));
+  if (!response.ok || !payload.access_token) {
+    return {
+      ok: false,
+      reason: "rejected",
+      status: response.status,
+      detail: typeof payload.detail === "string" ? payload.detail : undefined,
+    };
+  }
+  return {
+    ok: true,
+    access_token: payload.access_token,
+    expires_in: payload.expires_in,
+    user: payload.user,
+  };
+}
+
 // Start a fixed bundled executable in packaged mode.  The unpackaged smoke
 // path may use the development venv, but there is intentionally no packaged
 // fallback to Python, uv, PATH, or the network.
@@ -624,7 +672,9 @@ async function spawnBackend(configPath, onProgress) {
     ECHO_DATA_DIR: path.join(app.getPath("userData"), "data"),
     ECHO_RESOURCES_DIR: path.join(app.getPath("userData"), "resources"),
     ECHO_PACKAGED_CODEX_VERSION: PACKAGED_CODEX_VERSION,
+    ECHO_DESKTOP_OWNER_TOKEN: DESKTOP_OWNER_TOKEN,
   };
+  desktopOwnerTokenIssued = true;
   if (packaged) {
     env.ECHO_BROWSER_EXTENSION_DIR = path.join(
       resourcesPath(),
@@ -697,6 +747,7 @@ function killBackend() {
 module.exports = {
   spawnBackend,
   killBackend,
+  loginDesktopOwner,
   ensureOptionalDeps,
   bootstrapCore,
   venvReady,

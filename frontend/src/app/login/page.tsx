@@ -23,7 +23,11 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { ErrorState } from "@/components/ui/state";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { type AuthProviderInfo, getAuthProviderInfo } from "@/core/auth/api";
+import {
+  type AuthProviderInfo,
+  getAuthProviderInfo,
+  hasDesktopOwnerLogin,
+} from "@/core/auth/api";
 import { getBackendBaseURL } from "@/core/config";
 import {
   authReturnToFromSearch,
@@ -588,6 +592,49 @@ function EchoBrand() {
   );
 }
 
+/** The desktop shell signs its owner in automatically; this brings them back
+ * after an explicit logout or a failed automatic attempt. */
+function DesktopOwnerLogin() {
+  const { desktopLogin } = useAuth();
+  const [pending, setPending] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const signIn = async () => {
+    setPending(true);
+    setError(null);
+    try {
+      await desktopLogin();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "本机登录失败，请重试");
+    } finally {
+      setPending(false);
+    }
+  };
+
+  return (
+    <div className="mb-5 space-y-3">
+      <Button
+        className="relative h-12 w-full justify-center gap-3 rounded-xl text-sm font-medium"
+        disabled={pending}
+        onClick={() => void signIn()}
+      >
+        <UserCircle2Icon className="size-5" />
+        以本机账户继续
+      </Button>
+      {error && (
+        <p role="alert" className="text-sm text-destructive">
+          {error}
+        </p>
+      )}
+      <div className="flex items-center gap-3 pt-2 text-xs text-muted-foreground">
+        <span className="h-px flex-1 bg-border" />
+        或使用 ECHO 账号登录
+        <span className="h-px flex-1 bg-border" />
+      </div>
+    </div>
+  );
+}
+
 export default function LoginPage() {
   const navigate = useNavigate();
   const location = useLocation();
@@ -798,6 +845,9 @@ export default function LoginPage() {
               </CardDescription>
             </CardHeader>
             <CardContent className="px-8 pb-7 pt-0">
+              {!backendUnavailable && hasDesktopOwnerLogin() && (
+                <DesktopOwnerLogin />
+              )}
               {!backendUnavailable && providersReady && (socialProviders.google || socialProviders.github) && (
                 <div className="mb-5 space-y-3">
                   {(["google", "github"] as const)

@@ -15,6 +15,8 @@ const authUnavailableMock = vi.fn();
 const retryAuthMock = vi.fn();
 const localLoginMock = vi.fn();
 const startAccountFreeModeMock = vi.fn();
+const hasDesktopOwnerLoginMock = vi.fn();
+const desktopLoginMock = vi.fn();
 
 vi.mock("react-router-dom", async () => {
   const actual = await vi.importActual<
@@ -28,6 +30,7 @@ vi.mock("react-router-dom", async () => {
 
 vi.mock("@/core/auth/api", () => ({
   getAuthProviderInfo: () => getAuthProvidersMock(),
+  hasDesktopOwnerLogin: () => hasDesktopOwnerLoginMock(),
   authHeaders: () => ({}),
   jsonAuthHeaders: () => ({}),
 }));
@@ -35,6 +38,7 @@ vi.mock("@/core/auth/api", () => ({
 vi.mock("@/providers/AuthProvider", () => ({
   useAuth: () => ({
     emailLogin: (email: string, code: string) => emailLoginMock(email, code),
+    desktopLogin: desktopLoginMock,
     guestLogin: vi.fn(),
     authStatus: authUnavailableMock()
       ? null
@@ -113,6 +117,9 @@ describe("LoginPage", () => {
     authUnavailableMock.mockReset();
     retryAuthMock.mockReset();
     localLoginMock.mockReset();
+    hasDesktopOwnerLoginMock.mockReset();
+    desktopLoginMock.mockReset();
+    hasDesktopOwnerLoginMock.mockReturnValue(false);
     getAuthProvidersMock.mockResolvedValue([{ id: "oct" }]);
     allowRegistrationMock.mockReturnValue(false);
     authUnavailableMock.mockReturnValue(false);
@@ -120,6 +127,26 @@ describe("LoginPage", () => {
 
   afterEach(() => {
     vi.useRealTimers();
+  });
+
+  it("offers the desktop owner sign-in and reports its failure", async () => {
+    hasDesktopOwnerLoginMock.mockReturnValue(true);
+    desktopLoginMock.mockRejectedValue(new Error("本机登录凭证无效"));
+    const user = await renderPageAtLoginForm();
+
+    await user.click(screen.getByRole("button", { name: "以本机账户继续" }));
+
+    expect(desktopLoginMock).toHaveBeenCalledTimes(1);
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "本机登录凭证无效",
+    );
+  });
+
+  it("hides the desktop owner sign-in outside the desktop shell", async () => {
+    await renderPageAtLoginForm();
+    expect(
+      screen.queryByRole("button", { name: "以本机账户继续" }),
+    ).not.toBeInTheDocument();
   });
 
   it("uses the configured local account with only a password field", async () => {

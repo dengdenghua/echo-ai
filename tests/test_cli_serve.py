@@ -257,6 +257,58 @@ class TestServeBasics:
         )
         assert captured["allow_local_workspace_access"] is False
 
+    @pytest.mark.parametrize(
+        "desktop,mode,installed",
+        [("1", "local", True), (None, "local", False), ("1", "production", False)],
+    )
+    def test_desktop_owner_token_leaves_the_environment_and_is_gated(
+        self,
+        tmp_path: Path,
+        monkeypatch,
+        desktop,
+        mode,
+        installed,
+    ) -> None:
+        from fastapi import FastAPI
+
+        import runtime.cli_serve as cli_serve
+        import runtime.platform.ui as ui_module
+        from runtime.adapters.integrations.local_auth import config as local_auth_config
+
+        token = "Od9-desktop-owner-token-0123456789abcdef"
+        seen_at_create_app: list[str | None] = []
+
+        def spy_create_app(**kwargs):
+            seen_at_create_app.append(os.environ.get("ECHO_DESKTOP_OWNER_TOKEN"))
+            return FastAPI()
+
+        monkeypatch.setenv("ECHO_DESKTOP_OWNER_TOKEN", token)
+        if desktop is None:
+            monkeypatch.delenv("ECHO_DESKTOP", raising=False)
+        else:
+            monkeypatch.setenv("ECHO_DESKTOP", desktop)
+        monkeypatch.setenv("ECHO_DEPLOYMENT_MODE", mode)
+        monkeypatch.setattr(cli_serve, "_prepare_execution_security", lambda _cfg: (None, {}))
+        monkeypatch.setattr(ui_module, "create_app", spy_create_app)
+        monkeypatch.setattr("uvicorn.run", lambda *args, **kwargs: None)
+
+        try:
+            assert (
+                cli_serve.run_serve(
+                    config_path=_write_cfg(tmp_path),
+                    host="127.0.0.1",
+                    port=9094,
+                    learn_interval_s=0,
+                    color=False,
+                )
+                == 0
+            )
+            assert seen_at_create_app == [None]
+            assert "ECHO_DESKTOP_OWNER_TOKEN" not in os.environ
+            assert local_auth_config.desktop_owner_token() == (token if installed else None)
+        finally:
+            local_auth_config.configure_desktop_owner_token(None)
+
     def test_missing_config_returns_2(self, tmp_path: Path, capsys):
         from runtime.cli import run_serve
 

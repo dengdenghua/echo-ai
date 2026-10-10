@@ -195,11 +195,6 @@ test("desktop backend spawns and the renderer reaches it", async () => {
       // first-launch bootstrap download.
       ECHO_DESKTOP_BACKEND_ROOT: REPO_ROOT,
       ECHO_BACKEND_URL: backendUrl,
-      // The WebSocket check below mints its token through the passwordless
-      // local login, which the backend only opens in development
-      // (local_auth.config.development_login_enabled).
-      ECHO_ENV: "development",
-      ECHO_DEPLOYMENT_MODE: "local",
     },
   });
 
@@ -259,26 +254,51 @@ test("desktop backend spawns and the renderer reaches it", async () => {
     expect(rendererContract.pluginContentType).toContain("text/html");
     expect(rendererContract.pluginBody).toContain("<");
 
+    // The packaged desktop signs its owner in through the shell: the
+    // workbench does it on startup without any login form, a passwordless
+    // renderer login is refused, and the main process's per-launch owner
+    // token yields an admin session. No ECHO_ENV=development shortcut here.
+    await win.waitForFunction(
+      () =>
+        !!window.sessionStorage.getItem("echo_auth_token") &&
+        !window.location.pathname.startsWith("/login"),
+      undefined,
+      { timeout: 60_000 },
+    );
+
     // Authenticate through the custom origin, then establish the raw
     // loopback WebSocket transport used by realtime/terminal/tentacle hooks.
     // This catches secure-context mixed-content regressions that HTTP fetch
     // and Node-side backend polling cannot see.
     const websocketContract = await win.evaluate(async () => {
-      const login = await fetch("/api/auth/local/login", {
+      const providers = (await (await fetch("/api/auth/providers")).json()) as {
+        providers: { id: string }[];
+      };
+      const passwordless = await fetch("/api/auth/local/login", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ username: `electron-e2e-${Date.now()}` }),
       });
-      const body = (await login.json()) as { access_token?: string };
-      if (!login.ok || !body.access_token) {
-        return { loginStatus: login.status, websocket: "no-token" };
-      }
+      const owner = await window.echo!.auth!.desktopOwnerLogin();
+      const result = {
+        providerIds: providers.providers.map((provider) => provider.id),
+        passwordlessStatus: passwordless.status,
+        ownerLogin: owner.ok ? "ok" : owner.reason,
+        isAdmin: false,
+        websocket: "no-token",
+      };
+      if (!owner.ok) return result;
+      const whoami = await fetch("/api/auth/local/whoami", {
+        headers: { Authorization: `Bearer ${owner.access_token}` },
+      });
+      const roles = ((await whoami.json()) as { roles?: string[] }).roles;
+      result.isAdmin = roles?.includes("admin") ?? false;
       const backend = window.echo?.backendBaseURL ?? "";
       const websocketBase = backend.replace(/^http/, "ws");
-      const websocket = await new Promise<string>((resolve) => {
+      result.websocket = await new Promise<string>((resolve) => {
         const socket = new WebSocket(`${websocketBase}/api/realtime`, [
           "bearer",
-          body.access_token!,
+          owner.access_token,
         ]);
         const timer = window.setTimeout(() => {
           socket.close();
@@ -294,9 +314,15 @@ test("desktop backend spawns and the renderer reaches it", async () => {
           resolve("error");
         };
       });
-      return { loginStatus: login.status, websocket };
+      return result;
     });
-    expect(websocketContract).toEqual({ loginStatus: 200, websocket: "open" });
+    expect(websocketContract).toEqual({
+      providerIds: ["oct"],
+      passwordlessStatus: 401,
+      ownerLogin: "ok",
+      isAdmin: true,
+      websocket: "open",
+    });
   } finally {
     await app.close();
     await rm(userDataDir, { recursive: true, force: true });

@@ -16,14 +16,29 @@ def development_login_enabled(config: Any) -> bool:
     )
 
 
-def local_login_enabled(config: Any) -> bool:
-    """Allow configured password accounts in deployments, never dev shortcuts."""
-    if config is None or not getattr(config, "enabled", False):
-        return False
-    if development_login_enabled(config):
-        return True
-    if getattr(config, "password_only_username", None) or not getattr(config, "users", {}):
-        return False
+DESKTOP_OWNER_TOKEN_ENV = "ECHO_DESKTOP_OWNER_TOKEN"
+_DESKTOP_OWNER_TOKEN_MIN_LENGTH = 32
+_desktop_owner_token: str | None = None
+
+
+def configure_desktop_owner_token(token: str | None) -> None:
+    """Install the per-launch owner token handed over by the desktop shell.
+
+    The Electron main process generates it, passes it in the backend's
+    environment and signs the owner in itself, so it never reaches a
+    renderer. ``serve`` pops it from the environment before anything can
+    inherit it and installs it only for a loopback-bound local deployment.
+    """
+    global _desktop_owner_token
+    valid = isinstance(token, str) and len(token) >= _DESKTOP_OWNER_TOKEN_MIN_LENGTH
+    _desktop_owner_token = token if valid else None
+
+
+def desktop_owner_token() -> str | None:
+    return _desktop_owner_token
+
+
+def _has_strong_jwt_secret(config: Any) -> bool:
     secret = getattr(config, "jwt_secret", None)
     if not isinstance(secret, str) or not secret:
         return False
@@ -32,6 +47,42 @@ def local_login_enabled(config: Any) -> bool:
     except ValueError:
         return False
     return True
+
+
+def desktop_owner_login_enabled(config: Any) -> bool:
+    """A passwordless desktop config signs in only with the shell's owner token.
+
+    Any process on the machine can reach a loopback port, including other OS
+    accounts, so the desktop never gets the development any-username shortcut.
+    """
+    return bool(
+        config is not None
+        and getattr(config, "enabled", False)
+        and _desktop_owner_token
+        and os.getenv("ECHO_DESKTOP", "").strip() == "1"
+        and os.getenv("ECHO_DEPLOYMENT_MODE", "local").strip().lower() == "local"
+        and not getattr(config, "users", {})
+        and not getattr(config, "password_only_username", None)
+        and _has_strong_jwt_secret(config)
+    )
+
+
+def local_login_enabled(config: Any) -> bool:
+    """Allow configured password accounts in deployments, never dev shortcuts."""
+    if config is None or not getattr(config, "enabled", False):
+        return False
+    if development_login_enabled(config) or desktop_owner_login_enabled(config):
+        return True
+    if getattr(config, "password_only_username", None) or not getattr(config, "users", {}):
+        return False
+    return _has_strong_jwt_secret(config)
+
+
+def interactive_local_login_enabled(config: Any) -> bool:
+    """Whether a login form can sign in; the desktop owner token is shell-only."""
+    return local_login_enabled(config) and (
+        development_login_enabled(config) or bool(getattr(config, "users", {}))
+    )
 
 
 def hash_password(plaintext: str) -> str:

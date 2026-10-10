@@ -126,3 +126,124 @@ def test_passwordless_dev_login_stays_on_this_machine(monkeypatch, host, origin,
             headers={"Origin": origin} if origin else {},
         )
     assert response.status_code == status
+
+
+_DESKTOP_JWT_SECRET = "Desk!9OwnerTokenJwtSecretWithLength1234"
+_DESKTOP_OWNER_TOKEN = "Od9-desktop-owner-token-0123456789abcdef"
+
+
+@pytest.fixture
+def desktop_owner(monkeypatch):
+    from runtime.adapters.integrations.local_auth import config as local_auth_config
+
+    monkeypatch.delenv("ECHO_ENV", raising=False)
+    monkeypatch.setenv("ECHO_DESKTOP", "1")
+    monkeypatch.setenv("ECHO_DEPLOYMENT_MODE", "local")
+    local_auth_config.configure_desktop_owner_token(_DESKTOP_OWNER_TOKEN)
+    yield local_auth_config
+    local_auth_config.configure_desktop_owner_token(None)
+
+
+def _desktop_config(**overrides):
+    # Mirrors packaging/desktop/config.desktop.yaml's local_auth block.
+    values = {
+        "enabled": True,
+        "allow_any_username": True,
+        "admin_usernames": ["*"],
+        "jwt_secret": _DESKTOP_JWT_SECRET,
+    }
+    values.update(overrides)
+    return LocalAuthConfig(**values)
+
+
+@pytest.mark.parametrize(
+    "host,origin,password,status",
+    [
+        ("127.0.0.1", None, _DESKTOP_OWNER_TOKEN, 200),
+        ("127.0.0.1", None, None, 401),
+        ("127.0.0.1", None, "wrong-" + _DESKTOP_OWNER_TOKEN, 401),
+        ("192.0.2.1", None, _DESKTOP_OWNER_TOKEN, 403),
+        ("127.0.0.1", "https://evil.example", _DESKTOP_OWNER_TOKEN, 403),
+    ],
+)
+def test_desktop_owner_login_requires_the_shell_token(
+    desktop_owner, host, origin, password, status
+):
+    app = FastAPI()
+    app.include_router(create_local_auth_router(config=_desktop_config()))
+    body = {"username": "owner"}
+    if password is not None:
+        body["password"] = password
+    with TestClient(app, client=(host, 50000)) as client:
+        response = client.post(
+            "/api/auth/local/login",
+            json=body,
+            headers={"Origin": origin} if origin else {},
+        )
+    assert response.status_code == status
+    if status == 200:
+        assert response.json()["access_token"]
+        assert response.json()["actor_id"] == "local:owner"
+
+
+@pytest.mark.parametrize(
+    "env,token,overrides",
+    [
+        ({}, None, {}),
+        ({"ECHO_DESKTOP": None}, _DESKTOP_OWNER_TOKEN, {}),
+        ({"ECHO_DEPLOYMENT_MODE": "shared"}, _DESKTOP_OWNER_TOKEN, {}),
+        ({}, _DESKTOP_OWNER_TOKEN, {"jwt_secret": None}),
+        ({}, "too-short", {}),
+    ],
+)
+def test_desktop_owner_login_stays_closed_outside_the_desktop(
+    desktop_owner, monkeypatch, env, token, overrides
+):
+    for name, value in env.items():
+        if value is None:
+            monkeypatch.delenv(name, raising=False)
+        else:
+            monkeypatch.setenv(name, value)
+    desktop_owner.configure_desktop_owner_token(token)
+    config = _desktop_config(**overrides)
+    assert desktop_owner.local_login_enabled(config) is False
+    app = FastAPI()
+    app.include_router(create_local_auth_router(config=config))
+    with TestClient(app, client=("127.0.0.1", 50000)) as client:
+        response = client.post(
+            "/api/auth/local/login",
+            json={"username": "owner", "password": _DESKTOP_OWNER_TOKEN},
+        )
+    assert response.status_code == 503
+
+
+def test_desktop_owner_token_does_not_unlock_password_accounts(desktop_owner):
+    config = _desktop_config(users={"admin": hash_password("admin-test-password")})
+    assert desktop_owner.desktop_owner_login_enabled(config) is False
+    app = FastAPI()
+    app.include_router(create_local_auth_router(config=config))
+    with TestClient(app, client=("127.0.0.1", 50000)) as client:
+        response = client.post(
+            "/api/auth/local/login",
+            json={"username": "admin", "password": _DESKTOP_OWNER_TOKEN},
+        )
+    assert response.status_code == 401
+
+
+def test_desktop_owner_token_guesses_are_rate_limited(desktop_owner):
+    app = FastAPI()
+    app.include_router(create_local_auth_router(config=_desktop_config(login_max_failures=3)))
+    with TestClient(app, client=("127.0.0.1", 50000)) as client:
+        statuses = [
+            client.post(
+                "/api/auth/local/login",
+                json={"username": "owner", "password": f"guess-{attempt}"},
+            ).status_code
+            for attempt in range(3)
+        ]
+        locked = client.post(
+            "/api/auth/local/login",
+            json={"username": "owner", "password": _DESKTOP_OWNER_TOKEN},
+        )
+    assert statuses == [401, 401, 429]
+    assert locked.status_code == 429

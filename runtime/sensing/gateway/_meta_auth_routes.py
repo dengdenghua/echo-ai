@@ -170,9 +170,12 @@ def _register_auth_routes(router: APIRouter, d: MetaRouterDeps) -> None:
                     "endpoint_verify": "/api/auth/oct/email/login",
                 }
             )
-        from runtime.adapters.integrations.local_auth.config import local_login_enabled
+        from runtime.adapters.integrations.local_auth.config import (
+            interactive_local_login_enabled,
+        )
 
-        if local_login_enabled(local_auth_config):
+        # The desktop owner signs in through the shell, never a login form.
+        if interactive_local_login_enabled(local_auth_config):
             pw_required = bool(getattr(local_auth_config, "users", {}))
             providers.append(
                 {

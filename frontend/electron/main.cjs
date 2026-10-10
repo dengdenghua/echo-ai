@@ -30,6 +30,7 @@ const {
   spawnBackend,
   killBackend,
   ensureOptionalDeps,
+  loginDesktopOwner,
 } = require("./backend-runtime.cjs");
 const petSidecar = require("./pet-sidecar.cjs");
 const desktopCore = require("./desktop-shell-core.cjs");
@@ -1312,6 +1313,24 @@ function registerIpc() {
     } catch (err) {
       return { ok: false, reason: err.message };
     }
+  });
+  // Desktop owner sign-in. The main process holds the per-launch owner token
+  // and logs in itself, handing back only the session; webviews and embedded
+  // frames cannot ask for one.
+  ipcMain.handle("auth:desktopOwnerLogin", async (event) => {
+    if (
+      !isAppRendererContents(event.sender) ||
+      event.senderFrame !== event.sender.mainFrame ||
+      !desktopProtocol.isDesktopAppURL(event.senderFrame?.url || "")
+    )
+      return { ok: false, reason: "forbidden" };
+    let displayName = "";
+    try {
+      displayName = os.userInfo().username;
+    } catch {
+      // No account entry for this uid; the owner keeps the default name.
+    }
+    return loginDesktopOwner(resolveBackendBaseURL(), { displayName });
   });
   handle("backend:ensureOptionalDeps", async (group) => {
     if (!app.isPackaged) {

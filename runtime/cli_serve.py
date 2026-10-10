@@ -575,6 +575,15 @@ def run_serve(
 ) -> int:
     import sys
 
+    from runtime.adapters.integrations.local_auth.config import (
+        DESKTOP_OWNER_TOKEN_ENV,
+        configure_desktop_owner_token,
+    )
+
+    # Take the desktop owner token out of the environment before anything
+    # (execution canary, tools, MCP servers, Codex) can inherit it.
+    desktop_owner_token = os.environ.pop(DESKTOP_OWNER_TOKEN_ENV, None)
+
     from runtime.adapters.scheduler import BackgroundRunner
     from runtime.cli_core import _Colors
     from runtime.kernel import AgentKernel
@@ -662,6 +671,14 @@ def run_serve(
         str(os.environ.get("ECHO_DEPLOYMENT_MODE") or deployment_mode).strip().lower()
     )
     allow_local_workspace_access = effective_deployment_mode == "local" and _is_loopback_host(host)
+    desktop_owner_allowed = os.environ.get("ECHO_DESKTOP") == "1" and allow_local_workspace_access
+    configure_desktop_owner_token(desktop_owner_token if desktop_owner_allowed else None)
+    if desktop_owner_token and not desktop_owner_allowed:
+        logging.getLogger(__name__).warning(
+            "%s ignored: desktop owner login needs ECHO_DESKTOP=1, local deployment "
+            "and a loopback bind",
+            DESKTOP_OWNER_TOKEN_ENV,
+        )
 
     # Startup execution-health canary: probe whether a sandboxed command can
     # run in THIS process environment. When the backend cannot apply its

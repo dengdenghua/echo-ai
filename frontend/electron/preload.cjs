@@ -127,6 +127,10 @@ const api = {
     ensureOptionalDeps: invoke("backend:ensureOptionalDeps"),
   },
 
+  auth: {
+    desktopOwnerLogin: invoke("auth:desktopOwnerLogin"),
+  },
+
   notifications: {
     isSupported: invoke("notifications:isSupported"),
     show: invoke("notifications:show"),

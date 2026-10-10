@@ -10,6 +10,7 @@ import {
 
 import {
   ACCOUNT_FREE_TOKEN,
+  desktopOwnerLogin,
   getAuthStatus,
   getMe,
   getToken,
@@ -135,6 +136,8 @@ interface AuthContextType {
   isAuthenticated: boolean;
   login: (request: LoginRequest) => Promise<void>;
   emailLogin: (email: string, code: string) => Promise<void>;
+  /** Sign the desktop owner in through the Electron shell. */
+  desktopLogin: () => Promise<void>;
   /** Deprecated: guest mode is disabled when auth is enabled. */
   guestLogin: () => Promise<void>;
   register: (request: RegisterRequest) => Promise<void>;
@@ -159,6 +162,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [authStatus, setAuthStatus] = useState<AuthStatus | null>(null);
   const [user, setUser] = useState<User | null>(null);
   const initializedRef = useRef(false);
+  // After an explicit logout the desktop owner stays signed out until they
+  // choose to sign in again, instead of being signed straight back in.
+  const desktopAutoLoginSuppressedRef = useRef(false);
 
   const isAuthenticated =
     !!user && !isPlaceholderUserId(user.user_id) && !user.is_guest;
@@ -227,13 +233,23 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         setUser(
           normalizeUserIdentity(current.currentUser, storedUser || tokenUser),
         );
-      } else if (current.error) {
+        return;
+      }
+      if (current.error) {
         swallow(current.error);
         const msg = current.error instanceof Error ? current.error.message : "";
         if (/401|Unauthorized/i.test(msg)) {
           _clearTokens();
           setUser(null);
         }
+      }
+      // The desktop shell signs its owner in; elsewhere this is a no-op.
+      if (status.enabled && !desktopAutoLoginSuppressedRef.current) {
+        const owner = await desktopOwnerLogin().catch((error: unknown) => {
+          swallow(error);
+          return null;
+        });
+        if (owner) setUser(normalizeUserIdentity(owner));
       }
     } catch (e) {
       swallow(e);
@@ -287,6 +303,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   }, []);
 
+  const desktopLogin = useCallback(async () => {
+    desktopAutoLoginSuppressedRef.current = false;
+    const owner = await desktopOwnerLogin();
+    if (!owner) throw new Error("本机登录不可用");
+    setUser(normalizeUserIdentity(owner));
+  }, []);
+
   const guestLogin = useCallback(async () => {
     _clearTokens();
     setUser(null);
@@ -319,6 +342,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const logout = useCallback(async () => {
     await logoutApi();
+    desktopAutoLoginSuppressedRef.current = true;
     _clearTokens();
     setUser(null);
   }, []);
@@ -344,6 +368,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       isAuthenticated,
       login,
       emailLogin,
+      desktopLogin,
       guestLogin,
       register,
       logout,
@@ -359,6 +384,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       isAuthenticated,
       login,
       emailLogin,
+      desktopLogin,
       guestLogin,
       register,
       logout,

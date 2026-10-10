@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import hashlib
+import hmac
 import logging
 import math
 import re
@@ -25,7 +26,13 @@ except ImportError:  # pragma: no cover
 
 from runtime.sensing._fastapi_guard import require_fastapi
 
-from .config import LocalAuthConfig, local_login_enabled, verify_password
+from .config import (
+    LocalAuthConfig,
+    desktop_owner_token,
+    development_login_enabled,
+    local_login_enabled,
+    verify_password,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -237,6 +244,30 @@ def create_local_auth_router(
             headers={"Retry-After": str(retry_after)},
         )
 
+    def _check_desktop_owner_token(username: str, password: str | None, request: Request) -> None:
+        key = _failure_key(request, username)
+        ip_key = _ip_failure_key(key)
+        retry_after = max(
+            failure_limiter.retry_after(key),
+            ip_failure_limiter.retry_after(ip_key),
+        )
+        if retry_after:
+            _raise_rate_limited(retry_after)
+        expected = desktop_owner_token()
+        if not (
+            expected
+            and password is not None
+            and hmac.compare_digest(password.encode("utf-8"), expected.encode("utf-8"))
+        ):
+            retry_after = max(
+                failure_limiter.record_failure(key),
+                ip_failure_limiter.record_failure(ip_key),
+            )
+            if retry_after:
+                _raise_rate_limited(retry_after)
+            raise HTTPException(status_code=401, detail="本机登录凭证无效")
+        failure_limiter.clear(key)
+
     def _check_credentials(username: str, password: str | None, request: Request) -> None:
         _check_username(username)
 
@@ -263,6 +294,12 @@ def create_local_auth_router(
             failure_limiter.clear(key)
             return
 
+        if not development_login_enabled(config):
+            # local_login_enabled admits a passwordless config outside
+            # development only for the desktop owner, who must present the
+            # shell's per-launch token.
+            _check_desktop_owner_token(username, password, request)
+
         if not config.allow_any_username:
             if username not in config.allowed_usernames:
                 raise HTTPException(status_code=403, detail="用户名不在白名单")
@@ -276,8 +313,9 @@ def create_local_auth_router(
     ) -> LoginResponse:
         _require_enabled()
         # Development shortcuts — a fixed account, or no password check at all
-        # — stay on this machine even when the server is bound to the LAN;
-        # otherwise anyone on the network could sign in (possibly as admin).
+        # — and the desktop owner token stay on this machine even when the
+        # server is bound to the LAN; otherwise anyone on the network could
+        # sign in (possibly as admin).
         if config.password_only_username or not config.password_required:
             import ipaddress
             from urllib.parse import urlsplit

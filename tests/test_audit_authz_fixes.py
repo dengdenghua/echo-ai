@@ -469,6 +469,52 @@ def test_local_auth_jwt_reaches_control_and_auth_aware_routes(
     assert client.get("/api/agents", headers=headers).status_code != 401
 
 
+def test_desktop_owner_login_reaches_admin_routes_without_dev_mode(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # The packaged desktop profile: oct email login plus passwordless local
+    # auth that only the shell's per-launch owner token unlocks.
+    from runtime.adapters.integrations.local_auth import config as local_auth_config
+    from runtime.adapters.integrations.oct.config import OctConfig
+
+    owner_token = "Od9-desktop-owner-token-0123456789abcdef"
+    monkeypatch.delenv("ECHO_ENV", raising=False)
+    monkeypatch.setenv("ECHO_DESKTOP", "1")
+    monkeypatch.setenv("ECHO_DEPLOYMENT_MODE", "local")
+    monkeypatch.chdir(tmp_path)
+    local_auth_config.configure_desktop_owner_token(owner_token)
+    try:
+        app = create_app(
+            cocoloop_require_auth=True,
+            oct_config=OctConfig(enabled=True, jwt_secret=_JWT_SECRET),
+            local_auth_config=local_auth_config.LocalAuthConfig(
+                enabled=True,
+                allow_any_username=True,
+                admin_usernames=["*"],
+                jwt_secret=_JWT_SECRET,
+            ),
+        )
+        client = TestClient(app, client=("127.0.0.1", 50000))
+
+        providers = client.get("/api/auth/providers").json()["providers"]
+        assert [provider["id"] for provider in providers] == ["oct"]
+        assert client.post("/api/auth/local/login", json={"username": "owner"}).status_code == 401
+
+        login = client.post(
+            "/api/auth/local/login",
+            json={"username": "owner", "password": owner_token},
+        )
+        assert login.status_code == 200
+        headers = {"Authorization": f"Bearer {login.json()['access_token']}"}
+        whoami = client.get("/api/auth/local/whoami", headers=headers)
+        assert whoami.status_code == 200
+        assert "admin" in whoami.json()["roles"]
+        assert client.get("/api/memory", headers=headers).status_code != 401
+    finally:
+        local_auth_config.configure_desktop_owner_token(None)
+
+
 def test_local_auth_dev_mode_rejects_legacy_guest_token(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
