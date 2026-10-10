@@ -60,7 +60,7 @@ dev = [
     # Pinned to the minor that generated tools/lint/mypy_baseline.txt — a
     # newer mypy shifts messages/rules and drifts the ratchet red on
     # unrelated PRs. Bump deliberately, then --write-baseline.
-    "mypy>=2.1,<2.2",
+    "mypy>=2.1,<2.5",
     # mypy targets Python 3.11 below. NumPy 2.5's stubs use the Python 3.12
     # `type` statement, so allowing 2.5+ makes the type gate abort before it
     # checks our code when CI itself happens to run on Python 3.12.
