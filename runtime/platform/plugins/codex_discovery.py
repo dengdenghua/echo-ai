@@ -640,8 +640,22 @@ def discover_codex_capabilities(roots: list[Path] | None = None) -> list[dict[st
     return [cap for _, caps in ordered for cap in caps]
 
 
+def discover_codex_plugin_dirs(roots: list[Path] | None = None) -> dict[str, Path]:
+    """Map plugin id -> directory, resolved like ``discover_codex_plugins``.
+
+    For callers that only need to locate a plugin, such as asset serving. It
+    skips the per-plugin smoke checks.
+    """
+
+    dirs: dict[str, Path] = {}
+    for plugin_dir, manifest in _discovered_manifests(roots):
+        dirs[_plugin_identity(plugin_dir, manifest)[1]] = plugin_dir
+    return dirs
+
+
 __all__ = [
     "discover_codex_capabilities",
+    "discover_codex_plugin_dirs",
     "discover_codex_plugins",
     "is_sensitive_plugin_asset_path",
     "public_plugin_asset_paths",

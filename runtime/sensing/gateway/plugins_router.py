@@ -1,7 +1,8 @@
 from __future__ import annotations
 
 import json
-from collections.abc import Callable
+from collections.abc import Callable, Mapping
+from functools import partial
 from pathlib import Path
 from typing import Any
 
@@ -11,6 +12,7 @@ from fastapi.responses import FileResponse
 from runtime.platform.plugins.codex_discovery import (  # re-exported
     _string,
     discover_codex_capabilities,
+    discover_codex_plugin_dirs,
     discover_codex_plugins,
     is_sensitive_plugin_asset_path,
     public_plugin_asset_paths,
@@ -48,12 +50,12 @@ def is_public_plugin_asset_request(
     method: str,
     path: str,
     *,
-    plugins: list[dict[str, Any]] | Callable[[], list[dict[str, Any]]],
+    plugin_dirs: Mapping[str, Path] | Callable[[], Mapping[str, Path]],
 ) -> bool:
     """Return whether ``path`` is a public asset of a discovered plugin.
 
-    A callable ``plugins`` is invoked only for asset-shaped GET/HEAD paths, so
-    every other request skips plugin discovery.
+    ``plugin_dirs`` maps plugin id to directory. A callable is invoked only for
+    asset-shaped GET/HEAD paths, so every other request skips plugin discovery.
     """
 
     if method.upper() not in {"GET", "HEAD"}:
@@ -73,13 +75,12 @@ def is_public_plugin_asset_request(
     requested = Path(asset_path)
     if requested.is_absolute() or ".." in requested.parts:
         return False
-    for plugin in plugins() if callable(plugins) else plugins:
-        if str(plugin.get("id") or "") != plugin_id:
-            continue
-        plugin_dir = Path(_string(plugin.get("path"))).resolve()
-        manifest = _read_json(plugin_dir / ".codex-plugin" / "plugin.json") or {}
-        return requested.as_posix() in public_plugin_asset_paths(plugin_dir, manifest)
-    return False
+    located = (plugin_dirs() if callable(plugin_dirs) else plugin_dirs).get(plugin_id)
+    if located is None:
+        return False
+    plugin_dir = located.resolve()
+    manifest = _read_json(plugin_dir / ".codex-plugin" / "plugin.json") or {}
+    return requested.as_posix() in public_plugin_asset_paths(plugin_dir, manifest)
 
 
 def create_plugins_router(
@@ -95,6 +96,9 @@ def create_plugins_router(
     publisher_trust_store_path: Path | None = None,
     plugin_registry_path: Path | None = None,
 ) -> APIRouter:
+    # Locating a plugin needs only manifests; _discover() also smoke-checks.
+    plugin_dirs = partial(discover_codex_plugin_dirs, plugin_roots)
+
     def _discover() -> list[dict[str, Any]]:
         return discover_codex_plugins(
             plugin_roots,
@@ -119,7 +123,7 @@ def create_plugins_router(
 
     def _auth_dep(request: Request) -> None:
         path = str(getattr(getattr(request, "url", None), "path", "") or "")
-        if is_public_plugin_asset_request(request.method, path, plugins=_discover):
+        if is_public_plugin_asset_request(request.method, path, plugin_dirs=plugin_dirs):
             return
 
         from runtime.adapters.web_auth import _resolve_actor
@@ -154,9 +158,7 @@ def create_plugins_router(
 
     @router.get("/api/plugins/capabilities")
     def _plugin_caps(type: str | None = None) -> list[dict[str, Any]]:
-        # Manifest-only: the per-plugin smoke checks behind _discover() hash
-        # every plugin file and add nothing to a capability listing.
-        caps = discover_codex_capabilities(plugin_roots)
+        caps = discover_codex_capabilities(plugin_roots)  # manifests only, no smoke checks
         return [cap for cap in caps if type is None or cap.get("type") == type]
 
     @router.get("/api/plugins/smoke-summary")
@@ -586,39 +588,38 @@ def create_plugins_router(
 
     @router.get("/api/plugins/{plugin_id}/assets/{asset_path:path}")
     def _plugin_asset(plugin_id: str, asset_path: str) -> FileResponse:
-        for plugin in _discover():
-            if plugin["id"] != plugin_id:
-                continue
-            plugin_dir = Path(_string(plugin.get("path"))).resolve()
-            requested = Path(asset_path)
-            if requested.is_absolute() or ".." in requested.parts:
-                raise HTTPException(status_code=404, detail="asset not found")
-            if is_sensitive_plugin_asset_path(requested):
-                raise HTTPException(status_code=404, detail="asset not found")
-            manifest = _read_json(plugin_dir / ".codex-plugin" / "plugin.json") or {}
-            public_paths = public_plugin_asset_paths(plugin_dir, manifest)
-            is_public = requested.as_posix() in public_paths
-            is_private_static_asset = bool(requested.parts) and (
-                requested.parts[0].casefold() == "assets"
-            )
-            if not is_public and not is_private_static_asset:
-                raise HTTPException(status_code=404, detail="asset not found")
-            candidate = (plugin_dir / requested).resolve()
-            try:
-                candidate.relative_to(plugin_dir)
-            except ValueError:
-                raise HTTPException(status_code=404, detail="asset not found") from None
-            if not candidate.is_file():
-                raise HTTPException(status_code=404, detail="asset not found")
-            return FileResponse(
-                candidate,
-                headers={
-                    "Content-Security-Policy": "default-src 'none'; sandbox",
-                    "Cross-Origin-Resource-Policy": "same-origin",
-                    "X-Content-Type-Options": "nosniff",
-                },
-            )
-        raise HTTPException(status_code=404, detail="plugin not found")
+        located = plugin_dirs().get(plugin_id)
+        if located is None:
+            raise HTTPException(status_code=404, detail="plugin not found")
+        plugin_dir = located.resolve()
+        requested = Path(asset_path)
+        if requested.is_absolute() or ".." in requested.parts:
+            raise HTTPException(status_code=404, detail="asset not found")
+        if is_sensitive_plugin_asset_path(requested):
+            raise HTTPException(status_code=404, detail="asset not found")
+        manifest = _read_json(plugin_dir / ".codex-plugin" / "plugin.json") or {}
+        public_paths = public_plugin_asset_paths(plugin_dir, manifest)
+        is_public = requested.as_posix() in public_paths
+        is_private_static_asset = bool(requested.parts) and (
+            requested.parts[0].casefold() == "assets"
+        )
+        if not is_public and not is_private_static_asset:
+            raise HTTPException(status_code=404, detail="asset not found")
+        candidate = (plugin_dir / requested).resolve()
+        try:
+            candidate.relative_to(plugin_dir)
+        except ValueError:
+            raise HTTPException(status_code=404, detail="asset not found") from None
+        if not candidate.is_file():
+            raise HTTPException(status_code=404, detail="asset not found")
+        return FileResponse(
+            candidate,
+            headers={
+                "Content-Security-Policy": "default-src 'none'; sandbox",
+                "Cross-Origin-Resource-Policy": "same-origin",
+                "X-Content-Type-Options": "nosniff",
+            },
+        )
 
     @router.get("/api/plugins/{plugin_id}")
     def _plugin_get(plugin_id: str) -> dict[str, Any]:

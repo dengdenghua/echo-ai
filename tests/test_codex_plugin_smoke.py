@@ -281,6 +281,41 @@ def test_plugin_capability_list_skips_smoke_checks(
     assert tools.json() == [cap for cap in expected if cap["type"] == "tool"]
 
 
+def test_plugin_assets_are_served_without_smoke_checks(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # Locating an asset needs only the plugin directory; the smoke checks hash
+    # every plugin file and ran twice per icon request (auth dependency + route).
+    plugin_dir = _write_plugin(tmp_path)
+    (plugin_dir / "assets").mkdir()
+    (plugin_dir / "assets" / "logo.png").write_bytes(b"logo-bytes")
+    manifest_path = plugin_dir / ".codex-plugin" / "plugin.json"
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    manifest["interface"]["logo"] = "assets/logo.png"
+    manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
+
+    def _no_smoke(*_args: object, **_kwargs: object) -> dict[str, object]:
+        raise AssertionError("asset serving ran a plugin smoke check")
+
+    monkeypatch.setattr(codex_discovery, "_plugin_smoke_check", _no_smoke)
+    store = IdentityStore()
+    app = FastAPI()
+    app.include_router(
+        create_plugins_router(plugin_roots=[tmp_path], identity_store=store, require_auth=True)
+    )
+    client = TestClient(app)
+
+    logo = client.get("/api/plugins/research/assets/assets/logo.png")
+    hidden = client.get("/api/plugins/research/assets/.mcp.json")
+    unknown = client.get("/api/plugins/unknown/assets/assets/logo.png")
+
+    assert logo.status_code == 200
+    assert logo.content == b"logo-bytes"
+    assert hidden.status_code in {401, 404}
+    assert unknown.status_code == 401
+
+
 def test_codex_plugin_smoke_summary_endpoint(tmp_path: Path) -> None:
     _write_plugin(tmp_path)
     plugin_dir = tmp_path / "empty"

@@ -283,6 +283,61 @@ def test_connector_capabilities_expose_native_brand_icons(tmp_path: Path) -> Non
     assert registry.icon_path("linear-mcp") == icon
 
 
+def test_capability_icons_resolve_from_one_registry_walk(tmp_path: Path) -> None:
+    # CapabilityRegistry.icon_path walks every connector and plugin (1.5-2.5 s
+    # on a dev profile) and the HUB requests one icon per listed row.
+    workbuddy_icon = tmp_path / "workbuddy" / "linear-mcp.png"
+    workbuddy_icon.parent.mkdir(parents=True)
+    workbuddy_icon.write_bytes(b"workbuddy-original")
+    plugin_dir = tmp_path / "codex" / "atlas"
+    (plugin_dir / ".codex-plugin").mkdir(parents=True)
+    (plugin_dir / ".codex-plugin" / "plugin.json").write_text(
+        json.dumps({"name": "atlas", "version": "1.0.0", "interface": {"logo": "logo.svg"}}),
+        encoding="utf-8",
+    )
+    (plugin_dir / "logo.svg").write_text("<svg xmlns='http://www.w3.org/2000/svg'/>", "utf-8")
+    connector_registry = _FakeConnectorRegistry()
+    connector_registry.list = lambda: [
+        {"id": "linear-mcp", "name": "Linear", "type": "mcp", "provider_id": "linear"}
+    ]
+    registry = CapabilityRegistry(
+        connector_registry=connector_registry,
+        auth_orchestrator=_FakeAuthOrchestrator(),
+        codex_cache=tmp_path / "codex",
+        capability_state_file=tmp_path / "capabilities.json",
+        skills_root=tmp_path / "skills",
+        workbuddy_icon_root=tmp_path / "workbuddy",
+        native_icon_root=tmp_path / "native",
+        storefront_icon_root=tmp_path / "fallback",
+    )
+    expected = {cid: registry.icon_path(cid) for cid in ("linear-mcp", "atlas")}
+    walks = 0
+    walk = registry.list
+
+    def counted_walk() -> list[dict[str, Any]]:
+        nonlocal walks
+        walks += 1
+        return walk()
+
+    registry.list = counted_walk  # type: ignore[method-assign]
+    app = FastAPI()
+    app.include_router(create_capability_router(registry=registry))
+
+    with TestClient(app) as client:
+        icons = {cid: client.get(f"/api/capabilities/{cid}/icon") for cid in expected}
+        again = client.get("/api/capabilities/linear-mcp/icon")
+        unknown = client.get("/api/capabilities/unknown/icon")
+
+    assert expected["linear-mcp"] == workbuddy_icon
+    for cid, path in expected.items():
+        assert path is not None
+        assert icons[cid].status_code == 200
+        assert icons[cid].content == path.read_bytes()
+    assert again.content == b"workbuddy-original"
+    assert unknown.status_code == 404
+    assert walks == 1
+
+
 def test_codex_plugin_state_preserves_parallel_registry_updates(
     tmp_path: Path,
     monkeypatch,
@@ -620,6 +675,37 @@ class _SlowCodexAccounts(_FakeCodexAccounts):
         self.list_calls += 1
         await asyncio.sleep(self.delays.pop(0) if self.delays else 0)
         return await super().list_plugins(scope, force_refetch=force_refetch)
+
+
+class _OffLoopRegistry(_FakeCapabilityRegistry):
+    """Registry whose list() refuses to run on the event loop thread."""
+
+    def list(self) -> list[dict[str, Any]]:
+        try:
+            asyncio.get_running_loop()
+        except RuntimeError:
+            return super().list()
+        raise AssertionError("registry.list() blocked the event loop")
+
+
+def test_capability_list_walks_the_registry_off_the_event_loop() -> None:
+    # The registry walk is 1-2 s of file IO; on the loop it stalled every
+    # other request, including the HUB's icon requests.
+    app = FastAPI()
+    app.include_router(
+        create_capability_router(registry=_OffLoopRegistry(), codex_accounts=_FakeCodexAccounts())
+    )
+
+    with TestClient(app) as client:
+        listed = client.get("/api/capabilities")
+        connectors = client.get("/api/capabilities?source=connector")
+
+    assert [item["id"] for item in listed.json()["capabilities"]] == [
+        "cli-one",
+        "codex-marketplace:remote-one@openai-curated",
+        "codex-marketplace:plugin-one@openai-curated",
+    ]
+    assert [item["id"] for item in connectors.json()["capabilities"]] == ["cli-one"]
 
 
 def test_capability_list_does_not_wait_for_a_slow_codex_catalog(

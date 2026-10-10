@@ -45,6 +45,7 @@ from runtime.platform.connectors import oauth_support
 from runtime.platform.connectors.auth_orchestrator import RefreshCleanupRequiredError
 from runtime.safety.auth.scope import scope_from_request
 from runtime.sensing._fastapi_guard import require_fastapi
+from runtime.sensing.gateway._capability_icons import CapabilityIconIndex
 from runtime.sensing.gateway._codex_catalog_reader import CodexCatalogReader
 from runtime.sensing.gateway._device_flow_models import (
     DeviceFlowCancelResponse,
@@ -75,6 +76,7 @@ def create_capability_router(
 
         registry = CapabilityRegistry()
     codex_catalog = CodexCatalogReader(codex_accounts)
+    icon_index = CapabilityIconIndex(registry)
 
     async def _auth_dep(request: Request) -> AsyncIterator[None]:
         from runtime.adapters.web_auth import _resolve_actor
@@ -231,33 +233,12 @@ def create_capability_router(
         ),
         force_refetch: bool = Query(default=False, alias="force_refetch"),
     ) -> dict[str, Any]:
-        items = registry.list()
-        if codex_accounts is not None and source != "connector":
-            try:
-                remote_plugins = await codex_catalog.list_plugins(
-                    scope_from_request(request), force_refetch=force_refetch
-                )
-                # The App Server catalog owns install state for personal Codex
-                # applications.  A checked-out/bundled copy is only an offline
-                # source cache; letting it win here routed Browser/Documents/etc.
-                # through the process-global legacy registry and made remote
-                # uninstall/reinstall unreachable.
-                remote_provider_ids = {
-                    str(plugin.get("provider_id") or plugin.get("id") or "")
-                    for plugin in remote_plugins
-                }
-                items = [
-                    item
-                    for item in items
-                    if item.get("source") != "codex_plugin"
-                    or str(item.get("provider_id") or item.get("id") or "")
-                    not in remote_provider_ids
-                ]
-                items.extend(dict(plugin) for plugin in remote_plugins)
-            except Exception as exc:  # noqa: BLE001 - local catalog remains usable offline
-                logger.warning(
-                    "Codex plugin catalog unavailable; using local capabilities: %s", exc
-                )
+        items = await _local_and_codex_capabilities(
+            registry,
+            codex_catalog if codex_accounts is not None and source != "connector" else None,
+            scope_from_request(request),
+            force_refetch=force_refetch,
+        )
         if source:
             items = [i for i in items if i.get("source") == source]
         if ctype:
@@ -313,10 +294,8 @@ def create_capability_router(
 
     @router.get("/api/capabilities/{cid}/icon")
     async def capability_icon(cid: str, request: Request) -> Any:
-        item = registry.get(cid)
-        if item is not None:
-            icon_path = registry.icon_path(cid)
-        elif codex_accounts is not None and cid.startswith("codex-marketplace:"):
+        known, icon_path = await icon_index.lookup(cid)
+        if not known and codex_accounts is not None and cid.startswith("codex-marketplace:"):
             try:
                 icon_path = await codex_accounts.plugin_icon_path(
                     scope_from_request(request),
@@ -324,7 +303,7 @@ def create_capability_router(
                 )
             except Exception as exc:  # noqa: BLE001 - do not expose local paths/protocol errors
                 raise HTTPException(404, f"capability icon not found: {cid}") from exc
-        else:
+        elif not known:
             raise HTTPException(404, f"capability not found: {cid}")
         if icon_path is None or not icon_path.is_file():
             raise HTTPException(404, f"capability icon not found: {cid}")
@@ -675,3 +654,53 @@ def create_capability_router(
     router.add_event_handler("shutdown", catalog_refresh.close)
 
     return router
+
+
+async def _local_and_codex_capabilities(
+    registry: Any,
+    codex_catalog: CodexCatalogReader | None,
+    scope: Any,
+    *,
+    force_refetch: bool,
+) -> list[dict[str, Any]]:
+    """Return registry rows merged with the Codex App Server catalog.
+
+    The registry walk is blocking file IO (1-2 s on a dev profile). It runs in
+    a worker thread alongside the bounded Codex catalog wait, so it neither
+    stalls the event loop nor adds to that wait.
+    """
+
+    local = asyncio.to_thread(registry.list)
+    if codex_catalog is None:
+        return await local
+    items, remote = await asyncio.gather(
+        local,
+        codex_catalog.list_plugins(scope, force_refetch=force_refetch),
+        return_exceptions=True,
+    )
+    if isinstance(items, BaseException):
+        raise items
+    if isinstance(remote, BaseException):
+        if not isinstance(remote, Exception):
+            raise remote
+        # The local catalog remains usable offline.
+        logging.getLogger(__name__).warning(
+            "Codex plugin catalog unavailable; using local capabilities: %s", remote
+        )
+        return items
+    # The App Server catalog owns install state for personal Codex
+    # applications.  A checked-out/bundled copy is only an offline
+    # source cache; letting it win here routed Browser/Documents/etc.
+    # through the process-global legacy registry and made remote
+    # uninstall/reinstall unreachable.
+    remote_provider_ids = {
+        str(plugin.get("provider_id") or plugin.get("id") or "") for plugin in remote
+    }
+    merged = [
+        item
+        for item in items
+        if item.get("source") != "codex_plugin"
+        or str(item.get("provider_id") or item.get("id") or "") not in remote_provider_ids
+    ]
+    merged.extend(dict(plugin) for plugin in remote)
+    return merged

@@ -30,7 +30,7 @@ runtime/sensing/gateway/channels_router.py::create_channels_router	687
 runtime/core/cerebrum/react_phase_6c.py::_phase_6c_parse_and_guard	682
 runtime/sensing/gateway/_agents_endpoints_crud.py::_register_agents_crud	674
 runtime/sensing/gateway/team_invitations_router.py::register_team_invitation_routes	625
-runtime/sensing/gateway/capability_router.py::create_capability_router	621
+runtime/sensing/gateway/capability_router.py::create_capability_router	599
 runtime/sensing/gateway/_observability_rollback_panels.py::register_rollback_panels_endpoints	601
 runtime/sensing/gateway/config_router.py::create_config_router	596
 runtime/sensing/gateway/workspaces_router.py::create_workspaces_router	593
