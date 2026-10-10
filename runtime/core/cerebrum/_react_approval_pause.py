@@ -43,13 +43,23 @@ def _approval_could_not_reach_user(
 
 def _pause_for_unavailable_approval(
     state: _LoopState,
+    decision: Any,
     *,
     iteration: int,
     tool_name: str,
     detail: str,
 ) -> bool:
-    """Request a checkpointed pause instead of turning UI absence into failure."""
+    """Pause (checkpointed) when ``decision`` is an approval nobody could give.
 
+    An explicit decline returns ``False`` and stays a denial. An unavailable
+    automatic reviewer only pauses runs whose intent opted in with
+    ``pause_on_unavailable_review`` (unattended background loops).
+    """
+
+    user_context = getattr(getattr(state.wiring, "intent", None), "user_context", None)
+    review_pauses = bool((user_context or {}).get("pause_on_unavailable_review"))
+    if not _approval_could_not_reach_user(decision, include_unavailable_review=review_pauses):
+        return False
     pause_controller = state.wiring.pause_controller
     task_id = str(state.wiring.react_task_id or "").strip()
     if pause_controller is None or not task_id:

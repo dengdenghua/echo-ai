@@ -50,6 +50,101 @@ _LOG = logging.getLogger("echo.sensing.org_router")
 _GLOBAL_READ_ROLES = frozenset({"admin", "operator"})
 
 
+class _OrgAccess:
+    """Caller resolution and org/channel role checks shared by the org routes."""
+
+    def __init__(
+        self,
+        store: Any,
+        identity_store: Any,
+        require_auth: bool,
+        *,
+        jwt_secret: str | None,
+        jwt_issuer: str | None,
+        jwt_audience: str | None,
+    ) -> None:
+        self._store = store
+        self._identity_store = identity_store
+        self._require_auth = require_auth
+        self._jwt_secret = jwt_secret
+        self._jwt_issuer = jwt_issuer
+        self._jwt_audience = jwt_audience
+
+    def principal(self, request: Request) -> Any:
+        # Shared auth is enforced only when configured: with require_auth the
+        # resolver raises 401 instead of returning None, so an anonymous
+        # principal only exists in local (loopback single-user) mode.
+        try:
+            from runtime.safety.auth.principal import resolve_principal
+
+            return resolve_principal(
+                request,
+                self._identity_store,
+                self._require_auth,
+                jwt_secret=self._jwt_secret,
+                jwt_issuer=self._jwt_issuer,
+                jwt_audience=self._jwt_audience,
+            )
+        except HTTPException:
+            raise
+        except Exception as exc:  # noqa: BLE001
+            if self._require_auth:
+                raise HTTPException(401, "auth required") from exc
+            return None
+
+    def auth(self, request: Request, *, force: bool = False) -> str | None:
+        # Mutations always pass through authorization below; anonymous
+        # local-mode mutations reach the org/channel ACL and fail with 403.
+        principal = self.principal(request)
+        return principal.actor_id if principal is not None else None
+
+    def require_org_reader(self, request: Request, org_id: str) -> None:
+        """404 unless the caller may read ``org_id``: an org member, or a
+        global admin/operator. Non-members get the same 404 as a missing org so
+        org ids cannot be probed. The anonymous local single-user keeps the
+        open read access it had before membership checks existed."""
+        principal = self.principal(request)
+        if self._store.get_organization(org_id) is None:
+            raise HTTPException(404, "organization not found")
+        if principal is None:
+            if self._require_auth:  # pragma: no cover - resolve_principal raises 401
+                raise HTTPException(404, "organization not found")
+            return
+        if principal.roles & _GLOBAL_READ_ROLES:
+            return
+        if self._store.get_org_member_role(org_id, principal.actor_id) is None:
+            raise HTTPException(404, "organization not found")
+
+    def require_org_admin(self, org_id: str, actor: str | None) -> str:
+        """403 unless ``actor`` is the org's owner/admin (404 when not a member
+        at all). Returns the caller's org role."""
+        if actor is None:
+            raise HTTPException(403, "org admin required")
+        role = self._store.get_org_member_role(org_id, actor)
+        if role is None:
+            raise HTTPException(404, "organization not found")
+        if not role_has_org_admin(role):
+            raise HTTPException(403, "org admin required")
+        return role
+
+    def require_org_owner(self, org_id: str, actor: str | None) -> None:
+        """403 unless ``actor`` is an owner of the org (404 for non-members)."""
+        if self.require_org_admin(org_id, actor) != "owner":
+            raise HTTPException(403, "org owner required")
+
+    def require_channel_admin(self, channel: Any, actor: str | None) -> str:
+        """403 unless ``actor`` is the channel's owner/admin and still belongs
+        to the channel's org. Returns the caller's channel role."""
+        if actor is None:
+            raise HTTPException(403, "channel admin required")
+        role = self._store.get_channel_member_role(channel.id, actor)
+        if not role_has_channel_admin(role or ""):
+            raise HTTPException(403, "channel admin required")
+        if self._store.get_org_member_role(channel.org_id, actor) is None:
+            raise HTTPException(403, "channel admin required")
+        return str(role)
+
+
 def create_org_router(
     *,
     org_store: Any = None,
@@ -92,79 +187,18 @@ def create_org_router(
             _LOG.warning("org audit append failed for %s: %s", event_type, exc)
             return None
 
-    def _principal(request: Request) -> Any:
-        # Shared auth is enforced only when configured: with require_auth the
-        # resolver raises 401 instead of returning None, so an anonymous
-        # principal only exists in local (loopback single-user) mode.
-        try:
-            from runtime.safety.auth.principal import resolve_principal
-
-            return resolve_principal(
-                request,
-                identity_store,
-                require_auth,
-                jwt_secret=jwt_secret,
-                jwt_issuer=jwt_issuer,
-                jwt_audience=jwt_audience,
-            )
-        except HTTPException:
-            raise
-        except Exception as exc:  # noqa: BLE001
-            if require_auth:
-                raise HTTPException(401, "auth required") from exc
-            return None
-
-    def _auth(request: Request, *, force: bool = False) -> str | None:
-        # Mutations always pass through authorization below; anonymous
-        # local-mode mutations reach the org/channel ACL and fail with 403.
-        principal = _principal(request)
-        return principal.actor_id if principal is not None else None
-
-    def _require_org_reader(request: Request, org_id: str) -> None:
-        """404 unless the caller may read ``org_id``: an org member, or a
-        global admin/operator. Non-members get the same 404 as a missing org so
-        org ids cannot be probed. The anonymous local single-user keeps the
-        open read access it had before membership checks existed."""
-        principal = _principal(request)
-        if store.get_organization(org_id) is None:
-            raise HTTPException(404, "organization not found")
-        if principal is None:
-            if require_auth:  # pragma: no cover - resolve_principal raises 401
-                raise HTTPException(404, "organization not found")
-            return
-        if principal.roles & _GLOBAL_READ_ROLES:
-            return
-        if store.get_org_member_role(org_id, principal.actor_id) is None:
-            raise HTTPException(404, "organization not found")
-
-    def _require_org_admin(org_id: str, actor: str | None) -> str:
-        """403 unless ``actor`` is the org's owner/admin (404 when not a member
-        at all). Returns the caller's org role."""
-        if actor is None:
-            raise HTTPException(403, "org admin required")
-        role = store.get_org_member_role(org_id, actor)
-        if role is None:
-            raise HTTPException(404, "organization not found")
-        if not role_has_org_admin(role):
-            raise HTTPException(403, "org admin required")
-        return role
-
-    def _require_org_owner(org_id: str, actor: str | None) -> None:
-        """403 unless ``actor`` is an owner of the org (404 for non-members)."""
-        if _require_org_admin(org_id, actor) != "owner":
-            raise HTTPException(403, "org owner required")
-
-    def _require_channel_admin(channel: Any, actor: str | None) -> str:
-        """403 unless ``actor`` is the channel's owner/admin and still belongs
-        to the channel's org. Returns the caller's channel role."""
-        if actor is None:
-            raise HTTPException(403, "channel admin required")
-        role = store.get_channel_member_role(channel.id, actor)
-        if not role_has_channel_admin(role or ""):
-            raise HTTPException(403, "channel admin required")
-        if store.get_org_member_role(channel.org_id, actor) is None:
-            raise HTTPException(403, "channel admin required")
-        return str(role)
+    access = _OrgAccess(
+        store,
+        identity_store,
+        require_auth,
+        jwt_secret=jwt_secret,
+        jwt_issuer=jwt_issuer,
+        jwt_audience=jwt_audience,
+    )
+    _auth = access.auth
+    _require_org_reader = access.require_org_reader
+    _require_org_admin = access.require_org_admin
+    _require_channel_admin = access.require_channel_admin
 
     # ── organizations ──────────────────────────────────────────────────────
 
@@ -197,7 +231,7 @@ def create_org_router(
     def list_orgs(request: Request) -> dict[str, Any]:
         # Only global admin/operator (or the anonymous local single-user) see
         # every org; everyone else gets the orgs they belong to.
-        principal = _principal(request)
+        principal = access.principal(request)
         if principal is None or principal.roles & _GLOBAL_READ_ROLES:
             orgs = store.list_organizations()
         else:
@@ -226,7 +260,7 @@ def create_org_router(
         actor = _auth(request, force=True)
         if store.get_organization(org_id) is None:
             raise HTTPException(404, "organization not found")
-        _require_org_owner(org_id, actor)
+        access.require_org_owner(org_id, actor)
         store.delete_organization(org_id)
         _audit("org_delete", actor, org_id, org_id)
         return {"deleted": org_id}

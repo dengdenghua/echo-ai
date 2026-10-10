@@ -368,7 +368,6 @@ def _phase_6d_dispatch_and_observe(
             user_intent=_latest_human_intent(messages),
             default_model=state.iteration.effective_model if reviewer_router is router else None,
         )
-    _pause_on_unavailable_review = bool(intent.user_context.get("pause_on_unavailable_review"))
     output_chunk_sink = state.wiring.output_chunk_sink
     _metadata = state.wiring.metadata
     _effective_wp = state.wiring.effective_wp
@@ -752,11 +751,9 @@ def _phase_6d_dispatch_and_observe(
                             timeout=_approval_timeout_s,
                         )
                         if not _decision.approved:
-                            if _approval_could_not_reach_user(
-                                _decision,
-                                include_unavailable_review=_pause_on_unavailable_review,
-                            ) and _pause_for_unavailable_approval(
+                            if _pause_for_unavailable_approval(
                                 state,
+                                _decision,
                                 iteration=i,
                                 tool_name=resolved_name,
                                 detail=_approval_detail,
@@ -914,11 +911,9 @@ def _phase_6d_dispatch_and_observe(
                             timeout=_approval_timeout_s,
                         )
                         if not _escalation_decision.approved:
-                            if _approval_could_not_reach_user(
-                                _escalation_decision,
-                                include_unavailable_review=_pause_on_unavailable_review,
-                            ) and _pause_for_unavailable_approval(
+                            if _pause_for_unavailable_approval(
                                 state,
+                                _escalation_decision,
                                 iteration=i,
                                 tool_name=resolved_name,
                                 detail=_escalation_detail,

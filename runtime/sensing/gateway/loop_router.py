@@ -37,6 +37,17 @@ from runtime.platform.process.task_supervisor import TaskSupervisor, task_lease_
 from runtime.safety.auth.scope import scope_from_request
 from runtime.sensing._fastapi_guard import require_fastapi
 
+# Terminal-but-continuable runs: ``resume`` starts a child run from the loop
+# checkpoint (PAUSED may carry a raised budget or another permission policy).
+_RESUMABLE_STATUSES = frozenset(
+    {
+        LoopRunStatus.FAILED,
+        LoopRunStatus.CANCELLED,
+        LoopRunStatus.INTERRUPTED,
+        LoopRunStatus.PAUSED,
+    }
+)
+
 
 def create_loop_router(
     *,
@@ -94,12 +105,7 @@ def create_loop_router(
         resume = raw_resume if isinstance(raw_resume, dict) else {}
         raw_review_replay = review.get("replay")
         review_replay = raw_review_replay if isinstance(raw_review_replay, dict) else {}
-        resume_available = run.status in {
-            LoopRunStatus.FAILED,
-            LoopRunStatus.CANCELLED,
-            LoopRunStatus.INTERRUPTED,
-            LoopRunStatus.PAUSED,
-        }
+        resume_available = run.status in _RESUMABLE_STATUSES
         resume_checkpoint_id = checkpoint.get("id")
         if isinstance(resume, dict):
             raw_latest = resume.get("latest_checkpoint")
@@ -315,12 +321,7 @@ def create_loop_router(
     def _resumable_or_raise(run: LoopRun) -> LoopRun:
         # INTERRUPTED (audit R-02): reconciled from an active status at
         # startup after the process died mid-run — terminal, so resumable.
-        if run.status not in {
-            LoopRunStatus.FAILED,
-            LoopRunStatus.CANCELLED,
-            LoopRunStatus.INTERRUPTED,
-            LoopRunStatus.PAUSED,
-        }:
+        if run.status not in _RESUMABLE_STATUSES:
             raise HTTPException(409, "loop run is not resumable")
         return run
 

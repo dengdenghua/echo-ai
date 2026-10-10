@@ -4,6 +4,7 @@ import contextlib
 import hashlib
 import json
 import threading
+from datetime import datetime
 
 from runtime.core.cerebrum.react_types import ReActResult
 from runtime.execution.loops._controller_helpers import (
@@ -383,7 +384,31 @@ class LoopControllerAttemptMixin:
         )
         return self._finalize_learning(run)
 
-    def _pause_run(self, run_id: str, *, since: float) -> LoopRun:
+    def _stopped_after_attempt(
+        self,
+        run_id: str,
+        *,
+        cancellation_token: CancellationToken | None,
+        latest_result: ReActResult | None,
+    ) -> LoopRun | None:
+        """The cancelled or paused run an attempt ended in, else ``None``.
+
+        A ReAct pause (budget limit, an approval nobody could answer, the
+        wall-time cap) is a checkpointed stop, not a verdict on the work:
+        the run is parked for resume instead of verified, repaired or failed.
+        """
+
+        if cancelled := self._check_for_cancellation(
+            run_id,
+            cancellation_token=cancellation_token,
+            latest_result=latest_result,
+        ):
+            return cancelled
+        if _react_result_paused(latest_result):
+            return self._pause_run(run_id)
+        return None
+
+    def _pause_run(self, run_id: str) -> LoopRun:
         """Park a run whose ReAct attempt stopped at a checkpointed pause.
 
         The run becomes ``paused`` (not failed, not verified/repaired) with
@@ -393,7 +418,10 @@ class LoopControllerAttemptMixin:
 
         if not self._supervisor_heartbeat(run_id):
             return self._latest_run(run_id)
-        reason, detail = self._claim_attempt_pause(self._latest_run(run_id), since=since)
+        latest = self._latest_run(run_id)
+        # Pause records from this attempt only: it started when it was appended.
+        since = datetime.fromisoformat(latest.attempts[-1].started_at).timestamp()
+        reason, detail = self._claim_attempt_pause(latest, since=since)
         paused_at = _now_iso()
         run = self.store.mutate(
             run_id,
