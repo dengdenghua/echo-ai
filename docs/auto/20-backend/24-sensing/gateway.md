@@ -38,9 +38,11 @@ tier: "standard"
 | `_agents_endpoints_tasks.py` | Task (pause/resume) endpoints for the agents router. |
 | `_agents_endpoints_tools.py` | Arms + tool-registry endpoints for the agents router. |
 | `_agents_helpers.py` | Pure helper functions for the agents router. |
+| `_capability_icons.py` | Short-lived id -> icon file index for ``/api/capabilities/{id}/icon``. |
 | `_channels_constructors.py` | — |
 | `_channels_models.py` | — |
 | `_channels_persist.py` | — |
+| `_codex_catalog_reader.py` | Bounded Codex marketplace reads for the capability list endpoint. |
 | `_computer_appshot_routes.py` | Appshot and native desktop-target routes for computer automation. |
 | `_computer_observe_routes.py` | Status, activity, screenshot, and UIA observation routes for computer automation. |
 | `_computer_plan_routes.py` | Preview, plan, ground, and vision routes for computer automation. |
@@ -130,6 +132,7 @@ tier: "standard"
 | `_realtime_turn_idempotency.py` | Durable ``userItemId`` replay helpers for realtime turn startup. |
 | `_realtime_turn_lifecycle_helpers.py` | Shared helpers for the realtime turn lifecycle. |
 | `_realtime_turn_lifecycle_resume.py` | Resume-intent persistence for the realtime turn lifecycle. |
+| `_realtime_turn_start_phases.py` | Straight-line startup phases of ``realtime_turn_lifecycle._start_turn``. |
 | `_team_room_binding.py` | Canonical Team Room thread binding helpers. |
 | `_team_room_creation.py` | Atomic Team Room creation primitives. |
 | `_team_room_delete.py` | Durable, fail-closed Team Room deletion. |
@@ -150,6 +153,7 @@ tier: "standard"
 | `_thread_state_search_projection.py` | Search projection helpers for the thread-state HTTP router. |
 | `_tool_bridge_exec.py` | Tool execution + semantic error + XML recovery helpers. |
 | `_tool_bridge_loop.py` | The native agentic tool loop (``stream_agentic_fallback``). |
+| `_tool_bridge_loop_prompt.py` | Straight-line setup and nudge helpers of the native agentic tool loop. |
 | `_tool_bridge_native.py` | Native model stream + timeout + tool-call fingerprint/dedup helpers. |
 | `_tool_bridge_policy.py` | Goal / scope / budget / shell policy helpers for the native tool loop. |
 | `_tool_bridge_protocol.py` | Public checkpoint / protocol-tag cleaning + narration helpers. |
@@ -378,11 +382,23 @@ tier: "standard"
 | --- | --- | --- |
 | func | `def template_to_agent_dict(template, installed, private_skills, available_skills, source_kind)` | 模板 → 与 ``_list_local_agents`` 同形状的 dict(供按 id 直查 / 安装用, 不进入列表)。 |
 
+### `_capability_icons.py`
+
+| Kind | Symbol | Doc |
+| --- | --- | --- |
+| class | `class CapabilityIconIndex` | Resolve local capability icons from one cached registry walk. |
+
 ### `_channels_constructors.py`
 
 | Kind | Symbol | Doc |
 | --- | --- | --- |
 | func | `def register_channel_constructor(platform, constructor)` |  |
+
+### `_codex_catalog_reader.py`
+
+| Kind | Symbol | Doc |
+| --- | --- | --- |
+| class | `class CodexCatalogReader` | Serve the Codex plugin catalog to list calls without blocking on it. |
 
 ### `_computer_appshot_routes.py`
 
@@ -595,6 +611,7 @@ tier: "standard"
 | class | `class RunBody(BaseModel)` |  |
 | class | `class RecoverBody(BaseModel)` |  |
 | class | `class TaskInterventionBody(BaseModel)` |  |
+| class | `class ProjectCancelBody(BaseModel)` |  |
 | class | `class FromGroupBody(BaseModel)` |  |
 | class | `class DetachFromGroupBody(BaseModel)` |  |
 
@@ -1317,7 +1334,7 @@ tier: "standard"
 
 | Kind | Symbol | Doc |
 | --- | --- | --- |
-| func | `def is_public_plugin_asset_request(method, path, plugins)` |  |
+| func | `def is_public_plugin_asset_request(method, path, plugin_dirs)` | Return whether ``path`` is a public asset of a discovered plugin. |
 | func | `def create_plugins_router(plugin_roots, identity_store, require_auth, jwt_secret, jwt_issuer, jwt_audience, approval_policy_path, promotion_audit_path, publisher_trust_store_path, plugin_registry_path)` |  |
 
 ### `project_intent_hint.py`

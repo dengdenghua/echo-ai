@@ -313,7 +313,7 @@ Public model interfaces; provider implementations load on first access.
 
 ## Who imports this
 
-**41** file(s) reference this package:
+**42** file(s) reference this package:
 
 - **`runtime/cli_core.py/`** · 1 file(s)
   - `runtime/cli_core.py`
@@ -336,11 +336,11 @@ Public model interfaces; provider implementations load on first access.
 - **`runtime/research/`** · 2 file(s)
   - `runtime/research/pipeline.py`
   - `runtime/research/query_rewrite.py`
-- **`runtime/sensing/`** · 25 file(s)
+- **`runtime/sensing/`** · 26 file(s)
   - `runtime/sensing/gateway/_config_endpoints_custom_models.py`
   - `runtime/sensing/gateway/_config_endpoints_models.py`
   - `runtime/sensing/gateway/_config_helpers.py`
   - `runtime/sensing/gateway/_evolution_helpers.py`
   - `runtime/sensing/gateway/_openai_gateway_router_helpers.py`
-  - _… and 20 more_
+  - _… and 21 more_
 
