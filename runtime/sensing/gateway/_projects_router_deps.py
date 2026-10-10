@@ -18,7 +18,9 @@ from uuid import uuid4
 from fastapi import HTTPException, Request
 
 from runtime.projectos.cowork_bridge import (
+    engine_for_group,
     full_project_state,
+    roster_from_group,
 )
 from runtime.projectos.engine import (
     ProjectEngine,
@@ -54,6 +56,10 @@ class ProjectsDeps:
     principal: Callable[[Request], CurrentPrincipal | None]
     scoped_store: Callable[[Request], ProjectStore]
     engine: Callable[..., ProjectEngine]
+    # The execution engine: group-roster assignment (``engine_for_group``)
+    # like chat, and legacy projects held for one owner approval.
+    execution_engine: Callable[[Request, str], ProjectEngine]
+    project_roster: Callable[[Request, str], list[str]]
     execution_context_resolver: Callable[..., Any]
     require_execution_context: Callable[[Request, str], None]
     thread_execution_scope: Callable[..., Any]
@@ -218,6 +224,7 @@ def _make_project_access(
     thread_access: ThreadAccessResolver,
     principal: Callable[[Request], CurrentPrincipal | None],
     scoped_store: Callable[[Request], ProjectStore],
+    project_roster: Callable[[Request, str], list[str]],
 ) -> tuple[Callable[..., Any], ...]:
     _principal = principal
     _scoped_store = scoped_store
@@ -321,7 +328,11 @@ def _make_project_access(
             allow_collaborator_read=allow_collaborator_read,
         )
         try:
-            state = full_project_state(_project_read_store(request, project), project_id)
+            state = full_project_state(
+                _project_read_store(request, project),
+                project_id,
+                roster=project_roster(request, project_id),
+            )
         except ValueError as exc:
             raise _bad_request(exc) from exc
         if state is None:
@@ -372,6 +383,72 @@ def _make_project_access(
         _full_state,
         _visible_projects,
     )
+
+
+def _principal_scope(principal: CurrentPrincipal | None) -> TenantScope | None:
+    return scope_from_principal(
+        principal,
+        allow_cross_tenant=bool(
+            principal is not None and principal.roles.intersection({"admin", "operator"})
+        ),
+    )
+
+
+def _make_engines(
+    *,
+    project_store: ProjectStore,
+    base_hooks: Callable[[], dict[str, Any]],
+    group_store: Callable[[], Any],
+    subagent_runner: Any,
+    principal: Callable[[Request], CurrentPrincipal | None],
+    scoped_store: Callable[[Request], ProjectStore],
+    execution_context_resolver: Callable[..., Any],
+) -> tuple[Callable[..., ProjectEngine], Callable[..., list[str]], Callable[..., ProjectEngine]]:
+    """Planning engine, the bound group's roster, and the execution engine."""
+
+    def _engine(
+        principal: CurrentPrincipal | None = None, *, require_initiation_approval: bool = False
+    ) -> ProjectEngine:
+        return ProjectEngine(
+            project_store,
+            **base_hooks(),
+            owner_id=principal.actor_id if principal is not None else "",
+            tenant_id=principal.tenant_id if principal is not None else "",
+            scope=_principal_scope(principal),
+            resolve_thread_context=execution_context_resolver(principal),
+            require_initiation_approval=require_initiation_approval,
+        )
+
+    def _project_roster(request: Request, project_id: str) -> list[str]:
+        thread_id = scoped_store(request).thread_for_project(project_id) or ""
+        if not thread_id:
+            return []
+        return [agent for agent, _ in roster_from_group(group_store(), thread_id)]
+
+    def _execution_engine(request: Request, project_id: str) -> ProjectEngine:
+        """Execute like chat: the bound group's members take the tasks."""
+        current = principal(request)
+        thread_id = scoped_store(request).thread_for_project(project_id) or ""
+        if not thread_id:
+            return _engine(current, require_initiation_approval=True)
+        hooks = base_hooks()
+        resolver = execution_context_resolver(current)
+        if resolver is not None:
+            hooks["resolve_thread_context"] = resolver
+        return engine_for_group(
+            project_store,
+            group_store(),
+            thread_id,
+            hooks=hooks,
+            owner_id=current.actor_id if current is not None else "",
+            tenant_id=current.tenant_id if current is not None else "",
+            scope=_principal_scope(current),
+            subagent_runner=subagent_runner,
+            require_execution_binding=True,
+            require_initiation_approval=True,
+        )
+
+    return _engine, _project_roster, _execution_engine
 
 
 def build_projects_deps(
@@ -450,22 +527,6 @@ def build_projects_deps(
             scope_from_principal(principal, allow_cross_tenant=allow_cross_tenant)
         )
 
-    def _engine(principal: CurrentPrincipal | None = None) -> ProjectEngine:
-        scope = scope_from_principal(
-            principal,
-            allow_cross_tenant=bool(
-                principal is not None and principal.roles.intersection({"admin", "operator"})
-            ),
-        )
-        return ProjectEngine(
-            project_store,
-            **_base_hooks(),
-            owner_id=principal.actor_id if principal is not None else "",
-            tenant_id=principal.tenant_id if principal is not None else "",
-            scope=scope,
-            resolve_thread_context=_execution_context_resolver(principal),
-        )
-
     (
         _execution_context_resolver,
         _require_execution_context,
@@ -478,6 +539,15 @@ def build_projects_deps(
         logs_root=logs_root,
         principal=_principal,
         scoped_store=_scoped_store,
+    )
+    _engine, _project_roster, _execution_engine = _make_engines(
+        project_store=project_store,
+        base_hooks=_base_hooks,
+        group_store=_group_store,
+        subagent_runner=subagent_runner,
+        principal=_principal,
+        scoped_store=_scoped_store,
+        execution_context_resolver=_execution_context_resolver,
     )
 
     def _auth_dep(request: Request) -> None:
@@ -496,6 +566,7 @@ def build_projects_deps(
         thread_access=thread_access,
         principal=_principal,
         scoped_store=_scoped_store,
+        project_roster=_project_roster,
     )
 
     projections = ProjectGroupProjectionContext(
@@ -525,6 +596,8 @@ def build_projects_deps(
         principal=_principal,
         scoped_store=_scoped_store,
         engine=_engine,
+        execution_engine=_execution_engine,
+        project_roster=_project_roster,
         execution_context_resolver=_execution_context_resolver,
         require_execution_context=_require_execution_context,
         thread_execution_scope=_thread_execution_scope,

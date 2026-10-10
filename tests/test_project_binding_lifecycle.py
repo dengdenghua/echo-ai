@@ -26,6 +26,7 @@ from runtime.safety.auth import Identity, IdentityStore
 from runtime.sensing.gateway.cowork_group_router import create_cowork_group_router
 from runtime.sensing.gateway.projects_router import create_projects_router
 from runtime.sensing.gateway.team_rooms_router import create_team_rooms_router
+from tests.project_governance_utils import owner_decides, owner_decides_via_api
 
 
 def _local_stack(tmp_path: Path):
@@ -125,6 +126,20 @@ def _reopen_stack(tmp_path: Path):
         )
     )
     return TestClient(app), projects, collaboration, threads
+
+
+def _attach_approved_and_run(client: TestClient, body: dict[str, Any]) -> Any:
+    """Attach a governed project and run it to done, its owner approving each gate."""
+    thread = "/api/projects/from-group/thread-lifecycle"
+    attached = client.post(thread, json={**body, "run": False})
+    assert attached.status_code == 200, attached.json()
+    response = attached
+    for _ in range(10):
+        owner_decides_via_api(client, attached.json()["project"]["id"])
+        response = client.post(thread, json={**body, "run": True})
+        if response.status_code != 200 or response.json()["result"]["final_status"] == "done":
+            break
+    return response
 
 
 def test_from_group_is_idempotent_and_concurrent_safe(tmp_path: Path) -> None:
@@ -963,11 +978,14 @@ def test_active_worker_claim_blocks_intervene_recover_and_delete_until_unique_fi
         assert release_execute.wait(timeout=5)
         return "one external result"
 
+    # A REST-created project executes only after its owner's decisions.
+    owner_decides(projects, project_id, roster=["general"])
     engine = ProjectEngine(
         projects,
         generate_milestones=lambda _goal: [],
         decompose_tasks=lambda _milestone: [],
         execute_task=execute,
+        assign_agent=lambda _task: "general",
     )
     events_before = list(projects.events_for_project(project_id))
     second_worker = ProjectStore(base_dir=tmp_path / "projects")
@@ -1347,6 +1365,10 @@ def test_run_projection_failure_preserves_execution_and_attach_only_retry_recove
             "metadata": {"source": "projectos"},
         },
     )
+    body = {"name": "Must purge projection", "goal": "No dangling task references"}
+    attached = client.post("/api/projects/from-group/thread-lifecycle", json=body)
+    assert attached.status_code == 200, attached.json()
+    owner_decides_via_api(client, attached.json()["project"]["id"])
     captured_project_ids: list[str] = []
     real_setter = collaboration.set_room_project_metadata
     project_projection_calls = 0
@@ -1368,12 +1390,7 @@ def test_run_projection_failure_preserves_execution_and_attach_only_retry_recove
 
     response = client.post(
         "/api/projects/from-group/thread-lifecycle",
-        json={
-            "name": "Must purge projection",
-            "goal": "No dangling task references",
-            "run": True,
-            "max_ticks": 12,
-        },
+        json={**body, "run": True, "max_ticks": 12},
     )
 
     assert response.status_code == 409
@@ -1846,14 +1863,9 @@ def test_project_delete_retry_after_process_crash_recovers_thread_and_preserves_
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     client, projects, _groups, collaboration, threads, room_id, _app = _local_stack(tmp_path)
-    attached = client.post(
-        "/api/projects/from-group/thread-lifecycle",
-        json={
-            "name": "Crash-safe delete",
-            "goal": "Recover the projection outbox",
-            "run": True,
-            "max_ticks": 12,
-        },
+    attached = _attach_approved_and_run(
+        client,
+        {"name": "Crash-safe delete", "goal": "Recover the projection outbox", "max_ticks": 12},
     )
     assert attached.status_code == 200, attached.json()
     deleting_project_id = attached.json()["project"]["id"]
@@ -1915,14 +1927,9 @@ def test_explicit_project_delete_failure_keeps_roll_forward_claim(
     monkeypatch,
 ) -> None:
     client, projects, _groups, collaboration, threads, _room_id, _app = _local_stack(tmp_path)
-    attached = client.post(
-        "/api/projects/from-group/thread-lifecycle",
-        json={
-            "name": "Recover deletion",
-            "goal": "Keep canonical state",
-            "run": True,
-            "max_ticks": 12,
-        },
+    attached = _attach_approved_and_run(
+        client,
+        {"name": "Recover deletion", "goal": "Keep canonical state", "max_ticks": 12},
     )
     assert attached.status_code == 200, attached.json()
     project_id = attached.json()["project"]["id"]

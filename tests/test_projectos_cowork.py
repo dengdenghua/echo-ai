@@ -26,6 +26,7 @@ from runtime.projectos.engine import ProjectEngine, stub_decompose_tasks, stub_g
 from runtime.projectos.model import Milestone, Project, Task
 from runtime.projectos.store import ProjectStore
 from runtime.projectos.timeline import project_process_timeline
+from tests.project_governance_utils import run_governed_to_done
 
 
 def _attached_group(tmp_path):
@@ -388,7 +389,15 @@ def test_from_group_endpoint_turns_a_group_into_a_project_team(tmp_path) -> None
     assert resp.status_code == 200
     body = resp.json()
     assert set(body["roster"]) == {"research-agent", "build-agent"}
-    assert body["result"]["final_status"] == "done"
+    # A REST-created project waits for its owner: run=True executes nothing yet.
+    assert body["execution_started"] is False
+    assert body["governance"]["blocked_reason"] == "initiation"
+    assert body["tasks"] == {milestone["id"]: [] for milestone in body["milestones"]}
+    for milestone in body["milestones"]:
+        assert milestone["spec"]["phase_agents"] == ["build-agent", "research-agent"]
+    pid = body["project"]["id"]
+    assert run_governed_to_done(client, pid)["final_status"] == "done"
+    body = client.get(f"/api/projects/{pid}").json()
     # every task ran on a real group member
     pool = {"research-agent", "build-agent"}
     for tasks in body["tasks"].values():

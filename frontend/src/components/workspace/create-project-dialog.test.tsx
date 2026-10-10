@@ -290,3 +290,49 @@ describe("CreateProjectDialog", () => {
     );
   });
 });
+
+describe("CreateProjectDialog AI budget", () => {
+  beforeEach(() => {
+    mocks.createProject.mockReset();
+  });
+
+  it("sends the optional AI budget cap and omits it when empty", async () => {
+    const user = userEvent.setup();
+    renderWithProviders(<CreateProjectDialog open onOpenChange={vi.fn()} />, {
+      locale: "zh-CN",
+    });
+
+    await user.type(
+      screen.getByRole("textbox", { name: "项目名称" }),
+      "预算项目",
+    );
+    await user.click(screen.getByRole("button", { name: "创建项目" }));
+    expect(mocks.createProject.mock.calls[0]?.[0].aiBudgetUsd).toBeUndefined();
+
+    await user.type(
+      screen.getByRole("textbox", { name: "AI 预算上限（美元，可选）" }),
+      "12.5",
+    );
+    await user.click(screen.getByRole("button", { name: "创建项目" }));
+    expect(mocks.createProject.mock.calls[1]?.[0].aiBudgetUsd).toBe(12.5);
+  });
+
+  it("does not create a project with an invalid budget", async () => {
+    const user = userEvent.setup();
+    renderWithProviders(<CreateProjectDialog open onOpenChange={vi.fn()} />, {
+      locale: "zh-CN",
+    });
+
+    await user.type(
+      screen.getByRole("textbox", { name: "项目名称" }),
+      "预算项目",
+    );
+    await user.type(
+      screen.getByRole("textbox", { name: "AI 预算上限（美元，可选）" }),
+      "-3",
+    );
+    await user.click(screen.getByRole("button", { name: "创建项目" }));
+
+    expect(mocks.createProject).not.toHaveBeenCalled();
+  });
+});

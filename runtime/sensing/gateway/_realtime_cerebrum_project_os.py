@@ -20,6 +20,8 @@ import shlex
 from typing import TYPE_CHECKING, Any
 
 from runtime.platform.models import ParsedIntent
+from runtime.projectos.governance import governed_milestone_spec
+from runtime.projectos.model import PROJECT_ORIGIN_CHAT
 from runtime.protocol import ReasoningItem, TodoEntry, TodoListItem
 
 if TYPE_CHECKING:
@@ -609,20 +611,17 @@ async def _drive_project_os(
                         id=f"MS-{uuid4().hex[:12]}",
                         name=description,
                         goal=description,
-                        spec={
-                            "requires_owner_acceptance": True,
-                            "approved_brief": proposal.render(names),
-                            "max_tasks": proposal.max_tasks_per_phase,
-                            "phase_agents": sorted(
-                                {leader.agent_id}
-                                | {
-                                    n.agent_id
-                                    for n in proposal.staffing
-                                    if n.kind == "ai" and n.agent_id and phase_number in n.phases
-                                }
-                            ),
-                            "ai_budget_usd": proposal.ai_budget_usd,
-                        },
+                        spec=governed_milestone_spec(
+                            {leader.agent_id}
+                            | {
+                                n.agent_id
+                                for n in proposal.staffing
+                                if n.kind == "ai" and n.agent_id and phase_number in n.phases
+                            },
+                            ai_budget_usd=proposal.ai_budget_usd,
+                            approved_brief=proposal.render(names),
+                            max_tasks=proposal.max_tasks_per_phase,
+                        ),
                         success_criteria=[description],
                         dependencies=[milestones[-1].id] if milestones else [],
                     )
@@ -798,6 +797,7 @@ async def _drive_project_os(
             owner_id=owner_id,
             tenant_id=tenant_id,
             subagent_runner=getattr(runtime, "_subagent_runner", None),
+            origin=PROJECT_ORIGIN_CHAT,
         )
 
     from runtime.projectos.worker import run_project_worker

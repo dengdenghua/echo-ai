@@ -652,6 +652,10 @@ export const enUS: Translations = {
     creatorRole: "Project owner · Group owner",
     creatorRoleDescription:
       "You can manage the project, orchestrate AI, and invite people.",
+    aiBudgetLabel: "AI budget cap (USD, optional)",
+    aiBudgetHint:
+      "Total AI spend across all phases and members. Leave empty for no cap. The project runs only after you approve it.",
+    invalidAiBudget: "The AI budget cap must be a USD amount of 0 or more.",
     hint: "The work group, project capabilities, and right-side workbench are created and linked together.",
     cancel: "Cancel",
     create: "Create project",

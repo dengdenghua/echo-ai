@@ -4516,6 +4516,18 @@
       },
       "FromGroupBody": {
         "properties": {
+          "ai_budget_usd": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ai Budget Usd"
+          },
           "goal": {
             "minLength": 1,
             "title": "Goal",
@@ -4950,6 +4962,33 @@
           }
         },
         "title": "IndexStartRequest",
+        "type": "object"
+      },
+      "InitiationApprovalBody": {
+        "properties": {
+          "ai_budget_usd": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ai Budget Usd"
+          },
+          "expected_fingerprint": {
+            "maxLength": 128,
+            "minLength": 1,
+            "title": "Expected Fingerprint",
+            "type": "string"
+          }
+        },
+        "required": [
+          "expected_fingerprint"
+        ],
+        "title": "InitiationApprovalBody",
         "type": "object"
       },
       "InviteBody": {
@@ -6531,6 +6570,22 @@
         "title": "NodeTaskRequest",
         "type": "object"
       },
+      "OwnerDecisionBody": {
+        "description": "An owner decision on exactly what was shown (``governance`` fingerprints).",
+        "properties": {
+          "expected_fingerprint": {
+            "maxLength": 128,
+            "minLength": 1,
+            "title": "Expected Fingerprint",
+            "type": "string"
+          }
+        },
+        "required": [
+          "expected_fingerprint"
+        ],
+        "title": "OwnerDecisionBody",
+        "type": "object"
+      },
       "Part": {
         "allOf": [
           {
@@ -6636,6 +6691,18 @@
       },
       "PlanBody": {
         "properties": {
+          "ai_budget_usd": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ai Budget Usd"
+          },
           "goal": {
             "minLength": 1,
             "title": "Goal",
@@ -6677,6 +6744,34 @@
           "value"
         ],
         "title": "PluginNodeStatePut",
+        "type": "object"
+      },
+      "ProjectBudgetBody": {
+        "properties": {
+          "ai_budget_usd": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ai Budget Usd"
+          },
+          "expected_fingerprint": {
+            "maxLength": 128,
+            "minLength": 1,
+            "title": "Expected Fingerprint",
+            "type": "string"
+          }
+        },
+        "required": [
+          "expected_fingerprint",
+          "ai_budget_usd"
+        ],
+        "title": "ProjectBudgetBody",
         "type": "object"
       },
       "ProjectCancelBody": {
@@ -6793,6 +6888,18 @@
       },
       "ProjectGroupBody": {
         "properties": {
+          "ai_budget_usd": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ai Budget Usd"
+          },
           "goal": {
             "anyOf": [
               {
@@ -47200,7 +47307,7 @@
         ]
       },
       "post": {
-        "description": "Turn a one-line goal into a project with generated milestones.",
+        "description": "Plan a governed project; it waits for the owner's initiation approval.\n\nNo group exists yet, so phases are unstaffed until the project is\nattached to a group and the owner approves it with that roster.",
         "operationId": "plan_api_projects_post",
         "requestBody": {
           "content": {
@@ -47623,6 +47730,61 @@
         ]
       }
     },
+    "/api/projects/{project_id}/budget": {
+      "post": {
+        "description": "Change the AI cap on every phase; the current phase needs re-authorizing.",
+        "operationId": "set_project_budget_api_projects__project_id__budget_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "title": "Project Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ProjectBudgetBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Set Project Budget Api Projects  Project Id  Budget Post",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Set Project Budget",
+        "tags": [
+          "projectos"
+        ]
+      }
+    },
     "/api/projects/{project_id}/cancel": {
       "post": {
         "description": "Abandon a project: terminal ``failed``, live claims voided, deletable.",
@@ -47735,6 +47897,189 @@
           }
         },
         "summary": "Events",
+        "tags": [
+          "projectos"
+        ]
+      }
+    },
+    "/api/projects/{project_id}/initiation/approve": {
+      "post": {
+        "description": "Approve the plan and team; a legacy project gets its governance fields.",
+        "operationId": "approve_project_initiation_api_projects__project_id__initiation_approve_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "title": "Project Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/InitiationApprovalBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Approve Project Initiation Api Projects  Project Id  Initiation Approve Post",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Approve Project Initiation",
+        "tags": [
+          "projectos"
+        ]
+      }
+    },
+    "/api/projects/{project_id}/milestones/{milestone_id}/accept": {
+      "post": {
+        "description": "Accept a phase's delivered outputs so the next run can advance.",
+        "operationId": "accept_project_delivery_api_projects__project_id__milestones__milestone_id__accept_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "title": "Project Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "milestone_id",
+            "required": true,
+            "schema": {
+              "title": "Milestone Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/OwnerDecisionBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Accept Project Delivery Api Projects  Project Id  Milestones  Milestone Id  Accept Post",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Accept Project Delivery",
+        "tags": [
+          "projectos"
+        ]
+      }
+    },
+    "/api/projects/{project_id}/phases/{milestone_id}/authorize": {
+      "post": {
+        "description": "Authorize the next phase's members and scope, like chat's phase prompt.",
+        "operationId": "authorize_project_phase_api_projects__project_id__phases__milestone_id__authorize_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "title": "Project Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "milestone_id",
+            "required": true,
+            "schema": {
+              "title": "Milestone Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/OwnerDecisionBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Authorize Project Phase Api Projects  Project Id  Phases  Milestone Id  Authorize Post",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Authorize Project Phase",
         "tags": [
           "projectos"
         ]

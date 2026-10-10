@@ -314,7 +314,7 @@ class ProjectGroupCreationService:
         agents: list[dict[str, Any]],
         actor_id: str,
         tenant_id: str,
-        plan_project: Callable[[str], Any],
+        plan_project: Callable[[str, list[str]], Any],
     ) -> dict[str, Any]:
         """Create all surfaces, preserving every committed project for recovery."""
 
@@ -329,7 +329,9 @@ class ProjectGroupCreationService:
         room_id = ""
         creation_id = uuid4().hex
         try:
-            project = plan_project(project_id)
+            # The planner gets the final roster so a governed plan can staff
+            # every phase with exactly the members this group is created with.
+            project = plan_project(project_id, list(agent_ids))
             if str(getattr(project, "id", "") or "") != project_id:
                 raise RuntimeError("project planner returned an invalid project id")
 

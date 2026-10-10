@@ -641,6 +641,10 @@ export const jaJP: Translations = {
     creatorRole: "プロジェクト責任者 · グループオーナー",
     creatorRoleDescription:
       "プロジェクト管理、AI 編成、メンバー招待の権限があります。",
+    aiBudgetLabel: "AI 予算上限（米ドル、任意）",
+    aiBudgetHint:
+      "全フェーズ・全メンバーの AI 実行費用の合計上限です。空欄なら上限なし。作成後、あなたが承認するまで実行されません。",
+    invalidAiBudget: "AI 予算上限は 0 以上の米ドル金額で入力してください。",
     hint: "ワークグループ、プロジェクト機能、右側のワークベンチをまとめて作成し連携します。",
     cancel: "Cancel",
     create: "プロジェクトを作成",

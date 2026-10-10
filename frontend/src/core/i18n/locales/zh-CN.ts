@@ -616,6 +616,10 @@ export const zhCN: Translations = {
     creatorRoleLabel: "你的项目角色",
     creatorRole: "项目负责人 · 群主",
     creatorRoleDescription: "你拥有项目管理、AI 编排和真人邀请权限。",
+    aiBudgetLabel: "AI 预算上限（美元，可选）",
+    aiBudgetHint:
+      "项目所有阶段、所有成员累计的 AI 执行费用上限；留空表示不设上限。创建后需你批准立项才会开始执行。",
+    invalidAiBudget: "AI 预算上限需为不小于 0 的美元金额。",
     hint: "工作群、项目能力和右侧工作台会一次创建并自动绑定。",
     cancel: "取消",
     create: "创建项目",

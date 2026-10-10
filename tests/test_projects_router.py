@@ -7,9 +7,12 @@ from types import SimpleNamespace
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
+from runtime.memory.cowork.group_store import GroupStore
+from runtime.memory.cowork.service import invite_member
 from runtime.projectos.model import Milestone, Project, Task
 from runtime.projectos.store import ProjectStore
 from runtime.sensing.gateway.projects_router import create_projects_router
+from tests.project_governance_utils import owner_decides_via_api, run_governed_to_done
 
 
 def _client(tmp_path) -> TestClient:
@@ -23,6 +26,21 @@ def _client_with_store(tmp_path) -> tuple[TestClient, ProjectStore]:
     app = FastAPI()
     app.include_router(create_projects_router(store=store))
     return TestClient(app), store
+
+
+def _team_client(tmp_path) -> tuple[TestClient, ProjectStore, GroupStore]:
+    store = ProjectStore(base_dir=tmp_path / "projectos")
+    groups = GroupStore(base_dir=tmp_path / "cowork")
+    app = FastAPI()
+    app.include_router(create_projects_router(store=store, group_store=groups))
+    return TestClient(app), store, groups
+
+
+def _staff(store: ProjectStore, groups: GroupStore, project_id: str) -> None:
+    """Give a plan-only project a work group, whose members staff its phases."""
+    for agent in ("research-agent", "build-agent"):
+        invite_member(groups, "thread-team", actor="u", target_id=agent, kind="agent")
+    store.bind_thread("thread-team", project_id)
 
 
 class _UnavailableModelRouter:
@@ -41,17 +59,22 @@ class _StaticMilestoneModelRouter:
 
 
 def test_plan_run_report_flow(tmp_path) -> None:
-    c = _client(tmp_path)
+    c, store, groups = _team_client(tmp_path)
 
     planned = c.post("/api/projects", json={"name": "sleep", "goal": "smart sleep system"})
     assert planned.status_code == 200
     pid = planned.json()["project"]["id"]
     assert planned.json()["milestones"]  # at least one milestone generated (stub: 1)
     assert planned.json()["available_actions"] == ["run", "tick"]
+    assert planned.json()["governance"]["blocked_reason"] == "initiation"
 
-    run = c.post(f"/api/projects/{pid}/run", json={"max_ticks": 20})
-    assert run.status_code == 200
-    assert run.json()["final_status"] == "done"
+    unapproved = c.post(f"/api/projects/{pid}/run", json={"max_ticks": 20})
+    assert unapproved.status_code == 409
+    assert unapproved.json()["detail"]["code"] == "INITIATION_APPROVAL_REQUIRED"
+
+    _staff(store, groups, pid)
+    run = run_governed_to_done(c, pid)
+    assert run["final_status"] == "done"
 
     report = c.get(f"/api/projects/{pid}/report").json()
     assert report["status"] == "done"
@@ -157,8 +180,11 @@ def test_run_tick_budget_is_bounded_at_api_boundary(tmp_path) -> None:
 
 
 def test_tick_advances_incrementally(tmp_path) -> None:
-    c = _client(tmp_path)
+    c, store, groups = _team_client(tmp_path)
     pid = c.post("/api/projects", json={"name": "x", "goal": "g"}).json()["project"]["id"]
+    assert c.post(f"/api/projects/{pid}/tick").status_code == 409
+    _staff(store, groups, pid)
+    owner_decides_via_api(c, pid)
     r = c.post(f"/api/projects/{pid}/tick").json()
     assert "events" in r and r["project_status"] in ("running", "done")
 
@@ -216,6 +242,8 @@ def test_recover_reopens_blocked_project_and_can_run(tmp_path) -> None:
         )
     )
 
+    # A pre-governance plan runs again once its owner approves it one time.
+    owner_decides_via_api(c, "P-blocked")
     recovered = c.post(
         "/api/projects/P-blocked/recover",
         json={"run": True, "max_ticks": 10},
@@ -232,7 +260,11 @@ def test_recover_reopens_blocked_project_and_can_run(tmp_path) -> None:
     assert body["available_actions"] == ["inspect", "report"]
     assert body["tasks"]["MS1"][0]["available_actions"] == ["reset"]
     events = c.get("/api/projects/P-blocked/events").json()["events"]
-    assert [event["kind"] for event in events] == ["project.recover", "project.run"]
+    assert [event["kind"] for event in events] == [
+        "project.initiation_approved",
+        "project.recover",
+        "project.run",
+    ]
     recover_event = next(event for event in events if event["kind"] == "project.recover")
     run_event = next(event for event in events if event["kind"] == "project.run")
     assert recover_event["payload"]["events"] == body["recover"]["events"]
@@ -267,6 +299,7 @@ def test_intervene_task_reassigns_and_runs(tmp_path) -> None:
         )
     )
 
+    owner_decides_via_api(c, "P-intervene")
     res = c.post(
         "/api/projects/P-intervene/tasks/MS1-T1/intervene",
         json={
@@ -287,7 +320,11 @@ def test_intervene_task_reassigns_and_runs(tmp_path) -> None:
     assert task["status"] == "done"
     assert task["available_actions"] == ["reset"]
     events = c.get("/api/projects/P-intervene/events").json()["events"]
-    assert [event["kind"] for event in events] == ["task.intervention", "project.run"]
+    assert [event["kind"] for event in events] == [
+        "project.initiation_approved",
+        "task.intervention",
+        "project.run",
+    ]
     intervention = next(event for event in events if event["kind"] == "task.intervention")
     assert intervention["payload"]["action"] == "reassign"
     assert intervention["payload"]["assigned_agent"] == "new-agent"
@@ -380,12 +417,12 @@ def test_get_project_by_thread(tmp_path) -> None:
 
 
 def test_project_process_timeline_endpoint_persists_run_evidence(tmp_path) -> None:
-    c = _client(tmp_path)
+    c, store, groups = _team_client(tmp_path)
     planned = c.post("/api/projects", json={"name": "timeline", "goal": "ship it"})
     assert planned.status_code == 200
     pid = planned.json()["project"]["id"]
-    run = c.post(f"/api/projects/{pid}/run", json={"max_ticks": 20})
-    assert run.status_code == 200
+    _staff(store, groups, pid)
+    assert run_governed_to_done(c, pid)["final_status"] == "done"
 
     response = c.get(f"/api/projects/{pid}/process-timeline")
 

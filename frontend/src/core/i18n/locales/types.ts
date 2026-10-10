@@ -553,6 +553,9 @@ export interface Translations {
     creatorRoleLabel: string;
     creatorRole: string;
     creatorRoleDescription: string;
+    aiBudgetLabel: string;
+    aiBudgetHint: string;
+    invalidAiBudget: string;
     hint: string;
     cancel: string;
     create: string;

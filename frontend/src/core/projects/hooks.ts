@@ -338,6 +338,8 @@ export function useCreateProject() {
       icon?: string;
       category?: string;
       initialAgents?: ProjectInitialAgent[];
+      /** Optional USD cap on AI spend across all phases; omitted = no cap. */
+      aiBudgetUsd?: number;
     }) => {
       const initialAgents =
         normalizedInitialAgents(data.initialAgents ?? []) ?? [];
@@ -346,6 +348,9 @@ export function useCreateProject() {
           name: data.name,
           goal: data.goal?.trim() || data.name,
           initial_agents: initialAgents.map(projectGroupAgent),
+          ...(data.aiBudgetUsd !== undefined
+            ? { ai_budget_usd: data.aiBudgetUsd }
+            : {}),
         },
         errorMessage: failed("Failed to create project"),
       })) as {
@@ -491,6 +496,107 @@ export function useCancelProject() {
     onSuccess: (_data, { id }) => {
       void qc.invalidateQueries({ queryKey: ["projects"] });
       void qc.invalidateQueries({ queryKey: ["project", id] });
+    },
+  });
+}
+
+/** What a governed project waits on (``governance`` in the project state). */
+export interface ProjectGovernance {
+  initiation: {
+    state: "pending" | "approved" | "legacy" | "exempt";
+    required: boolean;
+    fingerprint: string;
+    proposed_phase_agents: string[];
+    staffing_available: boolean;
+  };
+  phase: {
+    milestone_id: string;
+    name: string;
+    authorized: boolean;
+    fingerprint: string;
+    phase_agents: string[];
+    ai_budget_usd: number | null;
+    success_criteria: string[];
+    budget: { paused?: boolean; reason?: string | null };
+  } | null;
+  acceptance: Array<{
+    milestone_id: string;
+    name: string;
+    fingerprint: string;
+    success_criteria: string[];
+    has_content: boolean;
+  }>;
+  plan_fingerprint: string;
+  blocked_reason:
+    | "initiation"
+    | "phase_authorization"
+    | "owner_acceptance"
+    | "budget"
+    | null;
+}
+
+export type ProjectOwnerDecision =
+  | { kind: "initiation"; fingerprint: string; aiBudgetUsd?: number | null }
+  | { kind: "phase"; milestoneId: string; fingerprint: string }
+  | { kind: "acceptance"; milestoneId: string; fingerprint: string };
+
+/**
+ * Record one owner decision — the project page's counterpart of the chat's
+ * approval prompts. Each call carries the fingerprint of what the owner saw;
+ * none of them starts execution.
+ */
+export function useProjectOwnerDecision() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({
+      projectId,
+      decision,
+    }: {
+      projectId: string;
+      decision: ProjectOwnerDecision;
+    }) => {
+      const path = { project_id: projectId };
+      const errorMessage = failed("Failed to record the owner decision");
+      if (decision.kind === "initiation") {
+        await apiFetch(
+          "post",
+          "/api/projects/{project_id}/initiation/approve",
+          {
+            path,
+            body: {
+              expected_fingerprint: decision.fingerprint,
+              ...(decision.aiBudgetUsd !== undefined
+                ? { ai_budget_usd: decision.aiBudgetUsd }
+                : {}),
+            },
+            errorMessage,
+          },
+        );
+      } else if (decision.kind === "phase") {
+        await apiFetch(
+          "post",
+          "/api/projects/{project_id}/phases/{milestone_id}/authorize",
+          {
+            path: { ...path, milestone_id: decision.milestoneId },
+            body: { expected_fingerprint: decision.fingerprint },
+            errorMessage,
+          },
+        );
+      } else {
+        await apiFetch(
+          "post",
+          "/api/projects/{project_id}/milestones/{milestone_id}/accept",
+          {
+            path: { ...path, milestone_id: decision.milestoneId },
+            body: { expected_fingerprint: decision.fingerprint },
+            errorMessage,
+          },
+        );
+      }
+    },
+    onSuccess: (_data, { projectId }) => {
+      void qc.invalidateQueries({ queryKey: ["projects"] });
+      void qc.invalidateQueries({ queryKey: ["project", projectId] });
     },
   });
 }

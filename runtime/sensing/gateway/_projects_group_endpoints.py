@@ -16,6 +16,8 @@ from fastapi import APIRouter, Depends, HTTPException, Request
 from runtime.projectos.cowork_bridge import (
     run_project_from_group,
 )
+from runtime.projectos.governance import governed_milestone_spec
+from runtime.projectos.model import PROJECT_ORIGIN_APP
 from runtime.projectos.store import (
     ProjectBindingActiveError,
 )
@@ -48,10 +50,19 @@ def _register_project_creation(router: APIRouter, d: ProjectsDeps) -> None:
 
     @router.post("/api/projects", dependencies=[Depends(_auth_dep)])
     def plan(request: Request, body: PlanBody) -> dict[str, Any]:
-        """Turn a one-line goal into a project with generated milestones."""
+        """Plan a governed project; it waits for the owner's initiation approval.
+
+        No group exists yet, so phases are unstaffed until the project is
+        attached to a group and the owner approves it with that roster.
+        """
         principal = _principal(request)
         try:
-            project = _engine(principal).plan(body.name, body.goal)
+            project = _engine(principal).plan(
+                body.name,
+                body.goal,
+                origin=PROJECT_ORIGIN_APP,
+                milestone_spec=governed_milestone_spec([], ai_budget_usd=body.ai_budget_usd),
+            )
         except ValueError as exc:
             raise _bad_request(exc) from exc
         except RuntimeError as exc:
@@ -113,10 +124,16 @@ def _register_project_creation(router: APIRouter, d: ProjectsDeps) -> None:
                 agents=normalized_agents,
                 actor_id=actor_id,
                 tenant_id=tenant_id,
-                plan_project=lambda project_id: _engine(principal).plan(
+                # Governed like chat initiation: the selected members staff every
+                # phase, and nothing runs before the owner approves initiation.
+                plan_project=lambda project_id, agent_ids: _engine(principal).plan(
                     body.name.strip(),
                     (body.goal or "").strip() or body.name.strip(),
                     project_id=project_id,
+                    origin=PROJECT_ORIGIN_APP,
+                    milestone_spec=governed_milestone_spec(
+                        agent_ids, ai_budget_usd=body.ai_budget_usd
+                    ),
                 ),
             )
         except (ProjectGroupBindingChanged, ProjectGroupCreationRecoveryPending) as exc:
@@ -232,14 +249,22 @@ def _register_project_binding(router: APIRouter, d: ProjectsDeps) -> None:
                     owner_id=principal.actor_id if principal is not None else "",
                     tenant_id=principal.tenant_id if principal is not None else "",
                     reuse_active=True,
+                    origin=PROJECT_ORIGIN_APP,
+                    ai_budget_usd=body.ai_budget_usd,
+                    require_initiation_approval=True,
                 )
             if result.get("recovery_pending"):
                 raise HTTPException(409, result.get("recovery") or result)
             # `run_project_from_group` only returns after `engine.run` has
             # crossed its external execution boundary. Projection
-            # compensation must therefore retain this project on run=True.
+            # compensation must therefore retain this project on run=True —
+            # unless the run stopped at the owner's initiation approval.
+            history = (result.get("result") or {}).get("history") or []
+            awaiting_initiation = any(
+                "awaiting_initiation_approval" in (tick.get("events") or []) for tick in history
+            )
             result["run_requested"] = body.run
-            result["execution_started"] = body.run
+            result["execution_started"] = body.run and not awaiting_initiation
             raw_project = result.get("project")
             project = raw_project if isinstance(raw_project, dict) else {}
             project_id = str(project.get("id") or "")

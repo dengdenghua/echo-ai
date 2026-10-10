@@ -4,18 +4,23 @@ from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
 from runtime.memory.cowork.collaboration_store import CollaborationStore
+from runtime.memory.cowork.group_store import GroupStore
+from runtime.memory.cowork.service import invite_member
 from runtime.projectos.store import ProjectStore
 from runtime.sensing.gateway.projects_router import create_projects_router
 from runtime.sensing.gateway.team_tasks_router import create_team_tasks_router
+from tests.project_governance_utils import run_governed_to_done
 
 
 def test_projectos_tasks_project_into_collaboration_store(tmp_path) -> None:
     project_store = ProjectStore(base_dir=tmp_path / "projectos")
     collaboration_store = CollaborationStore(base_dir=tmp_path / "cowork")
+    groups = GroupStore(base_dir=tmp_path / "groups")
     app = FastAPI()
     app.include_router(
         create_projects_router(
             store=project_store,
+            group_store=groups,
             collaboration_store=collaboration_store,
         )
     )
@@ -28,8 +33,9 @@ def test_projectos_tasks_project_into_collaboration_store(tmp_path) -> None:
     assert planned.status_code == 200
     project_id = planned.json()["project"]["id"]
 
-    run = client.post(f"/api/projects/{project_id}/run", json={"max_ticks": 5})
-    assert run.status_code == 200
+    invite_member(groups, "thread-cutover", actor="u", target_id="coder", kind="agent")
+    project_store.bind_thread("thread-cutover", project_id)
+    run_governed_to_done(client, project_id, max_ticks=5)
 
     tasks = collaboration_store.project_tasks_for_project(project_id)
     assert tasks

@@ -28,7 +28,6 @@ import {
   ActivityIcon,
   AlertTriangleIcon,
   ArrowRightIcon,
-  BanIcon,
   CalendarRangeIcon,
   CheckCircle2Icon,
   CircleIcon,
@@ -42,13 +41,11 @@ import {
   RefreshCwIcon,
   RotateCcwIcon,
   TimerIcon,
-  Trash2Icon,
   UserRoundIcon,
   UsersIcon,
 } from "lucide-react";
 import { toast } from "sonner";
 
-import { EchoAPIError } from "@/core/api/request";
 import { authHeaders, jsonAuthHeaders } from "@/core/auth/api";
 import { getBackendBaseURL } from "@/core/config";
 import { Badge } from "@/components/ui/badge";
@@ -61,11 +58,9 @@ import {
 } from "@/components/workspace/workspace-container";
 import { useI18n } from "@/core/i18n/hooks";
 import { CreateProjectDialog } from "@/components/workspace/create-project-dialog";
-import { useConfirmDialog } from "@/components/ui/confirm-dialog";
 import {
   type Project,
-  useCancelProject,
-  useDeleteProject,
+  type ProjectGovernance,
   useEnsureProjectHome,
   usePortfolio,
 } from "@/core/projects/hooks";
@@ -96,6 +91,11 @@ import {
   fmtDate,
   fmtDateTime,
 } from "@/components/workspace/projects/project-meta";
+import { ProjectLifecycleActions } from "@/components/workspace/projects/project-lifecycle-actions";
+import {
+  ProjectGovernancePanel,
+  governanceRunBlock,
+} from "@/components/workspace/projects/project-governance-panel";
 
 // ─── types（与 runtime/projectos/pm.py 的返回结构对应）───────────────
 
@@ -221,6 +221,7 @@ interface ProjectFull {
   retro: Retro | null;
   available_actions: string[];
   action_specs: ActionSpec[];
+  governance?: ProjectGovernance;
 }
 
 interface ProjectSummary {
@@ -235,6 +236,8 @@ interface ProjectSummary {
 const BASE = () => `${getBackendBaseURL()}/api/projects`;
 const PROJECT_LOAD_ERROR_MESSAGE = "项目加载失败，请稍后重试。";
 const PROJECT_ACTION_ERROR_MESSAGE = "操作失败，请稍后重试。";
+// Actions that execute the project: unavailable while governance blocks them.
+const RUN_ACTIONS = new Set(["run", "tick", "recover_and_run"]);
 const TRACE_HEADER_NAMES = [
   "x-trace-id",
   "x-request-id",
@@ -279,61 +282,6 @@ function traceIdFromDetail(detail: string): string | null {
 
 function withTraceId(message: string, traceId: string | null): string {
   return traceId ? `${message} 追踪 ID：${traceId}` : message;
-}
-
-/** 还没完成、也没取消的项目才提供「取消项目」。 */
-const CANCELLABLE_PROJECT_STATUSES = new Set([
-  "planning",
-  "running",
-  "blocked",
-]);
-
-/** 409 冲突里后端给出的结构化原因（code + 项目状态）。 */
-function projectConflict(
-  error: unknown,
-): { code: string; status: string } | null {
-  if (!(error instanceof EchoAPIError) || error.status !== 409) return null;
-  const detail: unknown = error.detail;
-  if (!detail || typeof detail !== "object") return null;
-  const { code, status } = detail as { code?: unknown; status?: unknown };
-  return {
-    code: typeof code === "string" ? code : "",
-    status: typeof status === "string" ? status : "",
-  };
-}
-
-/**
- * 删除被拒（409）时把后端原因翻成用户能照做的一句话，并指出出路（先取消项目）；
- * 只有真正的意外失败才提示「请重试」——对阻塞中的项目重试永远不会成功。
- */
-function deleteProjectFailure(error: unknown): {
-  message: string;
-  cancelSuggested: boolean;
-} {
-  const conflict = projectConflict(error);
-  switch (conflict?.code) {
-    case "PROJECT_ACTIVE":
-      return {
-        message:
-          conflict.status === "blocked"
-            ? "项目处于阻塞状态（仍可恢复），不能直接删除。请先取消项目，再删除。"
-            : "项目正在执行，不能直接删除。请先取消项目，再删除。",
-        cancelSuggested: true,
-      };
-    case "CLAIM_ACTIVE":
-      return {
-        message:
-          "项目还有任务正在执行，暂时不能删除。请等待执行结束，或先取消项目再删除。",
-        cancelSuggested: true,
-      };
-    case "PROJECT_DELETE_RECOVERY_PENDING":
-      return {
-        message: "项目删除尚未完成，请再次删除以完成清理。",
-        cancelSuggested: false,
-      };
-    default:
-      return { message: "删除项目失败，请重试", cancelSuggested: false };
-  }
 }
 
 function safeRiskDetail(risk: PmeReport["risks"][number]): string {
@@ -446,9 +394,6 @@ export default function ProjectsPage() {
   const { t } = useI18n();
   const navigate = useNavigate();
   const ensureProjectHome = useEnsureProjectHome();
-  const deleteProjectMutation = useDeleteProject();
-  const cancelProjectMutation = useCancelProject();
-  const { confirm, confirmDialog } = useConfirmDialog();
   const [searchParams] = useSearchParams();
   const [selectedId, setSelectedId] = useState<string | null>(searchParams.get("project"));
   useEffect(() => {
@@ -531,6 +476,7 @@ export default function ProjectsPage() {
   });
 
   const detail = detailQuery.data;
+  const runBlock = governanceRunBlock(detail?.governance);
   const pm = detail?.pm ?? null;
   const retro = detail?.retro ?? null;
 
@@ -569,6 +515,11 @@ export default function ProjectsPage() {
     void portfolioQuery.refetch();
   };
 
+  const handleProjectDeleted = (projectId: string) => {
+    setSelectedId(projects.find((p) => p.id !== projectId)?.id ?? null);
+    refresh();
+  };
+
   const selectProject = (projectId: string) => {
     setSelectedId(projectId);
     setHighlightMilestone(null);
@@ -589,65 +540,6 @@ export default function ProjectsPage() {
         }),
       onError: () => toast.error("项目工作群打开失败，请重试"),
     });
-  };
-
-  const handleCancelProject = async (project: Project) => {
-    const label = project.name || project.id;
-    const ok = await confirm({
-      title: "取消项目",
-      description: `确定要取消项目「${label}」吗？取消后项目将终止、不再继续执行，正在执行的任务结果会被作废，且不能恢复。取消后可以删除该项目。`,
-      confirmLabel: "取消项目",
-      cancelLabel: "返回",
-      destructive: true,
-    });
-    if (!ok) return;
-
-    try {
-      await cancelProjectMutation.mutateAsync({ id: project.id });
-      toast.success(`项目「${label}」已取消`);
-      refresh();
-    } catch (error) {
-      toast.error(
-        projectConflict(error)?.code === "PROJECT_NOT_CANCELLABLE"
-          ? "项目已完成，无需取消。"
-          : "取消项目失败，请稍后重试。",
-      );
-    }
-  };
-
-  const handleDeleteProject = async (project: Project) => {
-    const ok = await confirm({
-      title: "删除项目",
-      description: `确定要移除项目「${project.name || project.id}」吗？相关数据与看板记录将被清理。`,
-      confirmLabel: "删除",
-      cancelLabel: "取消",
-      destructive: true,
-    });
-    if (!ok) return;
-
-    try {
-      await deleteProjectMutation.mutateAsync(project.id);
-      toast.success(`项目「${project.name || project.id}」已成功移除`);
-      const nextProjects = projects.filter((p) => p.id !== project.id);
-      if (nextProjects.length > 0) {
-        setSelectedId(nextProjects[0]!.id);
-      } else {
-        setSelectedId(null);
-      }
-      refresh();
-    } catch (error) {
-      const failure = deleteProjectFailure(error);
-      if (failure.cancelSuggested) {
-        toast.error(failure.message, {
-          action: {
-            label: "取消项目",
-            onClick: () => void handleCancelProject(project),
-          },
-        });
-      } else {
-        toast.error(failure.message);
-      }
-    }
   };
 
   return (
@@ -854,37 +746,24 @@ export default function ProjectsPage() {
                                 <MessageSquareIcon className="size-3.5" />
                                 进入项目群
                               </Button>
-                              {CANCELLABLE_PROJECT_STATUSES.has(
-                                detail.project.status,
-                              ) && (
-                                <Button
-                                  variant="outline"
-                                  size="sm"
-                                  className="gap-1.5 text-xs"
-                                  disabled={cancelProjectMutation.isPending}
-                                  onClick={() =>
-                                    void handleCancelProject(detail.project)
-                                  }
-                                >
-                                  <BanIcon className="size-3.5" />
-                                  取消项目
-                                </Button>
-                              )}
-                              <Button
-                                variant="outline"
-                                size="sm"
-                                className="gap-1.5 text-xs text-destructive hover:bg-destructive/10 hover:text-destructive border-destructive/30"
-                                disabled={deleteProjectMutation.isPending}
-                                onClick={() => handleDeleteProject(detail.project)}
-                              >
-                                <Trash2Icon className="size-3.5" />
-                                删除项目
-                              </Button>
+                              <ProjectLifecycleActions
+                                project={detail.project}
+                                onDeleted={handleProjectDeleted}
+                                onChanged={refresh}
+                              />
                               {detail.action_specs.map((spec) => (
                                 <Button
                                   key={spec.action}
                                   size="sm"
                                   className="gap-1.5 text-xs"
+                                  disabled={
+                                    !!runBlock && RUN_ACTIONS.has(spec.action)
+                                  }
+                                  title={
+                                    RUN_ACTIONS.has(spec.action)
+                                      ? (runBlock ?? undefined)
+                                      : undefined
+                                  }
                                   onClick={() => executeAction(spec)}
                                 >
                                   {spec.action.startsWith("recover") ? (
@@ -899,6 +778,12 @@ export default function ProjectsPage() {
                               ))}
                             </div>
                           </div>
+
+                          <ProjectGovernancePanel
+                            projectId={detail.project.id}
+                            governance={detail.governance}
+                            onChanged={refresh}
+                          />
 
                           {/* lifecycle timestamps */}
                           <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted-foreground">
@@ -1328,7 +1213,6 @@ export default function ProjectsPage() {
           )}
         </div>
         <CreateProjectDialog open={createOpen} onOpenChange={setCreateOpen} />
-        {confirmDialog}
       </WorkspaceBody>
     </WorkspaceContainer>
   );

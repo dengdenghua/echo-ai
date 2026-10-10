@@ -2426,9 +2426,9 @@ def test_legacy_project_mode_concurrent_attach_uses_one_cas_winner(
     barrier = Barrier(4)
     real_plan = ProjectEngine.plan
 
-    def synchronized_plan(self, name, goal, *, project_id=None):
+    def synchronized_plan(self, name, goal, **kwargs):
         barrier.wait()
-        return real_plan(self, name, goal, project_id=project_id)
+        return real_plan(self, name, goal, **kwargs)
 
     monkeypatch.setattr(ProjectEngine, "plan", synchronized_plan)
 

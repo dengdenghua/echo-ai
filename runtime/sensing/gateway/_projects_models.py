@@ -6,16 +6,21 @@ endpoint-group modules can import them without a circular import.
 
 from __future__ import annotations
 
-from typing import Any
+from typing import Annotated, Any
 
 from pydantic import AliasChoices, BaseModel, ConfigDict, Field
 
 from runtime.projectos.engine import DEFAULT_RUN_MAX_TICKS, HARD_MAX_RUN_TICKS
 
+# Optional AI spending cap in USD for a governed project, across all phases
+# and members. Omitted means no cap — the chat initiation default.
+AiBudgetUsd = Annotated[float | None, Field(ge=0, allow_inf_nan=False)]
+
 
 class PlanBody(BaseModel):
     name: str = Field(min_length=1)
     goal: str = Field(min_length=1)
+    ai_budget_usd: AiBudgetUsd = None
 
 
 class ProjectGroupAgentBody(BaseModel):
@@ -42,6 +47,12 @@ class ProjectGroupBody(BaseModel):
     initial_agents: list[ProjectGroupAgentBody] = Field(
         default_factory=list,
         validation_alias=AliasChoices("initial_agents", "initialAgents"),
+    )
+    ai_budget_usd: float | None = Field(
+        default=None,
+        ge=0,
+        allow_inf_nan=False,
+        validation_alias=AliasChoices("ai_budget_usd", "aiBudgetUsd"),
     )
 
 
@@ -83,6 +94,22 @@ class FromGroupBody(BaseModel):
     goal: str = Field(min_length=1)
     run: bool = False
     max_ticks: int = Field(default=DEFAULT_RUN_MAX_TICKS, ge=1, le=HARD_MAX_RUN_TICKS)
+    ai_budget_usd: AiBudgetUsd = None
+
+
+class OwnerDecisionBody(BaseModel):
+    """An owner decision on exactly what was shown (``governance`` fingerprints)."""
+
+    expected_fingerprint: str = Field(min_length=1, max_length=128)
+
+
+class InitiationApprovalBody(OwnerDecisionBody):
+    # Only applied when sent; omitted keeps each phase's cap (legacy: no cap).
+    ai_budget_usd: AiBudgetUsd = None
+
+
+class ProjectBudgetBody(OwnerDecisionBody):
+    ai_budget_usd: AiBudgetUsd
 
 
 class DetachFromGroupBody(BaseModel):

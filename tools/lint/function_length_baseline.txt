@@ -42,7 +42,7 @@ runtime/sensing/gateway/team_rooms_ws.py::team_room_ws	523
 runtime/sensing/gateway/task_runs_router.py::create_task_runs_router	530
 runtime/platform/ui/_reflex_admin_editor.py::register_reflex_editor_endpoints	517
 runtime/cloud_edge/router.py::create_cloud_edge_router	495
-runtime/sensing/gateway/_realtime_cerebrum_project_os.py::_drive_project_os	493
+runtime/sensing/gateway/_realtime_cerebrum_project_os.py::_drive_project_os	492
 runtime/sensing/gateway/a2a_router.py::create_a2a_router	490
 runtime/sensing/gateway/openai_gateway_router.py::create_openai_router	477
 runtime/sensing/gateway/workspace_api_router.py::create_workspace_api_router	472
@@ -145,7 +145,6 @@ runtime/sensing/gateway/_team_stream_group_fanout.py::_drive_group_fanout._membe
 runtime/platform/ui/_app_collab.py::mount_collaboration	231
 runtime/platform/ui/_reflex_admin_editor.py::register_reflex_editor_endpoints._reflex_rules_cards_put	231
 runtime/sensing/gateway/_agents_endpoints_crud.py::_register_agents_crud.create_agent	230
-runtime/projectos/cowork_bridge.py::run_project_from_group	229
 runtime/core/cerebrum/llm_planner.py::LLMPlanner.plan	228
 runtime/sensing/gateway/mailbox_router.py::create_mailbox_router	227
 runtime/safety/evolution/_agent_competitor_scorecard_drilldown.py::_operator_evidence_links	225

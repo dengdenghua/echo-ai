@@ -50,12 +50,18 @@ MilestoneStatus = Literal["pending", "active", "in_progress", "blocked", "done",
 # ``project.cancelled`` audit event records who and why.
 ProjectStatus = Literal["planning", "running", "blocked", "done", "failed"]
 
-# Which surface planned a project. ``""`` covers the app/API and every legacy
-# row (unknown); ``cli`` marks a project the offline CLI planned with its
-# deterministic stub hooks — the only kind the CLI may drive without an
-# explicit override, because stubs fabricate output and auto-approve QA.
+# Which surface planned a project. ``""`` is every legacy row (unknown) and a
+# bare ``ProjectEngine.plan``; ``cli`` marks a project the offline CLI planned
+# with its deterministic stub hooks — the only kind the CLI may drive without
+# an explicit override, because stubs fabricate output and auto-approve QA.
+# ``app`` (project page / REST) and ``chat`` (``/project`` initiation) are
+# governed: phase authorization, AI budget and owner acceptance always apply,
+# and an ``app`` project waits for the owner's initiation approval.
 PROJECT_ORIGIN_CLI = "cli"
-PROJECT_ORIGINS: frozenset[str] = frozenset({"", PROJECT_ORIGIN_CLI})
+PROJECT_ORIGIN_APP = "app"
+PROJECT_ORIGIN_CHAT = "chat"
+GOVERNED_PROJECT_ORIGINS: frozenset[str] = frozenset({PROJECT_ORIGIN_APP, PROJECT_ORIGIN_CHAT})
+PROJECT_ORIGINS: frozenset[str] = frozenset({"", PROJECT_ORIGIN_CLI, *GOVERNED_PROJECT_ORIGINS})
 
 # Which role owns which kind of work (L1 routing).
 ROLE_FOR_TASK: dict[str, str] = {

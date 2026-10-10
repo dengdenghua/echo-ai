@@ -13052,7 +13052,10 @@ export interface paths {
         put?: never;
         /**
          * Plan
-         * @description Turn a one-line goal into a project with generated milestones.
+         * @description Plan a governed project; it waits for the owner's initiation approval.
+         *
+         *     No group exists yet, so phases are unstaffed until the project is
+         *     attached to a group and the owner approves it with that roster.
          */
         post: operations["plan_api_projects_post"];
         delete?: never;
@@ -13214,6 +13217,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/projects/{project_id}/budget": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Set Project Budget
+         * @description Change the AI cap on every phase; the current phase needs re-authorizing.
+         */
+        post: operations["set_project_budget_api_projects__project_id__budget_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/projects/{project_id}/cancel": {
         parameters: {
             query?: never;
@@ -13248,6 +13271,66 @@ export interface paths {
         get: operations["events_api_projects__project_id__events_get"];
         put?: never;
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/projects/{project_id}/initiation/approve": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Approve Project Initiation
+         * @description Approve the plan and team; a legacy project gets its governance fields.
+         */
+        post: operations["approve_project_initiation_api_projects__project_id__initiation_approve_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/projects/{project_id}/milestones/{milestone_id}/accept": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Accept Project Delivery
+         * @description Accept a phase's delivered outputs so the next run can advance.
+         */
+        post: operations["accept_project_delivery_api_projects__project_id__milestones__milestone_id__accept_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/projects/{project_id}/phases/{milestone_id}/authorize": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Authorize Project Phase
+         * @description Authorize the next phase's members and scope, like chat's phase prompt.
+         */
+        post: operations["authorize_project_phase_api_projects__project_id__phases__milestone_id__authorize_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -19231,6 +19314,8 @@ export interface components {
         };
         /** FromGroupBody */
         FromGroupBody: {
+            /** Ai Budget Usd */
+            ai_budget_usd?: number | null;
             /** Goal */
             goal: string;
             /**
@@ -19412,6 +19497,13 @@ export interface components {
              * @default .
              */
             workspace: string;
+        };
+        /** InitiationApprovalBody */
+        InitiationApprovalBody: {
+            /** Ai Budget Usd */
+            ai_budget_usd?: number | null;
+            /** Expected Fingerprint */
+            expected_fingerprint: string;
         };
         /** InviteBody */
         InviteBody: {
@@ -20168,6 +20260,14 @@ export interface components {
             workspace_id: string;
         };
         /**
+         * OwnerDecisionBody
+         * @description An owner decision on exactly what was shown (``governance`` fingerprints).
+         */
+        OwnerDecisionBody: {
+            /** Expected Fingerprint */
+            expected_fingerprint: string;
+        };
+        /**
          * @example {
          *       "text": ""
          *     }
@@ -20210,6 +20310,8 @@ export interface components {
         };
         /** PlanBody */
         PlanBody: {
+            /** Ai Budget Usd */
+            ai_budget_usd?: number | null;
             /** Goal */
             goal: string;
             /** Name */
@@ -20226,6 +20328,13 @@ export interface components {
             plugin_id: string;
             /** Value */
             value: unknown;
+        };
+        /** ProjectBudgetBody */
+        ProjectBudgetBody: {
+            /** Ai Budget Usd */
+            ai_budget_usd: number | null;
+            /** Expected Fingerprint */
+            expected_fingerprint: string;
         };
         /** ProjectCancelBody */
         ProjectCancelBody: {
@@ -20283,6 +20392,8 @@ export interface components {
         };
         /** ProjectGroupBody */
         ProjectGroupBody: {
+            /** Ai Budget Usd */
+            ai_budget_usd?: number | null;
             /** Goal */
             goal?: string | null;
             /** Initial Agents */
@@ -47103,6 +47214,43 @@ export interface operations {
             };
         };
     };
+    set_project_budget_api_projects__project_id__budget_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                project_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ProjectBudgetBody"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     cancel_project_api_projects__project_id__cancel_post: {
         parameters: {
             query?: never;
@@ -47152,6 +47300,119 @@ export interface operations {
             cookie?: never;
         };
         requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    approve_project_initiation_api_projects__project_id__initiation_approve_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                project_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["InitiationApprovalBody"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    accept_project_delivery_api_projects__project_id__milestones__milestone_id__accept_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                project_id: string;
+                milestone_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["OwnerDecisionBody"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    authorize_project_phase_api_projects__project_id__phases__milestone_id__authorize_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                project_id: string;
+                milestone_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["OwnerDecisionBody"];
+            };
+        };
         responses: {
             /** @description Successful Response */
             200: {

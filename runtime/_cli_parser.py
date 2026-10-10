@@ -82,6 +82,20 @@ def _normalize_cli_argv(argv: list[str]) -> list[str]:
     return argv
 
 
+def _add_project_run_options(run_parser: argparse.ArgumentParser) -> None:
+    """``echo project run`` options; stub hooks never drive other projects silently."""
+    run_parser.add_argument("--max-ticks", type=int, default=50, dest="max_ticks")
+    run_parser.add_argument(
+        "--allow-stub-hooks",
+        action="store_true",
+        dest="allow_stub_hooks",
+        help=(
+            "DANGEROUS: drive a project the CLI did not plan with the offline stub "
+            "hooks (fabricated output, auto-approved QA)"
+        ),
+    )
+
+
 def _build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="echo-ai",
@@ -601,16 +615,7 @@ def _build_parser() -> argparse.ArgumentParser:
     _pp_run.add_argument("--id", default=None, help="existing project id")
     _pp_run.add_argument("--goal", default=None, help="goal to plan+run if no --id")
     _pp_run.add_argument("--name", default="", help="project name when planning")
-    _pp_run.add_argument("--max-ticks", type=int, default=50, dest="max_ticks")
-    _pp_run.add_argument(
-        "--allow-stub-hooks",
-        action="store_true",
-        dest="allow_stub_hooks",
-        help=(
-            "DANGEROUS: drive a project the CLI did not plan with the offline stub "
-            "hooks (fabricated output, auto-approved QA)"
-        ),
-    )
+    _add_project_run_options(_pp_run)
     _pp_report = project_sub.add_parser("report", help="Show a project's milestone report.")
     _pp_report.add_argument("--id", required=True, help="project id")
     project_sub.add_parser("list", help="List all projects.")

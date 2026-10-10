@@ -80,6 +80,7 @@ export function CreateProjectDialog({
     null,
   );
   const [invitePeopleAfterCreate, setInvitePeopleAfterCreate] = useState(false);
+  const [aiBudget, setAiBudget] = useState("");
   const [advanced, setAdvanced] = useState(false);
   const [agentSearch, setAgentSearch] = useState("");
   const { agents, isLoading: agentsLoading } = useAgents();
@@ -128,6 +129,7 @@ export function CreateProjectDialog({
     setSelectedIcon("📁");
     setSelectedAgentIds(null);
     setInvitePeopleAfterCreate(false);
+    setAiBudget("");
     setAdvanced(false);
     setAgentSearch("");
   };
@@ -152,6 +154,15 @@ export function CreateProjectDialog({
 
   const handleSubmit = () => {
     if (!name.trim() || isPending) return;
+    // Optional cap; the project waits for the owner's initiation approval.
+    const aiBudgetUsd = aiBudget.trim() === "" ? undefined : Number(aiBudget);
+    if (
+      aiBudgetUsd !== undefined &&
+      !(Number.isFinite(aiBudgetUsd) && aiBudgetUsd >= 0)
+    ) {
+      toast.error(t.createProjectDialog.invalidAiBudget);
+      return;
+    }
     const initialAgents: ProjectInitialAgent[] = effectiveSelectedAgentIds.map(
       (id) => {
         const agent = agents.find((candidate) => candidate.name === id);
@@ -170,6 +181,7 @@ export function CreateProjectDialog({
         icon: selectedIcon,
         category: selectedCategory ?? undefined,
         initialAgents,
+        aiBudgetUsd,
       },
       {
         onSuccess: ({ threadId }) => {
@@ -387,6 +399,23 @@ export function CreateProjectDialog({
               </div>
             )}
           </section>
+
+          <div className="space-y-2">
+            <Label htmlFor="create-project-ai-budget">
+              {t.createProjectDialog.aiBudgetLabel}
+            </Label>
+            <Input
+              id="create-project-ai-budget"
+              inputMode="decimal"
+              disabled={isPending}
+              value={aiBudget}
+              onChange={(e) => setAiBudget(e.target.value)}
+              placeholder={t.createProjectDialog.aiBudgetLabel}
+            />
+            <p className="text-xs text-muted-foreground">
+              {t.createProjectDialog.aiBudgetHint}
+            </p>
+          </div>
 
           {advanced && (
             <div className="grid gap-2 sm:grid-cols-2">

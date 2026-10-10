@@ -17,6 +17,7 @@ from uuid import uuid4
 
 from runtime.memory.cowork.group_store import GroupStore
 from runtime.memory.cowork.nominate import CompetenceStore, suggest
+from runtime.projectos._project_run_trace import project_run_trace as project_run_trace
 from runtime.projectos.engine import (
     DEFAULT_RUN_MAX_TICKS,
     AgentAssigner,
@@ -26,8 +27,10 @@ from runtime.projectos.engine import (
     stub_decompose_tasks,
     stub_generate_milestones,
 )
-from runtime.projectos.model import TEAM_MODES_HUMAN, Task
+from runtime.projectos.governance import governed_milestone_spec
+from runtime.projectos.model import PROJECT_ORIGIN_APP, TEAM_MODES_HUMAN, Task
 from runtime.projectos.store import ProjectStore
+from runtime.safety.auth.scope import TenantScope
 
 
 def roster_from_group(group_store: GroupStore, thread_id: str) -> list[tuple[str, str]]:
@@ -375,12 +378,16 @@ def engine_for_group(
     tenant_id: str = "",
     subagent_runner: Callable[..., str] | None = None,
     require_execution_binding: bool = False,
+    scope: TenantScope | None = None,
+    require_initiation_approval: bool = False,
 ) -> ProjectEngine:
     """A ProjectEngine whose task→agent routing uses the cowork thread's roster.
 
     ``hooks`` supplies generate/decompose/execute/qa (LLM in production, stubs in
     tests). The assigner is always the roster-aware one, so the custom group runs
-    the project."""
+    the project. Chat and REST both execute through this engine; ``scope`` keeps
+    an operator's cross-tenant scope, and REST sets
+    ``require_initiation_approval`` (see ``ProjectEngine``)."""
     roster = roster_from_group(group_store, thread_id)
     kwargs = dict(hooks or {})
     kwargs.pop("prepare_initiation", None)
@@ -405,7 +412,9 @@ def engine_for_group(
         **kwargs,
         owner_id=owner_id,
         tenant_id=tenant_id,
+        scope=scope,
         required_execution_thread_id=thread_id if require_execution_binding else "",
+        require_initiation_approval=require_initiation_approval,
     )
 
 
@@ -440,6 +449,7 @@ def ensure_project_for_thread(
         reuse_active=True,
         owner_id=owner_id,
         tenant_id=tenant_id,
+        origin=PROJECT_ORIGIN_APP,
     )
     if not result.get("ok", True):
         raise RuntimeError(str(result.get("message") or "project attach needs recovery"))
@@ -451,14 +461,17 @@ def ensure_project_for_thread(
     return project_id
 
 
-def full_project_state(project_store: ProjectStore, project_id: str) -> dict[str, Any] | None:
+def full_project_state(
+    project_store: ProjectStore, project_id: str, *, roster: list[str] | None = None
+) -> dict[str, Any] | None:
     """Return the complete Project OS read-model for API and realtime callers.
 
     Includes the derived PM console (``pm``) — milestone health, burndown,
     risks/blockers, next actions, assignments — plus a ``retro`` once the
-    project reaches a terminal state. Published artifacts and recorded
-    decisions are projected from the durable Project OS event stream rather
-    than collaboration metadata.
+    project reaches a terminal state, and ``governance``: the owner decision
+    the project waits on (``roster`` proposes members for unstaffed phases).
+    Published artifacts and recorded decisions are projected from the durable
+    Project OS event stream rather than collaboration metadata.
     """
     project = project_store.get_project(project_id)
     if project is None:
@@ -471,6 +484,7 @@ def full_project_state(project_store: ProjectStore, project_id: str) -> dict[str
         ]
         for milestone in milestones
     }
+    from runtime.projectos.owner_decisions import governance_view
     from runtime.projectos.pm import build_pm_report, build_retro
 
     pm = build_pm_report(project_store, project_id)
@@ -485,6 +499,7 @@ def full_project_state(project_store: ProjectStore, project_id: str) -> dict[str
         "retro": retro,
         "available_actions": _project_available_actions(project.status),
         "action_specs": _project_action_specs(project.id, project.status),
+        "governance": governance_view(project_store, project, milestones, roster=roster),
     }
 
 
@@ -690,79 +705,72 @@ def _task_action_specs(project_id: str, task: Task) -> list[dict[str, Any]]:
     return [specs[action] for action in _task_available_actions(task.status)]
 
 
-def project_run_trace(
-    *,
+def _plan_options(origin: str, roster: list[str], ai_budget_usd: float | None) -> dict[str, Any]:
+    """A new ``app`` project is planned governed: the group roster staffs every
+    phase and the project waits for the owner's initiation approval."""
+    options: dict[str, Any] = {"origin": origin} if origin else {}
+    if origin == PROJECT_ORIGIN_APP:
+        options["milestone_spec"] = governed_milestone_spec(roster, ai_budget_usd=ai_budget_usd)
+    return options
+
+
+def _attach_recovery_state(
+    project_store: ProjectStore,
     thread_id: str,
-    roster: list[str],
-    reused: bool,
-    result: dict[str, Any],
-    state: dict[str, Any],
+    project_id: str,
+    *,
+    phase: str,
+    error: Exception,
+    winner_project_id: str = "",
 ) -> dict[str, Any]:
-    """Compact audit trace for Project OS runs over a cowork group."""
-    raw_project = state.get("project")
-    project = dict(raw_project) if isinstance(raw_project, dict) else {}
-    raw_milestones = state.get("milestones")
-    milestones = list(raw_milestones) if isinstance(raw_milestones, list) else []
-    raw_tasks = state.get("tasks")
-    tasks_by_ms = dict(raw_tasks) if isinstance(raw_tasks, dict) else {}
-    raw_history = result.get("history")
-    history = list(raw_history) if isinstance(raw_history, list) else []
-    tick_events: list[dict[str, Any]] = []
-    for index, tick in enumerate(history, start=1):
-        if not isinstance(tick, dict):
-            continue
-        tick_events.append(
-            {
-                "tick": index,
-                "project_status": tick.get("project_status"),
-                "current_ms": tick.get("current_ms"),
-                "events": [
-                    str(event) for event in (tick.get("events") or []) if str(event or "").strip()
-                ],
-            }
+    """Preserve a committed plan whose attach failed, for an attach-only retry."""
+    preserved = project_store.get_project(project_id)
+    if preserved is None:
+        raise error
+    recovery_recorded = False
+    try:
+        project_store.append_event(
+            project_id,
+            kind="project.group_attach_recovery_pending",
+            payload={
+                "thread_id": thread_id,
+                "phase": phase,
+                "reason": type(error).__name__,
+                "winner_project_id": winner_project_id,
+            },
         )
-
-    milestone_summaries: list[dict[str, Any]] = []
-    for milestone in milestones:
-        if not isinstance(milestone, dict):
-            continue
-        ms_id = str(milestone.get("id") or "")
-        tasks = tasks_by_ms.get(ms_id) if isinstance(tasks_by_ms, dict) else []
-        tasks = tasks if isinstance(tasks, list) else []
-        milestone_summaries.append(
-            {
-                "id": ms_id,
-                "name": milestone.get("name"),
-                "status": milestone.get("status"),
-                "task_count": len(tasks),
-                "done_task_count": sum(
-                    1 for task in tasks if isinstance(task, dict) and task.get("status") == "done"
-                ),
-                "assignments": [
-                    {
-                        "task_id": task.get("id"),
-                        "type": task.get("type"),
-                        "status": task.get("status"),
-                        "assigned_agent": task.get("assigned_agent"),
-                        "available_actions": task.get("available_actions") or [],
-                    }
-                    for task in tasks
-                    if isinstance(task, dict)
-                ],
-            }
-        )
-
-    return {
-        "schema": "echo.projectos.run_trace.v1",
+    except Exception:  # noqa: BLE001 - the preserved plan is still the recovery anchor
+        recovery_recorded = False
+    else:
+        recovery_recorded = True
+    try:
+        preserved_state = full_project_state(project_store, project_id)
+    except Exception:  # noqa: BLE001 - return the source row even if its read model is broken
+        preserved_state = None
+    canonical, current_generation = project_store.binding_snapshot(thread_id)
+    detail = {
+        "code": "PROJECT_ATTACH_RECOVERY_PENDING",
+        "message": "project plan was preserved and needs an attach-only retry",
+        "project_id": project_id,
         "thread_id": thread_id,
-        "project_id": project.get("id"),
-        "project_name": project.get("name"),
-        "project_status": result.get("final_status") or project.get("status"),
-        "reused": reused,
-        "roster": roster,
-        "tick_count": result.get("ticks", len(tick_events)),
-        "tick_events": tick_events,
-        "milestones": milestone_summaries,
+        "phase": phase,
+        "winner_project_id": winner_project_id or (canonical.id if canonical else ""),
+        "recovery_recorded": recovery_recorded,
+        "recovery": {
+            "method": "POST",
+            "path": f"/api/projects/from-group/{thread_id}",
+            "run": False,
+        },
+    }
+    return {
+        "ok": False,
+        "error": "project_attach_recovery_pending",
+        "message": detail["message"],
+        "recovery_pending": True,
+        "recovery": detail,
+        "reused": False,
+        "binding_generation": current_generation,
+        **(preserved_state or {"project": preserved.to_dict()}),
     }
 
 
@@ -782,6 +790,10 @@ def run_project_from_group(
     owner_id: str = "",
     tenant_id: str = "",
     subagent_runner: Callable[..., str] | None = None,
+    origin: str = "",
+    ai_budget_usd: float | None = None,
+    scope: TenantScope | None = None,
+    require_initiation_approval: bool = False,
 ) -> dict[str, Any]:
     """Attach a Project OS project to a cowork group and optionally run it.
 
@@ -804,6 +816,8 @@ def run_project_from_group(
         tenant_id=tenant_id,
         subagent_runner=subagent_runner,
         require_execution_binding=run,
+        scope=scope,
+        require_initiation_approval=require_initiation_approval,
     )
     previously_bound_project, binding_generation = project_store.binding_snapshot(thread_id)
     project = previously_bound_project if reuse_active else None
@@ -811,62 +825,6 @@ def run_project_from_group(
     # retries return that same project even after it reaches a terminal state;
     # creating a new project requires an explicit detach first.
     reused = project is not None
-
-    def _recovery_state(
-        project_id: str,
-        *,
-        phase: str,
-        error: Exception,
-        winner_project_id: str = "",
-    ) -> dict[str, Any]:
-        preserved = project_store.get_project(project_id)
-        if preserved is None:
-            raise error
-        recovery_recorded = False
-        try:
-            project_store.append_event(
-                project_id,
-                kind="project.group_attach_recovery_pending",
-                payload={
-                    "thread_id": thread_id,
-                    "phase": phase,
-                    "reason": type(error).__name__,
-                    "winner_project_id": winner_project_id,
-                },
-            )
-        except Exception:  # noqa: BLE001 - the preserved plan is still the recovery anchor
-            recovery_recorded = False
-        else:
-            recovery_recorded = True
-        try:
-            preserved_state = full_project_state(project_store, project_id)
-        except Exception:  # noqa: BLE001 - return the source row even if its read model is broken
-            preserved_state = None
-        canonical, current_generation = project_store.binding_snapshot(thread_id)
-        detail = {
-            "code": "PROJECT_ATTACH_RECOVERY_PENDING",
-            "message": "project plan was preserved and needs an attach-only retry",
-            "project_id": project_id,
-            "thread_id": thread_id,
-            "phase": phase,
-            "winner_project_id": winner_project_id or (canonical.id if canonical else ""),
-            "recovery_recorded": recovery_recorded,
-            "recovery": {
-                "method": "POST",
-                "path": f"/api/projects/from-group/{thread_id}",
-                "run": False,
-            },
-        }
-        return {
-            "ok": False,
-            "error": "project_attach_recovery_pending",
-            "message": detail["message"],
-            "recovery_pending": True,
-            "recovery": detail,
-            "reused": False,
-            "binding_generation": current_generation,
-            **(preserved_state or {"project": preserved.to_dict()}),
-        }
 
     def _finish(
         *,
@@ -913,9 +871,13 @@ def run_project_from_group(
     if not reused:
         candidate_id = f"P-{uuid4().hex[:8]}"
         try:
-            candidate = engine.plan(name, goal, project_id=candidate_id)
+            candidate = engine.plan(
+                name, goal, project_id=candidate_id, **_plan_options(origin, roster, ai_budget_usd)
+            )
         except Exception as plan_error:
-            return _recovery_state(
+            return _attach_recovery_state(
+                project_store,
+                thread_id,
                 candidate_id,
                 phase="plan_commit",
                 error=plan_error,
@@ -961,7 +923,9 @@ def run_project_from_group(
                 )
         except Exception as attach_error:
             canonical, _generation = project_store.binding_snapshot(thread_id)
-            return _recovery_state(
+            return _attach_recovery_state(
+                project_store,
+                thread_id,
                 candidate.id,
                 phase="attach",
                 error=attach_error,

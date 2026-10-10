@@ -640,6 +640,10 @@ export const koKR: Translations = {
     creatorRole: "프로젝트 책임자 · 그룹 소유자",
     creatorRoleDescription:
       "프로젝트 관리, AI 편성, 사람 초대 권한을 가집니다.",
+    aiBudgetLabel: "AI 예산 상한(USD, 선택)",
+    aiBudgetHint:
+      "모든 단계와 구성원의 AI 실행 비용 합계 상한입니다. 비워 두면 상한이 없습니다. 생성 후 승인해야 실행됩니다.",
+    invalidAiBudget: "AI 예산 상한은 0 이상의 USD 금액이어야 합니다.",
     hint: "작업 그룹, 프로젝트 기능, 오른쪽 워크벤치를 한 번에 만들고 연결합니다.",
     cancel: "Cancel",
     create: "프로젝트 생성",
