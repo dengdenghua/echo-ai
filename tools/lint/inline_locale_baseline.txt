@@ -8,7 +8,6 @@ frontend/src/components/workspace/agents/role-connections.tsx	18
 frontend/src/components/workspace/shared-spaces-dialog.tsx	18
 frontend/src/components/workspace/settings/codex-update-radar.tsx	17
 frontend/src/components/workspace/agents/role-readiness.tsx	16
-frontend/src/components/workspace/execution-engine-picker.tsx	13
 frontend/src/components/workspace/settings/automation-plugin-card.tsx	12
 frontend/src/components/workspace/realtime-approval-toasts.tsx	11
 frontend/src/components/workspace/messages/media-reference.tsx	9
