@@ -264,7 +264,7 @@ export function SettingsDialog(props: SettingsDialogProps) {
     e.preventDefault();
     const content = (e.currentTarget as HTMLElement).closest(
       '[data-slot="dialog-content"]',
-    ) as HTMLElement | null;
+    );
     if (!content) return;
     const rect = content.getBoundingClientRect();
     resizeStartRef.current = {
@@ -897,7 +897,7 @@ export function SettingsDialog(props: SettingsDialogProps) {
                               type="button"
                               onClick={() => {
                                 if (disabled) return;
-                                setActiveSection(id as SettingsSection);
+                                setActiveSection(id);
                               }}
                               disabled={disabled}
                               title={disabled ? disabledReason : undefined}

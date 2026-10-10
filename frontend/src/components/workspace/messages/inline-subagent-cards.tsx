@@ -228,7 +228,7 @@ export function deriveInlineSubagents(
         : "running";
 
     const task = compactSubagentTask(
-      firstString(event.input as Record<string, unknown> | undefined, [
+      firstString(event.input, [
         "prompt_preview",
         "prompt",
         "task",
@@ -261,10 +261,7 @@ export function deriveInlineSubagents(
           (p): p is string => typeof p === "string",
         )
       : (event.filesTouched ?? existing?.filesTouchedCount ?? 0);
-    const inputName = firstString(
-      event.input as Record<string, unknown> | undefined,
-      ["name", "display_name"],
-    );
+    const inputName = firstString(event.input, ["name", "display_name"]);
     const errorMsg =
       isTerminalAgentEvent && status === "error"
         ? (outputIsString
@@ -325,7 +322,7 @@ export function deriveInlineSubagents(
       iterationCount:
         event.iterationCount ??
         (typeof outputObj?.iteration_count === "number"
-          ? (outputObj.iteration_count as number)
+          ? outputObj.iteration_count
           : existing?.iterationCount),
       error: isTerminalAgentEvent && status === "done" ? undefined : errorMsg,
       progress,
@@ -410,7 +407,7 @@ export function deriveSubagentsFromMessages(
       // Legacy "task" tools are handled by SubtaskCard/ParallelSubtasksGrid, not here.
       if (tc.name.toLowerCase() === "task") continue;
 
-      const args = (tc.args ?? {}) as Record<string, unknown>;
+      const args = tc.args ?? {};
       if (
         tc.name.toLowerCase() === "subagent" &&
         firstString(args, ["error", "error_type"]).toLowerCase() ===
@@ -618,28 +615,27 @@ export function deriveSubagentsFromMessages(
         // Also handles MCP server-prefixed names (e.g. "team.call_agent").
         const agentId =
           typeof args.requested_agent_id === "string"
-            ? (args.requested_agent_id as string)
+            ? args.requested_agent_id
             : typeof args.requestedAgentId === "string"
-              ? (args.requestedAgentId as string)
+              ? args.requestedAgentId
               : typeof args.agent_id === "string"
-                ? (args.agent_id as string)
+                ? args.agent_id
                 : typeof args.subagent_id === "string"
-                  ? (args.subagent_id as string)
+                  ? args.subagent_id
                   : (tc.id ??
                     `call-${Math.random().toString(36).slice(2, 10)}`);
-        const role =
-          typeof args.role === "string" ? (args.role as string) : undefined;
+        const role = typeof args.role === "string" ? args.role : undefined;
         const name =
           firstString(resultObj ?? undefined, [
             "display_name",
             "role_display_name",
           ]) ||
           (typeof args.name === "string"
-            ? (args.name as string)
+            ? args.name
             : typeof args.display_name === "string"
-              ? (args.display_name as string)
+              ? args.display_name
               : typeof args.codename === "string"
-                ? (args.codename as string)
+                ? args.codename
                 : (role ?? agentId));
         const task = compactSubagentTask(
           firstString(args, [
@@ -652,22 +648,20 @@ export function deriveSubagentsFromMessages(
             "message",
           ]) ||
             (typeof args.summary === "string"
-              ? (args.summary as string).slice(0, 100)
+              ? args.summary.slice(0, 100)
               : "") ||
             "",
         );
 
         let status: InlineSubagentStatus = hasToolResult ? "done" : "running";
-        let summary =
-          typeof args.summary === "string" ? (args.summary as string) : "";
-        let error =
-          typeof args.error === "string" ? (args.error as string) : "";
+        let summary = typeof args.summary === "string" ? args.summary : "";
+        let error = typeof args.error === "string" ? args.error : "";
         let filesTouched = 0;
         let iterationCount: number | undefined;
 
         // Determine status from args.status (for "subagent" record items) or tool result.
         if (typeof args.status === "string") {
-          const argStatus = (args.status as string).toLowerCase();
+          const argStatus = args.status.toLowerCase();
           if (
             argStatus === "done" ||
             argStatus === "completed" ||
@@ -725,10 +719,10 @@ export function deriveSubagentsFromMessages(
 
         const resultAvatar =
           resultObj && typeof resultObj.avatar === "string"
-            ? (resultObj.avatar as string)
+            ? resultObj.avatar
             : undefined;
         const specAvatar =
-          typeof args.avatar === "string" ? (args.avatar as string) : undefined;
+          typeof args.avatar === "string" ? args.avatar : undefined;
 
         const progress =
           status === "done" ? 1.0 : status === "error" ? 0.5 : undefined;
@@ -828,10 +822,13 @@ export function deriveSubagentMissionFromMessages(messages: Message[]): string {
       ) {
         continue;
       }
-      const mission = firstString(
-        (toolCall.args ?? {}) as Record<string, unknown>,
-        ["goal", "objective", "mission", "task", "prompt"],
-      );
+      const mission = firstString(toolCall.args ?? {}, [
+        "goal",
+        "objective",
+        "mission",
+        "task",
+        "prompt",
+      ]);
       if (mission) return compactMission(mission);
     }
   }

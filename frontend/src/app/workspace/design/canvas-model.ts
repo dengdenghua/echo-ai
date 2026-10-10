@@ -508,7 +508,7 @@ function isDesignStage(
     Number.isInteger(stage.attempt) &&
     stage.attempt >= 0 &&
     typeof stage.status === "string" &&
-    DESIGN_STAGE_STATUSES.has(stage.status as DesignStageStatus)
+    DESIGN_STAGE_STATUSES.has(stage.status)
   );
 }
 

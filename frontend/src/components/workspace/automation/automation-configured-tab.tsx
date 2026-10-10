@@ -131,13 +131,7 @@ export function AutomationConfiguredTab() {
   useEffect(() => {
     let cancelled = false;
     const requestWakeLock = async () => {
-      const wakeLock = (
-        navigator as Navigator & {
-          wakeLock?: {
-            request(type: "screen"): Promise<WakeLockSentinel>;
-          };
-        }
-      ).wakeLock;
+      const wakeLock = navigator.wakeLock;
       if (!keepAwake || !wakeLock) return;
       try {
         const lock = await wakeLock.request("screen");

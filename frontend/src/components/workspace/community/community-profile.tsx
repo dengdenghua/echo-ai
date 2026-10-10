@@ -211,8 +211,7 @@ export function CommunityProfile({
                     alt={p.title}
                     loading="lazy"
                     onError={(e) => {
-                      (e.currentTarget as HTMLImageElement).style.display =
-                        "none";
+                      e.currentTarget.style.display = "none";
                     }}
                     className="size-full object-cover transition-transform duration-slow group-hover:scale-[1.03]"
                   />

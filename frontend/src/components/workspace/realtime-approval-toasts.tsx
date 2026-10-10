@@ -133,7 +133,7 @@ export function RealtimeApprovalPrompt({
         const labelId = `approval-${String(approval.requestId)}-label`;
         if (params.tool?.startsWith("project_")) {
           // Queue project dialogs rather than stacking multiple modal overlays.
-          if (approvals.find(item => String((item.params as { tool?: string }).tool ?? "").startsWith("project_")) !== approval) return null;
+          if (approvals.find(item => String(item.params.tool ?? "").startsWith("project_")) !== approval) return null;
           const roles = params.tool === "project_initiation" ? params.roleProvisions : undefined;
           return (
             <Dialog key={String(approval.requestId)} open>

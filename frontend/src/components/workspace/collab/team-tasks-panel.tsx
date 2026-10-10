@@ -433,7 +433,7 @@ export function TeamTasksPanel({
         {showArtifacts && artifactCount > 0 && (
           <div className="space-y-1.5 border-t border-border-subtle px-3 py-2">
             {task.produced_artifacts.map((artifact, i) => {
-              const a = artifact as Record<string, unknown>;
+              const a = artifact;
               const title = String(
                 a.title ?? a.agent_id ?? a.type ?? `产出 ${i + 1}`,
               );

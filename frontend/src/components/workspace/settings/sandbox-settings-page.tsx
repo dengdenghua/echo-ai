@@ -63,14 +63,7 @@ export default function SandboxSettingsPage() {
   const [settings, setSettings] = useLocalSettings();
   const copy = t.sandboxSettings;
 
-  const context = settings.context as typeof settings.context & {
-    sandbox_mode?: string;
-    approval_policy?: string;
-    approvals_reviewer?: string;
-    network_access?: unknown;
-    guardian_review_enabled?: boolean;
-    guardian_review_model?: string;
-  };
+  const context = settings.context;
   const permission = normalizePermissionMode(context.permission_mode);
   const isFullAccess = permission === "bypassPermissions";
   const environment: ExecutionEnvironment = isFullAccess

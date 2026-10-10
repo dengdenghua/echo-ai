@@ -64,16 +64,16 @@ const DRAWER_WIDTH = "min(320px, 86vw)";
 
 /* Implementation note. */
 function deriveTitle(thread: AgentThread): string {
-  const meta = (thread.metadata ?? {}) as Record<string, unknown>;
+  const meta = thread.metadata ?? {};
   const metaTitle =
-    typeof meta["title"] === "string" ? (meta["title"] as string).trim() : "";
+    typeof meta["title"] === "string" ? meta["title"].trim() : "";
   if (metaTitle) {
     return metaTitle.length > 60 ? `${metaTitle.slice(0, 58)}...` : metaTitle;
   }
   const values = (thread.values ?? {}) as Record<string, unknown>;
   const valuesTitle =
     typeof values["title"] === "string"
-      ? (values["title"] as string).trim()
+      ? values["title"].trim()
       : "";
   if (valuesTitle && valuesTitle !== "New chat" && valuesTitle !== "New task") {
     return valuesTitle.length > 60
@@ -107,7 +107,7 @@ function threadHref(thread: AgentThread): string {
 }
 
 function threadOwnerAgent(thread: AgentThread): string {
-  const meta = (thread.metadata ?? {}) as Record<string, unknown>;
+  const meta = thread.metadata ?? {};
   const values = (thread.values ?? {}) as Record<string, unknown>;
   const candidates = [
     meta["agent"],
@@ -125,7 +125,7 @@ function threadOwnerAgent(thread: AgentThread): string {
 }
 
 function threadWorkspacePath(thread?: AgentThread): string {
-  const meta = (thread?.metadata ?? {}) as Record<string, unknown>;
+  const meta = thread?.metadata ?? {};
   const values = (thread?.values ?? {}) as Record<string, unknown>;
   const path = meta["workspace_path"] ?? values["workspace_path"];
   return typeof path === "string" ? path.trim() : "";

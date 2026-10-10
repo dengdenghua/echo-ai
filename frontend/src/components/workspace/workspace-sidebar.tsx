@@ -984,7 +984,7 @@ export function WorkspaceSidebar(props: React.ComponentProps<typeof Sidebar>) {
   const rawThreadMap = new Map(mergedProjectRaw.map((r) => [r.thread_id, r]));
   for (const thread of projectThreads) {
     const raw = rawThreadMap.get(thread.id);
-    const meta = (raw?.metadata ?? {}) as Record<string, unknown>;
+    const meta = raw?.metadata ?? {};
     const project =
       projectOsSidebar.projectNameByThreadId.get(thread.id) ??
       projectNameForThread(thread, meta, t.codeMode.personalSpace);

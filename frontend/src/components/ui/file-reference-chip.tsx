@@ -54,7 +54,7 @@ export function FileReferenceChip({
       // Treat LucideIcon (function component) uniformly.
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       (() => {
-        const Ic = icon as LucideIcon;
+        const Ic = icon;
         return <Ic className="size-3 shrink-0 opacity-60" />;
       })()
     ) : (

@@ -985,7 +985,7 @@ export function useFileMention({
       items.map((item) => ({
         name: item.label,
         path: item.description || item.value,
-        type: (item.type === "folder" ? "dir" : "file") as "file" | "dir",
+        type: item.type === "folder" ? "dir" : "file",
       })),
     [items],
   );

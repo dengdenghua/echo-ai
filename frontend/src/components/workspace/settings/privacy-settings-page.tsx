@@ -135,7 +135,7 @@ export default function PrivacySettingsPage() {
       const next = (await res.json()) as LockStatus;
       if (
         typeof next?.locked !== "boolean" ||
-        !(["runtime", "env", "default"] as string[]).includes(next?.source)
+        !["runtime", "env", "default"].includes(next?.source)
       ) {
         throw new Error("invalid data");
       }
@@ -397,7 +397,7 @@ export default function PrivacySettingsPage() {
       const next: LockStatus = await res.json();
       if (
         typeof next?.locked !== "boolean" ||
-        !(["runtime", "env", "default"] as string[]).includes(next?.source)
+        !["runtime", "env", "default"].includes(next?.source)
       ) {
         throw new Error("invalid data");
       }

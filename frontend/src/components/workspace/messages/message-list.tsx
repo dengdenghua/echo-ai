@@ -1374,9 +1374,7 @@ export function MessageList({
     if (!lastMessage || lastMessage.type !== "ai" || lastMessageIsLoading) {
       return null;
     }
-    const metadata = lastMessage.additional_kwargs as
-      | Record<string, unknown>
-      | undefined;
+    const metadata = lastMessage.additional_kwargs;
     if (
       metadata?.message_kind === "commentary" ||
       metadata?.public_progress === true ||
@@ -1408,9 +1406,7 @@ export function MessageList({
     const goal = extractTextFromMessage(shadowReviewGoalMessage).trim();
     const primaryOutput = extractTextFromMessage(shadowReviewMessage).trim();
     if (!goal || !primaryOutput) return undefined;
-    const metadata = shadowReviewMessage.additional_kwargs as
-      | Record<string, unknown>
-      | undefined;
+    const metadata = shadowReviewMessage.additional_kwargs;
     const metadataEngine = metadata?.execution_engine;
     if (
       metadataEngine === "opencode" ||
@@ -2342,7 +2338,7 @@ export function MessageList({
       headerMeta,
       replyTo:
         typeof msg.additional_kwargs?.reply_to === "string"
-          ? (msg.additional_kwargs.reply_to as string)
+          ? msg.additional_kwargs.reply_to
           : undefined,
       children: content,
     });
@@ -2407,7 +2403,7 @@ export function MessageList({
       agentToolGroups,
       replyTo:
         typeof aiMessage?.additional_kwargs?.reply_to === "string"
-          ? (aiMessage.additional_kwargs.reply_to as string)
+          ? aiMessage.additional_kwargs.reply_to
           : undefined,
       children: content,
     });

@@ -598,7 +598,7 @@ export const MessageListItem = memo(function MessageListItem({
   const deliveryState = outboundDeliveryState(message);
   const messageMetadata =
     message.type === "ai"
-      ? (message.additional_kwargs as Record<string, unknown> | undefined)
+      ? message.additional_kwargs
       : undefined;
   const assistantIsSettledAnswer =
     message.type === "ai" &&
@@ -1115,15 +1115,9 @@ function MessageContent_({
     publicThinkingSummary ||
     (files?.length ?? 0) > 0,
   );
-  const responseState = (
-    message.additional_kwargs as { response_state?: unknown } | undefined
-  )?.response_state;
-  const legacyRunStatus = (
-    message.additional_kwargs as { run_status?: unknown } | undefined
-  )?.run_status;
-  const interruptReason = (
-    message.additional_kwargs as { interrupt_reason?: unknown } | undefined
-  )?.interrupt_reason;
+  const responseState = message.additional_kwargs?.response_state;
+  const legacyRunStatus = message.additional_kwargs?.run_status;
+  const interruptReason = message.additional_kwargs?.interrupt_reason;
   const showInterruptedReceipt =
     responseState === "interrupted" ||
     (legacyRunStatus === "streaming" && hasVisibleBody);

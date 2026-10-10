@@ -335,8 +335,7 @@ export function UnifiedAssetsPanel({
   }, [load, kind, source, searchQuery]);
 
   const counts = summary?.counts ?? {};
-  const totalForKind =
-    kind === "team" ? counts.team : (counts[kind] as number | undefined);
+  const totalForKind = kind === "team" ? counts.team : counts[kind];
 
   const onSync = async () => {
     setSyncing(true);

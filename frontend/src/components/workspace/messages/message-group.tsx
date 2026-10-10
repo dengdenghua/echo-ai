@@ -2678,7 +2678,7 @@ function summarizeCompactExecutionTargets(
     new Set(
       items
         .flatMap((item) =>
-          compactToolTargets((item as ToolCallTimelineItem).step),
+          compactToolTargets(item.step),
         )
         .filter((target): target is string => Boolean(target)),
     ),
