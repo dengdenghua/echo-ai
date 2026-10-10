@@ -195,6 +195,11 @@ test("desktop backend spawns and the renderer reaches it", async () => {
       // first-launch bootstrap download.
       ECHO_DESKTOP_BACKEND_ROOT: REPO_ROOT,
       ECHO_BACKEND_URL: backendUrl,
+      // The WebSocket check below mints its token through the passwordless
+      // local login, which the backend only opens in development
+      // (local_auth.config.development_login_enabled).
+      ECHO_ENV: "development",
+      ECHO_DEPLOYMENT_MODE: "local",
     },
   });
 
@@ -226,10 +231,14 @@ test("desktop backend spawns and the renderer reaches it", async () => {
     // This is the production contract that Node-side polling cannot prove:
     // Chromium fetches native /api and /api/plugins paths from the fixed app
     // origin, and the main process forwards them without disabling CORS.
+    // The plugin page must exist in a fresh profile: paper-trading is a
+    // removable workbench package (``delivery: remote``) that is not
+    // installed here, while the bundled mx2025_viewer always serves its
+    // public landing page on the authenticated desktop host.
     const rendererContract = await win.evaluate(async () => {
       const health = await fetch("/api/health");
       const auth = await fetch("/api/auth/status");
-      const plugin = await fetch("/api/plugins/paper-trading/page");
+      const plugin = await fetch("/api/plugins/mx2025_viewer/page");
       return {
         origin: window.location.origin,
         healthStatus: health.status,
