@@ -133,6 +133,9 @@ class AgentMessageItem(_ItemBase):
     # renders the ACTUAL author's avatar + name (not the turn leader's). The
     # frontend reads these off the message's additional_kwargs; when unset it
     # falls back to the turn's agent — so single-agent turns are unaffected.
+    # ``agent_id`` is the server-assigned author (a group member id); the room
+    # projection attributes the message to it instead of the thread's agent.
+    agent_id: str | None = Field(default=None, alias="agentId")
     agent_display_name: str | None = Field(default=None, alias="agentDisplayName")
     agent_avatar_url: str | None = Field(default=None, alias="agentAvatarUrl")
     agent_icon: str | None = Field(default=None, alias="agentIcon")

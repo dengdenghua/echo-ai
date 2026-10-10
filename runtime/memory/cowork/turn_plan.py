@@ -44,10 +44,12 @@ def _chat_broadcast_addressed(state: GroupState, text: str) -> list[str] | None:
 
     if state.mode != "chat" or not _CHAT_BROADCAST_MENTION_RE.search(text):
         return None
+    # 数字员工 (``role``) are AI-side participants exactly like bare agents.
+    # Taken-over members stay addressed here; ``responders`` removes them.
     return [
         member.id
         for member in state.roster
-        if member.kind == "agent" and member.role == "participant" and not member.muted
+        if member.kind != "human" and member.role == "participant" and not member.muted
     ]
 
 

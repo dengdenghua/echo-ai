@@ -279,6 +279,24 @@ def pattern_role_label(role: str) -> str:
     return _ROLE_LABELS.get(str(role or ""), str(role or "回应者"))
 
 
+# Roles whose job is an unanchored candidate inside adversarial review. Only
+# these drop conversational history; durable project state still reaches them.
+_INDEPENDENT_CANDIDATE_ROLES = frozenset({"proposer", "alternative"})
+
+
+def pattern_member_context_mode(role: str) -> str:
+    """Context-steward mode for a fan-out member with ``role``.
+
+    Ordinary group discussion (the roundtable ``explorer``) is about the thread
+    the user is pointing at, so it gets the budgeted shared brief plus a
+    role-relevant delta (``selective``). Parallel execution already keeps the
+    replies of one round independent of each other. Only the candidate roles of
+    adversarial review are ``isolated`` to avoid anchoring on prior opinions.
+    """
+
+    return "isolated" if str(role or "") in _INDEPENDENT_CANDIDATE_ROLES else "selective"
+
+
 __all__ = [
     "TEAM_PATTERNS",
     "TeamPatternDecision",
@@ -286,6 +304,7 @@ __all__ = [
     "is_explicit_group_work_request",
     "is_coordinator_followup",
     "is_team_presence_query",
+    "pattern_member_context_mode",
     "pattern_member_role",
     "pattern_role_label",
     "requires_coordinated_execution",

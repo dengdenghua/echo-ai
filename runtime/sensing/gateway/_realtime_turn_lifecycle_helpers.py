@@ -17,7 +17,10 @@ import os
 import re
 from typing import Any
 
-from runtime.protocol import AgentMessageItem, ErrorItem, ItemMarker, ItemStatus, ItemType, Turn
+from runtime.protocol import ErrorItem, ItemMarker, ItemStatus, ItemType, Turn
+from runtime.sensing.gateway._cowork_room_projection import (  # noqa: F401 - re-export
+    _persist_cowork_agent_messages,
+)
 
 _logger = logging.getLogger(__name__)
 
@@ -525,99 +528,6 @@ def _sync_cowork_orchestration_run(
         _logger.warning("cowork orchestration run sync failed: %s", exc, exc_info=True)
 
 
-def _persist_cowork_agent_messages(
-    runtime: Any,
-    *,
-    thread_id: str,
-    turns: list[Turn],
-    intent: Any,
-) -> int:
-    """Project completed realtime agent prose into the linked room timeline.
-
-    Human prompts already enter ``collaboration_messages`` through the turn
-    input bridge. Without the symmetric agent side, a group refresh could show
-    the question but lose the answer because the answer lived only in the
-    thread event log. Item ids become stable source ids, making repeated
-    snapshots (and reconnect recovery) idempotent.
-    """
-
-    context = getattr(intent, "user_context", None)
-    if not isinstance(context, dict) or not context.get("cowork_persistent_group"):
-        return 0
-    room_id = str(context.get("cowork_room_id") or "").strip()
-    store = _collaboration_store(runtime)
-    append_message = getattr(store, "append_message", None)
-    if not room_id or not callable(append_message):
-        return 0
-
-    agent_id = str(context.get("agent") or context.get("agent_name") or "assistant").strip()
-    safe_agent_id = re.sub(r"[^A-Za-z0-9._:@-]+", "-", agent_id).strip("-") or "assistant"
-    projected = 0
-    for turn in turns:
-        for item in getattr(turn, "items", ()):
-            if not isinstance(item, (AgentMessageItem, ErrorItem)):
-                continue
-            text = str(
-                item.text if isinstance(item, AgentMessageItem) else item.message or ""
-            ).strip()
-            # Streaming snapshots may run before the final item snapshot. Do
-            # not persist a partial answer; the terminal snapshot will retry.
-            if not text or item.status == ItemStatus.IN_PROGRESS:
-                continue
-            source_message_id = (
-                f"thread:{'agent' if isinstance(item, AgentMessageItem) else 'error'}:{item.id}"
-            )
-            display_name = str(
-                item.agent_display_name
-                if isinstance(item, AgentMessageItem)
-                else agent_id or "Assistant"
-            ).strip()
-            message_type = "message" if isinstance(item, AgentMessageItem) else "system_card"
-            metadata: dict[str, Any] = {
-                "source_message_id": source_message_id,
-                "message_type": message_type,
-                "sender_type": "agent",
-                "agent_id": safe_agent_id,
-                "turn_id": turn.id,
-                "item_id": item.id,
-                "message_kind": (
-                    item.message_kind if isinstance(item, AgentMessageItem) else "error"
-                ),
-            }
-            if isinstance(item, AgentMessageItem) and item.reply_to:
-                metadata["reply_to"] = item.reply_to
-            if isinstance(item, ErrorItem):
-                metadata["system_card"] = {
-                    "type": "error",
-                    "title": "执行失败",
-                    "summary": text,
-                    "status": "failed",
-                }
-            try:
-                append_message(
-                    thread_id,
-                    room_id=room_id,
-                    text=text,
-                    participant_id=f"agent:{safe_agent_id}",
-                    display_name=display_name,
-                    metadata=metadata,
-                )
-                projected += 1
-            except ValueError:
-                # A prior snapshot already wrote this source id. The
-                # collaboration store validates that any conflicting rewrite
-                # is rejected; either way the room already has the answer.
-                continue
-            except Exception as exc:  # noqa: BLE001 — projection is a read-model bridge
-                _logger.warning(
-                    "cowork agent-message projection failed for %s/%s: %s",
-                    thread_id,
-                    item.id,
-                    exc,
-                )
-    return projected
-
-
 def _inject_cowork_turn_plan(
     runtime: Any,
     *,
@@ -640,7 +550,8 @@ def _inject_cowork_turn_plan(
     if store is None:
         return
     try:
-        from runtime.memory.cowork.turn_plan import plan_turn_for_thread
+        from runtime.memory.cowork.group import answerable_members
+        from runtime.memory.cowork.turn_plan import plan_turn
 
         state = store.state(thread_id)
         canonical_room: dict[str, Any] | None = None
@@ -670,9 +581,9 @@ def _inject_cowork_turn_plan(
         from runtime.sensing.gateway.remote_group_member import resolve_remote_mentions
 
         planning_text = resolve_remote_mentions(text, [member.id for member in state.roster])
-        plan = plan_turn_for_thread(
-            store,
-            thread_id,
+        # Same folded snapshot as the execution roster below: no takeover race.
+        plan = plan_turn(
+            state,
             planning_text,
             persistent_group=persistent_group,
             mode_override=mode_override,
@@ -701,13 +612,12 @@ def _inject_cowork_turn_plan(
             or any(member.id.startswith("a2a_") for member in state.roster)
         )
     )
+    # Same eligibility as the plan: 数字员工 answer like agents, and a member a
+    # person has taken over is never answered for by the AI.
     active_agents = [
         member.id
-        for member in state.roster
-        if member.kind == "agent"
-        and member.role == "participant"
-        and not member.muted
-        and (not member.id.startswith("a2a_") or member.id in responders)
+        for member in answerable_members(state)
+        if not member.id.startswith("a2a_") or member.id in responders
     ]
     try:
         from runtime.execution.agents.team_patterns import (

@@ -182,11 +182,11 @@ def _select_fanout_members(
 ) -> tuple[list[dict[str, Any]], dict[str, Any]]:
     """Apply the server-owned addressing plan before any model is launched.
 
-    A natural-language group request or swarm turn intentionally includes the
-    active roster. Explicit ``@agent`` mentions are narrower: only the validated
-    responders may receive context or consume a model call.  The lifecycle
-    overwrites ``cowork_plan`` and ``cowork_responders`` from durable membership,
-    so this function never trusts a client-provided roster expansion.
+    Explicit ``@agent`` mentions and multi-responder (swarm) plans run exactly
+    the validated responders. A natural-language group request has none and
+    uses the active roster, already limited to members the AI may answer for.
+    The lifecycle rebuilds ``cowork_plan``/``cowork_responders`` from durable
+    membership, so this function never trusts a client-provided roster expansion.
     """
 
     available = [member for member in members if isinstance(member, dict)]
@@ -199,10 +199,10 @@ def _select_fanout_members(
         else []
     )
     has_explicit_targets = isinstance(addressed, list) and bool(addressed)
-    if has_explicit_targets:
+    if has_explicit_targets or (isinstance(plan, dict) and plan.get("is_multi") and responders):
         allowed = set(responders)
         selected = [member for member in available if str(member.get("name") or "") in allowed]
-        reason = "explicit_mentions"
+        reason = "explicit_mentions" if has_explicit_targets else "planned_responders"
     else:
         selected = [m for m in available if not str(m.get("name") or "").startswith("a2a_")]
         reason = "group_request_or_mode"
@@ -297,17 +297,16 @@ async def _drive_group_fanout(
         # Remote accounts receive one explicit task per user message. Automatic
         # debate/review rounds must not repeat that task or spend extra credits.
         team_pattern["debate_rounds"] = 1
-    from runtime.execution.agents.team_patterns import pattern_member_role
+    from runtime.execution.agents.team_patterns import (
+        pattern_member_context_mode,
+        pattern_member_role,
+    )
 
     pattern_id = str(team_pattern.get("id") or "parallel_roundtable")
     for index, member in enumerate(members):
-        role = pattern_member_role(pattern_id, index)
-        # Independent candidate generation should not inherit conversational
-        # anchoring. Critics/verifiers remain selective so they can use prior
-        # decisions; the current debate transcript is still passed explicitly.
-        member["context_mode"] = (
-            "isolated" if role in {"explorer", "proposer", "alternative"} else "selective"
-        )
+        # Discussion members see the budgeted shared brief ("看看上面的…"); only
+        # adversarial review's independent candidates stay isolated.
+        member["context_mode"] = pattern_member_context_mode(pattern_member_role(pattern_id, index))
     context_engine_host = getattr(runtime, "_cowork_context_engine_host", None)
     context_engine_events: list[dict[str, Any]] = []
     context_engine_events_lock = threading.Lock()
@@ -417,6 +416,7 @@ async def _drive_group_fanout(
         item = AgentMessageItem(
             text=body,
             status=ItemStatus.COMPLETED,
+            agent_id=agent_id or None,
             agent_display_name=display_name,
             agent_avatar_url=avatar_url,
             agent_icon=icon,

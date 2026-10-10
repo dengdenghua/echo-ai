@@ -141,6 +141,21 @@ def sender_identity(state: GroupState | None, member_id: str) -> tuple[SenderKin
     return (member.kind, member.driver)
 
 
+def ai_sender_identity(state: GroupState | None, member_id: str) -> tuple[SenderKind, SenderDriver]:
+    """What a *model-generated* message written for ``member_id`` records.
+
+    The kind is read off the roster like ``sender_identity``; an off-roster (or
+    human) id stays ``("unknown", "unknown")`` instead of a guess. The driver is
+    always ``ai``: an AI lane produced the text, so a takeover that lands before
+    the write must not relabel it as a person's words.
+    """
+
+    kind, _driver = sender_identity(state, member_id)
+    if kind in ("unknown", "human"):
+        return ("unknown", "unknown")
+    return (kind, "ai")
+
+
 @dataclass
 class MemberEvent:
     """One append-only membership/mode event on a thread's timeline."""
@@ -420,6 +435,21 @@ def visible_message_range(member: Member, current_max_message: int) -> tuple[int
     return None  # summary → no raw range
 
 
+def answerable_members(state: GroupState) -> list[Member]:
+    """AI-side participants the AI may currently answer for, in roster order.
+
+    The single eligibility rule shared by turn planning and execution: not a
+    person, a participant (not an observer), unmuted, and not taken over by a
+    human driver. 数字员工 (``role``) qualify exactly like bare agents.
+    """
+
+    return [
+        m
+        for m in state.roster
+        if m.kind != "human" and m.role == "participant" and not m.muted and m.driver != "human"
+    ]
+
+
 def responders(state: GroupState, addressed: list[str] | None = None) -> list[str]:
     """Who should act this turn — the bridge from *mode* to *behaviour*.
 
@@ -436,11 +466,7 @@ def responders(state: GroupState, addressed: list[str] | None = None) -> list[st
     must stand down, or the same mouth would have two drivers and no utterance
     could be attributed to either. That is a hard rule, not a preference.
     """
-    agents = [
-        m
-        for m in state.roster
-        if m.kind != "human" and m.role == "participant" and not m.muted and m.driver != "human"
-    ]
+    agents = answerable_members(state)
     if addressed:
         targeted = [m.id for m in agents if m.id in set(addressed)]
         if targeted:

@@ -2983,7 +2983,9 @@ def test_cowork_group_request_drives_pattern_fanout(
     assert team_items[0]["arguments"]["context_plan"]["selection_engine"] == ("runtime-fixture")
     assert team_items[0]["arguments"]["routing"] == {
         "schema": "echo.cowork_member_routing.v1",
-        "reason": "group_request_or_mode",
+        # A swarm plan already names its responders; ordinary chat widens via
+        # the natural-language group request instead.
+        "reason": "planned_responders" if room_mode == "swarm" else "group_request_or_mode",
         "available_member_count": 2,
         "selected_member_count": 2,
         "selected_agent_ids": ["db-agent", "ui-agent"],

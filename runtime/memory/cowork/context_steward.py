@@ -34,7 +34,7 @@ _SHARED_SIGNAL_RE = re.compile(
 )
 _LOW_INFORMATION_FOLLOWUP_RE = re.compile(
     r"^(?:[?？!！.。…\s]{1,12}|(?:继续|接着|恢复|怎么回事|什么情况|还没好|"
-    r"怎么还没|上面(?:的)?任务|中断(?:的)?任务).{0,40})$",
+    r"怎么还没|上面(?:的)?任务|中断(?:的)?任务).{0,40}|.{0,24}(?:上面|上述|以上|上文|前面|刚才|above).{0,40})$",
     re.IGNORECASE,
 )
 _DEEP_RECALL_INTENT_RE = re.compile(
@@ -888,8 +888,8 @@ def plan_group_context(
         overlap = len(query_terms & _terms(row.text))
         signal = 1 if _SHARED_SIGNAL_RE.search(row.text) else 0
         # Deictic/terse follow-ups have no useful retrieval terms. Preserve the
-        # last conversational exchange shared by all authorised members so a
-        # question mark or "继续" cannot become a context-free new topic.
+        # last conversational exchange shared by all authorised members so "?",
+        # "继续" or "看看上面这个" cannot become a context-free new topic.
         recent_followup = low_information_followup and row.order >= max(0, len(first_rows) - 3)
         if not overlap and not signal and not recent_followup and not deep_recall_escalated:
             continue
