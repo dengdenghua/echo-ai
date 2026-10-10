@@ -66,6 +66,7 @@ tier: "standard"
 | `_cowork_group_room_link.py` | Fail-safe Team Room linking for collaboration sessions. |
 | `_cowork_group_run_endpoints.py` | Collaboration run, collector child, and delivery endpoints for cowork. |
 | `_cowork_group_session.py` | Read-side projection helpers for unified cowork sessions. |
+| `_cowork_room_projection.py` | Project completed realtime agent output into the linked cowork room. |
 | `_design_studio_models.py` | Request bodies and static ComfyUI catalogs for the Design Studio router. |
 | `_device_flow_models.py` | Typed wire models for connector device-flow generations. |
 | `_event_bridge_tool_items.py` | Tool-event → item/description builders for the realtime bridge. |
@@ -104,6 +105,7 @@ tier: "standard"
 | `_openai_gateway_router_ratelimit.py` | — |
 | `_openai_gateway_router_run.py` | — |
 | `_openai_gateway_router_synthesize.py` | — |
+| `_projects_governance_endpoints.py` | Owner decisions for governed projects over HTTP (the project page). |
 | `_projects_group_endpoints.py` | Project creation and cowork-group binding endpoints for the Project OS router. |
 | `_projects_group_projections.py` | Project-group read-model projections and compensation helpers. |
 | `_projects_models.py` | Request bodies for the Project OS router. |
@@ -613,6 +615,9 @@ tier: "standard"
 | class | `class TaskInterventionBody(BaseModel)` |  |
 | class | `class ProjectCancelBody(BaseModel)` |  |
 | class | `class FromGroupBody(BaseModel)` |  |
+| class | `class OwnerDecisionBody(BaseModel)` | An owner decision on exactly what was shown (``governance`` fingerprints). |
+| class | `class InitiationApprovalBody(OwnerDecisionBody)` |  |
+| class | `class ProjectBudgetBody(OwnerDecisionBody)` |  |
 | class | `class DetachFromGroupBody(BaseModel)` |  |
 
 ### `_projects_router_deps.py`
@@ -1472,6 +1477,7 @@ tier: "standard"
 | Kind | Symbol | Doc |
 | --- | --- | --- |
 | func | `async def adjust_budget(runtime, turn, log, emitter, store, project, value, owner_id, tenant_id)` |  |
+| func | `async def approve_initiation_in_chat(runtime, turn, log, emitter, store, project, owner_id, tenant_id)` | A project created on the project page waits for the owner's initiation. |
 | func | `async def authorize_phase(runtime, turn, log, emitter, store, project, owner_id, tenant_id)` |  |
 
 ### `realtime_react_policy.py`

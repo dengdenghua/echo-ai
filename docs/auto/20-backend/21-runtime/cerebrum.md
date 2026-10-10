@@ -27,6 +27,7 @@ Native planner exports, loaded only when a caller actually requests them.
 | --- | --- |
 | `_planner_helpers.py` | Pure helper functions extracted from :mod:`runtime.core.cerebrum.llm_planner`. |
 | `_planner_parse.py` | Plan-JSON extraction + node validation for :class:`LLMPlanner`. |
+| `_react_approval_pause.py` | Approval outcomes that pause a ReAct turn instead of failing it. |
 | `_react_context_attachments.py` | User-message content assembly (attachments, images, JSONL manifest), message checkpoint (de)serialization helpers, and related-file prefetching. |
 | `_react_context_code.py` | Code-context prelude and mode/workflow/signals prompt builders. |
 | `_react_context_helpers.py` | Token estimation, context-compression helpers, and skill-catalog formatting for the ReAct loop. |

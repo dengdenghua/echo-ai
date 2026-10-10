@@ -34,7 +34,11 @@ tier: "standard"
 | Kind | Symbol | Doc |
 | --- | --- | --- |
 | func | `def development_login_enabled(config)` | Passwordless and fixed-account shortcuts are development-only. |
+| func | `def configure_desktop_owner_token(token)` | Install the per-launch owner token handed over by the desktop shell. |
+| func | `def desktop_owner_token()` |  |
+| func | `def desktop_owner_login_enabled(config)` | A passwordless desktop config signs in only with the shell's owner token. |
 | func | `def local_login_enabled(config)` | Allow configured password accounts in deployments, never dev shortcuts. |
+| func | `def interactive_local_login_enabled(config)` | Whether a login form can sign in; the desktop owner token is shell-only. |
 | func | `def hash_password(plaintext)` | Hash a password using bcrypt with a random salt. |
 | func | `def verify_password(plaintext, hashed)` | Verify a plaintext password against a bcrypt or legacy sha256 hash. |
 | class | `class LocalAuthConfig(BaseModel)` |  |
@@ -101,8 +105,10 @@ tier: "standard"
 
 ## Who imports this
 
-**2** file(s) reference this package:
+**3** file(s) reference this package:
 
+- **`runtime/cli_serve.py/`** · 1 file(s)
+  - `runtime/cli_serve.py`
 - **`runtime/platform/`** · 1 file(s)
   - `runtime/platform/ui/_app_auth_routers.py`
 - **`runtime/sensing/`** · 1 file(s)

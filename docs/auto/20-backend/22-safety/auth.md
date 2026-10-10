@@ -248,7 +248,7 @@ tier: "core"
 
 ## Who imports this
 
-**204** file(s) reference this package:
+**205** file(s) reference this package:
 
 - **`runtime/adapters/`** · 6 file(s)
   - `runtime/adapters/integrations/local_auth/router.py`
@@ -291,13 +291,13 @@ tier: "core"
   - `runtime/platform/config/builder.py`
   - `runtime/platform/connectors/cli_profile.py`
   - _… and 20 more_
-- **`runtime/projectos/`** · 6 file(s)
+- **`runtime/projectos/`** · 7 file(s)
   - `runtime/projectos/_store_message_actions.py`
   - `runtime/projectos/_store_project_deletion.py`
   - `runtime/projectos/_store_task_claims.py`
   - `runtime/projectos/_store_thread_bindings.py`
-  - `runtime/projectos/engine.py`
-  - `runtime/projectos/store.py`
+  - `runtime/projectos/cowork_bridge.py`
+  - _… and 2 more_
 - **`runtime/safety/`** · 22 file(s)
   - `runtime/safety/evolution/auto_trigger.py`
   - `runtime/safety/evolution/candidate_registry.py`
