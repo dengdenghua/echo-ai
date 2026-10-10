@@ -35,6 +35,8 @@ tier: "standard"
 | --- | --- | --- |
 | func | `def development_login_enabled(config)` | Passwordless and fixed-account shortcuts are development-only. |
 | func | `def configure_desktop_owner_token(token)` | Install the per-launch owner token handed over by the desktop shell. |
+| func | `def take_desktop_owner_token()` | Pop the shell's owner token so nothing ``serve`` starts can inherit it. |
+| func | `def install_desktop_owner_token(token, local_loopback)` | Install ``token`` only for a desktop shell's local, loopback-bound serve. |
 | func | `def desktop_owner_token()` |  |
 | func | `def desktop_owner_login_enabled(config)` | A passwordless desktop config signs in only with the shell's owner token. |
 | func | `def local_login_enabled(config)` | Allow configured password accounts in deployments, never dev shortcuts. |
