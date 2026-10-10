@@ -199,7 +199,7 @@ function pollOAuth(server: string, timeoutMs = 90_000): Promise<boolean> {
         resolve(false);
         return;
       }
-      window.setTimeout(tick, 1500);
+      window.setTimeout(() => void tick(), 1500);
     };
     void tick();
   });

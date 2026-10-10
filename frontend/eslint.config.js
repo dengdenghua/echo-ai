@@ -109,12 +109,6 @@ export default tseslint.config(
       "src/app/browser/page.tsx",
       "src/components/browser/assistant-panel.tsx",
       "src/components/workspace/browser-preview-panel.tsx",
-      // Fixed on the typed-requests branch but held back while another
-      // change to these files is in flight; delete with that follow-up.
-      "src/app/register/page.tsx",
-      "src/app/workspace/design/page.tsx",
-      "src/components/store/capability-market-panel.tsx",
-      "src/components/workspace/agents/agent-world-unified.tsx",
     ],
     rules: {
       "@typescript-eslint/no-floating-promises": "off",
@@ -128,8 +122,6 @@ export default tseslint.config(
       "src/components/browser/assistant-panel.tsx",
       "src/components/browser/password-prompt.tsx",
       "src/components/workspace/browser-preview-panel.tsx",
-      // Held back with the floating-promise follow-up above.
-      "src/components/store/capability-market-panel.tsx",
     ],
     rules: {
       "@typescript-eslint/no-misused-promises": "off",
@@ -139,7 +131,6 @@ export default tseslint.config(
     // RATCHET — files with assertions the compiler already proves, left while
     // another change to them is in flight. Fix a file, then delete it here.
     files: [
-      "src/app/workspace/design/page.tsx",
       "src/components/browser/browser-store.tsx",
       "src/components/browser/webview-tab.tsx",
     ],

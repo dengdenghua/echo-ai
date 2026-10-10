@@ -1239,7 +1239,7 @@ function DesignHomeView({
         workspaceHostOrigin(),
       );
     } else {
-      navigate(href);
+      void navigate(href);
     }
   };
   const [settings, setSetting] = useThreadSettings(threadId ?? "");
@@ -4146,7 +4146,7 @@ export default function DesignPage({
       }
       setSection("canvas");
       const query = next.toString();
-      navigate(`/workspace/design${query ? `?${query}` : ""}`);
+      void navigate(`/workspace/design${query ? `?${query}` : ""}`);
     },
     [navigate, searchParams],
   );
@@ -4156,7 +4156,7 @@ export default function DesignPage({
     const next = new URLSearchParams(searchParams);
     next.delete("workspace_path");
     const query = next.toString();
-    navigate(`/workspace/design${query ? `?${query}` : ""}`, {
+    void navigate(`/workspace/design${query ? `?${query}` : ""}`, {
       replace: true,
     });
   }, [embeddedProject, navigate, searchParams]);
@@ -4837,7 +4837,7 @@ export default function DesignPage({
             const next = new URLSearchParams(searchParams);
             next.set("thread", nextThreadId);
             next.delete("new_task");
-            navigate(`/workspace/design?${next.toString()}`, { replace: true });
+            void navigate(`/workspace/design?${next.toString()}`, { replace: true });
           }
         }
         return;
@@ -4846,7 +4846,7 @@ export default function DesignPage({
         const nextThreadId = String(
           event.data.threadId || designThreadId || "",
         ).trim();
-        navigate(
+        void navigate(
           nextThreadId && nextThreadId !== "new"
             ? `/workspace/realtime/${encodeURIComponent(nextThreadId)}`
             : "/workspace/realtime/new",
@@ -6867,7 +6867,7 @@ export default function DesignPage({
                     if (id === "tutorial" || id === "shortcuts")
                       setHelpDialog(id);
                     else {
-                      setFeedbackDialog(id as "feedback" | "wish");
+                      setFeedbackDialog(id);
                       setFeedbackText("");
                     }
                   }}

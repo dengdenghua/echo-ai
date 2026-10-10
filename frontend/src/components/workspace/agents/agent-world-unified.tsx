@@ -990,7 +990,7 @@ function PluginsTabContent({ searchQuery }: { searchQuery: string }) {
   }, []);
 
   useEffect(() => {
-    loadData();
+    void loadData();
   }, [loadData]);
 
   const pluginEntries = useMemo<PluginEntry[]>(() => {
@@ -1577,7 +1577,7 @@ export function AgentWorldUnified() {
       }
       if (section === "skills") params.set("tab", "skills");
       const query = params.toString();
-      navigate(`/workspace/agents${query ? `?${query}` : ""}`, {
+      void navigate(`/workspace/agents${query ? `?${query}` : ""}`, {
         replace: true,
       });
     },
@@ -1591,7 +1591,7 @@ export function AgentWorldUnified() {
       params.set("view", view);
       params.delete("connect");
       const query = params.toString();
-      navigate(`/workspace/agents${query ? `?${query}` : ""}`, {
+      void navigate(`/workspace/agents${query ? `?${query}` : ""}`, {
         replace: true,
       });
     },
@@ -1872,9 +1872,9 @@ export function AgentWorldUnified() {
                             disabled={isMutating}
                             onClick={() => {
                               if (workbenchPackageError) {
-                                navigate(app.workspaceRoute);
+                                void navigate(app.workspaceRoute);
                               } else if (isInstalled && isRuntimeEnabled) {
-                                navigate(app.workspaceRoute);
+                                void navigate(app.workspaceRoute);
                               } else if (
                                 isInstalled &&
                                 !isBroken &&
@@ -2146,7 +2146,7 @@ export function AgentWorldUnified() {
                   ? chatRouteForAgent(selectedAgent)
                   : "";
                 setSelectedAgent(null);
-                if (hudOnly) navigate(returnRoute);
+                if (hudOnly) void navigate(returnRoute);
               }
             }}
             onSelectAgent={handleSwitchAgent}

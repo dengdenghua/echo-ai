@@ -74,7 +74,7 @@ export default function RegisterPage() {
     authStatus && (!authStatus.enabled || !authStatus.allow_registration);
 
   useEffect(() => {
-    if (redirectToWorkspace) navigate(returnTo, { replace: true });
+    if (redirectToWorkspace) void navigate(returnTo, { replace: true });
   }, [redirectToWorkspace, navigate, returnTo]);
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -100,7 +100,7 @@ export default function RegisterPage() {
     try {
       await register({ username, password, email: email || undefined });
       toast.success(t.registerPage.toastSuccess);
-      navigate(loginPathWithReturnTo(returnTo), { replace: true });
+      void navigate(loginPathWithReturnTo(returnTo), { replace: true });
     } catch (error) {
       toast.error(
         error instanceof Error ? error.message : t.registerPage.toastFailed,

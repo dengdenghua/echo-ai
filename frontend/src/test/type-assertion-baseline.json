@@ -6,7 +6,7 @@
     "src/app/workspace/design/canvas-model.ts": 4,
     "src/app/workspace/design/comfy-workflow-editor.tsx": 5,
     "src/app/workspace/design/director-stage.tsx": 8,
-    "src/app/workspace/design/page.tsx": 52,
+    "src/app/workspace/design/page.tsx": 51,
     "src/app/workspace/design/plugin-node-frame.tsx": 2,
     "src/app/workspace/diagnostics/page.tsx": 1,
     "src/app/workspace/layout.tsx": 3,
