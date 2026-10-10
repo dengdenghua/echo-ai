@@ -263,7 +263,7 @@ export function useActiveAgentSync({
       writeTaskCollaboratorPreset(preset);
       applyTaskCollaboratorPreset(preset);
       consumeTaskCollaboratorPreset();
-      navigate(taskWorkspaceRoute({ agentId: leaderId }), { replace: true });
+      void navigate(taskWorkspaceRoute({ agentId: leaderId }), { replace: true });
       return;
     }
     // 统一走 emitAgentChanged：同时写 localStorage + 派发 eventBus 事件，
@@ -314,14 +314,14 @@ export function useActiveAgentSync({
     setSettings("context", {
       ...settings.context,
       page_agent_memory_mode: memoryMode,
-    } as Partial<typeof settings.context>);
+    });
   }, [memoryMode, setSettings, settings, settings.context]);
   useEffect(() => {
     const prev = prevAgentRef.current;
     prevAgentRef.current = activeAgentId;
     if (prev === null || prev === activeAgentId) return;
     // Agent actually changed mid-session → flush both views.
-    qc.invalidateQueries({ queryKey: ["threads", "search"] });
+    void qc.invalidateQueries({ queryKey: ["threads", "search"] });
     // The visible route stays on the unified realtime surface; the selected
     // agent is carried by ?agent= for fresh tasks and by thread metadata for
     // history.

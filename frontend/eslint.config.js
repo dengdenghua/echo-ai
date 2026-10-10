@@ -107,9 +107,6 @@ export default tseslint.config(
     // New files must pass.
     files: [
       "src/app/browser/page.tsx",
-      // The realtime page is being split up in a parallel change; narrow
-      // this glob to the resulting files once that lands.
-      "src/app/workspace/realtime/**",
       "src/components/browser/assistant-panel.tsx",
       "src/components/workspace/browser-preview-panel.tsx",
       // Fixed on the typed-requests branch but held back while another
@@ -143,7 +140,6 @@ export default tseslint.config(
     // another change to them is in flight. Fix a file, then delete it here.
     files: [
       "src/app/workspace/design/page.tsx",
-      "src/app/workspace/realtime/[[]thread_id]/page.tsx",
       "src/components/browser/browser-store.tsx",
       "src/components/browser/webview-tab.tsx",
     ],

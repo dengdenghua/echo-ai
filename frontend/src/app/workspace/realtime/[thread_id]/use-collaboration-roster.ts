@@ -452,7 +452,7 @@ export function useHumanInviteRoom({
     const nextState = { ...routeState };
     delete nextState.openHumanInviteAfterCreate;
     void handleOpenHumanInvite().finally(() => {
-      navigate(`${pathname}${search}`, {
+      void navigate(`${pathname}${search}`, {
         replace: true,
         state: nextState,
       });

@@ -195,7 +195,7 @@ export function useProjectAgentModeHandlers({
   // Embedded chats must stay here so the Design host can render its conversation.
   useEffect(() => {
     if (!isNewThread || embeddedDesignChat || projectAgentMode !== "uxui") return;
-    navigate(
+    void navigate(
       designWorkspaceRoute({
         newTask: true,
         projectId: boundProjectState?.project.id,
@@ -218,7 +218,7 @@ export function useProjectAgentModeHandlers({
         setProjectAgentMode(mode);
         toast.success(t.modeIntent.autoSwitched(label));
         if (mode === "uxui" && !embeddedDesignChat) {
-          navigate(
+          void navigate(
             designWorkspaceRoute({
               threadId: sidebarThreadId,
               newTask: isNewThread,
@@ -279,7 +279,7 @@ export function useProjectAgentModeHandlers({
         return;
       }
       if (mode === "uxui") {
-        navigate(
+        void navigate(
           designWorkspaceRoute({
             threadId: sidebarThreadId,
             newTask: isNewThread,

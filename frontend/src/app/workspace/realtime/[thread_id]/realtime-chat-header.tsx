@@ -160,7 +160,7 @@ export function RealtimeChatHeader({
   const headerRunStatus = (
     <RunDurationBadge
       isLoading={thread.isLoading}
-      vitals={(thread as typeof thread & { vitals?: StreamVitals }).vitals}
+      vitals={(thread).vitals}
     />
   );
   const headerRecorder =

@@ -112,10 +112,10 @@ export function useRealtimeSubmit({
         if (browserFiles.length === 0 && message.text.trim()) {
           writePendingNewSession(message.text);
           toast.info(t.realtime.composer.legacyOnDemandContinued);
-          navigate(taskWorkspaceRoute({ agentId: leaderId }));
+          void navigate(taskWorkspaceRoute({ agentId: leaderId }));
         } else {
           toast.info(t.realtime.composer.legacyOnDemandAttachments);
-          navigate(
+          void navigate(
             taskWorkspaceRoute({ agentId: leaderId, prompt: message.text }),
           );
         }
@@ -167,7 +167,7 @@ export function useRealtimeSubmit({
         toast.info(
           `已为你开启新会话（距上次对话已超过 ${autoNewSessionHours} 小时）`,
         );
-        navigate(
+        void navigate(
           taskWorkspaceRoute({ agentId: activeAgentId, prompt: message.text }),
           { replace: false },
         );
@@ -268,7 +268,7 @@ export function useComposerSettingsHandlers({
         mode === "deep" ||
         (isAgentRoute && mode === "chat")
       ) {
-        navigate(newThreadRouteForMode(mode, draft), { replace: false });
+        void navigate(newThreadRouteForMode(mode, draft), { replace: false });
       }
     },
     [

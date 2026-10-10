@@ -820,8 +820,8 @@ function RealtimePageContent({
         return;
       }
       if (!name || name === activeAgentId) return;
-      qc.invalidateQueries({ queryKey: ["threads", "search"] });
-      navigate(taskWorkspaceRoute({ agentId: name }), { replace: false });
+      void qc.invalidateQueries({ queryKey: ["threads", "search"] });
+      void navigate(taskWorkspaceRoute({ agentId: name }), { replace: false });
     },
     [
       activeAgentId,

@@ -36,7 +36,7 @@ frontend/src/app/login/page.tsx	1
 frontend/src/app/workspace/diagnostics/page.tsx	1
 frontend/src/app/workspace/narrative/api.ts	1
 frontend/src/app/workspace/observability/page.tsx	1
-frontend/src/app/workspace/realtime/[thread_id]/page.tsx	1
+frontend/src/app/workspace/realtime/[thread_id]/use-thread-workspace.ts	1
 frontend/src/app/workspace/reflex/api.ts	1
 frontend/src/components/browser/webview-tab.tsx	1
 frontend/src/components/device-interconnect/nearby-devices.ts	1
