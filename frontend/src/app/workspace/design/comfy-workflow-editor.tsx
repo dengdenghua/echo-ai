@@ -376,14 +376,14 @@ export function ComfyWorkflowEditor({
           }}
           className="h-7 w-56 border-white/10 bg-white/5 text-[11px] text-white"
         />
-        <span className="ml-2 rounded bg-white/5 px-2 py-1 text-[9px] text-zinc-400">
+        <span className="ml-2 rounded bg-white/5 px-2 py-1 text-micro text-zinc-400">
           {Object.keys(workflow).length} 节点 · {edges.length} 连线 · r
           {revision}
         </span>
         <span className="flex-1" />
         <span
           className={cn(
-            "mr-2 text-[9px]",
+            "mr-2 text-micro",
             state === "conflict" || state === "error"
               ? "text-red-400"
               : "text-zinc-500",
@@ -402,7 +402,7 @@ export function ComfyWorkflowEditor({
                     : "有未保存修改"}
         </span>
         {runState ? (
-          <span className="mr-2 text-[9px] text-zinc-400">{runState}</span>
+          <span className="mr-2 text-micro text-zinc-400">{runState}</span>
         ) : null}
         <label className="mr-1 flex h-8 items-center gap-1.5 rounded-md px-2 text-[10px] text-zinc-300 hover:bg-white/5">
           <PlusIcon className="size-3.5" />
@@ -522,9 +522,9 @@ export function ComfyWorkflowEditor({
                     <span className="min-w-0 flex-1 truncate">
                       {node._meta?.title || node.class_type}
                     </span>
-                    <span className="ml-2 text-[8px] opacity-70">#{id}</span>
+                    <span className="ml-2 text-micro opacity-70">#{id}</span>
                   </div>
-                  <div className="space-y-1 px-2.5 py-2 text-[8px] text-zinc-400">
+                  <div className="space-y-1 px-2.5 py-2 text-micro text-zinc-400">
                     {inputs.length ? (
                       inputs.slice(0, 5).map(([key, value]) => (
                         <div key={key} className="flex items-center gap-1.5">
@@ -555,7 +555,7 @@ export function ComfyWorkflowEditor({
                   <div className="truncate text-[12px] font-semibold">
                     {selected._meta?.title || selected.class_type}
                   </div>
-                  <div className="mt-0.5 text-[9px] text-zinc-500">
+                  <div className="mt-0.5 text-micro text-zinc-500">
                     {selected.class_type} · #{selectedId}
                   </div>
                 </div>
@@ -571,7 +571,7 @@ export function ComfyWorkflowEditor({
               <div className="mt-4 space-y-3">
                 {Object.entries(selected.inputs ?? {}).map(([key, value]) => (
                   <div key={key}>
-                    <label className="mb-1.5 flex items-center gap-1.5 text-[9px] text-zinc-400">
+                    <label className="mb-1.5 flex items-center gap-1.5 text-micro text-zinc-400">
                       {isConnection(value) ? (
                         <Link2Icon className="size-3" />
                       ) : null}
@@ -649,7 +649,7 @@ export function ComfyWorkflowEditor({
                   </div>
                 ))}
               </div>
-              <div className="mt-5 rounded-lg border border-white/10 bg-white/[0.03] p-3 text-[9px] leading-4 text-zinc-500">
+              <div className="mt-5 rounded-lg border border-white/10 bg-white/[0.03] p-3 text-micro leading-4 text-zinc-500">
                 <ArrowRightIcon className="mb-1 size-3" />
                 参数与连线会写回 Comfy API prompt；节点坐标只保存在 Echo UI
                 元数据中。

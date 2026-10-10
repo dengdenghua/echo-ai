@@ -176,28 +176,6 @@ export default function ObservabilityPage({
               </div>
             </div>
 
-            <div className="mt-5 hidden gap-3 md:grid md:grid-cols-2 xl:grid-cols-4">
-              <ObservabilitySignalCard
-                icon={<ActivityIcon className="size-4" />}
-                title={t.observabilityPage.shell.runReviewTitle}
-                description={t.observabilityPage.shell.runReviewDescription}
-              />
-              <ObservabilitySignalCard
-                icon={<NetworkIcon className="size-4" />}
-                title={t.observabilityPage.shell.liveEventsTitle}
-                description={t.observabilityPage.shell.liveEventsDescription}
-              />
-              <ObservabilitySignalCard
-                icon={<GaugeIcon className="size-4" />}
-                title={t.observabilityPage.shell.resourcesTitle}
-                description={t.observabilityPage.shell.resourcesDescription}
-              />
-              <ObservabilitySignalCard
-                icon={<BrainCircuitIcon className="size-4" />}
-                title={t.observabilityPage.shell.systemTitle}
-                description={t.observabilityPage.shell.systemDescription}
-              />
-            </div>
           </section>
 
           <Tabs value={tab} onValueChange={(next) => setSearchParams((current) => {
@@ -1822,27 +1800,5 @@ function PanelGroup({
       </div>
       <div className="space-y-4">{children}</div>
     </section>
-  );
-}
-
-function ObservabilitySignalCard({
-  icon,
-  title,
-  description,
-}: {
-  icon: React.ReactNode;
-  title: string;
-  description: string;
-}) {
-  return (
-    <div className="rounded-lg border border-border-default bg-background/70 px-4 py-3">
-      <div className="flex items-center gap-2 text-sm font-medium">
-        <span className="text-primary">{icon}</span>
-        {title}
-      </div>
-      <p className="mt-2 text-xs leading-5 text-muted-foreground">
-        {description}
-      </p>
-    </div>
   );
 }

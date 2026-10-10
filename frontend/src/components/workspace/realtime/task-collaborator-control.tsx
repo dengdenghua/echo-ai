@@ -379,7 +379,7 @@ export function TaskCollaboratorControl({
                                 {label}
                               </span>
                               {group.onDemand ? (
-                                <span className="shrink-0 rounded-md bg-muted px-1.5 py-0.5 text-2xs font-medium text-muted-foreground">
+                                <span className="shrink-0 rounded-md bg-muted px-1.5 py-0.5 text-micro font-medium text-muted-foreground">
                                   {t.chatInputBox.collaboratorsOnDemandBadge}
                                 </span>
                               ) : null}

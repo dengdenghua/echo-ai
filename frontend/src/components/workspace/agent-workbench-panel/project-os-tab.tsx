@@ -1410,7 +1410,7 @@ function OverviewTab({
                     </p>
                   ) : null}
                   {meta.length > 0 ? (
-                    <div className="mt-1.5 flex flex-wrap gap-x-2 gap-y-0.5 text-[9px] text-muted-foreground/85">
+                    <div className="mt-1.5 flex flex-wrap gap-x-2 gap-y-0.5 text-micro text-muted-foreground/85">
                       {meta.map((item) => (
                         <span key={item}>{item}</span>
                       ))}
@@ -1483,7 +1483,7 @@ function OverviewTab({
                 <Badge
                   variant="outline"
                   className={cn(
-                    "mt-px h-4 px-1 text-[9px]",
+                    "mt-px h-4 px-1 text-micro",
                     PRIORITY_TONE[action.priority],
                   )}
                 >
@@ -1629,7 +1629,7 @@ function RetroMetric({ label, value }: { label: string; value: string }) {
   return (
     <div className="rounded-lg bg-background/70 px-1.5 py-2">
       <div className="text-xs font-semibold">{value}</div>
-      <div className="mt-0.5 text-[9px] text-muted-foreground">{label}</div>
+      <div className="mt-0.5 text-micro text-muted-foreground">{label}</div>
     </div>
   );
 }
@@ -1679,7 +1679,7 @@ function MilestonesTab({ milestones }: { milestones: MilestoneView[] }) {
                 <Badge
                   variant="outline"
                   className={cn(
-                    "h-4 px-1.5 text-[9px]",
+                    "h-4 px-1.5 text-micro",
                     HEALTH_TONE[milestone.health],
                   )}
                 >
@@ -1724,7 +1724,7 @@ function MilestonesTab({ milestones }: { milestones: MilestoneView[] }) {
           </div>
           {(milestone.success_criteria?.length ?? 0) > 0 ? (
             <div className="mt-2.5 border-t border-border-subtle pt-2">
-              <div className="text-[9px] font-medium uppercase tracking-wide text-muted-foreground">
+              <div className="text-micro font-medium uppercase tracking-wide text-muted-foreground">
                 达成标准
               </div>
               <ul className="mt-1 space-y-1">
@@ -1798,7 +1798,7 @@ function TasksTab({
               )}
             >
               {item.label}
-              <span className="text-[9px] opacity-70">{counts[item.id]}</span>
+              <span className="text-micro opacity-70">{counts[item.id]}</span>
             </button>
           ))}
         </div>
@@ -1848,18 +1848,18 @@ function TasksTab({
                       <Badge
                         variant="outline"
                         className={cn(
-                          "h-4 px-1.5 text-[9px]",
+                          "h-4 px-1.5 text-micro",
                           STATUS_TONE[task.status],
                         )}
                       >
                         {STATUS_LABEL[task.status] ?? task.status}
                       </Badge>
                     </div>
-                    <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-[9px] text-muted-foreground">
+                    <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-micro text-muted-foreground">
                       <Badge
                         variant="outline"
                         className={cn(
-                          "h-4 px-1 text-[8px]",
+                          "h-4 px-1 text-micro",
                           PRIORITY_TONE[task.priority],
                         )}
                       >
@@ -1888,14 +1888,14 @@ function TasksTab({
                           : task.assigned_agent || task.assigned_role || "待指派"}
                       </span>
                       {task.team_mode && task.team_mode !== "single" ? (
-                        <span className="rounded bg-muted px-1 py-px text-[8px] uppercase">
+                        <span className="rounded bg-muted px-1 py-px text-micro uppercase">
                           {TEAM_MODE_LABEL[task.team_mode] ?? task.team_mode}
                         </span>
                       ) : null}
                       {task.status === "done" && task.review_mode ? (
                         <span
                           className={cn(
-                            "rounded px-1 py-px text-[8px]",
+                            "rounded px-1 py-px text-micro",
                             task.review_mode === "operator"
                               ? "bg-emerald-500/15 text-emerald-700"
                               : task.review_mode === "human_run"
@@ -1929,7 +1929,7 @@ function TasksTab({
                                 type="button"
                                 size="sm"
                                 variant="outline"
-                                className="h-6 rounded-md px-2 text-[9px]"
+                                className="h-6 rounded-md px-2 text-micro"
                                 disabled={!!pendingAction}
                                 onClick={() => onAction(spec, key)}
                               >
@@ -1995,7 +1995,7 @@ function AssetsTab({
                 {asset.kind ? (
                   <Badge
                     variant="outline"
-                    className="h-4 px-1 text-[8px] text-muted-foreground"
+                    className="h-4 px-1 text-micro text-muted-foreground"
                   >
                     {asset.kind}
                   </Badge>
@@ -2006,7 +2006,7 @@ function AssetsTab({
                   {asset.summary}
                 </p>
               ) : null}
-              <div className="mt-1.5 flex min-w-0 items-center gap-1 text-[9px] text-muted-foreground">
+              <div className="mt-1.5 flex min-w-0 items-center gap-1 text-micro text-muted-foreground">
                 {asset.sourceTask ? (
                   <span className="min-w-0 truncate">
                     来自：{asset.sourceTask}
@@ -2142,14 +2142,14 @@ function MembersTab({
                   {member.name}
                 </h5>
                 {member.isOwner ? (
-                  <Badge className="h-4 bg-primary/10 px-1 text-[8px] text-primary">
+                  <Badge className="h-4 bg-primary/10 px-1 text-micro text-primary">
                     负责人
                   </Badge>
                 ) : null}
                 {member.kind === "role" ? (
                   <Badge
                     className={cn(
-                      "h-4 px-1 text-[8px]",
+                      "h-4 px-1 text-micro",
                       member.driver === "human"
                         ? "bg-amber-500/15 text-amber-700"
                         : "bg-violet-500/10 text-violet-600",
@@ -2161,7 +2161,7 @@ function MembersTab({
                 {member.trust ? (
                   <Badge
                     className={cn(
-                      "h-4 cursor-help px-1 text-[8px] font-semibold",
+                      "h-4 cursor-help px-1 text-micro font-semibold",
                       trustBadgeClass(member.trust.score),
                     )}
                     title={trustTooltip(member.trust)}
@@ -2175,7 +2175,7 @@ function MembersTab({
                 {member.status ? ` · ${member.status}` : ""}
               </div>
             </div>
-            <div className="shrink-0 text-right text-[9px] leading-relaxed text-muted-foreground">
+            <div className="shrink-0 text-right text-micro leading-relaxed text-muted-foreground">
               {ownedTasks.length > 0 ? (
                 <>
                   <div>{activeCount} 项进行中</div>

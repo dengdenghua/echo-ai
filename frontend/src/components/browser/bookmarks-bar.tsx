@@ -40,7 +40,7 @@ export function BookmarksBar({
                 }}
               />
             ) : (
-              <span className="grid size-3.5 shrink-0 place-items-center rounded-sm bg-muted text-[9px] font-semibold uppercase">
+              <span className="grid size-3.5 shrink-0 place-items-center rounded-sm bg-muted text-micro font-semibold uppercase">
                 {host.charAt(0)}
               </span>
             )}

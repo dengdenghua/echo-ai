@@ -2584,7 +2584,7 @@ export function BrowserHome({
                           ) : (
                             <Folder className="w-5 h-5 text-muted-foreground" />
                           )}
-                          <span className="absolute -top-0.5 -right-0.5 w-3.5 h-3.5 bg-primary rounded-full flex items-center justify-center text-[9px] text-primary-foreground font-bold">
+                          <span className="absolute -top-0.5 -right-0.5 w-3.5 h-3.5 bg-primary rounded-full flex items-center justify-center text-micro text-primary-foreground font-bold">
                             {links.length}
                           </span>
                         </div>

@@ -108,7 +108,7 @@ export function ProjectCollaborationLandmark({
           <div className="flex items-center gap-1.5 font-semibold text-amber-700 dark:text-amber-400">
             <BookmarkIcon className="size-4 shrink-0" aria-hidden="true" />
             <span className="text-xs">{match.title}</span>
-            <span className="inline-flex items-center gap-0.5 rounded bg-amber-500/15 px-1 py-0.2 text-[9px] font-medium text-amber-800 dark:text-amber-300">
+            <span className="inline-flex items-center gap-0.5 rounded bg-amber-500/15 px-1 py-0.2 text-micro font-medium text-amber-800 dark:text-amber-300">
               ⚡ 规则已纳管
             </span>
           </div>
@@ -187,7 +187,7 @@ export function ProjectCollaborationLandmark({
           <div className="flex items-center gap-1.5 font-semibold text-indigo-700 dark:text-indigo-400">
             <GitMergeIcon className="size-4 shrink-0" aria-hidden="true" />
             <span className="text-xs">{match.title}</span>
-            <span className="inline-flex items-center gap-0.5 rounded bg-indigo-500/15 px-1 py-0.2 text-[9px] font-medium text-indigo-800 dark:text-indigo-300">
+            <span className="inline-flex items-center gap-0.5 rounded bg-indigo-500/15 px-1 py-0.2 text-micro font-medium text-indigo-800 dark:text-indigo-300">
               🧬 进化证据已归档
             </span>
           </div>

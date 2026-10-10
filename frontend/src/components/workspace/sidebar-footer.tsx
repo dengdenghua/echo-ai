@@ -318,7 +318,7 @@ export function AgentFooter() {
               {displayAgent ? (
                 <AgentAvatar
                   agent={displayAgent}
-                  className="absolute -right-1 -bottom-1 size-4 rounded-full border-0 text-[9px] ring-2 ring-sidebar"
+                  className="absolute -right-1 -bottom-1 size-4 rounded-full border-0 text-micro ring-2 ring-sidebar"
                 />
               ) : showAgentLoading || showAgentError ? (
                 <span
@@ -341,7 +341,7 @@ export function AgentFooter() {
               </span>
               <span
                 className={cn(
-                  "truncate text-2xs leading-tight text-muted-foreground",
+                  "truncate text-micro leading-tight text-muted-foreground",
                   showAgentError && "text-destructive",
                 )}
               >
@@ -362,7 +362,7 @@ export function AgentFooter() {
             </span>
             {lock ? (
               <span
-                className="shrink-0 text-2xs uppercase tracking-wider text-muted-foreground group-data-[collapsible=icon]:hidden"
+                className="shrink-0 text-micro uppercase tracking-wider text-muted-foreground group-data-[collapsible=icon]:hidden"
                 aria-hidden
               >
                 🔒

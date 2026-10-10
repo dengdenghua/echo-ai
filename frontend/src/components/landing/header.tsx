@@ -76,7 +76,7 @@ export function Header({ className, homeURL }: HeaderProps) {
         >
           <a href={GITHUB_URL} target="_blank" rel="noopener noreferrer">
             <GitHubLogoIcon className="size-4" />
-            Star on GitHub
+            {t.hero.starOnGitHub}
             {env.STATIC_WEBSITE_ONLY && env.GITHUB_OAUTH_TOKEN && (
               <StarCounter />
             )}

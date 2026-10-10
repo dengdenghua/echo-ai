@@ -290,7 +290,7 @@ export function GroupMemberAvatarStack({
                   className="size-full object-cover"
                 />
               ) : member.icon ? (
-                <span className="text-[9px]">{member.icon}</span>
+                <span className="text-micro">{member.icon}</span>
               ) : (
                 <span>{initial}</span>
               )}
@@ -302,7 +302,7 @@ export function GroupMemberAvatarStack({
             <DropdownMenuTrigger asChild>
               <button
                 type="button"
-                className="relative inline-flex size-5 shrink-0 items-center justify-center rounded-full border border-background bg-muted text-[9px] font-semibold text-muted-foreground transition-transform hover:z-10 hover:scale-125 focus:outline-none focus:ring-1 focus:ring-primary"
+                className="relative inline-flex size-5 shrink-0 items-center justify-center rounded-full border border-background bg-muted text-micro font-semibold text-muted-foreground transition-transform hover:z-10 hover:scale-125 focus:outline-none focus:ring-1 focus:ring-primary"
                 title={overflowTitle}
                 aria-label={`更多 ${overflowCount} 位群成员（点击查看，右键 @ 提及）`}
               >

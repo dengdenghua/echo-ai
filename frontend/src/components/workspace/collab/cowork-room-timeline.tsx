@@ -449,7 +449,7 @@ function CoworkRoomTimelineEntryContent({
               <span
                 title={badge.label}
                 className={cn(
-                  "shrink-0 rounded px-1 py-px text-[9px] font-medium",
+                  "shrink-0 rounded px-1 py-px text-micro font-medium",
                   badge.takeover
                     ? "bg-amber-500/15 text-amber-700"
                     : "bg-violet-500/10 text-violet-600",

@@ -633,7 +633,7 @@ export function TabBar() {
           data-testid="browser-all-tabs-trigger"
         >
           <ChevronsUpDownIcon className="size-3.5" />
-          <span className="absolute -right-0.5 -top-0.5 min-w-3 rounded-full bg-primary px-0.5 text-center text-[8px] leading-3 text-primary-foreground">
+          <span className="absolute -right-0.5 -top-0.5 min-w-3 rounded-full bg-primary px-0.5 text-center text-micro leading-3 text-primary-foreground">
             {state.tabs.length > 99 ? "99+" : state.tabs.length}
           </span>
         </button>

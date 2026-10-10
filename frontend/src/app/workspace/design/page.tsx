@@ -594,14 +594,14 @@ function CanvasNode({
           {stageStyle ? (
             <span
               className={cn(
-                "shrink-0 rounded-full px-1.5 py-0.5 text-[8px] font-medium",
+                "shrink-0 rounded-full px-1.5 py-0.5 text-micro font-medium",
                 stageStyle.pill,
               )}
             >
               {stageStyle.label}
             </span>
           ) : (
-            <span className="shrink-0 text-[9px] text-muted-foreground opacity-0 transition-opacity group-hover/media:opacity-100">
+            <span className="shrink-0 text-micro text-muted-foreground opacity-0 transition-opacity group-hover/media:opacity-100">
               {style.label}
             </span>
           )}
@@ -752,7 +752,7 @@ function CanvasNode({
           {stageStyle ? (
             <span
               className={cn(
-                "shrink-0 rounded-full px-2 py-1 text-[8px] font-medium",
+                "shrink-0 rounded-full px-2 py-1 text-micro font-medium",
                 stageStyle.pill,
               )}
             >
@@ -969,7 +969,7 @@ function ChatPanel({
             </Button>
           </div>
         </div>
-        <p className="pt-1.5 text-center text-[9px] text-muted-foreground">
+        <p className="pt-1.5 text-center text-micro text-muted-foreground">
           内容会自动保存到当前项目
         </p>
       </div>
@@ -1027,7 +1027,7 @@ function AddNodePopover({
                   <span className="flex items-center gap-1.5 text-[12px] font-semibold">
                     {item.title}
                     {"badge" in item && item.badge ? (
-                      <span className="rounded bg-foreground px-1 py-px text-[8px] text-background">
+                      <span className="rounded bg-foreground px-1 py-px text-micro text-background">
                         {item.badge}
                       </span>
                     ) : null}
@@ -1165,7 +1165,7 @@ function CreativeProjectSelector({
               </span>
               <span className="min-w-0 flex-1">
                 <span className="block font-medium">创作空间</span>
-                <span className="block truncate text-[9px] text-muted-foreground">
+                <span className="block truncate text-micro text-muted-foreground">
                   未选择项目
                 </span>
               </span>
@@ -1914,7 +1914,7 @@ function AssetsView({
                           />
                         )}
                         {grid ? (
-                          <span className="absolute left-2.5 top-2.5 rounded-md bg-black/65 px-1.5 py-0.5 text-[8px] font-medium text-white">
+                          <span className="absolute left-2.5 top-2.5 rounded-md bg-black/65 px-1.5 py-0.5 text-micro font-medium text-white">
                             {artifact.category || KIND_STYLE[kind].label}
                           </span>
                         ) : null}
@@ -1931,7 +1931,7 @@ function AssetsView({
                             artifact.kind ||
                             "项目交付产物"}
                         </p>
-                        <div className="mt-2 flex items-center text-[9px] text-muted-foreground">
+                        <div className="mt-2 flex items-center text-micro text-muted-foreground">
                           <span>
                             {artifact.category ||
                               (artifact.milestone_id
@@ -2067,7 +2067,7 @@ function AssetsView({
                 <span className="mt-2 block text-[11px] font-medium">
                   {assetFile ? assetFile.name : "将素材文件拖入 / 点击上传"}
                 </span>
-                <span className="mt-1 block text-[9px] text-muted-foreground">
+                <span className="mt-1 block text-micro text-muted-foreground">
                   单个文件最大 64 MB
                 </span>
               </span>
@@ -2291,7 +2291,7 @@ function CanvasAssetsPanel({
           <select
             value={typeFilter}
             onChange={(event) => setTypeFilter(event.target.value)}
-            className="h-7 rounded-md border border-border-default bg-background px-1.5 text-[9px]"
+            className="h-7 rounded-md border border-border-default bg-background px-1.5 text-micro"
           >
             <option value="all">类型</option>
             <option value="image">图片</option>
@@ -2299,10 +2299,10 @@ function CanvasAssetsPanel({
             <option value="audio">音频</option>
             <option value="file">文件</option>
           </select>
-          <button className="h-7 rounded-md border border-border-default text-[9px] text-muted-foreground">
+          <button className="h-7 rounded-md border border-border-default text-micro text-muted-foreground">
             标签
           </button>
-          <button className="h-7 rounded-md border border-border-default text-[9px] text-muted-foreground">
+          <button className="h-7 rounded-md border border-border-default text-micro text-muted-foreground">
             时间
           </button>
         </div>
@@ -2345,7 +2345,7 @@ function CanvasAssetsPanel({
                 <span className="block truncate text-[10px] font-medium">
                   {item.name}
                 </span>
-                <span className="block truncate text-[8px] text-muted-foreground">
+                <span className="block truncate text-micro text-muted-foreground">
                   {item.category || item.kind || "文件"}
                 </span>
               </span>
@@ -3340,7 +3340,7 @@ function ComfyUIView({
               <div className="text-lg font-semibold tabular-nums">
                 {dependencies.totalModels}
               </div>
-              <div className="mt-0.5 text-[9px] text-muted-foreground">
+              <div className="mt-0.5 text-micro text-muted-foreground">
                 本地模型
               </div>
             </div>
@@ -3348,7 +3348,7 @@ function ComfyUIView({
               <div className="text-lg font-semibold tabular-nums">
                 {dependencies.totalCustomNodes}
               </div>
-              <div className="mt-0.5 text-[9px] text-muted-foreground">
+              <div className="mt-0.5 text-micro text-muted-foreground">
                 节点扩展
               </div>
             </div>
@@ -3397,12 +3397,12 @@ function ComfyUIView({
             <div className="flex items-start gap-3">
               <div>
                 <h2 className="text-[13px] font-semibold">模型中心</h2>
-                <p className="mt-0.5 text-[9px] text-muted-foreground">
+                <p className="mt-0.5 text-micro text-muted-foreground">
                   仅支持 Hugging Face / Civitai 公开链接 · 每个模型单独授权
                 </p>
               </div>
               <span className="flex-1" />
-              <span className="rounded-md bg-muted px-2 py-1 text-[9px] text-muted-foreground">
+              <span className="rounded-md bg-muted px-2 py-1 text-micro text-muted-foreground">
                 {localModels.length} 个模型 ·{" "}
                 {formatModelSize(
                   localModels.reduce((sum, model) => sum + model.size_bytes, 0),
@@ -3465,7 +3465,7 @@ function ComfyUIView({
                     <div className="truncate text-[10px] font-medium">
                       {model.name}
                     </div>
-                    <div className="mt-0.5 text-[8px] text-muted-foreground">
+                    <div className="mt-0.5 text-micro text-muted-foreground">
                       {model.group} · {formatModelSize(model.size_bytes)}
                     </div>
                   </div>
@@ -3477,7 +3477,7 @@ function ComfyUIView({
                       })
                     }
                     disabled={modelLoading || online === true}
-                    className="rounded px-2 py-1 text-[9px] text-red-600 hover:bg-red-50 disabled:opacity-40"
+                    className="rounded px-2 py-1 text-micro text-red-600 hover:bg-red-50 disabled:opacity-40"
                   >
                     移除
                   </button>
@@ -3486,7 +3486,7 @@ function ComfyUIView({
             </div>
             {modelBackups.length > 0 ? (
               <div className="mt-3 border-t border-border-subtle pt-3">
-                <div className="mb-2 text-[9px] font-medium text-muted-foreground">
+                <div className="mb-2 text-micro font-medium text-muted-foreground">
                   可恢复模型
                 </div>
                 <div className="flex flex-wrap gap-2">
@@ -3497,7 +3497,7 @@ function ComfyUIView({
                         void controlModel("restore", { backupId: backup.id })
                       }
                       disabled={modelLoading || online === true}
-                      className="rounded-lg border px-2.5 py-1.5 text-[9px] hover:bg-muted disabled:opacity-40"
+                      className="rounded-lg border px-2.5 py-1.5 text-micro hover:bg-muted disabled:opacity-40"
                     >
                       恢复 {backup.name} · {formatModelSize(backup.size_bytes)}
                     </button>
@@ -3512,7 +3512,7 @@ function ComfyUIView({
             <div className="flex items-center gap-3">
               <div>
                 <h2 className="text-[13px] font-semibold">节点扩展</h2>
-                <p className="mt-0.5 text-[9px] text-muted-foreground">
+                <p className="mt-0.5 text-micro text-muted-foreground">
                   来自官方 Comfy Registry · 修改前需停止本地服务
                 </p>
               </div>
@@ -3561,20 +3561,20 @@ function ComfyUIView({
                           {node.name}
                         </span>
                         {node.installed ? (
-                          <span className="shrink-0 rounded bg-emerald-100 px-1 py-0.5 text-[8px] text-emerald-700">
+                          <span className="shrink-0 rounded bg-emerald-100 px-1 py-0.5 text-micro text-emerald-700">
                             已安装
                           </span>
                         ) : null}
                       </div>
-                      <div className="mt-0.5 truncate text-[8px] text-muted-foreground">
+                      <div className="mt-0.5 truncate text-micro text-muted-foreground">
                         {node.id} · v{node.version || "latest"}
                       </div>
                     </div>
                   </div>
-                  <p className="mt-2 line-clamp-2 min-h-7 text-[9px] leading-3.5 text-muted-foreground">
+                  <p className="mt-2 line-clamp-2 min-h-7 text-micro leading-3.5 text-muted-foreground">
                     {node.description || "ComfyUI 节点扩展"}
                   </p>
-                  <div className="mt-2 flex items-center gap-1.5 text-[8px] text-muted-foreground">
+                  <div className="mt-2 flex items-center gap-1.5 text-micro text-muted-foreground">
                     <span>{node.downloads.toLocaleString()} 下载</span>
                     <span>★ {node.stars.toLocaleString()}</span>
                     <span className="flex-1" />
@@ -3740,7 +3740,7 @@ function ComfyUIView({
                 {selectedWorkflow.tags.map((tag) => (
                   <span
                     key={tag}
-                    className="rounded-md bg-muted px-2 py-1 text-[9px] text-muted-foreground"
+                    className="rounded-md bg-muted px-2 py-1 text-micro text-muted-foreground"
                   >
                     {tag}
                   </span>
@@ -3768,13 +3768,13 @@ function ComfyUIView({
                 <div className="flex items-center gap-2">
                   <h3 className="text-[12px] font-semibold">资源文件</h3>
                   {selectedWorkflowDetail ? (
-                    <span className="text-[9px] text-muted-foreground">
+                    <span className="text-micro text-muted-foreground">
                       {selectedWorkflowNodes.length} 个节点 ·{" "}
                       {selectedWorkflowResources.length + 1} 个文件/输入
                     </span>
                   ) : null}
                 </div>
-                <p className="mt-1 text-[9px] text-muted-foreground">
+                <p className="mt-1 text-micro text-muted-foreground">
                   工作流文件以及运行时需要由用户选择的本地资源
                 </p>
                 <div className="mt-3 space-y-2 text-[10px]">
@@ -3817,7 +3817,7 @@ function ComfyUIView({
                     {selectedWorkflowNodeTypes.map((nodeType) => (
                       <span
                         key={nodeType}
-                        className="rounded bg-muted px-1.5 py-1 text-[8px] text-muted-foreground"
+                        className="rounded bg-muted px-1.5 py-1 text-micro text-muted-foreground"
                       >
                         {nodeType}
                       </span>
@@ -3838,7 +3838,7 @@ function ComfyUIView({
                 >
                   <div className="flex items-center gap-2">
                     <h3 className="text-[12px] font-semibold">兼容性诊断</h3>
-                    <span className="text-[9px] text-muted-foreground">
+                    <span className="text-micro text-muted-foreground">
                       {selectedWorkflowDiagnostics.compatible &&
                       selectedWorkflowDiagnostics.fullyChecked
                         ? "本机可运行"
@@ -3847,7 +3847,7 @@ function ComfyUIView({
                           : "检查未完成"}
                     </span>
                   </div>
-                  <p className="mt-1 text-[9px] leading-4 text-muted-foreground">
+                  <p className="mt-1 text-micro leading-4 text-muted-foreground">
                     {selectedWorkflowDiagnostics.fullyChecked
                       ? "已核对节点类型、输入与本地模型文件。"
                       : "尚未完成本机依赖检查，请先连接 ComfyUI 后重新检测。"}{" "}
@@ -3860,7 +3860,7 @@ function ComfyUIView({
                         .map((issue, index) => (
                           <div
                             key={`${issue.kind}:${issue.nodeId ?? "global"}:${index}`}
-                            className="flex gap-2 rounded-lg bg-background/75 px-2.5 py-2 text-[9px]"
+                            className="flex gap-2 rounded-lg bg-background/75 px-2.5 py-2 text-micro"
                           >
                             <span
                               className={cn(
@@ -3904,7 +3904,7 @@ function ComfyUIView({
                   <div className="truncate text-[10px] font-semibold">
                     {workflow.title}
                   </div>
-                  <p className="mt-1 line-clamp-2 text-[9px] leading-4 text-muted-foreground">
+                  <p className="mt-1 line-clamp-2 text-micro leading-4 text-muted-foreground">
                     {workflow.description}
                   </p>
                 </button>
@@ -3952,21 +3952,21 @@ function ComfyUIView({
                     />
                     <div className="absolute inset-0 bg-gradient-to-r from-black/45 via-black/10 to-transparent" />
                     <div className="absolute left-4 top-4 text-white drop-shadow-sm">
-                      <div className="text-[8px] font-semibold tracking-[0.22em] text-white/70">
+                      <div className="text-micro font-semibold tracking-[0.22em] text-white/70">
                         ECHO FLOW
                       </div>
                       <div className="mt-1.5 max-w-36 text-[15px] font-semibold leading-[18px]">
                         {workflow.title}
                       </div>
                     </div>
-                    <span className="absolute bottom-3 left-4 rounded-full border border-white/25 bg-black/20 px-2 py-1 text-[7px] font-medium text-white/85 backdrop-blur-sm">
+                    <span className="absolute bottom-3 left-4 rounded-full border border-white/25 bg-black/20 px-2 py-1 text-micro font-medium text-white/85 backdrop-blur-sm">
                       {workflow.tags[0] || "WORKFLOW"}
                     </span>
                     <WorkflowIcon className="absolute bottom-3 right-3 size-8 text-white/65 transition-transform group-hover:scale-110" />
                     <span className="absolute inset-0 flex items-center justify-center gap-1.5 bg-black/40 opacity-0 backdrop-blur-[1px] transition-opacity group-hover:opacity-100">
                       <span
                         className={cn(
-                          "rounded-lg px-3 py-1.5 text-[9px] font-medium",
+                          "rounded-lg px-3 py-1.5 text-micro font-medium",
                           workflow.availability === "dependency"
                             ? "bg-white/85 text-zinc-500"
                             : "bg-white text-zinc-950",
@@ -3985,7 +3985,7 @@ function ComfyUIView({
                       </span>
                       <span
                         className={cn(
-                          "shrink-0 rounded-full px-1.5 py-0.5 text-[8px] font-medium",
+                          "shrink-0 rounded-full px-1.5 py-0.5 text-micro font-medium",
                           workflow.availability !== "dependency"
                             ? "bg-emerald-50 text-emerald-700"
                             : "bg-amber-50 text-amber-700",
@@ -4001,7 +4001,7 @@ function ComfyUIView({
                     <p className="mt-1 line-clamp-2 text-[10px] leading-4 text-muted-foreground">
                       {workflow.description}
                     </p>
-                    <div className="mt-2 flex items-center text-[8px] text-muted-foreground">
+                    <div className="mt-2 flex items-center text-micro text-muted-foreground">
                       <span className="rounded bg-muted px-1.5 py-0.5">
                         {workflow.source === "user" ? "用户导入" : "Echo 原创"}
                       </span>
@@ -4013,7 +4013,7 @@ function ComfyUIView({
                   <Button
                     variant="outline"
                     size="sm"
-                    className="h-7 flex-1 rounded-lg text-[9px]"
+                    className="h-7 flex-1 rounded-lg text-micro"
                     disabled={workflow.availability === "dependency"}
                     onClick={() => onUse(workflow.id, workflow.title)}
                   >
@@ -4022,7 +4022,7 @@ function ComfyUIView({
                   <Button
                     variant="ghost"
                     size="sm"
-                    className="h-7 flex-1 rounded-lg text-[9px]"
+                    className="h-7 flex-1 rounded-lg text-micro"
                     disabled={
                       workflow.availability === "dependency" ||
                       (runState?.workflowId === workflow.id &&
@@ -6004,7 +6004,7 @@ export default function DesignPage({
         >
           <button type="button" onClick={() => setStagePlanOpen((open) => !open)} aria-expanded={stagePlanOpen} aria-controls="design-stage-list" className="flex w-full items-center gap-2 px-1">
             <span className="text-[10px] font-semibold">进度</span>
-            <span className="text-[9px] text-muted-foreground">
+            <span className="text-micro text-muted-foreground">
               {completedWorkflowStages}/{workflowStages.length}
             </span>
             <ChevronDownIcon className={cn("size-3 transition-transform", stagePlanOpen && "rotate-180")} />
@@ -6029,7 +6029,7 @@ export default function DesignPage({
                     setSelectedIds([stage.nodeId]);
                   }}
                   className={cn(
-                    "flex h-7 shrink-0 items-center gap-1.5 rounded-lg border px-2 text-[9px] transition hover:bg-muted",
+                    "flex h-7 shrink-0 items-center gap-1.5 rounded-lg border px-2 text-micro transition hover:bg-muted",
                     selectedId === stage.nodeId
                       ? "border-foreground/30 bg-muted font-medium"
                       : "border-transparent",
@@ -6188,7 +6188,7 @@ export default function DesignPage({
               />
             </svg>
             <span
-              className="absolute left-3 top-4 whitespace-nowrap rounded-md px-1.5 py-0.5 text-[9px] font-medium text-white shadow-sm"
+              className="absolute left-3 top-4 whitespace-nowrap rounded-md px-1.5 py-0.5 text-micro font-medium text-white shadow-sm"
               style={{ backgroundColor: member.color }}
             >
               {member.display_name}
@@ -6495,7 +6495,7 @@ export default function DesignPage({
               >
                 <Trash2Icon className="size-3.5" />
                 <span className="flex-1">删除</span>
-                <kbd className="text-[9px] opacity-65">⌫</kbd>
+                <kbd className="text-micro opacity-65">⌫</kbd>
               </button>
             </>
           ) : null}
@@ -6508,7 +6508,7 @@ export default function DesignPage({
           aria-label="小地图，点击适配全部内容"
           className="absolute bottom-16 right-3 z-20 h-28 w-40 overflow-hidden rounded-[12px] border border-black/[0.08] bg-white/88 shadow-[0_8px_24px_-16px_rgba(0,0,0,.4)] backdrop-blur dark:border-white/10 dark:bg-black/70"
         >
-          <span className="absolute left-2 top-1.5 text-[8px] font-medium text-muted-foreground">
+          <span className="absolute left-2 top-1.5 text-micro font-medium text-muted-foreground">
             小地图
           </span>
           <span className="absolute inset-x-2 bottom-2 top-6 rounded-lg bg-black/[0.035] dark:bg-white/[0.05]">
@@ -6652,7 +6652,7 @@ export default function DesignPage({
                     <span className="block text-[10px] font-medium">
                       {label}
                     </span>
-                    <span className="block text-[9px] text-muted-foreground">
+                    <span className="block text-micro text-muted-foreground">
                       {description}
                     </span>
                   </span>
@@ -6687,7 +6687,7 @@ export default function DesignPage({
       {canvasSettingsOpen ? (
         <div className="absolute right-3 top-14 z-40 w-64 max-w-[calc(100%-1.5rem)] max-h-[calc(100%-5rem)] overflow-y-auto rounded-[14px] border border-black/[0.08] bg-white/95 p-3 shadow-[0_16px_40px_-20px_rgba(0,0,0,.38)] backdrop-blur dark:border-white/10 dark:bg-[#181818]/95">
           <div className="text-[10px] font-semibold">画布设置</div>
-          <div className="mt-3 text-[9px] text-muted-foreground">画布模式</div>
+          <div className="mt-3 text-micro text-muted-foreground">画布模式</div>
           <div className="mt-1.5 grid grid-cols-2 gap-1 rounded-lg bg-muted/60 p-1">
             {([["freeform", "自由画布"], ["workflow", "工作流"]] as const).map(([id, label]) => (
               <button key={id} type="button" aria-pressed={document.mode === id}
@@ -6696,7 +6696,7 @@ export default function DesignPage({
               >{label}</button>
             ))}
           </div>
-          <div className="mt-3 text-[9px] text-muted-foreground">背景样式</div>
+          <div className="mt-3 text-micro text-muted-foreground">背景样式</div>
           <div className="mt-1.5 grid grid-cols-3 gap-1 rounded-lg bg-muted/60 p-1">
             {(
               [
@@ -6711,7 +6711,7 @@ export default function DesignPage({
                   setCanvasView((current) => ({ ...current, pattern: id }))
                 }
                 className={cn(
-                  "h-7 rounded-md text-[9px]",
+                  "h-7 rounded-md text-micro",
                   canvasView.pattern === id
                     ? "bg-background font-medium shadow-sm"
                     : "text-muted-foreground hover:text-foreground",
@@ -6721,7 +6721,7 @@ export default function DesignPage({
               </button>
             ))}
           </div>
-          <div className="mt-3 text-[9px] text-muted-foreground">背景颜色</div>
+          <div className="mt-3 text-micro text-muted-foreground">背景颜色</div>
           <div className="mt-2 grid grid-cols-9 gap-1.5">
             {CANVAS_BACKGROUND_TONES.map((tone) => (
               <button
@@ -6743,13 +6743,13 @@ export default function DesignPage({
               />
             ))}
           </div>
-          <div className="mt-3 border-t border-border-subtle pt-2 text-[9px] text-muted-foreground">
+          <div className="mt-3 border-t border-border-subtle pt-2 text-micro text-muted-foreground">
             画布偏好会自动保存在本机
           </div>
         </div>
       ) : null}
       {connectionSourceId ? (
-        <div className="absolute bottom-[68px] left-1/2 z-30 -translate-x-1/2 rounded-full border border-violet-200 bg-white/92 px-3 py-1.5 text-[9px] font-medium text-violet-700 shadow-sm backdrop-blur dark:border-violet-400/30 dark:bg-[#1a1a1a]/92 dark:text-violet-300">
+        <div className="absolute bottom-[68px] left-1/2 z-30 -translate-x-1/2 rounded-full border border-violet-200 bg-white/92 px-3 py-1.5 text-micro font-medium text-violet-700 shadow-sm backdrop-blur dark:border-violet-400/30 dark:bg-[#1a1a1a]/92 dark:text-violet-300">
           拖到目标端口完成连接 · 落到空白处新建并连接 · Esc 取消
         </div>
       ) : null}
@@ -6814,7 +6814,7 @@ export default function DesignPage({
                 >
                   <Icon className="size-3.5" />
                   <span>{label}</span>
-                  <kbd className="ml-auto text-[9px] text-muted-foreground">
+                  <kbd className="ml-auto text-micro text-muted-foreground">
                     {shortcut}
                   </kbd>
                 </button>
@@ -6890,7 +6890,7 @@ export default function DesignPage({
               type="button"
               onClick={() => setClearStickersConfirmOpen(true)}
               disabled={!document.nodes.some((node) => node.kind === "sticker")}
-              className="text-[9px] text-muted-foreground hover:text-foreground disabled:opacity-35"
+              className="text-micro text-muted-foreground hover:text-foreground disabled:opacity-35"
             >
               清空全部贴纸
             </button>
@@ -6924,7 +6924,7 @@ export default function DesignPage({
               </button>
             ))}
           </div>
-          <div className="mt-3 grid grid-cols-2 gap-1 rounded-lg bg-muted/65 p-1 text-[9px]">
+          <div className="mt-3 grid grid-cols-2 gap-1 rounded-lg bg-muted/65 p-1 text-micro">
             <button
               type="button"
               onClick={() => setStickerMode("follow")}
@@ -6950,7 +6950,7 @@ export default function DesignPage({
               自由贴纸
             </button>
           </div>
-          <p className="mt-2 text-[9px] leading-4 text-muted-foreground">
+          <p className="mt-2 text-micro leading-4 text-muted-foreground">
             {stickerMode === "follow"
               ? selectedNode &&
                 selectedNode.kind !== "sticker" &&
@@ -7318,18 +7318,18 @@ export default function DesignPage({
                   {STAGE_STATUS_STYLE[selectedNode.stage.status].label}
                 </span>
                 <span className="flex-1" />
-                <span className="text-[9px] text-muted-foreground">
+                <span className="text-micro text-muted-foreground">
                   尝试 {selectedNode.stage.attempt} 次
                 </span>
               </div>
               {selectedStageBlockers.length > 0 ? (
-                <p className="mt-2 text-[9px] leading-4 text-amber-700 dark:text-amber-300">
+                <p className="mt-2 text-micro leading-4 text-amber-700 dark:text-amber-300">
                   等待前置阶段：
                   {selectedStageBlockers.map((stage) => stage.title).join("、")}
                 </p>
               ) : null}
               {selectedNode.stage.lastError ? (
-                <p className="mt-2 line-clamp-3 text-[9px] leading-4 text-red-600">
+                <p className="mt-2 line-clamp-3 text-micro leading-4 text-red-600">
                   {selectedNode.stage.lastError}
                 </p>
               ) : null}
@@ -7383,7 +7383,7 @@ export default function DesignPage({
               selectedStageBlockers.length === 0 ? (
                 <button
                   type="button"
-                  className="mt-2 w-full text-center text-[9px] text-muted-foreground hover:text-foreground"
+                  className="mt-2 w-full text-center text-micro text-muted-foreground hover:text-foreground"
                   onClick={() => {
                     setDocument((current) =>
                       setDesignStageStatus(current, selectedNode.id, "skipped"),
@@ -7403,7 +7403,7 @@ export default function DesignPage({
               edge.target === selectedNode.id,
           ) ? (
             <div className="mt-3 border-t border-border-subtle pt-2">
-              <div className="text-[9px] text-muted-foreground">节点关系</div>
+              <div className="text-micro text-muted-foreground">节点关系</div>
               <div className="mt-1 space-y-1">
                 {document.edges
                   .filter(
@@ -7420,7 +7420,7 @@ export default function DesignPage({
                     return (
                       <div
                         key={edge.id}
-                        className="flex h-7 items-center gap-1.5 rounded-lg bg-muted/60 px-2 text-[9px]"
+                        className="flex h-7 items-center gap-1.5 rounded-lg bg-muted/60 px-2 text-micro"
                       >
                         <span className="text-muted-foreground">
                           {outgoing ? "输出到" : "来自"}
@@ -7448,7 +7448,7 @@ export default function DesignPage({
           ) : null}
           {selectedNode.kind === "group" ? (
             <div className="mt-3 border-t border-border-subtle pt-2">
-              <div className="text-[9px] text-muted-foreground">分组颜色</div>
+              <div className="text-micro text-muted-foreground">分组颜色</div>
               <div className="mt-2 flex gap-1.5">
                 {(Object.keys(GROUP_TONES) as GroupTone[]).map((color) => (
                   <button
@@ -7534,7 +7534,7 @@ export default function DesignPage({
             <>
               <div className="flex h-11 shrink-0 items-center border-b border-border-subtle px-3">
                 <span className="text-xs font-semibold">ComfyUI 工作流</span>
-                <span className="ml-2 rounded bg-muted px-1.5 py-0.5 text-[8px] text-muted-foreground">
+                <span className="ml-2 rounded bg-muted px-1.5 py-0.5 text-micro text-muted-foreground">
                   本机原生界面
                 </span>
                 <span className="flex-1" />
@@ -7588,7 +7588,7 @@ export default function DesignPage({
           {projectId ? (
             <span
               className={cn(
-                "hidden text-[9px] text-muted-foreground xl:inline",
+                "hidden text-micro text-muted-foreground xl:inline",
                 canvasSyncState === "conflict" && "text-amber-600",
                 canvasSyncState === "error" && "text-red-600",
               )}
@@ -7611,13 +7611,13 @@ export default function DesignPage({
               className="hidden items-center -space-x-1.5 sm:flex"
               title={`${presenceMembers.length + 1} 位成员在线`}
             >
-              <span className="grid size-6 place-items-center rounded-full border-2 border-background bg-foreground text-[8px] font-semibold text-background">
+              <span className="grid size-6 place-items-center rounded-full border-2 border-background bg-foreground text-micro font-semibold text-background">
                 {presenceDisplayName.slice(0, 1).toUpperCase()}
               </span>
               {presenceMembers.slice(0, 3).map((member) => (
                 <span
                   key={member.id}
-                  className="grid size-6 place-items-center rounded-full border-2 border-background text-[8px] font-semibold text-white"
+                  className="grid size-6 place-items-center rounded-full border-2 border-background text-micro font-semibold text-white"
                   style={{ backgroundColor: member.color }}
                   title={`${member.display_name} · ${member.section === "canvas" ? "画布" : member.section}`}
                 >
@@ -7625,7 +7625,7 @@ export default function DesignPage({
                 </span>
               ))}
               {presenceMembers.length > 3 ? (
-                <span className="grid size-6 place-items-center rounded-full border-2 border-background bg-muted text-[8px] font-medium text-muted-foreground">
+                <span className="grid size-6 place-items-center rounded-full border-2 border-background bg-muted text-micro font-medium text-muted-foreground">
                   +{presenceMembers.length - 3}
                 </span>
               ) : null}
@@ -7636,7 +7636,7 @@ export default function DesignPage({
               <button
                 type="button"
                 onClick={() => resolveCanvasConflict("merge")}
-                className="rounded-md bg-amber-100 px-2 py-1 text-[9px] font-medium text-amber-800 transition hover:bg-amber-200"
+                className="rounded-md bg-amber-100 px-2 py-1 text-micro font-medium text-amber-800 transition hover:bg-amber-200"
                 title={`本地优先合并 ${pendingCanvasConflict.conflicts.length} 处冲突`}
               >
                 合并保存
@@ -7644,7 +7644,7 @@ export default function DesignPage({
               <button
                 type="button"
                 onClick={() => resolveCanvasConflict("remote")}
-                className="rounded-md px-2 py-1 text-[9px] text-muted-foreground transition hover:bg-muted"
+                className="rounded-md px-2 py-1 text-micro text-muted-foreground transition hover:bg-muted"
               >
                 载入新版
               </button>

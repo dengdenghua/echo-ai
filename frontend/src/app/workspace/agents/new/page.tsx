@@ -716,10 +716,10 @@ export default function NewAgentPage() {
 
                   <div className="mt-4 grid grid-cols-[82px_1fr] items-center gap-3 rounded-sm border border-border bg-muted/[0.035] px-3 py-2">
                     <span className="font-mono text-xs uppercase tracking-eyebrow text-muted-foreground">
-                      Agent ID
+                      智能体 ID
                     </span>
                     <Input
-                      aria-label="Agent ID"
+                      aria-label="智能体 ID"
                       aria-invalid={Boolean(nameError)}
                       placeholder={t.agents.nameStepPlaceholder}
                       value={nameInput}

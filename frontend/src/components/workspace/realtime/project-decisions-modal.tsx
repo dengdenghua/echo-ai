@@ -153,7 +153,7 @@ export function ProjectDecisionsModal({
                         #{index + 1}
                       </span>
                       <span className="font-semibold">{item.title || "技术决策"}</span>
-                      <span className="inline-flex items-center gap-0.5 rounded bg-primary/10 px-1.5 py-0.5 text-[9px] font-medium text-primary">
+                      <span className="inline-flex items-center gap-0.5 rounded bg-primary/10 px-1.5 py-0.5 text-micro font-medium text-primary">
                         <ZapIcon className="size-2.5" />
                         已纳管为规则
                       </span>

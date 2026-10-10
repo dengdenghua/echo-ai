@@ -85,7 +85,7 @@ export function CodingToolboxPanel({ onOpen, compact = false }: CodingToolboxPan
               )}
             >
               <Icon className={cn("size-4", item.tone)} aria-hidden="true" />
-              <span className="text-[9px] leading-3">{item.label}</span>
+              <span className="text-micro leading-3">{item.label}</span>
             </button>
           );
         })}

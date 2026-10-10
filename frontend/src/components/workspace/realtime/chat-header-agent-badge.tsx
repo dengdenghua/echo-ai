@@ -79,7 +79,7 @@ export function ChatHeaderAgentBadge({
                     className="size-full object-cover"
                   />
                 ) : collab.icon?.trim() ? (
-                  <span className="text-[9px] leading-none">
+                  <span className="text-micro leading-none">
                     {collab.icon.trim()}
                   </span>
                 ) : (
@@ -89,7 +89,7 @@ export function ChatHeaderAgentBadge({
             );
           })}
           {extraCount > 0 && (
-            <span className="flex size-5 shrink-0 items-center justify-center rounded-full border-2 border-background bg-muted text-[9px] font-semibold text-muted-foreground z-0">
+            <span className="flex size-5 shrink-0 items-center justify-center rounded-full border-2 border-background bg-muted text-micro font-semibold text-muted-foreground z-0">
               +{extraCount}
             </span>
           )}

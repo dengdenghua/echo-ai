@@ -7,7 +7,10 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { useI18n } from "@/core/i18n/hooks";
-import { engineVerificationLabel, type EngineCapabilityChecks } from "@/core/agents/engine-capability-checks";
+import {
+  engineVerificationLabel,
+  type EngineCapabilityChecks,
+} from "@/core/agents/engine-capability-checks";
 import type { ExecutionEnginePreference } from "@/core/realtime/execution-policy";
 
 const REASONS: Record<string, [string, string]> = {
@@ -138,7 +141,7 @@ export function ExecutionEnginePicker({
         <button
           type="button"
           disabled={disabled}
-          aria-label={`${title}: ${labels[value]}`}
+          aria-label={`${title}: ${labels[value]}${selectedUnavailable ? (zh ? `（不可用：${selectedUnavailable}）` : ` (unavailable: ${selectedUnavailable})`) : ""}`}
           title={triggerTitle}
           data-testid="execution-engine-trigger"
           className="relative flex size-8 shrink-0 items-center justify-center rounded-lg text-muted-foreground outline-none transition hover:bg-muted/60 hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring/30 disabled:opacity-50"
@@ -162,6 +165,17 @@ export function ExecutionEnginePicker({
         <p className="px-2 py-2 text-ui font-medium">
           {zh ? "执行引擎" : "Execution engine"}
         </p>
+        {/* The red dot on the trigger means this; say it where it is read. */}
+        {selectedUnavailable ? (
+          <p
+            role="status"
+            className="mx-2 mb-2 rounded-md bg-destructive/10 px-2 py-1.5 text-ui leading-relaxed text-destructive"
+          >
+            {zh
+              ? `当前选择的 ${labels[value]} 暂不可用：${selectedUnavailable}`
+              : `${labels[value]} is unavailable: ${selectedUnavailable}`}
+          </p>
+        ) : null}
         {value === "echo" ? (
           <p className="px-2 pb-2 text-ui text-muted-foreground">
             {zh
@@ -207,9 +221,15 @@ export function ExecutionEnginePicker({
                         ? "使用 Codex 身份执行当前任务"
                         : "Run this task with the Codex identity"))}
               </span>
-              {(engine === "codex" && codexAvailable) || (engine === "opencode" && opencodeAvailable) ? (
+              {(engine === "codex" && codexAvailable) ||
+              (engine === "opencode" && opencodeAvailable) ? (
                 <span className="mt-0.5 block text-ui leading-relaxed text-muted-foreground">
-                  {engineVerificationLabel(engine === "codex" ? codexCapabilityChecks : opencodeCapabilityChecks, zh)}
+                  {engineVerificationLabel(
+                    engine === "codex"
+                      ? codexCapabilityChecks
+                      : opencodeCapabilityChecks,
+                    zh,
+                  )}
                 </span>
               ) : null}
             </span>

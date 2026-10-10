@@ -48,7 +48,7 @@ export function MarketCard({
         )}
         <span className="absolute bottom-2 left-2.5 inline-flex max-w-[calc(100%-1.25rem)] items-center gap-1 rounded-full bg-black/45 px-2 py-1 text-[10px] text-white/90 backdrop-blur-sm sm:hidden">
           <span
-            className="flex size-3.5 shrink-0 items-center justify-center rounded-full text-[9px] font-bold text-white"
+            className="flex size-3.5 shrink-0 items-center justify-center rounded-full text-micro font-bold text-white"
             style={{ backgroundColor: item.sellerColor }}
           >
             {item.sellerInitial}
@@ -108,7 +108,7 @@ export function MarketCard({
         </div>
         <div className="mt-3 hidden items-center gap-1.5 border-t border-border-subtle pt-2.5 text-[11px] text-muted-foreground sm:flex">
           <span
-            className="flex size-3.5 items-center justify-center rounded-full text-[9px] font-bold text-white"
+            className="flex size-3.5 items-center justify-center rounded-full text-micro font-bold text-white"
             style={{ backgroundColor: item.sellerColor }}
           >
             {item.sellerInitial}

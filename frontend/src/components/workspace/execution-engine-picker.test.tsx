@@ -45,7 +45,7 @@ it("shows a selected unavailable OpenCode reason and keeps alternate engines rea
     />,
   );
   const trigger = screen.getByRole("button", {
-    name: "Execution engine: OpenCode",
+    name: "Execution engine: OpenCode (unavailable: OpenCode is offline)",
   });
   expect(trigger).toHaveAttribute("title", "OpenCode is offline");
   expect(
@@ -53,6 +53,9 @@ it("shows a selected unavailable OpenCode reason and keeps alternate engines rea
   ).toBeInTheDocument();
   expect(trigger).not.toBeDisabled();
   await user.click(trigger);
+  expect(screen.getByRole("status")).toHaveTextContent(
+    "OpenCode is unavailable: OpenCode is offline",
+  );
   expect(
     screen.getByRole("menuitem", { name: /OpenCode.*OpenCode is offline/ }),
   ).toHaveAttribute("aria-disabled", "true");

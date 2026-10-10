@@ -1297,12 +1297,12 @@ export function DirectorStage({
               className="mt-3 h-8 text-[10px]"
               placeholder="搜索场景内容"
             />
-            <div className="mt-4 text-[9px] text-muted-foreground">相机　1</div>
+            <div className="mt-4 text-micro text-muted-foreground">相机　1</div>
             <button className="mt-1 flex w-full items-center gap-2 rounded-lg px-2 py-2 text-[11px] hover:bg-muted">
               <CameraIcon className="size-3.5" />
               机位1
             </button>
-            <div className="mt-3 text-[9px] text-muted-foreground">角色　1</div>
+            <div className="mt-3 text-micro text-muted-foreground">角色　1</div>
             <button
               onClick={() => setSelected("character")}
               className={cn(
@@ -1315,7 +1315,7 @@ export function DirectorStage({
             </button>
             {props.length ? (
               <>
-                <div className="mt-3 text-[9px] text-muted-foreground">
+                <div className="mt-3 text-micro text-muted-foreground">
                   场景道具　{props.length}
                 </div>
                 {props.map((prop) => (
@@ -1334,7 +1334,7 @@ export function DirectorStage({
                   >
                     <BoxIcon className="size-3.5 text-amber-600" />
                     <span className="truncate">{prop.name}</span>
-                    <span className="ml-auto text-[9px] text-muted-foreground">
+                    <span className="ml-auto text-micro text-muted-foreground">
                       {prop.assetId}
                     </span>
                   </button>
@@ -1343,7 +1343,7 @@ export function DirectorStage({
             ) : null}
             {models.length ? (
               <>
-                <div className="mt-3 text-[9px] text-muted-foreground">
+                <div className="mt-3 text-micro text-muted-foreground">
                   程序化模型　{models.length}
                 </div>
                 {models.map((model) => (
@@ -1362,7 +1362,7 @@ export function DirectorStage({
                   >
                     <BoxIcon className="size-3.5 text-violet-500" />
                     <span className="truncate">{model.name}</span>
-                    <span className="ml-auto text-[9px] text-muted-foreground">
+                    <span className="ml-auto text-micro text-muted-foreground">
                       {model.parts.length}
                     </span>
                   </button>
@@ -1375,7 +1375,7 @@ export function DirectorStage({
           <div className="relative min-h-0 flex-1 bg-[#fafafa]" ref={hostRef}>
             <div
               ref={roleLabelRef}
-              className="pointer-events-none absolute z-10 -translate-x-1/2 -translate-y-full rounded-md border border-blue-200 bg-background/95 px-2 py-1 text-[9px] font-medium text-blue-700 shadow-sm backdrop-blur-sm"
+              className="pointer-events-none absolute z-10 -translate-x-1/2 -translate-y-full rounded-md border border-blue-200 bg-background/95 px-2 py-1 text-micro font-medium text-blue-700 shadow-sm backdrop-blur-sm"
             >
               角色A
             </div>
@@ -1589,7 +1589,7 @@ export function DirectorStage({
                     key={axis}
                     className="flex items-center rounded-lg border px-2"
                   >
-                    <span className="mr-1 text-[9px] text-muted-foreground">
+                    <span className="mr-1 text-micro text-muted-foreground">
                       {axis}
                     </span>
                     <input
@@ -1616,7 +1616,7 @@ export function DirectorStage({
                     key={axis}
                     className="flex items-center rounded-lg border px-2"
                   >
-                    <span className="mr-1 text-[9px] text-muted-foreground">
+                    <span className="mr-1 text-micro text-muted-foreground">
                       {axis}
                     </span>
                     <input
@@ -1656,7 +1656,7 @@ export function DirectorStage({
                 {backgroundImage ? (
                   <button
                     type="button"
-                    className="text-[9px] text-muted-foreground hover:text-foreground"
+                    className="text-micro text-muted-foreground hover:text-foreground"
                     onClick={() => {
                       setBackgroundImage(null);
                       setBackgroundImageName("");
@@ -1665,7 +1665,7 @@ export function DirectorStage({
                     清除
                   </button>
                 ) : null}
-                <label className="cursor-pointer text-[9px] font-medium">
+                <label className="cursor-pointer text-micro font-medium">
                   选择
                   <input
                     type="file"
@@ -1798,7 +1798,7 @@ export function DirectorStage({
                     key={item.id}
                     onClick={() => setBodyType(item.id)}
                     className={cn(
-                      "rounded-lg border px-1 py-2 text-[9px]",
+                      "rounded-lg border px-1 py-2 text-micro",
                       bodyType === item.id
                         ? "border-foreground bg-foreground text-background"
                         : "border-border-default",
@@ -1817,7 +1817,7 @@ export function DirectorStage({
                     key={item.id}
                     onClick={() => setPose(item.id)}
                     className={cn(
-                      "rounded-lg border px-1 py-2 text-[9px]",
+                      "rounded-lg border px-1 py-2 text-micro",
                       pose === item.id
                         ? "border-foreground bg-foreground text-background"
                         : "border-border-default",
@@ -1836,7 +1836,7 @@ export function DirectorStage({
                     key={axis}
                     className="flex items-center gap-1 rounded-lg border px-2"
                   >
-                    <span className="text-[9px] text-muted-foreground">
+                    <span className="text-micro text-muted-foreground">
                       {axis}
                     </span>
                     <input
@@ -1890,7 +1890,7 @@ export function DirectorStage({
                       />
                     </div>
                   </div>
-                  <p className="mt-4 rounded-lg bg-muted p-3 text-[9px] leading-4 text-muted-foreground">
+                  <p className="mt-4 rounded-lg bg-muted p-3 text-micro leading-4 text-muted-foreground">
                     智能体可用 set_transform、rename、add_move_path 和 remove
                     继续编排该道具。
                   </p>
@@ -1925,13 +1925,13 @@ export function DirectorStage({
                         <span className="min-w-0 flex-1 truncate text-[10px]">
                           {part.name}
                         </span>
-                        <span className="text-[9px] text-muted-foreground">
+                        <span className="text-micro text-muted-foreground">
                           {part.shape}
                         </span>
                       </div>
                     ))}
                   </div>
-                  <p className="mt-4 rounded-lg bg-muted p-3 text-[9px] leading-4 text-muted-foreground">
+                  <p className="mt-4 rounded-lg bg-muted p-3 text-micro leading-4 text-muted-foreground">
                     使用 model.capture
                     导出多视角图片；结构数据本身不作为视觉验收。
                   </p>

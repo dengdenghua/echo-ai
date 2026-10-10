@@ -85,7 +85,7 @@ export function CoworkRoomSystemCard({
             {card.status ? (
               <Badge
                 variant="outline"
-                className="h-4 shrink-0 bg-background/80 px-1 text-[9px]"
+                className="h-4 shrink-0 bg-background/80 px-1 text-micro"
               >
                 {card.status}
               </Badge>

@@ -861,7 +861,7 @@ export function DualHelixEvolutionPanel({
                   key={`${action}-${index}`}
                   className="flex gap-2 px-1 py-2 text-xs"
                 >
-                  <span className="mt-0.5 grid size-4 shrink-0 place-items-center rounded-full bg-primary/10 font-mono text-[9px] text-primary">
+                  <span className="mt-0.5 grid size-4 shrink-0 place-items-center rounded-full bg-primary/10 font-mono text-micro text-primary">
                     {index + 1}
                   </span>
                   <span className="leading-5">

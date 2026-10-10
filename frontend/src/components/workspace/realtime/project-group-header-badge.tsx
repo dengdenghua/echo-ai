@@ -106,7 +106,7 @@ export function ProjectGroupHeaderBadge({
               {activeMilestone.name}
             </span>
             {typeof activeMilestone.progress === "number" && (
-              <span className="shrink-0 rounded bg-primary/10 px-1 py-0.5 text-[9px] font-mono font-semibold text-primary">
+              <span className="shrink-0 rounded bg-primary/10 px-1 py-0.5 text-micro font-mono font-semibold text-primary">
                 {activeMilestone.progress}%
               </span>
             )}

@@ -50,6 +50,11 @@ function normalizeSection(value: string | null): EvolutionSection {
     : "overview";
 }
 
+// Underline tabs. The base trigger draws a 1px box (and its `border`
+// utility sorts after ours, hence `!`); only the bottom edge may show.
+const SECTION_TAB =
+  "h-9 shrink-0 gap-1 rounded-none border-x-0! border-t-0! border-b-2 border-transparent bg-transparent px-2 text-xs shadow-none sm:gap-1.5 sm:px-3 data-[state=active]:border-foreground data-[state=active]:bg-transparent data-[state=active]:shadow-none dark:data-[state=active]:border-foreground dark:data-[state=active]:bg-transparent";
+
 export default function EvolutionPage() {
   const { t } = useI18n();
   const [searchParams, setSearchParams] = useSearchParams();
@@ -80,38 +85,23 @@ export default function EvolutionPage() {
               className="max-w-full overflow-x-auto"
             >
               <TabsList className="h-9 min-w-max rounded-none bg-transparent p-0">
-                <TabsTrigger
-                  value="overview"
-                  className="h-9 shrink-0 gap-1 rounded-none border-b-2 border-transparent bg-transparent px-2 text-xs shadow-none sm:gap-1.5 sm:px-3 data-[state=active]:border-foreground data-[state=active]:bg-transparent data-[state=active]:shadow-none"
-                >
+                <TabsTrigger value="overview" className={SECTION_TAB}>
                   <DnaIcon className="hidden size-3.5 sm:block" />
                   进化总览
                 </TabsTrigger>
-                <TabsTrigger
-                  value="experiments"
-                  className="h-9 shrink-0 gap-1 rounded-none border-b-2 border-transparent bg-transparent px-2 text-xs shadow-none sm:gap-1.5 sm:px-3 data-[state=active]:border-foreground data-[state=active]:bg-transparent data-[state=active]:shadow-none"
-                >
+                <TabsTrigger value="experiments" className={SECTION_TAB}>
                   <ActivityIcon className="hidden size-3.5 sm:block" />
                   实验
                 </TabsTrigger>
-                <TabsTrigger
-                  value="candidates"
-                  className="h-9 shrink-0 gap-1 rounded-none border-b-2 border-transparent bg-transparent px-2 text-xs shadow-none sm:gap-1.5 sm:px-3 data-[state=active]:border-foreground data-[state=active]:bg-transparent data-[state=active]:shadow-none"
-                >
+                <TabsTrigger value="candidates" className={SECTION_TAB}>
                   <GitBranchIcon className="hidden size-3.5 sm:block" />
                   候选
                 </TabsTrigger>
-                <TabsTrigger
-                  value="deployments"
-                  className="h-9 shrink-0 gap-1 rounded-none border-b-2 border-transparent bg-transparent px-2 text-xs shadow-none sm:gap-1.5 sm:px-3 data-[state=active]:border-foreground data-[state=active]:bg-transparent data-[state=active]:shadow-none"
-                >
+                <TabsTrigger value="deployments" className={SECTION_TAB}>
                   <RocketIcon className="hidden size-3.5 sm:block" />
                   部署
                 </TabsTrigger>
-                <TabsTrigger
-                  value="governance"
-                  className="h-9 shrink-0 gap-1 rounded-none border-b-2 border-transparent bg-transparent px-2 text-xs shadow-none sm:gap-1.5 sm:px-3 data-[state=active]:border-foreground data-[state=active]:bg-transparent data-[state=active]:shadow-none"
-                >
+                <TabsTrigger value="governance" className={SECTION_TAB}>
                   <ShieldCheckIcon className="hidden size-3.5 sm:block" />
                   安全治理
                 </TabsTrigger>

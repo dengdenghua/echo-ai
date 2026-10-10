@@ -241,3 +241,27 @@ describe("contrast debt ratchet", () => {
     expect(total).toBeLessThanOrEqual(BASELINE_MUTED_OPACITY_BELOW_80);
   });
 });
+
+describe("type size floor", () => {
+  // 133 places used 7–9px text (mostly the design canvas and project
+  // workbench); all were raised to the 10px `text-micro` token on
+  // 2026-10-10. Nothing in src/ may go below it again.
+  it("never sets text smaller than 10px", () => {
+    const srcDir = join(root, "src");
+    // text-[Npx] with N < 10 (decimals allowed), or the 8/9px tokens.
+    const re = /\btext-\[(?:[0-9](?:\.\d+)?|\.\d+)px\]|\btext-[23]xs\b/g;
+    const hits: string[] = [];
+    function scanDir(dir: string) {
+      for (const entry of readdirSync(dir, { withFileTypes: true })) {
+        const full = join(dir, entry.name);
+        if (entry.isDirectory()) scanDir(full);
+        else if (/\.tsx?$/.test(entry.name) && !/\.test\./.test(entry.name)) {
+          const found = readFileSync(full, "utf8").match(re);
+          if (found) hits.push(`${full}: ${found.join(", ")}`);
+        }
+      }
+    }
+    scanDir(srcDir);
+    expect(hits).toEqual([]);
+  });
+});
