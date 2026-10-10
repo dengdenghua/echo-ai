@@ -22,6 +22,8 @@ CHECKS: tuple[ProductExperienceCheck, ...] = (
         title="Realtime workspace first-task path",
         paths=(
             "frontend/src/app/workspace/realtime/[thread_id]/page.tsx",
+            # The page's submit path moved here when the page was split.
+            "frontend/src/app/workspace/realtime/[thread_id]/use-realtime-submit.ts",
             "frontend/src/components/workspace/chat-input-box.tsx",
             "frontend/src/components/workspace/chat-input-box/ChatComposer.tsx",
             "frontend/src/components/workspace/chat-input-box.test.tsx",
