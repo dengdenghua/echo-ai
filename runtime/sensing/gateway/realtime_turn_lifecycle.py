@@ -7,9 +7,11 @@ import contextlib
 import json
 import logging
 import time
-from typing import TYPE_CHECKING, Any, cast
+from typing import TYPE_CHECKING, Any
 
-from runtime.execution.agents.group_fanout import is_group_presence_query
+from runtime.execution.agents.group_fanout import (
+    is_group_presence_query,  # noqa: F401 - re-export; used by _realtime_turn_start_phases
+)
 from runtime.execution.codex_backend import BackpressureError
 from runtime.execution.tool_engine.session_reference_uri import (
     SUPPORTED_SESSION_REFERENCE_SCHEMES,
@@ -57,7 +59,7 @@ __all__ = [
 from runtime.execution.agents.preparation import RolePreparationError
 from runtime.execution.engines import EngineSelectionError, ExecutionPhase
 from runtime.sensing.gateway._realtime_react_stream_helpers import (
-    _should_use_direct_text_path,
+    _should_use_direct_text_path,  # noqa: F401 - re-export; used by _realtime_turn_start_phases
 )
 from runtime.sensing.gateway._realtime_turn_start_phases import (
     _anchor_user_message,
@@ -66,9 +68,11 @@ from runtime.sensing.gateway._realtime_turn_start_phases import (
     _attach_resume_context,
     _await_pending_subagent_reports,
     _drain_late_steering,
+    _emit_turn_hints,
     _register_turn,
     _resolve_turn_provider_and_agent,
     _route_turn_input,
+    _select_turn_route,
 )
 from runtime.sensing.gateway.realtime_approval import (
     GatewayApprovalProvider,  # noqa: F401 - re-export; used by _realtime_turn_start_phases
@@ -76,7 +80,7 @@ from runtime.sensing.gateway.realtime_approval import (
 from runtime.sensing.gateway.realtime_execution import (
     TurnExecutionRequest,
     bind_turn_execution,
-    select_turn_execution,
+    select_turn_execution,  # noqa: F401 - re-export; used by _realtime_turn_start_phases
 )
 from runtime.sensing.gateway.realtime_gateway import EventEmitter
 from runtime.sensing.gateway.realtime_thread_history import (
@@ -949,117 +953,29 @@ async def _start_turn(
             # page. ReAct still runs — the hint is informational,
             # not a redirect, until the graph runtime is wired
             # through the realtime gateway.
-            try:
-                from runtime.memory.skills_lib.meta_skill import match_meta_skill
+            await _emit_turn_hints(
+                text=text,
+                emitter=emitter,
+                thread_id=thread_id,
+                turn=turn,
+                explicit_project_command=explicit_project_command,
+                _logger=_logger,
+            )
 
-                _matched = match_meta_skill(text)
-            except Exception:  # noqa: BLE001
-                _logger.debug("meta-skill match failed", exc_info=True)
-                _matched = None
-            if _matched is not None:
-                await emitter.notify(
-                    ServerMethod.TURN_META_SKILL_HINT,
-                    {
-                        "threadId": thread_id,
-                        "turnId": turn.id,
-                        "name": _matched.name,
-                        "description": _matched.description,
-                        "kind": _matched.kind,
-                        "affinity": list(_matched.affinity),
-                        "stepCount": len(_matched.steps),
-                    },
-                )
-
-            # Project-intent hint. The web composer detects this while typing;
-            # a channel-borne message never reaches that component, so emit it
-            # here too. Informational only — routing into Project OS stays an
-            # explicit ``/project run``, never inferred from phrasing.
-            if not explicit_project_command:
-                try:
-                    from runtime.sensing.gateway.project_intent_hint import (
-                        detect_project_intent,
-                    )
-
-                    _project_intent = detect_project_intent(text)
-                except Exception:  # noqa: BLE001 - a hint must never break a turn
-                    _logger.debug("project intent detection failed", exc_info=True)
-                    _project_intent = None
-                if _project_intent is not None:
-                    await emitter.notify(
-                        ServerMethod.TURN_PROJECT_INTENT_HINT,
-                        {
-                            "threadId": thread_id,
-                            "turnId": turn.id,
-                            "text": _project_intent,
-                            "command": "/project run",
-                        },
-                    )
-
-            group_presence = bool(_cowork_context.get("cowork_group")) and (
-                _team_pattern_execution == "presence" or is_group_presence_query(text)
-            )
-            group_fanout = (
-                group_presence
-                or _team_pattern_execution == "fanout"
-                or (
-                    not _team_pattern_execution
-                    and (
-                        str(_cowork_context.get("serve_mesh") or "").strip() == "1"
-                        or (
-                            bool(_cowork_context.get("cowork_is_multi"))
-                            and len(_cowork_context.get("cowork_responders") or []) > 1
-                        )
-                    )
-                )
-            )
-            coordinated = _team_pattern_execution == "orchestrated"
-            orchestrated = (
-                explicit_project_command or group_fanout or bool(topology_id) or coordinated
-            )
-            capabilities = getattr(agent, "capabilities", None)
-            codex_partner = (
-                not orchestrated
-                and isinstance(capabilities, dict)
-                and str(capabilities.get("execution_backend") or "").strip().casefold()
-                == "codex_app_server"
-            )
-            reflection = (
-                not orchestrated
-                and (not codex_partner or validated.execution_engine in {"echo", "opencode"})
-                and runtime._should_use_reflection_fast_path(
-                    text,
-                    validated,
-                    conversation_messages=cast(
-                        "list[dict[str, object]] | None", conversation_messages
-                    ),
-                    thread_id=thread_id,
-                )
-            )
-            route = await select_turn_execution(
-                runtime,
-                turn,
-                agent,
-                intent,
-                project_command=explicit_project_command,
-                group_fanout=group_fanout,
+            reflection, route = await _select_turn_route(
+                _cowork_context=_cowork_context,
+                _team_pattern_execution=_team_pattern_execution,
+                text=text,
+                explicit_project_command=explicit_project_command,
                 topology_id=topology_id,
-                codex_partner=codex_partner,
-                reflection_fast_path=reflection,
-                coordinated=coordinated,
+                agent=agent,
+                validated=validated,
+                runtime=runtime,
+                conversation_messages=conversation_messages,
+                thread_id=thread_id,
+                turn=turn,
+                intent=intent,
             )
-            if route.engine == "opencode" and not orchestrated and not reflection:
-                # The selected role may advertise Codex as its default backend
-                # even when the user explicitly chose OpenCode. Re-evaluate the
-                # cheap host predicate after final engine selection so safe
-                # text-only turns still skip the per-turn tool bridge.
-                reflection = _should_use_direct_text_path(
-                    text,
-                    validated,
-                    conversation_messages=cast(
-                        "list[dict[str, object]] | None", conversation_messages
-                    ),
-                    thread_id=thread_id,
-                )
             if route.engine in {"opencode", "codex"}:
                 validated = validated.model_copy(update={"model": requested_model_before_routing})
                 turn.params = validated

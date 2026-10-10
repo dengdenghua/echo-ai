@@ -16,12 +16,14 @@ from __future__ import annotations
 import asyncio
 import contextlib
 import time
-from typing import Any
+from typing import Any, cast
 
+from runtime.execution.agents.group_fanout import is_group_presence_query
 from runtime.execution.engines import ExecutionPhase
 from runtime.protocol import ItemStatus, ServerMethod, Turn, TurnStatus
 from runtime.safety.approval.approval_gate import ApprovalProvider
 from runtime.sensing.gateway._realtime_cerebrum_project_os import _is_project_os_command
+from runtime.sensing.gateway._realtime_react_stream_helpers import _should_use_direct_text_path
 from runtime.sensing.gateway._realtime_turn_lifecycle_helpers import (
     _inject_cowork_turn_plan,
     _persist_cowork_user_message,
@@ -30,7 +32,7 @@ from runtime.sensing.gateway._realtime_turn_lifecycle_helpers import (
 )
 from runtime.sensing.gateway._realtime_turn_lifecycle_resume import _resume_checkpoint_metadata
 from runtime.sensing.gateway.realtime_approval import GatewayApprovalProvider
-from runtime.sensing.gateway.realtime_execution import TurnExecutionRequest
+from runtime.sensing.gateway.realtime_execution import TurnExecutionRequest, select_turn_execution
 from runtime.sensing.gateway.realtime_turn_input import (
     _input_attachments,
     _should_default_planning_mode,
@@ -448,3 +450,130 @@ async def _drain_late_steering(*, turn, runtime, intent, execution, validated, t
             phase=ExecutionPhase.STEERING,
         )
     return turn_driver
+
+
+async def _emit_turn_hints(*, text, emitter, thread_id, turn, explicit_project_command, _logger):
+    """Informational meta-skill and project-intent hints (never a redirect)."""
+    try:
+        from runtime.memory.skills_lib.meta_skill import match_meta_skill
+
+        _matched = match_meta_skill(text)
+    except Exception:  # noqa: BLE001
+        _logger.debug("meta-skill match failed", exc_info=True)
+        _matched = None
+    if _matched is not None:
+        await emitter.notify(
+            ServerMethod.TURN_META_SKILL_HINT,
+            {
+                "threadId": thread_id,
+                "turnId": turn.id,
+                "name": _matched.name,
+                "description": _matched.description,
+                "kind": _matched.kind,
+                "affinity": list(_matched.affinity),
+                "stepCount": len(_matched.steps),
+            },
+        )
+
+    # Project-intent hint. The web composer detects this while typing;
+    # a channel-borne message never reaches that component, so emit it
+    # here too. Informational only — routing into Project OS stays an
+    # explicit ``/project run``, never inferred from phrasing.
+    if not explicit_project_command:
+        try:
+            from runtime.sensing.gateway.project_intent_hint import (
+                detect_project_intent,
+            )
+
+            _project_intent = detect_project_intent(text)
+        except Exception:  # noqa: BLE001 - a hint must never break a turn
+            _logger.debug("project intent detection failed", exc_info=True)
+            _project_intent = None
+        if _project_intent is not None:
+            await emitter.notify(
+                ServerMethod.TURN_PROJECT_INTENT_HINT,
+                {
+                    "threadId": thread_id,
+                    "turnId": turn.id,
+                    "text": _project_intent,
+                    "command": "/project run",
+                },
+            )
+
+
+async def _select_turn_route(
+    *,
+    _cowork_context,
+    _team_pattern_execution,
+    text,
+    explicit_project_command,
+    topology_id,
+    agent,
+    validated,
+    runtime,
+    conversation_messages,
+    thread_id,
+    turn,
+    intent,
+):
+    """Classify fan-out / orchestration / fast paths and select the execution route."""
+    group_presence = bool(_cowork_context.get("cowork_group")) and (
+        _team_pattern_execution == "presence" or is_group_presence_query(text)
+    )
+    group_fanout = (
+        group_presence
+        or _team_pattern_execution == "fanout"
+        or (
+            not _team_pattern_execution
+            and (
+                str(_cowork_context.get("serve_mesh") or "").strip() == "1"
+                or (
+                    bool(_cowork_context.get("cowork_is_multi"))
+                    and len(_cowork_context.get("cowork_responders") or []) > 1
+                )
+            )
+        )
+    )
+    coordinated = _team_pattern_execution == "orchestrated"
+    orchestrated = explicit_project_command or group_fanout or bool(topology_id) or coordinated
+    capabilities = getattr(agent, "capabilities", None)
+    codex_partner = (
+        not orchestrated
+        and isinstance(capabilities, dict)
+        and str(capabilities.get("execution_backend") or "").strip().casefold()
+        == "codex_app_server"
+    )
+    reflection = (
+        not orchestrated
+        and (not codex_partner or validated.execution_engine in {"echo", "opencode"})
+        and runtime._should_use_reflection_fast_path(
+            text,
+            validated,
+            conversation_messages=cast("list[dict[str, object]] | None", conversation_messages),
+            thread_id=thread_id,
+        )
+    )
+    route = await select_turn_execution(
+        runtime,
+        turn,
+        agent,
+        intent,
+        project_command=explicit_project_command,
+        group_fanout=group_fanout,
+        topology_id=topology_id,
+        codex_partner=codex_partner,
+        reflection_fast_path=reflection,
+        coordinated=coordinated,
+    )
+    if route.engine == "opencode" and not orchestrated and not reflection:
+        # The selected role may advertise Codex as its default backend
+        # even when the user explicitly chose OpenCode. Re-evaluate the
+        # cheap host predicate after final engine selection so safe
+        # text-only turns still skip the per-turn tool bridge.
+        reflection = _should_use_direct_text_path(
+            text,
+            validated,
+            conversation_messages=cast("list[dict[str, object]] | None", conversation_messages),
+            thread_id=thread_id,
+        )
+    return reflection, route

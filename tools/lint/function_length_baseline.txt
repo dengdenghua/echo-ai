@@ -3,7 +3,7 @@
 
 runtime/sensing/gateway/_tool_bridge_loop.py::_stream_agentic_fallback_impl	1894
 runtime/sensing/gateway/_team_stream_group_fanout.py::_drive_group_fanout	1590
-runtime/sensing/gateway/realtime_turn_lifecycle.py::_start_turn	1340
+runtime/sensing/gateway/realtime_turn_lifecycle.py::_start_turn	1252
 runtime/execution/subagents/bridge.py::call_subagent	1537
 runtime/platform/ui/browser_router.py::create_browser_router	1179
 runtime/core/cerebrum/_react_execution_phase6d.py::_phase_6d_dispatch_and_observe	1140
