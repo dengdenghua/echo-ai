@@ -21,6 +21,10 @@ import uuid
 from collections.abc import Callable, Generator
 from typing import Any
 
+from runtime.core.cerebrum._react_approval_pause import (  # noqa: F401 — re-exported for tests
+    _approval_could_not_reach_user,
+    _pause_for_unavailable_approval,
+)
 from runtime.core.cerebrum._react_execution_dispatch import (
     _execute_action_via_beak,
     _run_auto_diagnostics,
@@ -160,62 +164,6 @@ _ESCALABLE_TOOLS = frozenset(
 def _looks_like_sandbox_violation(observation: str | None) -> bool:
     """Whether a tool observation is a sandbox rejection (post-execution)."""
     return bool(observation and _SANDBOX_VIOLATION_RE.search(observation))
-
-
-_UNAVAILABLE_APPROVAL_REASONS = (
-    "timeout",
-    "connection_lost",
-    "error:",
-    "no interactive approval ui",
-)
-# AutoReviewApprovalProvider's "reviewer could not decide" outcome. Interactive
-# turns keep the Codex contract (a distinct denial the agent can route around);
-# unattended background runs opt in via ``pause_on_unavailable_review`` so an
-# approval nobody could answer becomes a resumable pause instead.
-_UNAVAILABLE_REVIEW_REASONS = ("automatic review was unavailable",)
-
-
-def _approval_could_not_reach_user(
-    decision: Any,
-    *,
-    include_unavailable_review: bool = False,
-) -> bool:
-    """Separate an unavailable reviewer from an explicit human decline."""
-
-    if bool(getattr(decision, "approved", False)):
-        return False
-    reason = str(getattr(decision, "reason", "") or "").strip().lower()
-    markers = _UNAVAILABLE_APPROVAL_REASONS + (
-        _UNAVAILABLE_REVIEW_REASONS if include_unavailable_review else ()
-    )
-    return any(reason == marker or reason.startswith(marker) for marker in markers)
-
-
-def _pause_for_unavailable_approval(
-    state: _LoopState,
-    *,
-    iteration: int,
-    tool_name: str,
-    detail: str,
-) -> bool:
-    """Request a checkpointed pause instead of turning UI absence into failure."""
-
-    pause_controller = state.wiring.pause_controller
-    task_id = str(state.wiring.react_task_id or "").strip()
-    if pause_controller is None or not task_id:
-        return False
-    pause_controller.request_pause(
-        task_id=task_id,
-        reason="approval_required",
-        requested_by="system",
-        note=f"{tool_name}: {detail}",
-        thread_id=state.wiring.thread_id,
-        agent_id=state.model_call.agent_id_for_pause,
-    )
-    # Reserve a boundary for the normal pause guard, including when the
-    # blocked call happened on what would otherwise be the final iteration.
-    state.iteration.iteration_limit = max(state.iteration.iteration_limit, iteration + 2)
-    return True
 
 
 def _can_escalate_sandbox(tool_name: str) -> bool:
