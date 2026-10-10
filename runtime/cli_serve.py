@@ -368,8 +368,7 @@ def register_cron_executor_task(
     try:
         from runtime.execution.cron_executor import recover_interrupted_cron_jobs
 
-        # The serve process is the trusted global caller: owned jobs must be
-        # swept too, or a crashed tenant job stays "running" forever.
+        # Trusted global caller: owned jobs too, or a crashed one stays "running".
         recovered = recover_interrupted_cron_jobs(allow_cross_tenant=True)
         if recovered.get("interrupted"):
             logging.getLogger(__name__).warning(
@@ -446,13 +445,8 @@ def register_cron_executor_task(
 
         def _run() -> None:
             try:
-                # Trusted global scheduler: without the flag every owned job
-                # is filtered out and only legacy-unowned rows ever fire.
-                run_due_cron_jobs(
-                    deliver=_deliver,
-                    stop_event=_stopping,
-                    allow_cross_tenant=True,
-                )
+                # Trusted global scheduler: without the flag owned jobs never fire.
+                run_due_cron_jobs(deliver=_deliver, stop_event=_stopping, allow_cross_tenant=True)
             except Exception:  # noqa: BLE001 — a tick fault must not kill the cron pool
                 logging.getLogger(__name__).exception("cron tick failed")
 
