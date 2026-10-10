@@ -163,7 +163,7 @@ export function useDesignThreadBridge({
         type: DESIGN_RESULT_MESSAGE,
         threadId: sidebarThreadId,
         messageId: latestDesignAnswer.messageId,
-        title: String(threadTitle || "").trim() || "设计 Agent 输出",
+        title: String(threadTitle || "").trim() || "设计智能体输出",
         text: latestDesignAnswer.text,
         previewUrl: resultPreviewUrl || undefined,
         artifacts: finalArtifactEntries.slice(0, 12).map((entry) => ({
