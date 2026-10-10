@@ -4,12 +4,15 @@ from __future__ import annotations
 
 import json
 import time
+from dataclasses import dataclass
+from datetime import UTC, datetime
 from typing import Any
 from uuid import uuid4
 
 from runtime.projectos._store_helpers import (
     _milestone_from_doc,
     _normalize_milestone,
+    _normalize_project,
     _normalize_task,
     _project_from_doc,
     _require_id,
@@ -263,6 +266,7 @@ def orphan_stale_task_claims(
     project_id: str,
     *,
     stale_before: float,
+    cause: str = "",
     scope: TenantScope | None = None,
 ) -> list[Task]:
     """Fence expired workers and atomically make their tasks operator-visible.
@@ -270,9 +274,16 @@ def orphan_stale_task_claims(
     Expiry never makes a task runnable: an external executor may have completed
     its side effect just before dying.  The task, milestone, and project are
     therefore blocked until an operator explicitly calls the recovery path.
+    ``cause`` (e.g. ``process_restart``) is recorded on the audit event when the
+    caller knows why the claim is dead rather than merely expired.
     """
 
     safe_project_id = _require_id(project_id, label="project_id")
+    reason = (
+        "execution claim abandoned by a previous process; explicit recovery required"
+        if cause == "process_restart"
+        else "execution claim expired; explicit recovery required"
+    )
     cutoff = float(stale_before)
     detected_at = time.time()
     orphaned: list[Task] = []
@@ -303,10 +314,7 @@ def orphan_stale_task_claims(
                 )
                 continue
             task.status = "blocked"
-            task.qa_verdict = {
-                "approved": False,
-                "reason": "execution claim expired; explicit recovery required",
-            }
+            task.qa_verdict = {"approved": False, "reason": reason}
             task = _normalize_task(task)
             deleted = conn.execute(
                 "DELETE FROM task_claims WHERE task_id=? AND claim_id=?",
@@ -335,6 +343,7 @@ def orphan_stale_task_claims(
                             "claimed_at": float(claimed_at),
                             "detected_at": detected_at,
                             "recovery_required": True,
+                            **({"cause": cause} if cause else {}),
                         },
                         ensure_ascii=False,
                     ),
@@ -400,6 +409,7 @@ def orphan_stale_milestone_claims(
     project_id: str,
     *,
     stale_before: float,
+    cause: str = "",
     scope: TenantScope | None = None,
 ) -> list[Milestone]:
     """Block abandoned decompositions instead of silently retrying the hook."""
@@ -457,6 +467,7 @@ def orphan_stale_milestone_claims(
                             "claimed_at": float(claimed_at),
                             "detected_at": detected_at,
                             "recovery_required": True,
+                            **({"cause": cause} if cause else {}),
                         },
                         ensure_ascii=False,
                     ),
@@ -613,8 +624,147 @@ def assert_no_active_claims(
         return project
 
 
+@dataclass(frozen=True, slots=True)
+class ProjectCancelResult:
+    """Outcome of :func:`cancel_project`; ``cancelled`` is False when terminal."""
+
+    project: Project
+    previous_status: str
+    cancelled: bool
+    released_task_ids: tuple[str, ...] = ()
+    released_milestone_ids: tuple[str, ...] = ()
+    failed_task_ids: tuple[str, ...] = ()
+    failed_milestone_ids: tuple[str, ...] = ()
+
+
+_CANCELLED_REASON = "项目已取消，执行认领已作废"
+
+
+def cancel_project(
+    store: Any,
+    project_id: str,
+    *,
+    scope: TenantScope | None = None,
+) -> ProjectCancelResult:
+    """Atomically abandon a project and void every execution claim it holds.
+
+    The project, its unfinished milestones, and any task still ``running``
+    move to the terminal ``failed`` state in one transaction, and every task
+    and decomposition claim of the project is deleted. A worker that is still
+    executing therefore loses its fencing token: its heartbeat stops renewing
+    and its late result is never published. Later ticks and runs see a
+    non-runnable project, and the project is no longer *active*, so it can be
+    deleted. ``done`` and already-cancelled projects are left untouched.
+    """
+
+    safe_project_id = _require_id(project_id, label="project_id")
+    with store._lock, store._conn() as conn:
+        conn.execute("BEGIN IMMEDIATE")
+        project = store._project_doc_for_scope(conn, safe_project_id, scope)
+        if project is None:
+            raise PermissionError("project belongs to another tenant or does not exist")
+        assert_project_not_deleting(conn, safe_project_id)
+        previous_status = project.status
+        if previous_status in {"done", "failed"}:
+            return ProjectCancelResult(
+                project=project,
+                previous_status=previous_status,
+                cancelled=False,
+            )
+        released_tasks = tuple(
+            str(row[0])
+            for row in conn.execute(
+                "SELECT tc.task_id FROM task_claims tc "
+                "INNER JOIN tasks t ON t.id=tc.task_id "
+                "INNER JOIN milestones m ON m.id=t.milestone_id "
+                "WHERE m.project_id=? ORDER BY tc.task_id",
+                (safe_project_id,),
+            ).fetchall()
+        )
+        released_milestones = tuple(
+            str(row[0])
+            for row in conn.execute(
+                "SELECT mc.milestone_id FROM milestone_claims mc "
+                "INNER JOIN milestones m ON m.id=mc.milestone_id "
+                "WHERE m.project_id=? ORDER BY mc.milestone_id",
+                (safe_project_id,),
+            ).fetchall()
+        )
+        conn.execute(
+            "DELETE FROM task_claims WHERE task_id IN "
+            "(SELECT t.id FROM tasks t INNER JOIN milestones m ON m.id=t.milestone_id "
+            "WHERE m.project_id=?)",
+            (safe_project_id,),
+        )
+        conn.execute(
+            "DELETE FROM milestone_claims WHERE milestone_id IN "
+            "(SELECT id FROM milestones WHERE project_id=?)",
+            (safe_project_id,),
+        )
+        failed_tasks: list[str] = []
+        task_rows = conn.execute(
+            "SELECT t.doc FROM tasks t INNER JOIN milestones m ON m.id=t.milestone_id "
+            "WHERE m.project_id=? ORDER BY t.id",
+            (safe_project_id,),
+        ).fetchall()
+        for (task_doc,) in task_rows:
+            task = _task_from_doc(str(task_doc))
+            if task is None or task.status != "running":
+                continue
+            task.status = "failed"
+            task.qa_verdict = {"approved": False, "reason": _CANCELLED_REASON}
+            task = _normalize_task(task)
+            conn.execute(
+                "UPDATE tasks SET doc=? WHERE id=?",
+                (json.dumps(task.to_dict(), ensure_ascii=False), task.id),
+            )
+            failed_tasks.append(task.id)
+        failed_milestones: list[str] = []
+        milestone_rows = conn.execute(
+            "SELECT doc FROM milestones WHERE project_id=? ORDER BY id",
+            (safe_project_id,),
+        ).fetchall()
+        for (milestone_doc,) in milestone_rows:
+            milestone = _milestone_from_doc(str(milestone_doc))
+            if milestone is None or milestone.status in {"done", "failed"}:
+                continue
+            # Pending phases fail too: a stale tick holding the old snapshot
+            # must not be able to activate a phase of an abandoned project.
+            milestone.status = "failed"
+            milestone = _normalize_milestone(milestone)
+            conn.execute(
+                "UPDATE milestones SET doc=? WHERE id=?",
+                (json.dumps(milestone.to_dict(), ensure_ascii=False), milestone.id),
+            )
+            failed_milestones.append(milestone.id)
+        project.status = "failed"
+        project.finished_at = project.finished_at or datetime.now(UTC).isoformat(timespec="seconds")
+        project = _normalize_project(project)
+        conn.execute(
+            "UPDATE projects SET doc=? WHERE id=?",
+            (json.dumps(project.to_dict(), ensure_ascii=False), safe_project_id),
+        )
+        return ProjectCancelResult(
+            project=project,
+            previous_status=previous_status,
+            cancelled=True,
+            released_task_ids=released_tasks,
+            released_milestone_ids=released_milestones,
+            failed_task_ids=tuple(failed_tasks),
+            failed_milestone_ids=tuple(failed_milestones),
+        )
+
+
 class ProjectClaimStoreMixin:
     """ProjectStore methods backed by the execution-claim transactions above."""
+
+    def cancel_project(
+        self,
+        project_id: str,
+        *,
+        scope: TenantScope | None = None,
+    ) -> ProjectCancelResult:
+        return cancel_project(self, project_id, scope=scope)
 
     def claim_task(
         self,
@@ -664,9 +814,16 @@ class ProjectClaimStoreMixin:
         project_id: str,
         *,
         stale_before: float,
+        cause: str = "",
         scope: TenantScope | None = None,
     ) -> list[Task]:
-        return orphan_stale_task_claims(self, project_id, stale_before=stale_before, scope=scope)
+        return orphan_stale_task_claims(
+            self,
+            project_id,
+            stale_before=stale_before,
+            cause=cause,
+            scope=scope,
+        )
 
     def claim_milestone_decomposition(
         self,
@@ -681,12 +838,14 @@ class ProjectClaimStoreMixin:
         project_id: str,
         *,
         stale_before: float,
+        cause: str = "",
         scope: TenantScope | None = None,
     ) -> list[Milestone]:
         return orphan_stale_milestone_claims(
             self,
             project_id,
             stale_before=stale_before,
+            cause=cause,
             scope=scope,
         )
 
@@ -711,4 +870,4 @@ class ProjectClaimStoreMixin:
         )
 
 
-__all__ = ["ProjectClaimStoreMixin"]
+__all__ = ["ProjectCancelResult", "ProjectClaimStoreMixin", "cancel_project"]

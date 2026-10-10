@@ -473,6 +473,28 @@ export function useDeleteProject() {
   });
 }
 
+/**
+ * Abandon a project: it becomes terminal, any in-flight execution is voided,
+ * and it can then be deleted. This is the way out for a blocked project,
+ * which the backend refuses to delete while it is still recoverable.
+ */
+export function useCancelProject() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ id, reason }: { id: string; reason?: string }) => {
+      await apiFetch("post", "/api/projects/{project_id}/cancel", {
+        path: { project_id: id },
+        body: { reason: reason ?? "" },
+        errorMessage: failed("Failed to cancel project"),
+      });
+    },
+    onSuccess: (_data, { id }) => {
+      void qc.invalidateQueries({ queryKey: ["projects"] });
+      void qc.invalidateQueries({ queryKey: ["project", id] });
+    },
+  });
+}
+
 export function useMoveThreadToProject() {
   const qc = useQueryClient();
   return useMutation({

@@ -223,6 +223,9 @@ class ProjectStore(
                 project.started_at = existing.started_at or project.started_at
                 project.finished_at = existing.finished_at or project.finished_at
                 project.execution_thread_id = existing.execution_thread_id
+                # The planning surface is decided once, at creation; a later
+                # writer must not relabel an app project as CLI-drivable.
+                project.origin = existing.origin
                 project = self._prepare_project(_normalize_project(project), scope)
             conn.execute(
                 "INSERT INTO projects(id, doc) VALUES (?, ?) "

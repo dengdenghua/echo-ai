@@ -749,6 +749,7 @@ async def _drive_project_os(
                             "task_not_found:",
                             "milestone_not_found:",
                             "unknown_task_action:",
+                            "project_not_intervenable:",
                         )
                     )
                     for event in intervention_events

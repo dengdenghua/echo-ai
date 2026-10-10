@@ -1,4 +1,4 @@
-import { screen, waitFor } from "@testing-library/react";
+import { screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -734,5 +734,144 @@ describe("ProjectsPage cross-project cockpit", () => {
     ).toBeInTheDocument();
     expect(screen.getByText("里程碑估时")).toBeInTheDocument();
     expect(screen.getByText("已完成 2d · 剩余 6d")).toBeInTheDocument();
+  });
+});
+
+// ─── 取消项目 / 删除被拒的原因 ─────────────────────────────────────────
+
+describe("ProjectsPage cancel and delete", () => {
+  const originalFetch = globalThis.fetch;
+  const fetchMock = vi.fn<typeof fetch>();
+
+  beforeEach(() => {
+    fetchMock.mockReset();
+    toastMocks.error.mockReset();
+    toastMocks.success.mockReset();
+    globalThis.fetch = fetchMock;
+  });
+
+  afterEach(() => {
+    globalThis.fetch = originalFetch;
+  });
+
+  function route(
+    status: string,
+    handlers: {
+      delete?: () => Response;
+      cancel?: () => Response;
+    } = {},
+  ) {
+    const base = projectDetail();
+    const detail = { ...base, project: { ...base.project, status } };
+    fetchMock.mockImplementation((input, init) => {
+      const url = String(input);
+      const method = (init?.method ?? "GET").toUpperCase();
+      if (url === "/api/projects") {
+        return Promise.resolve(
+          jsonResponse([
+            { id: "project-1", name: "Release hardening", status },
+          ]),
+        );
+      }
+      if (url === "/api/projects/portfolio") {
+        return Promise.resolve(jsonResponse([]));
+      }
+      if (url === "/api/projects/project-1" && method === "DELETE") {
+        return Promise.resolve(
+          handlers.delete?.() ?? jsonResponse({ ok: true }),
+        );
+      }
+      if (url === "/api/projects/project-1/cancel" && method === "POST") {
+        return Promise.resolve(
+          handlers.cancel?.() ?? jsonResponse({ ok: true, ...detail }),
+        );
+      }
+      return Promise.resolve(jsonResponse(detail));
+    });
+  }
+
+  it("explains why a blocked project cannot be deleted and offers cancelling", async () => {
+    const user = userEvent.setup();
+    route("blocked", {
+      delete: () =>
+        jsonResponse(
+          {
+            detail: {
+              code: "PROJECT_ACTIVE",
+              message:
+                "project is blocked awaiting recovery and cannot be deleted; cancel it first",
+              reason: "project_blocked",
+              project_id: "project-1",
+              status: "blocked",
+              cancel_required: true,
+            },
+          },
+          { status: 409 },
+        ),
+    });
+
+    renderWithProviders(<ProjectsPage />, { locale: "zh-CN" });
+    await user.click(await screen.findByRole("button", { name: "删除项目" }));
+    const dialog = await screen.findByRole("dialog");
+    await user.click(within(dialog).getByRole("button", { name: "删除" }));
+
+    await waitFor(() =>
+      expect(toastMocks.error).toHaveBeenCalledWith(
+        "项目处于阻塞状态（仍可恢复），不能直接删除。请先取消项目，再删除。",
+        expect.objectContaining({
+          action: expect.objectContaining({ label: "取消项目" }),
+        }),
+      ),
+    );
+    expect(toastMocks.error).not.toHaveBeenCalledWith("删除项目失败，请重试");
+  });
+
+  it("keeps the retry hint for unexpected delete failures", async () => {
+    const user = userEvent.setup();
+    route("done", {
+      delete: () => new Response("boom", { status: 500 }),
+    });
+
+    renderWithProviders(<ProjectsPage />, { locale: "zh-CN" });
+    await user.click(await screen.findByRole("button", { name: "删除项目" }));
+    const dialog = await screen.findByRole("dialog");
+    await user.click(within(dialog).getByRole("button", { name: "删除" }));
+
+    await waitFor(() =>
+      expect(toastMocks.error).toHaveBeenCalledWith("删除项目失败，请重试"),
+    );
+  });
+
+  it("cancels an active project after confirmation", async () => {
+    const user = userEvent.setup();
+    route("blocked");
+
+    renderWithProviders(<ProjectsPage />, { locale: "zh-CN" });
+    await user.click(await screen.findByRole("button", { name: "取消项目" }));
+    const dialog = await screen.findByRole("dialog");
+    await user.click(within(dialog).getByRole("button", { name: "取消项目" }));
+
+    await waitFor(() =>
+      expect(toastMocks.success).toHaveBeenCalledWith(
+        "项目「Release hardening」已取消",
+      ),
+    );
+    const cancelCall = fetchMock.mock.calls.find(
+      ([input]) => String(input) === "/api/projects/project-1/cancel",
+    );
+    expect(cancelCall?.[1]?.method).toBe("POST");
+  });
+
+  it("does not offer cancelling a finished project", async () => {
+    route("done");
+
+    renderWithProviders(<ProjectsPage />, { locale: "zh-CN" });
+
+    expect(
+      await screen.findByRole("button", { name: "删除项目" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "取消项目" }),
+    ).not.toBeInTheDocument();
   });
 });

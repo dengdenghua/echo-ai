@@ -35,6 +35,9 @@ from ._projects_models import (
     PlanBody as PlanBody,
 )
 from ._projects_models import (
+    ProjectCancelBody as ProjectCancelBody,
+)
+from ._projects_models import (
     ProjectGroupAgentBody as ProjectGroupAgentBody,
 )
 from ._projects_models import (
@@ -143,7 +146,7 @@ def _register_process_timeline(router: APIRouter, d: ProjectsDeps) -> None:
 
 
 def _register_project_execution(router: APIRouter, d: ProjectsDeps) -> None:
-    """Tick, run, recover, and per-task interventions (execution boundary)."""
+    """Tick, run, recover, cancel, and per-task interventions (execution boundary)."""
     _principal = d.principal
     _engine = d.engine
     _scoped_store = d.scoped_store
@@ -221,6 +224,41 @@ def _register_project_execution(router: APIRouter, d: ProjectsDeps) -> None:
         _project_to_collaboration(request, project_id, thread_id=thread_project or "")
         return {"ok": True, "recover": recovered, **_full_state(request, project_id)}
 
+    @router.post("/api/projects/{project_id}/cancel", dependencies=[Depends(_auth_dep)])
+    def cancel_project(
+        request: Request,
+        project_id: str,
+        body: ProjectCancelBody | None = None,
+    ) -> dict[str, Any]:
+        """Abandon a project: terminal ``failed``, live claims voided, deletable."""
+        _project_or_404(request, project_id)
+        principal = _principal(request)
+        try:
+            cancelled = _engine(principal).cancel(
+                project_id,
+                reason=(body or ProjectCancelBody()).reason.strip(),
+                actor=principal.actor_id if principal is not None else "",
+            )
+        except PermissionError as exc:
+            raise HTTPException(404, "project not found") from exc
+        except ValueError as exc:
+            raise _bad_request(exc) from exc
+        if "project_not_found" in cancelled["events"]:
+            raise HTTPException(404, "project not found")
+        if any(str(event).startswith("project_not_cancellable:") for event in cancelled["events"]):
+            raise HTTPException(
+                409,
+                {
+                    "code": "PROJECT_NOT_CANCELLABLE",
+                    "message": "project is already done and cannot be cancelled",
+                    "project_id": project_id,
+                    "status": cancelled["project_status"],
+                },
+            )
+        thread_project = _scoped_store(request).thread_for_project(project_id)
+        _project_to_collaboration(request, project_id, thread_id=thread_project or "")
+        return {"ok": True, "cancel": cancelled, **_full_state(request, project_id)}
+
     @router.post(
         "/api/projects/{project_id}/tasks/{task_id}/intervene",
         dependencies=[Depends(_auth_dep)],
@@ -253,7 +291,20 @@ def _register_project_execution(router: APIRouter, d: ProjectsDeps) -> None:
         except ValueError as exc:
             raise _bad_request(exc) from exc
         if any(str(event).startswith("task_not_found:") for event in intervention["events"]):
+            # Also covers a task id that exists but belongs to another project.
             raise HTTPException(404, "task not found")
+        if any(
+            str(event).startswith("project_not_intervenable:") for event in intervention["events"]
+        ):
+            raise HTTPException(
+                409,
+                {
+                    "code": "PROJECT_CANCELLED",
+                    "message": "project is cancelled; its tasks can no longer be changed",
+                    "project_id": project_id,
+                    "status": intervention["project_status"],
+                },
+            )
         if any(str(event).startswith("unknown_task_action:") for event in intervention["events"]):
             raise HTTPException(400, "unknown task intervention action")
         if body.run:

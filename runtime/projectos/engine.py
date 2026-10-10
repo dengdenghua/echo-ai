@@ -144,8 +144,19 @@ class ProjectEngine:
         self._required_execution_thread_id = required_execution_thread_id
 
     # ── planning ─────────────────────────────────────────────────────────────
-    def plan(self, name: str, goal: str, *, project_id: str | None = None) -> Project:
-        """Turn a one-line goal into a project with generated milestones."""
+    def plan(
+        self,
+        name: str,
+        goal: str,
+        *,
+        project_id: str | None = None,
+        origin: str = "",
+    ) -> Project:
+        """Turn a one-line goal into a project with generated milestones.
+
+        ``origin`` labels the planning surface (see ``PROJECT_ORIGINS``); only
+        the offline CLI sets it, so the CLI can later recognise its own work.
+        """
         pid = project_id or f"P-{uuid4().hex[:8]}"
         milestones = self._generate(goal)
         if not milestones:
@@ -162,6 +173,7 @@ class ProjectEngine:
             tenant_id=self.tenant_id,
             owner=self.owner_id or "",
             created_at=datetime.now(UTC).isoformat(timespec="seconds"),
+            origin=origin,
         )
         project, _resolved_milestones = self.store.create_project_plan(project, milestones)
         return project
@@ -315,19 +327,28 @@ class ProjectEngine:
             raise ValueError(
                 "项目当前未阻塞，无需恢复；如需继续推进，请使用 /project run"
                 if project.status == "running"
+                else "项目已取消，不能再恢复"
+                if project.status == "failed"
                 else "项目当前未阻塞，无需恢复；请先查看项目报告"
             )
 
         events: list[str] = []
         selected = {str(task_id) for task_id in (task_ids or []) if str(task_id).strip()}
         milestones = self.store.milestones_for(project.id)
+        tasks_by_ms = {ms.id: self.store.tasks_for_milestone(ms.id) for ms in milestones}
+        # Explicit ids are resolved only inside this project's own milestones;
+        # an id from another project must fail loudly, not be silently ignored
+        # while the blocked phase is reopened with its failed work untouched.
+        foreign = sorted(selected - {task.id for tasks in tasks_by_ms.values() for task in tasks})
+        if foreign:
+            raise ValueError(f"recovery tasks do not belong to this project: {', '.join(foreign)}")
         target_ms_ids = {project.current_ms} if project.current_ms else set()
         target_ms_ids.update(ms.id for ms in milestones if ms.status == "blocked")
 
         changed = False
         first_reopened: str | None = None
         for ms in milestones:
-            tasks = self.store.tasks_for_milestone(ms.id)
+            tasks = tasks_by_ms[ms.id]
             explicit_here = {task.id for task in tasks if task.id in selected}
             if any(
                 task.id in explicit_here and task.status not in {"failed", "rejected", "blocked"}
@@ -419,8 +440,29 @@ class ProjectEngine:
         project = self.store.get_project(project_id)
         if project is None:
             return {"events": ["project_not_found"], "project_status": "failed"}
+        if project.status == "failed":
+            # A cancelled project is terminal: an intervention must neither
+            # rewrite its tasks nor reopen a phase of it.
+            result = {
+                "events": [f"project_not_intervenable:{project.status}"],
+                "project_status": project.status,
+                "current_ms": project.current_ms,
+            }
+            self._audit(
+                project_id,
+                "task.intervention_rejected",
+                {"task_id": task_id, "action": action, **result},
+            )
+            return result
         task = self.store.get_task(task_id)
-        if task is None:
+        # Task ids are global keys: resolve the task only through this
+        # project's own milestones. Otherwise ``/projects/A/tasks/<B's task>``
+        # would rewrite B's work, audit it under A, and could even reopen B's
+        # phase as A's ``current_ms``. From A's view such a task does not exist.
+        owned = task is not None and task.milestone_id in {
+            milestone.id for milestone in self.store.milestones_for(project.id)
+        }
+        if task is None or not owned:
             result = {
                 "events": [f"task_not_found:{task_id}"],
                 "project_status": project.status,
@@ -429,7 +471,12 @@ class ProjectEngine:
             self._audit(
                 project_id,
                 "task.intervention_rejected",
-                {"task_id": task_id, "action": action, **result},
+                {
+                    "task_id": task_id,
+                    "action": action,
+                    "reason": "task_not_found" if task is None else "task_not_in_project",
+                    **result,
+                },
             )
             return result
         ms = self.store.get_milestone(task.milestone_id)
@@ -542,6 +589,70 @@ class ProjectEngine:
                 "reason": reason,
                 "reset_attempts": reset_attempts,
                 "cascade": cascade,
+                **result,
+            },
+        )
+        return result
+
+    def cancel(self, project_id: str, *, reason: str = "", actor: str = "") -> dict[str, Any]:
+        """Abandon a project: terminal ``failed`` plus every execution claim voided.
+
+        Every engine failure path blocks a project for recovery, so without
+        this a project the operator gives up on stays ``blocked`` (active)
+        forever and can never be deleted. Cancelling reuses the model's
+        terminal ``failed`` status; the ``project.cancelled`` audit event says
+        it was an operator decision. Live claims are released in the same
+        transaction, so an in-flight worker can no longer publish and later
+        ticks/runs/recovers refuse the project. ``done`` is not cancellable;
+        cancelling an already-cancelled project is a no-op.
+        """
+        project = self.store.get_project(project_id)
+        if project is None:
+            return {"events": ["project_not_found"], "project_status": "failed"}
+        outcome = self.store.cancel_project(project.id)
+        current = outcome.project
+        if not outcome.cancelled:
+            already = outcome.previous_status == "failed"
+            result = {
+                "events": [
+                    "project_already_cancelled"
+                    if already
+                    else f"project_not_cancellable:{outcome.previous_status}"
+                ],
+                "project_status": current.status,
+                "current_ms": current.current_ms,
+            }
+            if not already:
+                self._audit(
+                    project.id,
+                    "project.cancel_rejected",
+                    {"reason": reason, "actor": actor, **result},
+                )
+            return result
+        events = [
+            *(f"task_claim_released:{task_id}" for task_id in outcome.released_task_ids),
+            *(
+                f"milestone_claim_released:{milestone_id}"
+                for milestone_id in outcome.released_milestone_ids
+            ),
+            "project_cancelled",
+        ]
+        result = {
+            "events": events,
+            "project_status": current.status,
+            "current_ms": current.current_ms,
+        }
+        self._audit(
+            project.id,
+            "project.cancelled",
+            {
+                "reason": reason,
+                "actor": actor,
+                "previous_status": outcome.previous_status,
+                "released_task_claims": list(outcome.released_task_ids),
+                "released_milestone_claims": list(outcome.released_milestone_ids),
+                "failed_tasks": list(outcome.failed_task_ids),
+                "failed_milestones": list(outcome.failed_milestone_ids),
                 **result,
             },
         )

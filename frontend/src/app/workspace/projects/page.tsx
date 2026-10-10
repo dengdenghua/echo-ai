@@ -28,6 +28,7 @@ import {
   ActivityIcon,
   AlertTriangleIcon,
   ArrowRightIcon,
+  BanIcon,
   CalendarRangeIcon,
   CheckCircle2Icon,
   CircleIcon,
@@ -47,6 +48,7 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 
+import { EchoAPIError } from "@/core/api/request";
 import { authHeaders, jsonAuthHeaders } from "@/core/auth/api";
 import { getBackendBaseURL } from "@/core/config";
 import { Badge } from "@/components/ui/badge";
@@ -62,6 +64,7 @@ import { CreateProjectDialog } from "@/components/workspace/create-project-dialo
 import { useConfirmDialog } from "@/components/ui/confirm-dialog";
 import {
   type Project,
+  useCancelProject,
   useDeleteProject,
   useEnsureProjectHome,
   usePortfolio,
@@ -278,6 +281,61 @@ function withTraceId(message: string, traceId: string | null): string {
   return traceId ? `${message} 追踪 ID：${traceId}` : message;
 }
 
+/** 还没完成、也没取消的项目才提供「取消项目」。 */
+const CANCELLABLE_PROJECT_STATUSES = new Set([
+  "planning",
+  "running",
+  "blocked",
+]);
+
+/** 409 冲突里后端给出的结构化原因（code + 项目状态）。 */
+function projectConflict(
+  error: unknown,
+): { code: string; status: string } | null {
+  if (!(error instanceof EchoAPIError) || error.status !== 409) return null;
+  const detail: unknown = error.detail;
+  if (!detail || typeof detail !== "object") return null;
+  const { code, status } = detail as { code?: unknown; status?: unknown };
+  return {
+    code: typeof code === "string" ? code : "",
+    status: typeof status === "string" ? status : "",
+  };
+}
+
+/**
+ * 删除被拒（409）时把后端原因翻成用户能照做的一句话，并指出出路（先取消项目）；
+ * 只有真正的意外失败才提示「请重试」——对阻塞中的项目重试永远不会成功。
+ */
+function deleteProjectFailure(error: unknown): {
+  message: string;
+  cancelSuggested: boolean;
+} {
+  const conflict = projectConflict(error);
+  switch (conflict?.code) {
+    case "PROJECT_ACTIVE":
+      return {
+        message:
+          conflict.status === "blocked"
+            ? "项目处于阻塞状态（仍可恢复），不能直接删除。请先取消项目，再删除。"
+            : "项目正在执行，不能直接删除。请先取消项目，再删除。",
+        cancelSuggested: true,
+      };
+    case "CLAIM_ACTIVE":
+      return {
+        message:
+          "项目还有任务正在执行，暂时不能删除。请等待执行结束，或先取消项目再删除。",
+        cancelSuggested: true,
+      };
+    case "PROJECT_DELETE_RECOVERY_PENDING":
+      return {
+        message: "项目删除尚未完成，请再次删除以完成清理。",
+        cancelSuggested: false,
+      };
+    default:
+      return { message: "删除项目失败，请重试", cancelSuggested: false };
+  }
+}
+
 function safeRiskDetail(risk: PmeReport["risks"][number]): string {
   if (risk.type === "milestone") {
     return "里程碑存在阻塞或延期，请检查相关任务状态。";
@@ -389,6 +447,7 @@ export default function ProjectsPage() {
   const navigate = useNavigate();
   const ensureProjectHome = useEnsureProjectHome();
   const deleteProjectMutation = useDeleteProject();
+  const cancelProjectMutation = useCancelProject();
   const { confirm, confirmDialog } = useConfirmDialog();
   const [searchParams] = useSearchParams();
   const [selectedId, setSelectedId] = useState<string | null>(searchParams.get("project"));
@@ -532,6 +591,30 @@ export default function ProjectsPage() {
     });
   };
 
+  const handleCancelProject = async (project: Project) => {
+    const label = project.name || project.id;
+    const ok = await confirm({
+      title: "取消项目",
+      description: `确定要取消项目「${label}」吗？取消后项目将终止、不再继续执行，正在执行的任务结果会被作废，且不能恢复。取消后可以删除该项目。`,
+      confirmLabel: "取消项目",
+      cancelLabel: "返回",
+      destructive: true,
+    });
+    if (!ok) return;
+
+    try {
+      await cancelProjectMutation.mutateAsync({ id: project.id });
+      toast.success(`项目「${label}」已取消`);
+      refresh();
+    } catch (error) {
+      toast.error(
+        projectConflict(error)?.code === "PROJECT_NOT_CANCELLABLE"
+          ? "项目已完成，无需取消。"
+          : "取消项目失败，请稍后重试。",
+      );
+    }
+  };
+
   const handleDeleteProject = async (project: Project) => {
     const ok = await confirm({
       title: "删除项目",
@@ -552,8 +635,18 @@ export default function ProjectsPage() {
         setSelectedId(null);
       }
       refresh();
-    } catch {
-      toast.error("删除项目失败，请重试");
+    } catch (error) {
+      const failure = deleteProjectFailure(error);
+      if (failure.cancelSuggested) {
+        toast.error(failure.message, {
+          action: {
+            label: "取消项目",
+            onClick: () => void handleCancelProject(project),
+          },
+        });
+      } else {
+        toast.error(failure.message);
+      }
     }
   };
 
@@ -761,6 +854,22 @@ export default function ProjectsPage() {
                                 <MessageSquareIcon className="size-3.5" />
                                 进入项目群
                               </Button>
+                              {CANCELLABLE_PROJECT_STATUSES.has(
+                                detail.project.status,
+                              ) && (
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  className="gap-1.5 text-xs"
+                                  disabled={cancelProjectMutation.isPending}
+                                  onClick={() =>
+                                    void handleCancelProject(detail.project)
+                                  }
+                                >
+                                  <BanIcon className="size-3.5" />
+                                  取消项目
+                                </Button>
+                              )}
                               <Button
                                 variant="outline"
                                 size="sm"

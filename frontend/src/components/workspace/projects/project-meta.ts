@@ -12,7 +12,9 @@ export const STATUS_LABEL: Record<string, string> = {
   running: "进行中",
   blocked: "已阻塞",
   done: "已完成",
-  failed: "失败",
+  // 后端引擎从不自行把项目置为 failed（执行问题一律阻塞待恢复），
+  // 这个终态只来自用户「取消项目」。
+  failed: "已终止",
 };
 
 export const HEALTH_LABEL: Record<string, string> = {

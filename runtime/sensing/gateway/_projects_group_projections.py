@@ -26,6 +26,11 @@ from runtime.projectos.store import (
 _PROJECT_DELETE_PROJECTION_PENDING = "project.delete_projection_pending"
 
 
+def _cancel_hint(project_id: str) -> dict[str, str]:
+    """The call that makes an undeletable (active or claimed) project deletable."""
+    return {"method": "POST", "path": f"/api/projects/{project_id}/cancel"}
+
+
 class ProjectGroupProjectionContext:
     """Coordinate Project OS projections without owning HTTP route policy."""
 
@@ -658,13 +663,22 @@ class ProjectGroupProjectionContext:
                 event_kind=_PROJECT_DELETE_PROJECTION_PENDING,
             )
         except ProjectBindingActiveError as exc:
+            blocked = exc.project.status == "blocked"
             raise HTTPException(
                 409,
                 {
                     "code": "PROJECT_ACTIVE",
-                    "message": "project is still active and cannot be deleted",
+                    "message": (
+                        "project is blocked awaiting recovery and cannot be deleted; "
+                        "cancel it first"
+                        if blocked
+                        else "project is still running and cannot be deleted; cancel it first"
+                    ),
+                    "reason": "project_blocked" if blocked else "project_running",
                     "project_id": exc.project.id,
                     "status": exc.project.status,
+                    "cancel_required": True,
+                    "cancel": _cancel_hint(exc.project.id),
                 },
             ) from exc
         except ProjectClaimActiveError as exc:
@@ -672,10 +686,16 @@ class ProjectGroupProjectionContext:
                 409,
                 {
                     "code": "CLAIM_ACTIVE",
-                    "message": "project has active worker claims and cannot be deleted",
+                    "message": (
+                        "project has active worker claims and cannot be deleted; "
+                        "wait for them to finish or cancel the project first"
+                    ),
+                    "reason": "claims_active",
                     "project_id": exc.project.id,
                     "task_ids": list(exc.task_ids),
                     "milestone_ids": list(exc.milestone_ids),
+                    "cancel_required": True,
+                    "cancel": _cancel_hint(exc.project.id),
                 },
             ) from exc
         delete_token = delete_lease.token

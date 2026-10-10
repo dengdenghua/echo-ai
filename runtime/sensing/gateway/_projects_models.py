@@ -74,6 +74,10 @@ class TaskInterventionBody(BaseModel):
     max_ticks: int = Field(default=DEFAULT_RUN_MAX_TICKS, ge=1, le=HARD_MAX_RUN_TICKS)
 
 
+class ProjectCancelBody(BaseModel):
+    reason: str = Field(default="", max_length=2000)
+
+
 class FromGroupBody(BaseModel):
     name: str = Field(min_length=1)
     goal: str = Field(min_length=1)
