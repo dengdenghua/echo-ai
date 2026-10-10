@@ -315,7 +315,7 @@ function mcpItemToLiveEvent(
   // panel can render a tile from the spawn moment instead of waiting
   // for the first ``sub_tool_*`` event.
   if (item.tool === "__subagent_spawned__") {
-    const args = (item.arguments ?? {}) as Record<string, unknown>;
+    const args = (item.arguments ?? {});
     const codename =
       typeof args.codename === "string" ? args.codename : undefined;
     const avatar = typeof args.avatar === "string" ? args.avatar : undefined;
@@ -360,7 +360,7 @@ function mcpItemToLiveEvent(
     };
   }
   if (item.tool === "__subagent_finished__") {
-    const args = (item.arguments ?? {}) as Record<string, unknown>;
+    const args = (item.arguments ?? {});
     const result = (item.result ?? {}) as Record<string, unknown>;
     const codename =
       typeof result.codename === "string" ? result.codename : undefined;
@@ -438,7 +438,7 @@ function mcpItemToLiveEvent(
     };
   }
   if (item.tool === "__subagent_progress__") {
-    const args = (item.arguments ?? {}) as Record<string, unknown>;
+    const args = (item.arguments ?? {});
     const preview = item.progress?.preview;
     return {
       id: item.id,
@@ -481,7 +481,7 @@ function mcpItemToLiveEvent(
       ...finishFields(status, startedAt, turn, item.durationMs),
     };
   }
-  const args = (item.arguments ?? {}) as Record<string, unknown>;
+  const args = (item.arguments ?? {});
   const isSubagentTool = item.server === "subagent";
   const childRole =
     typeof args.sub_agent_role === "string"
@@ -1130,12 +1130,7 @@ function approvalToLiveEvent(
   approval: PendingApproval,
   iteration: number,
 ): LiveToolEvent {
-  const params = approval.params as {
-    itemId?: unknown;
-    tool?: unknown;
-    argsPreview?: unknown;
-    detail?: unknown;
-  };
+  const params = approval.params;
   const tool =
     typeof params.tool === "string" && params.tool
       ? params.tool

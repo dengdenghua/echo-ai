@@ -127,10 +127,10 @@ class EventBus {
 
   // 订阅事件（只触发一次）
   once<T extends EventName>(event: T, listener: Listener<T>): () => void {
-    const unsubscribe = this.on(event, ((payload: EventPayload<T>) => {
+    const unsubscribe = this.on(event, (payload: EventPayload<T>) => {
       listener(payload);
       unsubscribe();
-    }) as Listener<T>);
+    });
     return unsubscribe;
   }
 

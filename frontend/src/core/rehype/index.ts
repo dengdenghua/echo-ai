@@ -150,7 +150,7 @@ export function rehypeSplitWordsIntoSpans({
 
 export function rehypeFileReferences() {
   return (tree: Root) => {
-    visit(tree, "element", ((node: Element, index, parent) => {
+    visit(tree, "element", (node: Element, index, parent) => {
       if (
         node.tagName !== "code" ||
         !parent ||
@@ -172,7 +172,7 @@ export function rehypeFileReferences() {
       if (typeof index === "number") {
         (parent as Element).children[index] = replacement;
       }
-    }) as BuildVisitor<Root, "element">);
+    });
   };
 }
 

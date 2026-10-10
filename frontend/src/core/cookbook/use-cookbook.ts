@@ -101,6 +101,6 @@ export function useCookbookPull(): {
   });
   return {
     pull: (tag: string) => m.mutate(tag),
-    pendingTag: m.isPending ? ((m.variables as string) ?? null) : null,
+    pendingTag: m.isPending ? (m.variables ?? null) : null,
   };
 }

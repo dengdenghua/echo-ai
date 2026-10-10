@@ -253,8 +253,9 @@ export class EchoClient {
     get: (threadId: string): Promise<Thread> =>
       this.get<Thread>(`/threads/${threadId}`),
 
-    search: (params?: Record<string, unknown>): Promise<Thread[]> =>
-      this.post<Thread[]>("/threads/search", params),
+    search: <T = Record<string, unknown>>(
+      params?: Record<string, unknown>,
+    ): Promise<Thread<T>[]> => this.post<Thread<T>[]>("/threads/search", params),
 
     delete: (threadId: string): Promise<void> =>
       this.delete<void>(`/threads/${threadId}`),

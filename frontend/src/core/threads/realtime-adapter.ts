@@ -26,24 +26,13 @@ import {
 } from "@/core/messages/utils";
 
 import type {
-  AgentMessageItem,
-  ApprovalItem,
-  ArtifactItem,
-  CommandExecutionItem,
   Conversation,
   ErrorItem,
-  FileChangeItem,
   GroundingSource,
   Item,
-  McpToolCallItem,
-  PlanItem,
-  ReasoningItem,
-  SteeringUserMessageItem,
-  SubagentItem,
   TodoListItem,
   Turn,
   UserMessageItem,
-  VerificationItem,
 } from "@/core/realtime/items";
 
 import type { AgentThreadState } from "./types";
@@ -198,12 +187,12 @@ function turnArtifactsFrom(turn: Turn): string[] {
   const out: string[] = [];
   for (const item of safeTurnItems(turn)) {
     if (item.type === "fileChange") {
-      const fc = item as FileChangeItem;
+      const fc = item;
       for (const change of fc.changes) {
         out.push(change.path);
       }
     } else if (item.type === "artifact") {
-      out.push((item as ArtifactItem).path);
+      out.push(item.path);
     }
   }
   return out;
@@ -217,7 +206,7 @@ function turnArtifactsFrom(turn: Turn): string[] {
 function turnTodosFrom(turn: Turn): Todo[] | null {
   let latest: TodoListItem | null = null;
   for (const item of safeTurnItems(turn)) {
-    if (item.type === "todo-list") latest = item as TodoListItem;
+    if (item.type === "todo-list") latest = item;
   }
   if (latest === null) return null;
   return latest.plan.map((entry) => ({
@@ -262,7 +251,7 @@ function supersededPreToolAnswerIds(items: Item[]): Set<string> {
     }
     if (item.type !== "agentMessage") continue;
 
-    const message = item as AgentMessageItem;
+    const message = item;
     if (message.messageKind === "commentary") continue;
     const text = itemStreamText(message).trim();
     // A short "Todo/任务已完成" item is a terminal receipt, not a newer
@@ -396,7 +385,7 @@ function turnToMessages(turn: Turn): Message[] {
       return isLegacyInternalAgentError(itemStreamText(item));
     }
     if (item.type === "subagent") {
-      const subagent = item as SubagentItem;
+      const subagent = item;
       return (
         isLegacyInternalAgentError(subagent.summary) ||
         isLegacyInternalAgentError(subagent.error)
@@ -524,11 +513,11 @@ function turnToMessages(turn: Turn): Message[] {
         // turn boundary represented by a user message inside the
         // turn (rare; usually one user message per turn).
         flushPendingAsTrailingAi();
-        out.push(userMessageToHuman(item as UserMessageItem));
+        out.push(userMessageToHuman(item));
         break;
       }
       case "steeringUserMessage": {
-        const steering = item as SteeringUserMessageItem;
+        const steering = item;
         // Child reports are internal steering: they update the running
         // parent's model context and are already observable in Agent cards.
         // Rendering them as human messages creates fake turn 2/3 rows and
@@ -553,7 +542,7 @@ function turnToMessages(turn: Turn): Message[] {
         break;
       }
       case "reasoning": {
-        const r = item as ReasoningItem;
+        const r = item;
         const content = itemStreamText(r);
         if (content) pending.reasoning.push(content);
         else if (Array.isArray(r.summary) && r.summary.length > 0) {
@@ -579,11 +568,11 @@ function turnToMessages(turn: Turn): Message[] {
         break;
       }
       case "plan": {
-        pending.plan = itemStreamText(item as PlanItem);
+        pending.plan = itemStreamText(item);
         break;
       }
       case "commandExecution": {
-        const ce = item as CommandExecutionItem;
+        const ce = item;
         pushToolCallMessage({
           id: ce.id,
           name: commandExecutionToolName(ce),
@@ -599,7 +588,7 @@ function turnToMessages(turn: Turn): Message[] {
         break;
       }
       case "mcpToolCall": {
-        const mcp = item as McpToolCallItem;
+        const mcp = item;
         // Sub-agent lifecycle markers carry their identity payload in
         // ``result`` (finish) rather than ``arguments`` (spawn) — see
         // ``_subagent_lifecycle_item_from_journal``. The renderer only reads
@@ -622,7 +611,7 @@ function turnToMessages(turn: Turn): Message[] {
         break;
       }
       case "subagent": {
-        const subagent = item as SubagentItem;
+        const subagent = item;
         const legacyInternalError =
           isLegacyInternalAgentError(subagent.summary) ||
           isLegacyInternalAgentError(subagent.error);
@@ -647,7 +636,7 @@ function turnToMessages(turn: Turn): Message[] {
         break;
       }
       case "agentMessage": {
-        const am = item as AgentMessageItem;
+        const am = item;
         const isInterruptedMessage = am.id === interruptedMessageId;
         const isFailedMessage = am.status === "failed";
         const split = splitReactTrace(itemStreamText(am));
@@ -679,7 +668,7 @@ function turnToMessages(turn: Turn): Message[] {
         if (split.thought) {
           const existing =
             typeof kwargs.reasoning_content === "string"
-              ? (kwargs.reasoning_content as string)
+              ? kwargs.reasoning_content
               : "";
           kwargs.reasoning_content = existing
             ? `${existing}\n\n${split.thought}`
@@ -811,7 +800,7 @@ function turnToMessages(turn: Turn): Message[] {
         // FileChanges are surfaced as AIMessage tool_calls so the
         // LiveToolTimeline sees them; the artifact list separately
         // collects the paths (see ``turnArtifactsFrom``).
-        const fc = item as FileChangeItem;
+        const fc = item;
         pushToolCallMessage({
           id: fc.id,
           name: "file_change",
@@ -830,7 +819,7 @@ function turnToMessages(turn: Turn): Message[] {
         break;
       }
       case "approval": {
-        const approval = item as ApprovalItem;
+        const approval = item;
         pushToolCallMessage({
           id: approval.id,
           name: "approval",
@@ -846,7 +835,7 @@ function turnToMessages(turn: Turn): Message[] {
         break;
       }
       case "verification": {
-        const verification = item as VerificationItem;
+        const verification = item;
         pushToolCallMessage({
           id: verification.id,
           name: "verification",
@@ -864,7 +853,7 @@ function turnToMessages(turn: Turn): Message[] {
         break;
       }
       case "artifact": {
-        const artifact = item as ArtifactItem;
+        const artifact = item;
         pushToolCallMessage({
           id: artifact.id,
           name: "artifact",
@@ -889,7 +878,7 @@ function turnToMessages(turn: Turn): Message[] {
       }
       case "error": {
         flushPendingAsTrailingAi();
-        pushAiMessage(errorToAi(item as ErrorItem));
+        pushAiMessage(errorToAi(item));
         break;
       }
       default: {
@@ -1038,9 +1027,7 @@ function appendFailedTurnReceipt(out: Message[], turn: Turn): void {
 
   const verificationMessage = failedVerificationMessage(turn);
   const turnError =
-    turn.error && typeof turn.error === "object"
-      ? (turn.error as Record<string, unknown>)
-      : null;
+    turn.error && typeof turn.error === "object" ? turn.error : null;
   const turnErrorMessage =
     typeof turnError?.message === "string" ? turnError.message.trim() : "";
   const turnErrorCode =
@@ -1057,7 +1044,7 @@ function appendFailedTurnReceipt(out: Message[], turn: Turn): void {
     (item) =>
       item.type === "verification" &&
       item.status === "failed" &&
-      /verification required/i.test((item as VerificationItem).command),
+      /verification required/i.test(item.command),
   );
   const code = verificationMessage
     ? verificationRequired
@@ -1448,7 +1435,7 @@ export function conversationLastError(conv: Conversation): Error | undefined {
   if (last === undefined) return undefined;
   if (last.status !== "failed") return undefined;
   if (last.error && typeof last.error === "object") {
-    const m = (last.error as { message?: unknown }).message;
+    const m = last.error.message;
     const message = sanitizeLegacyGuardDiagnostic(
       typeof m === "string" ? m : "turn failed",
     );
@@ -1461,9 +1448,7 @@ export function conversationLastError(conv: Conversation): Error | undefined {
   for (let i = lastItems.length - 1; i >= 0; i--) {
     const item = lastItems[i];
     if (item !== undefined && item.type === "error") {
-      return new Error(
-        sanitizeLegacyGuardDiagnostic((item as ErrorItem).message),
-      );
+      return new Error(sanitizeLegacyGuardDiagnostic(item.message));
     }
   }
   for (let i = lastItems.length - 1; i >= 0; i--) {
@@ -1471,12 +1456,10 @@ export function conversationLastError(conv: Conversation): Error | undefined {
     if (
       item?.type === "agentMessage" &&
       item.status === "failed" &&
-      itemStreamText(item as AgentMessageItem).trim()
+      itemStreamText(item).trim()
     ) {
       return new Error(
-        sanitizeLegacyGuardDiagnostic(
-          itemStreamText(item as AgentMessageItem).trim(),
-        ),
+        sanitizeLegacyGuardDiagnostic(itemStreamText(item).trim()),
       );
     }
   }
@@ -1491,7 +1474,7 @@ function failedVerificationMessage(turn: Turn): string | undefined {
   for (let i = items.length - 1; i >= 0; i--) {
     const item = items[i];
     if (item?.type !== "verification" || item.status !== "failed") continue;
-    const verification = item as VerificationItem;
+    const verification = item;
     return (
       verification.summary?.trim() ||
       verification.stderrTail?.trim() ||

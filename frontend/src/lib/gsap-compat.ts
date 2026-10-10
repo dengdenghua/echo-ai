@@ -74,7 +74,7 @@ function buildOptions(vars: Vars): Record<string, unknown> {
 function to(target: Element, vars: Vars): Tween {
   const controls = motionAnimate(
     target,
-    propsOnly(vars) as Parameters<typeof motionAnimate>[1],
+    propsOnly(vars),
     buildOptions(vars) as Parameters<typeof motionAnimate>[2],
   );
   return { kill: () => controls.stop() };
@@ -90,11 +90,11 @@ function fromTo(target: Element, fromVars: Vars, toVars: Vars): Tween {
     const from = fromVars[key];
     const to = toVars[key];
     if (from === undefined && to === undefined) continue;
-    (props as Record<string, unknown>)[motionKey] = [from ?? to, to ?? from];
+    props[motionKey] = [from ?? to, to ?? from];
   }
   const controls = motionAnimate(
     target,
-    props as Parameters<typeof motionAnimate>[1],
+    props,
     options as Parameters<typeof motionAnimate>[2],
   );
   return { kill: () => controls.stop() };

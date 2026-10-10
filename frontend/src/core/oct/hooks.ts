@@ -111,12 +111,8 @@ export function useDailyClaimInfo(enabled = true) {
     queryFn: async () => {
       try {
         const m = await octApi.membership();
-        const remaining = Number(
-          (m as Record<string, unknown>).dailyFreeRemaining ?? 0,
-        );
-        const total = Number(
-          (m as Record<string, unknown>).dailyFreeCredits ?? 0,
-        );
+        const remaining = Number(m.dailyFreeRemaining ?? 0);
+        const total = Number(m.dailyFreeCredits ?? 0);
         return {
           data: {
             claimedToday: remaining <= 0,

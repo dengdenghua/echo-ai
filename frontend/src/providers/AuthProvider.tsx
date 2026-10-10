@@ -170,7 +170,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         !storedUser.is_guest &&
         storedUser.is_account_free
       ) {
-        setUser(normalizeUserIdentity(storedUser as User));
+        setUser(normalizeUserIdentity(storedUser));
         setAuthStatus({
           enabled: false,
           jwt_available: false,

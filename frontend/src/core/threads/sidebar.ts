@@ -236,7 +236,7 @@ export function projectNameForThread(
 export function summarizeThreadForSidebar(thread: AgentThread): ThreadSummary {
   const mode =
     typeof thread.metadata?.["mode"] === "string"
-      ? (thread.metadata["mode"] as string)
+      ? thread.metadata["mode"]
       : "chat";
   return {
     id: thread.thread_id,
@@ -246,7 +246,7 @@ export function summarizeThreadForSidebar(thread: AgentThread): ThreadSummary {
     href: threadHref(thread),
     workspacePath:
       typeof thread.metadata?.["workspace_path"] === "string"
-        ? (thread.metadata["workspace_path"] as string)
+        ? thread.metadata["workspace_path"]
         : undefined,
     agents: deriveThreadAgents(thread),
   };
@@ -259,7 +259,7 @@ export function buildConversationThreadSummaries(
     .filter((t) => {
       const mode =
         typeof t.metadata?.["mode"] === "string"
-          ? (t.metadata["mode"] as string)
+          ? t.metadata["mode"]
           : "chat";
       return isConversationThreadMode(mode) && !t.metadata?.subagent_role;
     })
@@ -273,7 +273,7 @@ export function buildProjectThreadSummaries(
     .filter((t) => {
       const mode =
         typeof t.metadata?.["mode"] === "string"
-          ? (t.metadata["mode"] as string)
+          ? t.metadata["mode"]
           : "chat";
       return isProjectThreadMode(mode) && !t.metadata?.subagent_role;
     })

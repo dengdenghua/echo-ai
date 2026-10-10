@@ -85,7 +85,7 @@ const STREAM_TEXT_FIELDS: Partial<Record<Item["type"], StreamTextField>> = {
 };
 
 function appendStreamText<T extends Item>(item: T, delta: string): T {
-  const updated = { ...item } as T;
+  const updated = { ...item };
   // React and the replay drift probe can reduce the same base more than
   // once. Keep the old buffer immutable and readable by every branch.
   streamChunks.set(updated, { previous: streamChunks.get(item), delta });
@@ -116,7 +116,7 @@ function appendReasoningStreamText<T extends Item>(
 ): T {
   const buckets = new Map(streamReasoningBuckets.get(item));
   buckets.set(contentIndex, { previous: buckets.get(contentIndex), delta });
-  const updated = { ...item } as T;
+  const updated = { ...item };
   streamReasoningBuckets.set(updated, buckets);
   return updated;
 }
@@ -1083,9 +1083,7 @@ function closeItemsForTurn(
         : item.status === "inProgress"
           ? terminalStatus
           : item.status;
-    return nextStatus === item.status
-      ? item
-      : ({ ...item, status: nextStatus } as Item);
+    return nextStatus === item.status ? item : { ...item, status: nextStatus };
   });
 }
 
@@ -1183,7 +1181,7 @@ function preserveCompletedStreamText(existing: Item, incoming: Item): Item {
   //   otherwise           → snapshot corrects/replaces the live draft
   if (snapshotText.startsWith(existingText)) return merged;
   if (existingText.startsWith(snapshotText)) {
-    return { ...merged, [field]: existingText } as Item;
+    return { ...merged, [field]: existingText };
   }
   return merged;
 }
