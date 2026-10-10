@@ -19,36 +19,7 @@ import type {
   AgentRelationship,
 } from "./types";
 import { looseBody } from "@/core/api/response";
-import {
-  hasConnected,
-  hasInstalled,
-  hasMemories,
-  hasPlugins,
-  hasRatings,
-  hasRelationships,
-  hasRoot,
-  isAgentInstallResult,
-  isAgentProfile,
-  isAgentWorldAgent,
-  isAgentWorldListResponse,
-  isCapabilityDeviceFlowStatus,
-  isCapabilityInstallPlan,
-  isCapabilityListResponse,
-  isCloudInstalledStatus,
-  isCloudPluginInstallResult,
-  isCloudPluginRollbackResult,
-  isCloudPluginUninstallResult,
-  isCloudPluginsResponse,
-  isCloudSkillInstallResult,
-  isCloudSkillsResponse,
-  isCloudStoreCategoriesResponse,
-  isCloudStoreInstallResult,
-  isCloudStoreResponse,
-  isEnterpriseAssetsResponse,
-  isRuntimePluginStatus,
-  isRuntimePluginStatusList,
-  isUnifiedAssetsResponse,
-} from "./agent-world-guards";
+import * as guards from "./agent-world-guards";
 
 const AGENT_MARKET_API = "/api/agent-market";
 
@@ -161,14 +132,14 @@ export async function listCloudStoreExperts(
       limit: params.limit ?? 500,
     },
     errorMessage: httpStatus("WorkBuddy cloud store failed"),
-  }), isCloudStoreResponse);
+  }), guards.isCloudStoreResponse);
 }
 
 /** 拉取云端商城分类(15 大类)。 */
 export async function listCloudStoreCategories(): Promise<CloudStoreCategoriesResponse> {
   return looseBody(await apiGet("/api/agent-market/cloud/store/categories", {
     errorMessage: httpStatus("WorkBuddy cloud categories failed"),
-  }), isCloudStoreCategoriesResponse);
+  }), guards.isCloudStoreCategoriesResponse);
 }
 
 /** 安装云端专家:后端下载 bundle → 解包 → 导入为本地 agent。 */
@@ -178,7 +149,7 @@ export async function installCloudExpert(
   return looseBody(await apiPost("/api/agent-market/cloud/store/{expert_id}/install", {
     path: { expert_id: expertId },
     errorMessage: httpBody("WorkBuddy install failed"),
-  }), isCloudStoreInstallResult);
+  }), guards.isCloudStoreInstallResult);
 }
 
 /** 云商城插件目录(我们发布到 GitHub Pages 的 plugin-store.json)。 */
@@ -228,7 +199,7 @@ export async function fetchCloudPlugins(
       limit: opts.limit ?? 500,
     },
     errorMessage: httpStatus("Cloud plugins failed"),
-  }), isCloudPluginsResponse);
+  }), guards.isCloudPluginsResponse);
 }
 
 /** 云商城技能目录(我们发布到 GitHub Pages 的 skill-registry.json)。 */
@@ -283,7 +254,7 @@ export async function fetchCloudSkills(
       },
       signal: opts.signal,
       errorMessage: httpStatus("Cloud skills failed"),
-    }), isCloudSkillsResponse);
+    }), guards.isCloudSkillsResponse);
     if (!page.items.length) break;
     items.push(...page.items);
   } while (items.length < page.total);
@@ -323,7 +294,7 @@ export async function manageCloudSkill(
 export async function fetchCloudInstalled(): Promise<CloudInstalledStatus> {
   return looseBody(await apiGet("/api/agent-market/cloud/installed", {
     errorMessage: httpStatus("Cloud installed status failed"),
-  }), isCloudInstalledStatus);
+  }), guards.isCloudInstalledStatus);
 }
 
 /** Workbench navigation needs only this package's current lifecycle checks. */
@@ -333,7 +304,7 @@ export async function fetchWorkbenchInstalled(
   return looseBody(await apiGet("/api/agent-market/cloud/installed", {
     query: { package_id: packageId },
     errorMessage: httpStatus("Workbench installed status failed"),
-  }), hasPlugins);
+  }), guards.hasPlugins);
 }
 
 export interface CloudSkillInstallResult {
@@ -414,7 +385,7 @@ export async function installCloudSkill(
   return looseBody(await apiPost("/api/agent-market/cloud/skills/{name}/install", {
     path: { name },
     errorMessage: httpBody("云技能安装失败"),
-  }), isCloudSkillInstallResult);
+  }), guards.isCloudSkillInstallResult);
 }
 
 export interface CloudSkillInstallProgress {
@@ -485,7 +456,7 @@ export async function installCloudPlugin(
         httpBody("云插件安装失败")(f)
       );
     },
-  }), isCloudPluginInstallResult);
+  }), guards.isCloudPluginInstallResult);
 }
 
 /** Remove only a mutable cloud-installed package; bundled/core code is never targeted. */
@@ -503,7 +474,7 @@ export async function uninstallCloudPlugin(
       },
       errorMessage: httpBody("云插件卸载失败"),
     },
-  ), isCloudPluginUninstallResult);
+  ), guards.isCloudPluginUninstallResult);
 }
 
 export async function fetchRuntimePluginStatus(
@@ -512,7 +483,7 @@ export async function fetchRuntimePluginStatus(
   return looseBody(await apiGet("/api/plugin-hub/plugins/{name}", {
     path: { name: pluginName },
     errorMessage: httpBody("插件状态读取失败"),
-  }), isRuntimePluginStatus);
+  }), guards.isRuntimePluginStatus);
 }
 
 /**
@@ -529,7 +500,7 @@ export async function fetchRuntimePluginStatuses(): Promise<
 > {
   const rows = looseBody(await apiGet("/api/plugin-hub/plugins", {
     errorMessage: httpBody("插件状态清单读取失败"),
-  }), isRuntimePluginStatusList);
+  }), guards.isRuntimePluginStatusList);
   return new Map(
     rows.flatMap((row) => {
       const key = row.plugin_id ?? row.id ?? row.name;
@@ -551,7 +522,7 @@ export async function setRuntimePluginEnabled(
     : apiPost(
         "/api/plugin-hub/plugins/{name}/disable",
         options,
-      )), isRuntimePluginStatus);
+      )), guards.isRuntimePluginStatus);
 }
 
 /** Activate/deactivate any remote workbench, including frontend-only packages. */
@@ -562,7 +533,7 @@ export async function setCloudPluginEnabled(
   return looseBody(await apiPost("/api/agent-market/cloud/plugins/{plugin_id}/{action}", {
     path: { plugin_id: pluginId, action: enabled ? "enable" : "disable" },
     errorMessage: httpBody(`应用${enabled ? "启用" : "停用"}失败`),
-  }), isRuntimePluginStatus);
+  }), guards.isRuntimePluginStatus);
 }
 
 export interface CloudPluginRollbackResult {
@@ -586,7 +557,7 @@ export async function rollbackCloudPlugin(
       body: transactionId ? { transaction_id: transactionId } : {},
       errorMessage: httpBody("应用回滚失败"),
     },
-  ), isCloudPluginRollbackResult);
+  ), guards.isCloudPluginRollbackResult);
 }
 
 // ---------------------------------------------------------------------------
@@ -601,7 +572,7 @@ export async function listStoreAgents(
     return looseBody(await apiGet("/api/agent-market/store/featured", {
       query: { limit: params.page_size || undefined },
       errorMessage: statusText("Failed to load featured agents"),
-    }), isAgentWorldListResponse);
+    }), guards.isAgentWorldListResponse);
   }
 
   return looseBody(await apiGet("/api/agent-market/store", {
@@ -616,7 +587,7 @@ export async function listStoreAgents(
       limit: params.page_size,
     },
     errorMessage: statusText("Failed to load store agents"),
-  }), isAgentWorldListResponse);
+  }), guards.isAgentWorldListResponse);
 }
 
 // ── 企业版角色资产(消费侧)─────────────────────
@@ -647,7 +618,7 @@ export async function listEnterpriseAssets(
         category: params.category || undefined,
         search: params.search || undefined,
       },
-    }), isEnterpriseAssetsResponse);
+    }), guards.isEnterpriseAssetsResponse);
   } catch (error) {
     // Any HTTP failure means "enterprise catalog unavailable"; network
     // errors still propagate as before.
@@ -663,7 +634,7 @@ export async function installEnterpriseAsset(
   const result = looseBody(await apiPost(
     "/api/agent-market/enterprise/{asset_id}/install",
     { path: { asset_id: id }, errorMessage: statusText("安装失败") },
-  ), hasInstalled);
+  ), guards.hasInstalled);
   await reloadAgents();
   return result;
 }
@@ -672,7 +643,7 @@ export async function getStoreAgent(id: string): Promise<AgentWorldAgent> {
   return looseBody(await apiGet("/api/agent-market/store/{agent_id}", {
     path: { agent_id: id },
     errorMessage: statusText("Agent not found"),
-  }), isAgentWorldAgent);
+  }), guards.isAgentWorldAgent);
 }
 
 // ---------------------------------------------------------------------------
@@ -683,7 +654,7 @@ export async function installAgent(id: string): Promise<AgentInstallResult> {
   const result = looseBody(await apiPost("/api/agent-market/store/{agent_id}/install", {
     path: { agent_id: id },
     errorMessage: statusText("Failed to install agent"),
-  }), isAgentInstallResult);
+  }), guards.isAgentInstallResult);
   await reloadAgents();
   return result;
 }
@@ -705,7 +676,7 @@ export async function getAgentProfile(
   return looseBody(await apiGet("/api/agent-market/profile/{agent_name}", {
     path: { agent_name: agentName },
     errorMessage: statusText("Failed to load agent profile"),
-  }), isAgentProfile);
+  }), guards.isAgentProfile);
 }
 
 // ---------------------------------------------------------------------------
@@ -718,7 +689,7 @@ export async function listAgentMemories(
   const data = looseBody(await apiGet("/api/agent-market/memory/{agent_name}", {
     path: { agent_name: agentName },
     errorMessage: statusText("Failed to load agent memories"),
-  }), hasMemories);
+  }), guards.hasMemories);
   return data.memories;
 }
 
@@ -801,7 +772,7 @@ export async function listAgentRatings(
   const data = looseBody(await apiGet("/api/agent-market/store/{agent_id}/ratings", {
     path: { agent_id: agentId },
     errorMessage: statusText("Failed to load ratings"),
-  }), hasRatings);
+  }), guards.hasRatings);
   return data.ratings;
 }
 
@@ -832,7 +803,7 @@ export async function listAgentRelationships(
       path: { agent_name: agentName },
       errorMessage: statusText("Failed to load relationships"),
     },
-  ), hasRelationships);
+  ), guards.hasRelationships);
   return data.relationships;
 }
 
@@ -994,7 +965,7 @@ export async function getCapabilityInstallPlan(
   return looseBody(await apiGet("/api/capabilities/{cid}/install-plan", {
     path: { cid: capabilityId },
     errorMessage: httpStatus("Capability install plan failed"),
-  }), isCapabilityInstallPlan);
+  }), guards.isCapabilityInstallPlan);
 }
 
 /** 统一插件市场列表(WorkBuddy MCP 服务 + Codex 插件)。 */
@@ -1017,7 +988,7 @@ export async function listCapabilities(
       include_manual: Boolean(opts.includeManual),
     },
     errorMessage: httpStatus("Capability list failed"),
-  }), isCapabilityListResponse);
+  }), guards.isCapabilityListResponse);
 }
 
 /** Load a protected plugin asset and convert it into an image-safe data URL. */
@@ -1134,7 +1105,7 @@ export async function getCapabilityStatus(
   return looseBody(await apiGet("/api/capabilities/{cid}/status", {
     path: { cid: capabilityId },
     errorMessage: httpStatus("Capability status failed"),
-  }), hasConnected);
+  }), guards.hasConnected);
 }
 
 /** 认证编排:带认证的插件走 tokens / 其余直接就绪。 */
@@ -1163,7 +1134,7 @@ export async function getCapabilityDeviceFlow(
   return looseBody(await apiGet("/api/capabilities/{cid}/device-flow", {
     path: { cid: capabilityId },
     errorMessage: httpStatus("Capability device flow failed"),
-  }), isCapabilityDeviceFlowStatus);
+  }), guards.isCapabilityDeviceFlowStatus);
 }
 
 /** 幂等取消 CLI 设备流；关闭弹窗或卸载能力前必须先回收后台进程。 */
@@ -1264,7 +1235,7 @@ export async function fetchUnifiedAssets(
       offset: params.offset || undefined,
     },
     errorMessage: httpStatus("Unified assets failed"),
-  }), isUnifiedAssetsResponse);
+  }), guards.isUnifiedAssetsResponse);
 }
 
 export async function syncUnifiedAssets(): Promise<{
@@ -1275,5 +1246,5 @@ export async function syncUnifiedAssets(): Promise<{
 }> {
   return looseBody(await apiPost("/api/assets/sync", {
     errorMessage: httpStatus("Unified assets sync failed"),
-  }), hasRoot);
+  }), guards.hasRoot);
 }
