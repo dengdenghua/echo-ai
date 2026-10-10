@@ -142,7 +142,7 @@ class EventBus {
     // 使用 Array.from 避免在迭代过程中修改集合
     Array.from(eventListeners).forEach((listener) => {
       try {
-        listener(payload as EventPayload<T>);
+        listener(payload);
       } catch (error) {
         console.error(`EventBus: Error in listener for ${event}:`, error);
       }

@@ -96,6 +96,9 @@ export default tseslint.config(
         "error",
         { checksVoidReturn: { attributes: false } },
       ],
+      // An assertion the compiler can already prove only hides the next real
+      // type change; src/test/type-assertion-ratchet.test.ts caps the rest.
+      "@typescript-eslint/no-unnecessary-type-assertion": "error",
     },
   },
   {
@@ -133,6 +136,19 @@ export default tseslint.config(
     ],
     rules: {
       "@typescript-eslint/no-misused-promises": "off",
+    },
+  },
+  {
+    // RATCHET — files with assertions the compiler already proves, left while
+    // another change to them is in flight. Fix a file, then delete it here.
+    files: [
+      "src/app/workspace/design/page.tsx",
+      "src/app/workspace/realtime/[[]thread_id]/page.tsx",
+      "src/components/browser/browser-store.tsx",
+      "src/components/browser/webview-tab.tsx",
+    ],
+    rules: {
+      "@typescript-eslint/no-unnecessary-type-assertion": "off",
     },
   },
   {

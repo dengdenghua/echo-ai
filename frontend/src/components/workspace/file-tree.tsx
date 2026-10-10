@@ -271,12 +271,12 @@ export function FileTree({
     if (latestScrollTarget) {
       setCollapsed((prev) => {
         const next = new Set(prev);
-        parentPaths(latestScrollTarget!).forEach((path) => next.delete(path));
+        parentPaths(latestScrollTarget).forEach((path) => next.delete(path));
         return next;
       });
       // Defer to next tick so the row has a chance to mount if needed.
       setTimeout(() => {
-        const el = rowRefs.current.get(latestScrollTarget!);
+        const el = rowRefs.current.get(latestScrollTarget);
         if (el && typeof el.scrollIntoView === "function") {
           el.scrollIntoView({ block: "nearest" });
         }

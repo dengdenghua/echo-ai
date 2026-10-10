@@ -90,7 +90,7 @@ export default function SandboxSettingsPage() {
           ...context,
           execution_environment: next,
           sandbox_mode: next === "local" ? "full" : "sandbox",
-        } as Partial<typeof settings.context>);
+        });
         toast.success(copy.toastEnvSwitched(label));
       } catch {
         toast.error(copy.toastFailed(label));
@@ -119,7 +119,7 @@ export default function SandboxSettingsPage() {
                 execution_environment: "sandbox" as const,
                 sandbox_mode: "sandbox" as const,
               }),
-        } as Partial<typeof settings.context>);
+        });
         toast.success(copy.toastPermissionSwitched(label));
       } catch {
         toast.error(copy.toastFailed(label));
@@ -135,7 +135,7 @@ export default function SandboxSettingsPage() {
         setSettings("context", {
           ...context,
           network_access: next,
-        } as Partial<typeof settings.context>);
+        });
         toast.success(copy.toastNetworkSwitched(label));
       } catch {
         toast.error(copy.toastFailed(label));
@@ -263,7 +263,7 @@ export default function SandboxSettingsPage() {
                   setSettings("context", {
                     ...context,
                     guardian_review_enabled: next,
-                  } as Partial<typeof settings.context>);
+                  });
                   toast.success(
                     next ? copy.toastGuardianOn : copy.toastGuardianOff,
                   );
@@ -290,7 +290,7 @@ export default function SandboxSettingsPage() {
                   setSettings("context", {
                     ...context,
                     guardian_review_model: next || undefined,
-                  } as Partial<typeof settings.context>);
+                  });
                 }}
                 placeholder="留空使用对话模型"
                 className="mt-1 w-full max-w-xs rounded-md border border-border-default bg-background px-2.5 py-1.5 text-sm text-foreground outline-none focus:border-primary/60"

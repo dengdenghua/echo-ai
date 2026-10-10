@@ -83,7 +83,7 @@ function extractPlanFromMessages(messages: Message[]): PlanStep[] {
         if (matchIdx >= 0) {
           steps[matchIdx]!.status = "in_progress";
           steps[matchIdx]!.toolCalls = steps[matchIdx]!.toolCalls ?? [];
-          steps[matchIdx]!.toolCalls!.push(name);
+          steps[matchIdx]!.toolCalls.push(name);
         }
       }
     }

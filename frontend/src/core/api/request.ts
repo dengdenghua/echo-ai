@@ -244,7 +244,7 @@ function serializeQuery(query: unknown): string {
   const params =
     query instanceof URLSearchParams ? query : new URLSearchParams();
   if (!(query instanceof URLSearchParams)) {
-    for (const [key, raw] of Object.entries(query as object)) {
+    for (const [key, raw] of Object.entries(query)) {
       const values: unknown[] = Array.isArray(raw) ? raw : [raw];
       for (const value of values) {
         if (value === undefined || value === null) continue;

@@ -155,7 +155,7 @@ export function tryLocalSlash(text: string, ctx: LocalSlashContext): boolean {
     case "perm": {
       if (!ctx.onPermissionModeChange) return false;
       const next = arg.toLowerCase();
-      if (!VALID_PERMISSION_MODES.has(next as PermissionMode)) return false;
+      if (!VALID_PERMISSION_MODES.has(next)) return false;
       ctx.onPermissionModeChange(normalizePermissionMode(arg));
       return true;
     }

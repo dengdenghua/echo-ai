@@ -22,7 +22,7 @@ export function MediaModelSelectors({ value, onChange }: { value: DesignCapabili
         <span>{label}</span>
         <select aria-label={`${label}生成模型`} className="h-8 max-w-40 rounded-md bg-transparent px-1 text-foreground focus-visible:ring-2 focus-visible:ring-ring" value={value[key] ?? ""} onChange={event => onChange({ ...value, [key]: event.target.value || undefined })}>
           <option value="">自动{entry?.default ? ` · ${entry.default}` : ""}</option>
-          {value[key] && !entry?.models.includes(value[key]!) && <option value={value[key]} disabled>{value[key]}（不可用）</option>}
+          {value[key] && !entry?.models.includes(value[key]) && <option value={value[key]} disabled>{value[key]}（不可用）</option>}
           {entry?.models.map(id => <option key={id} value={id} disabled={!entry.available}>{id}{!entry.available ? "（未配置）" : ""}</option>)}
           {!entry?.models.length && <option disabled>{error ? "读取失败" : catalog ? "服务器未配置模型" : "加载中…"}</option>}
         </select>

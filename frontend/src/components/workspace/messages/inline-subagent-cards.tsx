@@ -262,7 +262,7 @@ export function deriveInlineSubagents(
         existing?.summary
       : existing?.summary;
     const filesTouched = Array.isArray(outputObj?.files_touched)
-      ? (outputObj!.files_touched as unknown[]).filter(
+      ? (outputObj.files_touched as unknown[]).filter(
           (p): p is string => typeof p === "string",
         )
       : (event.filesTouched ?? existing?.filesTouchedCount ?? 0);
@@ -447,10 +447,10 @@ export function deriveSubagentsFromMessages(
           ? (result as Record<string, unknown>)
           : null;
       const successes = Array.isArray(resultObj?.successes)
-        ? (resultObj!.successes as Array<Record<string, unknown>>)
+        ? (resultObj.successes as Array<Record<string, unknown>>)
         : [];
       const failures = Array.isArray(resultObj?.failures)
-        ? (resultObj!.failures as Array<Record<string, unknown>>)
+        ? (resultObj.failures as Array<Record<string, unknown>>)
         : [];
       const resultIsString = typeof result === "string";
 
