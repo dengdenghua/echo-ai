@@ -52,7 +52,7 @@ runtime/sensing/gateway/agent_world_router.py	1282
 runtime/sensing/gateway/design_studio_router.py	1558
 runtime/sensing/gateway/realtime_event_bridge.py	1516
 runtime/sensing/gateway/realtime_turn_input.py	1110
-runtime/sensing/gateway/realtime_turn_lifecycle.py	2054
+runtime/sensing/gateway/realtime_turn_lifecycle.py	1845
 runtime/sensing/gateway/realtime_turn_outcome.py	1070
 runtime/sensing/model_router/openai_compat_providers.py	1016
 runtime/sensing/model_router/openai_router.py	1276

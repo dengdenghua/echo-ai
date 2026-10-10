@@ -72,6 +72,8 @@ def _lifecycle_generation() -> dict[str, Any]:
         Path(__file__),
         root / "runtime/protocol/items.py",
         root / "runtime/sensing/gateway/realtime_turn_lifecycle.py",
+        # Startup phases extracted from ``_start_turn``; still lifecycle code.
+        root / "runtime/sensing/gateway/_realtime_turn_start_phases.py",
         root / "runtime/core/cerebrum/pause_control.py",
     )
     source_mtime_ns = max(
