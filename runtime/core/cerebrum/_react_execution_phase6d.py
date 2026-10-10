@@ -70,6 +70,7 @@ from runtime.execution.tool_engine.tool_protocol import (
     normalize_tool_lifecycle_event,
     tool_lifecycle_event_to_react_event,
 )
+from runtime.safety.governance.execution_policy import caller_reviewed_tool_call
 from runtime.safety.hooks.tool_edge_hooks import post_write_diagnostic_record
 from runtime.safety.validation.prompt_injection import (
     injection_taint_gates,
@@ -167,17 +168,27 @@ _UNAVAILABLE_APPROVAL_REASONS = (
     "error:",
     "no interactive approval ui",
 )
+# AutoReviewApprovalProvider's "reviewer could not decide" outcome. Interactive
+# turns keep the Codex contract (a distinct denial the agent can route around);
+# unattended background runs opt in via ``pause_on_unavailable_review`` so an
+# approval nobody could answer becomes a resumable pause instead.
+_UNAVAILABLE_REVIEW_REASONS = ("automatic review was unavailable",)
 
 
-def _approval_could_not_reach_user(decision: Any) -> bool:
+def _approval_could_not_reach_user(
+    decision: Any,
+    *,
+    include_unavailable_review: bool = False,
+) -> bool:
     """Separate an unavailable reviewer from an explicit human decline."""
 
     if bool(getattr(decision, "approved", False)):
         return False
     reason = str(getattr(decision, "reason", "") or "").strip().lower()
-    return any(
-        reason == marker or reason.startswith(marker) for marker in _UNAVAILABLE_APPROVAL_REASONS
+    markers = _UNAVAILABLE_APPROVAL_REASONS + (
+        _UNAVAILABLE_REVIEW_REASONS if include_unavailable_review else ()
     )
+    return any(reason == marker or reason.startswith(marker) for marker in markers)
 
 
 def _pause_for_unavailable_approval(
@@ -409,6 +420,7 @@ def _phase_6d_dispatch_and_observe(
             user_intent=_latest_human_intent(messages),
             default_model=state.iteration.effective_model if reviewer_router is router else None,
         )
+    _pause_on_unavailable_review = bool(intent.user_context.get("pause_on_unavailable_review"))
     output_chunk_sink = state.wiring.output_chunk_sink
     _metadata = state.wiring.metadata
     _effective_wp = state.wiring.effective_wp
@@ -793,7 +805,8 @@ def _phase_6d_dispatch_and_observe(
                         )
                         if not _decision.approved:
                             if _approval_could_not_reach_user(
-                                _decision
+                                _decision,
+                                include_unavailable_review=_pause_on_unavailable_review,
                             ) and _pause_for_unavailable_approval(
                                 state,
                                 iteration=i,
@@ -852,7 +865,9 @@ def _phase_6d_dispatch_and_observe(
                     # (incl. the injection-taint escalation) above, so tell
                     # the executor's chokepoint block this call was reviewed
                     # — otherwise it would double-block an approved tool.
-                    with _sink_scope():
+                    # The reviewed-call mark does the same for the executor's
+                    # ``enforce_executor_approval`` gate.
+                    with _sink_scope(), caller_reviewed_tool_call(resolved_name):
                         set_injection_gate_handled(True)
                         try:
                             observation, beak_step = _execute_action_via_beak(
@@ -952,7 +967,8 @@ def _phase_6d_dispatch_and_observe(
                         )
                         if not _escalation_decision.approved:
                             if _approval_could_not_reach_user(
-                                _escalation_decision
+                                _escalation_decision,
+                                include_unavailable_review=_pause_on_unavailable_review,
                             ) and _pause_for_unavailable_approval(
                                 state,
                                 iteration=i,
@@ -997,7 +1013,7 @@ def _phase_6d_dispatch_and_observe(
                             i + 1,
                             resolved_name,
                         )
-                        with _sink_scope():
+                        with _sink_scope(), caller_reviewed_tool_call(resolved_name):
                             set_injection_gate_handled(True)
                             try:
                                 esc_obs, esc_step = _execute_action_via_beak(
@@ -1041,7 +1057,7 @@ def _phase_6d_dispatch_and_observe(
                                 i + 1,
                                 resolved_name,
                             )
-                            with _sink_scope():
+                            with _sink_scope(), caller_reviewed_tool_call(resolved_name):
                                 set_injection_gate_handled(True)
                                 try:
                                     retry_obs, retry_step = _execute_action_via_beak(

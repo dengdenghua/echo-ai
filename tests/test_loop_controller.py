@@ -469,7 +469,8 @@ def test_loop_controller_goal_mode_passes_bounded_objective_context(tmp_path) ->
             "objective": "Finish the migration with verification",
             "goal_mode": True,
             "completion_policy": "goal",
-            "budget_auto_pause": False,
+            # Background loops pause at the budget by default (resumable).
+            "budget_auto_pause": True,
             "max_tokens_budget": 12_345,
             "max_usd_budget": 1.25,
         }

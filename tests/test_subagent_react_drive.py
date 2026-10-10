@@ -86,7 +86,9 @@ def test_build_subagent_intent_carries_role_and_allowlist() -> None:
     assert intent.user_context["conversation_messages"] == [
         {"role": "user", "content": "prior"},
     ]
-    assert intent.user_context["auto_approve"] is True
+    # No parent permission context: automatic review, never a blanket bypass.
+    assert intent.user_context["auto_approve"] is False
+    assert intent.user_context["permission_mode"] == "acceptEdits"
 
 
 def test_run_subagent_react_loop_streams_text_and_concludes() -> None:

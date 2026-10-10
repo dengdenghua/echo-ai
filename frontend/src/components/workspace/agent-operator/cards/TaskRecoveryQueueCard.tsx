@@ -4,7 +4,14 @@ import type { AgentTraceTaskRecoveryQueue } from "@/core/agent-trace/api";
 import { cn } from "@/lib/utils";
 import { GateStat } from "../../replay-panel";
 import { GitBranchIcon } from "lucide-react";
-import { countRecovery, shortId, taskRecoveryActionLabel, taskRecoveryHint, taskRecoverySteps } from "../operator-utils";
+import {
+  countRecovery,
+  shortId,
+  taskPauseReasonLabel,
+  taskRecoveryActionLabel,
+  taskRecoveryHint,
+  taskRecoverySteps,
+} from "../operator-utils";
 import { useOperatorCopy } from "../use-operator-copy";
 
 export function TaskRecoveryQueueCard({
@@ -101,6 +108,15 @@ export function TaskRecoveryQueueCard({
                         </span>
                       )}
                     </div>
+                    {item.pause_reason && (
+                      <div
+                        className="mt-0.5 truncate text-xs text-warning"
+                        title={item.pause_detail || undefined}
+                      >
+                        {to(taskPauseReasonLabel(item.pause_reason))}
+                        {item.pause_detail ? ` · ${item.pause_detail}` : ""}
+                      </div>
+                    )}
                   </div>
                   <Badge variant="outline" className="shrink-0 text-xs">
                     P{item.priority}

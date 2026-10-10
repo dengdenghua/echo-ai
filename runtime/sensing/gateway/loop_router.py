@@ -98,6 +98,7 @@ def create_loop_router(
             LoopRunStatus.FAILED,
             LoopRunStatus.CANCELLED,
             LoopRunStatus.INTERRUPTED,
+            LoopRunStatus.PAUSED,
         }
         resume_checkpoint_id = checkpoint.get("id")
         if isinstance(resume, dict):
@@ -155,6 +156,8 @@ def create_loop_router(
             is_running=is_running,
             attempt_count=len(run.attempts),
             last_error=run.last_error,
+            pause_reason=run.pause_reason,
+            pause_detail=run.pause_detail,
             workspace_path=run.workspace_path,
             started_at=run.started_at,
             completed_at=run.completed_at,
@@ -316,6 +319,7 @@ def create_loop_router(
             LoopRunStatus.FAILED,
             LoopRunStatus.CANCELLED,
             LoopRunStatus.INTERRUPTED,
+            LoopRunStatus.PAUSED,
         }:
             raise HTTPException(409, "loop run is not resumable")
         return run

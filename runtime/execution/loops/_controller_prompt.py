@@ -55,6 +55,7 @@ class LoopControllerPromptMixin:
             LoopRunStatus.FAILED,
             LoopRunStatus.CANCELLED,
             LoopRunStatus.INTERRUPTED,
+            LoopRunStatus.PAUSED,
         }:
             return ""
         return build_loop_run_resume_prompt(

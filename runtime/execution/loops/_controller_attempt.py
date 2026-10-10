@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import contextlib
 import hashlib
 import json
 import threading
@@ -17,8 +18,9 @@ from runtime.execution.loops.models import (
     LoopRunStatus,
     VerifierResult,
 )
+from runtime.execution.loops.recovery import build_loop_run_checkpoint
 from runtime.platform.process.session import Session, session_scope
-from runtime.platform.process.task_supervisor import TaskCapabilityManifest
+from runtime.platform.process.task_supervisor import TaskCapabilityManifest, TaskRunStatus
 from runtime.safety.approval.cancellation import (
     CancellationSource,
     CancellationToken,
@@ -68,6 +70,17 @@ def _sealed_effect_coordinates(receipt: dict[str, object]) -> tuple[str, str] | 
     if not proof_tool or proof_tool != receipt_tool:
         return None
     return effect_class, state
+
+
+def _react_result_paused(result: ReActResult | None) -> bool:
+    """Whether the ReAct attempt stopped at a checkpointed, resumable pause."""
+
+    if result is None:
+        return False
+    if str(result.terminated_reason or "") == "paused":
+        return True
+    decision = result.completion_decision if isinstance(result.completion_decision, dict) else {}
+    return str(decision.get("outcome") or "") == "paused"
 
 
 def _react_result_effect_summary(
@@ -202,6 +215,10 @@ class LoopControllerAttemptMixin:
             "sandbox_mode": run.policy.sandbox_mode,
             "permission_mode": run.policy.permission_mode,
             "execution_environment": run.policy.execution_environment,
+            # Nobody watches a background loop live: when the automatic
+            # reviewer (acceptEdits) cannot decide, checkpoint and pause
+            # instead of turning the unanswered approval into a denial.
+            "pause_on_unavailable_review": True,
         }
         intent = ParsedIntent(
             raw=prompt,
@@ -366,6 +383,77 @@ class LoopControllerAttemptMixin:
         )
         return self._finalize_learning(run)
 
+    def _pause_run(self, run_id: str, *, since: float) -> LoopRun:
+        """Park a run whose ReAct attempt stopped at a checkpointed pause.
+
+        The run becomes ``paused`` (not failed, not verified/repaired) with
+        the ReAct pause reason attached. ``resume`` continues it as a child
+        run from the loop checkpoint; ``cancel`` ends it.
+        """
+
+        if not self._supervisor_heartbeat(run_id):
+            return self._latest_run(run_id)
+        reason, detail = self._claim_attempt_pause(self._latest_run(run_id), since=since)
+        paused_at = _now_iso()
+        run = self.store.mutate(
+            run_id,
+            lambda current: current.model_copy(
+                update={
+                    "status": LoopRunStatus.PAUSED,
+                    "pause_reason": reason,
+                    "pause_detail": detail,
+                    "paused_at": paused_at,
+                    "last_error": "",
+                }
+            ),
+        )
+        self._supervisor_transition(
+            run,
+            TaskRunStatus.PAUSED,
+            checkpoint_id=build_loop_run_checkpoint(run)["id"],
+            reason=f"paused: {reason}" + (f" · {detail}" if detail else ""),
+            metadata_patch={"pause_reason": reason, "pause_detail": detail},
+        )
+        return self._latest_run(run_id)
+
+    def _claim_attempt_pause(self, run: LoopRun, *, since: float) -> tuple[str, str]:
+        """Read, then release, the ReAct pause record behind a paused attempt.
+
+        The loop owns continuation (resume -> child run), so the per-turn
+        record must not linger as a second, chat-side "continue" entry for
+        the same work. Records are matched by the attempt's thread and
+        start time; an unmatched pause (e.g. the wall-time cap, which is
+        recorded without a thread) still parks the run with a generic reason.
+        """
+
+        controller = self.pause_controller
+        if controller is None:
+            try:
+                from runtime.core.cerebrum.pause_control import get_pause_controller
+
+                controller = get_pause_controller()
+            except Exception:  # noqa: BLE001 - the pause itself must still land
+                return "paused", ""
+        thread_id = run.thread_id or run.run_id
+        try:
+            records = [*controller.list_pending(), *controller.list_paused()]
+        except Exception:  # noqa: BLE001
+            return "paused", ""
+        matches = [
+            record
+            for record in records
+            if str(getattr(record, "thread_id", "") or "") == thread_id
+            and float(getattr(record, "requested_at", 0.0) or 0.0) >= since
+        ]
+        if not matches:
+            return "paused", ""
+        latest = max(matches, key=lambda record: float(record.requested_at or 0.0))
+        for record in matches:
+            with contextlib.suppress(Exception):
+                controller.clear(str(record.task_id))
+        reason = str(getattr(latest, "reason", "") or "").strip() or "paused"
+        return reason, _truncate_text(str(getattr(latest, "note", "") or "").strip())
+
     def _record_attempt_exception(
         self,
         run_id: str,
@@ -426,6 +514,8 @@ class LoopControllerAttemptMixin:
                                 "status": (
                                     "cancelled"
                                     if terminated_reason == "cancelled"
+                                    else "paused"
+                                    if _react_result_paused(react_result)
                                     else "completed"
                                     if success
                                     else "needs_verify"

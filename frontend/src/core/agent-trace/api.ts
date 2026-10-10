@@ -231,6 +231,9 @@ export interface AgentTraceTaskRecoveryPlan {
 export interface AgentTraceTaskRecoveryQueueItem {
   task_id: string;
   status?: string | null;
+  /** Why a paused run stopped (e.g. budget_near_limit, approval_required). */
+  pause_reason?: string | null;
+  pause_detail?: string | null;
   kind?: string | null;
   title?: string | null;
   owner_id?: string | null;

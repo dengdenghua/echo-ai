@@ -22,6 +22,7 @@ from typing import Any
 from runtime.core.cerebrum.react_loop import ReActResult, stream_react_loop
 from runtime.core.cerebrum.react_step_evaluator import build_runtime_step_evaluator
 from runtime.platform.models import ParsedIntent
+from runtime.safety.approval.permission_modes import canonical_permission_mode
 
 try:
     from runtime.safety.approval.approval_gate import (
@@ -35,6 +36,43 @@ except ImportError:  # pragma: no cover - optional import at runtime
 _TERMINAL_KINDS = frozenset(
     {"react_completed", "react_cancelled", "react_error", "react_paused"},
 )
+
+# A child with no parent permission context is reviewed automatically
+# (Codex-style "approve for me"), never silently pre-approved.
+DEFAULT_SUBAGENT_PERMISSION_MODE = "acceptEdits"
+
+
+def inherited_subagent_permissions(
+    parent_metadata: Mapping[str, Any] | None,
+) -> tuple[str, bool]:
+    """Resolve a react-driven child's ``(permission_mode, auto_approve)``.
+
+    The child runs under its parent turn's permission contract:
+
+    * a full-access parent (``bypassPermissions``, ``approval_policy=never``
+      or ``auto_approve``) keeps auto-approve, so work the user already
+      authorised at full access is not gated a second time;
+    * ``acceptEdits`` / ``default`` / ``plan`` are inherited unchanged; the
+      child's gated calls go to the same reviewer the parent uses (the
+      automatic reviewer, or the parent's live approver) — once per call;
+    * no parent permission context -> ``acceptEdits``.
+
+    Only the parent's server-owned Session metadata is consulted, never the
+    dispatch context (which can carry model-authored fields).
+    """
+    meta = parent_metadata if isinstance(parent_metadata, Mapping) else {}
+    raw_mode = meta.get("permission_mode")
+    mode = (
+        canonical_permission_mode(raw_mode)
+        if isinstance(raw_mode, str) and raw_mode.strip()
+        else DEFAULT_SUBAGENT_PERMISSION_MODE
+    )
+    auto_approve = (
+        mode == "bypassPermissions"
+        or meta.get("auto_approve") is True
+        or str(meta.get("approval_policy") or "").strip().lower() == "never"
+    )
+    return mode, auto_approve
 
 
 def dispatch_is_restricted(
@@ -90,6 +128,8 @@ def build_subagent_intent(
     conversation_messages: Iterable[dict[str, Any]] | None = None,
     tool_allowlist: Iterable[str] | None = None,
     metadata: dict[str, Any] | None = None,
+    permission_mode: str = DEFAULT_SUBAGENT_PERMISSION_MODE,
+    auto_approve: bool = False,
 ) -> ParsedIntent:
     """Build a sub-agent ``ParsedIntent`` the react loop can drive.
 
@@ -97,8 +137,9 @@ def build_subagent_intent(
     ``conversation_messages`` (the parent already glues role context together
     in ``call.composed_system_prompt``) and the per-role tool allowlist rides
     in ``user_context`` so the executor gates the sub-agent's tool surface.
-    ``auto_approve`` mirrors the ephemeral runner's bypass — sub-agents run
-    headless without a human approval prompt.
+    ``permission_mode`` / ``auto_approve`` carry the parent's permission
+    contract (see :func:`inherited_subagent_permissions`); the default is
+    automatic review, not a blanket bypass.
     """
     metadata = dict(metadata or {})
     user_context: dict[str, Any] = {
@@ -107,7 +148,8 @@ def build_subagent_intent(
         "model_name": model,
         "workspace_path": str(metadata.get("workspace_path") or ""),
         "thread_id": thread_id,
-        "auto_approve": True,
+        "permission_mode": canonical_permission_mode(permission_mode),
+        "auto_approve": bool(auto_approve),
         "conversation_messages": list(conversation_messages or []),
     }
     if tool_allowlist:
@@ -118,6 +160,17 @@ def build_subagent_intent(
         normalized_goal=prompt,
         user_context=user_context,
     )
+
+
+def _parent_session_metadata() -> Mapping[str, Any]:
+    """The dispatching parent's Session metadata (empty when unbound)."""
+    try:
+        from runtime.platform.process.session import current_session
+
+        metadata = getattr(current_session(), "metadata", None)
+    except (ImportError, AttributeError, LookupError):
+        return {}
+    return metadata if isinstance(metadata, Mapping) else {}
 
 
 def _react_tool_call(event: dict[str, Any]) -> Any:
@@ -187,6 +240,8 @@ def run_subagent_react_loop(
     tool_allowlist: Iterable[str] | None = None,
     metadata: dict[str, Any] | None = None,
     steering_drain: Callable[[], list[str]] | None = None,
+    permission_mode: str | None = None,
+    auto_approve: bool | None = None,
 ) -> ReActResult | None:
     """Run ``stream_react_loop`` for a sub-agent, forwarding events to the bus.
 
@@ -202,6 +257,7 @@ def run_subagent_react_loop(
         _safe_ctx_emit,
     )
 
+    inherited_mode, inherited_auto = inherited_subagent_permissions(_parent_session_metadata())
     intent = build_subagent_intent(
         prompt,
         role_id=role_id,
@@ -210,6 +266,8 @@ def run_subagent_react_loop(
         conversation_messages=conversation_messages,
         tool_allowlist=tool_allowlist,
         metadata=metadata,
+        permission_mode=permission_mode or inherited_mode,
+        auto_approve=inherited_auto if auto_approve is None else auto_approve,
     )
     # A child asks whoever its parent asks. Without one (no interactive
     # parent) gated actions are refused, exactly like the main loop.
@@ -355,6 +413,8 @@ def run_subagent_react_loop(
 
 
 __all__ = [
+    "DEFAULT_SUBAGENT_PERMISSION_MODE",
     "build_subagent_intent",
+    "inherited_subagent_permissions",
     "run_subagent_react_loop",
 ]

@@ -68,6 +68,25 @@ export function taskRecoveryActionLabel(action: string) {
   }
 }
 
+export function taskPauseReasonLabel(reason: string) {
+  switch (reason) {
+    case "budget_near_limit":
+      return "Paused: budget limit reached";
+    case "approval_required":
+      return "Paused: approval could not be answered";
+    case "iteration_near_limit":
+      return "Paused: iteration limit reached";
+    case "model_spinning":
+      return "Paused: no progress detected";
+    case "user_request":
+      return "Paused by operator";
+    case "external":
+      return "Paused: time limit or external stop";
+    default:
+      return "Paused";
+  }
+}
+
 export function taskRecoveryHint(action: string) {
   switch (action) {
     case "resume_from_checkpoint":

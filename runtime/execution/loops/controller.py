@@ -1,10 +1,14 @@
 from __future__ import annotations
 
 import threading
+import time
 from pathlib import Path
 from typing import Any
 
-from runtime.execution.loops._controller_attempt import LoopControllerAttemptMixin
+from runtime.execution.loops._controller_attempt import (
+    LoopControllerAttemptMixin,
+    _react_result_paused,
+)
 from runtime.execution.loops._controller_helpers import (
     _PRODUCT_LOOP_MODES,
     _VERIFIED_LOOP_MODES,
@@ -58,6 +62,7 @@ class LoopController(
         trace_store: AgentTraceStore | None = None,
         task_supervisor: TaskSupervisor | None = None,
         react_runner: Any = None,
+        pause_controller: Any = None,
     ) -> None:
         self.store = store
         self.stack = stack
@@ -70,6 +75,9 @@ class LoopController(
         self.trace_store = trace_store
         self.task_supervisor = task_supervisor
         self.react_runner = react_runner
+        # ReAct pause records (budget / unanswerable approval / wall time).
+        # ``None`` resolves the process-wide controller the ReAct loop uses.
+        self.pause_controller = pause_controller
         self._lock = threading.Lock()
         self._executing: set[str] = set()
 
@@ -87,6 +95,9 @@ class LoopController(
             LoopRunStatus.FAILED,
             LoopRunStatus.CANCELLED,
             LoopRunStatus.INTERRUPTED,
+            # Paused runs continue through ``resume`` (a child run that
+            # may carry a raised budget / different permission policy).
+            LoopRunStatus.PAUSED,
         }:
             return run
         with self._lock:
@@ -178,6 +189,7 @@ class LoopController(
             LoopRunStatus.FAILED,
             LoopRunStatus.CANCELLED,
             LoopRunStatus.INTERRUPTED,
+            LoopRunStatus.PAUSED,
         }:
             raise ValueError("loop run is not resumable")
         return self._spawn_child_run(
@@ -314,6 +326,7 @@ class LoopController(
                     update={"attempts": [*current.attempts, attempt]}
                 ),
             )
+            attempt_started_at = time.time()
             try:
                 react_result = self._run_attempt(
                     run,
@@ -394,6 +407,11 @@ class LoopController(
                 latest_result=react_result,
             ):
                 return cancelled
+            if _react_result_paused(react_result):
+                # Budget limit, an approval nobody could answer, wall-time
+                # cap: a checkpointed stop, not a verdict on the work. Do
+                # not verify, repair, or fail it — park it for resume.
+                return self._pause_run(run_id, since=attempt_started_at)
             if not requires_verifier:
                 product_attempt_succeeded = react_result is not None and react_result.success
                 product_attempt_error = (

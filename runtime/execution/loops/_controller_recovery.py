@@ -13,9 +13,27 @@ from runtime.execution.loops._controller_helpers import (
 )
 from runtime.execution.loops.models import (
     LoopAttempt,
+    LoopPolicy,
     LoopRun,
     LoopRunStatus,
 )
+
+
+def _child_policy(source_policy: LoopPolicy, override: Any) -> LoopPolicy:
+    """Overlay only the explicitly supplied policy fields onto the source.
+
+    ``resume`` / ``restart`` with ``{"max_usd_budget": 5}`` raises the
+    budget without silently resetting the run's permission contract to
+    the current defaults (an older bypass run stays bypass, an explicit
+    ``default`` run stays ``default``).
+    """
+
+    if override is None:
+        return source_policy.model_copy(deep=True)
+    if not isinstance(override, LoopPolicy):
+        override = LoopPolicy.model_validate(override)
+    explicit = override.model_dump(include=set(override.model_fields_set))
+    return LoopPolicy.model_validate({**source_policy.model_dump(), **explicit})
 
 
 class LoopControllerRecoveryMixin:
@@ -49,11 +67,7 @@ class LoopControllerRecoveryMixin:
             if reuse_workspace
             else None
         )
-        next_policy = (
-            policy.model_copy(deep=True)
-            if policy is not None
-            else source.policy.model_copy(deep=True)
-        )
+        next_policy = _child_policy(source.policy, policy)
         child = LoopRun(
             tenant_id=source.tenant_id,
             owner_id=source.owner_id,
