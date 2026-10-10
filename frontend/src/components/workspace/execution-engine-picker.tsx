@@ -7,10 +7,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { useI18n } from "@/core/i18n/hooks";
-import {
-  executionEngineCopy,
-  verificationInChinese,
-} from "@/core/i18n/locales/execution-engine";
+import { executionEngineCopy } from "@/core/i18n/locales/execution-engine";
 import {
   engineVerificationLabel,
   type EngineCapabilityChecks,
@@ -190,7 +187,7 @@ export function ExecutionEnginePicker({
                     engine === "codex"
                       ? codexCapabilityChecks
                       : opencodeCapabilityChecks,
-                    verificationInChinese(locale),
+                    locale,
                   )}
                 </span>
               ) : null}

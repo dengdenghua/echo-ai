@@ -32,6 +32,8 @@ export interface ExecutionEngineCopy {
   opencodeDescription: string;
   codexDescription: string;
   executedBy: (engine: string) => string;
+  /** Freshness of the engine's last real chat call (engineVerificationLabel). */
+  verification: { verified: string; failed: string; configured: string };
 }
 
 const zhCN: ExecutionEngineCopy = {
@@ -59,6 +61,11 @@ const zhCN: ExecutionEngineCopy = {
   opencodeDescription: "使用 OpenCode 身份，支持官方免费模型",
   codexDescription: "使用 Codex 身份执行当前任务",
   executedBy: (engine) => `实际执行引擎：${engine}`,
+  verification: {
+    verified: "最近会话调用通过",
+    failed: "最近会话调用失败，可重试",
+    configured: "配置就绪，尚无近期调用验证",
+  },
 };
 
 const enUS: ExecutionEngineCopy = {
@@ -89,6 +96,11 @@ const enUS: ExecutionEngineCopy = {
     "Use the OpenCode identity with official free or connected Zen models",
   codexDescription: "Run this task with the Codex identity",
   executedBy: (engine) => `Executed by ${engine}`,
+  verification: {
+    verified: "Recent session call verified",
+    failed: "Recent session call failed; retry available",
+    configured: "Configured; no recent call verification",
+  },
 };
 
 const jaJP: ExecutionEngineCopy = {
@@ -118,6 +130,11 @@ const jaJP: ExecutionEngineCopy = {
   opencodeDescription: "OpenCode の ID で実行します。公式の無料モデルに対応",
   codexDescription: "このタスクを Codex の ID で実行します",
   executedBy: (engine) => `実行エンジン：${engine}`,
+  verification: {
+    verified: "最近のセッション呼び出しは成功しました",
+    failed: "最近のセッション呼び出しは失敗しました。再試行できます",
+    configured: "設定済み。最近の呼び出し検証はまだありません",
+  },
 };
 
 const koKR: ExecutionEngineCopy = {
@@ -146,6 +163,11 @@ const koKR: ExecutionEngineCopy = {
   opencodeDescription: "OpenCode ID로 실행하며 공식 무료 모델을 지원합니다",
   codexDescription: "이 작업을 Codex ID로 실행합니다",
   executedBy: (engine) => `실행 엔진: ${engine}`,
+  verification: {
+    verified: "최근 세션 호출 성공",
+    failed: "최근 세션 호출 실패, 다시 시도할 수 있음",
+    configured: "구성 완료, 최근 호출 검증 없음",
+  },
 };
 
 export function executionEngineCopy(locale: string): ExecutionEngineCopy {
@@ -153,9 +175,4 @@ export function executionEngineCopy(locale: string): ExecutionEngineCopy {
   if (locale.startsWith("ja")) return jaJP;
   if (locale.startsWith("ko")) return koKR;
   return enUS;
-}
-
-/** engineVerificationLabel() still only has Chinese and English text. */
-export function verificationInChinese(locale: string): boolean {
-  return locale.startsWith("zh");
 }
