@@ -59,6 +59,9 @@ class _WiringState:
     agent: Any = None
     thread_id: str = ""
     approval_provider: Any = None
+    # The turn's AutoReviewApprovalProvider, built lazily by phase 6d and
+    # reused by every iteration so its denial breakers can accumulate.
+    auto_review_provider: Any = None
     output_chunk_sink: Any = None
     router: Any = None
     metadata: dict = field(default_factory=dict)

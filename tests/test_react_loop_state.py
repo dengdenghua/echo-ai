@@ -70,6 +70,7 @@ def test_default_values_match_pre_wave_a_snapshot() -> None:
         "agent": None,
         "thread_id": "",
         "approval_provider": None,
+        "auto_review_provider": None,
         "output_chunk_sink": None,
         "router": None,
         "metadata": {},

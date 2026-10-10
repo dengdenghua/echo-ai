@@ -68,6 +68,13 @@ class ApprovalRisk:
         }
 
 
+_RISK_ACTION_ORDER: dict[str, int] = {"allow": 0, "audit": 1, "ask": 2, "confirm": 3, "deny": 4}
+# Risk categories of a call that reaches beyond this machine.
+NETWORK_RISK_CATEGORIES: frozenset[str] = frozenset(
+    {"network_read", "network_or_egress", "sensitive_egress", "external_mcp"}
+)
+
+
 @dataclass(frozen=True, slots=True)
 class ApprovalRiskPolicy:
     """Risk-level policy matrix for tool approval routing."""
@@ -76,29 +83,43 @@ class ApprovalRiskPolicy:
     medium: ApprovalRiskAction = "ask"
     high: ApprovalRiskAction = "ask"
     critical: ApprovalRiskAction = "confirm"
+    # Optional floor for network-reaching calls (``NETWORK_RISK_CATEGORIES``),
+    # applied on top of the level action. ``None`` keeps the level matrix
+    # alone, so interactive turns still auto-run low-risk web reads; an
+    # unattended loop sets ``"ask"`` so every network call is reviewed.
+    network: ApprovalRiskAction | None = None
 
     def action_for(self, risk: ApprovalRisk) -> ApprovalRiskAction:
-        return getattr(self, risk.level)
+        action: ApprovalRiskAction = getattr(self, risk.level)
+        if (
+            self.network is not None
+            and NETWORK_RISK_CATEGORIES.intersection(risk.categories)
+            and _RISK_ACTION_ORDER[self.network] > _RISK_ACTION_ORDER[action]
+        ):
+            return self.network
+        return action
 
     @classmethod
     def from_mapping(cls, value: object) -> ApprovalRiskPolicy:
         if not isinstance(value, dict):
             return cls()
-        allowed = {"allow", "audit", "ask", "confirm", "deny"}
         data: dict[str, ApprovalRiskAction] = {}
-        for level in ("low", "medium", "high", "critical"):
+        for level in ("low", "medium", "high", "critical", "network"):
             raw = value.get(level)
-            if isinstance(raw, str) and raw in allowed:
+            if isinstance(raw, str) and raw in _RISK_ACTION_ORDER:
                 data[level] = raw  # type: ignore[assignment]
         return cls(**data)
 
     def to_dict(self) -> dict[str, ApprovalRiskAction]:
-        return {
+        data: dict[str, ApprovalRiskAction] = {
             "low": self.low,
             "medium": self.medium,
             "high": self.high,
             "critical": self.critical,
         }
+        if self.network is not None:
+            data["network"] = self.network
+        return data
 
 
 # Heuristic catalog of tool names that require explicit approval when no
@@ -186,6 +207,24 @@ _META_DISPATCH_TOOLS: frozenset[str] = frozenset({"use_capability", "execute_ski
 _MEDIA_GENERATION_TOOLS: frozenset[str] = frozenset(
     {"generate_image", "generate_video", "generate_speech", "generate_sound_effects"}
 )
+# Network reads with no other risk signal: they stay ``low`` (interactive
+# turns auto-run web search/fetch) but are tagged ``network_read`` so an
+# ``ApprovalRiskPolicy.network`` floor can still route them to review.
+_NETWORK_READ_TOOLS: frozenset[str] = frozenset(
+    {
+        "crawl_site",
+        "deep_research_answer",
+        "platform_collect",
+        "platform_monitor",
+        "platform_read",
+        "platform_search",
+        "reach_doctor",
+        "research_answer",
+        "web_fetch",
+        "web_search",
+    }
+)
+_NETWORK_READ_PREFIXES: tuple[str, ...] = ("web_", "crawl_")
 
 
 def assess_approval_risk(
@@ -224,6 +263,8 @@ def assess_approval_risk(
         )
     ):
         bump("medium", "network_or_egress")
+    if name in _NETWORK_READ_TOOLS or name.startswith(_NETWORK_READ_PREFIXES):
+        bump("low", "network_read")
     if name.startswith(("write_", "append_", "edit_", "delete_")) or name in DANGEROUS_TOOLS:
         bump("high", "filesystem_write")
     if name.startswith(
@@ -686,6 +727,7 @@ __all__ = [
     "AutoDenyProvider",
     "DANGEROUS_PREFIXES",
     "DANGEROUS_TOOLS",
+    "NETWORK_RISK_CATEGORIES",
     "RuleBasedProvider",
     "approval_action_for_tool",
     "assess_approval_risk",

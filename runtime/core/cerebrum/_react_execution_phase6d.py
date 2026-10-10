@@ -23,7 +23,10 @@ from typing import Any
 
 from runtime.core.cerebrum._react_approval_pause import (  # noqa: F401 — re-exported for tests
     _approval_could_not_reach_user,
+    _approval_denied_observation,
+    _latest_human_intent,
     _pause_for_unavailable_approval,
+    _turn_auto_review_provider,
 )
 from runtime.core.cerebrum._react_execution_dispatch import (
     _execute_action_via_beak,
@@ -241,30 +244,6 @@ def _workspace_sandbox_handles_ordinary_action(
     )
 
 
-def _latest_human_intent(messages: Any) -> str:
-    """Most recent human message text — the only trusted authorization
-    evidence for the guardian review (codex policy_template Evidence
-    Handling: user messages are trusted content; tool outputs are not)."""
-    try:
-        for message in reversed(list(messages or [])):
-            if getattr(message, "type", None) == "human":
-                content = getattr(message, "content", None)
-                if isinstance(content, str) and content.strip():
-                    return content.strip()[:1000]
-                if isinstance(content, list):
-                    parts = [
-                        part.get("text", "")
-                        for part in content
-                        if isinstance(part, dict) and part.get("type") == "text"
-                    ]
-                    text = " ".join(parts).strip()
-                    if text:
-                        return text[:1000]
-    except Exception:  # noqa: BLE001 — intent extraction is best-effort
-        pass
-    return ""
-
-
 def _phase_6d_dispatch_and_observe(
     state: _LoopState,
     *,
@@ -351,23 +330,9 @@ def _phase_6d_dispatch_and_observe(
                 default_model=state.iteration.effective_model,
             ),
         )
-    from runtime.safety.approval.permission_modes import is_auto_review_mode
-
-    _auto_review_provider = None
-    if is_auto_review_mode(
-        intent.user_context.get("permission_mode") or state.wiring.metadata.get("permission_mode")
-    ):
-        from runtime.safety.approval.guardian_review import (
-            AutoReviewApprovalProvider,
-            approval_router_for_stack,
-        )
-
-        reviewer_router = approval_router_for_stack(stack)
-        _auto_review_provider = AutoReviewApprovalProvider(
-            reviewer_router,
-            user_intent=_latest_human_intent(messages),
-            default_model=state.iteration.effective_model if reviewer_router is router else None,
-        )
+    # One automatic reviewer per turn (not per iteration): its denial
+    # breakers must accumulate across iterations to ever trip.
+    _auto_review_provider = _turn_auto_review_provider(state)
     output_chunk_sink = state.wiring.output_chunk_sink
     _metadata = state.wiring.metadata
     _effective_wp = state.wiring.effective_wp
@@ -751,7 +716,7 @@ def _phase_6d_dispatch_and_observe(
                             timeout=_approval_timeout_s,
                         )
                         if not _decision.approved:
-                            if _pause_for_unavailable_approval(
+                            if _paused_preview := _pause_for_unavailable_approval(
                                 state,
                                 _decision,
                                 iteration=i,
@@ -764,9 +729,7 @@ def _phase_6d_dispatch_and_observe(
                                     "tool_call_id": call_id,
                                     "iteration": i + 1,
                                     "status": "waiting_approval",
-                                    "output_preview": (
-                                        "审批界面暂不可用，任务已保存并暂停，等待用户授权后继续。"
-                                    ),
+                                    "output_preview": _paused_preview,
                                     "duration_ms": int(
                                         (time.monotonic() - _tool_started_at) * 1000
                                     ),
@@ -781,9 +744,7 @@ def _phase_6d_dispatch_and_observe(
                                 "output_preview": _decision.reason or "User denied tool execution",
                                 "duration_ms": int((time.monotonic() - _tool_started_at) * 1000),
                             }
-                            observation = (
-                                "(工具审批未通过) 此操作未获批准，请换一种更安全的方式或询问用户。"
-                            )
+                            observation = _approval_denied_observation(_decision)
                             _record_rejected_step(steps, messages, step, observation)
                             _flush_guard_notices(state, messages)
                             return _LoopControl.NEXT_ITERATION
@@ -911,12 +872,13 @@ def _phase_6d_dispatch_and_observe(
                             timeout=_approval_timeout_s,
                         )
                         if not _escalation_decision.approved:
-                            if _pause_for_unavailable_approval(
+                            if _paused_preview := _pause_for_unavailable_approval(
                                 state,
                                 _escalation_decision,
                                 iteration=i,
                                 tool_name=resolved_name,
                                 detail=_escalation_detail,
+                                sandbox_escalation=True,
                             ):
                                 yield {
                                     "type": "tool_end",
@@ -924,9 +886,7 @@ def _phase_6d_dispatch_and_observe(
                                     "tool_call_id": call_id,
                                     "iteration": i + 1,
                                     "status": "waiting_approval",
-                                    "output_preview": (
-                                        "沙箱放宽审批暂不可用，任务已保存并暂停，等待授权后继续。"
-                                    ),
+                                    "output_preview": _paused_preview,
                                     "duration_ms": int(
                                         (time.monotonic() - _tool_started_at) * 1000
                                     ),
@@ -944,9 +904,8 @@ def _phase_6d_dispatch_and_observe(
                                 ),
                                 "duration_ms": int((time.monotonic() - _tool_started_at) * 1000),
                             }
-                            observation = (
-                                "(工具被沙箱拦截，用户拒绝放宽沙箱重跑；"
-                                "请换一种不需要该权限/网络的方式，或询问用户。)"
+                            observation = _approval_denied_observation(
+                                _escalation_decision, sandbox_escalation=True
                             )
                             _record_rejected_step(steps, messages, step, observation)
                             _flush_guard_notices(state, messages)

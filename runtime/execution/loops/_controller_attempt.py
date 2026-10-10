@@ -27,6 +27,7 @@ from runtime.safety.approval.cancellation import (
     CancellationToken,
     scoped_cancellation,
 )
+from runtime.safety.approval.permission_modes import is_auto_review_mode
 
 _REPAIR_ATTEMPT_ALLOWED_SKILL_IDS: tuple[str, ...] = (
     # Local, read-only workspace inspection.
@@ -221,6 +222,11 @@ class LoopControllerAttemptMixin:
             # instead of turning the unanswered approval into a denial.
             "pause_on_unavailable_review": True,
         }
+        if is_auto_review_mode(run.policy.permission_mode):
+            # Interactive turns auto-run low-risk web reads; an unattended
+            # loop sends every network-reaching call to the reviewer (both
+            # the ReAct gate and the executor gate read this policy).
+            user_context["approval_risk_policy"] = {"network": "ask"}
         intent = ParsedIntent(
             raw=prompt,
             intent_type="task",
