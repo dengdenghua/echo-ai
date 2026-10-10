@@ -1,6 +1,21 @@
 import { swallow } from "@/core/utils/log";
 import { getBackendBaseURL } from "@/core/config";
 
+import { looseBody } from "@/core/api/response";
+import {
+  arrayOf,
+  isObjectLike,
+  isRecord,
+  isStringArray,
+  isUnknownArray,
+} from "@/core/utils/guards";
+
+import {
+  hasDetailMessage,
+  isAuthStatus,
+  isLoginResponse,
+  isUser,
+} from "./guards";
 import type {
   AuthStatus,
   LoginRequest,
@@ -109,8 +124,8 @@ export function currentActorId(user?: User | null): string {
   try {
     const raw = window.sessionStorage.getItem(USER_KEY);
     if (!raw) return "anonymous";
-    const parsed = JSON.parse(raw) as Record<string, unknown> | null;
-    if (!parsed || typeof parsed !== "object") return "anonymous";
+    const parsed: unknown = JSON.parse(raw);
+    if (!isObjectLike(parsed)) return "anonymous";
     const candidates = ["user_id", "actor_id", "id", "username", "phone"];
     for (const key of candidates) {
       const value = parsed[key];
@@ -128,7 +143,7 @@ export function currentActorId(user?: User | null): string {
 export async function getAuthStatus(): Promise<AuthStatus> {
   const res = await fetch(`${getBackendBaseURL()}/api/auth/status`);
   if (!res.ok) throw new Error(`Failed to get auth status: ${res.statusText}`);
-  return (await res.json()) as AuthStatus;
+  return looseBody(await res.json(), isAuthStatus);
 }
 
 export interface AuthProviderInfo {
@@ -146,19 +161,27 @@ export interface AuthProviderInfo {
 /** Backend reports which login providers are wired · empty list means
  * no interactive login providers are configured. Returns empty list on
  * any error so the UI fails closed (show nothing). */
+function isAuthProviderInfo(value: unknown): value is AuthProviderInfo {
+  return isRecord(value) && typeof value.id === "string";
+}
+
 export async function getAuthProviderInfo(): Promise<AuthProviderInfo[]> {
   try {
     const res = await fetch(`${getBackendBaseURL()}/api/auth/providers`);
     if (!res.ok) return [];
-    const data = (await res.json()) as {
-      providers?: AuthProviderInfo[] | string[];
-    };
-    if (!data.providers) return [];
+    const data: unknown = await res.json();
+    // A null body throws here as before, and lands in the catch below.
+    const providers: unknown = looseBody(data, isObjectLike).providers;
+    if (!providers) return [];
     // Backwards-compatible with the old string[] shape.
-    if (data.providers.length > 0 && typeof data.providers[0] === "object") {
-      return data.providers as AuthProviderInfo[];
+    if (
+      isUnknownArray(providers) &&
+      providers.length > 0 &&
+      typeof providers[0] === "object"
+    ) {
+      return looseBody(providers, arrayOf(isAuthProviderInfo));
     }
-    return (data.providers as string[]).map((id) => ({ id }));
+    return looseBody(providers, isStringArray).map((id) => ({ id }));
   } catch (e) {
     swallow(e);
     return [];
@@ -178,12 +201,13 @@ export async function login(request: LoginRequest): Promise<LoginResponse> {
     body: JSON.stringify(body),
   });
   if (!res.ok) {
-    const err = (await res.json().catch(() => ({}))) as { detail?: string };
+    const err = looseBody(
+      await res.json().catch(() => ({})),
+      hasDetailMessage,
+    );
     throw new Error(err.detail ?? `Login failed: ${res.statusText}`);
   }
-  const data = (await res.json()) as LoginResponse & {
-    credits?: Record<string, unknown>;
-  };
+  const data = looseBody(await res.json(), isLoginResponse);
   if (data.access_token && data.user) {
     const fallbackIdentity =
       data.user.mobile || data.user.username || request.username;
@@ -207,10 +231,13 @@ export async function register(request: RegisterRequest): Promise<User> {
     body: JSON.stringify(request),
   });
   if (!res.ok) {
-    const err = (await res.json().catch(() => ({}))) as { detail?: string };
+    const err = looseBody(
+      await res.json().catch(() => ({})),
+      hasDetailMessage,
+    );
     throw new Error(err.detail ?? `Registration failed: ${res.statusText}`);
   }
-  return (await res.json()) as User;
+  return looseBody(await res.json(), isUser);
 }
 
 export async function getMe(): Promise<User> {
@@ -218,7 +245,7 @@ export async function getMe(): Promise<User> {
     headers: authHeaders(),
   });
   if (!res.ok) throw new Error(`Failed to get user: ${res.statusText}`);
-  return (await res.json()) as User;
+  return looseBody(await res.json(), isUser);
 }
 
 export async function logout(): Promise<void> {
@@ -239,7 +266,7 @@ export async function refreshToken(): Promise<LoginResponse> {
     headers: authHeaders(),
   });
   if (!res.ok) throw new Error(`Failed to refresh token: ${res.statusText}`);
-  const data = (await res.json()) as LoginResponse;
+  const data = looseBody(await res.json(), isLoginResponse);
   if (data.access_token && data.user) {
     _writeToken(data.access_token, data.user);
   }

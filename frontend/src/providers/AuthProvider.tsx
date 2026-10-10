@@ -32,6 +32,9 @@ import type {
   User,
 } from "@/core/auth/types";
 import { useI18n } from "@/core/i18n/hooks";
+import { looseBody } from "@/core/api/response";
+import { isUser } from "@/core/auth/guards";
+import { isRecord, isString } from "@/core/utils/guards";
 
 const GUEST_USER_ID = "__guest__";
 const ANONYMOUS_USER_ID = "__anonymous__";
@@ -59,11 +62,7 @@ function userFromJwt(token: string | null): Partial<User> | null {
       Math.ceil(rawPayload.length / 4) * 4,
       "=",
     );
-    const json = JSON.parse(window.atob(payload)) as {
-      sub?: string;
-      mobile?: string;
-      provider?: string;
-    };
+    const json = looseBody(JSON.parse(window.atob(payload)), isJwtIdentity);
     const actorId = json.sub;
     const mobile = json.mobile;
     if (!actorId && !mobile) return null;
@@ -80,8 +79,18 @@ function userFromJwt(token: string | null): Partial<User> | null {
   }
 }
 
+function isJwtIdentity(
+  value: unknown,
+): value is { sub?: string; mobile?: string; provider?: string } {
+  return (
+    isRecord(value) &&
+    (value.sub === undefined || isString(value.sub)) &&
+    (value.mobile === undefined || isString(value.mobile))
+  );
+}
+
 function normalizeUserIdentity(
-  incoming: User,
+  incoming: Partial<User>,
   fallback?: Partial<User> | null,
   fallbackMobile?: string,
 ): User {
@@ -99,13 +108,14 @@ function normalizeUserIdentity(
     fallback?.username && !isPlaceholderUsername(fallback.username)
       ? fallback.username
       : undefined;
-  const username = isPlaceholderUsername(incoming.username)
-    ? mobile ||
-      incoming.email ||
-      fallbackUsername ||
-      incoming.username ||
-      userId
-    : incoming.username;
+  const username =
+    incoming.username && !isPlaceholderUsername(incoming.username)
+      ? incoming.username
+      : mobile ||
+        incoming.email ||
+        fallbackUsername ||
+        incoming.username ||
+        userId;
 
   return {
     ...fallback,
@@ -184,7 +194,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         _clearTokens();
         setUser(null);
       } else if (token && localUser && !localUser.is_guest) {
-        setUser(normalizeUserIdentity(localUser as User, tokenUser));
+        setUser(normalizeUserIdentity(localUser, tokenUser));
       } else {
         setUser(null);
       }
@@ -268,7 +278,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const response = await octAuthApi.emailLogin(email, code);
     if (response.user) {
       const normalized = normalizeUserIdentity(
-        response.user as unknown as User,
+        looseBody(response.user, isUser),
         null,
         email,
       );
