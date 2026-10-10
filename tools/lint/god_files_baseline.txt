@@ -47,7 +47,7 @@ runtime/safety/sandboxing/sandbox.py	1289
 runtime/sensing/gateway/_realtime_react_stream_drive.py	1141
 runtime/sensing/gateway/_realtime_turn_lifecycle_helpers.py	1084
 runtime/sensing/gateway/_team_stream_group_fanout.py	1815
-runtime/sensing/gateway/_tool_bridge_loop.py	2704
+runtime/sensing/gateway/_tool_bridge_loop.py	2099
 runtime/sensing/gateway/agent_world_router.py	1282
 runtime/sensing/gateway/design_studio_router.py	1558
 runtime/sensing/gateway/realtime_event_bridge.py	1516

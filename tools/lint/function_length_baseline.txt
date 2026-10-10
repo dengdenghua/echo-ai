@@ -1,7 +1,7 @@
 # Functions >=200 lines in runtime/, captured by tools/lint/function_length_check.py
 # Shortening or splitting one? Remove (or lower) its line so the win is locked in.
 
-runtime/sensing/gateway/_tool_bridge_loop.py::_stream_agentic_fallback_impl	2487
+runtime/sensing/gateway/_tool_bridge_loop.py::_stream_agentic_fallback_impl	1894
 runtime/sensing/gateway/_team_stream_group_fanout.py::_drive_group_fanout	1590
 runtime/sensing/gateway/realtime_turn_lifecycle.py::_start_turn	1566
 runtime/execution/subagents/bridge.py::call_subagent	1537
