@@ -215,7 +215,7 @@
     "src/core/realtime/client.ts": 2,
     "src/core/realtime/reducer.ts": 2,
     "src/core/realtime/replay-cache.ts": 3,
-    "src/core/realtime/replay.ts": 14,
+    "src/core/realtime/replay.ts": 8,
     "src/core/realtime/stream-telemetry.ts": 1,
     "src/core/realtime/stream-vitals.ts": 2,
     "src/core/regeneration/api.ts": 1,
