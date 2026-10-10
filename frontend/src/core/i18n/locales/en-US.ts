@@ -11,6 +11,7 @@ import {
 import type { Translations } from "./types";
 import { workspaceComputerEnUS } from "./workspace-computer";
 import { workLocationEnUS } from "./work-location";
+import { attentionNotificationsEnUS } from "./attention-notifications";
 import { agentOperatorEnUS } from "./agent-operator";
 
 export const enUS: Translations = {
@@ -1286,6 +1287,7 @@ export const enUS: Translations = {
 
   workspaceComputer: workspaceComputerEnUS,
   workLocation: workLocationEnUS,
+  attentionNotifications: attentionNotificationsEnUS,
   agentOperator: agentOperatorEnUS,
 
   // Agent Workbench Panel

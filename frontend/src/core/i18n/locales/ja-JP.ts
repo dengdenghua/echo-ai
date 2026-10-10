@@ -11,6 +11,7 @@ import {
 import type { Translations } from "./types";
 import { workspaceComputerJaJP } from "./workspace-computer";
 import { workLocationJaJP } from "./work-location";
+import { attentionNotificationsJaJP } from "./attention-notifications";
 import { agentOperatorJaJP } from "./agent-operator";
 
 export const jaJP: Translations = {
@@ -1265,6 +1266,7 @@ export const jaJP: Translations = {
 
   workspaceComputer: workspaceComputerJaJP,
   workLocation: workLocationJaJP,
+  attentionNotifications: attentionNotificationsJaJP,
   agentOperator: agentOperatorJaJP,
 
   // Agent Workbench Panel

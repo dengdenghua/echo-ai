@@ -12,6 +12,20 @@ import {
 } from "@/core/agents/persona-policy";
 import { useEffect, useCallback, useRef } from "react";
 
+/** What a waiting thread is waiting on: a tool approval, a question for the
+ * user, or a checkpointed pause (with the pause cause when known). */
+export interface ThreadAttentionSignal {
+  kind: "approval" | "blocked" | "paused";
+  reason?:
+    | "approval_timeout"
+    | "budget"
+    | "iteration"
+    | "wall_clock"
+    | "model_spinning"
+    | "user"
+    | "other";
+}
+
 // 事件类型定义
 export interface EventMap {
   // Agent 相关
@@ -39,6 +53,11 @@ export interface EventMap {
     href?: string;
     state: "running" | "waiting" | "pending" | "error" | "done" | null;
     threadId: string;
+    /** Why a ``waiting`` thread needs the user; read by the attention
+     * notifier and the sidebar marker label. */
+    attention?: ThreadAttentionSignal | null;
+    /** Display title, used as the attention notification body. */
+    title?: string;
   };
   // A new realtime turn receives its server thread id before the workspace
   // page can safely remount onto that route. The sidebar uses this transient

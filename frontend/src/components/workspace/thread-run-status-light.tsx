@@ -7,6 +7,8 @@ import {
   agentRunStatusLightPulseClass,
 } from "@/components/workspace/agent-run-status";
 import { useI18n } from "@/core/i18n/hooks";
+import { attentionTitle } from "@/core/notification/attention";
+import { useThreadAttention } from "@/core/notification/attention-store";
 import type { ThreadRunStatus } from "@/core/threads/sidebar";
 import { cn } from "@/lib/utils";
 
@@ -15,13 +17,17 @@ export function ThreadRunStatusLight({
   className,
   idle = "hidden",
   status,
+  threadId,
 }: {
   active?: boolean;
   className?: string;
   idle?: "hidden" | "queue";
   status?: ThreadRunStatus;
+  /** Names the cause (approval, pause reason…) when the thread waits. */
+  threadId?: string;
 }) {
   const { t } = useI18n();
+  const attention = useThreadAttention(threadId);
   if (!status) {
     if (idle === "hidden") return null;
     return (
@@ -38,14 +44,28 @@ export function ThreadRunStatusLight({
       />
     );
   }
+  // The attention marker names why a waiting thread waits; it only applies
+  // while the light agrees with it (a failure is red, any wait amber).
+  const attentionKind =
+    attention &&
+    ((status === "error" && attention.kind === "failed") ||
+      (status === "waiting" && attention.kind !== "failed"))
+      ? attention.kind
+      : undefined;
   const label =
-    status === "running"
-      ? t.sidebar.taskStatusRunning
-      : status === "error"
-        ? t.sidebar.taskStatusFailed
-        : status === "waiting"
-          ? t.agentWorkbench.waitingToContinue
-          : t.sidebar.taskStatusPending;
+    attention && attentionKind && attentionKind !== "failed"
+      ? attentionTitle(
+          t.attentionNotifications,
+          attentionKind,
+          attention.reason,
+        )
+      : status === "running"
+        ? t.sidebar.taskStatusRunning
+        : status === "error"
+          ? t.sidebar.taskStatusFailed
+          : status === "waiting"
+            ? t.agentWorkbench.waitingToContinue
+            : t.sidebar.taskStatusPending;
   const colorClass = agentRunStatusLightClass(status);
   const pulseClass = agentRunStatusLightPulseClass(status);
 
@@ -54,6 +74,10 @@ export function ThreadRunStatusLight({
       aria-label={label}
       role="img"
       title={label}
+      data-thread-attention={attentionKind}
+      data-thread-attention-unseen={
+        attentionKind && attention?.unseen ? "true" : undefined
+      }
       className={cn(
         "relative inline-flex size-2 shrink-0 items-center justify-center rounded-full",
         className,

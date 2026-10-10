@@ -30,6 +30,7 @@ const EVENT_CHANNELS = [
   "desktop:items-changed",
   "backend:bootstrap-progress",
   "window:fullscreen-changed",
+  "notification:clicked",
 ];
 
 const api = {
@@ -124,6 +125,11 @@ const api = {
     getBaseURL: invoke("backend:getBaseURL"),
     restart: invoke("backend:restart"),
     ensureOptionalDeps: invoke("backend:ensureOptionalDeps"),
+  },
+
+  notifications: {
+    isSupported: invoke("notifications:isSupported"),
+    show: invoke("notifications:show"),
   },
 
   window: {

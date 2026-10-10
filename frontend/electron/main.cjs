@@ -14,6 +14,7 @@ const {
   ipcMain,
   Menu,
   net,
+  Notification,
   protocol,
   safeStorage,
   shell,
@@ -44,6 +45,9 @@ const {
   ensureDesktopConfigFile,
   ensureDesktopResources,
 } = require("./desktop-config.cjs");
+const {
+  createAttentionNotifications,
+} = require("./attention-notifications.cjs");
 
 const DEV_URL = process.env.ELECTRON_START_URL || "http://127.0.0.1:3310";
 const DESKTOP_DIR = path.join(os.homedir(), "Desktop");
@@ -1264,6 +1268,20 @@ function registerIpc() {
   handle("app:getVersion", () => app.getVersion());
   handle("app:openExternal", (url) => shell.openExternal(url));
   handle("app:getPlatform", () => process.platform);
+
+  // notifications — long-task attention (completed / failed / approval /
+  // paused). Only the app's own windows may raise them.
+  const isAppRendererContents = (contents) =>
+    contents === mainWindow?.webContents ||
+    Array.from(auxiliaryWindows.values()).some(
+      (win) => !win.isDestroyed() && win.webContents === contents,
+    );
+  createAttentionNotifications({
+    Notification,
+    getMainWindow: () => mainWindow,
+    windowForContents: (contents) => BrowserWindow.fromWebContents(contents),
+    isTrustedSender: isAppRendererContents,
+  }).registerIpc(ipcMain);
 
   // dialog
   handle("dialog:open", (options) =>

@@ -18,7 +18,7 @@ import {
   workBlockLabelsFromShape,
 } from "@/components/workspace/work-blocks";
 import type { Message } from "@/core/api/types";
-import { eventBus } from "@/core/events";
+import { eventBus, type ThreadAttentionSignal } from "@/core/events";
 import {
   assistantAnswerRequestsUserInput,
   extractContentFromMessage,
@@ -28,6 +28,7 @@ import {
   latestAssistantTerminalState,
 } from "@/core/messages/utils";
 import { usePetAgentEvents } from "@/core/pet/use-pet-agent-events";
+import { classifyPauseRequest } from "@/core/notification/attention";
 import { buildReplayHtml } from "@/core/sharing/replay-html";
 import { downloadTextFile, shareSlug } from "@/core/sharing/download";
 import type { useTasks } from "@/core/tasks/hooks";
@@ -214,6 +215,13 @@ export function useAgentRunState({
   );
   const hasPausedOrPendingBackgroundTask =
     hasPausedBackgroundTask || hasPendingBackgroundTask;
+  const backgroundPauseRequest = useMemo(
+    () =>
+      [...(tasksData?.paused ?? []), ...(tasksData?.pending ?? [])].find(
+        (request) => request.thread_id === threadId,
+      ) ?? null,
+    [tasksData?.paused, tasksData?.pending, threadId],
+  );
   const requiresReportDeliverable = useMemo(
     () =>
       agentDisplayEvents.some((event) => {
@@ -338,6 +346,35 @@ export function useAgentRunState({
     isLoading,
     streamingMessage,
   ]);
+  // Why the thread waits, for the attention notifier and the sidebar label.
+  // Same precedence as ``sidebarRunState``'s waiting branches; kept as
+  // primitives so the published object only changes when the cause does.
+  const waitingOnApproval = useMemo(
+    () =>
+      agentDisplayEvents.some((event) => event.status === "waiting_approval"),
+    [agentDisplayEvents],
+  );
+  const pauseSignal = backgroundPauseRequest
+    ? (classifyPauseRequest(backgroundPauseRequest) ?? {
+        kind: "paused" as const,
+        reason: "user" as const,
+      })
+    : null;
+  const attentionKind: ThreadAttentionSignal["kind"] | null =
+    sidebarRunState !== "waiting"
+      ? null
+      : (pauseSignal?.kind ??
+        (agentRunBlocked
+          ? "blocked"
+          : waitingOnApproval
+            ? "approval"
+            : "paused"));
+  const attentionReason = attentionKind ? pauseSignal?.reason : undefined;
+  const sidebarAttention = useMemo<ThreadAttentionSignal | null>(
+    () =>
+      attentionKind ? { kind: attentionKind, reason: attentionReason } : null,
+    [attentionKind, attentionReason],
+  );
   return {
     hasPausedOrPendingBackgroundTask,
     hasReportArtifact,
@@ -349,30 +386,36 @@ export function useAgentRunState({
     hasCompletedAgentOutput,
     agentRunFailed,
     sidebarRunState,
+    sidebarAttention,
   };
 }
 
 /**
- * Publishes the run state to the sidebar thread list and the desktop pet; the
- * sidebar badge is cleared again when this thread view goes away.
+ * Publishes the run state to the sidebar thread list, the attention notifier
+ * and the desktop pet; the sidebar badge is cleared again when this thread
+ * view goes away.
  */
 export function useSidebarRunStatus({
   sidebarThreadId,
   threadRouteFor,
   sidebarRunState,
+  sidebarAttention = null,
   agentRunSettled,
   agentRunFailed,
   hasCompletedAgentOutput,
-  streaming,
+  thread,
 }: {
   sidebarThreadId: string;
   threadRouteFor: (id: string) => string;
   sidebarRunState: SidebarRunState;
+  sidebarAttention?: ThreadAttentionSignal | null;
   agentRunSettled: boolean;
   agentRunFailed: boolean;
   hasCompletedAgentOutput: boolean;
-  streaming: boolean;
+  thread: Pick<RealtimeThread, "streamingMessage" | "values">;
 }) {
+  const streaming = Boolean(thread.streamingMessage);
+  const threadTitle = thread.values?.title;
   // Forward the derived run state to the Godot desktop pet (no-op in browser).
   // The in-page sprite pet was removed — the desktop sidecar is the only pet
   // now, so the returned mood is unused and the call is kept for its effect.
@@ -382,14 +425,29 @@ export function useSidebarRunStatus({
     failed: agentRunFailed,
     streaming,
   });
+  const runStatus =
+    hasCompletedAgentOutput && !agentRunFailed ? "done" : sidebarRunState;
+  useEffect(() => {
+    eventBus.emit("thread:run-status", {
+      href: threadRouteFor(sidebarThreadId),
+      state: runStatus,
+      threadId: sidebarThreadId,
+      attention: sidebarAttention,
+      title: threadTitle,
+    });
+  }, [
+    runStatus,
+    sidebarAttention,
+    sidebarThreadId,
+    threadRouteFor,
+    threadTitle,
+  ]);
+  // Clear only when this thread view goes away (unmount / thread switch).
+  // Clearing on every state change made each transition look like the page
+  // detaching and re-attaching, which hides the transition itself from the
+  // attention notifier.
   useEffect(() => {
     const href = threadRouteFor(sidebarThreadId);
-    eventBus.emit("thread:run-status", {
-      href,
-      state:
-        hasCompletedAgentOutput && !agentRunFailed ? "done" : sidebarRunState,
-      threadId: sidebarThreadId,
-    });
     return () => {
       eventBus.emit("thread:run-status", {
         href,
@@ -397,11 +455,5 @@ export function useSidebarRunStatus({
         threadId: sidebarThreadId,
       });
     };
-  }, [
-    sidebarRunState,
-    sidebarThreadId,
-    threadRouteFor,
-    hasCompletedAgentOutput,
-    agentRunFailed,
-  ]);
+  }, [sidebarThreadId, threadRouteFor]);
 }

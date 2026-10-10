@@ -127,7 +127,6 @@ import {
   isGeneratedTeamProjectName,
   isProjectThreadMode,
   mergeThreadRunStatus,
-  normalizeThreadRunStatus,
   projectNameForThread,
   isGeneratedWorkspaceProject,
   summarizeThreadForSidebar,
@@ -139,7 +138,6 @@ import {
   type ThreadSummary,
 } from "@/core/threads/sidebar";
 import type { AgentThread } from "@/core/threads/types";
-import { useTasks } from "@/core/tasks/hooks";
 
 import {
   BROWSER_WORKSPACE_ROUTE,
@@ -167,7 +165,7 @@ import type { ModuleSection } from "@/core/modules/types";
 import { AvatarCell } from "@/components/workspace/avatar-cell";
 
 import { ThreadRunStatusLight } from "@/components/workspace/thread-run-status-light";
-import { useTeamTasks } from "@/core/team-tasks";
+import { useThreadRunStatusByHref } from "@/components/workspace/use-thread-run-status-by-href";
 import { useActiveAgentId } from "@/core/agents/active";
 import { formatCompactRelativeTimestamp } from "@/core/utils/datetime";
 import { basename, isAbsolutePath } from "@/lib/path-utils";
@@ -199,11 +197,6 @@ type NavRoute = {
 /** 助理固定对话线程 id —— 像微信一样共用一个持久会话，不随每次进入新建。
  *  侧边栏据此识别助理对话，避免生成指向自身的"当前任务会话"条目。 */
 const ECHO_THREAD_ID = "echo-assistant";
-// Safety net for live run-status lights that never got an explicit clear
-// (abnormal turn termination, crashed producer). Generous: a long turn
-// legitimately streams for many minutes between status events.
-const LIVE_RUN_STATUS_TTL_MS = 30 * 60 * 1000;
-const LIVE_RUN_STATUS_PRUNE_INTERVAL_MS = 60 * 1000;
 
 // Sidebar history needs labels, routing metadata, workspace bindings and
 // avatars, but never full message transcripts or artifacts. Keep metadata
@@ -893,88 +886,14 @@ export function WorkspaceSidebar(props: React.ComponentProps<typeof Sidebar>) {
     [activeWorkDir],
   );
 
-  const activeTeamTasksQuery = useTeamTasks(activeTaskRoomId);
-  const activeTeamTasks = useMemo(
-    () => activeTeamTasksQuery.data ?? [],
-    [activeTeamTasksQuery.data],
-  );
-  const backgroundTasksQuery = useTasks("all");
   const threadHrefById = useMemo(
     () => new Map(projectThreads.map((thread) => [thread.id, thread.href])),
     [projectThreads],
   );
-  // Live run status with a last-touch timestamp. Bare statuses never
-  // expire: a turn that terminated without a clearing event (crashed tab,
-  // abnormal stream end) left its light stuck on "running" forever. The
-  // TTL below is the safety net - page unmount still clears immediately.
-  const [liveThreadRunStatusByHref, setLiveThreadRunStatusByHref] = useState<
-    Map<string, { status: ThreadRunStatus | "done"; at: number }>
-  >(() => new Map());
-  useEvent(
-    "thread:run-status",
-    ({ href, state, threadId }) => {
-      const status =
-        state === "done" ? "done" : normalizeThreadRunStatus(state);
-      const targetHref = href || threadHrefById.get(threadId);
-      if (!targetHref) return;
-      setLiveThreadRunStatusByHref((prev) => {
-        if (
-          !status &&
-          (!prev.has(targetHref) || prev.get(targetHref)?.status === "done")
-        )
-          return prev;
-        const next = new Map(prev);
-        if (status) {
-          next.set(targetHref, { status, at: Date.now() });
-        } else {
-          next.delete(targetHref);
-        }
-        return next;
-      });
-    },
-    [threadHrefById],
-  );
-  useEffect(() => {
-    const timer = window.setInterval(() => {
-      setLiveThreadRunStatusByHref((prev) => {
-        if (prev.size === 0) return prev;
-        const now = Date.now();
-        const next = new Map(prev);
-        let changed = false;
-        for (const [href, entry] of prev) {
-          if (
-            entry.status !== "done" &&
-            now - entry.at > LIVE_RUN_STATUS_TTL_MS
-          ) {
-            next.delete(href);
-            changed = true;
-          }
-        }
-        return changed ? next : prev;
-      });
-    }, LIVE_RUN_STATUS_PRUNE_INTERVAL_MS);
-    return () => window.clearInterval(timer);
-  }, []);
-  const runStatusByHref = useMemo(
-    () =>
-      buildThreadRunStatusByHref({
-        activeTeamTasks,
-        backgroundTasks: backgroundTasksQuery.data,
-        liveThreadRunStatusByHref: new Map(
-          Array.from(liveThreadRunStatusByHref, ([href, entry]) => [
-            href,
-            entry.status,
-          ]),
-        ),
-        threadHrefById,
-      }),
-    [
-      activeTeamTasks,
-      backgroundTasksQuery.data,
-      liveThreadRunStatusByHref,
-      threadHrefById,
-    ],
-  );
+  const runStatusByHref = useThreadRunStatusByHref({
+    activeTaskRoomId,
+    threadHrefById,
+  });
 
   const byProject: Record<string, ThreadSummary[]> = {};
   const threadIdsByProject: Record<string, string[]> = {};
@@ -2081,11 +2000,16 @@ function ProjectGroup({
                           </span>
                           <ThreadRunStatusLight
                             status={runStatus}
+                            threadId={thread.id}
                             className="absolute -bottom-0.5 -right-0.5 ring-2 ring-sidebar"
                           />
                         </>
                       ) : (
-                        <ThreadRunStatusLight idle="queue" status={runStatus} />
+                        <ThreadRunStatusLight
+                          idle="queue"
+                          status={runStatus}
+                          threadId={thread.id}
+                        />
                       )}
                     </span>
                     <span className="line-clamp-2 min-w-0 flex-1 break-words leading-tight">
@@ -2649,6 +2573,7 @@ function ChatsSection({
                         active={active}
                         idle="queue"
                         status={runStatus}
+                        threadId={t.id}
                         className="ml-0.5"
                       />
                       <span className="min-w-0 flex-1 truncate leading-tight">

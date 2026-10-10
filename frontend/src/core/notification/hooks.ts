@@ -2,6 +2,12 @@ import { useState, useEffect, useCallback, useRef } from "react";
 
 import { useLocalSettings } from "../settings";
 
+import {
+  desktopNotificationBridge,
+  showSystemNotification,
+  webNotificationsSupported,
+} from "./system-notify";
+
 interface NotificationOptions {
   test?: boolean;
   body?: string;
@@ -31,12 +37,32 @@ export function useNotification(): UseNotificationReturn {
   const lastNotificationTime = useRef<number>(0);
 
   useEffect(() => {
+    // Desktop shell: the main process shows notifications itself, so there
+    // is no renderer permission to ask for — only OS support to check.
+    const bridge = desktopNotificationBridge();
+    if (bridge) {
+      let cancelled = false;
+      bridge
+        .isSupported()
+        .catch(() => false)
+        .then((supported) => {
+          if (cancelled) return;
+          setIsSupported(supported);
+          setPermission(supported ? "granted" : "denied");
+          setIsReady(true);
+        })
+        .catch(() => undefined);
+      return () => {
+        cancelled = true;
+      };
+    }
     // Check if browser supports Notification API
-    if (typeof window !== "undefined" && "Notification" in window) {
+    if (webNotificationsSupported()) {
       setIsSupported(true);
       setPermission(Notification.permission);
     }
     setIsReady(true);
+    return undefined;
   }, []);
 
   const requestPermission =
@@ -45,11 +71,12 @@ export function useNotification(): UseNotificationReturn {
         console.warn("Notification API is not supported in this browser");
         return "denied";
       }
+      if (desktopNotificationBridge()) return permission;
 
       const result = await Notification.requestPermission();
       setPermission(result);
       return result;
-    }, [isSupported]);
+    }, [isSupported, permission]);
 
   const [settings] = useLocalSettings();
 
@@ -84,21 +111,12 @@ export function useNotification(): UseNotificationReturn {
         return false;
       }
 
-      try {
-        const { test: _test, ...nativeOptions } = options ?? {};
-        const notification = new Notification(title, nativeOptions);
-        notification.onclick = () => {
-          window.focus();
-          notification.close();
-        };
-        notification.onerror = (error) => {
-          console.error("Notification error:", error);
-        };
-        return true;
-      } catch (e) {
-        console.error("Failed to create notification:", e);
-        return false;
-      }
+      return showSystemNotification({
+        title,
+        body: options?.body,
+        tag: options?.tag,
+        silent: options?.silent,
+      });
     },
     [
       isSupported,

@@ -64,6 +64,25 @@ export interface NativeDesktopItem {
   extension: string;
 }
 
+/** ``window.echo.notifications.show`` input (validated in main). */
+export interface DesktopNotificationPayload {
+  title: string;
+  body?: string;
+  /** Same tag replaces the previous notification instead of stacking. */
+  tag?: string;
+  /** In-app route (``/workspace/...``) to open on click. */
+  href?: string;
+  threadId?: string;
+  silent?: boolean;
+}
+
+/** ``notification:clicked`` event payload. */
+export interface DesktopNotificationClick {
+  href: string | null;
+  threadId: string | null;
+  tag: string | null;
+}
+
 export interface EchoElectronAPI {
   isElectron: true;
   platform: NodeJS.Platform;
@@ -388,6 +407,19 @@ export interface EchoElectronAPI {
     ) => Promise<{ ok: boolean; reason?: string }>;
   };
 
+  /** OS notifications raised by the main process. Clicking one restores and
+   * focuses the window, then emits ``notification:clicked`` with the
+   * payload's ``href`` / ``threadId``. Optional: shells built before it
+   * existed lack it. */
+  notifications?: {
+    isSupported: () => Promise<boolean>;
+    show: (payload: DesktopNotificationPayload) => Promise<{
+      ok: boolean;
+      id?: string;
+      reason?: "invalid" | "unsupported" | "forbidden";
+    }>;
+  };
+
   window: {
     // Resize the native shell to match the selected device preview.
     setDeviceBounds: (
@@ -464,7 +496,8 @@ export interface EchoElectronAPI {
       | "desktop:organize-now"
       | "desktop:items-changed"
       | "backend:bootstrap-progress"
-      | "window:fullscreen-changed",
+      | "window:fullscreen-changed"
+      | "notification:clicked",
     listener: (...args: unknown[]) => void,
   ) => () => void;
 }

@@ -1020,6 +1020,16 @@ function RealtimePageContent({
     isLoading: thread.isLoading,
     setAutomationTarget,
   });
+  const agentRunState = useAgentRunState({
+    threadId,
+    isLoading: thread.isLoading,
+    error: thread.error,
+    streamingMessage: thread.streamingMessage,
+    lastTurnToolEvents,
+    agentDisplayEvents,
+    lastTurnMessages,
+    tasksData: tasks.data,
+  });
   const {
     hasPausedOrPendingBackgroundTask,
     hasReportArtifact,
@@ -1031,16 +1041,7 @@ function RealtimePageContent({
     hasCompletedAgentOutput,
     agentRunFailed,
     sidebarRunState,
-  } = useAgentRunState({
-    threadId,
-    isLoading: thread.isLoading,
-    error: thread.error,
-    streamingMessage: thread.streamingMessage,
-    lastTurnToolEvents,
-    agentDisplayEvents,
-    lastTurnMessages,
-    tasksData: tasks.data,
-  });
+  } = agentRunState;
   const sidebarThreadId =
     thread.threadId ?? localStartedThreadIdRef.current ?? threadId;
   useDesignThreadBridge({
@@ -1058,13 +1059,10 @@ function RealtimePageContent({
     finalArtifactEntries,
   });
   useSidebarRunStatus({
+    ...agentRunState,
     sidebarThreadId,
     threadRouteFor,
-    sidebarRunState,
-    agentRunSettled,
-    agentRunFailed,
-    hasCompletedAgentOutput,
-    streaming: Boolean(thread.streamingMessage),
+    thread,
   });
   const {
     hasRenderableAgentWorkbench,

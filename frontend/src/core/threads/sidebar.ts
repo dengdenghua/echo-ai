@@ -111,11 +111,16 @@ export function withThreadSidebarMode(
 
 export function buildThreadRunStatusByHref({
   activeTeamTasks,
+  attentionStatusByHref,
   backgroundTasks,
   liveThreadRunStatusByHref,
   threadHrefById,
 }: {
   activeTeamTasks: TeamTask[];
+  /** Unseen attention markers (failed / waiting while the user was away).
+   * They outlive the page's live status; fresher polled or live state for
+   * the same thread wins. */
+  attentionStatusByHref?: Map<string, ThreadRunStatus>;
   backgroundTasks?: TasksListResponse;
   liveThreadRunStatusByHref?: Map<string, ThreadRunStatus | "done">;
   threadHrefById: Map<string, string>;
@@ -127,6 +132,10 @@ export function buildThreadRunStatusByHref({
     const status = teamTaskRunStatus(task.status);
     if (!status) continue;
     const href = `/workspace/realtime/${encodeURIComponent(task.room_id)}`;
+    byHref.set(href, mergeThreadRunStatus(byHref.get(href), status));
+  }
+
+  for (const [href, status] of attentionStatusByHref ?? []) {
     byHref.set(href, mergeThreadRunStatus(byHref.get(href), status));
   }
 
@@ -149,6 +158,23 @@ export function buildThreadRunStatusByHref({
     } else byHref.set(href, status);
   }
 
+  return byHref;
+}
+
+/** Sidebar light for each thread whose attention marker the user has not
+ * seen yet: a failure stays red, any wait (approval, reply, pause) amber. */
+export function unseenAttentionStatusByHref(
+  entries: Iterable<{ threadId: string; kind: string; unseen: boolean }>,
+  threadHrefById: Map<string, string>,
+): Map<string, ThreadRunStatus> {
+  const byHref = new Map<string, ThreadRunStatus>();
+  for (const entry of entries) {
+    if (!entry.unseen) continue;
+    const href =
+      threadHrefById.get(entry.threadId) ??
+      `/workspace/realtime/${encodeURIComponent(entry.threadId)}`;
+    byHref.set(href, entry.kind === "failed" ? "error" : "waiting");
+  }
   return byHref;
 }
 

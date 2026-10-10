@@ -11,6 +11,7 @@ import {
 import type { Translations } from "./types";
 import { workspaceComputerKoKR } from "./workspace-computer";
 import { workLocationKoKR } from "./work-location";
+import { attentionNotificationsKoKR } from "./attention-notifications";
 import { agentOperatorKoKR } from "./agent-operator";
 
 export const koKR: Translations = {
@@ -1258,6 +1259,7 @@ export const koKR: Translations = {
 
   workspaceComputer: workspaceComputerKoKR,
   workLocation: workLocationKoKR,
+  attentionNotifications: attentionNotificationsKoKR,
   agentOperator: agentOperatorKoKR,
 
   // Agent Workbench Panel

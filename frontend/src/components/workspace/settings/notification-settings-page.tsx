@@ -53,6 +53,32 @@ export default function NotificationSettingsPage() {
     });
   };
 
+  const attentionCopy = t.attentionNotifications;
+  const attentionCategories = [
+    {
+      key: "completed",
+      label: attentionCopy.categoryCompleted,
+      hint: attentionCopy.categoryCompletedHint,
+    },
+    {
+      key: "failed",
+      label: attentionCopy.categoryFailed,
+      hint: attentionCopy.categoryFailedHint,
+    },
+    {
+      key: "approval",
+      label: attentionCopy.categoryApproval,
+      hint: attentionCopy.categoryApprovalHint,
+    },
+    {
+      key: "paused",
+      label: attentionCopy.categoryPaused,
+      hint: attentionCopy.categoryPausedHint,
+    },
+  ] as const;
+  const attentionTogglesEnabled =
+    permission === "granted" && settings.notification.enabled;
+
   if (!isReady) {
     return (
       <SettingsSection
@@ -143,6 +169,40 @@ export default function NotificationSettingsPage() {
               setSettings("notification", { only_when_unfocused: value })
             }
           />
+        </div>
+        <div
+          role="group"
+          aria-labelledby="notification-attention-heading"
+          className="flex flex-col"
+        >
+          <p
+            id="notification-attention-heading"
+            className="text-sm font-medium"
+          >
+            {attentionCopy.settingsHeading}
+          </p>
+          <p className="text-xs text-muted-foreground">
+            {attentionCopy.settingsHint}
+          </p>
+          {attentionCategories.map((category) => (
+            <div
+              key={category.key}
+              className="flex items-center justify-between gap-4 border-b py-3 last:border-b-0"
+            >
+              <div>
+                <p className="text-sm">{category.label}</p>
+                <p className="text-xs text-muted-foreground">{category.hint}</p>
+              </div>
+              <Switch
+                aria-label={category.label}
+                disabled={!attentionTogglesEnabled}
+                checked={settings.notification[category.key] ?? true}
+                onCheckedChange={(value) =>
+                  setSettings("notification", { [category.key]: value })
+                }
+              />
+            </div>
+          ))}
         </div>
         {permission === "default" && (
           <Button

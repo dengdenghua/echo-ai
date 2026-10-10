@@ -2,6 +2,7 @@ import { Fragment, lazy, Suspense, useEffect, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 
 import { Banner } from "@/components/ui/banner";
+import { AttentionNotifierHost } from "@/components/workspace/attention-notifier-host";
 import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar";
 import { WorkspaceSidebar } from "@/components/workspace/workspace-sidebar";
 import { WorkspaceRouteOutlet } from "@/components/workspace/workspace-route-outlet";
@@ -130,6 +131,9 @@ export default function WorkspaceLayout() {
         </SidebarProvider>
       ) : (
         <>
+          {/* Before the sidebar and pages so it subscribes to run-status
+              events ahead of their first publish. */}
+          <AttentionNotifierHost />
           <SidebarProvider
             data-persona-theme={personaThemeId}
             className="persona-shell workspace-shell h-screen overflow-hidden"
