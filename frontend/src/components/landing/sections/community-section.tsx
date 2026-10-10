@@ -4,24 +4,27 @@ import { Link } from "react-router-dom";
 import { AuroraText } from "@/components/ui/aurora-text";
 import { Button } from "@/components/ui/button";
 import { GITHUB_URL } from "@/core/config";
+import { useI18n } from "@/core/i18n/hooks";
 
 import { Section } from "../section";
 
 export function CommunitySection() {
+  const { t } = useI18n();
+  const copy = t.aboutPage.community;
   return (
     <Section
       title={
         <AuroraText colors={["#60A5FA", "#A5FA60", "#A560FA"]}>
-          Join the Community
+          {copy.title}
         </AuroraText>
       }
-      subtitle="Contribute brilliant ideas to shape the future of Echo. Collaborate, innovate, and make an impact."
+      subtitle={copy.subtitle}
     >
       <div className="flex justify-center">
         <Button className="text-xl" size="lg" asChild>
           <Link to={GITHUB_URL} target="_blank" rel="noopener noreferrer">
             <GitHubLogoIcon />
-            Contribute Now
+            {copy.contribute}
           </Link>
         </Button>
       </div>

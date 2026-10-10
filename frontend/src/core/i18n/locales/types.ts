@@ -1,6 +1,7 @@
 import type { LucideIcon } from "lucide-react";
 
 import type { AttentionNotificationCopy } from "./attention-notifications";
+import type { AboutPageCopy } from "./about-page";
 import type { WorkLocationCopy } from "./work-location";
 export interface Translations {
   // Locale meta
@@ -1092,6 +1093,7 @@ export interface Translations {
   // Agent Workbench Panel (swarm)
   workspaceComputer: Record<string, string>;
   workLocation: WorkLocationCopy;
+  aboutPage: AboutPageCopy;
   attentionNotifications: AttentionNotificationCopy;
   agentOperator: Record<string, string>;
 

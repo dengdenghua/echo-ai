@@ -11,6 +11,7 @@ import {
 import type { Translations } from "./types";
 import { workspaceComputerEnUS } from "./workspace-computer";
 import { workLocationEnUS } from "./work-location";
+import { aboutPageEnUS } from "./about-page";
 import { attentionNotificationsEnUS } from "./attention-notifications";
 import { agentOperatorEnUS } from "./agent-operator";
 
@@ -1287,6 +1288,7 @@ export const enUS: Translations = {
 
   workspaceComputer: workspaceComputerEnUS,
   workLocation: workLocationEnUS,
+  aboutPage: aboutPageEnUS,
   attentionNotifications: attentionNotificationsEnUS,
   agentOperator: agentOperatorEnUS,
 

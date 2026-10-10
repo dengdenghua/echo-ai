@@ -11,6 +11,7 @@ import {
 import type { Translations } from "./types";
 import { workspaceComputerJaJP } from "./workspace-computer";
 import { workLocationJaJP } from "./work-location";
+import { aboutPageJaJP } from "./about-page";
 import { attentionNotificationsJaJP } from "./attention-notifications";
 import { agentOperatorJaJP } from "./agent-operator";
 
@@ -1266,6 +1267,7 @@ export const jaJP: Translations = {
 
   workspaceComputer: workspaceComputerJaJP,
   workLocation: workLocationJaJP,
+  aboutPage: aboutPageJaJP,
   attentionNotifications: attentionNotificationsJaJP,
   agentOperator: agentOperatorJaJP,
 

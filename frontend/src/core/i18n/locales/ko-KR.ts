@@ -11,6 +11,7 @@ import {
 import type { Translations } from "./types";
 import { workspaceComputerKoKR } from "./workspace-computer";
 import { workLocationKoKR } from "./work-location";
+import { aboutPageKoKR } from "./about-page";
 import { attentionNotificationsKoKR } from "./attention-notifications";
 import { agentOperatorKoKR } from "./agent-operator";
 
@@ -1259,6 +1260,7 @@ export const koKR: Translations = {
 
   workspaceComputer: workspaceComputerKoKR,
   workLocation: workLocationKoKR,
+  aboutPage: aboutPageKoKR,
   attentionNotifications: attentionNotificationsKoKR,
   agentOperator: agentOperatorKoKR,
 

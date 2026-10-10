@@ -3,21 +3,18 @@ import {
   Terminal,
   TypingAnimation,
 } from "@/components/ui/terminal";
+import { useI18n } from "@/core/i18n/hooks";
 
 import { Section } from "../section";
 
 export function SandboxSection({ className }: { className?: string }) {
+  const { t } = useI18n();
+  const copy = t.aboutPage.sandbox;
   return (
     <Section
       className={className}
-      title="Agent Runtime Environment"
-      subtitle={
-        <p>
-          We give Echo a &quot;computer&quot;, which can execute commands,
-          manage files, and run long tasks — all in a secure Docker-based
-          sandbox
-        </p>
-      }
+      title={copy.title}
+      subtitle={<p>{copy.subtitle}</p>}
     >
       <div className="mt-8 flex w-full max-w-6xl flex-col items-center gap-12 lg:flex-row lg:gap-16">
         {/* Left: Terminal */}
@@ -70,7 +67,7 @@ export function SandboxSection({ className }: { className?: string }) {
         <div className="w-full flex-1 space-y-6">
           <div className="space-y-4">
             <p className="text-sm font-medium tracking-wider text-purple-400 uppercase">
-              Open-source
+              {copy.eyebrow}
             </p>
             <h2 className="text-4xl font-bold tracking-tight lg:text-5xl">
               <a
@@ -85,7 +82,7 @@ export function SandboxSection({ className }: { className?: string }) {
 
           <div className="space-y-4 text-lg text-zinc-400">
             <p>
-              We recommend using{" "}
+              {copy.recommendBefore}
               <a
                 href="https://github.com/agent-infra/sandbox"
                 className="underline"
@@ -93,29 +90,18 @@ export function SandboxSection({ className }: { className?: string }) {
                 rel="noopener noreferrer"
               >
                 All-in-One Sandbox
-              </a>{" "}
-              that combines Browser, Shell, File, MCP and VSCode Server in a
-              single Docker container.
+              </a>
+              {copy.recommendAfter}
             </p>
           </div>
 
           {/* Feature Tags */}
           <div className="flex flex-wrap gap-3 pt-4">
-            <span className="rounded-lg border border-zinc-800 bg-zinc-900 px-4 py-2 text-sm text-zinc-300">
-              Isolated
-            </span>
-            <span className="rounded-lg border border-zinc-800 bg-zinc-900 px-4 py-2 text-sm text-zinc-300">
-              Safe
-            </span>
-            <span className="rounded-lg border border-zinc-800 bg-zinc-900 px-4 py-2 text-sm text-zinc-300">
-              Persistent
-            </span>
-            <span className="rounded-lg border border-zinc-800 bg-zinc-900 px-4 py-2 text-sm text-zinc-300">
-              Mountable FS
-            </span>
-            <span className="rounded-lg border border-zinc-800 bg-zinc-900 px-4 py-2 text-sm text-zinc-300">
-              Long-running
-            </span>
+            {copy.tags.map((tag) => (
+              <span key={tag} className="rounded-lg border border-zinc-800 bg-zinc-900 px-4 py-2 text-sm text-zinc-300">
+                {tag}
+              </span>
+            ))}
           </div>
         </div>
       </div>

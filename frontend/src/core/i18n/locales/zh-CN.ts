@@ -11,6 +11,7 @@ import {
 import type { Translations } from "./types";
 import { workspaceComputerZhCN } from "./workspace-computer";
 import { workLocationZhCN } from "./work-location";
+import { aboutPageZhCN } from "./about-page";
 import { attentionNotificationsZhCN } from "./attention-notifications";
 import { agentOperatorZhCN } from "./agent-operator";
 
@@ -1224,6 +1225,7 @@ export const zhCN: Translations = {
 
   workspaceComputer: workspaceComputerZhCN,
   workLocation: workLocationZhCN,
+  aboutPage: aboutPageZhCN,
   attentionNotifications: attentionNotificationsZhCN,
   agentOperator: agentOperatorZhCN,
 

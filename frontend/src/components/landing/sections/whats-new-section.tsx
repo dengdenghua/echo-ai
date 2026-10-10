@@ -1,57 +1,23 @@
-import MagicBento, { type BentoCardProps } from "@/components/ui/magic-bento";
+import MagicBento from "@/components/ui/magic-bento";
+import { useI18n } from "@/core/i18n/hooks";
 import { cn } from "@/lib/utils";
 
 import { Section } from "../section";
 
 const COLOR = "#0a0a0a";
-const features: BentoCardProps[] = [
-  {
-    color: COLOR,
-    label: "Context Engineering",
-    title: "Long/Short-term Memory",
-    description: "Now the agent can better understand you",
-  },
-  {
-    color: COLOR,
-    label: "Long Task Running",
-    title: "Planning and Sub-tasking",
-    description:
-      "Plans ahead, reasons through complexity, then executes sequentially or in parallel",
-  },
-  {
-    color: COLOR,
-    label: "Extensible",
-    title: "Skills and Tools",
-    description:
-      "Plug, play, or even swap built-in tools. Build the agent you want.",
-  },
-
-  {
-    color: COLOR,
-    label: "Persistent",
-    title: "Sandbox with File System",
-    description: "Read, write, run — like a real computer",
-  },
-  {
-    color: COLOR,
-    label: "Flexible",
-    title: "Multi-Model Support",
-    description: "Doubao, DeepSeek, OpenAI, Gemini, etc.",
-  },
-  {
-    color: COLOR,
-    label: "Free",
-    title: "Open Source",
-    description: "MIT License, self-hosted, full control",
-  },
-];
 
 export function WhatsNewSection({ className }: { className?: string }) {
+  const { t } = useI18n();
+  const copy = t.aboutPage.whatsNew;
+  const features = copy.features.map((feature) => ({
+    color: COLOR,
+    ...feature,
+  }));
   return (
     <Section
       className={cn("", className)}
-      title="What's New in Echo"
-      subtitle="Echo is evolving into a social, full-stack intelligent character platform powered by EchoOS"
+      title={copy.title}
+      subtitle={copy.subtitle}
     >
       <div className="flex w-full items-center justify-center">
         <MagicBento data={features} />
