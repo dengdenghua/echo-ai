@@ -11,6 +11,12 @@ All endpoints are gated by the ``ui.remote_workspace`` feature flag.
 When the flag is off every endpoint returns ``403`` so the router
 can be deployed safely behind a gradual rollout.
 
+Workspace payloads go through ``Workspace.to_public_dict``: credentials in
+``mount_options`` are returned as ``None`` and listed in ``secrets_set``.
+Workspaces have no update route, so a stored credential can only change by
+recreating the workspace; an update route must treat a missing or ``None``
+credential as "keep the stored value".
+
 Note: this router is distinct from the per-thread
 ``runtime.sensing.gateway.workspaces_router`` (which exposes thread
 output directories). The two share the ``/api/workspaces`` prefix but
@@ -468,7 +474,7 @@ def create_workspace_api_router(
         # doesn't pay the connection cost.
         with contextlib.suppress(Exception):  # noqa: BLE001 — pre-warm is best-effort
             backend_registry.get_or_create(ws.id, ws.mount_type, ws.mount_target, ws.mount_options)
-        return {"workspace": ws.to_dict()}
+        return {"workspace": ws.to_public_dict()}
 
     @router.get("/api/workspaces", dependencies=[Depends(_auth_dep)])
     def list_workspaces(
@@ -491,7 +497,7 @@ def create_workspace_api_router(
             workspaces = (
                 store.list_workspaces_for_user(user_id) if user_id else store.list_workspaces()
             )
-        return {"workspaces": [ws.to_dict() for ws in workspaces]}
+        return {"workspaces": [ws.to_public_dict() for ws in workspaces]}
 
     @router.get(
         "/api/workspaces/{workspace_id}",
@@ -501,7 +507,7 @@ def create_workspace_api_router(
         """Get a single workspace by id."""
         _require_flag()
         ws, _ = _workspace_access(request, workspace_id)
-        return {"workspace": ws.to_dict()}
+        return {"workspace": ws.to_public_dict()}
 
     @router.delete(
         "/api/workspaces/{workspace_id}",

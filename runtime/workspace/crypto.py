@@ -7,14 +7,22 @@ derive through PBKDF2). When unset, a key is derived from the host machine
 id — enough to keep creds opaque at rest on a single host but not a
 substitute for a real secret store in shared deployments.
 
-Sensitive fields (matched by key name, case-insensitive, recursively
-through nested dicts and lists):
-    password, secret_key, access_key, token, credential
+Sensitive fields are matched by key name at any depth of nested dicts and
+lists (see ``is_sensitive_key``): case and separators are ignored, and any
+key containing a credential fragment counts — ``password`` / ``passwd`` /
+``passphrase`` / ``secret`` / ``token`` / ``credential`` / ``api_key`` /
+``access_key`` / ``private_key`` / ``authorization`` / ``cookie``, so
+``SMB_Password``, ``apiKey`` and ``client-secret`` all hit. The whole value
+under such a key is the secret, whatever its type.
 
-Encrypted values are written as ``"ENC:<base64_ciphertext>"`` strings so
-the rest of the ``mount_options`` dict stays human-readable for debugging,
+Encrypted strings are written as ``"ENC:<base64_ciphertext>"`` (other types,
+e.g. a nested ``credentials`` dict, as ``"ENCJ:<ciphertext of the JSON>"``)
+so the rest of the ``mount_options`` dict stays human-readable for debugging,
 querying, and schema migrations. ``encrypt_options`` returns the modified
 dict serialized as JSON; ``decrypt_options`` is the inverse.
+
+``redact_options`` applies the same key test to blank secrets out of HTTP
+responses; server-side code keeps reading the decrypted values.
 """
 
 from __future__ import annotations
@@ -31,10 +39,27 @@ from typing import Any
 
 _LOG = logging.getLogger("echo.workspace.crypto")
 
-# Field names whose values get encrypted at rest. Matched case-insensitively
-# so ``Password`` / ``PASSWORD`` / ``password`` all hit.
-SENSITIVE_FIELDS = frozenset({"password", "secret_key", "access_key", "token", "credential"})
+# Credential-like key fragments. Keys are compared with case and separators
+# removed (``apiKey`` / ``API-KEY`` / ``api_key`` all become ``apikey``), the
+# same normalization as ``codex_backend.security.is_sensitive_env_name``.
+SENSITIVE_KEY_FRAGMENTS = (
+    "password",
+    "passwd",
+    "passphrase",
+    "secret",
+    "token",
+    "credential",
+    "apikey",
+    "accesskey",
+    "privatekey",
+    "authorization",
+    "cookie",
+)
+# Abbreviations that name a credential only as the whole key.
+_SENSITIVE_EXACT_KEYS = frozenset({"pass", "pwd"})
 _ENC_PREFIX = "ENC:"
+# Non-string secrets are encrypted as JSON so their type survives decryption.
+_ENC_JSON_PREFIX = "ENCJ:"
 
 # Fixed salt for the PBKDF2 derivation. We're not protecting against offline
 # brute-force on a stolen DB (the host has the key anyway); the derivation
@@ -171,17 +196,46 @@ def _cipher() -> Any:
 # ─── tree walkers ──────────────────────────────────────────────────────────
 
 
-def _is_sensitive(key: str) -> bool:
-    return isinstance(key, str) and key.lower() in SENSITIVE_FIELDS
+def is_sensitive_key(key: object) -> bool:
+    """Whether a ``mount_options`` key names a credential.
+
+    The single test behind both at-rest encryption and HTTP redaction, so
+    the two can never disagree about what is secret.
+    """
+    if not isinstance(key, str):
+        return False
+    compact = "".join(char for char in key.lower() if char.isalnum())
+    return compact in _SENSITIVE_EXACT_KEYS or any(
+        fragment in compact for fragment in SENSITIVE_KEY_FRAGMENTS
+    )
+
+
+def _holds_secret(key: object, value: Any) -> bool:
+    """A sensitive key that carries data. ``None``, empty values and booleans
+    (flags such as ``use_token``) reveal nothing and are left alone.
+    """
+    if not is_sensitive_key(key) or value is None or isinstance(value, bool):
+        return False
+    return not (isinstance(value, (str, list, dict)) and not value)
+
+
+def _is_encrypted(value: Any) -> bool:
+    return isinstance(value, str) and value.startswith((_ENC_PREFIX, _ENC_JSON_PREFIX))
+
+
+def _encrypt_value(value: Any, cipher: Any) -> str:
+    if isinstance(value, str):
+        return _ENC_PREFIX + cipher.encrypt(value.encode("utf-8")).decode("ascii")
+    payload = json.dumps(value, ensure_ascii=False).encode("utf-8")
+    return _ENC_JSON_PREFIX + cipher.encrypt(payload).decode("ascii")
 
 
 def _walk_encrypt(value: Any, cipher: Any) -> Any:
     if isinstance(value, dict):
         out: dict[str, Any] = {}
         for k, v in value.items():
-            if _is_sensitive(k) and isinstance(v, str) and not v.startswith(_ENC_PREFIX):
-                token = cipher.encrypt(v.encode("utf-8")).decode("ascii")
-                out[k] = f"{_ENC_PREFIX}{token}"
+            if _holds_secret(k, v) and not _is_encrypted(v):
+                out[k] = _encrypt_value(v, cipher)
             else:
                 out[k] = _walk_encrypt(v, cipher)
         return out
@@ -196,14 +250,17 @@ def _walk_decrypt(value: Any, cipher: Any) -> Any:
         for k, v in value.items():
             out[k] = _walk_decrypt(v, cipher)
         return out
-    if isinstance(value, str) and value.startswith(_ENC_PREFIX):
-        token = value[len(_ENC_PREFIX) :]
+    if _is_encrypted(value):
+        is_json = value.startswith(_ENC_JSON_PREFIX)
+        token = value[len(_ENC_JSON_PREFIX if is_json else _ENC_PREFIX) :]
         if cipher is None:
             # Best-effort: return the ciphertext minus the marker so the
             # value isn't silently dropped; the caller can decide what to do.
             return token
         try:
-            return cipher.decrypt(token.encode("ascii")).decode("utf-8")
+            plain = cipher.decrypt(token.encode("ascii")).decode("utf-8")
+            # A JSON payload may hold legacy per-field ``ENC:`` values.
+            return _walk_decrypt(json.loads(plain), cipher) if is_json else plain
         except Exception as exc:  # noqa: BLE001 — corrupt ciphertext shouldn't crash reads
             _LOG.warning("workspace crypto: failed to decrypt value: %s", exc)
             return value
@@ -215,15 +272,53 @@ def _walk_decrypt(value: Any, cipher: Any) -> Any:
 # ─── public API ─────────────────────────────────────────────────────────────
 
 
+def redact_options(options: dict[str, Any] | None) -> tuple[dict[str, Any], list[str]]:
+    """Return a copy of ``options`` safe to send to clients, plus the dotted
+    paths of the credentials it blanked (e.g. ``["password", "s3.secret_key"]``).
+
+    Every value ``encrypt_options`` would encrypt becomes ``None``, so a
+    client can tell a credential is set without seeing it. Server-side code
+    that mounts the workspace keeps using the decrypted
+    ``Workspace.mount_options``; only HTTP responses go through here.
+    """
+    secrets_set: list[str] = []
+
+    def walk(value: Any, path: str) -> Any:
+        if isinstance(value, dict):
+            out: dict[str, Any] = {}
+            for k, v in value.items():
+                child = f"{path}.{k}" if path else str(k)
+                if _holds_secret(k, v):
+                    out[k] = None
+                    secrets_set.append(child)
+                else:
+                    out[k] = walk(v, child)
+            return out
+        if isinstance(value, list):
+            return [walk(v, f"{path}.{i}") for i, v in enumerate(value)]
+        return value
+
+    return walk(dict(options or {}), ""), secrets_set
+
+
 def encrypt_options(options: dict[str, Any]) -> str:
-    """Walk ``options`` recursively, encrypt values whose key matches
-    SENSITIVE_FIELDS, then return the result as a JSON string.
+    """Walk ``options`` recursively, encrypt every value held by a sensitive
+    key (``is_sensitive_key``), then return the result as a JSON string.
     Non-sensitive fields stay human-readable in the SQLite column.
     Returns plain JSON (no encryption) when ``cryptography`` is unavailable
-    or the configured key is invalid — see ``_cipher``.
+    or the configured key is invalid — see ``_cipher`` — and logs a warning
+    naming the credential fields written in plaintext.
     """
     cipher = _cipher()
     if cipher is None:
+        _, plaintext = redact_options(options)
+        if plaintext:
+            _LOG.warning(
+                "workspace crypto unavailable: storing credential field(s) %s of "
+                "mount_options in PLAINTEXT; install `cryptography` and check "
+                "ECHO_WORKSPACE_KEY",
+                ", ".join(plaintext),
+            )
         return json.dumps(options or {}, ensure_ascii=False)
     redacted = _walk_encrypt(options or {}, cipher)
     return json.dumps(redacted, ensure_ascii=False)
