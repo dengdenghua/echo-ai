@@ -35,6 +35,7 @@ import { cn } from "@/lib/utils";
 import { useActiveAgentId } from "@/core/agents/active";
 import { DEFAULT_PRIMARY_AGENT_ID } from "@/core/agents/persona-policy";
 import { workspacePresetForAgent } from "@/core/workspace/workspace-presets";
+import { stringAt } from "@/core/utils/guards";
 
 export function ModuleEditorDialog({
   open,
@@ -51,8 +52,7 @@ export function ModuleEditorDialog({
   const unavailable = new Set(useUnavailableModuleIds());
   const navigate = useNavigate();
 
-  const label = (key: string) =>
-    (t.sidebar as unknown as Record<string, string>)[key] ?? key;
+  const label = (key: string) => stringAt(t.sidebar, key) ?? key;
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -136,7 +136,9 @@ function ModuleGroupSection({
                 <div className="flex items-center justify-between gap-2 rounded-lg border border-dashed border-border-default px-3 py-2">
                   <span className="min-w-0 truncate text-sm text-muted-foreground">
                     {label(m.labelKey)}
-                    <span className="ml-1.5 text-xs">· {notInstalledLabel}</span>
+                    <span className="ml-1.5 text-xs">
+                      · {notInstalledLabel}
+                    </span>
                   </span>
                   <Button
                     size="sm"

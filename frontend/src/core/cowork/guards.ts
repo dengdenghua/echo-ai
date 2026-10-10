@@ -24,6 +24,7 @@ import type {
   CoworkMessageReaction,
   CoworkPinnedMessage,
   CoworkPresenceResponse,
+  CoworkRoomReplyReference,
   CoworkRosterResponse,
   CoworkSearchResponse,
   CoworkState,
@@ -104,6 +105,18 @@ export function isCollabRoomMessageResponse(
   value: unknown,
 ): value is CollabRoomMessageResponse {
   return isRecord(value) && isString(value.room_id) && isNumber(value.seq);
+}
+
+/** Every field is optional; the ones present must have their wire types. */
+export function isCoworkRoomReplyReference(
+  value: unknown,
+): value is CoworkRoomReplyReference {
+  return (
+    isRecord(value) &&
+    (value.message_id === undefined || isString(value.message_id)) &&
+    (value.seq === undefined || isNumber(value.seq)) &&
+    (value.text === undefined || isString(value.text))
+  );
 }
 
 export function isCoworkAnnotation(value: unknown): value is CoworkAnnotation {

@@ -132,7 +132,7 @@ function extractTodosAsSteps(
     const occurrence = occurrences.get(todo.content) ?? 0;
     occurrences.set(todo.content, occurrence + 1);
     return {
-      id: `todo-${taskPlanItemId(todo as unknown as Record<string, unknown>, occurrence)}`,
+      id: `todo-${taskPlanItemId({ ...todo }, occurrence)}`,
       description: todo.content,
       status:
         todo.status === "completed"

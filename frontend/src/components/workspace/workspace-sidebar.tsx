@@ -180,6 +180,7 @@ import {
   useWorkspaceWebShortcuts,
   workspaceWebAppRoute,
 } from "@/core/workbench/apps";
+import { stringAt } from "@/core/utils/guards";
 
 // Surface modes in the left sidebar. Chat and Company are handled by a
 // dedicated two-panel switch so they feel like peer work surfaces instead
@@ -508,11 +509,10 @@ export function WorkspaceSidebar(props: React.ComponentProps<typeof Sidebar>) {
   }, [pathname, pendingThreadPath]);
   const sidebarPathname = syncedSidebarPathname(pathname, pendingThreadPath);
 
-  // Resolve a NavRoute's labelKey against the sidebar namespace. The cast
-  // keeps TS narrowing happy without silently swallowing typos in route keys.
+  // Resolve a NavRoute's labelKey against the sidebar namespace; a key
+  // with no string entry falls back to the key itself.
   const resolveLabel = useCallback(
-    (key: string) =>
-      (t.sidebar as unknown as Record<string, string>)[key] ?? key,
+    (key: string) => stringAt(t.sidebar, key) ?? key,
     [t],
   );
   const activeAgentId = useActiveAgentId();

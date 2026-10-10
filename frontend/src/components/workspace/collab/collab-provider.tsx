@@ -19,12 +19,16 @@ import { readOrCreateTeamParticipantId } from "@/core/teams";
 import type { SpeakerPolicy } from "@/core/teams";
 import { eventBus } from "@/core/events";
 import { teamTaskQueryKeys } from "@/core/team-tasks/hooks";
+import { isTeamTask } from "@/core/team-tasks/guards";
 import type { TeamTask } from "@/core/team-tasks/types";
+import { looseBody } from "@/core/api/response";
+import { isObjectLike, isOneOf } from "@/core/utils/guards";
 import type {
   CoworkMessageReaction,
   CoworkPinnedMessage,
   CoworkRoomReplyReference,
 } from "@/core/cowork/types";
+import { isCoworkRoomReplyReference } from "@/core/cowork/guards";
 import {
   createCollabAnnotation,
   createCollabAnnotationReply,
@@ -460,7 +464,7 @@ export function CollabProvider({
               participant_id: String(msg.participant_id ?? ""),
               display_name: String(msg.display_name ?? "Guest"),
               reply_to: isRecord(msg.reply_to)
-                ? (msg.reply_to as CoworkRoomReplyReference)
+                ? looseBody(msg.reply_to, isCoworkRoomReplyReference)
                 : undefined,
               text,
               created_at: String(msg.created_at ?? new Date().toISOString()),
@@ -1162,10 +1166,8 @@ function markRoomMessageFailed(
 function parseMessage(data: unknown): Record<string, unknown> | null {
   if (typeof data !== "string") return null;
   try {
-    const parsed = JSON.parse(data);
-    return parsed && typeof parsed === "object"
-      ? (parsed as Record<string, unknown>)
-      : null;
+    const parsed: unknown = JSON.parse(data);
+    return isObjectLike(parsed) ? parsed : null;
   } catch (e) {
     swallow(e);
     return null;
@@ -1173,10 +1175,7 @@ function parseMessage(data: unknown): Record<string, unknown> | null {
 }
 
 function participantToUser(participant: unknown, avatar?: string | null): User {
-  const item =
-    participant && typeof participant === "object"
-      ? (participant as Record<string, unknown>)
-      : {};
+  const item = isObjectLike(participant) ? participant : {};
   const id = String(item.id ?? `guest-${Date.now()}`);
   const name = String(item.display_name ?? "Guest");
   return {
@@ -1191,15 +1190,13 @@ function teamHasRemovedParticipant(
   team: unknown,
   participantId: string,
 ): boolean {
-  const item =
-    team && typeof team === "object" ? (team as Record<string, unknown>) : {};
+  const item = isObjectLike(team) ? team : {};
   const participants = Array.isArray(item.participants)
     ? item.participants
     : [];
   return participants.some((participant) => {
-    if (!participant || typeof participant !== "object") return false;
-    const p = participant as Record<string, unknown>;
-    return p.id === participantId && p.status === "removed";
+    if (!isObjectLike(participant)) return false;
+    return participant.id === participantId && participant.status === "removed";
   });
 }
 
@@ -1207,7 +1204,7 @@ function parseTaskProgressEvent(
   msg: Record<string, unknown>,
   expectedTeamId?: string | null,
 ): TeamTaskProgressEvent | null {
-  const task = isRecord(msg.task) ? (msg.task as unknown as TeamTask) : null;
+  const task = isRecord(msg.task) ? looseBody(msg.task, isTeamTask) : null;
   const taskId = stringOr(msg.task_id) || task?.id || "";
   const roomId =
     stringOr(msg.room_id) || stringOr(msg.team_id) || task?.room_id || "";
@@ -1274,21 +1271,21 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return Boolean(value && typeof value === "object" && !Array.isArray(value));
 }
 
-const FLOOR_POLICIES = new Set<SpeakerPolicy>([
+const FLOOR_POLICIES = [
   "free",
   "admin_only",
   "round_robin",
   "roll_call",
   "moderated",
-]);
+] as const satisfies readonly SpeakerPolicy[];
 
 // Extract floor state from either a dedicated ``floor`` event or a team
 // object (which carries the same fields). Tolerant of missing keys.
 function floorFrom(source: unknown): FloorState {
   const item = isRecord(source) ? source : {};
-  const policy = String(item.speaker_policy ?? "free") as SpeakerPolicy;
+  const policy = String(item.speaker_policy ?? "free");
   return {
-    speakerPolicy: FLOOR_POLICIES.has(policy) ? policy : "free",
+    speakerPolicy: isOneOf(policy, FLOOR_POLICIES) ? policy : "free",
     currentSpeakerId:
       typeof item.current_speaker_id === "string"
         ? item.current_speaker_id

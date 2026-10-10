@@ -190,6 +190,10 @@ type MotionFactory = {
   span: MotionComponent;
 } & Record<string, MotionComponent>;
 
+// Double cast on purpose: the Proxy answers every tag name (`motion.section`,
+// `motion.p`, ...), which no object type can express next to `create`.
+// MotionFactory is the call-site contract; the target only holds the
+// eagerly built members.
 export const motion = new Proxy(
   {
     create: (component: ElementType) => createMotionComponent(component),
