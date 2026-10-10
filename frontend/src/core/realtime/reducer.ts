@@ -171,10 +171,10 @@ function withMaterializedStreamText(item: Item): Item {
   if (item.type === "reasoning") {
     const buckets = streamReasoningBuckets.get(item);
     if (!buckets || buckets.size === 0) return item;
-    const materialized = {
+    const materialized: Item = {
       ...item,
       content: streamWireText(item) + joinReasoningBuckets(buckets),
-    } as Item;
+    };
     return materialized;
   }
   const chunks = streamChunks.get(item);
@@ -1428,7 +1428,7 @@ function applyFileChangeHunkDelta(
       hunks: nextHunks,
     });
   }
-  const updated = { ...item, changes } as Item;
+  const updated: Item = { ...item, changes };
   const turnPatch = hasWorkspaceFocus
     ? { workspaceFocus: workspaceFocus ?? null }
     : undefined;
@@ -1467,7 +1467,7 @@ function applyHunkDecision(
     };
   });
   if (!hit) return unchanged(state);
-  const updated = { ...item, changes } as Item;
+  const updated: Item = { ...item, changes };
   return {
     next: replaceTurnItem(state, turn, turnIdx, itemIdx, updated),
     changedTurnIds: [turnId],

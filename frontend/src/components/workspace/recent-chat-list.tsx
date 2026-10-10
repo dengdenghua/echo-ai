@@ -91,7 +91,7 @@ function routeForThread(thread: AgentThread) {
 
 function ownerAgentForThread(thread: AgentThread): string {
   const meta = thread.metadata ?? {};
-  const values = (thread.values ?? {}) as Record<string, unknown>;
+  const values: Record<string, unknown> = thread.values ?? {};
   const candidates = [
     meta["agent"],
     meta["agent_name"],

@@ -320,13 +320,13 @@ export function SettingsDialog(props: SettingsDialogProps) {
       // the browser is idle. Starting every settings chunk synchronously made
       // the first dialog open compete with its own rendering work.
       const preload = () => preloadSettingsPages();
-      const idleWindow = window as Window & {
+      const idleWindow: Window & {
         requestIdleCallback?: (
           callback: IdleRequestCallback,
           options?: IdleRequestOptions,
         ) => number;
         cancelIdleCallback?: (handle: number) => void;
-      };
+      } = window;
       const idleHandle = idleWindow.requestIdleCallback?.(preload, {
         timeout: 2_000,
       });

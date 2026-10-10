@@ -16,9 +16,9 @@ function readActiveProjectRoot(): string | null {
   ).get("workspace_path");
   if (routePath && isAbsolutePath(routePath)) return routePath;
   try {
-    const parsed = JSON.parse(
+    const parsed: unknown = JSON.parse(
       window.localStorage.getItem(RECENT_WORKDIRS_KEY) ?? "[]",
-    ) as unknown;
+    );
     if (Array.isArray(parsed)) {
       const first = parsed.find(
         (item): item is string =>
@@ -35,9 +35,9 @@ function readActiveProjectRoot(): string | null {
 export function activateProjectRoot(path: string) {
   if (typeof window === "undefined" || !isAbsolutePath(path)) return;
   try {
-    const parsed = JSON.parse(
+    const parsed: unknown = JSON.parse(
       window.localStorage.getItem(RECENT_WORKDIRS_KEY) ?? "[]",
-    ) as unknown;
+    );
     const recent = Array.isArray(parsed)
       ? parsed.filter((item): item is string => typeof item === "string")
       : [];

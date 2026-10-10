@@ -122,9 +122,9 @@ export function normalizeHashRouterShellUrl() {
 export function installHashRouterShellUrlNormalizer() {
   normalizeHashRouterShellUrl();
   if (typeof window === "undefined") return;
-  const win = window as Window & {
+  const win: Window & {
     __echoHashRouterPatched?: boolean;
-  };
+  } = window;
   if (!win.__echoHashRouterPatched) {
     const originalPushState = window.history.pushState.bind(window.history);
     const originalReplaceState = window.history.replaceState.bind(

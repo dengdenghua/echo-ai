@@ -51,7 +51,7 @@ function localizeStreamdownDom(root: HTMLElement) {
     textNodes.push(node);
   }
   for (const textNode of textNodes) {
-    const node = textNode as Text & { __octoLocalized?: string };
+    const node: Text & { __octoLocalized?: string } = textNode;
     const text = node.textContent ?? "";
     const trimmed = text.trim();
     if (trimmed) {

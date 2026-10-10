@@ -41,7 +41,7 @@ export function readDismissedModes(): string[] {
   try {
     const raw = window.sessionStorage.getItem(IGNORE_STORAGE_KEY);
     if (!raw) return [];
-    const parsed = JSON.parse(raw) as unknown;
+    const parsed: unknown = JSON.parse(raw);
     return Array.isArray(parsed)
       ? parsed.filter((item): item is string => typeof item === "string")
       : [];

@@ -65,7 +65,7 @@ function readableResultText(value: unknown, depth = 0): string {
     if (!trimmed) return "";
     if (trimmed.startsWith("{") || trimmed.startsWith("[")) {
       try {
-        const parsed = JSON.parse(trimmed) as unknown;
+        const parsed: unknown = JSON.parse(trimmed);
         const readable = readableResultText(parsed, depth + 1);
         if (readable) return readable;
       } catch {

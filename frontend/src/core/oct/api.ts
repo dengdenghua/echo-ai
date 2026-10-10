@@ -37,7 +37,7 @@ function embeddedGatewayMessage(raw: string): string | null {
     index = raw.indexOf("{", index + 1)
   ) {
     try {
-      const parsed = JSON.parse(raw.slice(index)) as unknown;
+      const parsed: unknown = JSON.parse(raw.slice(index));
       const message = messageFromRecord(parsed);
       if (message) return message;
     } catch {

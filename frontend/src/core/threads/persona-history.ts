@@ -4,7 +4,7 @@ import type { AgentThread } from "./types";
 
 export function threadOwnerAgentId(thread: AgentThread): string {
   const metadata = thread.metadata ?? {};
-  const values = (thread.values ?? {}) as Record<string, unknown>;
+  const values: Record<string, unknown> = thread.values ?? {};
   const candidates = [
     metadata.agent,
     metadata.agent_name,

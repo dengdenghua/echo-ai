@@ -70,7 +70,7 @@ function deriveTitle(thread: AgentThread): string {
   if (metaTitle) {
     return metaTitle.length > 60 ? `${metaTitle.slice(0, 58)}...` : metaTitle;
   }
-  const values = (thread.values ?? {}) as Record<string, unknown>;
+  const values: Record<string, unknown> = thread.values ?? {};
   const valuesTitle =
     typeof values["title"] === "string"
       ? values["title"].trim()
@@ -108,7 +108,7 @@ function threadHref(thread: AgentThread): string {
 
 function threadOwnerAgent(thread: AgentThread): string {
   const meta = thread.metadata ?? {};
-  const values = (thread.values ?? {}) as Record<string, unknown>;
+  const values: Record<string, unknown> = thread.values ?? {};
   const candidates = [
     meta["agent"],
     meta["agent_name"],
@@ -126,7 +126,7 @@ function threadOwnerAgent(thread: AgentThread): string {
 
 function threadWorkspacePath(thread?: AgentThread): string {
   const meta = thread?.metadata ?? {};
-  const values = (thread?.values ?? {}) as Record<string, unknown>;
+  const values: Record<string, unknown> = thread?.values ?? {};
   const path = meta["workspace_path"] ?? values["workspace_path"];
   return typeof path === "string" ? path.trim() : "";
 }

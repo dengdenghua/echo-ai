@@ -549,17 +549,15 @@ function disposeObject(object: THREE.Object3D) {
   object.traverse((child) => {
     const mesh = child as THREE.Mesh;
     mesh.geometry?.dispose?.();
-    const material = mesh.material as
-      | THREE.Material
-      | THREE.Material[]
-      | undefined;
+    const material: THREE.Material | THREE.Material[] | undefined =
+      mesh.material;
     const materials = Array.isArray(material)
       ? material
       : material
         ? [material]
         : [];
     for (const item of materials) {
-      const maybeMap = item as THREE.Material & { map?: THREE.Texture };
+      const maybeMap: THREE.Material & { map?: THREE.Texture } = item;
       maybeMap.map?.dispose?.();
       item.dispose();
     }

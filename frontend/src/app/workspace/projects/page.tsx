@@ -412,7 +412,7 @@ export default function ProjectsPage() {
     queryFn: async () => {
       const res = await fetch(BASE(), { headers: authHeaders() });
       if (!res.ok) throw new ProjectRequestError(traceIdFromResponse(res));
-      const data = (await res.json()) as unknown;
+      const data: unknown = await res.json();
       if (Array.isArray(data)) return data as ProjectSummary[];
       if (
         data &&

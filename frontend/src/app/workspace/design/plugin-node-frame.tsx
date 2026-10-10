@@ -174,7 +174,7 @@ export function PluginNodeFrame({
           reply({ ok: false, error: "无效的插件状态操作" });
           return;
         }
-        const payload = (await response.json()) as unknown;
+        const payload: unknown = await response.json();
         if (!response.ok) throw new Error(requestError(payload));
         reply({ ok: true, payload });
       } catch (error) {
