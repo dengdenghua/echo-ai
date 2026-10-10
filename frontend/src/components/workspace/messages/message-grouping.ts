@@ -6,13 +6,20 @@
  * unit-tested with `node --test` (see `message-grouping.test.ts`).
  */
 import { swallow } from "@/core/utils/log";
-import type {
-  AIMessage,
-  Message,
-  MessageContent,
-  ToolCall,
-  ToolMessage,
+import { isObjectLike, isUnknownArray } from "@/core/utils/guards";
+import {
+  isAIMessage,
+  isToolMessage,
+  type AIMessage,
+  type Message,
+  type MessageContent,
+  type ToolCall,
 } from "@/core/api/types";
+
+/** A tool-call argument when it is a string; other values fall through. */
+function stringArg(value: unknown): string | undefined {
+  return typeof value === "string" ? value : undefined;
+}
 
 import type { ActivityItem, ActivityKind } from "./collapsible-activity-group";
 import {
@@ -64,8 +71,7 @@ export interface ThinkingContentPart {
 export function isThinkingContentPart(
   part: unknown,
 ): part is ThinkingContentPart {
-  if (typeof part !== "object" || part === null) return false;
-  return (part as { type?: unknown }).type === "thinking";
+  return isObjectLike(part) && part.type === "thinking";
 }
 
 /**
@@ -76,7 +82,7 @@ export function extractThinkingText(content: MessageContent): string {
   if (!Array.isArray(content)) return "";
   return content
     .filter(isThinkingContentPart)
-    .map((c) => (c as unknown as ThinkingContentPart).thinking ?? "")
+    .map((c) => c.thinking ?? "")
     .join("\n")
     .trim();
 }
@@ -129,8 +135,8 @@ function extractLineCounts(
   const counts: LineCounts = {};
 
   const pickNumber = (source: unknown, key: string): number | undefined => {
-    if (!source || typeof source !== "object") return undefined;
-    const value = (source as Record<string, unknown>)[key];
+    if (!isObjectLike(source)) return undefined;
+    const value = source[key];
     if (typeof value === "number" && Number.isFinite(value)) return value;
     if (typeof value === "string") {
       const parsed = Number.parseInt(value, 10);
@@ -206,12 +212,12 @@ function extractToolCallDiffs(
 ): string[] {
   const out: string[] = [];
   const pushFrom = (source: unknown): void => {
-    if (!source || typeof source !== "object") return;
-    const changes = (source as Record<string, unknown>).changes;
-    if (!Array.isArray(changes)) return;
+    if (!isObjectLike(source)) return;
+    const changes = source.changes;
+    if (!isUnknownArray(changes)) return;
     for (const raw of changes) {
-      if (!raw || typeof raw !== "object") continue;
-      const diff = (raw as Record<string, unknown>).diff;
+      if (!isObjectLike(raw)) continue;
+      const diff = raw.diff;
       if (typeof diff === "string" && diff.trim()) out.push(diff);
     }
   };
@@ -270,10 +276,10 @@ function buildFileOpLabel(
   labels: MessageGroupingLabels,
 ): string {
   const path =
-    (args.path as string | undefined) ??
-    (args.filepath as string | undefined) ??
-    (args.file_path as string | undefined) ??
-    (args.filename as string | undefined);
+    stringArg(args.path) ??
+    stringArg(args.filepath) ??
+    stringArg(args.file_path) ??
+    stringArg(args.filename);
   const file = path ? basename(path) : labels.fileFallback;
 
   const hasAdded = counts.added !== undefined && counts.added !== 0;
@@ -364,9 +370,9 @@ function buildPlanLabel(
   labels: MessageGroupingLabels,
 ): string {
   const title =
-    (args.title as string | undefined) ??
-    (args.description as string | undefined) ??
-    (args.step as string | undefined) ??
+    stringArg(args.title) ??
+    stringArg(args.description) ??
+    stringArg(args.step) ??
     labels.planStep;
   return truncate(title, 60);
 }
@@ -381,10 +387,7 @@ function findToolResultText(
 ): string | undefined {
   if (!toolCallId) return undefined;
   for (const msg of messages) {
-    if (
-      msg.type === "tool" &&
-      (msg as ToolMessage).tool_call_id === toolCallId
-    ) {
+    if (isToolMessage(msg) && msg.tool_call_id === toolCallId) {
       if (typeof msg.content === "string") return msg.content;
       if (Array.isArray(msg.content)) {
         return msg.content
@@ -402,11 +405,8 @@ function findToolResultStatus(
 ): ActivityItem["status"] {
   if (!toolCallId) return "running";
   for (const msg of messages) {
-    if (
-      msg.type === "tool" &&
-      (msg as ToolMessage).tool_call_id === toolCallId
-    ) {
-      const status = (msg as ToolMessage).status;
+    if (isToolMessage(msg) && msg.tool_call_id === toolCallId) {
+      const status = msg.status;
       if (status === "error") return "error";
       return "done";
     }
@@ -584,23 +584,31 @@ export function groupActivities(
     }
   };
 
+  // A closure, so the checker reads the declared type: inside the loop it
+  // would narrow `currentPassthrough` to null (it is only set in closures).
+  const joinPassthrough = (index: number, ownerIndex: number): boolean => {
+    if (!currentPassthrough?.messageIndexes.includes(ownerIndex)) return false;
+    currentPassthrough.messageIndexes.push(index);
+    return true;
+  };
+
   for (let i = 0; i < messages.length; i++) {
     const msg = messages[i];
     if (!msg) continue;
 
     // Tool result messages: treat as "joined" to whatever chunk the
     // owning AI message landed in. Find owner by tool_call_id.
-    if (msg.type === "tool") {
-      const toolMsg = msg as ToolMessage;
+    if (isToolMessage(msg)) {
       let ownerIndex = -1;
       for (let j = i - 1; j >= 0; j--) {
         const cand = messages[j];
-        if (cand?.type === "ai") {
-          const ai = cand as AIMessage;
-          if (ai.tool_calls?.some((tc) => tc.id === toolMsg.tool_call_id)) {
-            ownerIndex = j;
-            break;
-          }
+        if (
+          cand &&
+          isAIMessage(cand) &&
+          cand.tool_calls?.some((tc) => tc.id === msg.tool_call_id)
+        ) {
+          ownerIndex = j;
+          break;
         }
       }
       let attached = false;
@@ -611,13 +619,7 @@ export function groupActivities(
         ) {
           currentActivity.messageIndexes.push(i);
           attached = true;
-        } else if (
-          currentPassthrough !== null &&
-          (
-            currentPassthrough as PassthroughAccumulator
-          ).messageIndexes.includes(ownerIndex)
-        ) {
-          (currentPassthrough as PassthroughAccumulator).messageIndexes.push(i);
+        } else if (joinPassthrough(i, ownerIndex)) {
           attached = true;
         }
       }
@@ -628,19 +630,19 @@ export function groupActivities(
       continue;
     }
 
-    if (msg.type !== "ai") {
+    if (!isAIMessage(msg)) {
       pushPassthrough(i, msg.id ?? `msg-${i}`);
       continue;
     }
 
-    const aiMsg = msg as AIMessage;
+    const aiMsg = msg;
 
     // Check for extended-thinking style "reasoning" block. If the message
     // carries a thinking block and no tool calls, treat as `think` activity.
     const isThinkOnly =
       Array.isArray(aiMsg.content) &&
       aiMsg.content.length > 0 &&
-      (aiMsg.content[0] as { type?: string }).type === "thinking" &&
+      aiMsg.content[0]?.type === "thinking" &&
       (!aiMsg.tool_calls || aiMsg.tool_calls.length === 0);
 
     if (isThinkOnly) {
@@ -746,8 +748,8 @@ export function latestClarificationToolContent(
 ): string | null {
   for (let index = messages.length - 1; index >= 0; index -= 1) {
     const message = messages[index];
-    if (message?.type !== "ai") continue;
-    const toolCalls = (message as AIMessage).tool_calls ?? [];
+    if (!message || !isAIMessage(message)) continue;
+    const toolCalls = message.tool_calls ?? [];
     for (let callIndex = toolCalls.length - 1; callIndex >= 0; callIndex -= 1) {
       const toolCall = toolCalls[callIndex];
       if (
@@ -756,8 +758,7 @@ export function latestClarificationToolContent(
       ) {
         continue;
       }
-      const output = (toolCall.args as { output?: unknown } | undefined)
-        ?.output;
+      const output: unknown = toolCall.args?.output;
       if (typeof output === "string" && output.trim()) return output;
     }
   }

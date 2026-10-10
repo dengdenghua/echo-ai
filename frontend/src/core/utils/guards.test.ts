@@ -3,10 +3,13 @@ import { describe, expect, it } from "vitest";
 import {
   arrayOf,
   isArrayOf,
+  isObjectLike,
   isOneOf,
   isRecord,
   isStringArray,
   isUnknownArray,
+  objectLike,
+  stringAt,
 } from "./guards";
 
 describe("guards", () => {
@@ -16,6 +19,22 @@ describe("guards", () => {
     expect(isRecord(null)).toBe(false);
     expect(isRecord([])).toBe(false);
     expect(isRecord("x")).toBe(false);
+  });
+
+  it("lets arrays through as object-like, unlike records", () => {
+    expect(isObjectLike([])).toBe(true);
+    expect(isObjectLike({})).toBe(true);
+    expect(isObjectLike(null)).toBe(false);
+    expect(isObjectLike("x")).toBe(false);
+    expect(objectLike({ a: 1 })).toEqual({ a: 1 });
+    expect(objectLike(7)).toBeUndefined();
+  });
+
+  it("reads string entries by dynamic key", () => {
+    const table = { title: "Title", count: 2 };
+    expect(stringAt(table, "title")).toBe("Title");
+    expect(stringAt(table, "count")).toBeUndefined();
+    expect(stringAt(table, "missing")).toBeUndefined();
   });
 
   it("checks every array item", () => {

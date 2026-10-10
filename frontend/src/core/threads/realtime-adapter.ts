@@ -10,12 +10,14 @@
  * ``Message`` objects across calls — treat the output as immutable.
  */
 
-import type {
-  AIMessage,
-  HumanMessage,
-  Message,
-  ToolCall,
+import {
+  isAIMessage,
+  type AIMessage,
+  type HumanMessage,
+  type Message,
+  type ToolCall,
 } from "@/core/api/types";
+import { isObjectLike, isUnknownArray } from "@/core/utils/guards";
 import type { Todo } from "@/core/todos";
 import { isPrivateAgentGroundingSource } from "@/core/realtime/items";
 import { itemStreamText } from "@/core/realtime/reducer";
@@ -351,19 +353,18 @@ function stableDeepEqual(a: unknown, b: unknown): boolean {
   ) {
     return false;
   }
-  const aIsArray = Array.isArray(a);
-  if (aIsArray !== Array.isArray(b)) return false;
-  if (aIsArray) {
-    const left = a as unknown[];
-    const right = b as unknown[];
-    if (left.length !== right.length) return false;
-    for (let index = 0; index < left.length; index += 1) {
-      if (!stableDeepEqual(left[index], right[index])) return false;
+  if (Array.isArray(a) !== Array.isArray(b)) return false;
+  if (isUnknownArray(a) && isUnknownArray(b)) {
+    if (a.length !== b.length) return false;
+    for (let index = 0; index < a.length; index += 1) {
+      if (!stableDeepEqual(a[index], b[index])) return false;
     }
     return true;
   }
-  const left = a as Record<string, unknown>;
-  const right = b as Record<string, unknown>;
+  // Always true past the checks above; it narrows both to records.
+  if (!isObjectLike(a) || !isObjectLike(b)) return false;
+  const left = a;
+  const right = b;
   const keys = Object.keys(left);
   if (keys.length !== Object.keys(right).length) return false;
   for (const key of keys) {
@@ -445,11 +446,9 @@ function turnToMessages(turn: Turn): Message[] {
 
   const pushAiMessage = (ai: AIMessage): void => {
     const duplicateIndex = findDuplicateAiMessageIndex(out, ai);
-    if (duplicateIndex >= 0) {
-      out[duplicateIndex] = mergeDuplicateAiMessages(
-        out[duplicateIndex] as AIMessage,
-        ai,
-      );
+    const duplicate = out[duplicateIndex];
+    if (duplicate && isAIMessage(duplicate)) {
+      out[duplicateIndex] = mergeDuplicateAiMessages(duplicate, ai);
       return;
     }
     out.push(ai);
@@ -596,9 +595,7 @@ function turnToMessages(turn: Turn): Message[] {
         // result payload in as a fallback so both halves name their agent.
         const isSubagentMarker = mcp.tool.includes("subagent");
         const markerResult =
-          isSubagentMarker && mcp.result && typeof mcp.result === "object"
-            ? (mcp.result as Record<string, unknown>)
-            : null;
+          isSubagentMarker && isObjectLike(mcp.result) ? mcp.result : null;
         pushToolCallMessage({
           id: mcp.id,
           name: `${mcp.server}.${mcp.tool}`,
@@ -949,7 +946,7 @@ function appendPausedTurnReceipt(out: Message[], turn: Turn): void {
       task_id: turn.taskId,
       checkpoint_id: turn.checkpointId,
     },
-  } as AIMessage);
+  });
 }
 
 function appendCancelledTurnReceipt(out: Message[], turn: Turn): void {
@@ -972,7 +969,7 @@ function appendCancelledTurnReceipt(out: Message[], turn: Turn): void {
       message_kind: "answer",
       interrupt_reason: turn.interruptReason,
     },
-  } as AIMessage);
+  });
 }
 
 /**
@@ -1009,7 +1006,7 @@ function pushSyntheticInterruptedReceipt(out: Message[], turn: Turn): void {
     type: "ai",
     content: "",
     additional_kwargs: additionalKwargs,
-  } as AIMessage);
+  });
 }
 
 function appendFailedTurnReceipt(out: Message[], turn: Turn): void {
@@ -1128,7 +1125,7 @@ function mergePendingIntoLastAiAnswer(
   for (let index = messages.length - 1; index >= 0; index -= 1) {
     const message = messages[index];
     if (!message || message.type === "human") break;
-    if (message.type !== "ai") continue;
+    if (!isAIMessage(message)) continue;
     // Commentary is a process checkpoint, never the delivered answer. A
     // completed turn can still have trailing private reasoning (providers
     // sometimes finish the reasoning item after the answer item); attaching
@@ -1138,7 +1135,7 @@ function mergePendingIntoLastAiAnswer(
     if (!normalizeMessageTextForDedupe(message.content)) continue;
     // Tool items are never merged here — they are already emitted as their
     // own AI messages at their real timeline position.
-    const existing = message as AIMessage;
+    const existing = message;
     const incoming: AIMessage = {
       type: "ai",
       content: "",

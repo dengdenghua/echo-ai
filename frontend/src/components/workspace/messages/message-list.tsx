@@ -1,5 +1,11 @@
 import { builtinPersonaDisplayName } from "@/core/agents/persona-display";
-import type { AIMessage, Message, ToolCall } from "@/core/api/types";
+import {
+  isAIMessage,
+  type AIMessage,
+  type Message,
+  type ToolCall,
+} from "@/core/api/types";
+import { isObjectLike, isRecord, isUnknownArray } from "@/core/utils/guards";
 import type { BaseStream } from "@/core/api/use-stream-types";
 import type { ComponentProps, ReactNode } from "react";
 import {
@@ -56,10 +62,7 @@ import {
 import { cn } from "@/lib/utils";
 
 import { ArtifactFileList } from "../artifacts/artifact-file-list";
-import {
-  AGENT_WORKBENCH_LOCATE_EVENT,
-  type AgentWorkbenchLocateDetail,
-} from "../agent-workbench-events";
+import { AGENT_WORKBENCH_LOCATE_EVENT } from "../agent-workbench-events";
 import type { LiveToolEvent } from "../live-tool-timeline";
 import { PublicThinkingStatus } from "../public-thinking-status";
 import { ExecutionEngineBadge } from "../execution-engine-picker";
@@ -333,7 +336,7 @@ export function placeTimelineEntries(
 ): MessageListTimelineEntry[][] {
   const slots = Array.from(
     { length: groupCreatedAt.length + 1 },
-    () => [] as MessageListTimelineEntry[],
+    (): MessageListTimelineEntry[] => [],
   );
   const ordered = entries
     .map((entry, index) => ({ entry, index, at: timestampMs(entry.createdAt) }))
@@ -638,8 +641,8 @@ export function turnMarkerKindFromMessages(
   messages: Message[],
 ): "dot" | "phase" {
   for (const message of messages) {
-    if (message.type !== "ai") continue;
-    const aiMessage = message as AIMessage;
+    if (!isAIMessage(message)) continue;
+    const aiMessage = message;
     const additional = aiMessage.additional_kwargs;
     if (
       typeof additional?.phase_id === "string" &&
@@ -653,10 +656,9 @@ export function turnMarkerKindFromMessages(
     }
     const workbenchSnapshot = additional?.workbenchSnapshot;
     if (
-      workbenchSnapshot &&
-      typeof workbenchSnapshot === "object" &&
-      Array.isArray((workbenchSnapshot as { phases?: unknown }).phases) &&
-      ((workbenchSnapshot as { phases: unknown[] }).phases.length ?? 0) > 0
+      isObjectLike(workbenchSnapshot) &&
+      isUnknownArray(workbenchSnapshot.phases) &&
+      workbenchSnapshot.phases.length > 0
     ) {
       return "phase";
     }
@@ -817,9 +819,7 @@ type StructuredFailure = {
 };
 
 function asFailureRecord(value: unknown): Record<string, unknown> | null {
-  return value && typeof value === "object"
-    ? (value as Record<string, unknown>)
-    : null;
+  return isObjectLike(value) ? value : null;
 }
 
 export function structuredFailureFromMessages(
@@ -1535,9 +1535,12 @@ export function MessageList({
 
   useEffect(() => {
     const handleLocate = (event: Event) => {
-      const detail = (event as CustomEvent<AgentWorkbenchLocateDetail>).detail;
+      const detail: unknown =
+        event instanceof CustomEvent ? event.detail : undefined;
       const eventId =
-        typeof detail?.eventId === "string" ? detail.eventId.trim() : "";
+        isRecord(detail) && typeof detail.eventId === "string"
+          ? detail.eventId.trim()
+          : "";
       if (!eventId) return;
       const row = document.querySelector<HTMLElement>(
         `[data-process-event-id="${cssEscape(eventId)}"]`,
@@ -1624,7 +1627,7 @@ export function MessageList({
   // The realtime hook wraps send failures in Error now, but other BaseStream
   // implementations may still surface raw strings — keep accepting both
   // shapes when extracting the message text.
-  const rawThreadError = thread.error as Error | string | undefined;
+  const rawThreadError: Error | string | undefined = thread.error;
   const threadErrorMessage =
     typeof rawThreadError === "string"
       ? rawThreadError
@@ -1887,7 +1890,7 @@ export function MessageList({
   const observedMarkerRef = useRef<string | null>(null);
   const resolveAgentIdentity = useCallback(
     (msg?: (typeof messages)[number]): AgentIdentity => {
-      const aiMsg = msg?.type === "ai" ? (msg as AIMessage) : undefined;
+      const aiMsg = msg && isAIMessage(msg) ? msg : undefined;
       if (threadId === "echo-assistant" && currentAgent) {
         return {
           avatar:
@@ -2117,9 +2120,8 @@ export function MessageList({
         continue;
       }
       for (const message of group.messages) {
-        if (message.type === "ai") {
-          const aiMsg = message as AIMessage;
-          for (const toolCall of aiMsg.tool_calls ?? []) {
+        if (isAIMessage(message)) {
+          for (const toolCall of message.tool_calls ?? []) {
             if (toolCall.name !== "task" || !toolCall.id) {
               continue;
             }
@@ -2576,8 +2578,8 @@ export function MessageList({
     if (group.type === "assistant:subagent") {
       const taskIds = new Set<string>();
       for (const message of group.messages) {
-        if (message.type !== "ai") continue;
-        for (const toolCall of (message as AIMessage).tool_calls ?? []) {
+        if (!isAIMessage(message)) continue;
+        for (const toolCall of message.tool_calls ?? []) {
           if (toolCall.name === "task" && toolCall.id) {
             taskIds.add(toolCall.id);
           }
@@ -2586,7 +2588,7 @@ export function MessageList({
       const results: React.ReactNode[] = [];
       const renderedTaskIds = new Set<string>();
       let renderedTaskCount = false;
-      for (const message of group.messages.filter((m) => m.type === "ai")) {
+      for (const message of group.messages.filter(isAIMessage)) {
         if (hasReasoning(message)) {
           results.push(
             <MessageGroup
@@ -2617,7 +2619,7 @@ export function MessageList({
           );
         }
         const validTaskIds = takeUnseenTaskIds(
-          (message as AIMessage).tool_calls,
+          message.tool_calls,
           renderedTaskIds,
         );
         if (validTaskIds.length > 1) {

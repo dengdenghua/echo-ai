@@ -1,6 +1,6 @@
 import { swallow } from "@/core/utils/log";
 import { builtinPersonaDisplayName } from "@/core/agents/persona-display";
-import type { AIMessage, Message } from "@/core/api/types";
+import { isAIMessage, type AIMessage, type Message } from "@/core/api/types";
 import {
   BrainIcon,
   ChevronDownIcon,
@@ -3181,13 +3181,13 @@ export function convertToSteps(messages: Message[]): CoTStep[] {
     messageIndex += 1
   ) {
     const message = messages[messageIndex]!;
-    if (message.type === "ai") {
+    if (isAIMessage(message)) {
       if (isProcessPrelude(message, messageIndex, messages)) {
         const commentary = extractContentFromMessage(message);
         if (commentary.trim()) deferredPrelude = { message, commentary };
         continue;
       }
-      const tc = (message as AIMessage).tool_calls;
+      const tc = message.tool_calls;
       const visibleToolCalls = (tc ?? []).filter((toolCall) => {
         if (isHiddenTimelineToolName(toolCall.name)) return false;
         if (!toolCall.id) return true;

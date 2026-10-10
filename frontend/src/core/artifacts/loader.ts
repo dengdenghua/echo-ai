@@ -1,5 +1,5 @@
 import { EchoAPIError, apiGet, untypedApi } from "@/core/api/request";
-import type { AIMessage } from "@/core/api/types";
+import { isAIMessage } from "@/core/api/types";
 import type { BaseStream } from "@/core/api/use-stream-types";
 
 import type { AgentThreadState } from "../threads";
@@ -59,8 +59,8 @@ export function loadArtifactContentFromToolCall({
   const messageId = url.searchParams.get("message_id");
   if (messageId && toolCallId) {
     const message = thread.messages.find((message) => message.id === messageId);
-    if (message?.type === "ai" && (message as AIMessage).tool_calls) {
-      const toolCall = (message as AIMessage).tool_calls!.find(
+    if (message && isAIMessage(message) && message.tool_calls) {
+      const toolCall = message.tool_calls.find(
         (toolCall) => toolCall.id === toolCallId,
       );
       if (toolCall) {
@@ -82,8 +82,8 @@ export function loadToolCallInfo({
   const messageId = url.searchParams.get("message_id");
   if (messageId && toolCallId) {
     const message = thread.messages.find((message) => message.id === messageId);
-    if (message?.type === "ai" && (message as AIMessage).tool_calls) {
-      const toolCall = (message as AIMessage).tool_calls!.find(
+    if (message && isAIMessage(message) && message.tool_calls) {
+      const toolCall = message.tool_calls.find(
         (toolCall) => toolCall.id === toolCallId,
       );
       if (toolCall) {

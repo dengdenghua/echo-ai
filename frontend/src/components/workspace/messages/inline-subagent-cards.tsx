@@ -10,7 +10,12 @@ import {
 } from "lucide-react";
 import { useEffect, useId, useMemo, useState } from "react";
 import type { LiveToolEvent } from "@/components/workspace/live-tool-timeline";
-import type { AIMessage, Message, ToolMessage } from "@/core/api/types";
+import {
+  isAIMessage,
+  isToolMessage,
+  type Message,
+  type ToolMessage,
+} from "@/core/api/types";
 import { isTeammateToolName } from "@/components/workspace/messages/action-display";
 import { useI18n } from "@/core/i18n/hooks";
 import { useAgents } from "@/core/agents/hooks";
@@ -387,19 +392,19 @@ export function deriveSubagentsFromMessages(
   const toolResults = new Map<string, { data: unknown; error: boolean }>();
 
   for (const msg of messages) {
-    if (msg.type === "tool" && msg.tool_call_id) {
-      const parsed = parseToolContent(msg as ToolMessage);
+    if (isToolMessage(msg) && msg.tool_call_id) {
+      const parsed = parseToolContent(msg);
       toolResults.set(msg.tool_call_id, {
         data: parsed,
-        error: (msg as ToolMessage).status === "error",
+        error: msg.status === "error",
       });
     }
   }
 
   let agentIndex = 0;
   for (const msg of messages) {
-    if (msg.type !== "ai") continue;
-    const aiMsg = msg as AIMessage;
+    if (!isAIMessage(msg)) continue;
+    const aiMsg = msg;
     const toolCalls = aiMsg.tool_calls ?? [];
 
     for (const tc of toolCalls) {
@@ -812,8 +817,8 @@ function compactMission(value: string): string {
  * markers contain identity/status but omit each worker's prompt. */
 export function deriveSubagentMissionFromMessages(messages: Message[]): string {
   for (const message of messages) {
-    if (message.type !== "ai") continue;
-    for (const toolCall of (message as AIMessage).tool_calls ?? []) {
+    if (!isAIMessage(message)) continue;
+    for (const toolCall of message.tool_calls ?? []) {
       const toolName = toolCall.name.toLowerCase();
       if (
         !isTeammateToolName(toolName) &&
@@ -1040,9 +1045,9 @@ function KimiStyleSubagentCard({
         : agent.status === "waiting"
           ? t.message.statusWaiting
           : t.message.statusViewing;
-  const handleClick = (event: React.MouseEvent<HTMLButtonElement>) => {
+  const openInWorkbench = (trigger?: HTMLElement) => {
     setPreviewSuppressed(true);
-    event.currentTarget.blur();
+    trigger?.blur();
     // Open the agent in the workbench
     emitAgentWorkbenchFocus({
       agentId: agent.id,
@@ -1064,6 +1069,8 @@ function KimiStyleSubagentCard({
       view: "screen",
     });
   };
+  const handleClick = (event: React.MouseEvent<HTMLButtonElement>) =>
+    openInWorkbench(event.currentTarget);
 
   if (paired) {
     return (
@@ -1175,11 +1182,7 @@ function KimiStyleSubagentCard({
           <InlineSubagentCardExpansion
             agent={agent}
             isOpen={reportOpen}
-            onOpenWorkbench={() =>
-              handleClick({
-                currentTarget: { blur: () => {} },
-              } as unknown as React.MouseEvent<HTMLButtonElement>)
-            }
+            onOpenWorkbench={() => openInWorkbench()}
           />
         </div>
       )}

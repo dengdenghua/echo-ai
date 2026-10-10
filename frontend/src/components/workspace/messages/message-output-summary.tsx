@@ -1,8 +1,9 @@
-import type {
-  AIMessage,
-  Message,
-  ToolCall,
-  ToolMessage,
+import {
+  isAIMessage,
+  isToolMessage,
+  type Message,
+  type ToolCall,
+  type ToolMessage,
 } from "@/core/api/types";
 import type { FileHunk } from "@/core/realtime";
 import { singleHunkDiff } from "@/components/realtime/item-views/file-change-view";
@@ -339,8 +340,8 @@ function toolCallOutputsFromMessage(message: Message): ToolCallOutputs {
     artifacts: [],
     changes: [],
   };
-  if (message.type === "ai") {
-    for (const toolCall of (message as AIMessage).tool_calls ?? []) {
+  if (isAIMessage(message)) {
+    for (const toolCall of message.tool_calls ?? []) {
       extracted.toolCalls.push(toolCall);
       const artifact = artifactFromToolCall(toolCall);
       if (artifact) extracted.artifacts.push(artifact);
@@ -421,11 +422,8 @@ function summarizeOutputs(messages: Message[]): OutputSummary {
 
   // Second pass: collect verification results from tool messages
   for (const message of messages) {
-    if (message.type !== "tool") continue;
-    const entry = verificationFromToolMessageCached(
-      message as ToolMessage,
-      toolCallMap,
-    );
+    if (!isToolMessage(message)) continue;
+    const entry = verificationFromToolMessageCached(message, toolCallMap);
     if (entry) verifications.set(entry.id, entry);
   }
 

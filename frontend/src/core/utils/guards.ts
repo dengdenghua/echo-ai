@@ -25,6 +25,21 @@ export function isBoolean(value: unknown): value is boolean {
   return typeof value === "boolean";
 }
 
+/**
+ * Any non-null object, arrays included, for reading fields loosely
+ * (``typeof value === "object"`` checks that let arrays through).
+ */
+export function isObjectLike(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null;
+}
+
+/** ``value`` when it is object-like (see ``isObjectLike``), else ``undefined``. */
+export function objectLike(
+  value: unknown,
+): Record<string, unknown> | undefined {
+  return isObjectLike(value) ? value : undefined;
+}
+
 /** ``Array.isArray`` narrows ``unknown`` to ``any[]``; this keeps ``unknown``. */
 export function isUnknownArray(value: unknown): value is unknown[] {
   return Array.isArray(value);
@@ -50,4 +65,13 @@ export function isOneOf<const T extends readonly unknown[]>(
   options: T,
 ): value is T[number] {
   return options.includes(value);
+}
+
+/**
+ * ``source[key]`` when it is a string. For dynamic keys into typed tables
+ * (e.g. a translation namespace) that have no index signature.
+ */
+export function stringAt(source: object, key: string): string | undefined {
+  const value: unknown = Reflect.get(source, key);
+  return typeof value === "string" ? value : undefined;
 }
