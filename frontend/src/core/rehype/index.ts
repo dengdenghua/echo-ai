@@ -4,7 +4,6 @@ import rehypeKatex from "rehype-katex";
 import rehypeRaw from "rehype-raw";
 import rehypeSanitize from "rehype-sanitize";
 import { visit } from "unist-util-visit";
-import type { BuildVisitor } from "unist-util-visit";
 import type { StreamdownProps } from "streamdown";
 import { parseFileReference } from "@/core/navigation/file-reference";
 
@@ -84,7 +83,7 @@ export function rehypeSplitWordsIntoSpans({
   tailWindow = DEFAULT_TAIL_WINDOW,
 }: RehypeSplitWordsOptions = {}) {
   return (tree: Root) => {
-    visit(tree, "element", ((node: Element) => {
+    visit(tree, "element", (node: Element) => {
       if (
         ["p", "h1", "h2", "h3", "h4", "h5", "h6", "li", "strong"].includes(
           node.tagName,
@@ -135,7 +134,7 @@ export function rehypeSplitWordsIntoSpans({
         });
         node.children = newChildren;
       }
-    }) as BuildVisitor<Root, "element">);
+    });
   };
 }
 
@@ -190,18 +189,17 @@ const CHAT_REHYPE_BASE: StreamdownProps["rehypePlugins"] = [
   rehypeRaw,
   rehypeSanitize,
   [rehypeKatex, { output: "html" }],
-] as StreamdownProps["rehypePlugins"];
+];
 
 export function useChatRehypePlugins({
   splitWords = true,
 }: { splitWords?: boolean } = {}): StreamdownProps["rehypePlugins"] {
   return useMemo<StreamdownProps["rehypePlugins"]>(
-    () =>
-      [
-        ...(CHAT_REHYPE_BASE ?? []),
-        rehypeFileReferences,
-        ...(splitWords ? [rehypeSplitWordsIntoSpans] : []),
-      ] as StreamdownProps["rehypePlugins"],
+    () => [
+      ...(CHAT_REHYPE_BASE ?? []),
+      rehypeFileReferences,
+      ...(splitWords ? [rehypeSplitWordsIntoSpans] : []),
+    ],
     [splitWords],
   );
 }

@@ -631,7 +631,7 @@ export function ExecutionPlanReview({
                 low: t.executionPlan.lowRisk,
                 medium: t.executionPlan.mediumRisk,
                 high: t.executionPlan.highRisk,
-              } as Record<string, string>
+              }
             )[plan.risk_level] ?? riskCfg.label}
           </span>
           {/* Expand/collapse */}

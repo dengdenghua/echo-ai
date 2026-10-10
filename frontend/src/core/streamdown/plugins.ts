@@ -35,10 +35,7 @@ type StreamdownPluginBundle = Pick<
 // EMPTY rehypePlugins array is the exact bug we're avoiding here.
 
 const BASE_PLUGINS: StreamdownPluginBundle = {
-  remarkPlugins: [
-    remarkGfm,
-    [remarkMath, { singleDollarTextMath: true }],
-  ] as StreamdownProps["remarkPlugins"],
+  remarkPlugins: [remarkGfm, [remarkMath, { singleDollarTextMath: true }]],
   // Security (audit R-01): agent-authored content flows through this
   // bundle in the wiki / workbench / memory / artifact panels, and an
   // agent can echo attacker-controlled HTML (e.g. a malicious page it
@@ -46,22 +43,14 @@ const BASE_PLUGINS: StreamdownPluginBundle = {
   // parses raw HTML into the tree) and `rehype-katex` — after raw so
   // injected markup is stripped, before katex so math output survives.
   // The chat chain in `core/rehype/index.ts` keeps the same order.
-  rehypePlugins: [
-    rehypeRaw,
-    rehypeSanitize,
-    [rehypeKatex, { output: "html" }],
-  ] as StreamdownProps["rehypePlugins"],
+  rehypePlugins: [rehypeRaw, rehypeSanitize, [rehypeKatex, { output: "html" }]],
 };
 
 // Human-authored messages don't want rehype-raw — they should not
 // be able to inject HTML into the DOM. Math is still useful.
 const HUMAN_PLUGINS: StreamdownPluginBundle = {
-  remarkPlugins: [
-    [remarkMath, { singleDollarTextMath: true }],
-  ] as StreamdownProps["remarkPlugins"],
-  rehypePlugins: [
-    [rehypeKatex, { output: "html" }],
-  ] as StreamdownProps["rehypePlugins"],
+  remarkPlugins: [[remarkMath, { singleDollarTextMath: true }]],
+  rehypePlugins: [[rehypeKatex, { output: "html" }]],
 };
 
 export function useStreamdownPlugins(): StreamdownPluginBundle {
@@ -79,7 +68,7 @@ export function useStreamdownPluginsWithWordAnimation(): StreamdownPluginBundle 
           (plugin) => plugin !== undefined,
         ),
         rehypeSplitWordsIntoSpans,
-      ] as StreamdownProps["rehypePlugins"],
+      ],
     }),
     [],
   );

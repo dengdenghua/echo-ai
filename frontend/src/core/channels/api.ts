@@ -391,7 +391,7 @@ export async function getWechatQRCode(): Promise<WechatQRResponse> {
     session_id: data.qrcode ?? "",
     qr_url: data.qrcode_img_content ?? "",
     status: "pending",
-  } as WechatQRResponse;
+  };
 }
 
 export async function pollWechatLoginStatus(
@@ -434,7 +434,7 @@ export async function getPairingRequests(params?: {
       user_name: (p.sender_id as string) ?? "",
       group_id: (p.thread_id as string) ?? undefined,
       group_name: undefined,
-      status: "pending" as PairingStatus,
+      status: "pending",
       created_at: p.ts ? new Date((p.ts as number) * 1000).toISOString() : "",
       expires_at: "",
     }),

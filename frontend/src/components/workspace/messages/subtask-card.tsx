@@ -69,7 +69,7 @@ function getStatusLabel(
   status: SubtaskStatus,
   t: ReturnType<typeof useI18n>["t"],
 ): string {
-  const label = t.subagents[status as keyof typeof t.subagents];
+  const label = t.subagents[status];
   return (
     (typeof label === "string" ? label : undefined) ??
     SUBTASK_STATUS_LABELS[status] ??

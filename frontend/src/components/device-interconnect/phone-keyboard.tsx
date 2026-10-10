@@ -65,16 +65,14 @@ export const PhoneKeyboard = forwardRef<
           )
             command = "select_all";
           else if (!event.ctrlKey && !event.metaKey && !event.altKey) {
-            command = (
-              {
-                Backspace: "delete_backward",
-                Delete: "delete_forward",
-                ArrowLeft: "move_left",
-                ArrowRight: "move_right",
-                Enter: "enter",
-                Escape: "back",
-              } as Record<string, string>
-            )[event.key];
+            command = {
+              Backspace: "delete_backward",
+              Delete: "delete_forward",
+              ArrowLeft: "move_left",
+              ArrowRight: "move_right",
+              Enter: "enter",
+              Escape: "back",
+            }[event.key];
           }
           if (command) {
             event.preventDefault();

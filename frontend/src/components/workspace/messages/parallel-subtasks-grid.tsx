@@ -86,7 +86,7 @@ const MiniSubtaskRow = memo(function MiniSubtaskRow({
 
   if (!task) return null;
 
-  const rawLabel = t.subagents[task.status as keyof typeof t.subagents];
+  const rawLabel = t.subagents[task.status];
   const statusLabel = typeof rawLabel === "string" ? rawLabel : task.status;
   const progress = subtaskProgress(task);
   const percent = subtaskProgressPercent(task);

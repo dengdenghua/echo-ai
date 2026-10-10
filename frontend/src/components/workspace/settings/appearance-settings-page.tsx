@@ -69,25 +69,25 @@ export default function AppearanceSettingsPage() {
           label: t.settings.appearance.paletteGroupSoft,
           options: [
             {
-              id: "rouge" as NamedPalette,
+              id: "rouge",
               label: t.settings.appearance.paletteRose,
               description: t.settings.appearance.paletteRoseDescription,
               swatch: "#edb7cb",
             },
             {
-              id: "apricot" as NamedPalette,
+              id: "apricot",
               label: t.settings.appearance.paletteApricot,
               description: t.settings.appearance.paletteApricotDescription,
               swatch: "#f3c4af",
             },
             {
-              id: "violet" as NamedPalette,
+              id: "violet",
               label: t.settings.appearance.paletteViolet,
               description: t.settings.appearance.paletteVioletDescription,
               swatch: "#d3bfeb",
             },
             {
-              id: "emerald" as NamedPalette,
+              id: "emerald",
               label: t.settings.appearance.paletteEmerald,
               description: t.settings.appearance.paletteEmeraldDescription,
               swatch: "#efdda6",
@@ -99,25 +99,25 @@ export default function AppearanceSettingsPage() {
           label: t.settings.appearance.paletteGroupDeep,
           options: [
             {
-              id: "steel" as NamedPalette,
+              id: "steel",
               label: t.settings.appearance.paletteSteel,
               description: t.settings.appearance.paletteSteelDescription,
               swatch: "#0066cc",
             },
             {
-              id: "teal" as NamedPalette,
+              id: "teal",
               label: t.settings.appearance.paletteTeal,
               description: t.settings.appearance.paletteTealDescription,
               swatch: "#34363b",
             },
             {
-              id: "mint" as NamedPalette,
+              id: "mint",
               label: t.settings.appearance.paletteMint,
               description: t.settings.appearance.paletteMintDescription,
               swatch: "#686b73",
             },
             {
-              id: "amber" as NamedPalette,
+              id: "amber",
               label: t.settings.appearance.paletteAmber,
               description: t.settings.appearance.paletteAmberDescription,
               swatch: "#807366",

@@ -169,7 +169,7 @@ export function applyVitalNotification(
     const wireTurn = params?.turn;
     const wireTurnId =
       wireTurn && typeof wireTurn === "object" && "id" in wireTurn
-        ? (wireTurn as { id?: unknown }).id
+        ? wireTurn.id
         : params?.turnId;
     marks.activeTurnId = typeof wireTurnId === "string" ? wireTurnId : null;
     marks.turnStartedAt = now;
@@ -226,9 +226,7 @@ function isAgentActivityNotification(note: {
   if (!note.method.startsWith("item/")) return false;
   const item = note.params?.item;
   const itemType =
-    item && typeof item === "object" && "type" in item
-      ? (item as { type?: unknown }).type
-      : undefined;
+    item && typeof item === "object" && "type" in item ? item.type : undefined;
   if (itemType === "userMessage" || itemType === "steeringUserMessage") {
     return false;
   }

@@ -820,7 +820,7 @@ function SummaryAgentRow({ tile }: { tile: AgentTile }) {
   const previewId = `subtask-preview-${tile.id}`;
   const statusLabel = subtask
     ? (() => {
-        const raw = t.subagents[subtask.status as keyof typeof t.subagents];
+        const raw = t.subagents[subtask.status];
         return typeof raw === "string" ? raw : subtask.status;
       })()
     : "";

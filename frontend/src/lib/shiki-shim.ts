@@ -136,10 +136,10 @@ export async function createHighlighter(
     engine: engine as never,
   });
   const coreLoadLanguage = highlighter.loadLanguage.bind(highlighter);
-  highlighter.loadLanguage = ((...langs: unknown[]) =>
+  highlighter.loadLanguage = (...langs: unknown[]) =>
     coreLoadLanguage(
       ...(langs.map(resolveLanguageInput).filter(Boolean) as never[]),
-    )) as typeof highlighter.loadLanguage;
+    );
   return highlighter;
 }
 

@@ -1590,7 +1590,9 @@ export function useThreadStreamRealtime(
   const refresh = useCallback(() => resume(), [resume]);
   const lastTurnStatus = state.turns.at(-1)?.status;
 
-  const exposedThread = useMemo(
+  const exposedThread = useMemo<
+    ExposedRealtimeThread & { compact: typeof compact; vitals: typeof vitals }
+  >(
     () =>
       ({
         messages: visibleMessages,
@@ -1615,10 +1617,7 @@ export function useThreadStreamRealtime(
         connectionPhase,
         readyForMutations,
         lastTurnStatus,
-      }) as ExposedRealtimeThread & {
-        compact: typeof compact;
-        vitals: typeof vitals;
-      },
+      }),
     [
       mapped,
       visibleMessages,
@@ -1749,7 +1748,7 @@ export function useThreadStreamRealtime(
             ...(topologyId ? { topologyId } : {}),
             metadata: {
               context: metadataContext,
-            } as Record<string, unknown>,
+            },
           });
           if (!isCurrentThreadEpoch(deliveryEpoch)) return;
         } finally {

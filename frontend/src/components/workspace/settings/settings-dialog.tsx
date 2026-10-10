@@ -262,9 +262,7 @@ export function SettingsDialog(props: SettingsDialogProps) {
 
   const onResizeStart = (e: React.MouseEvent<HTMLDivElement>) => {
     e.preventDefault();
-    const content = (e.currentTarget as HTMLElement).closest(
-      '[data-slot="dialog-content"]',
-    );
+    const content = e.currentTarget.closest('[data-slot="dialog-content"]');
     if (!content) return;
     const rect = content.getBoundingClientRect();
     resizeStartRef.current = {

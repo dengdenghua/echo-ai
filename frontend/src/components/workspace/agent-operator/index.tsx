@@ -290,7 +290,7 @@ export function AgentOperatorPanel() {
       fetchAgentTraceTrustDenialSummary(),
       fetchAgentTracePolicyReviewRuleDrafts(),
       fetchAgentCompetitorScorecard(E2E_SURPASS_TARGET_SCORE)
-        .then((scorecard) => ({ scorecard, error: null as string | null }))
+        .then((scorecard) => ({ scorecard, error: null }))
         .catch((err: unknown) => {
           swallow(err);
           return {
@@ -301,7 +301,7 @@ export function AgentOperatorPanel() {
       fetchE2ESurpassCertification(E2E_SURPASS_TARGET_SCORE)
         .then((certification) => ({
           certification,
-          error: null as string | null,
+          error: null,
         }))
         .catch((err: unknown) => {
           swallow(err);

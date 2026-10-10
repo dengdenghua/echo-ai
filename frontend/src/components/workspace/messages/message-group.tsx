@@ -1223,7 +1223,7 @@ export function MessageGroup({
         (expandedAggregatedGroups[item.id] ??
           (detailConfig.level === "high" && item.count <= 8));
       const coveredItems =
-        compactExecutionCoverage.get(item.id) ?? ([item] as TimelineItem[]);
+        compactExecutionCoverage.get(item.id) ?? [item];
       const groupedTargetSummary =
         summarizeCompactExecutionTargets(coveredItems) ??
         (isAggregatedGroup

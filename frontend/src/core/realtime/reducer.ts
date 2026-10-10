@@ -184,7 +184,7 @@ function withMaterializedStreamText(item: Item): Item {
   return {
     ...item,
     [field]: streamWireText(item) + joinStreamChunks(chunks),
-  } as Item;
+  };
 }
 
 /**
@@ -1018,7 +1018,7 @@ function mergeStartedTurn(existing: Turn, incoming: Turn): Turn {
       timelineSequence,
       parentItemId,
       phaseId,
-    } as Item;
+    };
   });
   const appended = incoming.items.filter((item) => !existingIds.has(item.id));
   if (
@@ -1158,7 +1158,7 @@ function preserveTimelineCoordinates(existing: Item, incoming: Item): Item {
       incoming.timelineSequence ?? existing.timelineSequence ?? null,
     parentItemId: incoming.parentItemId ?? existing.parentItemId ?? null,
     phaseId: incoming.phaseId ?? existing.phaseId ?? null,
-  } as Item;
+  };
 }
 
 function preserveCompletedStreamText(existing: Item, incoming: Item): Item {
