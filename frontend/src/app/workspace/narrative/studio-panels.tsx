@@ -844,8 +844,7 @@ export function StudioInspector({
                     人工正典防线
                   </p>
                   <p className="mt-2 text-xs leading-5 text-muted-foreground">
-                    Agent
-                    只能生成候选内容。审核、法定票数和阻塞项全部通过后，仍需人工二次确认才能提交正典。
+                    智能体只能生成候选内容。审核、法定票数和阻塞项全部通过后，仍需人工二次确认才能提交正典。
                   </p>
                   <p className="mt-2 text-[11px] text-muted-foreground">
                     项目规则：quorum{" "}

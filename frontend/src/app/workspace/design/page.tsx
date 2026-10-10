@@ -280,7 +280,7 @@ const KIND_STYLE: Record<
 > = {
   brief: { label: "需求", tint: "bg-amber-50", accent: "bg-amber-400" },
   agent: { label: "角色", tint: "bg-violet-50", accent: "bg-violet-500" },
-  skill: { label: "Skill", tint: "bg-blue-50", accent: "bg-blue-500" },
+  skill: { label: "技能", tint: "bg-blue-50", accent: "bg-blue-500" },
   plugin: { label: "插件", tint: "bg-emerald-50", accent: "bg-emerald-500" },
   frame: { label: "画板", tint: "bg-blue-50", accent: "bg-blue-600" },
   component: { label: "组件", tint: "bg-violet-50", accent: "bg-violet-600" },
@@ -861,7 +861,7 @@ function ChatPanel({
           }
         : surface === "comfyui"
           ? {
-              title: "ComfyUI Agent",
+              title: "ComfyUI 智能体",
               intro:
                 "描述目标和本地依赖，我会检查当前工作流、修改节点并提交本机队列。",
               skill: "工作流技能",
@@ -869,7 +869,7 @@ function ChatPanel({
           : {
               title: "个人工作台",
               intro: "把想法说给我，产物会直接落在画布上。",
-              skill: "Skill",
+              skill: "技能",
             };
   if (chatUrl) {
     return (

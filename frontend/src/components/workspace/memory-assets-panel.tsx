@@ -191,7 +191,7 @@ function AssetDetail({
               <DetailLine label="所有者" value={asset.owner} />
               <DetailLine label="团队" value={asset.team_id} />
               <DetailLine
-                label="Agent"
+                label="智能体"
                 value={[asset.agent_id, ...asset.allowed_agents]
                   .filter(Boolean)
                   .join("、")}

@@ -201,7 +201,7 @@ function EnabledStreamingDebugger({
             <div className="flex shrink-0 items-center gap-2 border-b border-border-subtle bg-background px-4 py-2">
               <FilterIcon className="size-4 text-muted-foreground" />
               <Input
-                placeholder="筛选事件 (名称/ID/Agent)..."
+                placeholder="筛选事件（名称 / ID / 智能体）…"
                 value={filter}
                 onChange={(e) => setFilter(e.target.value)}
                 className="h-8 flex-1 text-xs"

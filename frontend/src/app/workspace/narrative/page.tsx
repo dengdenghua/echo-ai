@@ -942,7 +942,7 @@ export default function NarrativePage() {
             onClick={() => setIntegrationsOpen(true)}
           >
             <PlugZapIcon className="size-4" />
-            MCP · {status?.packaged_skills?.length ?? 3} Skills
+            MCP · {status?.packaged_skills?.length ?? 3} 个技能
           </Button>
           <Button
             variant="outline"
