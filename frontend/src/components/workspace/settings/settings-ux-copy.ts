@@ -145,7 +145,7 @@ const COPY: Record<Locale, SettingsUxCopy> = {
       restoreFailed: "操作失败，请稍后重试。",
       removePathTitle: "删除保护路径",
       removePathDescription: (path) =>
-        `移除“${path}”后，Agent 将不再自动拒绝访问该路径。`,
+        `移除“${path}”后，智能体将不再自动拒绝访问该路径。`,
       removePathConfirm: "确认删除",
     },
     mcp: {

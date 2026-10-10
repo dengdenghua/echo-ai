@@ -2214,7 +2214,7 @@ export function AgentWorldUnified() {
           <DialogHeader>
             <DialogTitle>卸载{uninstallWorkbenchApp?.name}</DialogTitle>
             <DialogDescription>
-              应用代码、MCP 与应用 Skills 会立即撤销。请选择作品数据的处理方式。
+              应用代码、MCP 与应用技能会立即撤销。请选择作品数据的处理方式。
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-2 py-2">

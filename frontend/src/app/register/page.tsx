@@ -131,7 +131,7 @@ export default function RegisterPage() {
     {
       icon: GitBranchIcon,
       title: "灵活编排",
-      desc: "可视化工作流，自由组合 Agent 能力",
+      desc: "可视化工作流，自由组合智能体能力",
     },
     {
       icon: BoxesIcon,

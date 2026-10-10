@@ -911,7 +911,7 @@ export function ConnectDialog({
           (isFreebuffCli ? (
             <div className="space-y-1.5 rounded-md border border-warning/30 bg-warning/5 p-2.5 text-xs leading-5">
               <p className="font-medium text-foreground">
-                官方 Freebuff CLI · 交互式本地 Agent
+                官方 Freebuff CLI · 交互式本地智能体
               </p>
               <p className="text-muted-foreground">
                 登录会打开 freebuff.com 官方授权页。Echo

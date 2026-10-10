@@ -305,7 +305,7 @@ describe("MessageList process trace lifecycle", () => {
       screen.getByRole("button", { name: /Eve.*异常|Eve.*失败/ }),
     ).toBeInTheDocument();
     expect(
-      screen.queryByText("1 个子 Agent · 1 已完成"),
+      screen.queryByText("1 个子智能体 · 1 已完成"),
     ).not.toBeInTheDocument();
   });
 
@@ -506,7 +506,7 @@ describe("MessageList process trace lifecycle", () => {
       { locale: "zh-CN" },
     );
 
-    expect(screen.getByText("2 个子 Agent · 2 已完成")).toBeInTheDocument();
+    expect(screen.getByText("2 个子智能体 · 2 已完成")).toBeInTheDocument();
     expect(
       screen.getByRole("button", { name: /README 检查/ }),
     ).toBeInTheDocument();
@@ -1394,8 +1394,8 @@ describe("MessageList process trace lifecycle", () => {
     expect(zeroStrip.querySelector("img")).toBeNull();
     expect(zeroStrip).not.toHaveTextContent("内部委派任务");
     expect(screen.queryByText("Agent 集群")).toBeNull();
-    expect(screen.queryByText(/1 个子 Agent/)).toBeNull();
-    expect(screen.queryByText("2 个子 Agent · 1 已完成 · 1 异常")).toBeNull();
+    expect(screen.queryByText(/1 个子智能体/)).toBeNull();
+    expect(screen.queryByText("2 个子智能体 · 1 已完成 · 1 异常")).toBeNull();
   });
 
   test("keeps team execution clusters in the right workbench, not the chat", () => {
@@ -1454,7 +1454,7 @@ describe("MessageList process trace lifecycle", () => {
     });
 
     expect(screen.queryByText("Agent 集群")).toBeNull();
-    expect(screen.queryByText(/2 个子 Agent/)).toBeNull();
+    expect(screen.queryByText(/2 个子智能体/)).toBeNull();
     expect(
       screen.queryByText("上面中断任务啊", { selector: "button" }),
     ).toBeNull();

@@ -32,7 +32,7 @@ export const freebuffCapability = {
   ...cliCapability,
   id: "freebuff-cli",
   name: "Freebuff CLI",
-  name_zh: "Freebuff 本地 Agent",
+  name_zh: "Freebuff 本地智能体",
   description: "Official Freebuff CLI",
   description_zh: "官方 Freebuff CLI",
 };

@@ -709,7 +709,7 @@ function BrowserShell() {
                   <div className="flex rounded-lg bg-background/80 p-0.5 shadow-[var(--shadow-xs)]">
                     {(
                       [
-                        ["desktop", MonitorIcon, DEVICE_STAGE.desktop.label],
+                        ["desktop", MonitorIcon, t.livePreview.desktop],
                         ["tablet", TabletIcon, DEVICE_STAGE.tablet.label],
                         ["mobile", SmartphoneIcon, DEVICE_STAGE.mobile.label],
                       ] as const

@@ -309,7 +309,7 @@ export function BrowserAutomationSettingsPage() {
         title={zh ? "允许浏览器操作" : "Allow browser actions"}
         description={
           zh
-            ? "关闭后，浏览器与 live_browser 工具不会进入 Agent 的可用工具目录。"
+            ? "关闭后，浏览器与 live_browser 工具不会进入智能体的可用工具目录。"
             : "When off, browser and live_browser tools are removed from the agent tool catalog."
         }
         checked={query.data?.browser_automation === true}
@@ -579,7 +579,7 @@ export function DesktopAutomationSettingsPage() {
         title={zh ? "允许桌面操作" : "Allow desktop actions"}
         description={
           zh
-            ? "关闭后，电脑操控工具不会进入 Agent 的可用工具目录。长任务豁免和现有审批规则保持不变。"
+            ? "关闭后，电脑操控工具不会进入智能体的可用工具目录。长任务豁免和现有审批规则保持不变。"
             : "When off, computer-use tools are removed from the agent tool catalog. Existing approvals remain unchanged."
         }
         checked={query.data?.desktop_automation === true}

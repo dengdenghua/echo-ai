@@ -679,7 +679,7 @@ export default function NarrativePage() {
         stageId,
         kind: "error",
         message: activeContextPack
-          ? "当前阶段不是受支持的叙事 Agent 阶段。"
+          ? "当前阶段不是受支持的叙事智能体阶段。"
           : "请先构建章节上下文包，再运行 AI 阶段。",
       });
       return;
@@ -1514,7 +1514,7 @@ export default function NarrativePage() {
                     Narrative MCP
                   </div>
                   <p className="mt-1 text-xs leading-5 text-muted-foreground">
-                    可供其他 Agent 和 MCP
+                    可供其他智能体和 MCP
                     客户端读取项目、构建上下文并创建候选章节；直接继承 Echo
                     当前身份与权限，无需再次登录或授权。
                   </p>
@@ -1548,7 +1548,7 @@ export default function NarrativePage() {
             <div className="rounded-xl border border-border/70 p-4">
               <div className="flex items-center gap-2 text-sm font-semibold">
                 <ShieldCheckIcon className="size-4 text-emerald-500" />
-                插件自带 Skills
+                插件自带技能
               </div>
               <p className="mt-1 text-xs leading-5 text-muted-foreground">
                 安装时注册，停用或卸载时一并撤销；所有写入都只生成候选稿。
@@ -1569,7 +1569,7 @@ export default function NarrativePage() {
             </div>
 
             <div className="rounded-xl border border-violet-400/20 bg-violet-500/6 px-4 py-3 text-xs leading-5 text-muted-foreground">
-              MCP 与 Skills 均不提供直接写入正典、跳过投票或解除审核阻断的能力。
+              MCP 与技能均不提供直接写入正典、跳过投票或解除审核阻断的能力。
             </div>
           </div>
         </Modal>

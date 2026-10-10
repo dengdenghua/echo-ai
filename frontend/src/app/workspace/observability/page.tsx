@@ -1064,7 +1064,7 @@ export function ToolEffectsPanel() {
         <CardContent>
           <div className="mb-3 flex flex-wrap gap-2 text-xs text-muted-foreground">
             <span className="rounded-full bg-muted px-2.5 py-1">
-              {t.observabilityPage.toolEffects.backendLabel} · {data.backend}
+              {t.observabilityPage.toolEffects.backendLabel} · {data.backend === "disabled" ? t.observabilityPage.toolEffects.backendDisabled : data.backend}
             </span>
             <span className="rounded-full bg-muted px-2.5 py-1">
               {data.shared_across_hosts

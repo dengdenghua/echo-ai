@@ -847,24 +847,24 @@ function ChatPanel({
   const profile =
     surface === "editor"
       ? {
-          title: "剪辑 Agent",
+          title: "剪辑智能体",
           intro:
             "告诉我想处理的片段、字幕或画面效果，我会直接修改当前剪辑工程并复核成片。",
-          skill: "剪辑 Skill",
+          skill: "剪辑技能",
         }
       : surface === "director"
         ? {
-            title: "导演台 Agent",
+            title: "导演台智能体",
             intro:
               "告诉我镜头、角色走位和空间关系，我会直接修改当前 3D 场景并做多视角检查。",
-            skill: "导演 Skill",
+            skill: "导演技能",
           }
         : surface === "comfyui"
           ? {
               title: "ComfyUI Agent",
               intro:
                 "描述目标和本地依赖，我会检查当前工作流、修改节点并提交本机队列。",
-              skill: "工作流 Skill",
+              skill: "工作流技能",
             }
           : {
               title: "个人工作台",
@@ -938,7 +938,7 @@ function ChatPanel({
           <div>
             <p className="font-medium">{profile.intro}</p>
             <p className="mt-2 text-muted-foreground">
-              我会先拆解任务，再调用画布里绑定的角色、Skill
+              我会先拆解任务，再调用画布里绑定的角色、技能
               和插件。工作流模式按连线执行，自由画布模式由我自主编排。
             </p>
           </div>
@@ -1994,7 +1994,7 @@ function AssetsView({
           <DialogHeader className="shrink-0 border-b border-border-subtle px-5 py-4 pr-12">
             <DialogTitle className="text-[15px]">添加资产</DialogTitle>
             <DialogDescription className="text-[11px] leading-5">
-              填写清晰的名称、描述和标签，让 Agent 能搜索并在不同项目中复用。
+              填写清晰的名称、描述和标签，让智能体能搜索并在不同项目中复用。
             </DialogDescription>
           </DialogHeader>
           <div className="min-h-0 flex-1 space-y-4 overflow-y-auto overscroll-contain px-5 py-4">
@@ -2031,7 +2031,7 @@ function AssetsView({
               <Textarea
                 value={assetDescription}
                 onChange={(event) => setAssetDescription(event.target.value)}
-                placeholder="输入清晰的描述，帮助 Agent 更好地搜索和复用…"
+                placeholder="输入清晰的描述，帮助智能体更好地搜索和复用…"
                 className="min-h-20 resize-none rounded-lg text-xs leading-5"
                 maxLength={1200}
               />
@@ -3144,7 +3144,7 @@ function ComfyUIView({
               ComfyUI 工作流
             </h1>
             <p className="mt-1.5 text-xs text-muted-foreground">
-              支持本地部署，可手动运行，也可作为画布节点由 Agent 调用
+              支持本地部署，可手动运行，也可作为画布节点由智能体调用
             </p>
           </div>
         </div>
@@ -3751,7 +3751,7 @@ function ComfyUIView({
                 {"\n"}
                 {selectedWorkflow.availability === "dependency"
                   ? "这是能力目录，需要先安装页面列出的模型或扩展，Echo 不会静默下载大模型。"
-                  : "工作流可在本机手动运行，也可加入画布交给 Agent 调用。模型和输入文件始终由你选择。"}
+                  : "工作流可在本机手动运行，也可加入画布交给智能体调用。模型和输入文件始终由你选择。"}
               </p>
               <Button
                 className="mt-7 h-11 w-full max-w-xl rounded-xl bg-violet-600 text-white hover:bg-violet-700"
@@ -4895,7 +4895,7 @@ export default function DesignPage({
             {
               id: nodeId,
               kind: "output",
-              title: result.title || "设计 Agent 输出",
+              title: result.title || "设计智能体输出",
               description,
               x: anchor
                 ? anchor.x + (anchor.width ?? NODE_WIDTH) + 80
@@ -4955,7 +4955,7 @@ export default function DesignPage({
                 node.id === groupId
                   ? {
                       ...node,
-                      title: `本轮输出 · ${result.title || "设计 Agent"}`,
+                      title: `本轮输出 · ${result.title || "设计智能体"}`,
                     }
                   : node,
               ),
@@ -4984,7 +4984,7 @@ export default function DesignPage({
         toast.success(
           result.targetStageNodeId
             ? "阶段结果已放回画布，请审核后继续"
-            : "Agent 结果已放回画布",
+            : "智能体结果已放回画布",
         );
       }
     };
@@ -7139,7 +7139,7 @@ export default function DesignPage({
             <div className="space-y-3 text-[12px] leading-5 text-muted-foreground">
               <p>1. 从底部“+”添加媒体、导演台、剪辑或 ComfyUI 节点。</p>
               <p>2. 工作流模式下拖动端口建立依赖；落到空白处可新建并连接。</p>
-              <p>3. 从资产中心和 Skill 市场加入真实项目素材与执行能力。</p>
+              <p>3. 从资产中心和技能市场加入真实项目素材与执行能力。</p>
               <p>
                 4. 在个人工作台发送需求时，会自动附带当前节点、连线和资产身份。
               </p>

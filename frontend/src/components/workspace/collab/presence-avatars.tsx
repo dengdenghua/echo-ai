@@ -131,7 +131,7 @@ export function PresenceAvatars({
                 +{remainingAgents}
               </div>
             </TooltipTrigger>
-            <TooltipContent>{remainingAgents} 个 Agent 在场</TooltipContent>
+            <TooltipContent>{remainingAgents} 个智能体在场</TooltipContent>
           </Tooltip>
         )}
       </div>

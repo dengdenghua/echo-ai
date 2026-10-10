@@ -127,7 +127,7 @@ describe("<AgentWorkbenchPanel />", () => {
     expect(
       screen.getByRole("button", { name: "当前对话 · 等待中" }),
     ).toBeInTheDocument();
-    expect(screen.queryByRole("tab", { name: /Diff/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole("tab", { name: /差异/ })).not.toBeInTheDocument();
     expect(screen.queryByRole("tab", { name: /终端/ })).not.toBeInTheDocument();
     expect(
       screen.queryByRole("tab", { name: /浏览器/ }),
@@ -164,7 +164,7 @@ describe("<AgentWorkbenchPanel />", () => {
       />,
     );
 
-    fireEvent.click(screen.getByRole("button", { name: "关闭标签页：Diff" }));
+    fireEvent.click(screen.getByRole("button", { name: "关闭标签页：差异" }));
     expect(onSelectTab).toHaveBeenCalledWith("agent");
     expect(
       screen.queryByRole("button", { name: "关闭标签页：协作工作台" }),
@@ -1846,7 +1846,7 @@ describe("<AgentWorkbenchPanel />", () => {
         screen.queryByText("Agent 集群 - 创建助手"),
       ).not.toBeInTheDocument();
     });
-    expect(screen.queryByRole("tab", { name: /Diff/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole("tab", { name: /差异/ })).not.toBeInTheDocument();
     expect(screen.queryByRole("tab", { name: /终端/ })).not.toBeInTheDocument();
     expect(
       screen.queryByRole("tab", { name: /浏览器/ }),
@@ -2674,7 +2674,7 @@ describe("<AgentWorkbenchPanel />", () => {
       />,
     );
 
-    expect(screen.getByRole("tab", { name: "Diff" })).toHaveAttribute(
+    expect(screen.getByRole("tab", { name: "差异" })).toHaveAttribute(
       "aria-selected",
       "true",
     );
@@ -2714,7 +2714,7 @@ describe("<AgentWorkbenchPanel />", () => {
       "aria-selected",
       "true",
     );
-    expect(screen.queryByRole("tab", { name: "Diff" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("tab", { name: "差异" })).not.toBeInTheDocument();
   });
 
   test("maps terminal workspace focus to the terminal tab", () => {
@@ -2764,7 +2764,7 @@ describe("<AgentWorkbenchPanel />", () => {
       screen.queryByRole("tab", { name: /子线程事件流/ }),
     ).not.toBeInTheDocument();
     expect(
-      screen.getByRole("region", { name: "Agent 工作台" }),
+      screen.getByRole("region", { name: "智能体工作台" }),
     ).toBeInTheDocument();
   });
 
@@ -2855,7 +2855,7 @@ describe("<AgentWorkbenchPanel />", () => {
       />,
     );
 
-    expect(screen.getByRole("tab", { name: "Diff" })).toHaveAttribute(
+    expect(screen.getByRole("tab", { name: "差异" })).toHaveAttribute(
       "aria-selected",
       "true",
     );
@@ -2879,7 +2879,7 @@ describe("<AgentWorkbenchPanel />", () => {
       <AgentWorkbenchPanel activeTab="diff" events={events} />,
     );
 
-    expect(screen.getByRole("tab", { name: "Diff" })).toHaveAttribute(
+    expect(screen.getByRole("tab", { name: "差异" })).toHaveAttribute(
       "aria-selected",
       "true",
     );
@@ -3401,6 +3401,6 @@ describe("chat workbench without the duplicate main overview", () => {
    expect(screen.queryByLabelText("工作台能力")).not.toBeInTheDocument();
    fireEvent.pointerDown(screen.getByRole("button", {name: "标签页列表"}), {button: 0, ctrlKey: false, pointerType: "mouse"});
    expect(screen.queryByRole("menuitem", {name: "开发"})).not.toBeInTheDocument();
-   expect(screen.getByRole("menuitem", {name: /Diff/})).toBeInTheDocument();
+   expect(screen.getByRole("menuitem", {name: /差异/})).toBeInTheDocument();
    expect(screen.getByRole("menuitem", {name: /终端/})).toBeInTheDocument();
  });

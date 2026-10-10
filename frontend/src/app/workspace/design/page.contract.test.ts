@@ -191,8 +191,8 @@ describe("Echo Design platform contract", () => {
     expect(pageSource).toContain("data-canvas-context-menu");
     expect(pageSource).toContain('event.code === "Space"');
     expect(pageSource).toContain('side="left"');
-    expect(pageSource).toContain("剪辑 Agent");
-    expect(pageSource).toContain("导演台 Agent");
+    expect(pageSource).toContain("剪辑智能体");
+    expect(pageSource).toContain("导演台智能体");
     expect(pageSource).toContain("echo.design.close-surface");
     expect(pageSource).not.toContain("关闭 AI 剪辑工坊");
   });

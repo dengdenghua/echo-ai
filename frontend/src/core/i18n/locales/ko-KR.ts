@@ -7649,6 +7649,7 @@ export const koKR: Translations = {
       noPendingReview: "검토 대기 항목 없음",
       refreshAriaLabel: "외부 작업 영수증 새로 고침",
       backendLabel: "백엔드",
+      backendDisabled: "사용 안 함",
       sharedAcrossHosts: "호스트 간 공유",
       localCoordination: "로컬 조정",
       committedLabel: "커밋됨",
@@ -8436,6 +8437,24 @@ export const koKR: Translations = {
     withEcho: "Echo와 함께",
     heroDescription:
       "오픈소스 SuperAgent 프레임워크로 연구, 코딩, 콘텐츠 생성을 수행합니다. 샌드박스, 메모리, 도구, 스킬, 서브 Agent를 활용해 몇 분에서 몇 시간까지 다양한 작업을 처리합니다.",
+    getStarted: "시작하기",
+    starOnGitHub: "GitHub에서 스타",
+    rotatingWords: [
+      "Deep Research",
+      "Collect Data",
+      "Analyze Data",
+      "Generate Webpages",
+      "Vibe Coding",
+      "Generate Slides",
+      "Generate Images",
+      "Generate Podcasts",
+      "Generate Videos",
+      "Generate Songs",
+      "Organize Emails",
+      "Do Anything",
+      "Learn Anything",
+    ],
+    withEchoFirst: false,
   },
 
   channelPairings: {

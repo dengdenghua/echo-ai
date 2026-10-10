@@ -203,7 +203,7 @@ export function InlineVisual({
           if (active)
             setDetail(
               (previous) =>
-                previous || "本地显示状态未同步；Agent 尚未收到回执。",
+                previous || "本地显示状态未同步；智能体尚未收到回执。",
             );
         });
     };

@@ -1253,7 +1253,7 @@ function BrowserDataCenterDialog({
         <DialogHeader>
           <DialogTitle>浏览器数据与隐私</DialogTitle>
           <DialogDescription className="sr-only">
-            管理 Cookie、浏览历史、下载记录、Agent 网站权限与安全密码。
+            管理 Cookie、浏览历史、下载记录、智能体网站权限与安全密码。
           </DialogDescription>
         </DialogHeader>
         <div className="space-y-3">
@@ -1394,7 +1394,7 @@ function BrowserDataCenterDialog({
               <ShieldCheckIcon className="size-5" />
             </span>
             <div className="min-w-0 flex-1">
-              <div className="text-sm font-semibold">Agent 网站权限</div>
+              <div className="text-sm font-semibold">智能体网站权限</div>
               <div className="mt-0.5 text-xs leading-5 text-muted-foreground">
                 默认首次询问。网站权限只允许页面操作，提交、支付和删除等敏感动作仍会再次确认。
               </div>

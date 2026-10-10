@@ -93,7 +93,7 @@ export function ProjectDecisionsModal({
             </DialogTitle>
           </div>
           <DialogDescription className="text-xs text-muted-foreground mt-1">
-            长项目多人多 Agent 协同固化的核心技术决策与既定事实（共 {decisions.length} 项），为全员统一认知基准。
+            长项目多人多智能体协同固化的核心技术决策与既定事实（共 {decisions.length} 项），为全员统一认知基准。
           </DialogDescription>
 
           {decisions.length > 0 && (

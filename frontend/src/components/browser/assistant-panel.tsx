@@ -407,7 +407,7 @@ export function AssistantPanel({
       await startRecording({
         thread_id: threadId,
         name: researchGoal.trim() || t.browser.assistant.recorderTitle,
-        description: "AI 浏览器中的真人示范与 Agent 操作轨迹。",
+        description: "AI 浏览器中的真人示范与智能体操作轨迹。",
         provider: "hybrid",
       });
       setRecorderMode(true);
@@ -570,7 +570,7 @@ export function AssistantPanel({
         detail: "Agent access is blocked for this site",
       });
       void sendMessage(threadId, {
-        text: `[浏览器权限] 已阻止 Agent 操作 ${origin}。可在浏览器数据与隐私中修改站点权限。`,
+        text: `[浏览器权限] 已阻止智能体操作 ${origin}。可在浏览器数据与隐私中修改站点权限。`,
         files: [],
       });
       setAgentLoopActive(false);
@@ -1299,7 +1299,7 @@ export function AssistantPanel({
                     ? "内置页面已接入"
                     : recorderProviderState === "relay"
                       ? "Chrome Relay 已接入"
-                      : "页面采集离线，仅记录 Agent 轨迹"}
+                      : "页面采集离线，仅记录智能体轨迹"}
                 </div>
               </div>
             </div>
@@ -1414,13 +1414,13 @@ export function AssistantPanel({
           <div className="shrink-0 border-b border-white/20 bg-primary/8 px-3 py-2">
             <div className="rounded-md border border-primary/25 bg-white/10 p-2 text-mini">
               <div className="font-medium text-foreground">
-                允许 Agent 操作此网站？
+                允许智能体操作此网站？
               </div>
               <div className="mt-1 break-all text-muted-foreground">
                 {pendingSiteAccess.origin}
               </div>
               <div className="mt-1 text-muted-foreground">
-                允许后，Agent
+                允许后，智能体
                 可以读取页面并点击、输入和滚动；提交、支付、删除等敏感操作仍需单独确认。
               </div>
               <div className="mt-2 flex gap-2">

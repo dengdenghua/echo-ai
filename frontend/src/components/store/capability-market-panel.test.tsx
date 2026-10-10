@@ -324,7 +324,7 @@ describe("CapabilityMarketPanel", () => {
     await chooseManagementAction("连接");
 
     expect(
-      await screen.findByText("官方 Freebuff CLI · 交互式本地 Agent"),
+      await screen.findByText("官方 Freebuff CLI · 交互式本地智能体"),
     ).toBeInTheDocument();
     expect(screen.getByText(/不会出现在模型选择器中/)).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "登录 Freebuff" })).toBeEnabled();

@@ -6785,6 +6785,7 @@ export interface Translations {
       noPendingReview: string;
       refreshAriaLabel: string;
       backendLabel: string;
+      backendDisabled: string;
       sharedAcrossHosts: string;
       localCoordination: string;
       committedLabel: string;
@@ -7339,6 +7340,12 @@ export interface Translations {
     releaseBadge: string;
     withEcho: string;
     heroDescription: string;
+    getStarted: string;
+    starOnGitHub: string;
+    /** Phrases cycled in the headline. */
+    rotatingWords: string[];
+    /** True where the language reads "with Echo, <phrase>". */
+    withEchoFirst: boolean;
   };
 
   // Channel Pairings

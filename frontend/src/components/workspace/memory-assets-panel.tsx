@@ -69,7 +69,7 @@ const VISIBILITY_LABELS: Record<MemoryVisibility, string> = {
   private: "仅自己",
   team: "团队",
   restricted: "指定成员",
-  agent: "指定 Agent",
+  agent: "指定智能体",
 };
 
 function LayerMark({ layer }: { layer: MemoryLayer }) {

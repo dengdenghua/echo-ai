@@ -258,7 +258,7 @@ function CandidateControlView({
           </h2>
           <p className="mt-1 text-xs text-muted-foreground">
             {mode === "candidates"
-              ? "Prompt、Skill、路由、工作流和角色共用同一套证据门禁。"
+              ? "Prompt、技能、路由、工作流和角色共用同一套证据门禁。"
               : "只展示已经通过影子验证、正在灰度或已经上线的候选。"}
           </p>
         </div>

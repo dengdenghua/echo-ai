@@ -7781,6 +7781,7 @@ Strategy:
       noPendingReview: "Nothing awaiting review",
       refreshAriaLabel: "Refresh external action receipts",
       backendLabel: "Backend",
+      backendDisabled: "disabled",
       sharedAcrossHosts: "Shared across hosts",
       localCoordination: "Local coordination",
       committedLabel: "Committed",
@@ -8573,6 +8574,24 @@ Strategy:
     withEcho: "with Echo",
     heroDescription:
       "An open-source SuperAgent harness that researches, codes, and creates. With the help of sandboxes, memories, tools, skills and subagents, it handles different levels of tasks that could take minutes to hours.",
+    getStarted: "Get Started",
+    starOnGitHub: "Star on GitHub",
+    rotatingWords: [
+      "Deep Research",
+      "Collect Data",
+      "Analyze Data",
+      "Generate Webpages",
+      "Vibe Coding",
+      "Generate Slides",
+      "Generate Images",
+      "Generate Podcasts",
+      "Generate Videos",
+      "Generate Songs",
+      "Organize Emails",
+      "Do Anything",
+      "Learn Anything",
+    ],
+    withEchoFirst: false,
   },
 
   channelPairings: {

@@ -1891,7 +1891,7 @@ export function DirectorStage({
                     </div>
                   </div>
                   <p className="mt-4 rounded-lg bg-muted p-3 text-[9px] leading-4 text-muted-foreground">
-                    Agent 可用 set_transform、rename、add_move_path 和 remove
+                    智能体可用 set_transform、rename、add_move_path 和 remove
                     继续编排该道具。
                   </p>
                 </>
@@ -1910,7 +1910,7 @@ export function DirectorStage({
                 <>
                   <h3 className="text-sm font-semibold">{model.name}</h3>
                   <p className="mt-1 text-[10px] text-muted-foreground">
-                    Agent 生成的安全声明式模型 · {model.parts.length} 个部件
+                    智能体生成的安全声明式模型 · {model.parts.length} 个部件
                   </p>
                   <div className="mt-4 space-y-1.5">
                     {model.parts.map((part) => (

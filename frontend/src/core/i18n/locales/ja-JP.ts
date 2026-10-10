@@ -7749,6 +7749,7 @@ export const jaJP: Translations = {
       noPendingReview: "確認待ちはありません",
       refreshAriaLabel: "外部アクション受領記録を更新",
       backendLabel: "バックエンド",
+      backendDisabled: "無効",
       sharedAcrossHosts: "ホスト間で共有",
       localCoordination: "ローカル調整",
       committedLabel: "コミット済み",
@@ -8544,6 +8545,24 @@ export const jaJP: Translations = {
     withEcho: "Echo と一緒に",
     heroDescription:
       "オープンソースの SuperAgent フレームワーク。研究、コーディング、創作ができます。サンドボックス、メモリ、ツール、スキル、サブ Agent の助けを借りて、数分から数時間の様々なレベルのタスクを処理します。",
+    getStarted: "はじめる",
+    starOnGitHub: "GitHub でスター",
+    rotatingWords: [
+      "Deep Research",
+      "Collect Data",
+      "Analyze Data",
+      "Generate Webpages",
+      "Vibe Coding",
+      "Generate Slides",
+      "Generate Images",
+      "Generate Podcasts",
+      "Generate Videos",
+      "Generate Songs",
+      "Organize Emails",
+      "Do Anything",
+      "Learn Anything",
+    ],
+    withEchoFirst: false,
   },
 
   channelPairings: {
