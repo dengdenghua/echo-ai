@@ -19,6 +19,7 @@ import type {
   ItemType,
   TurnStatus,
 } from "./protocol-enums.generated";
+import { isObjectLike } from "@/core/utils/guards";
 export { ITEM_STATUSES, ITEM_TYPES, TURN_STATUSES };
 export type { ItemStatus, ItemType, TurnStatus };
 
@@ -391,26 +392,27 @@ export interface ExecutionSnapshot {
   invocation: number;
 }
 
+function isExecutionSnapshot(value: unknown): value is ExecutionSnapshot {
+  return (
+    isObjectLike(value) &&
+    (value.engine === "echo" ||
+      value.engine === "codex" ||
+      value.engine === "opencode") &&
+    typeof value.driver === "string" &&
+    typeof value.reason === "string" &&
+    ["primary", "steering", "verification", "repair"].includes(
+      String(value.phase),
+    ) &&
+    typeof value.invocation === "number" &&
+    Number.isSafeInteger(value.invocation) &&
+    value.invocation >= 1
+  );
+}
+
 export function parseExecutionSnapshot(
   value: unknown,
 ): ExecutionSnapshot | null {
-  if (!value || typeof value !== "object") return null;
-  const record = value as Record<string, unknown>;
-  if (
-    (record.engine !== "echo" &&
-      record.engine !== "codex" &&
-      record.engine !== "opencode") ||
-    typeof record.driver !== "string" ||
-    typeof record.reason !== "string" ||
-    !["primary", "steering", "verification", "repair"].includes(
-      String(record.phase),
-    ) ||
-    typeof record.invocation !== "number" ||
-    !Number.isSafeInteger(record.invocation) ||
-    record.invocation < 1
-  )
-    return null;
-  return record as unknown as ExecutionSnapshot;
+  return isExecutionSnapshot(value) ? value : null;
 }
 
 /** Reconnects may replay old events; a turn cannot change its bound engine. */

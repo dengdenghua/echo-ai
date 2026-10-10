@@ -20,6 +20,8 @@ import { getToken } from "@/core/auth/api";
 import type { SandboxPolicy } from "@/core/permissions";
 import type { ReasoningEffort } from "@/core/threads";
 import { swallow } from "@/core/utils/log";
+import { objectLike } from "@/core/utils/guards";
+import { looseBody } from "@/core/api/response";
 
 import { createDefaultClient, type RealtimeClient } from "./client";
 import {
@@ -32,11 +34,8 @@ import {
   emptyConversation,
   type PendingApproval,
 } from "./items";
-import {
-  type ConversationEvent,
-  reduce,
-  type ReducerDiagnostic,
-} from "./reducer";
+import { reduce, type ReducerDiagnostic } from "./reducer";
+import { isConversationEvent } from "./event-guards";
 import { replayEvents, type SequencedLoggedEvent } from "./replay";
 import {
   createDefaultReplayCache,
@@ -359,7 +358,7 @@ function isPermanentRecoveryError(error: unknown): boolean {
   if (typeof error !== "object" || error === null || !("code" in error)) {
     return false;
   }
-  const code = (error as { code?: unknown }).code;
+  const code = error.code;
   return (
     code === JsonRpcErrorCode.INVALID_REQUEST ||
     code === JsonRpcErrorCode.METHOD_NOT_FOUND ||
@@ -596,9 +595,7 @@ export function useRealtimeThread(
             // thread than the one currently held in state. This guards against
             // any in-flight notifications from a previous thread's WebSocket
             // that slip through between cleanup and the socket actually closing.
-            const nestedThread = notification.params.thread as
-              | { id?: unknown }
-              | undefined;
+            const nestedThread = objectLike(notification.params.thread);
             const eventThreadId =
               notification.params.threadId ?? nestedThread?.id;
             if (
@@ -610,7 +607,7 @@ export function useRealtimeThread(
             }
             const reduced = reduce(
               next,
-              notification as unknown as ConversationEvent,
+              looseBody(notification, isConversationEvent),
               onReducerDiagnostic,
             );
             if (
@@ -1397,9 +1394,7 @@ export function useRealtimeThread(
         applyVitalNotification(vitalsMarksRef.current, note, Date.now());
       }
       if (belongsToThread && note.method === "turn/completed") {
-        const turn = note.params?.turn as
-          | { id?: unknown; status?: unknown }
-          | undefined;
+        const turn = objectLike(note.params?.turn);
         const outcome = turn?.status;
         if (
           typeof turn?.id === "string" &&
@@ -1444,7 +1439,7 @@ export function useRealtimeThread(
         // while the originating socket misses turn/started; treating the later
         // RPC rejection as a send failure then restores an already-persisted
         // draft and invites a duplicate retry.
-        const item = note.params?.item as { id?: unknown } | undefined;
+        const item = objectLike(note.params?.item);
         if (typeof item?.id === "string") {
           for (const watch of turnDeliveryWatchesRef.current) {
             if (!watch.delivered && watch.clientItemId === item.id) {
@@ -1454,7 +1449,7 @@ export function useRealtimeThread(
           }
         }
       }
-      const turn = note.params?.turn as { status?: unknown } | undefined;
+      const turn = objectLike(note.params?.turn);
       const terminalObserved =
         belongsToThread &&
         ((note.method === "turn/completed" &&

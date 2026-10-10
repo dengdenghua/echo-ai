@@ -1,16 +1,18 @@
 /**
- * Narrowing for JSON bodies that the OpenAPI snapshot only declares as a
- * plain ``dict`` / ``list[dict]``. The typed request layer surfaces those as
- * ``unknown`` / ``unknown[]`` (see ``Tighten`` in ``./request``); a module
- * narrows them here with a guard over the fields its callers rely on,
- * instead of a bare ``as`` at every call site.
+ * Narrowing for backend JSON that has no generated type: bodies the
+ * OpenAPI snapshot only declares as a plain ``dict`` / ``list[dict]`` (the
+ * typed request layer surfaces those as ``unknown`` / ``unknown[]``, see
+ * ``Tighten`` in ``./request``), and WebSocket / SSE frames. A module
+ * narrows them with a guard over the fields its callers rely on, instead
+ * of a bare ``as`` at every call site.
  *
  * ``looseBody`` fails open on purpose: a body that does not pass its guard
  * is handed back unchanged, exactly as the cast it replaces did, so a shape
  * drift degrades the way it always has instead of becoming a new error
- * path. Every ``looseBody`` call therefore also marks a route that still
- * needs a FastAPI ``response_model``; once the snapshot types the route,
- * delete the call and let ``apiGet``/``apiPost`` carry the type.
+ * path. Every ``looseBody`` call on an HTTP body therefore also marks a
+ * route that still needs a FastAPI ``response_model``; once the snapshot
+ * types the route, delete the call and let ``apiGet``/``apiPost`` carry the
+ * type.
  */
 import type { Guard } from "@/core/utils/guards";
 
