@@ -18,9 +18,13 @@ Design notes:
 - **ACL is membership**: a channel is only visible to members listed in
   ``channel_members``. ``list_channels_for_user`` is the single access-check
   entry point (非成员不可见频道内容). Org admins can also see every channel in
-  their org (they administer the ACL).
+  their org (they administer the ACL). A channel grant only counts while the
+  member still belongs to the channel's org.
 - **Cascading deletes** run inside one transaction so partial state never leaks
-  (delete org → its departments/channels/members; delete channel → its ACL).
+  (delete org → its departments/channels/members; delete channel → its ACL;
+  remove org member → their channel ACL rows in that org).
+- **Owners never run out**: demoting or removing the last ``owner`` of an org or
+  a channel raises ``LastOwnerError`` (checked inside the write transaction).
 
 Mirrors the SQLite style of ``runtime/workspace/store.py``: ``sqlite3`` stdlib
 + ``threading.Lock`` write serialization + ``PRAGMA journal_mode=WAL``.
@@ -105,6 +109,10 @@ CREATE INDEX IF NOT EXISTS idx_channel_members_member ON channel_members(member_
 _MIGRATIONS = (Migration(1, _SCHEMA),)
 
 
+class LastOwnerError(ValueError):
+    """A change would leave an org or a channel without any owner."""
+
+
 def _default_db_path() -> Path:
     """``<data>/org.db`` — same ``app_paths`` data dir other stores use."""
     from runtime.platform.process.paths import app_paths
@@ -162,6 +170,35 @@ def _channel_member_from_row(row: tuple[Any, ...]) -> ChannelMember:
         role=str(row[2]) if str(row[2]) in VALID_CHANNEL_ROLES else "member",
         added_at=float(row[3]),
     )
+
+
+def _is_last_org_owner(conn: sqlite3.Connection, org_id: str, member_id: str) -> bool:
+    """True when ``member_id`` is the only ``owner`` row of the org."""
+    row = conn.execute(
+        "SELECT role FROM org_members WHERE org_id=? AND member_id=?",
+        (org_id, member_id),
+    ).fetchone()
+    if not row or str(row[0]) != "owner":
+        return False
+    count = conn.execute(
+        "SELECT COUNT(*) FROM org_members WHERE org_id=? AND role='owner'", (org_id,)
+    ).fetchone()
+    return int(count[0]) <= 1
+
+
+def _is_last_channel_owner(conn: sqlite3.Connection, channel_id: str, member_id: str) -> bool:
+    """True when ``member_id`` is the only ``owner`` row of the channel ACL."""
+    row = conn.execute(
+        "SELECT role FROM channel_members WHERE channel_id=? AND member_id=?",
+        (channel_id, member_id),
+    ).fetchone()
+    if not row or str(row[0]) != "owner":
+        return False
+    count = conn.execute(
+        "SELECT COUNT(*) FROM channel_members WHERE channel_id=? AND role='owner'",
+        (channel_id,),
+    ).fetchone()
+    return int(count[0]) <= 1
 
 
 class OrgStore:
@@ -312,7 +349,8 @@ class OrgStore:
         added_at: float | None = None,
     ) -> OrgMember:
         """Add or upsert an org membership. ``kind`` is ``human`` or ``agent``
-        (the unified member model). Upserting updates the role in place."""
+        (the unified member model). Upserting updates the role in place;
+        demoting the org's last owner raises ``LastOwnerError``."""
         if kind not in VALID_MEMBER_KINDS:
             raise ValueError(f"invalid kind {kind!r}; expected human or agent")
         if role not in VALID_ORG_ROLES:
@@ -329,6 +367,8 @@ class OrgStore:
         )
         with self._lock, self._connect() as conn:
             self._require_exists(conn, "organizations", "id", org_id)
+            if member.role != "owner" and _is_last_org_owner(conn, org_id, member_id):
+                raise LastOwnerError(f"cannot demote the last owner of org {org_id!r}")
             conn.execute(
                 "INSERT INTO org_members(org_id, member_id, kind, role, display_name, added_at) "
                 "VALUES (?, ?, ?, ?, ?, ?) "
@@ -347,15 +387,28 @@ class OrgStore:
         return member
 
     def remove_org_member(self, org_id: str, member_id: str) -> bool:
-        """Remove an org membership. Returns True if a row was deleted."""
+        """Remove an org membership and the member's channel ACL rows in that
+        org. Returns True if a row was deleted; removing the org's last owner
+        raises ``LastOwnerError``."""
         if not org_id or not member_id:
             return False
         with self._lock, self._connect() as conn:
+            if _is_last_org_owner(conn, org_id, member_id):
+                raise LastOwnerError(f"cannot remove the last owner of org {org_id!r}")
             cur = conn.execute(
                 "DELETE FROM org_members WHERE org_id=? AND member_id=?",
                 (org_id, member_id),
             )
-            return cur.rowcount > 0
+            if cur.rowcount == 0:
+                return False
+            # Leaving the org revokes every channel grant inside it, so a
+            # removed member cannot keep reading channels via a stale ACL row.
+            conn.execute(
+                "DELETE FROM channel_members WHERE member_id=? "
+                "AND channel_id IN (SELECT id FROM channels WHERE org_id=?)",
+                (member_id, org_id),
+            )
+            return True
 
     def list_org_members(self, org_id: str) -> list[OrgMember]:
         if not org_id:
@@ -438,28 +491,32 @@ class OrgStore:
             ).fetchall()
         return [_dept_from_row(r) for r in rows]
 
-    def delete_department(self, department_id: str) -> bool:
-        """Remove a department and any channels attached to it. Returns True if
-        a row was deleted. (Nested children are not auto-removed to avoid
-        surprising data loss; callers should re-parent first.)"""
-        if not department_id:
+    def delete_department(self, department_id: str, *, org_id: str) -> bool:
+        """Remove a department of ``org_id`` and any channels attached to it.
+        Returns True if a row was deleted; a department that belongs to another
+        org is treated as missing. (Nested children are not auto-removed to
+        avoid surprising data loss; callers should re-parent first.)"""
+        if not department_id or not org_id:
             return False
         with self._lock, self._connect() as conn:
             exists = conn.execute(
-                "SELECT 1 FROM departments WHERE id=?", (department_id,)
+                "SELECT 1 FROM departments WHERE id=? AND org_id=?", (department_id, org_id)
             ).fetchone()
             if not exists:
                 return False
             channels = [
                 r[0]
                 for r in conn.execute(
-                    "SELECT id FROM channels WHERE department_id=?", (department_id,)
+                    "SELECT id FROM channels WHERE department_id=? AND org_id=?",
+                    (department_id, org_id),
                 ).fetchall()
             ]
             for cid in channels:
                 conn.execute("DELETE FROM channel_members WHERE channel_id=?", (cid,))
-            conn.execute("DELETE FROM channels WHERE department_id=?", (department_id,))
-            conn.execute("DELETE FROM departments WHERE id=?", (department_id,))
+            conn.execute(
+                "DELETE FROM channels WHERE department_id=? AND org_id=?", (department_id, org_id)
+            )
+            conn.execute("DELETE FROM departments WHERE id=? AND org_id=?", (department_id, org_id))
         return True
 
     # ── channels ─────────────────────────────────────────────────────────────
@@ -556,7 +613,8 @@ class OrgStore:
     ) -> ChannelMember:
         """Add or upsert a channel ACL row. By default the member must already
         belong to the channel's org (a channel is only reachable by org members)
-        unless ``require_org_member=False`` for a direct grant."""
+        unless ``require_org_member=False`` for a direct grant. Demoting the
+        channel's last owner raises ``LastOwnerError``."""
         if role not in VALID_CHANNEL_ROLES:
             raise ValueError(
                 f"invalid role {role!r}; expected one of {sorted(VALID_CHANNEL_ROLES)}"
@@ -582,6 +640,8 @@ class OrgStore:
                 ).fetchone()
                 if not org:
                     raise ValueError(f"member {member_id!r} is not a member of org {channel[0]!r}")
+            if member.role != "owner" and _is_last_channel_owner(conn, channel_id, member_id):
+                raise LastOwnerError(f"cannot demote the last owner of channel {channel_id!r}")
             conn.execute(
                 "INSERT INTO channel_members(channel_id, member_id, role, added_at) "
                 "VALUES (?, ?, ?, ?) "
@@ -591,10 +651,13 @@ class OrgStore:
         return member
 
     def remove_channel_member(self, channel_id: str, member_id: str) -> bool:
-        """Remove a channel ACL row. Returns True if a row was deleted."""
+        """Remove a channel ACL row. Returns True if a row was deleted; removing
+        the channel's last owner raises ``LastOwnerError``."""
         if not channel_id or not member_id:
             return False
         with self._lock, self._connect() as conn:
+            if _is_last_channel_owner(conn, channel_id, member_id):
+                raise LastOwnerError(f"cannot remove the last owner of channel {channel_id!r}")
             cur = conn.execute(
                 "DELETE FROM channel_members WHERE channel_id=? AND member_id=?",
                 (channel_id, member_id),
@@ -624,8 +687,9 @@ class OrgStore:
         return str(row[0]) if row else None
 
     def can_access_channel(self, channel_id: str, member_id: str) -> bool:
-        """The single ACL check: a member may see a channel only if they are in
-        its ACL (or an org admin, who administers the ACL)."""
+        """The single ACL check: a member may see a channel only if they still
+        belong to its org and are in its ACL (or an org admin, who administers
+        the ACL)."""
         if not channel_id or not member_id:
             return False
         with self._lock, self._connect() as conn:
@@ -634,33 +698,36 @@ class OrgStore:
             ).fetchone()
             if not channel:
                 return False
-            acl = conn.execute(
-                "SELECT role FROM channel_members WHERE channel_id=? AND member_id=?",
-                (channel_id, member_id),
-            ).fetchone()
-            if acl:
-                return True
             org_role = conn.execute(
                 "SELECT role FROM org_members WHERE org_id=? AND member_id=?",
                 (channel[0], member_id),
             ).fetchone()
-            return bool(org_role and role_has_org_admin(str(org_role[0])))
+            # Defense in depth: a stale ACL row of someone who left the org
+            # grants nothing (remove_org_member also clears those rows).
+            if not org_role:
+                return False
+            if role_has_org_admin(str(org_role[0])):
+                return True
+            acl = conn.execute(
+                "SELECT 1 FROM channel_members WHERE channel_id=? AND member_id=?",
+                (channel_id, member_id),
+            ).fetchone()
+            return bool(acl)
 
     def list_channels_for_user(self, member_id: str) -> list[Channel]:
         """Channels the member can see (in its ACL, or any channel in an org
-        they admin). This is the access-filtered channel listing."""
+        they admin), limited to orgs they still belong to. This is the
+        access-filtered channel listing (same rule as ``can_access_channel``)."""
         if not member_id:
             return []
         with self._lock, self._connect() as conn:
             rows = conn.execute(
                 "SELECT c.id, c.org_id, c.department_id, c.name, c.kind, c.created_at "
                 "FROM channels c "
-                "WHERE c.id IN ("
+                "INNER JOIN org_members m ON m.org_id = c.org_id AND m.member_id = ? "
+                "WHERE m.role IN ('owner','admin') "
+                "OR c.id IN ("
                 "  SELECT channel_id FROM channel_members WHERE member_id=?"
-                ") "
-                "OR c.org_id IN ("
-                "  SELECT org_id FROM org_members "
-                "  WHERE member_id=? AND role IN ('owner','admin')"
                 ") "
                 "ORDER BY c.created_at, c.id",
                 (member_id, member_id),
@@ -668,4 +735,4 @@ class OrgStore:
         return [_channel_from_row(r) for r in rows]
 
 
-__all__ = ["OrgStore"]
+__all__ = ["LastOwnerError", "OrgStore"]

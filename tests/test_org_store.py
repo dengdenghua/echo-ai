@@ -9,6 +9,8 @@ Covers:
   6. Access-filtered channel listing (非成员不可见频道内容)
   7. Cascade deletes (org → departments/channels/members; channel → ACL)
   8. Model dataclass round-trips
+  9. Authorization invariants (org-scoped department delete, last-owner guard,
+     member removal revokes channel ACL)
 
 Uses a tmp-path SQLite DB for isolation.
 """
@@ -29,6 +31,7 @@ from runtime.workspace import (
     role_has_channel_admin,
     role_has_org_admin,
 )
+from runtime.workspace.org_store import LastOwnerError
 
 
 @pytest.fixture
@@ -189,13 +192,13 @@ def test_delete_department_removes_attached_channels(store: OrgStore) -> None:
     ch = store.create_channel(org_id=org.id, name="dev", department_id=dept.id)
     store.add_channel_member(ch.id, "u1", role="owner")
 
-    assert store.delete_department(dept.id) is True
+    assert store.delete_department(dept.id, org_id=org.id) is True
     assert store.get_department(dept.id) is None
     assert store.get_channel(ch.id) is None
 
 
 def test_delete_department_returns_false_when_missing(store: OrgStore) -> None:
-    assert store.delete_department("ghost") is False
+    assert store.delete_department("ghost", org_id="org") is False
 
 
 # ─── 4. Channel CRUD ───────────────────────────────────────────────────────
@@ -403,3 +406,80 @@ def test_channel_model_round_trip() -> None:
 def test_channel_member_model_round_trip() -> None:
     m = ChannelMember(channel_id="c1", member_id="u1", role="admin", added_at=1.0)
     assert ChannelMember.from_dict(m.to_dict()) == m
+
+
+# ─── 9. Authorization invariants ───────────────────────────────────────────
+
+
+def test_delete_department_is_scoped_to_org(store: OrgStore) -> None:
+    victim = store.create_organization(name="victim", owner_id="u1")
+    attacker = store.create_organization(name="attacker", owner_id="u2")
+    dept = store.create_department(org_id=victim.id, name="Eng")
+    ch = store.create_channel(org_id=victim.id, name="dev", department_id=dept.id)
+    store.add_channel_member(ch.id, "u1", role="owner")
+
+    # Another org's id cannot reach the department (or cascade its channels).
+    assert store.delete_department(dept.id, org_id=attacker.id) is False
+    assert store.get_department(dept.id) is not None
+    assert store.get_channel(ch.id) is not None
+    assert store.get_channel_member_role(ch.id, "u1") == "owner"
+
+
+def test_last_org_owner_cannot_be_removed_or_demoted(store: OrgStore) -> None:
+    org = store.create_organization(name="Acme", owner_id="u1")
+    with pytest.raises(LastOwnerError):
+        store.remove_org_member(org.id, "u1")
+    with pytest.raises(LastOwnerError):
+        store.add_org_member(org.id, "u1", kind="human", role="admin")
+    assert store.get_org_member_role(org.id, "u1") == "owner"
+
+    # With a second owner either one may step down.
+    store.add_org_member(org.id, "u2", kind="human", role="owner")
+    store.add_org_member(org.id, "u1", kind="human", role="member")
+    assert store.remove_org_member(org.id, "u1") is True
+    with pytest.raises(LastOwnerError):
+        store.remove_org_member(org.id, "u2")
+
+
+def test_last_channel_owner_cannot_be_removed_or_demoted(store: OrgStore) -> None:
+    org = store.create_organization(name="Acme", owner_id="u1")
+    store.add_org_member(org.id, "u2", kind="human", role="member")
+    ch = store.create_channel(org_id=org.id, name="general")
+    store.add_channel_member(ch.id, "u1", role="owner")
+    with pytest.raises(LastOwnerError):
+        store.remove_channel_member(ch.id, "u1")
+    with pytest.raises(LastOwnerError):
+        store.add_channel_member(ch.id, "u1", role="member")
+
+    store.add_channel_member(ch.id, "u2", role="owner")
+    assert store.remove_channel_member(ch.id, "u1") is True
+    assert store.get_channel_member_role(ch.id, "u2") == "owner"
+
+
+def test_remove_org_member_revokes_channel_acl(store: OrgStore) -> None:
+    org = store.create_organization(name="Acme", owner_id="u1")
+    other = store.create_organization(name="Other", owner_id="u3")
+    store.add_org_member(org.id, "u2", kind="human", role="member")
+    store.add_org_member(other.id, "u2", kind="human", role="member")
+    ch = store.create_channel(org_id=org.id, name="general")
+    other_ch = store.create_channel(org_id=other.id, name="general")
+    store.add_channel_member(ch.id, "u2", role="member")
+    store.add_channel_member(other_ch.id, "u2", role="member")
+    assert store.can_access_channel(ch.id, "u2") is True
+
+    assert store.remove_org_member(org.id, "u2") is True
+    assert store.get_channel_member_role(ch.id, "u2") is None
+    assert store.can_access_channel(ch.id, "u2") is False
+    assert {c.id for c in store.list_channels_for_user("u2")} == {other_ch.id}
+    # Grants in the member's other orgs are untouched.
+    assert store.get_channel_member_role(other_ch.id, "u2") == "member"
+
+
+def test_stale_channel_acl_without_org_membership_grants_nothing(store: OrgStore) -> None:
+    org = store.create_organization(name="Acme", owner_id="u1")
+    ch = store.create_channel(org_id=org.id, name="general")
+    # A direct grant to a non-member (or a row left over from before member
+    # removal cleaned up ACLs) must not open the channel.
+    store.add_channel_member(ch.id, "outsider", role="member", require_org_member=False)
+    assert store.can_access_channel(ch.id, "outsider") is False
+    assert store.list_channels_for_user("outsider") == []

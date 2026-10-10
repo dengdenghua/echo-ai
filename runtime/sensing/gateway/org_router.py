@@ -5,11 +5,19 @@ Exposes the enterprise-space org tree (``Organization`` / ``Department`` /
 ``runtime.workspace`` as HTTP endpoints for the UI / API consumers.
 
 Auth model:
-  * org 写操作(建成员/部门/频道、删组织/部门) → 调用者必须是该 org 的 owner/admin
-  * channel 写操作(ACL 管理) → 调用者必须是该 channel 的 owner/admin
+  * org 读操作(组织详情/成员/部门/频道列表) → 调用者必须是该 org 成员,或全局
+    admin/operator;非成员一律 404(不暴露组织是否存在)。``GET /api/orgs`` 只列
+    调用者所属组织(全局 admin/operator 可看全部)
+  * org 写操作(建成员/部门/频道、删部门) → 调用者必须是该 org 的 owner/admin;
+    非成员 404
+  * owner 级操作(删组织、授予/撤销 owner、修改或移除 owner) → 仅 org owner
+  * channel 写操作(ACL 管理) → 调用者必须是该 channel 的 owner/admin 且仍是
+    org 成员;授予/撤销 channel owner、修改或移除 channel owner → 仅 channel owner
   * channel 读操作(GET 单频道/频道成员) → 调用者需 ``can_access_channel``
-  * ``require_auth=False`` 且 actor 为 None 时,写操作仍尽力鉴权(actor 为 None
-    视为无权限 → 403)
+  * org / channel 都不能失去最后一个 owner(store 层 ``LastOwnerError`` → 409)
+  * 子资源(部门/成员)按 ``(org_id, 子资源 id)`` 定位,不属于该 org → 404
+  * ``require_auth=False`` 且 actor 为 None(本机 loopback 单用户)时:读操作照旧
+    开放;写操作仍尽力鉴权(actor 为 None 视为无权限 → 403)
 """
 
 from __future__ import annotations
@@ -34,8 +42,12 @@ from runtime.workspace import (
     role_has_channel_admin,
     role_has_org_admin,
 )
+from runtime.workspace.org_store import LastOwnerError
 
 _LOG = logging.getLogger("echo.sensing.org_router")
+
+# Platform roles that may read any org (never write to one).
+_GLOBAL_READ_ROLES = frozenset({"admin", "operator"})
 
 
 def create_org_router(
@@ -80,14 +92,14 @@ def create_org_router(
             _LOG.warning("org audit append failed for %s: %s", event_type, exc)
             return None
 
-    def _auth(request: Request, *, force: bool = False) -> str | None:
-        # Mutations always pass through authorization below. Shared auth is
-        # enforced only when configured; anonymous local-mode mutations then
-        # reach the org/channel ACL and correctly fail with 403.
+    def _principal(request: Request) -> Any:
+        # Shared auth is enforced only when configured: with require_auth the
+        # resolver raises 401 instead of returning None, so an anonymous
+        # principal only exists in local (loopback single-user) mode.
         try:
-            from runtime.sensing.gateway.openai_gateway_router import _resolve_actor
+            from runtime.safety.auth.principal import resolve_principal
 
-            return _resolve_actor(
+            return resolve_principal(
                 request,
                 identity_store,
                 require_auth,
@@ -102,21 +114,57 @@ def create_org_router(
                 raise HTTPException(401, "auth required") from exc
             return None
 
-    def _require_org_admin(org_id: str, actor: str | None) -> None:
-        """403 unless ``actor`` is the org's owner/admin."""
+    def _auth(request: Request, *, force: bool = False) -> str | None:
+        # Mutations always pass through authorization below; anonymous
+        # local-mode mutations reach the org/channel ACL and fail with 403.
+        principal = _principal(request)
+        return principal.actor_id if principal is not None else None
+
+    def _require_org_reader(request: Request, org_id: str) -> None:
+        """404 unless the caller may read ``org_id``: an org member, or a
+        global admin/operator. Non-members get the same 404 as a missing org so
+        org ids cannot be probed. The anonymous local single-user keeps the
+        open read access it had before membership checks existed."""
+        principal = _principal(request)
+        if store.get_organization(org_id) is None:
+            raise HTTPException(404, "organization not found")
+        if principal is None:
+            if require_auth:  # pragma: no cover - resolve_principal raises 401
+                raise HTTPException(404, "organization not found")
+            return
+        if principal.roles & _GLOBAL_READ_ROLES:
+            return
+        if store.get_org_member_role(org_id, principal.actor_id) is None:
+            raise HTTPException(404, "organization not found")
+
+    def _require_org_admin(org_id: str, actor: str | None) -> str:
+        """403 unless ``actor`` is the org's owner/admin (404 when not a member
+        at all). Returns the caller's org role."""
         if actor is None:
             raise HTTPException(403, "org admin required")
         role = store.get_org_member_role(org_id, actor)
-        if not role_has_org_admin(role or ""):
+        if role is None:
+            raise HTTPException(404, "organization not found")
+        if not role_has_org_admin(role):
             raise HTTPException(403, "org admin required")
+        return role
 
-    def _require_channel_admin(channel_id: str, actor: str | None) -> None:
-        """403 unless ``actor`` is the channel's owner/admin."""
+    def _require_org_owner(org_id: str, actor: str | None) -> None:
+        """403 unless ``actor`` is an owner of the org (404 for non-members)."""
+        if _require_org_admin(org_id, actor) != "owner":
+            raise HTTPException(403, "org owner required")
+
+    def _require_channel_admin(channel: Any, actor: str | None) -> str:
+        """403 unless ``actor`` is the channel's owner/admin and still belongs
+        to the channel's org. Returns the caller's channel role."""
         if actor is None:
             raise HTTPException(403, "channel admin required")
-        role = store.get_channel_member_role(channel_id, actor)
+        role = store.get_channel_member_role(channel.id, actor)
         if not role_has_channel_admin(role or ""):
             raise HTTPException(403, "channel admin required")
+        if store.get_org_member_role(channel.org_id, actor) is None:
+            raise HTTPException(403, "channel admin required")
+        return str(role)
 
     # ── organizations ──────────────────────────────────────────────────────
 
@@ -147,8 +195,13 @@ def create_org_router(
 
     @router.get("/api/orgs")
     def list_orgs(request: Request) -> dict[str, Any]:
-        _auth(request)  # AUTH-OK: actor-agnostic — global org listing
-        orgs = store.list_organizations()
+        # Only global admin/operator (or the anonymous local single-user) see
+        # every org; everyone else gets the orgs they belong to.
+        principal = _principal(request)
+        if principal is None or principal.roles & _GLOBAL_READ_ROLES:
+            orgs = store.list_organizations()
+        else:
+            orgs = store.list_organizations_for_user(principal.actor_id)
         return {"count": len(orgs), "organizations": [o.to_dict() for o in orgs]}
 
     # NOTE: /api/orgs/mine must be registered before /api/orgs/{org_id}.
@@ -162,7 +215,7 @@ def create_org_router(
 
     @router.get("/api/orgs/{org_id}")
     def get_org(org_id: str, request: Request) -> dict[str, Any]:
-        _auth(request)  # AUTH-OK: actor-agnostic read
+        _require_org_reader(request, org_id)
         org = store.get_organization(org_id)
         if org is None:
             raise HTTPException(404, "organization not found")
@@ -173,7 +226,7 @@ def create_org_router(
         actor = _auth(request, force=True)
         if store.get_organization(org_id) is None:
             raise HTTPException(404, "organization not found")
-        _require_org_admin(org_id, actor)
+        _require_org_owner(org_id, actor)
         store.delete_organization(org_id)
         _audit("org_delete", actor, org_id, org_id)
         return {"deleted": org_id}
@@ -187,13 +240,17 @@ def create_org_router(
         actor = _auth(request, force=True)
         if store.get_organization(org_id) is None:
             raise HTTPException(404, "organization not found")
-        _require_org_admin(org_id, actor)
+        actor_role = _require_org_admin(org_id, actor)
         payload = body or {}
         member_id = str(payload.get("member_id") or "")
         if not member_id:
             raise HTTPException(400, "member_id is required")
         role = str(payload.get("role") or "member")
         previous_role = store.get_org_member_role(org_id, member_id)
+        # Owner is the top role: an admin can neither grant it (incl. to
+        # themselves) nor rewrite an existing owner's membership.
+        if actor_role != "owner" and "owner" in (role, previous_role):
+            raise HTTPException(403, "org owner required")
         try:
             member = store.add_org_member(
                 org_id,
@@ -202,6 +259,8 @@ def create_org_router(
                 role=role,
                 display_name=str(payload.get("display_name") or ""),
             )
+        except LastOwnerError as exc:
+            raise HTTPException(409, str(exc)) from exc
         except ValueError as exc:
             raise HTTPException(400, str(exc)) from exc
         if previous_role is not None and previous_role != role:
@@ -224,9 +283,7 @@ def create_org_router(
 
     @router.get("/api/orgs/{org_id}/members")
     def list_org_members(org_id: str, request: Request) -> dict[str, Any]:
-        _auth(request)  # AUTH-OK: actor-agnostic read
-        if store.get_organization(org_id) is None:
-            raise HTTPException(404, "organization not found")
+        _require_org_reader(request, org_id)
         members = store.list_org_members(org_id)
         return {"count": len(members), "members": [m.to_dict() for m in members]}
 
@@ -235,8 +292,16 @@ def create_org_router(
         actor = _auth(request, force=True)
         if store.get_organization(org_id) is None:
             raise HTTPException(404, "organization not found")
-        _require_org_admin(org_id, actor)
-        store.remove_org_member(org_id, member_id)
+        actor_role = _require_org_admin(org_id, actor)
+        target_role = store.get_org_member_role(org_id, member_id)
+        if target_role is None:
+            raise HTTPException(404, "member not found")
+        if target_role == "owner" and actor_role != "owner":
+            raise HTTPException(403, "org owner required")
+        try:
+            store.remove_org_member(org_id, member_id)
+        except LastOwnerError as exc:
+            raise HTTPException(409, str(exc)) from exc
         _audit("org_member_remove", actor, org_id, member_id)
         return {"deleted": member_id}
 
@@ -274,9 +339,7 @@ def create_org_router(
 
     @router.get("/api/orgs/{org_id}/departments")
     def list_departments(org_id: str, request: Request) -> dict[str, Any]:
-        _auth(request)  # AUTH-OK: actor-agnostic read
-        if store.get_organization(org_id) is None:
-            raise HTTPException(404, "organization not found")
+        _require_org_reader(request, org_id)
         depts = store.list_departments(org_id)
         return {"count": len(depts), "departments": [d.to_dict() for d in depts]}
 
@@ -286,7 +349,10 @@ def create_org_router(
         if store.get_organization(org_id) is None:
             raise HTTPException(404, "organization not found")
         _require_org_admin(org_id, actor)
-        store.delete_department(dept_id)
+        # Scoped to org_id: admin of one org must not reach another org's
+        # department (and its cascaded channels/ACL) by id.
+        if not store.delete_department(dept_id, org_id=org_id):
+            raise HTTPException(404, "department not found")
         _audit("org_department_delete", actor, org_id, dept_id)
         return {"deleted": dept_id}
 
@@ -337,9 +403,7 @@ def create_org_router(
 
     @router.get("/api/orgs/{org_id}/channels")
     def list_channels(org_id: str, request: Request) -> dict[str, Any]:
-        _auth(request)  # AUTH-OK: actor-agnostic read
-        if store.get_organization(org_id) is None:
-            raise HTTPException(404, "organization not found")
+        _require_org_reader(request, org_id)
         channels = store.list_channels(org_id)
         return {"count": len(channels), "channels": [c.to_dict() for c in channels]}
 
@@ -365,17 +429,12 @@ def create_org_router(
     @router.delete("/api/channels/{channel_id}")
     def delete_channel(channel_id: str, request: Request) -> dict[str, Any]:
         actor = _auth(request, force=True)
-        if store.get_channel(channel_id) is None:
-            raise HTTPException(404, "channel not found")
-        _require_channel_admin(channel_id, actor)
         channel = store.get_channel(channel_id)
+        if channel is None:
+            raise HTTPException(404, "channel not found")
+        _require_channel_admin(channel, actor)
         store.delete_channel(channel_id)
-        _audit(
-            "org_channel_delete",
-            actor,
-            channel.org_id if channel else "",
-            channel_id,
-        )
+        _audit("org_channel_delete", actor, channel.org_id, channel_id)
         return {"deleted": channel_id}
 
     # ── channel ACL ────────────────────────────────────────────────────────
@@ -385,25 +444,31 @@ def create_org_router(
         channel_id: str, body: dict[str, Any] | None, request: Request
     ) -> dict[str, Any]:
         actor = _auth(request, force=True)
-        if store.get_channel(channel_id) is None:
+        channel = store.get_channel(channel_id)
+        if channel is None:
             raise HTTPException(404, "channel not found")
-        _require_channel_admin(channel_id, actor)
+        actor_role = _require_channel_admin(channel, actor)
         payload = body or {}
         member_id = str(payload.get("member_id") or "")
         if not member_id:
             raise HTTPException(400, "member_id is required")
         role = str(payload.get("role") or "member")
         previous_role = store.get_channel_member_role(channel_id, member_id)
+        # Same owner rule as orgs: only a channel owner grants the owner role
+        # or rewrites an existing owner's ACL row.
+        if actor_role != "owner" and "owner" in (role, previous_role):
+            raise HTTPException(403, "channel owner required")
         try:
             member = store.add_channel_member(
                 channel_id,
                 member_id,
                 role=role,
             )
+        except LastOwnerError as exc:
+            raise HTTPException(409, str(exc)) from exc
         except ValueError as exc:
             raise HTTPException(400, str(exc)) from exc
-        channel = store.get_channel(channel_id)
-        org_id = channel.org_id if channel else ""
+        org_id = channel.org_id
         if previous_role is not None and previous_role != role:
             _audit(
                 "channel_member_role_change",
@@ -437,15 +502,23 @@ def create_org_router(
     @router.delete("/api/channels/{channel_id}/members/{member_id}")
     def remove_channel_member(channel_id: str, member_id: str, request: Request) -> dict[str, Any]:
         actor = _auth(request, force=True)
-        if store.get_channel(channel_id) is None:
-            raise HTTPException(404, "channel not found")
-        _require_channel_admin(channel_id, actor)
         channel = store.get_channel(channel_id)
-        store.remove_channel_member(channel_id, member_id)
+        if channel is None:
+            raise HTTPException(404, "channel not found")
+        actor_role = _require_channel_admin(channel, actor)
+        target_role = store.get_channel_member_role(channel_id, member_id)
+        if target_role is None:
+            raise HTTPException(404, "channel member not found")
+        if target_role == "owner" and actor_role != "owner":
+            raise HTTPException(403, "channel owner required")
+        try:
+            store.remove_channel_member(channel_id, member_id)
+        except LastOwnerError as exc:
+            raise HTTPException(409, str(exc)) from exc
         _audit(
             "channel_member_remove",
             actor,
-            channel.org_id if channel else "",
+            channel.org_id,
             member_id,
             channel_id=channel_id,
         )
