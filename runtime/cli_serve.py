@@ -575,36 +575,18 @@ def run_serve(
 ) -> int:
     import sys
 
-    from runtime.adapters.integrations.local_auth.config import (
-        DESKTOP_OWNER_TOKEN_ENV,
-        configure_desktop_owner_token,
-    )
-
-    # Take the desktop owner token out of the environment before anything
-    # (execution canary, tools, MCP servers, Codex) can inherit it.
-    desktop_owner_token = os.environ.pop(DESKTOP_OWNER_TOKEN_ENV, None)
-
+    from runtime.adapters.integrations.local_auth import config as local_auth
     from runtime.adapters.scheduler import BackgroundRunner
     from runtime.cli_core import _Colors
+    from runtime.cli_serve_env import apply_tentacle_ws_port_override
     from runtime.kernel import AgentKernel
     from runtime.platform.config import ConfigLoadError, load_from_yaml
     from runtime.platform.i18n import _
 
+    desktop_owner_token = local_auth.take_desktop_owner_token()
     c = _Colors(color)
     try:
-        cfg = load_from_yaml(config_path)
-        # Development launchers isolate device listeners without rewriting a
-        # user-owned config. Explicit overrides are validated before use.
-        ws_port_override = os.environ.get("ECHO_TENTACLE_WS_PORT")
-        if ws_port_override is not None:
-            if not ws_port_override.isascii() or not ws_port_override.isdecimal():
-                raise ConfigLoadError("ECHO_TENTACLE_WS_PORT must be a TCP port")
-            ws_port = int(ws_port_override)
-            if not 1 <= ws_port <= 65535:
-                raise ConfigLoadError("ECHO_TENTACLE_WS_PORT must be between 1 and 65535")
-            cfg = cfg.model_copy(
-                update={"tentacle": cfg.tentacle.model_copy(update={"ws_port": ws_port})}
-            )
+        cfg = apply_tentacle_ws_port_override(load_from_yaml(config_path))
     except ConfigLoadError as e:
         print(c.red(f"config error: {e}"), file=sys.stderr)
         return 2
@@ -671,14 +653,7 @@ def run_serve(
         str(os.environ.get("ECHO_DEPLOYMENT_MODE") or deployment_mode).strip().lower()
     )
     allow_local_workspace_access = effective_deployment_mode == "local" and _is_loopback_host(host)
-    desktop_owner_allowed = os.environ.get("ECHO_DESKTOP") == "1" and allow_local_workspace_access
-    configure_desktop_owner_token(desktop_owner_token if desktop_owner_allowed else None)
-    if desktop_owner_token and not desktop_owner_allowed:
-        logging.getLogger(__name__).warning(
-            "%s ignored: desktop owner login needs ECHO_DESKTOP=1, local deployment "
-            "and a loopback bind",
-            DESKTOP_OWNER_TOKEN_ENV,
-        )
+    local_auth.install_desktop_owner_token(desktop_owner_token, allow_local_workspace_access)
 
     # Startup execution-health canary: probe whether a sandboxed command can
     # run in THIS process environment. When the backend cannot apply its

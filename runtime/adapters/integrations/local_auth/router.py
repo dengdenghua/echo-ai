@@ -156,6 +156,46 @@ if FASTAPI_AVAILABLE:
         metadata: dict[str, Any] = Field(default_factory=dict)
 
 
+def _raise_rate_limited(retry_after: int) -> None:
+    raise HTTPException(
+        status_code=429,
+        detail="登录失败过多 · 请稍后重试",
+        headers={"Retry-After": str(retry_after)},
+    )
+
+
+def _limited_credential_check(
+    limiters: tuple[_LoginFailureLimiter, _LoginFailureLimiter],
+    key: tuple[str, str],
+    verify: Callable[[], bool],
+    failure_detail: str,
+) -> None:
+    """Run ``verify`` behind the account/IP and IP-wide failure limiters."""
+    pair_limiter, ip_limiter = limiters
+    ip_key = (key[0], "*")
+    retry_after = max(pair_limiter.retry_after(key), ip_limiter.retry_after(ip_key))
+    if retry_after:
+        _raise_rate_limited(retry_after)
+    if not verify():
+        retry_after = max(pair_limiter.record_failure(key), ip_limiter.record_failure(ip_key))
+        if retry_after:
+            _raise_rate_limited(retry_after)
+        raise HTTPException(status_code=401, detail=failure_detail)
+    # A valid credential clears only this account/IP pair. The IP-wide
+    # spray counter deliberately survives, otherwise rotating through
+    # one known-good account would reset failures for every username.
+    pair_limiter.clear(key)
+
+
+def _desktop_owner_token_matches(password: str | None) -> bool:
+    expected = desktop_owner_token()
+    return bool(
+        expected
+        and password is not None
+        and hmac.compare_digest(password.encode("utf-8"), expected.encode("utf-8"))
+    )
+
+
 def create_local_auth_router(
     *,
     config: LocalAuthConfig,
@@ -208,9 +248,6 @@ def create_local_auth_router(
     def _failure_key(request: Request, username: str) -> tuple[str, str]:
         return _direct_client_ip(request), _normalized_username(username)
 
-    def _ip_failure_key(pair_key: tuple[str, str]) -> tuple[str, str]:
-        return pair_key[0], "*"
-
     def _dummy_password_check(password: str | None) -> None:
         # Hashing first keeps the bcrypt input within its portable 72-byte
         # bound while preserving a fixed-cost check for arbitrary input sizes.
@@ -237,68 +274,29 @@ def create_local_auth_router(
             _dummy_password_check(password)
         return password is not None and matches
 
-    def _raise_rate_limited(retry_after: int) -> None:
-        raise HTTPException(
-            status_code=429,
-            detail="登录失败过多 · 请稍后重试",
-            headers={"Retry-After": str(retry_after)},
-        )
-
-    def _check_desktop_owner_token(username: str, password: str | None, request: Request) -> None:
-        key = _failure_key(request, username)
-        ip_key = _ip_failure_key(key)
-        retry_after = max(
-            failure_limiter.retry_after(key),
-            ip_failure_limiter.retry_after(ip_key),
-        )
-        if retry_after:
-            _raise_rate_limited(retry_after)
-        expected = desktop_owner_token()
-        if not (
-            expected
-            and password is not None
-            and hmac.compare_digest(password.encode("utf-8"), expected.encode("utf-8"))
-        ):
-            retry_after = max(
-                failure_limiter.record_failure(key),
-                ip_failure_limiter.record_failure(ip_key),
-            )
-            if retry_after:
-                _raise_rate_limited(retry_after)
-            raise HTTPException(status_code=401, detail="本机登录凭证无效")
-        failure_limiter.clear(key)
-
     def _check_credentials(username: str, password: str | None, request: Request) -> None:
         _check_username(username)
 
+        limiters = (failure_limiter, ip_failure_limiter)
         if config.password_required:
-            key = _failure_key(request, username)
-            ip_key = _ip_failure_key(key)
-            retry_after = max(
-                failure_limiter.retry_after(key),
-                ip_failure_limiter.retry_after(ip_key),
+            _limited_credential_check(
+                limiters,
+                _failure_key(request, username),
+                lambda: _password_matches(username, password),
+                "用户名或密码错误",
             )
-            if retry_after:
-                _raise_rate_limited(retry_after)
-            if not _password_matches(username, password):
-                retry_after = max(
-                    failure_limiter.record_failure(key),
-                    ip_failure_limiter.record_failure(ip_key),
-                )
-                if retry_after:
-                    _raise_rate_limited(retry_after)
-                raise HTTPException(status_code=401, detail="用户名或密码错误")
-            # A valid credential clears only this account/IP pair. The IP-wide
-            # spray counter deliberately survives, otherwise rotating through
-            # one known-good account would reset failures for every username.
-            failure_limiter.clear(key)
             return
 
         if not development_login_enabled(config):
             # local_login_enabled admits a passwordless config outside
             # development only for the desktop owner, who must present the
             # shell's per-launch token.
-            _check_desktop_owner_token(username, password, request)
+            _limited_credential_check(
+                limiters,
+                _failure_key(request, username),
+                lambda: _desktop_owner_token_matches(password),
+                "本机登录凭证无效",
+            )
 
         if not config.allow_any_username:
             if username not in config.allowed_usernames:

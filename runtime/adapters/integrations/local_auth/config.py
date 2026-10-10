@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 import os
 from typing import Any
 
@@ -32,6 +33,27 @@ def configure_desktop_owner_token(token: str | None) -> None:
     global _desktop_owner_token
     valid = isinstance(token, str) and len(token) >= _DESKTOP_OWNER_TOKEN_MIN_LENGTH
     _desktop_owner_token = token if valid else None
+
+
+def take_desktop_owner_token() -> str | None:
+    """Pop the shell's owner token so nothing ``serve`` starts can inherit it.
+
+    ``serve`` calls this before the execution canary, tools, MCP servers or
+    Codex can spawn, then decides with :func:`install_desktop_owner_token`.
+    """
+    return os.environ.pop(DESKTOP_OWNER_TOKEN_ENV, None)
+
+
+def install_desktop_owner_token(token: str | None, local_loopback: bool) -> None:
+    """Install ``token`` only for a desktop shell's local, loopback-bound serve."""
+    allowed = os.environ.get("ECHO_DESKTOP") == "1" and local_loopback
+    configure_desktop_owner_token(token if allowed else None)
+    if token and not allowed:
+        logging.getLogger(__name__).warning(
+            "%s ignored: desktop owner login needs ECHO_DESKTOP=1, local deployment "
+            "and a loopback bind",
+            DESKTOP_OWNER_TOKEN_ENV,
+        )
 
 
 def desktop_owner_token() -> str | None:
