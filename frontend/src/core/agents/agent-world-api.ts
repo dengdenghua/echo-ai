@@ -18,6 +18,37 @@ import type {
   AgentRating,
   AgentRelationship,
 } from "./types";
+import { looseBody } from "@/core/api/response";
+import {
+  hasConnected,
+  hasInstalled,
+  hasMemories,
+  hasPlugins,
+  hasRatings,
+  hasRelationships,
+  hasRoot,
+  isAgentInstallResult,
+  isAgentProfile,
+  isAgentWorldAgent,
+  isAgentWorldListResponse,
+  isCapabilityDeviceFlowStatus,
+  isCapabilityInstallPlan,
+  isCapabilityListResponse,
+  isCloudInstalledStatus,
+  isCloudPluginInstallResult,
+  isCloudPluginRollbackResult,
+  isCloudPluginUninstallResult,
+  isCloudPluginsResponse,
+  isCloudSkillInstallResult,
+  isCloudSkillsResponse,
+  isCloudStoreCategoriesResponse,
+  isCloudStoreInstallResult,
+  isCloudStoreResponse,
+  isEnterpriseAssetsResponse,
+  isRuntimePluginStatus,
+  isRuntimePluginStatusList,
+  isUnifiedAssetsResponse,
+} from "./agent-world-guards";
 
 const AGENT_MARKET_API = "/api/agent-market";
 
@@ -121,7 +152,7 @@ export async function listCloudStoreExperts(
     limit?: number;
   } = {},
 ): Promise<CloudStoreResponse> {
-  return (await apiGet("/api/agent-market/cloud/store", {
+  return looseBody(await apiGet("/api/agent-market/cloud/store", {
     query: {
       category: params.category || undefined,
       search: params.search || undefined,
@@ -130,24 +161,24 @@ export async function listCloudStoreExperts(
       limit: params.limit ?? 500,
     },
     errorMessage: httpStatus("WorkBuddy cloud store failed"),
-  })) as CloudStoreResponse;
+  }), isCloudStoreResponse);
 }
 
 /** 拉取云端商城分类(15 大类)。 */
 export async function listCloudStoreCategories(): Promise<CloudStoreCategoriesResponse> {
-  return (await apiGet("/api/agent-market/cloud/store/categories", {
+  return looseBody(await apiGet("/api/agent-market/cloud/store/categories", {
     errorMessage: httpStatus("WorkBuddy cloud categories failed"),
-  })) as CloudStoreCategoriesResponse;
+  }), isCloudStoreCategoriesResponse);
 }
 
 /** 安装云端专家:后端下载 bundle → 解包 → 导入为本地 agent。 */
 export async function installCloudExpert(
   expertId: string,
 ): Promise<CloudStoreInstallResult> {
-  return (await apiPost("/api/agent-market/cloud/store/{expert_id}/install", {
+  return looseBody(await apiPost("/api/agent-market/cloud/store/{expert_id}/install", {
     path: { expert_id: expertId },
     errorMessage: httpBody("WorkBuddy install failed"),
-  })) as CloudStoreInstallResult;
+  }), isCloudStoreInstallResult);
 }
 
 /** 云商城插件目录(我们发布到 GitHub Pages 的 plugin-store.json)。 */
@@ -190,14 +221,14 @@ export async function fetchCloudPlugins(
     limit?: number;
   } = {},
 ): Promise<CloudPluginsResponse> {
-  return (await apiGet("/api/agent-market/cloud/plugins", {
+  return looseBody(await apiGet("/api/agent-market/cloud/plugins", {
     query: {
       search: opts.search || undefined,
       kind: opts.kind || undefined,
       limit: opts.limit ?? 500,
     },
     errorMessage: httpStatus("Cloud plugins failed"),
-  })) as CloudPluginsResponse;
+  }), isCloudPluginsResponse);
 }
 
 /** 云商城技能目录(我们发布到 GitHub Pages 的 skill-registry.json)。 */
@@ -243,7 +274,7 @@ export async function fetchCloudSkills(
   const items: CloudSkillItem[] = [];
   let page: CloudSkillsResponse;
   do {
-    page = (await apiGet("/api/agent-market/cloud/skills", {
+    page = looseBody(await apiGet("/api/agent-market/cloud/skills", {
       query: {
         search: opts.search || undefined,
         source: opts.source || undefined,
@@ -252,7 +283,7 @@ export async function fetchCloudSkills(
       },
       signal: opts.signal,
       errorMessage: httpStatus("Cloud skills failed"),
-    })) as CloudSkillsResponse;
+    }), isCloudSkillsResponse);
     if (!page.items.length) break;
     items.push(...page.items);
   } while (items.length < page.total);
@@ -290,19 +321,19 @@ export async function manageCloudSkill(
 }
 
 export async function fetchCloudInstalled(): Promise<CloudInstalledStatus> {
-  return (await apiGet("/api/agent-market/cloud/installed", {
+  return looseBody(await apiGet("/api/agent-market/cloud/installed", {
     errorMessage: httpStatus("Cloud installed status failed"),
-  })) as CloudInstalledStatus;
+  }), isCloudInstalledStatus);
 }
 
 /** Workbench navigation needs only this package's current lifecycle checks. */
 export async function fetchWorkbenchInstalled(
   packageId: string,
 ): Promise<Pick<CloudInstalledStatus, "plugins" | "plugin_states">> {
-  return (await apiGet("/api/agent-market/cloud/installed", {
+  return looseBody(await apiGet("/api/agent-market/cloud/installed", {
     query: { package_id: packageId },
     errorMessage: httpStatus("Workbench installed status failed"),
-  })) as Pick<CloudInstalledStatus, "plugins" | "plugin_states">;
+  }), hasPlugins);
 }
 
 export interface CloudSkillInstallResult {
@@ -380,10 +411,10 @@ export interface RuntimePluginStatus {
 export async function installCloudSkill(
   name: string,
 ): Promise<CloudSkillInstallResult> {
-  return (await apiPost("/api/agent-market/cloud/skills/{name}/install", {
+  return looseBody(await apiPost("/api/agent-market/cloud/skills/{name}/install", {
     path: { name },
     errorMessage: httpBody("云技能安装失败"),
-  })) as CloudSkillInstallResult;
+  }), isCloudSkillInstallResult);
 }
 
 export interface CloudSkillInstallProgress {
@@ -437,7 +468,7 @@ export async function installCloudPlugin(
   pluginId: string,
   options: { restoreData?: boolean; recoveryId?: string } = {},
 ): Promise<CloudPluginInstallResult> {
-  return (await apiPost("/api/agent-market/cloud/plugins/{plugin_id}/install", {
+  return looseBody(await apiPost("/api/agent-market/cloud/plugins/{plugin_id}/install", {
     path: { plugin_id: pluginId },
     body: {
       enabled: true,
@@ -454,7 +485,7 @@ export async function installCloudPlugin(
         httpBody("云插件安装失败")(f)
       );
     },
-  })) as CloudPluginInstallResult;
+  }), isCloudPluginInstallResult);
 }
 
 /** Remove only a mutable cloud-installed package; bundled/core code is never targeted. */
@@ -462,7 +493,7 @@ export async function uninstallCloudPlugin(
   pluginId: string,
   options: { dataPolicy?: "keep" | "trash"; confirmDataMove?: boolean } = {},
 ): Promise<CloudPluginUninstallResult> {
-  return (await apiDelete(
+  return looseBody(await apiDelete(
     "/api/agent-market/cloud/plugins/{plugin_id}/install",
     {
       path: { plugin_id: pluginId },
@@ -472,16 +503,16 @@ export async function uninstallCloudPlugin(
       },
       errorMessage: httpBody("云插件卸载失败"),
     },
-  )) as CloudPluginUninstallResult;
+  ), isCloudPluginUninstallResult);
 }
 
 export async function fetchRuntimePluginStatus(
   pluginName: string,
 ): Promise<RuntimePluginStatus> {
-  return (await apiGet("/api/plugin-hub/plugins/{name}", {
+  return looseBody(await apiGet("/api/plugin-hub/plugins/{name}", {
     path: { name: pluginName },
     errorMessage: httpBody("插件状态读取失败"),
-  })) as RuntimePluginStatus;
+  }), isRuntimePluginStatus);
 }
 
 /**
@@ -496,9 +527,9 @@ export async function fetchRuntimePluginStatus(
 export async function fetchRuntimePluginStatuses(): Promise<
   Map<string, RuntimePluginStatus>
 > {
-  const rows = (await apiGet("/api/plugin-hub/plugins", {
+  const rows = looseBody(await apiGet("/api/plugin-hub/plugins", {
     errorMessage: httpBody("插件状态清单读取失败"),
-  })) as RuntimePluginStatus[];
+  }), isRuntimePluginStatusList);
   return new Map(
     rows.flatMap((row) => {
       const key = row.plugin_id ?? row.id ?? row.name;
@@ -515,12 +546,12 @@ export async function setRuntimePluginEnabled(
     path: { name: pluginName },
     errorMessage: httpBody(`插件${enabled ? "启用" : "停用"}失败`),
   };
-  return (await (enabled
+  return looseBody(await (enabled
     ? apiPost("/api/plugin-hub/plugins/{name}/enable", options)
     : apiPost(
         "/api/plugin-hub/plugins/{name}/disable",
         options,
-      ))) as RuntimePluginStatus;
+      )), isRuntimePluginStatus);
 }
 
 /** Activate/deactivate any remote workbench, including frontend-only packages. */
@@ -528,10 +559,10 @@ export async function setCloudPluginEnabled(
   pluginId: string,
   enabled: boolean,
 ): Promise<RuntimePluginStatus> {
-  return (await apiPost("/api/agent-market/cloud/plugins/{plugin_id}/{action}", {
+  return looseBody(await apiPost("/api/agent-market/cloud/plugins/{plugin_id}/{action}", {
     path: { plugin_id: pluginId, action: enabled ? "enable" : "disable" },
     errorMessage: httpBody(`应用${enabled ? "启用" : "停用"}失败`),
-  })) as RuntimePluginStatus;
+  }), isRuntimePluginStatus);
 }
 
 export interface CloudPluginRollbackResult {
@@ -548,14 +579,14 @@ export async function rollbackCloudPlugin(
   pluginId: string,
   transactionId?: string,
 ): Promise<CloudPluginRollbackResult> {
-  return (await apiPost(
+  return looseBody(await apiPost(
     "/api/agent-market/cloud/plugins/{plugin_id}/rollback",
     {
       path: { plugin_id: pluginId },
       body: transactionId ? { transaction_id: transactionId } : {},
       errorMessage: httpBody("应用回滚失败"),
     },
-  )) as CloudPluginRollbackResult;
+  ), isCloudPluginRollbackResult);
 }
 
 // ---------------------------------------------------------------------------
@@ -567,13 +598,13 @@ export async function listStoreAgents(
 ): Promise<AgentWorldListResponse> {
   // Featured agents use a dedicated endpoint
   if (params.featured) {
-    return (await apiGet("/api/agent-market/store/featured", {
+    return looseBody(await apiGet("/api/agent-market/store/featured", {
       query: { limit: params.page_size || undefined },
       errorMessage: statusText("Failed to load featured agents"),
-    })) as AgentWorldListResponse;
+    }), isAgentWorldListResponse);
   }
 
-  return (await apiGet("/api/agent-market/store", {
+  return looseBody(await apiGet("/api/agent-market/store", {
     query: {
       category: params.category || undefined,
       search: params.search || undefined,
@@ -585,7 +616,7 @@ export async function listStoreAgents(
       limit: params.page_size,
     },
     errorMessage: statusText("Failed to load store agents"),
-  })) as AgentWorldListResponse;
+  }), isAgentWorldListResponse);
 }
 
 // ── 企业版角色资产(消费侧)─────────────────────
@@ -611,12 +642,12 @@ export async function listEnterpriseAssets(
   params: { category?: string; search?: string } = {},
 ): Promise<EnterpriseAssetsResponse> {
   try {
-    return (await apiGet("/api/agent-market/enterprise", {
+    return looseBody(await apiGet("/api/agent-market/enterprise", {
       query: {
         category: params.category || undefined,
         search: params.search || undefined,
       },
-    })) as EnterpriseAssetsResponse;
+    }), isEnterpriseAssetsResponse);
   } catch (error) {
     // Any HTTP failure means "enterprise catalog unavailable"; network
     // errors still propagate as before.
@@ -629,19 +660,19 @@ export async function listEnterpriseAssets(
 export async function installEnterpriseAsset(
   id: string,
 ): Promise<{ installed: boolean; agent_id: string; name?: string }> {
-  const result = (await apiPost(
+  const result = looseBody(await apiPost(
     "/api/agent-market/enterprise/{asset_id}/install",
     { path: { asset_id: id }, errorMessage: statusText("安装失败") },
-  )) as { installed: boolean; agent_id: string; name?: string };
+  ), hasInstalled);
   await reloadAgents();
   return result;
 }
 
 export async function getStoreAgent(id: string): Promise<AgentWorldAgent> {
-  return (await apiGet("/api/agent-market/store/{agent_id}", {
+  return looseBody(await apiGet("/api/agent-market/store/{agent_id}", {
     path: { agent_id: id },
     errorMessage: statusText("Agent not found"),
-  })) as AgentWorldAgent;
+  }), isAgentWorldAgent);
 }
 
 // ---------------------------------------------------------------------------
@@ -649,10 +680,10 @@ export async function getStoreAgent(id: string): Promise<AgentWorldAgent> {
 // ---------------------------------------------------------------------------
 
 export async function installAgent(id: string): Promise<AgentInstallResult> {
-  const result = (await apiPost("/api/agent-market/store/{agent_id}/install", {
+  const result = looseBody(await apiPost("/api/agent-market/store/{agent_id}/install", {
     path: { agent_id: id },
     errorMessage: statusText("Failed to install agent"),
-  })) as AgentInstallResult;
+  }), isAgentInstallResult);
   await reloadAgents();
   return result;
 }
@@ -671,10 +702,10 @@ export async function uninstallAgent(id: string): Promise<void> {
 export async function getAgentProfile(
   agentName: string,
 ): Promise<AgentProfile> {
-  return (await apiGet("/api/agent-market/profile/{agent_name}", {
+  return looseBody(await apiGet("/api/agent-market/profile/{agent_name}", {
     path: { agent_name: agentName },
     errorMessage: statusText("Failed to load agent profile"),
-  })) as AgentProfile;
+  }), isAgentProfile);
 }
 
 // ---------------------------------------------------------------------------
@@ -684,10 +715,10 @@ export async function getAgentProfile(
 export async function listAgentMemories(
   agentName: string,
 ): Promise<AgentMemory[]> {
-  const data = (await apiGet("/api/agent-market/memory/{agent_name}", {
+  const data = looseBody(await apiGet("/api/agent-market/memory/{agent_name}", {
     path: { agent_name: agentName },
     errorMessage: statusText("Failed to load agent memories"),
-  })) as { memories: AgentMemory[] };
+  }), hasMemories);
   return data.memories;
 }
 
@@ -767,10 +798,10 @@ export async function listAgentJournal(
 export async function listAgentRatings(
   agentId: string,
 ): Promise<AgentRating[]> {
-  const data = (await apiGet("/api/agent-market/store/{agent_id}/ratings", {
+  const data = looseBody(await apiGet("/api/agent-market/store/{agent_id}/ratings", {
     path: { agent_id: agentId },
     errorMessage: statusText("Failed to load ratings"),
-  })) as { ratings: AgentRating[] };
+  }), hasRatings);
   return data.ratings;
 }
 
@@ -795,13 +826,13 @@ export async function submitAgentRating(
 export async function listAgentRelationships(
   agentName: string,
 ): Promise<AgentRelationship[]> {
-  const data = (await apiGet(
+  const data = looseBody(await apiGet(
     "/api/agent-market/social/{agent_name}/relationships",
     {
       path: { agent_name: agentName },
       errorMessage: statusText("Failed to load relationships"),
     },
-  )) as { relationships: AgentRelationship[] };
+  ), hasRelationships);
   return data.relationships;
 }
 
@@ -960,10 +991,10 @@ export interface CapabilityInstallPlan {
 export async function getCapabilityInstallPlan(
   capabilityId: string,
 ): Promise<CapabilityInstallPlan> {
-  return (await apiGet("/api/capabilities/{cid}/install-plan", {
+  return looseBody(await apiGet("/api/capabilities/{cid}/install-plan", {
     path: { cid: capabilityId },
     errorMessage: httpStatus("Capability install plan failed"),
-  })) as CapabilityInstallPlan;
+  }), isCapabilityInstallPlan);
 }
 
 /** 统一插件市场列表(WorkBuddy MCP 服务 + Codex 插件)。 */
@@ -977,7 +1008,7 @@ export async function listCapabilities(
     includeManual?: boolean;
   } = {},
 ): Promise<CapabilityListResponse> {
-  return (await apiGet("/api/capabilities", {
+  return looseBody(await apiGet("/api/capabilities", {
     query: {
       search: opts.search || undefined,
       source: opts.source || undefined,
@@ -986,7 +1017,7 @@ export async function listCapabilities(
       include_manual: Boolean(opts.includeManual),
     },
     errorMessage: httpStatus("Capability list failed"),
-  })) as CapabilityListResponse;
+  }), isCapabilityListResponse);
 }
 
 /** Load a protected plugin asset and convert it into an image-safe data URL. */
@@ -1100,10 +1131,10 @@ export async function setCapabilityEnabled(
 export async function getCapabilityStatus(
   capabilityId: string,
 ): Promise<{ connected: boolean; auth_mode?: string }> {
-  return (await apiGet("/api/capabilities/{cid}/status", {
+  return looseBody(await apiGet("/api/capabilities/{cid}/status", {
     path: { cid: capabilityId },
     errorMessage: httpStatus("Capability status failed"),
-  })) as { connected: boolean; auth_mode?: string };
+  }), hasConnected);
 }
 
 /** 认证编排:带认证的插件走 tokens / 其余直接就绪。 */
@@ -1129,10 +1160,10 @@ export async function connectCapability(
 export async function getCapabilityDeviceFlow(
   capabilityId: string,
 ): Promise<CapabilityDeviceFlowStatus> {
-  return (await apiGet("/api/capabilities/{cid}/device-flow", {
+  return looseBody(await apiGet("/api/capabilities/{cid}/device-flow", {
     path: { cid: capabilityId },
     errorMessage: httpStatus("Capability device flow failed"),
-  })) as CapabilityDeviceFlowStatus;
+  }), isCapabilityDeviceFlowStatus);
 }
 
 /** 幂等取消 CLI 设备流；关闭弹窗或卸载能力前必须先回收后台进程。 */
@@ -1224,7 +1255,7 @@ export async function fetchUnifiedAssets(
     offset?: number;
   } = {},
 ): Promise<UnifiedAssetsResponse> {
-  return (await apiGet("/api/assets", {
+  return looseBody(await apiGet("/api/assets", {
     query: {
       kind: params.kind || undefined,
       source: params.source || undefined,
@@ -1233,7 +1264,7 @@ export async function fetchUnifiedAssets(
       offset: params.offset || undefined,
     },
     errorMessage: httpStatus("Unified assets failed"),
-  })) as UnifiedAssetsResponse;
+  }), isUnifiedAssetsResponse);
 }
 
 export async function syncUnifiedAssets(): Promise<{
@@ -1242,12 +1273,7 @@ export async function syncUnifiedAssets(): Promise<{
   files_copied: number;
   updated_at: string;
 }> {
-  return (await apiPost("/api/assets/sync", {
+  return looseBody(await apiPost("/api/assets/sync", {
     errorMessage: httpStatus("Unified assets sync failed"),
-  })) as {
-    root: string;
-    counts: Partial<Record<UnifiedAssetKind, number>>;
-    files_copied: number;
-    updated_at: string;
-  };
+  }), hasRoot);
 }

@@ -7,6 +7,8 @@ import {
   type HttpMethod,
 } from "@/core/api/request";
 import { getBackendBaseURL } from "@/core/config";
+import { looseBody } from "@/core/api/response";
+import { isNASServiceStartResponse } from "./guards";
 
 export type NASMode = "efficiency" | "privacy";
 
@@ -189,13 +191,16 @@ async function request<T>(path: string, init: NASRequestInit = {}): Promise<T> {
 }
 
 export async function startNASService(): Promise<NASServiceStartResponse> {
-  return (await apiPost("/api/local-brain/storage/start", {
-    credentials: "include",
-    errorMessage: (failure) =>
-      `Storage start failed: ${failure.status}${
-        failure.text ? ` - ${failure.text}` : ""
-      }`,
-  })) as NASServiceStartResponse;
+  return looseBody(
+    await apiPost("/api/local-brain/storage/start", {
+      credentials: "include",
+      errorMessage: (failure) =>
+        `Storage start failed: ${failure.status}${
+          failure.text ? ` - ${failure.text}` : ""
+        }`,
+    }),
+    isNASServiceStartResponse,
+  );
 }
 
 export function getNASManifest(): Promise<NASManifest> {

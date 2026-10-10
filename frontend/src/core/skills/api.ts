@@ -16,6 +16,8 @@ import type {
   SkillRollbackRequest,
   SkillUpdateRequest,
 } from "./types";
+import { looseBody } from "@/core/api/response";
+import { hasSkills, isSkillPerformanceList } from "./guards";
 
 /** Keep this module's historical ``"<label>: <statusText>"`` wording. */
 function failed(label: string) {
@@ -103,9 +105,12 @@ export async function installSkill(
 }
 
 export async function listCustomSkills(): Promise<SkillInfo[]> {
-  const data = (await apiGet("/api/skills/custom", {
-    errorMessage: failed("Failed to list custom skills"),
-  })) as { skills: SkillInfo[] };
+  const data = looseBody(
+    await apiGet("/api/skills/custom", {
+      errorMessage: failed("Failed to list custom skills"),
+    }),
+    hasSkills,
+  );
   return data.skills;
 }
 
@@ -162,13 +167,19 @@ export async function rollbackCustomSkill(
 }
 
 export async function getSkillPerformance(): Promise<SkillPerformance[]> {
-  return (await apiGet("/api/skills/performance", {
-    errorMessage: failed("Failed to get skill performance"),
-  })) as SkillPerformance[];
+  return looseBody(
+    await apiGet("/api/skills/performance", {
+      errorMessage: failed("Failed to get skill performance"),
+    }),
+    isSkillPerformanceList,
+  );
 }
 
 export async function getDecliningSkills(): Promise<SkillPerformance[]> {
-  return (await apiGet("/api/skills/declining", {
-    errorMessage: failed("Failed to get declining skills"),
-  })) as SkillPerformance[];
+  return looseBody(
+    await apiGet("/api/skills/declining", {
+      errorMessage: failed("Failed to get declining skills"),
+    }),
+    isSkillPerformanceList,
+  );
 }

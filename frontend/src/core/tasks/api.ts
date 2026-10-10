@@ -5,6 +5,8 @@ import {
   untypedApi,
   type ApiFailure,
 } from "@/core/api/request";
+import { looseBody } from "@/core/api/response";
+import { hasPauseRequest, isResumeTaskResponse, isTaskDetail } from "./guards";
 
 export type PauseReason =
   | "user_request"
@@ -100,10 +102,13 @@ export async function listTasks(
 }
 
 export async function getTask(taskId: string): Promise<TaskDetail> {
-  return (await apiGet("/api/tasks/{task_id}", {
-    path: { task_id: taskId },
-    errorMessage: failed("Failed to load task"),
-  })) as TaskDetail;
+  return looseBody(
+    await apiGet("/api/tasks/{task_id}", {
+      path: { task_id: taskId },
+      errorMessage: failed("Failed to load task"),
+    }),
+    isTaskDetail,
+  );
 }
 
 export async function pauseTask(
@@ -111,11 +116,14 @@ export async function pauseTask(
   reason: PauseReason = "user_request",
   note = "",
 ): Promise<{ ok: boolean; request: PauseRequest }> {
-  return (await apiPost("/api/tasks/{task_id}/pause", {
-    path: { task_id: taskId },
-    body: { reason, note },
-    errorMessage: failedWithBody("Failed to pause"),
-  })) as { ok: boolean; request: PauseRequest };
+  return looseBody(
+    await apiPost("/api/tasks/{task_id}/pause", {
+      path: { task_id: taskId },
+      body: { reason, note },
+      errorMessage: failedWithBody("Failed to pause"),
+    }),
+    hasPauseRequest,
+  );
 }
 
 export async function resumeTask(
@@ -126,11 +134,14 @@ export async function resumeTask(
     extra_usd?: number;
   } = {},
 ): Promise<ResumeTaskResponse> {
-  return (await apiPost("/api/tasks/{task_id}/resume", {
-    path: { task_id: taskId },
-    body: opts,
-    errorMessage: failedWithBody("Failed to resume"),
-  })) as ResumeTaskResponse;
+  return looseBody(
+    await apiPost("/api/tasks/{task_id}/resume", {
+      path: { task_id: taskId },
+      body: opts,
+      errorMessage: failedWithBody("Failed to resume"),
+    }),
+    isResumeTaskResponse,
+  );
 }
 
 export async function deleteTask(taskId: string): Promise<void> {

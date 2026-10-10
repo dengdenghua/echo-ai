@@ -11,6 +11,7 @@ import {
   apiFetch,
   apiGet,
   apiPost,
+  failureDetail,
   untypedApi,
   type ApiFailure,
 } from "@/core/api/request";
@@ -23,6 +24,15 @@ import type {
   WorkspaceHealth,
   WorkspaceMember,
 } from "./types";
+import { looseBody } from "@/core/api/response";
+import {
+  hasReady,
+  isFileLease,
+  isFileLeaseList,
+  isWorkspaceBody,
+  isWorkspaceList,
+  isWorkspaceMemberList,
+} from "./guards";
 
 /**
  * Historical wording: the JSON ``detail`` (or the raw text / status text for
@@ -33,7 +43,7 @@ function workspaceError(label: string) {
     const { payload } = failure;
     const detail: unknown =
       payload !== undefined && payload !== null
-        ? ((payload as { detail?: unknown }).detail ?? "")
+        ? (failureDetail(failure) ?? "")
         : failure.text || failure.statusText;
     return detail ? String(detail) : `${label}: ${failure.status}`;
   };
@@ -42,27 +52,36 @@ function workspaceError(label: string) {
 export async function listWorkspaces(): Promise<Workspace[]> {
   // Identity comes from the bearer token / HttpOnly cookie. A separately
   // persisted user id can drift from the JWT subject and cause a false 403.
-  const data = (await apiGet("/api/workspaces", {
-    errorMessage: workspaceError("Failed to load workspaces"),
-  })) as Workspace[] | { workspaces: Workspace[] };
+  const data = looseBody(
+    await apiGet("/api/workspaces", {
+      errorMessage: workspaceError("Failed to load workspaces"),
+    }),
+    isWorkspaceList,
+  );
   return Array.isArray(data) ? data : (data.workspaces ?? []);
 }
 
 export async function getWorkspace(id: string): Promise<Workspace> {
-  const data = (await apiGet("/api/workspaces/{workspace_id}", {
-    path: { workspace_id: id },
-    errorMessage: workspaceError("Failed to load workspace"),
-  })) as Workspace | { workspace: Workspace };
+  const data = looseBody(
+    await apiGet("/api/workspaces/{workspace_id}", {
+      path: { workspace_id: id },
+      errorMessage: workspaceError("Failed to load workspace"),
+    }),
+    isWorkspaceBody,
+  );
   return "workspace" in data ? data.workspace : data;
 }
 
 export async function createWorkspace(
   params: CreateWorkspaceParams,
 ): Promise<Workspace> {
-  const data = (await apiPost("/api/workspaces", {
-    body: params,
-    errorMessage: workspaceError("Failed to create workspace"),
-  })) as Workspace | { workspace: Workspace };
+  const data = looseBody(
+    await apiPost("/api/workspaces", {
+      body: params,
+      errorMessage: workspaceError("Failed to create workspace"),
+    }),
+    isWorkspaceBody,
+  );
   return "workspace" in data ? data.workspace : data;
 }
 
@@ -79,10 +98,13 @@ export async function deleteWorkspace(id: string): Promise<void> {
 export async function listMembers(
   workspaceId: string,
 ): Promise<WorkspaceMember[]> {
-  const data = (await apiGet("/api/workspaces/{workspace_id}/members", {
-    path: { workspace_id: workspaceId },
-    errorMessage: workspaceError("Failed to load workspace members"),
-  })) as WorkspaceMember[] | { members: WorkspaceMember[] };
+  const data = looseBody(
+    await apiGet("/api/workspaces/{workspace_id}/members", {
+      path: { workspace_id: workspaceId },
+      errorMessage: workspaceError("Failed to load workspace members"),
+    }),
+    isWorkspaceMemberList,
+  );
   return Array.isArray(data) ? data : (data.members ?? []);
 }
 
@@ -116,11 +138,11 @@ export async function acquireLease(
   workspaceId: string,
   params: AcquireLeaseParams,
 ): Promise<FileLease> {
-  return (await apiPost("/api/workspaces/{workspace_id}/lease", {
+  return looseBody(await apiPost("/api/workspaces/{workspace_id}/lease", {
     path: { workspace_id: workspaceId },
     body: params,
     errorMessage: workspaceError("Failed to acquire file lease"),
-  })) as FileLease;
+  }), isFileLease);
 }
 
 export async function releaseLease(
@@ -144,21 +166,24 @@ export async function renewLease(
 ): Promise<FileLease> {
   const body: { ttl_seconds?: number } = {};
   if (typeof ttl === "number") body.ttl_seconds = ttl;
-  return (await apiPost(
+  return looseBody(await apiPost(
     "/api/workspaces/{workspace_id}/lease/{lease_id}/renew",
     {
       path: { workspace_id: workspaceId, lease_id: leaseId },
       body,
       errorMessage: workspaceError("Failed to renew file lease"),
     },
-  )) as FileLease;
+  ), isFileLease);
 }
 
 export async function listLeases(workspaceId: string): Promise<FileLease[]> {
-  const data = (await apiGet("/api/workspaces/{workspace_id}/leases", {
-    path: { workspace_id: workspaceId },
-    errorMessage: workspaceError("Failed to load file leases"),
-  })) as FileLease[] | { leases: FileLease[] };
+  const data = looseBody(
+    await apiGet("/api/workspaces/{workspace_id}/leases", {
+      path: { workspace_id: workspaceId },
+      errorMessage: workspaceError("Failed to load file leases"),
+    }),
+    isFileLeaseList,
+  );
   return Array.isArray(data) ? data : (data.leases ?? []);
 }
 
@@ -192,17 +217,13 @@ export type {
 export async function getWorkspaceExecutionDirectory(
   workspaceId: string,
 ): Promise<string> {
-  const data = (await apiGet(
+  const data = looseBody(await apiGet(
     "/api/workspaces/{workspace_id}/execution-directory",
     {
       path: { workspace_id: workspaceId },
       errorMessage: workspaceError("Workspace directory unavailable"),
     },
-  )) as {
-    ready: boolean;
-    filesystem_path: string | null;
-    detail?: string;
-  };
+  ), hasReady);
   if (!data.ready || !data.filesystem_path)
     throw new Error(
       data.detail ||

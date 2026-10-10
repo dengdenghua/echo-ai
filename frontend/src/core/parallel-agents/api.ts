@@ -8,6 +8,13 @@ import { swallow } from "@/core/utils/log";
 import { EchoAPIError, apiFetch, apiGet, apiPost } from "@/core/api/request";
 import { getBackendBaseURL } from "@/core/config";
 import { openSseStream } from "@/core/streaming/sse";
+import { looseBody } from "@/core/api/response";
+import {
+  isBatchRecoverySnapshot,
+  isBatchResult,
+  isOrchestratorStatus,
+  isSplitResult,
+} from "./guards";
 
 // ---------------------------------------------------------------------------
 // Backend shapes
@@ -249,10 +256,10 @@ function swallowUnlessHttp(error: unknown): void {
 
 export async function fetchOrchestratorStatus(): Promise<OrchestratorStatus | null> {
   try {
-    return (await apiGet(
+    return looseBody(await apiGet(
       "/api/agents/parallel/status",
       WITH_COOKIES,
-    )) as OrchestratorStatus;
+    ), isOrchestratorStatus);
   } catch (e) {
     swallowUnlessHttp(e);
     return null;
@@ -261,10 +268,10 @@ export async function fetchOrchestratorStatus(): Promise<OrchestratorStatus | nu
 
 export async function fetchBatch(batchId: string): Promise<BatchResult | null> {
   try {
-    return (await apiGet("/api/agents/parallel/batch/{batch_id}", {
+    return looseBody(await apiGet("/api/agents/parallel/batch/{batch_id}", {
       ...WITH_COOKIES,
       path: { batch_id: batchId },
-    })) as BatchResult;
+    }), isBatchResult);
   } catch (e) {
     swallowUnlessHttp(e);
     return null;
@@ -275,10 +282,10 @@ export async function fetchBatchRecoverySnapshot(
   batchId: string,
 ): Promise<BatchRecoverySnapshot | null> {
   try {
-    return (await apiGet(
+    return looseBody(await apiGet(
       "/api/agents/parallel/batch/{batch_id}/recovery-snapshot",
       { ...WITH_COOKIES, path: { batch_id: batchId } },
-    )) as BatchRecoverySnapshot;
+    ), isBatchRecoverySnapshot);
   } catch (e) {
     swallowUnlessHttp(e);
     return null;
@@ -482,7 +489,7 @@ export async function dispatchParallel(
         ]
       : tasksOrPrompt;
   try {
-    return (await apiPost("/api/agents/parallel/dispatch", {
+    return looseBody(await apiPost("/api/agents/parallel/dispatch", {
       ...WITH_COOKIES,
       body: {
         tasks,
@@ -492,7 +499,7 @@ export async function dispatchParallel(
         thread_id: options?.thread_id,
         model_name: options?.model_name,
       },
-    })) as BatchResult;
+    }), isBatchResult);
   } catch (e) {
     swallowUnlessHttp(e);
     return null;
@@ -508,7 +515,7 @@ export async function splitTask(
   },
 ): Promise<SplitResult | null> {
   try {
-    return (await apiPost("/api/agents/parallel/split", {
+    return looseBody(await apiPost("/api/agents/parallel/split", {
       ...WITH_COOKIES,
       body: {
         task: prompt,
@@ -516,7 +523,7 @@ export async function splitTask(
         context: options?.context,
         model_name: options?.model_name,
       },
-    })) as SplitResult;
+    }), isSplitResult);
   } catch (e) {
     swallowUnlessHttp(e);
     return null;

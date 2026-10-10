@@ -17,6 +17,25 @@ import {
   untypedApi,
   type ApiFailure,
 } from "@/core/api/request";
+import { looseBody } from "@/core/api/response";
+import { isRecord } from "@/core/utils/guards";
+import {
+  hasLastScreenStats,
+  hasSamples,
+  hasScreenStats,
+  hasSuccess,
+  isDeviceHealth,
+  isDeviceLease,
+  isDeviceProcedureList,
+  isPcScreenStats,
+  isScreenAnalysis,
+  isSimulationReport,
+  isTaskRecord,
+  isTaskRecordList,
+  isTentacleDevice,
+  isTentacleDeviceList,
+  isTentacleStats,
+} from "./guards";
 
 // ── Types ──────────────────────────────────────────────
 
@@ -147,42 +166,42 @@ const JSON_CALL = {
 };
 
 export async function listDevices(signal?: AbortSignal): Promise<TentacleDevice[]> {
-  return (await apiGet("/api/tentacle/devices", {
+  return looseBody(await apiGet("/api/tentacle/devices", {
     ...JSON_CALL,
     signal,
-  })) as TentacleDevice[];
+  }), isTentacleDeviceList);
 }
 
 export async function getDevice(tentacleId: string): Promise<TentacleDevice> {
-  return (await apiGet("/api/tentacle/devices/{tentacle_id}", {
+  return looseBody(await apiGet("/api/tentacle/devices/{tentacle_id}", {
     ...JSON_CALL,
     path: { tentacle_id: tentacleId },
-  })) as TentacleDevice;
+  }), isTentacleDevice);
 }
 
 export async function getDeviceManifest(
   tentacleId: string,
 ): Promise<Record<string, unknown>> {
-  return (await apiGet("/api/tentacle/devices/{tentacle_id}/manifest", {
+  return looseBody(await apiGet("/api/tentacle/devices/{tentacle_id}/manifest", {
     ...JSON_CALL,
     path: { tentacle_id: tentacleId },
-  })) as Record<string, unknown>;
+  }), isRecord);
 }
 
 export async function getDeviceLease(tentacleId: string): Promise<DeviceLease> {
-  return (await apiGet("/api/tentacle/devices/{tentacle_id}/lease", {
+  return looseBody(await apiGet("/api/tentacle/devices/{tentacle_id}/lease", {
     ...JSON_CALL,
     path: { tentacle_id: tentacleId },
-  })) as DeviceLease;
+  }), isDeviceLease);
 }
 
 export async function getDeviceHealth(
   tentacleId: string,
 ): Promise<DeviceHealth> {
-  return (await apiGet("/api/tentacle/devices/{tentacle_id}/health", {
+  return looseBody(await apiGet("/api/tentacle/devices/{tentacle_id}/health", {
     ...JSON_CALL,
     path: { tentacle_id: tentacleId },
-  })) as DeviceHealth;
+  }), isDeviceHealth);
 }
 
 export async function getDeviceTelemetry(
@@ -192,20 +211,17 @@ export async function getDeviceTelemetry(
   samples: Array<Record<string, unknown>>;
   faults: Array<Record<string, unknown>>;
 }> {
-  return (await apiGet("/api/tentacle/devices/{tentacle_id}/telemetry", {
+  return looseBody(await apiGet("/api/tentacle/devices/{tentacle_id}/telemetry", {
     ...JSON_CALL,
     path: { tentacle_id: tentacleId },
     query: { metric: metric || undefined },
-  })) as {
-    samples: Array<Record<string, unknown>>;
-    faults: Array<Record<string, unknown>>;
-  };
+  }), hasSamples);
 }
 
 export async function listProcedures(): Promise<DeviceProcedure[]> {
-  return (await apiGet("/api/tentacle/procedures", {
+  return looseBody(await apiGet("/api/tentacle/procedures", {
     ...JSON_CALL,
-  })) as DeviceProcedure[];
+  }), isDeviceProcedureList);
 }
 
 export async function controlProcedure(
@@ -248,11 +264,11 @@ export async function dryRunProcedure(
     injected_faults?: Record<string, string>;
   },
 ): Promise<SimulationReport> {
-  return (await apiPost("/api/tentacle/procedures/{procedure_id}/dry-run", {
+  return looseBody(await apiPost("/api/tentacle/procedures/{procedure_id}/dry-run", {
     ...JSON_CALL,
     path: { procedure_id: procedureId },
     body: scenario ?? {},
-  })) as SimulationReport;
+  }), isSimulationReport);
 }
 
 export async function submitTask(
@@ -261,22 +277,22 @@ export async function submitTask(
 ): Promise<TaskRecord> {
   const body: Record<string, string> = { task };
   if (tentacleId) body.tentacle_id = tentacleId;
-  return (await apiPost("/api/tentacle/task", {
+  return looseBody(await apiPost("/api/tentacle/task", {
     ...JSON_CALL,
     body,
-  })) as TaskRecord;
+  }), isTaskRecord);
 }
 
 export async function listTasks(): Promise<TaskRecord[]> {
-  return (await apiGet("/api/tentacle/tasks", {
+  return looseBody(await apiGet("/api/tentacle/tasks", {
     ...JSON_CALL,
-  })) as TaskRecord[];
+  }), isTaskRecordList);
 }
 
 export async function getStats(): Promise<TentacleStats> {
-  return (await apiGet("/api/tentacle/stats", {
+  return looseBody(await apiGet("/api/tentacle/stats", {
     ...JSON_CALL,
-  })) as TentacleStats;
+  }), isTentacleStats);
 }
 
 // ── VLM / Screenshot ───────────────────────────────────
@@ -285,11 +301,11 @@ export async function analyzeDevice(
   tentacleId: string,
   task: string,
 ): Promise<ScreenAnalysis> {
-  return (await apiPost("/api/tentacle/devices/{tentacle_id}/analyze", {
+  return looseBody(await apiPost("/api/tentacle/devices/{tentacle_id}/analyze", {
     ...JSON_CALL,
     path: { tentacle_id: tentacleId },
     body: { task },
-  })) as ScreenAnalysis;
+  }), isScreenAnalysis);
 }
 
 export async function getDeviceScreenshot(tentacleId: string): Promise<Blob> {
@@ -327,25 +343,25 @@ export async function startPcScreenCapture(opts?: {
   scale?: number;
   quality?: number;
 }): Promise<{ status: string; stats: PcScreenStats }> {
-  return (await apiPost("/api/tentacle/pc-screen/start", {
+  return looseBody(await apiPost("/api/tentacle/pc-screen/start", {
     ...JSON_CALL,
     body: opts || {},
-  })) as { status: string; stats: PcScreenStats };
+  }), hasScreenStats);
 }
 
 export async function stopPcScreenCapture(): Promise<{
   status: string;
   last_stats: PcScreenStats;
 }> {
-  return (await apiPost("/api/tentacle/pc-screen/stop", {
+  return looseBody(await apiPost("/api/tentacle/pc-screen/stop", {
     ...JSON_CALL,
-  })) as { status: string; last_stats: PcScreenStats };
+  }), hasLastScreenStats);
 }
 
 export async function getPcScreenStats(): Promise<PcScreenStats> {
-  return (await apiGet("/api/tentacle/pc-screen/stats", {
+  return looseBody(await apiGet("/api/tentacle/pc-screen/stats", {
     ...JSON_CALL,
-  })) as PcScreenStats;
+  }), isPcScreenStats);
 }
 
 // ── Skills ─────────────────────────────────────────────
@@ -395,8 +411,8 @@ export interface RemoteInputEvent {
 export async function sendRemoteInput(
   event: RemoteInputEvent,
 ): Promise<{ success: boolean; error: string | null }> {
-  return (await apiPost("/api/tentacle/remote-input", {
+  return looseBody(await apiPost("/api/tentacle/remote-input", {
     ...JSON_CALL,
     body: event,
-  })) as { success: boolean; error: string | null };
+  }), hasSuccess);
 }

@@ -12,6 +12,8 @@ import type {
   WikiStatus,
   WikiUpdateResult,
 } from "./types";
+import { looseBody } from "@/core/api/response";
+import { isWikiDocList, isWikiStatus, isWikiUpdateResult } from "./guards";
 
 /** ``detail`` from the error body, else this module's status wording. */
 function failed(failure: ApiFailure): string {
@@ -22,17 +24,23 @@ function failed(failure: ApiFailure): string {
 }
 
 export async function getWikiStatus(root?: string | null): Promise<WikiStatus> {
-  return (await apiGet("/api/wiki/status", {
-    query: { root: root || undefined },
-    errorMessage: failed,
-  })) as WikiStatus;
+  return looseBody(
+    await apiGet("/api/wiki/status", {
+      query: { root: root || undefined },
+      errorMessage: failed,
+    }),
+    isWikiStatus,
+  );
 }
 
 export async function listWikiDocs(root?: string | null): Promise<WikiDocList> {
-  return (await apiGet("/api/wiki/docs", {
-    query: { lang: "zh", root: root || undefined },
-    errorMessage: failed,
-  })) as WikiDocList;
+  return looseBody(
+    await apiGet("/api/wiki/docs", {
+      query: { lang: "zh", root: root || undefined },
+      errorMessage: failed,
+    }),
+    isWikiDocList,
+  );
 }
 
 export function getWikiDocument(
@@ -51,17 +59,23 @@ export function getWikiDocument(
 export async function generateWiki(
   root?: string | null,
 ): Promise<WikiUpdateResult> {
-  return (await apiPost("/api/wiki/generate", {
-    query: { root: root || undefined },
-    errorMessage: failed,
-  })) as WikiUpdateResult;
+  return looseBody(
+    await apiPost("/api/wiki/generate", {
+      query: { root: root || undefined },
+      errorMessage: failed,
+    }),
+    isWikiUpdateResult,
+  );
 }
 
 export async function updateWiki(
   root?: string | null,
 ): Promise<WikiUpdateResult> {
-  return (await apiPost("/api/wiki/update", {
-    query: { root: root || undefined },
-    errorMessage: failed,
-  })) as WikiUpdateResult;
+  return looseBody(
+    await apiPost("/api/wiki/update", {
+      query: { root: root || undefined },
+      errorMessage: failed,
+    }),
+    isWikiUpdateResult,
+  );
 }

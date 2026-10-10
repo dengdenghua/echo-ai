@@ -17,6 +17,23 @@ import type {
   TelemetryStats,
   TraceSummary,
 } from "./types";
+import { looseBody } from "@/core/api/response";
+import { isRecord } from "@/core/utils/guards";
+import {
+  hasDropped,
+  hasSuccess,
+  isActiveAlertList,
+  isAlertRule,
+  isAlertRuleList,
+  isEvolutionStatus,
+  isMetricsSummary,
+  isReflectionReport,
+  isSpanList,
+  isTelemetryStats,
+  isToolEffectAuthorizationResponse,
+  isToolEffectsSnapshot,
+  isTraceSummaryList,
+} from "./guards";
 
 /**
  * Process-global observability is intentionally separate from tenant-scoped
@@ -90,71 +107,101 @@ async function globalControlPlane<T>(
 }
 
 export async function getMetrics(): Promise<Record<string, unknown>> {
-  return (await apiGet("/api/metrics", {
-    errorMessage: failed("Failed to get metrics"),
-  })) as Record<string, unknown>;
+  return looseBody(
+    await apiGet("/api/metrics", {
+      errorMessage: failed("Failed to get metrics"),
+    }),
+    isRecord,
+  );
 }
 
 export async function getMetricsSummary(): Promise<MetricsSummary> {
-  return (await apiGet("/api/metrics/summary", {
-    errorMessage: failed("Failed to get metrics summary"),
-  })) as MetricsSummary;
+  return looseBody(
+    await apiGet("/api/metrics/summary", {
+      errorMessage: failed("Failed to get metrics summary"),
+    }),
+    isMetricsSummary,
+  );
 }
 
 export async function getTraces(limit = 100): Promise<TraceSummary[]> {
-  return (await apiGet("/api/trace/recent", {
-    query: { limit },
-    errorMessage: failed("Failed to get traces"),
-  })) as TraceSummary[];
+  return looseBody(
+    await apiGet("/api/trace/recent", {
+      query: { limit },
+      errorMessage: failed("Failed to get traces"),
+    }),
+    isTraceSummaryList,
+  );
 }
 
 export async function getTrace(traceId: string): Promise<Span[]> {
-  return (await apiGet("/api/trace/{trace_id}", {
-    path: { trace_id: traceId },
-    errorMessage: failed("Failed to get trace"),
-  })) as Span[];
+  return looseBody(
+    await apiGet("/api/trace/{trace_id}", {
+      path: { trace_id: traceId },
+      errorMessage: failed("Failed to get trace"),
+    }),
+    isSpanList,
+  );
 }
 
 export async function getAlerts(): Promise<ActiveAlert[]> {
-  return (await apiGet("/api/alerts", {
-    errorMessage: failed("Failed to get alerts"),
-  })) as ActiveAlert[];
+  return looseBody(
+    await apiGet("/api/alerts", {
+      errorMessage: failed("Failed to get alerts"),
+    }),
+    isActiveAlertList,
+  );
 }
 
 export async function getAlertRules(): Promise<AlertRule[]> {
-  return (await apiGet("/api/alerts/rules", {
-    errorMessage: failed("Failed to get alert rules"),
-  })) as AlertRule[];
+  return looseBody(
+    await apiGet("/api/alerts/rules", {
+      errorMessage: failed("Failed to get alert rules"),
+    }),
+    isAlertRuleList,
+  );
 }
 
 export async function createAlertRule(rule: AlertRule): Promise<AlertRule> {
-  return (await apiPost("/api/alerts/rules", {
-    body: rule,
-    errorMessage: detailOr(failed("Failed to create alert rule")),
-  })) as AlertRule;
+  return looseBody(
+    await apiPost("/api/alerts/rules", {
+      body: rule,
+      errorMessage: detailOr(failed("Failed to create alert rule")),
+    }),
+    isAlertRule,
+  );
 }
 
 export async function deleteAlertRule(
   name: string,
 ): Promise<{ success: boolean; name: string }> {
-  return (await apiDelete("/api/alerts/rules/{name}", {
-    path: { name },
-    errorMessage: failed("Failed to delete alert rule"),
-  })) as { success: boolean; name: string };
+  return looseBody(
+    await apiDelete("/api/alerts/rules/{name}", {
+      path: { name },
+      errorMessage: failed("Failed to delete alert rule"),
+    }),
+    hasSuccess,
+  );
 }
 
 export async function getTelemetryStats(): Promise<TelemetryStats> {
-  return (await apiGet("/api/telemetry/stats", {
-    errorMessage: failed("Failed to get telemetry stats"),
-  })) as TelemetryStats;
+  return looseBody(
+    await apiGet("/api/telemetry/stats", {
+      errorMessage: failed("Failed to get telemetry stats"),
+    }),
+    isTelemetryStats,
+  );
 }
 
 export async function getObservabilityHealth(): Promise<
   Record<string, unknown>
 > {
-  return (await apiGet("/api/observability/health", {
-    errorMessage: failed("Failed to get observability health"),
-  })) as Record<string, unknown>;
+  return looseBody(
+    await apiGet("/api/observability/health", {
+      errorMessage: failed("Failed to get observability health"),
+    }),
+    isRecord,
+  );
 }
 
 export type ToolEffectState =
@@ -209,11 +256,14 @@ export async function getToolEffectsSnapshot({
   return globalControlPlane(
     "Failed to load tool effects",
     async (errorMessage) =>
-      (await apiGet("/api/tool-effects", {
-        query: { limit: safeLimit, cross_tenant: true },
-        signal,
-        errorMessage,
-      })) as ToolEffectsSnapshot,
+      looseBody(
+        await apiGet("/api/tool-effects", {
+          query: { limit: safeLimit, cross_tenant: true },
+          signal,
+          errorMessage,
+        }),
+        isToolEffectsSnapshot,
+      ),
   );
 }
 
@@ -221,10 +271,9 @@ export async function authorizeToolEffectRetry(
   receipt: ToolEffectReceipt,
   reason: string,
 ): Promise<ToolEffectAuthorizationResponse> {
-  return globalControlPlane(
-    "Failed to authorize retry",
-    async (errorMessage) =>
-      (await apiPost("/api/tool-effects/{effect_key}/authorize-retry", {
+  return globalControlPlane("Failed to authorize retry", async (errorMessage) =>
+    looseBody(
+      await apiPost("/api/tool-effects/{effect_key}/authorize-retry", {
         path: { effect_key: receipt.effect_key },
         query: { cross_tenant: true },
         body: {
@@ -233,7 +282,9 @@ export async function authorizeToolEffectRetry(
           reason,
         },
         errorMessage,
-      })) as ToolEffectAuthorizationResponse,
+      }),
+      isToolEffectAuthorizationResponse,
+    ),
   );
 }
 
@@ -274,11 +325,14 @@ export async function getEvolutionStatus(
   return globalControlPlane(
     "Failed to get evolution status",
     async (errorMessage) =>
-      (await apiGet("/api/evolution/status", {
-        query: { cross_tenant: true },
-        signal,
-        errorMessage,
-      })) as EvolutionStatus,
+      looseBody(
+        await apiGet("/api/evolution/status", {
+          query: { cross_tenant: true },
+          signal,
+          errorMessage,
+        }),
+        isEvolutionStatus,
+      ),
   );
 }
 
@@ -294,36 +348,41 @@ export interface ReflectionReport {
 
 /* Implementation note. */
 export async function kickReflection(): Promise<ReflectionReport> {
-  return (await apiGet("/api/reflect", {
-    errorMessage: failed("Failed to kick reflection"),
-  })) as ReflectionReport;
+  return looseBody(
+    await apiGet("/api/reflect", {
+      errorMessage: failed("Failed to kick reflection"),
+    }),
+    isReflectionReport,
+  );
 }
 
 export async function forgetRule(
   index: number,
 ): Promise<{ dropped: string; remaining: number }> {
-  return globalControlPlane(
-    "Failed to delete rule",
-    async (errorMessage) =>
-      (await apiDelete("/api/evolution/rules/{index}", {
+  return globalControlPlane("Failed to delete rule", async (errorMessage) =>
+    looseBody(
+      await apiDelete("/api/evolution/rules/{index}", {
         path: { index },
         query: { cross_tenant: true },
         errorMessage,
-      })) as { dropped: string; remaining: number },
+      }),
+      hasDropped,
+    ),
   );
 }
 
 export async function forgetMemory(
   index: number,
 ): Promise<{ dropped: string; remaining: number }> {
-  return globalControlPlane(
-    "Failed to delete memory",
-    async (errorMessage) =>
-      (await apiDelete("/api/evolution/memories/{index}", {
+  return globalControlPlane("Failed to delete memory", async (errorMessage) =>
+    looseBody(
+      await apiDelete("/api/evolution/memories/{index}", {
         path: { index },
         query: { cross_tenant: true },
         errorMessage,
-      })) as { dropped: string; remaining: number },
+      }),
+      hasDropped,
+    ),
   );
 }
 

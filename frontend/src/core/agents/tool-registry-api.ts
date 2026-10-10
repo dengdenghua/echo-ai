@@ -62,16 +62,16 @@ export async function listCapabilityPermissions(): Promise<
     errorMessage: (f) =>
       `Failed to list capability permissions: ${f.statusText}`,
   });
-  return body.permissions as CapabilityPermission[];
+  return body.permissions;
 }
 
 export async function updateCapabilityPermission(
   group: string,
   enabled: boolean,
 ): Promise<CapabilityPermission> {
-  return (await apiPut("/api/capability-permissions/{group}", {
+  return await apiPut("/api/capability-permissions/{group}", {
     path: { group },
     body: { enabled },
     errorMessage: failedWithBody("Failed to update capability permission"),
-  })) as CapabilityPermission;
+  });
 }

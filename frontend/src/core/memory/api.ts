@@ -19,6 +19,13 @@ import type {
   MemoryData,
   MemorySearchResult,
 } from "./types";
+import { looseBody } from "@/core/api/response";
+import {
+  isMemoryAssetList,
+  isMemoryAssetTrace,
+  isMemoryConfig,
+  isMemoryData,
+} from "./guards";
 
 /** Keep this module's historical ``"<label>: <statusText>"`` wording. */
 function failed(label: string) {
@@ -45,25 +52,34 @@ export async function listMemoryAssets(
       ([, value]) => value !== undefined && value !== "",
     ),
   ) as MemoryAssetQuery;
-  return (await apiGet("/api/memory/assets", {
-    query: params,
-    errorMessage: failed("Failed to list memory assets"),
-  })) as MemoryAssetList;
+  return looseBody(
+    await apiGet("/api/memory/assets", {
+      query: params,
+      errorMessage: failed("Failed to list memory assets"),
+    }),
+    isMemoryAssetList,
+  );
 }
 
 export async function getMemoryAssetTrace(
   assetId: string,
 ): Promise<MemoryAssetTrace> {
-  return (await apiGet("/api/memory/assets/{asset_id}/trace", {
-    path: { asset_id: assetId },
-    errorMessage: failed("Failed to load memory trace"),
-  })) as MemoryAssetTrace;
+  return looseBody(
+    await apiGet("/api/memory/assets/{asset_id}/trace", {
+      path: { asset_id: assetId },
+      errorMessage: failed("Failed to load memory trace"),
+    }),
+    isMemoryAssetTrace,
+  );
 }
 
 export async function getMemory(): Promise<MemoryData> {
-  return (await apiGet("/api/memory", {
-    errorMessage: failed("Failed to get memory"),
-  })) as MemoryData;
+  return looseBody(
+    await apiGet("/api/memory", {
+      errorMessage: failed("Failed to get memory"),
+    }),
+    isMemoryData,
+  );
 }
 
 export const loadMemory = getMemory;
@@ -80,33 +96,45 @@ export async function searchMemory(
 }
 
 export async function reloadMemory(): Promise<MemoryData> {
-  return (await apiPost("/api/memory/reload", {
-    errorMessage: failed("Failed to reload memory"),
-  })) as MemoryData;
+  return looseBody(
+    await apiPost("/api/memory/reload", {
+      errorMessage: failed("Failed to reload memory"),
+    }),
+    isMemoryData,
+  );
 }
 
 export async function clearMemory(): Promise<MemoryData> {
-  return (await apiDelete("/api/memory", {
-    errorMessage: failed("Failed to clear memory"),
-  })) as MemoryData;
+  return looseBody(
+    await apiDelete("/api/memory", {
+      errorMessage: failed("Failed to clear memory"),
+    }),
+    isMemoryData,
+  );
 }
 
 export async function createFact(
   request: FactCreateRequest,
 ): Promise<MemoryData> {
-  return (await apiPost("/api/memory/facts", {
-    body: request,
-    errorMessage: detailOr("Failed to create fact"),
-  })) as MemoryData;
+  return looseBody(
+    await apiPost("/api/memory/facts", {
+      body: request,
+      errorMessage: detailOr("Failed to create fact"),
+    }),
+    isMemoryData,
+  );
 }
 
 export const createMemoryFact = createFact;
 
 export async function deleteFact(factId: string): Promise<MemoryData> {
-  return (await apiDelete("/api/memory/facts/{fact_id}", {
-    path: { fact_id: factId },
-    errorMessage: failed("Failed to delete fact"),
-  })) as MemoryData;
+  return looseBody(
+    await apiDelete("/api/memory/facts/{fact_id}", {
+      path: { fact_id: factId },
+      errorMessage: failed("Failed to delete fact"),
+    }),
+    isMemoryData,
+  );
 }
 
 export const deleteMemoryFact = deleteFact;
@@ -115,19 +143,25 @@ export async function updateFact(
   factId: string,
   request: FactPatchRequest,
 ): Promise<MemoryData> {
-  return (await apiPatch("/api/memory/facts/{fact_id}", {
-    path: { fact_id: factId },
-    body: request,
-    errorMessage: detailOr("Failed to update fact"),
-  })) as MemoryData;
+  return looseBody(
+    await apiPatch("/api/memory/facts/{fact_id}", {
+      path: { fact_id: factId },
+      body: request,
+      errorMessage: detailOr("Failed to update fact"),
+    }),
+    isMemoryData,
+  );
 }
 
 export const updateMemoryFact = updateFact;
 
 export async function getMemoryConfig(): Promise<MemoryConfig> {
-  return (await apiGet("/api/memory/config", {
-    errorMessage: failed("Failed to get memory config"),
-  })) as MemoryConfig;
+  return looseBody(
+    await apiGet("/api/memory/config", {
+      errorMessage: failed("Failed to get memory config"),
+    }),
+    isMemoryConfig,
+  );
 }
 
 export async function updateMemoryConfig(
@@ -141,14 +175,20 @@ export async function updateMemoryConfig(
 }
 
 export async function exportMemory(): Promise<MemoryData> {
-  return (await apiGet("/api/memory/export", {
-    errorMessage: failed("Failed to export memory"),
-  })) as MemoryData;
+  return looseBody(
+    await apiGet("/api/memory/export", {
+      errorMessage: failed("Failed to export memory"),
+    }),
+    isMemoryData,
+  );
 }
 
 export async function importMemory(data: MemoryData): Promise<MemoryData> {
-  return (await apiPost("/api/memory/import", {
-    body: data,
-    errorMessage: failed("Failed to import memory"),
-  })) as MemoryData;
+  return looseBody(
+    await apiPost("/api/memory/import", {
+      body: data,
+      errorMessage: failed("Failed to import memory"),
+    }),
+    isMemoryData,
+  );
 }

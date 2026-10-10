@@ -1,4 +1,15 @@
 import { apiGet, apiPost, apiPut, type ApiFailure } from "@/core/api/request";
+import { looseBody } from "@/core/api/response";
+import {
+  hasDataUrl,
+  hasOpened,
+  hasPath,
+  isBrowserConfig,
+  isBrowserSessionResponse,
+  isBrowserSessionsResponse,
+  isBrowserSystemInfoResponse,
+  isRelayStatus,
+} from "./guards";
 
 /** ``"<label>: <statusText>"`` — this module's historical wording. */
 function failed(label: string) {
@@ -171,15 +182,21 @@ export function createEchoBrowserSessionIdentity(
 }
 
 export async function getBrowserSystemInfo(): Promise<BrowserSystemInfoResponse> {
-  return (await apiGet("/api/browser/system-info", {
-    errorMessage: failed("Failed to get system info"),
-  })) as BrowserSystemInfoResponse;
+  return looseBody(
+    await apiGet("/api/browser/system-info", {
+      errorMessage: failed("Failed to get system info"),
+    }),
+    isBrowserSystemInfoResponse,
+  );
 }
 
 export async function getBrowserConfig(): Promise<BrowserConfig> {
-  return (await apiGet("/api/browser/config", {
-    errorMessage: failed("Failed to get browser config"),
-  })) as BrowserConfig;
+  return looseBody(
+    await apiGet("/api/browser/config", {
+      errorMessage: failed("Failed to get browser config"),
+    }),
+    isBrowserConfig,
+  );
 }
 
 export async function ensureBrowserSession(
@@ -191,36 +208,50 @@ export async function ensureBrowserSession(
   } = {},
 ): Promise<BrowserSessionResponse> {
   const sessionId = options.sessionId || "default";
-  return (await apiPost("/api/browser/session/ensure", {
-    body: {
-      session_id: sessionId,
-      project_id: options.projectId || sessionId,
-      profile_id: options.profileId || options.projectId || sessionId,
-      ...(options.headless === undefined ? {} : { headless: options.headless }),
-    },
-    errorMessage: failed("Failed to ensure browser session"),
-  })) as BrowserSessionResponse;
+  return looseBody(
+    await apiPost("/api/browser/session/ensure", {
+      body: {
+        session_id: sessionId,
+        project_id: options.projectId || sessionId,
+        profile_id: options.profileId || options.projectId || sessionId,
+        ...(options.headless === undefined
+          ? {}
+          : { headless: options.headless }),
+      },
+      errorMessage: failed("Failed to ensure browser session"),
+    }),
+    isBrowserSessionResponse,
+  );
 }
 
 export async function getBrowserSessions(): Promise<BrowserSessionsResponse> {
-  return (await apiGet("/api/browser/sessions", {
-    errorMessage: failed("Failed to get browser sessions"),
-  })) as BrowserSessionsResponse;
+  return looseBody(
+    await apiGet("/api/browser/sessions", {
+      errorMessage: failed("Failed to get browser sessions"),
+    }),
+    isBrowserSessionsResponse,
+  );
 }
 
 export async function updateBrowserConfig(
   config: Partial<BrowserConfig>,
 ): Promise<BrowserConfig> {
-  return (await apiPut("/api/browser/config", {
-    body: config,
-    errorMessage: failed("Failed to update browser config"),
-  })) as BrowserConfig;
+  return looseBody(
+    await apiPut("/api/browser/config", {
+      body: config,
+      errorMessage: failed("Failed to update browser config"),
+    }),
+    isBrowserConfig,
+  );
 }
 
 export async function getRelayStatus(): Promise<RelayStatus> {
-  return (await apiGet("/api/browser/relay/status", {
-    errorMessage: failed("Failed to get relay status"),
-  })) as RelayStatus;
+  return looseBody(
+    await apiGet("/api/browser/relay/status", {
+      errorMessage: failed("Failed to get relay status"),
+    }),
+    isRelayStatus,
+  );
 }
 
 export async function captureBrowserRelayPreview(target: {
@@ -228,20 +259,20 @@ export async function captureBrowserRelayPreview(target: {
   title: string;
   url?: string;
 }): Promise<{ dataUrl: string }> {
-  const payload = (await apiPost("/api/browser/relay/command", {
-    body: {
-      action: "screenshot",
-      target_tab_id: target.id,
-      target_tab_title: target.title,
-      target_tab_url: target.url || "",
-      timeout_seconds: 4,
-      lease_seconds: 5,
-    },
-    errorMessage: failed("Failed to capture browser preview"),
-  })) as {
-    dataUrl?: string;
-    data?: string;
-  };
+  const payload = looseBody(
+    await apiPost("/api/browser/relay/command", {
+      body: {
+        action: "screenshot",
+        target_tab_id: target.id,
+        target_tab_title: target.title,
+        target_tab_url: target.url || "",
+        timeout_seconds: 4,
+        lease_seconds: 5,
+      },
+      errorMessage: failed("Failed to capture browser preview"),
+    }),
+    hasDataUrl,
+  );
   const dataUrl = payload.dataUrl || payload.data || "";
   if (!dataUrl) throw new Error("Browser preview returned no image");
   return { dataUrl };
@@ -251,18 +282,24 @@ export async function openExtensionFolder(): Promise<{
   opened: boolean;
   path: string;
 }> {
-  return (await apiPost("/api/browser/open-extension-folder", {
-    // Historically sent even though the request has no body.
-    headers: { "Content-Type": "application/json" },
-    errorMessage: failed("Failed to open extension folder"),
-  })) as { opened: boolean; path: string };
+  return looseBody(
+    await apiPost("/api/browser/open-extension-folder", {
+      // Historically sent even though the request has no body.
+      headers: { "Content-Type": "application/json" },
+      errorMessage: failed("Failed to open extension folder"),
+    }),
+    hasOpened,
+  );
 }
 
 export async function getExtensionPath(): Promise<{
   path: string;
   exists: boolean;
 }> {
-  return (await apiGet("/api/browser/extension-path", {
-    errorMessage: failed("Failed to get extension path"),
-  })) as { path: string; exists: boolean };
+  return looseBody(
+    await apiGet("/api/browser/extension-path", {
+      errorMessage: failed("Failed to get extension path"),
+    }),
+    hasPath,
+  );
 }

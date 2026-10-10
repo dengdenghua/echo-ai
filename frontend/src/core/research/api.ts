@@ -6,6 +6,8 @@ import {
   failureDetail,
 } from "@/core/api/request";
 import type { SubagentRouteDecision } from "@/core/parallel-agents/api";
+import { looseBody } from "@/core/api/response";
+import { hasJobs, isResearchJob } from "./guards";
 
 export type ResearchDepth = "quick" | "standard" | "deep";
 
@@ -153,15 +155,18 @@ async function postResearch(
   path: "/api/research/deep/plan" | "/api/research/deep/start",
   body: DeepResearchRequest,
 ): Promise<ResearchJob> {
-  return (await apiPost(path, {
-    body,
-    errorMessage: (failure) => {
-      const detail = failureDetail(failure);
-      return detail === undefined || detail === null
-        ? `Deep research request failed: ${failure.status}`
-        : String(detail);
-    },
-  })) as ResearchJob;
+  return looseBody(
+    await apiPost(path, {
+      body,
+      errorMessage: (failure) => {
+        const detail = failureDetail(failure);
+        return detail === undefined || detail === null
+          ? `Deep research request failed: ${failure.status}`
+          : String(detail);
+      },
+    }),
+    isResearchJob,
+  );
 }
 
 export function planDeepResearch(
@@ -180,10 +185,13 @@ export async function fetchDeepResearchJob(
   jobId: string,
 ): Promise<ResearchJob | null> {
   try {
-    return (await apiGet("/api/research/deep/jobs/{job_id}", {
-      path: { job_id: jobId },
-      headers: JSON_CONTENT_TYPE,
-    })) as ResearchJob;
+    return looseBody(
+      await apiGet("/api/research/deep/jobs/{job_id}", {
+        path: { job_id: jobId },
+        headers: JSON_CONTENT_TYPE,
+      }),
+      isResearchJob,
+    );
   } catch (e) {
     // Any HTTP failure means "no job" (silently, as before); network and
     // parse errors are swallowed too.
@@ -194,9 +202,12 @@ export async function fetchDeepResearchJob(
 
 export async function listDeepResearchJobs(): Promise<ResearchJob[]> {
   try {
-    const data = (await apiGet("/api/research/deep/jobs", {
-      headers: JSON_CONTENT_TYPE,
-    })) as { jobs?: ResearchJob[] };
+    const data = looseBody(
+      await apiGet("/api/research/deep/jobs", {
+        headers: JSON_CONTENT_TYPE,
+      }),
+      hasJobs,
+    );
     return data.jobs ?? [];
   } catch (e) {
     // Any HTTP failure means "no jobs" (silently, as before); network and

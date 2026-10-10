@@ -8,7 +8,18 @@ import {
   type ApiFailure,
 } from "@/core/api/request";
 
-import type { MCPConfig, MCPConfigUpdateResponse } from "./types";
+import type { MCPConfig } from "./types";
+import { looseBody } from "@/core/api/response";
+import {
+  hasEntries,
+  hasTrustEntry,
+  hasServerName,
+  hasServer,
+  isMCPConfig,
+  isMCPConfigUpdateResponse,
+  isMCPOAuthAuthorizeResult,
+  isOAuthAppInfo,
+} from "./guards";
 
 /**
  * Keep this module's historical error wording on ``EchoAPIError``: the JSON
@@ -26,16 +37,22 @@ function failed(label: string) {
 }
 
 export async function loadMCPConfig() {
-  return (await apiGet("/api/mcp/config", {
-    errorMessage: failed("Failed to load MCP config"),
-  })) as MCPConfig;
+  return looseBody(
+    await apiGet("/api/mcp/config", {
+      errorMessage: failed("Failed to load MCP config"),
+    }),
+    isMCPConfig,
+  );
 }
 
 export async function updateMCPConfig(config: MCPConfig) {
-  return (await apiPut("/api/mcp/config", {
-    body: config,
-    errorMessage: failed("Failed to update MCP config"),
-  })) as MCPConfigUpdateResponse;
+  return looseBody(
+    await apiPut("/api/mcp/config", {
+      body: config,
+      errorMessage: failed("Failed to update MCP config"),
+    }),
+    isMCPConfigUpdateResponse,
+  );
 }
 
 export async function forgetMCPOAuth(serverName: string): Promise<void> {
@@ -78,17 +95,23 @@ export async function oauthAuthorize(
   url: string,
   provider?: string,
 ): Promise<MCPOAuthAuthorizeResult> {
-  return (await apiPost("/api/mcp/oauth/authorize", {
-    body: { server, url, provider },
-    errorMessage: failed("OAuth authorize"),
-  })) as MCPOAuthAuthorizeResult;
+  return looseBody(
+    await apiPost("/api/mcp/oauth/authorize", {
+      body: { server, url, provider },
+      errorMessage: failed("OAuth authorize"),
+    }),
+    isMCPOAuthAuthorizeResult,
+  );
 }
 
 export async function getOAuthApp(provider: string): Promise<OAuthAppInfo> {
-  return (await apiGet("/api/mcp/oauth/app/{provider}", {
-    path: { provider },
-    errorMessage: failed("Failed to load OAuth app credentials"),
-  })) as OAuthAppInfo;
+  return looseBody(
+    await apiGet("/api/mcp/oauth/app/{provider}", {
+      path: { provider },
+      errorMessage: failed("Failed to load OAuth app credentials"),
+    }),
+    isOAuthAppInfo,
+  );
 }
 
 export async function saveOAuthApp(
@@ -96,14 +119,17 @@ export async function saveOAuthApp(
   clientId: string,
   clientSecret: string,
 ): Promise<OAuthAppInfo> {
-  return (await apiPost("/api/mcp/oauth/app/{provider}", {
-    path: { provider },
-    body: {
-      client_id: clientId,
-      client_secret: clientSecret,
-    },
-    errorMessage: failed("Failed to save OAuth app credentials"),
-  })) as OAuthAppInfo;
+  return looseBody(
+    await apiPost("/api/mcp/oauth/app/{provider}", {
+      path: { provider },
+      body: {
+        client_id: clientId,
+        client_secret: clientSecret,
+      },
+      errorMessage: failed("Failed to save OAuth app credentials"),
+    }),
+    isOAuthAppInfo,
+  );
 }
 
 export async function deleteOAuthApp(provider: string): Promise<void> {
@@ -116,10 +142,13 @@ export async function deleteOAuthApp(provider: string): Promise<void> {
 export async function oauthStatus(
   server: string,
 ): Promise<{ server: string; authorized: boolean }> {
-  return (await apiGet("/api/mcp/oauth/status", {
-    query: { server },
-    errorMessage: failed("Failed to load MCP OAuth status"),
-  })) as { server: string; authorized: boolean };
+  return looseBody(
+    await apiGet("/api/mcp/oauth/status", {
+      query: { server },
+      errorMessage: failed("Failed to load MCP OAuth status"),
+    }),
+    hasServer,
+  );
 }
 
 // ───────────────────────────── Trust store ─────────────────────────────
@@ -138,9 +167,12 @@ export interface MCPTrustEntry {
 }
 
 export async function listMCPTrust(): Promise<{ entries: MCPTrustEntry[] }> {
-  return (await apiGet("/api/mcp/trust", {
-    errorMessage: failed("Failed to list MCP trust entries"),
-  })) as { entries: MCPTrustEntry[] };
+  return looseBody(
+    await apiGet("/api/mcp/trust", {
+      errorMessage: failed("Failed to list MCP trust entries"),
+    }),
+    hasEntries,
+  );
 }
 
 export async function approveMCPTrust(
@@ -148,17 +180,23 @@ export async function approveMCPTrust(
   tool_names: string[] = [],
   note = "",
 ): Promise<{ ok: boolean; entry: MCPTrustEntry }> {
-  return (await apiPost("/api/mcp/trust", {
-    body: { server_name, tool_names, note },
-    errorMessage: failed("Failed to approve MCP trust"),
-  })) as { ok: boolean; entry: MCPTrustEntry };
+  return looseBody(
+    await apiPost("/api/mcp/trust", {
+      body: { server_name, tool_names, note },
+      errorMessage: failed("Failed to approve MCP trust"),
+    }),
+    hasTrustEntry,
+  );
 }
 
 export async function revokeMCPTrust(
   server_name: string,
 ): Promise<{ ok: boolean; server_name: string }> {
-  return (await apiDelete("/api/mcp/trust/{server_name}", {
-    path: { server_name },
-    errorMessage: failed("Failed to revoke MCP trust"),
-  })) as { ok: boolean; server_name: string };
+  return looseBody(
+    await apiDelete("/api/mcp/trust/{server_name}", {
+      path: { server_name },
+      errorMessage: failed("Failed to revoke MCP trust"),
+    }),
+    hasServerName,
+  );
 }

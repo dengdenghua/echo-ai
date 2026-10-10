@@ -1,6 +1,15 @@
 // 资产 Registry 消费端 API(母体接 registry · echo-runtime)。
 // 走后端 /api/registry/* 路由(registry_consumer_router),浏览/安装公网 registry 技能。
 import { apiGet, apiPost, type ApiFailure } from "@/core/api/request";
+import { looseBody } from "@/core/api/response";
+import {
+  isInstallResult,
+  isPluginInstallResult,
+  isRegistryPluginsResponse,
+  isRegistryRolesResponse,
+  isRegistrySkillsResponse,
+  isRoleInstallResult,
+} from "./guards";
 
 /** ``"install failed: HTTP <status> <body>"``, trimmed when the body is empty. */
 function installFailed(failure: ApiFailure): string {
@@ -46,23 +55,29 @@ export async function listRegistrySkills(params?: {
   category?: string;
   limit?: number;
 }): Promise<RegistrySkillsResponse> {
-  return (await apiGet("/api/registry/skills", {
-    query: {
-      search: params?.search || undefined,
-      category: params?.category || undefined,
-      limit: params?.limit ?? 300,
-    },
-    errorMessage: (f) => `registry list failed: HTTP ${f.status}`,
-  })) as RegistrySkillsResponse;
+  return looseBody(
+    await apiGet("/api/registry/skills", {
+      query: {
+        search: params?.search || undefined,
+        category: params?.category || undefined,
+        limit: params?.limit ?? 300,
+      },
+      errorMessage: (f) => `registry list failed: HTTP ${f.status}`,
+    }),
+    isRegistrySkillsResponse,
+  );
 }
 
 export async function installRegistrySkill(
   slug: string,
 ): Promise<InstallResult> {
-  return (await apiPost("/api/registry/skills/{slug}/install", {
-    path: { slug: registrySlug(slug) },
-    errorMessage: installFailed,
-  })) as InstallResult;
+  return looseBody(
+    await apiPost("/api/registry/skills/{slug}/install", {
+      path: { slug: registrySlug(slug) },
+      errorMessage: installFailed,
+    }),
+    isInstallResult,
+  );
 }
 
 // 角色(role / twin-role · 数字分身岗位模板)——同一 registry,单独端点。
@@ -101,24 +116,30 @@ export async function listRegistryRoles(params?: {
   type?: "role" | "twin-role";
   limit?: number;
 }): Promise<RegistryRolesResponse> {
-  return (await apiGet("/api/registry/roles", {
-    query: {
-      search: params?.search || undefined,
-      category: params?.category || undefined,
-      type: params?.type || undefined,
-      limit: params?.limit ?? 300,
-    },
-    errorMessage: (f) => `registry roles list failed: HTTP ${f.status}`,
-  })) as RegistryRolesResponse;
+  return looseBody(
+    await apiGet("/api/registry/roles", {
+      query: {
+        search: params?.search || undefined,
+        category: params?.category || undefined,
+        type: params?.type || undefined,
+        limit: params?.limit ?? 300,
+      },
+      errorMessage: (f) => `registry roles list failed: HTTP ${f.status}`,
+    }),
+    isRegistryRolesResponse,
+  );
 }
 
 export async function installRegistryRole(
   id: string,
 ): Promise<RoleInstallResult> {
-  return (await apiPost("/api/registry/roles/{asset_id}/install", {
-    path: { asset_id: id },
-    errorMessage: installFailed,
-  })) as RoleInstallResult;
+  return looseBody(
+    await apiPost("/api/registry/roles/{asset_id}/install", {
+      path: { asset_id: id },
+      errorMessage: installFailed,
+    }),
+    isRoleInstallResult,
+  );
 }
 
 // 插件(plugin)——安装为 prompt-only 本地能力；不会下载或执行远程代码。
@@ -169,21 +190,27 @@ export async function listRegistryPlugins(params?: {
   category?: string;
   limit?: number;
 }): Promise<RegistryPluginsResponse> {
-  return (await apiGet("/api/registry/plugins", {
-    query: {
-      search: params?.search || undefined,
-      category: params?.category || undefined,
-      limit: params?.limit ?? 300,
-    },
-    errorMessage: (f) => `registry plugins list failed: HTTP ${f.status}`,
-  })) as RegistryPluginsResponse;
+  return looseBody(
+    await apiGet("/api/registry/plugins", {
+      query: {
+        search: params?.search || undefined,
+        category: params?.category || undefined,
+        limit: params?.limit ?? 300,
+      },
+      errorMessage: (f) => `registry plugins list failed: HTTP ${f.status}`,
+    }),
+    isRegistryPluginsResponse,
+  );
 }
 
 export async function installRegistryPlugin(
   slug: string,
 ): Promise<PluginInstallResult> {
-  return (await apiPost("/api/registry/plugins/{slug}/install", {
-    path: { slug: registrySlug(slug) },
-    errorMessage: installFailed,
-  })) as PluginInstallResult;
+  return looseBody(
+    await apiPost("/api/registry/plugins/{slug}/install", {
+      path: { slug: registrySlug(slug) },
+      errorMessage: installFailed,
+    }),
+    isPluginInstallResult,
+  );
 }

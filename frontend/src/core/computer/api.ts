@@ -1,4 +1,16 @@
 import { apiGet, apiPost, type ApiFailure } from "@/core/api/request";
+import { looseBody } from "@/core/api/response";
+import {
+  hasOk,
+  isComputerActionPlan,
+  isComputerAppshot,
+  isComputerExecuteResult,
+  isComputerLeaseReleaseResult,
+  isComputerPreview,
+  isComputerScreenshot,
+  isComputerStatus,
+  isComputerTargetsResponse,
+} from "./guards";
 
 /** ``"<label>: <statusText>"`` — this module's historical wording. */
 function failed(label: string) {
@@ -256,30 +268,39 @@ function controlSessionBody(options?: ComputerControlSessionOptions) {
 }
 
 export async function getComputerStatus(): Promise<ComputerStatus> {
-  return (await apiGet("/api/computer/status", {
-    errorMessage: failed("Failed to load computer status"),
-  })) as ComputerStatus;
+  return looseBody(
+    await apiGet("/api/computer/status", {
+      errorMessage: failed("Failed to load computer status"),
+    }),
+    isComputerStatus,
+  );
 }
 
 export async function captureComputerScreen(
   options: ComputerControlSessionOptions = {},
 ): Promise<ComputerScreenshot> {
-  return (await apiPost("/api/computer/screenshot", {
-    body: controlSessionBody(options),
-    errorMessage: failed("Failed to capture screen"),
-  })) as ComputerScreenshot;
+  return looseBody(
+    await apiPost("/api/computer/screenshot", {
+      body: controlSessionBody(options),
+      errorMessage: failed("Failed to capture screen"),
+    }),
+    isComputerScreenshot,
+  );
 }
 
 export async function captureComputerAppshot(
   options: ComputerControlSessionOptions & { maxNodes?: number } = {},
 ): Promise<ComputerAppshot> {
-  const payload = (await apiPost("/api/computer/appshot", {
-    body: {
-      ...controlSessionBody(options),
-      max_nodes: options.maxNodes ?? 120,
-    },
-    errorMessage: failed("Failed to capture appshot"),
-  })) as ComputerAppshot;
+  const payload = looseBody(
+    await apiPost("/api/computer/appshot", {
+      body: {
+        ...controlSessionBody(options),
+        max_nodes: options.maxNodes ?? 120,
+      },
+      errorMessage: failed("Failed to capture appshot"),
+    }),
+    isComputerAppshot,
+  );
   if (!payload.ok || !payload.screenshot?.data_url) {
     throw new Error(payload.screenshot?.error || "Appshot capture failed");
   }
@@ -287,21 +308,22 @@ export async function captureComputerAppshot(
 }
 
 export async function listComputerTargets(): Promise<ComputerTargetsResponse> {
-  return (await apiGet("/api/computer/targets", {
-    errorMessage: failed("Failed to list automation targets"),
-  })) as ComputerTargetsResponse;
+  return looseBody(
+    await apiGet("/api/computer/targets", {
+      errorMessage: failed("Failed to list automation targets"),
+    }),
+    isComputerTargetsResponse,
+  );
 }
 
 export async function captureComputerWindowPreview(target: AutomationTarget) {
-  return (await apiPost("/api/computer/preview", {
-    body: { target },
-    errorMessage: (failure) => `Window preview failed (${failure.status})`,
-  })) as {
-    ok: boolean;
-    data_url?: string;
-    target?: AutomationTarget;
-    error?: string;
-  };
+  return looseBody(
+    await apiPost("/api/computer/preview", {
+      body: { target },
+      errorMessage: (failure) => `Window preview failed (${failure.status})`,
+    }),
+    hasOk,
+  );
 }
 
 export async function previewAppshotElement(
@@ -312,18 +334,21 @@ export async function previewAppshotElement(
     leaseOwner?: ComputerLeaseOwner | null;
   } & ComputerControlSessionOptions = {},
 ): Promise<ComputerPreview> {
-  return (await apiPost(
-    "/api/computer/appshots/{snapshot_id}/elements/{element_index}/preview",
-    {
-      path: { snapshot_id: snapshotId, element_index: elementIndex },
-      body: {
-        action: options.action || "click",
-        ...leaseOwnerBody(options.leaseOwner),
-        ...controlSessionBody(options),
+  return looseBody(
+    await apiPost(
+      "/api/computer/appshots/{snapshot_id}/elements/{element_index}/preview",
+      {
+        path: { snapshot_id: snapshotId, element_index: elementIndex },
+        body: {
+          action: options.action || "click",
+          ...leaseOwnerBody(options.leaseOwner),
+          ...controlSessionBody(options),
+        },
+        errorMessage: failedWithBody("Failed to preview Appshot element"),
       },
-      errorMessage: failedWithBody("Failed to preview Appshot element"),
-    },
-  )) as ComputerPreview;
+    ),
+    isComputerPreview,
+  );
 }
 
 export async function previewComputerAction(
@@ -332,14 +357,17 @@ export async function previewComputerAction(
     leaseOwner?: ComputerLeaseOwner | null;
   } & ComputerControlSessionOptions = {},
 ): Promise<ComputerPreview> {
-  return (await apiPost("/api/computer/actions/preview", {
-    body: {
-      ...action,
-      ...leaseOwnerBody(options.leaseOwner),
-      ...controlSessionBody(options),
-    },
-    errorMessage: failedWithBody("Failed to preview action"),
-  })) as ComputerPreview;
+  return looseBody(
+    await apiPost("/api/computer/actions/preview", {
+      body: {
+        ...action,
+        ...leaseOwnerBody(options.leaseOwner),
+        ...controlSessionBody(options),
+      },
+      errorMessage: failedWithBody("Failed to preview action"),
+    }),
+    isComputerPreview,
+  );
 }
 
 export async function planComputerActions(
@@ -349,15 +377,18 @@ export async function planComputerActions(
     leaseOwner?: ComputerLeaseOwner | null;
   } & ComputerControlSessionOptions = {},
 ): Promise<ComputerActionPlan> {
-  return (await apiPost("/api/computer/actions/plan", {
-    body: {
-      goal,
-      capture: options.capture ?? true,
-      ...leaseOwnerBody(options.leaseOwner),
-      ...controlSessionBody(options),
-    },
-    errorMessage: failedWithBody("Failed to plan actions"),
-  })) as ComputerActionPlan;
+  return looseBody(
+    await apiPost("/api/computer/actions/plan", {
+      body: {
+        goal,
+        capture: options.capture ?? true,
+        ...leaseOwnerBody(options.leaseOwner),
+        ...controlSessionBody(options),
+      },
+      errorMessage: failedWithBody("Failed to plan actions"),
+    }),
+    isComputerActionPlan,
+  );
 }
 
 export async function groundComputerActions(
@@ -368,16 +399,19 @@ export async function groundComputerActions(
     leaseOwner?: ComputerLeaseOwner | null;
   } & ComputerControlSessionOptions = {},
 ): Promise<ComputerActionPlan> {
-  return (await apiPost("/api/computer/actions/ground", {
-    body: {
-      goal,
-      output,
-      capture: options.capture ?? true,
-      ...leaseOwnerBody(options.leaseOwner),
-      ...controlSessionBody(options),
-    },
-    errorMessage: failedWithBody("Failed to ground vision output"),
-  })) as ComputerActionPlan;
+  return looseBody(
+    await apiPost("/api/computer/actions/ground", {
+      body: {
+        goal,
+        output,
+        capture: options.capture ?? true,
+        ...leaseOwnerBody(options.leaseOwner),
+        ...controlSessionBody(options),
+      },
+      errorMessage: failedWithBody("Failed to ground vision output"),
+    }),
+    isComputerActionPlan,
+  );
 }
 
 export async function askVisionModelForComputerActions(
@@ -387,15 +421,18 @@ export async function askVisionModelForComputerActions(
     leaseOwner?: ComputerLeaseOwner | null;
   } & ComputerControlSessionOptions = {},
 ): Promise<ComputerActionPlan> {
-  return (await apiPost("/api/computer/actions/vision", {
-    body: {
-      goal,
-      model_id: modelId,
-      ...leaseOwnerBody(options.leaseOwner),
-      ...controlSessionBody(options),
-    },
-    errorMessage: failedWithBody("Failed to ask vision model"),
-  })) as ComputerActionPlan;
+  return looseBody(
+    await apiPost("/api/computer/actions/vision", {
+      body: {
+        goal,
+        model_id: modelId,
+        ...leaseOwnerBody(options.leaseOwner),
+        ...controlSessionBody(options),
+      },
+      errorMessage: failedWithBody("Failed to ask vision model"),
+    }),
+    isComputerActionPlan,
+  );
 }
 
 export async function executeComputerAction(
@@ -404,25 +441,31 @@ export async function executeComputerAction(
     leaseOwner?: ComputerLeaseOwner | null;
   } & ComputerControlSessionOptions = {},
 ): Promise<ComputerExecuteResult> {
-  return (await apiPost("/api/computer/actions/execute", {
-    body: {
-      token,
-      ...leaseOwnerBody(options.leaseOwner),
-      ...controlSessionBody(options),
-    },
-    errorMessage: failedWithBody("Failed to execute action"),
-  })) as ComputerExecuteResult;
+  return looseBody(
+    await apiPost("/api/computer/actions/execute", {
+      body: {
+        token,
+        ...leaseOwnerBody(options.leaseOwner),
+        ...controlSessionBody(options),
+      },
+      errorMessage: failedWithBody("Failed to execute action"),
+    }),
+    isComputerExecuteResult,
+  );
 }
 
 export async function releaseComputerLease(
   leaseOwner: ComputerLeaseOwner,
   options: ComputerControlSessionOptions = {},
 ): Promise<ComputerLeaseReleaseResult> {
-  return (await apiPost("/api/computer/lease/release", {
-    body: {
-      ...leaseOwnerBody(leaseOwner),
-      ...controlSessionBody(options),
-    },
-    errorMessage: failedWithBody("Failed to release computer lease"),
-  })) as ComputerLeaseReleaseResult;
+  return looseBody(
+    await apiPost("/api/computer/lease/release", {
+      body: {
+        ...leaseOwnerBody(leaseOwner),
+        ...controlSessionBody(options),
+      },
+      errorMessage: failedWithBody("Failed to release computer lease"),
+    }),
+    isComputerLeaseReleaseResult,
+  );
 }

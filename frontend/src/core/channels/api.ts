@@ -4,6 +4,13 @@ import {
   untypedApi,
   type ApiFailure,
 } from "@/core/api/request";
+import { looseBody } from "@/core/api/response";
+import {
+  hasMessage,
+  hasPending,
+  hasQrcode,
+  isChannelsDetailResponse,
+} from "./guards";
 
 export type ChannelName =
   | "feishu"
@@ -332,9 +339,12 @@ export function isChannelNotImplemented(
 }
 
 export async function getChannelsDetail(): Promise<ChannelsDetailResponse> {
-  return (await apiGet("/api/channels/detail", {
-    errorMessage: failed("Failed to load channels detail"),
-  })) as ChannelsDetailResponse;
+  return looseBody(
+    await apiGet("/api/channels/detail", {
+      errorMessage: failed("Failed to load channels detail"),
+    }),
+    isChannelsDetailResponse,
+  );
 }
 
 export async function saveChannelCredentials(
@@ -370,10 +380,13 @@ export async function assignChannelAgent(
 }
 
 export async function getWechatQRCode(): Promise<WechatQRResponse> {
-  const data = (await apiPost("/api/channels/wechat/qr/start", {
-    headers: JSON_CONTENT_TYPE,
-    errorMessage: failed("Failed to get WeChat QR code"),
-  })) as { qrcode?: string; qrcode_img_content?: string };
+  const data = looseBody(
+    await apiPost("/api/channels/wechat/qr/start", {
+      headers: JSON_CONTENT_TYPE,
+      errorMessage: failed("Failed to get WeChat QR code"),
+    }),
+    hasQrcode,
+  );
   return {
     session_id: data.qrcode ?? "",
     qr_url: data.qrcode_img_content ?? "",
@@ -398,7 +411,7 @@ export async function pollWechatLoginStatus(
     session_id: sessionId,
     qr_url: "",
     status: data.confirmed ? "confirmed" : (data.status ?? "pending"),
-  } as WechatQRResponse;
+  };
 }
 
 export async function getPairingRequests(params?: {
@@ -406,10 +419,13 @@ export async function getPairingRequests(params?: {
   status?: PairingStatus;
 }): Promise<PairingRequestsResponse> {
   const channelId = params?.channel ?? "all";
-  const data = (await apiGet("/api/channels/{channel_id}/pairings", {
-    path: { channel_id: channelId },
-    errorMessage: failed("Failed to load pairing requests"),
-  })) as { pending?: Record<string, unknown>[] };
+  const data = looseBody(
+    await apiGet("/api/channels/{channel_id}/pairings", {
+      path: { channel_id: channelId },
+      errorMessage: failed("Failed to load pairing requests"),
+    }),
+    hasPending,
+  );
   const pending: PairingRequest[] = (data.pending ?? []).map(
     (p: Record<string, unknown>, i: number) => ({
       id: (p.sender_id as string) || String(i),
@@ -432,19 +448,25 @@ export async function getPairingRequests(params?: {
 export async function approvePairingRequest(
   id: string,
 ): Promise<{ message: string }> {
-  return (await apiPost("/api/channels/pairing/{pairing_id}/approve", {
-    path: { pairing_id: id },
-    headers: JSON_CONTENT_TYPE,
-    errorMessage: failed(`Failed to approve pairing ${id}`),
-  })) as { message: string };
+  return looseBody(
+    await apiPost("/api/channels/pairing/{pairing_id}/approve", {
+      path: { pairing_id: id },
+      headers: JSON_CONTENT_TYPE,
+      errorMessage: failed(`Failed to approve pairing ${id}`),
+    }),
+    hasMessage,
+  );
 }
 
 export async function rejectPairingRequest(
   id: string,
 ): Promise<{ message: string }> {
-  return (await apiPost("/api/channels/pairing/{pairing_id}/reject", {
-    path: { pairing_id: id },
-    headers: JSON_CONTENT_TYPE,
-    errorMessage: failed(`Failed to reject pairing ${id}`),
-  })) as { message: string };
+  return looseBody(
+    await apiPost("/api/channels/pairing/{pairing_id}/reject", {
+      path: { pairing_id: id },
+      headers: JSON_CONTENT_TYPE,
+      errorMessage: failed(`Failed to reject pairing ${id}`),
+    }),
+    hasMessage,
+  );
 }

@@ -4,6 +4,28 @@ import {
   failureDetail,
   type ApiFailure,
 } from "@/core/api/request";
+import { looseBody } from "@/core/api/response";
+import {
+  hasActiveCount,
+  hasOk,
+  hasRunId,
+  hasTotal,
+  isAgentBenchmarkReport,
+  isCandidateCanaryStatus,
+  isCodexGapReport,
+  isControlledExperimentEvidence,
+  isDriftReport,
+  isDualHelixEvidence,
+  isDualHelixShadowStatus,
+  isEvolutionCandidateList,
+  isEvolutionOverview,
+  isEvolutionStory,
+  isFitnessReport,
+  isLearningCurvePointList,
+  isMemoryGrowthPointList,
+  isRecommendationList,
+  isSkillPerformanceList,
+} from "./guards";
 
 const EVOLUTION_TIMEOUT_MS = 8_000;
 
@@ -370,106 +392,136 @@ export interface DualHelixShadowStatus {
 }
 
 export async function getEvolutionOverview(): Promise<EvolutionOverview> {
-  return (await withEvolutionTimeout((signal) =>
-    apiGet("/api/evolution/overview", {
-      signal,
-      errorMessage: failed("Failed to load evolution overview"),
-    }),
-  )) as EvolutionOverview;
+  return looseBody(
+    await withEvolutionTimeout((signal) =>
+      apiGet("/api/evolution/overview", {
+        signal,
+        errorMessage: failed("Failed to load evolution overview"),
+      }),
+    ),
+    isEvolutionOverview,
+  );
 }
 
 export async function getCodexGapReport(): Promise<CodexGapReport> {
-  return (await withEvolutionTimeout((signal) =>
-    apiGet("/api/evolution/codex-gap", {
-      signal,
-      errorMessage: failed("Failed to load Codex gap report"),
-    }),
-  )) as CodexGapReport;
+  return looseBody(
+    await withEvolutionTimeout((signal) =>
+      apiGet("/api/evolution/codex-gap", {
+        signal,
+        errorMessage: failed("Failed to load Codex gap report"),
+      }),
+    ),
+    isCodexGapReport,
+  );
 }
 
 export async function getAgentBenchmarkReport(): Promise<AgentBenchmarkReport> {
-  return (await withEvolutionTimeout((signal) =>
-    apiGet("/api/evolution/agent-benchmark", {
-      signal,
-      errorMessage: failed("Failed to load agent benchmark"),
-    }),
-  )) as AgentBenchmarkReport;
+  return looseBody(
+    await withEvolutionTimeout((signal) =>
+      apiGet("/api/evolution/agent-benchmark", {
+        signal,
+        errorMessage: failed("Failed to load agent benchmark"),
+      }),
+    ),
+    isAgentBenchmarkReport,
+  );
 }
 
 export async function getDualHelixEvidence(): Promise<DualHelixEvidence> {
-  return (await withEvolutionTimeout((signal) =>
-    apiGet("/api/evolution/dual-helix/evidence", {
-      signal,
-      errorMessage: failed("Failed to load dual-helix evidence"),
-    }),
-  )) as DualHelixEvidence;
+  return looseBody(
+    await withEvolutionTimeout((signal) =>
+      apiGet("/api/evolution/dual-helix/evidence", {
+        signal,
+        errorMessage: failed("Failed to load dual-helix evidence"),
+      }),
+    ),
+    isDualHelixEvidence,
+  );
 }
 
 export async function getControlledExperimentEvidence(): Promise<ControlledExperimentEvidence> {
-  return (await withEvolutionTimeout((signal) =>
-    apiGet("/api/evolution/experiments/evidence", {
-      signal,
-      errorMessage: failed("Failed to load controlled experiment evidence"),
-    }),
-  )) as ControlledExperimentEvidence;
+  return looseBody(
+    await withEvolutionTimeout((signal) =>
+      apiGet("/api/evolution/experiments/evidence", {
+        signal,
+        errorMessage: failed("Failed to load controlled experiment evidence"),
+      }),
+    ),
+    isControlledExperimentEvidence,
+  );
 }
 
 export async function getEvolutionCandidates(): Promise<EvolutionCandidateList> {
-  return (await withEvolutionTimeout((signal) =>
-    apiGet("/api/evolution/candidates", {
-      signal,
-      errorMessage: failed("Failed to load evolution candidates"),
-    }),
-  )) as EvolutionCandidateList;
+  return looseBody(
+    await withEvolutionTimeout((signal) =>
+      apiGet("/api/evolution/candidates", {
+        signal,
+        errorMessage: failed("Failed to load evolution candidates"),
+      }),
+    ),
+    isEvolutionCandidateList,
+  );
 }
 
 export async function registerCandidateCanary(
   candidateId: string,
 ): Promise<CandidateCanaryStatus> {
-  return (await withEvolutionTimeout((signal) =>
-    apiPost("/api/evolution/candidates/{candidate_id}/canary/register", {
-      path: { candidate_id: candidateId },
-      // Bodiless, but the JSON content type was always sent.
-      headers: { "Content-Type": "application/json" },
-      signal,
-      errorMessage: detailOr(() => "Failed to register candidate canary"),
-    }),
-  )) as CandidateCanaryStatus;
+  return looseBody(
+    await withEvolutionTimeout((signal) =>
+      apiPost("/api/evolution/candidates/{candidate_id}/canary/register", {
+        path: { candidate_id: candidateId },
+        // Bodiless, but the JSON content type was always sent.
+        headers: { "Content-Type": "application/json" },
+        signal,
+        errorMessage: detailOr(() => "Failed to register candidate canary"),
+      }),
+    ),
+    isCandidateCanaryStatus,
+  );
 }
 
 export async function rollbackEvolutionCandidate(
   candidateId: string,
   reason = "operator rollback",
 ): Promise<CandidateCanaryStatus> {
-  return (await withEvolutionTimeout((signal) =>
-    apiPost("/api/evolution/candidates/{candidate_id}/rollback", {
-      path: { candidate_id: candidateId },
-      body: { reason },
-      signal,
-      errorMessage: detailOr(() => "Failed to rollback candidate"),
-    }),
-  )) as CandidateCanaryStatus;
+  return looseBody(
+    await withEvolutionTimeout((signal) =>
+      apiPost("/api/evolution/candidates/{candidate_id}/rollback", {
+        path: { candidate_id: candidateId },
+        body: { reason },
+        signal,
+        errorMessage: detailOr(() => "Failed to rollback candidate"),
+      }),
+    ),
+    isCandidateCanaryStatus,
+  );
 }
 
 export async function getDualHelixShadowStatus(): Promise<DualHelixShadowStatus> {
-  return (await withEvolutionTimeout((signal) =>
-    apiGet("/api/evolution/dual-helix/shadow/status", {
-      signal,
-      errorMessage: failed("Failed to load shadow status"),
-    }),
-  )) as DualHelixShadowStatus;
+  return looseBody(
+    await withEvolutionTimeout((signal) =>
+      apiGet("/api/evolution/dual-helix/shadow/status", {
+        signal,
+        errorMessage: failed("Failed to load shadow status"),
+      }),
+    ),
+    isDualHelixShadowStatus,
+  );
 }
 
 export async function setDualHelixShadowEnabled(
   enabled: boolean,
 ): Promise<DualHelixShadowStatus> {
-  return (await withEvolutionTimeout((signal) =>
-    apiPost("/api/evolution/dual-helix/shadow/settings", {
-      body: { enabled },
-      signal,
-      errorMessage: failed("Failed to update shadow status"),
-    }),
-  )) as DualHelixShadowStatus;
+  return looseBody(
+    await withEvolutionTimeout((signal) =>
+      apiPost("/api/evolution/dual-helix/shadow/settings", {
+        body: { enabled },
+        signal,
+        errorMessage: failed("Failed to update shadow status"),
+      }),
+    ),
+    isDualHelixShadowStatus,
+  );
 }
 
 export interface DualHelixShadowRunRequest {
@@ -490,83 +542,107 @@ export interface DualHelixShadowRunRequest {
 export async function queueDualHelixShadowRun(
   body: DualHelixShadowRunRequest,
 ): Promise<DualHelixShadowStatus["runs"][number]> {
-  const value = (await withEvolutionTimeout((signal) =>
-    apiPost("/api/evolution/dual-helix/shadow/run", {
-      body,
-      signal,
-      errorMessage: detailOr(failed("Failed to queue shadow review")),
-    }),
-  )) as DualHelixShadowStatus["runs"][number] & { ok?: boolean };
+  const value = looseBody(
+    await withEvolutionTimeout((signal) =>
+      apiPost("/api/evolution/dual-helix/shadow/run", {
+        body,
+        signal,
+        errorMessage: detailOr(failed("Failed to queue shadow review")),
+      }),
+    ),
+    hasRunId,
+  );
   return value;
 }
 
 export async function getEvolutionStory(): Promise<EvolutionStory> {
-  return (await withEvolutionTimeout((signal) =>
-    apiGet("/api/evolution/story", {
-      signal,
-      errorMessage: failed("Failed to load evolution story"),
-    }),
-  )) as EvolutionStory;
+  return looseBody(
+    await withEvolutionTimeout((signal) =>
+      apiGet("/api/evolution/story", {
+        signal,
+        errorMessage: failed("Failed to load evolution story"),
+      }),
+    ),
+    isEvolutionStory,
+  );
 }
 
 export async function getLearningCurve(
   weeks?: number,
 ): Promise<LearningCurvePoint[]> {
-  return (await withEvolutionTimeout((signal) =>
-    apiGet("/api/evolution/learning-curve", {
-      query: { weeks },
-      signal,
-      errorMessage: failed("Failed to load learning curve"),
-    }),
-  )) as LearningCurvePoint[];
+  return looseBody(
+    await withEvolutionTimeout((signal) =>
+      apiGet("/api/evolution/learning-curve", {
+        query: { weeks },
+        signal,
+        errorMessage: failed("Failed to load learning curve"),
+      }),
+    ),
+    isLearningCurvePointList,
+  );
 }
 
 export async function getSkillPerformance(): Promise<SkillPerformance[]> {
-  return (await withEvolutionTimeout((signal) =>
-    apiGet("/api/evolution/skills/performance", {
-      signal,
-      errorMessage: failed("Failed to load skill performance"),
-    }),
-  )) as SkillPerformance[];
+  return looseBody(
+    await withEvolutionTimeout((signal) =>
+      apiGet("/api/evolution/skills/performance", {
+        signal,
+        errorMessage: failed("Failed to load skill performance"),
+      }),
+    ),
+    isSkillPerformanceList,
+  );
 }
 
 export async function getMemoryGrowth(
   days?: number,
 ): Promise<MemoryGrowthPoint[]> {
-  return (await withEvolutionTimeout((signal) =>
-    apiGet("/api/evolution/memory/growth", {
-      query: { days },
-      signal,
-      errorMessage: failed("Failed to load memory growth"),
-    }),
-  )) as MemoryGrowthPoint[];
+  return looseBody(
+    await withEvolutionTimeout((signal) =>
+      apiGet("/api/evolution/memory/growth", {
+        query: { days },
+        signal,
+        errorMessage: failed("Failed to load memory growth"),
+      }),
+    ),
+    isMemoryGrowthPointList,
+  );
 }
 
 export async function getRecommendations(): Promise<Recommendation[]> {
-  return (await withEvolutionTimeout((signal) =>
-    apiGet("/api/evolution/recommendations", {
-      signal,
-      errorMessage: failed("Failed to load recommendations"),
-    }),
-  )) as Recommendation[];
+  return looseBody(
+    await withEvolutionTimeout((signal) =>
+      apiGet("/api/evolution/recommendations", {
+        signal,
+        errorMessage: failed("Failed to load recommendations"),
+      }),
+    ),
+    isRecommendationList,
+  );
 }
 
 export async function getFitness(
   agentId: string,
   window?: number,
 ): Promise<FitnessReport> {
-  return (await apiGet("/api/evolution/fitness/{agent_id}", {
-    path: { agent_id: agentId },
-    query: { window },
-    errorMessage: failed("Failed to load fitness report"),
-  })) as FitnessReport;
+  return looseBody(
+    await apiGet("/api/evolution/fitness/{agent_id}", {
+      path: { agent_id: agentId },
+      query: { window },
+      errorMessage: failed("Failed to load fitness report"),
+    }),
+    isFitnessReport,
+  );
 }
 
 export async function getDrift(agentId: string): Promise<DriftReport> {
-  return (await apiGet("/api/evolution/drift/{agent_id}", {
-    path: { agent_id: agentId },
-    errorMessage: failed("Failed to load drift report"),
-  })) as DriftReport;
+  return looseBody(
+    await apiGet("/api/evolution/drift/{agent_id}", {
+      path: { agent_id: agentId },
+      errorMessage: failed("Failed to load drift report"),
+    }),
+    isDriftReport,
+  );
 }
 
 export async function getLedger(opts?: {
@@ -578,43 +654,41 @@ export async function getLedger(opts?: {
   records: LedgerRecord[];
   stats: Record<string, unknown>;
 }> {
-  return (await apiGet("/api/evolution/ledger", {
-    query: {
-      status: opts?.status || undefined,
-      kind: opts?.kind || undefined,
-      limit: opts?.limit,
-    },
-    errorMessage: failed("Failed to load ledger"),
-  })) as {
-    total: number;
-    records: LedgerRecord[];
-    stats: Record<string, unknown>;
-  };
+  return looseBody(
+    await apiGet("/api/evolution/ledger", {
+      query: {
+        status: opts?.status || undefined,
+        kind: opts?.kind || undefined,
+        limit: opts?.limit,
+      },
+      errorMessage: failed("Failed to load ledger"),
+    }),
+    hasTotal,
+  );
 }
 
 export async function getCanary(): Promise<{
   active_count: number;
   canaries: CanaryState[];
 }> {
-  return (await apiGet("/api/evolution/canary", {
-    errorMessage: failed("Failed to load canary state"),
-  })) as {
-    active_count: number;
-    canaries: CanaryState[];
-  };
+  return looseBody(
+    await apiGet("/api/evolution/canary", {
+      errorMessage: failed("Failed to load canary state"),
+    }),
+    hasActiveCount,
+  );
 }
 
 export async function rollbackCanary(
   skillName: string,
 ): Promise<{ ok: boolean; skill_name: string; phase: string }> {
-  return (await apiPost("/api/evolution/canary/{skill_name}/rollback", {
-    path: { skill_name: skillName },
-    // Bodiless, but the JSON content type was always sent.
-    headers: { "Content-Type": "application/json" },
-    errorMessage: failed("Failed to rollback canary"),
-  })) as {
-    ok: boolean;
-    skill_name: string;
-    phase: string;
-  };
+  return looseBody(
+    await apiPost("/api/evolution/canary/{skill_name}/rollback", {
+      path: { skill_name: skillName },
+      // Bodiless, but the JSON content type was always sent.
+      headers: { "Content-Type": "application/json" },
+      errorMessage: failed("Failed to rollback canary"),
+    }),
+    hasOk,
+  );
 }

@@ -25,6 +25,16 @@ import type {
   TemplateUpdateRequest,
   WorkflowTemplate,
 } from "./types";
+import { looseBody } from "@/core/api/response";
+import {
+  isAppendRecordingEventsResponse,
+  isRecordingStatus,
+  isReplayResult,
+  isStartRecordingResponse,
+  isStopRecordingResponse,
+  isTemplateListResponse,
+  isWorkflowTemplate,
+} from "./guards";
 
 /** ``label: statusText``, this module's historical error wording. */
 function failed(label: string) {
@@ -48,38 +58,50 @@ function detailOr(label: string) {
 export async function startRecording(
   request: StartRecordingRequest,
 ): Promise<StartRecordingResponse> {
-  return (await apiPost("/api/teach-repeat/record/start", {
-    body: request,
-    errorMessage: detailOr("Failed to start recording"),
-  })) as StartRecordingResponse;
+  return looseBody(
+    await apiPost("/api/teach-repeat/record/start", {
+      body: request,
+      errorMessage: detailOr("Failed to start recording"),
+    }),
+    isStartRecordingResponse,
+  );
 }
 
 export async function stopRecording(
   request: StopRecordingRequest,
 ): Promise<StopRecordingResponse> {
-  return (await apiPost("/api/teach-repeat/record/stop", {
-    body: request,
-    errorMessage: detailOr("Failed to stop recording"),
-  })) as StopRecordingResponse;
+  return looseBody(
+    await apiPost("/api/teach-repeat/record/stop", {
+      body: request,
+      errorMessage: detailOr("Failed to stop recording"),
+    }),
+    isStopRecordingResponse,
+  );
 }
 
 export async function appendRecordingEvents(
   threadId: string,
   events: RecordingEvent[],
 ): Promise<AppendRecordingEventsResponse> {
-  return (await apiPost("/api/teach-repeat/record/events", {
-    body: { thread_id: threadId, events },
-    errorMessage: detailOr("Failed to append recording events"),
-  })) as AppendRecordingEventsResponse;
+  return looseBody(
+    await apiPost("/api/teach-repeat/record/events", {
+      body: { thread_id: threadId, events },
+      errorMessage: detailOr("Failed to append recording events"),
+    }),
+    isAppendRecordingEventsResponse,
+  );
 }
 
 export async function getRecordingStatus(
   threadId: string,
 ): Promise<RecordingStatus> {
-  return (await apiGet("/api/teach-repeat/record/status", {
-    query: { thread_id: threadId },
-    errorMessage: failed("Failed to get recording status"),
-  })) as RecordingStatus;
+  return looseBody(
+    await apiGet("/api/teach-repeat/record/status", {
+      query: { thread_id: threadId },
+      errorMessage: failed("Failed to get recording status"),
+    }),
+    isRecordingStatus,
+  );
 }
 
 // ---------------------------------------------------------------------------
@@ -92,33 +114,42 @@ export async function listTemplates(opts?: {
   search?: string;
   tag?: string;
 }): Promise<TemplateListResponse> {
-  return (await apiGet("/api/teach-repeat/templates", {
-    query: {
-      skip: opts?.skip,
-      limit: opts?.limit,
-      search: opts?.search || undefined,
-      tag: opts?.tag || undefined,
-    },
-    errorMessage: failed("Failed to list templates"),
-  })) as TemplateListResponse;
+  return looseBody(
+    await apiGet("/api/teach-repeat/templates", {
+      query: {
+        skip: opts?.skip,
+        limit: opts?.limit,
+        search: opts?.search || undefined,
+        tag: opts?.tag || undefined,
+      },
+      errorMessage: failed("Failed to list templates"),
+    }),
+    isTemplateListResponse,
+  );
 }
 
 export async function getTemplate(id: string): Promise<WorkflowTemplate> {
-  return (await apiGet("/api/teach-repeat/templates/{template_id}", {
-    path: { template_id: id },
-    errorMessage: failed("Failed to get template"),
-  })) as WorkflowTemplate;
+  return looseBody(
+    await apiGet("/api/teach-repeat/templates/{template_id}", {
+      path: { template_id: id },
+      errorMessage: failed("Failed to get template"),
+    }),
+    isWorkflowTemplate,
+  );
 }
 
 export async function updateTemplate(
   id: string,
   request: TemplateUpdateRequest,
 ): Promise<WorkflowTemplate> {
-  return (await apiPut("/api/teach-repeat/templates/{template_id}", {
-    path: { template_id: id },
-    body: request,
-    errorMessage: failed("Failed to update template"),
-  })) as WorkflowTemplate;
+  return looseBody(
+    await apiPut("/api/teach-repeat/templates/{template_id}", {
+      path: { template_id: id },
+      body: request,
+      errorMessage: failed("Failed to update template"),
+    }),
+    isWorkflowTemplate,
+  );
 }
 
 export async function deleteTemplate(id: string): Promise<void> {
@@ -129,10 +160,13 @@ export async function deleteTemplate(id: string): Promise<void> {
 }
 
 export async function duplicateTemplate(id: string): Promise<WorkflowTemplate> {
-  return (await apiPost("/api/teach-repeat/templates/{template_id}/duplicate", {
-    path: { template_id: id },
-    errorMessage: failed("Failed to duplicate template"),
-  })) as WorkflowTemplate;
+  return looseBody(
+    await apiPost("/api/teach-repeat/templates/{template_id}/duplicate", {
+      path: { template_id: id },
+      errorMessage: failed("Failed to duplicate template"),
+    }),
+    isWorkflowTemplate,
+  );
 }
 
 // ---------------------------------------------------------------------------
@@ -143,11 +177,14 @@ export async function replayTemplate(
   id: string,
   request: ReplayRequest,
 ): Promise<ReplayResult> {
-  return (await apiPost("/api/teach-repeat/templates/{template_id}/replay", {
-    path: { template_id: id },
-    body: request,
-    errorMessage: detailOr("Failed to replay template"),
-  })) as ReplayResult;
+  return looseBody(
+    await apiPost("/api/teach-repeat/templates/{template_id}/replay", {
+      path: { template_id: id },
+      body: request,
+      errorMessage: detailOr("Failed to replay template"),
+    }),
+    isReplayResult,
+  );
 }
 
 export async function replayAdaptive(
