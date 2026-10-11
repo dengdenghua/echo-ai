@@ -1,6 +1,6 @@
-# Echo v0.1.0
+# Echo AI v0.1.0
 
-Echo is an Agent OS. It runs agents with planning, tool execution,
+Echo AI is the desktop AI workspace in the Echo family. This repository also contains the shared Python agent runtime, with planning, tool execution,
 memory, reflection, safety governance, browser/workspace access, and
 self-improvement loops.
 
@@ -11,6 +11,16 @@ self-improvement loops.
 
 The IDE, browser, desktop app, and extension are product surfaces. The core
 product is the Python runtime in `runtime/`.
+
+## The Echo product family
+
+| Product | Positioning | Usage and execution |
+| --- | --- | --- |
+| [Echo AI](https://github.com/dengdenghua/echo-ai) | Desktop AI workspace | Deep work with local files, code, applications, and tools; the interaction reference is Codex on desktop. |
+| [Echo Mobile](https://github.com/dengdenghua/echo-mobile) | Mobile AI entry point | Conversations, voice interaction, task initiation, and results on a phone; the interaction reference is GPT conversations on mobile. |
+| [Echo OS](https://github.com/dengdenghua/echo-os) | Always-on private-cloud execution environment | Runs on a user-owned server, NAS, or private VM for background tasks, browsers, and computation; the execution reference is a Dot's cloud computer. |
+
+These are product roles and the intended integration direction, not a claim that all cross-device features are implemented. Desktop tasks can execute locally, and desktop or mobile clients can connect to private-cloud execution. Assistants and White Ghost squads are execution members; nodes are execution environments, without a required one-to-one mapping. Shared identity, projects, tasks, and execution nodes are the integration direction. Consult each repository for implementation status.
 
 Start here:
 
