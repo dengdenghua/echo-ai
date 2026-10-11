@@ -36,7 +36,12 @@ export function useShellTabEvents(
         const url =
           typeof payload === "string"
             ? payload
-            : (payload as { url?: string } | undefined)?.url;
+            : payload !== null &&
+                typeof payload === "object" &&
+                "url" in payload &&
+                typeof payload.url === "string"
+              ? payload.url
+              : null;
         if (url) latest.current.openTab(url);
       }),
       on("browser:focus-webcontents", (id) => {

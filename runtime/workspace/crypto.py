@@ -170,9 +170,8 @@ def _resolve_key() -> bytes:
 
 def _cipher() -> Any:
     """Return a cached Fernet instance, or None if cryptography is missing
-    or the configured key is invalid. A None cipher means ``encrypt_options``
-    degrades to plaintext JSON — callers still work, just without at-rest
-    protection. We log once on the first failure so the operator notices.
+    or the configured key is invalid. Sensitive writes fail closed when the
+    cipher is unavailable; non-sensitive data and existing ciphertext survive.
     """
     global _CIPHER_CACHE
     if _CIPHER_CACHE is not None:
@@ -182,13 +181,13 @@ def _cipher() -> Any:
     except ImportError:
         _LOG.warning(
             "cryptography package unavailable; workspace mount_option "
-            "credentials will be stored in plaintext"
+            "credential writes are unavailable"
         )
         return None
     try:
         _CIPHER_CACHE = Fernet(_resolve_key())
     except Exception as exc:  # noqa: BLE001 — bad key shape shouldn't crash callers
-        _LOG.warning("workspace crypto key invalid (%s); falling back to plaintext", exc)
+        _LOG.warning("workspace crypto key invalid (%s); credential writes unavailable", exc)
         _CIPHER_CACHE = None
     return _CIPHER_CACHE
 
@@ -221,6 +220,18 @@ def _holds_secret(key: object, value: Any) -> bool:
 
 def _is_encrypted(value: Any) -> bool:
     return isinstance(value, str) and value.startswith((_ENC_PREFIX, _ENC_JSON_PREFIX))
+
+
+def has_plaintext_secrets(value: Any) -> bool:
+    """Detect sensitive data without decrypting or rotating existing ciphertext."""
+    if isinstance(value, dict):
+        return any(
+            (_holds_secret(key, item) and not _is_encrypted(item)) or has_plaintext_secrets(item)
+            for key, item in value.items()
+        )
+    if isinstance(value, list):
+        return any(has_plaintext_secrets(item) for item in value)
+    return False
 
 
 def _encrypt_value(value: Any, cipher: Any) -> str:
@@ -305,20 +316,13 @@ def encrypt_options(options: dict[str, Any]) -> str:
     """Walk ``options`` recursively, encrypt every value held by a sensitive
     key (``is_sensitive_key``), then return the result as a JSON string.
     Non-sensitive fields stay human-readable in the SQLite column.
-    Returns plain JSON (no encryption) when ``cryptography`` is unavailable
-    or the configured key is invalid — see ``_cipher`` — and logs a warning
-    naming the credential fields written in plaintext.
+    Refuses plaintext credentials when the cipher is unavailable. Existing
+    ciphertext and non-sensitive options can still be preserved unchanged.
     """
     cipher = _cipher()
     if cipher is None:
-        _, plaintext = redact_options(options)
-        if plaintext:
-            _LOG.warning(
-                "workspace crypto unavailable: storing credential field(s) %s of "
-                "mount_options in PLAINTEXT; install `cryptography` and check "
-                "ECHO_WORKSPACE_KEY",
-                ", ".join(plaintext),
-            )
+        if has_plaintext_secrets(options):
+            raise RuntimeError("workspace credential encryption is unavailable")
         return json.dumps(options or {}, ensure_ascii=False)
     redacted = _walk_encrypt(options or {}, cipher)
     return json.dumps(redacted, ensure_ascii=False)

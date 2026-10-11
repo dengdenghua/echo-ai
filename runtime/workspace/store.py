@@ -21,6 +21,7 @@ transaction so partial state never leaks.
 
 from __future__ import annotations
 
+import json
 import logging
 import sqlite3
 import threading
@@ -32,7 +33,7 @@ from uuid import uuid4
 from runtime.platform.io.sqlite import connect_closing
 from runtime.platform.io.sqlite_schema import Migration, add_column, configure, migrate
 from runtime.safety.auth.scope import TenantScope
-from runtime.workspace.crypto import decrypt_options, encrypt_options
+from runtime.workspace.crypto import decrypt_options, encrypt_options, has_plaintext_secrets
 from runtime.workspace.model import (
     VALID_MEMBER_ROLES,
     VALID_MOUNT_TYPES,
@@ -78,6 +79,20 @@ def _default_db_path() -> Path:
     from runtime.platform.process.paths import app_paths
 
     return app_paths().data_dir / "workspaces.db"
+
+
+def _encrypt_legacy_mount_options(conn: sqlite3.Connection) -> None:
+    """Upgrade newly recognized credential keys without decrypting old values."""
+    updates = []
+    for identity, encoded in conn.execute("SELECT id, mount_options_json FROM workspaces"):
+        options = json.loads(encoded)
+        if not isinstance(options, dict):
+            raise ValueError("workspace mount options must be an object")
+        if has_plaintext_secrets(options):
+            updates.append((encrypt_options(options), identity))
+    # Build every replacement before updating: unavailable encryption or
+    # malformed rows leave the whole original dataset intact.
+    conn.executemany("UPDATE workspaces SET mount_options_json=? WHERE id=?", updates)
 
 
 def _workspace_from_row(row: tuple[Any, ...]) -> Workspace:
@@ -172,6 +187,7 @@ class WorkspaceStore:
     def _ensure_schema(self) -> None:
         with self._lock, self._connect() as conn:
             migrate(conn, _MIGRATIONS, name="workspaces")
+            _encrypt_legacy_mount_options(conn)
 
     # ── workspaces ────────────────────────────────────────────────────────
 

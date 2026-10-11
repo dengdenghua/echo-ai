@@ -18,10 +18,10 @@ import tarfile
 import tempfile
 from pathlib import Path, PurePosixPath
 
-CODEX_VERSION = "0.149.0"
+CODEX_VERSION = "0.162.0"
 CODEX_TAG = f"rust-v{CODEX_VERSION}"
-CODEX_COMMIT = "758ef40f50c1a458425c7cfbf1eb12cbc07af0b0"
-CODEX_CARGO_LOCK_SHA256 = "0c32858e9c47d0acf82735c8620c96840a5381152eec63acad15d1acadb9edad"
+CODEX_COMMIT = "c1382380de69521303b416720a52f42d51af6248"
+CODEX_CARGO_LOCK_SHA256 = "49fe417bcafe3f69f1f6636e23274f90d37e75e388127a76888c39001a4f8117"
 RIPGREP_VERSION = "15.2.0"
 RIPGREP_TAG = RIPGREP_VERSION
 RIPGREP_COMMIT = "e89fff89ac9af12e8d4ce9d5fd07beb408ca730f"
@@ -96,7 +96,17 @@ def _extract_pinned_source(
     archive_path = destination / "codex-source.tar"
     with archive_path.open("wb") as archive_stream:
         result = subprocess.run(
-            ["git", "archive", "--format=tar", commit, *archived_paths],
+            [
+                "git",
+                "-c",
+                "core.autocrlf=false",
+                "-c",
+                "core.eol=lf",
+                "archive",
+                "--format=tar",
+                commit,
+                *archived_paths,
+            ],
             cwd=source,
             check=False,
             stdout=archive_stream,
@@ -188,11 +198,14 @@ def _generate_reports(*, source: Path, cargo_about: Path, destination: Path) -> 
                 raise RuntimeError(f"cargo-about modified the pinned Cargo.lock for {component}")
             rendered = output.read_text(encoding="utf-8")
             if (
-                "OpenAI Codex 0.149.0 Third-Party Licenses" not in rendered
+                "OpenAI Codex 0.162.0 Third-Party Licenses" not in rendered
                 or expected_package not in rendered
                 or len(rendered) < 50_000
             ):
                 raise RuntimeError(f"incomplete third-party report for {component}")
+            # License sources can contain CRLF; canonical reports must retain
+            # identical hashes after Git checkout on every build platform.
+            output.write_text(rendered, encoding="utf-8", newline="\n")
             copied = destination / filename
             shutil.copyfile(output, copied)
             generated[component] = copied
@@ -235,6 +248,7 @@ def _generate_ripgrep_report(*, source: Path, cargo_about: Path, destination: Pa
         if _sha256(lock_path) != RIPGREP_CARGO_LOCK_SHA256:
             raise RuntimeError("cargo-about modified the pinned ripgrep Cargo.lock")
         rendered = output.read_text(encoding="utf-8")
+        output.write_text(rendered, encoding="utf-8", newline="\n")
         if (
             "ripgrep 15.2.0 Third-Party Licenses" not in rendered
             or "ripgrep 15.2.0" not in rendered
@@ -291,7 +305,7 @@ def main() -> None:
         "--codex-source",
         required=True,
         type=Path,
-        help="local clone containing the reviewed rust-v0.149.0 tag",
+        help="local clone containing the reviewed rust-v0.162.0 tag",
     )
     parser.add_argument(
         "--cargo-about",

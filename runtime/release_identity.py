@@ -14,7 +14,10 @@ from pathlib import Path, PurePosixPath
 from typing import Any
 
 SCHEMA = "echo.kernel-release.v1"
-SUPPORTED_RELEASES = {"1.0.0": "398a5700503a0d28829318ffd453529904dc009b688cd13a4afd5308a816fa32"}
+SUPPORTED_RELEASES = {
+    "1.0.0": "398a5700503a0d28829318ffd453529904dc009b688cd13a4afd5308a816fa32",
+    "1.0.1": "531acc94937831dc558641aad2301bbef971211b0cd2081b183b8063abfb4e19",
+}
 
 
 def canonical_digest(value: dict[str, Any]) -> str:

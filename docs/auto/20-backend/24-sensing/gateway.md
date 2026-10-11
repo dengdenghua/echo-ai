@@ -166,6 +166,9 @@ tier: "standard"
 | `a2a_server.py` | Official A2A v1 inbound server mounted on the Echo runtime. |
 | `account_usage_router.py` | — |
 | `adaptive_delta_buffer.py` | 自适应流式刷新策略（纯决策，不存内容） |
+| `agent_market_sources/financial-services/agent-plugins/model-builder/skills/dcf-model/scripts/validate_dcf.py` | DCF Model Validation Script Validates Excel DCF models for formula errors and common DCF mistakes |
+| `agent_market_sources/financial-services/agent-plugins/pitch-agent/skills/dcf-model/scripts/validate_dcf.py` | DCF Model Validation Script Validates Excel DCF models for formula errors and common DCF mistakes |
+| `agent_market_sources/financial-services/agent-plugins/pitch-agent/skills/ib-check-deck/scripts/extract_numbers.py` | Extract numerical values from presentation content for consistency checking. |
 | `agent_modes_router.py` | Agent project/code mode detection endpoints. |
 | `agent_trace_dependencies.py` | State factories and promotion helpers for the agent-trace API. |
 | `agent_trace_router.py` | Read-only API for the durable agent trace store. |
@@ -181,7 +184,9 @@ tier: "standard"
 | `apps_router.py` | — |
 | `artifact_proposals.py` | Disk-backed HTML edit proposals. Callers hold the artifact's shared edit lock. |
 | `asset_registry_router.py` | 统一资产仓库路由 —— 插件 / 技能 / 角色(WorkBuddy + Codex + 本地 + 内置)归一视图。 |
+| `assistant_activity_router.py` | A read-only personal projection of existing work ledgers. |
 | `capability_router.py` | 统一「插件」市场路由 —— 所有外部能力(WorkBuddy MCP 服务 + Codex 插件)统一叫插件。 |
+| `channels_lifecycle_router.py` | Admin-only lifecycle actions for configured channel transports. |
 | `channels_router.py` | — |
 | `codex_hotspot.py` | Codex task and Responses hotspot. Loopback transport; remote access via SSH. |
 | `collaboration_delivery_outbox.py` | Replay collaboration delivery outbox rows into durable thread logs. |
@@ -224,6 +229,7 @@ tier: "standard"
 | `evolution_router.py` | — |
 | `execution_nodes_router.py` | Authenticated task dispatch, node claims and verified result collection. |
 | `fs_router.py` | Filesystem router · ``/api/fs/{tree,read,write}``. |
+| `git_worktrees_router.py` | Local Git worktree task entry points, sharing the filesystem boundary. |
 | `hotspot_control.py` | Local Echo control plane for the separate invitation-authenticated listener. |
 | `hotspot_discovery.py` | Read an invited hotspot's models from the receiving Echo backend. |
 | `hotspot_store.py` | Durable, atomic invitation budgets; no upstream credentials in this store. |
@@ -807,6 +813,33 @@ tier: "standard"
 | class | `class BufferMetrics` | 批处理策略性能指标（快照，getter 不改状态） |
 | class | `class AdaptiveFlushPolicy` | 自适应刷新策略 |
 
+### `agent_market_sources/financial-services/agent-plugins/model-builder/skills/dcf-model/scripts/validate_dcf.py`
+
+| Kind | Symbol | Doc |
+| --- | --- | --- |
+| class | `class DCFModelValidator` | Validates DCF models for errors and quality issues |
+| func | `def validate_dcf_model(excel_path)` | Validate a DCF model Excel file |
+| func | `def main()` | Command-line interface |
+
+### `agent_market_sources/financial-services/agent-plugins/pitch-agent/skills/dcf-model/scripts/validate_dcf.py`
+
+| Kind | Symbol | Doc |
+| --- | --- | --- |
+| class | `class DCFModelValidator` | Validates DCF models for errors and quality issues |
+| func | `def validate_dcf_model(excel_path)` | Validate a DCF model Excel file |
+| func | `def main()` | Command-line interface |
+
+### `agent_market_sources/financial-services/agent-plugins/pitch-agent/skills/ib-check-deck/scripts/extract_numbers.py`
+
+| Kind | Symbol | Doc |
+| --- | --- | --- |
+| class | `class NumberInstance` | A numerical value found in the presentation. |
+| func | `def normalize_number(value_str, unit)` | Convert a number string with unit to a normalized float value. |
+| func | `def detect_category(context, unit)` | Detect the category of a number based on context and unit. |
+| func | `def extract_numbers(content)` | Extract all numbers from presentation content. |
+| func | `def find_inconsistencies(numbers)` | Find potential inconsistencies in extracted numbers. |
+| func | `def main()` |  |
+
 ### `agent_modes_router.py`
 
 | Kind | Symbol | Doc |
@@ -929,11 +962,27 @@ tier: "standard"
 | --- | --- | --- |
 | func | `def create_asset_registry_router(identity_store, require_auth, jwt_secret, jwt_issuer, jwt_audience)` |  |
 
+### `assistant_activity_router.py`
+
+| Kind | Symbol | Doc |
+| --- | --- | --- |
+| class | `class AssistantActivityItem(BaseModel)` |  |
+| class | `class AssistantActivitySummary(BaseModel)` |  |
+| class | `class AssistantActivityResponse(BaseModel)` |  |
+| func | `def create_assistant_activity_router(supervisor, project_store, collaboration_store, thread_store, group_store, team_rooms_router, identity_store, require_auth, jwt_secret, jwt_issuer, jwt_audience)` |  |
+
 ### `capability_router.py`
 
 | Kind | Symbol | Doc |
 | --- | --- | --- |
 | func | `def create_capability_router(registry, codex_accounts, model_provider_plugins, identity_store, require_auth, allow_local_user_plugin_lifecycle, jwt_secret, jwt_issuer, jwt_audience)` |  |
+
+### `channels_lifecycle_router.py`
+
+| Kind | Symbol | Doc |
+| --- | --- | --- |
+| class | `class ChannelRestartResponse(BaseModel)` |  |
+| func | `def create_channels_lifecycle_router(manager, require_admin)` |  |
 
 ### `channels_router.py`
 
@@ -1128,6 +1177,16 @@ tier: "standard"
 | Kind | Symbol | Doc |
 | --- | --- | --- |
 | func | `def create_fs_router(thread_store, identity_store, require_auth, allow_local_workspace_access, jwt_secret, jwt_issuer, jwt_audience, workspace_root, workspace_store, lease_store, mount_registry, group_store)` | Build the FastAPI router. State is per-request (the path parameter); auth, when an identity store is wired and ``require_auth`` is set, is e |
+
+### `git_worktrees_router.py`
+
+| Kind | Symbol | Doc |
+| --- | --- | --- |
+| class | `class WorktreeCreateRequest(BaseModel)` |  |
+| class | `class GitWorktree(BaseModel)` |  |
+| class | `class GitWorktreeList(BaseModel)` |  |
+| class | `class GitWorktreeCreated(BaseModel)` |  |
+| func | `def register_git_worktree_endpoints(router, ctx)` |  |
 
 ### `hotspot_control.py`
 

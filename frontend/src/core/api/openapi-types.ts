@@ -2914,6 +2914,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/assistant/activity": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Activity */
+        get: operations["activity_api_assistant_activity_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/auth/logout": {
         parameters: {
             query?: never;
@@ -4166,6 +4183,23 @@ export interface paths {
         get: operations["list_pairings_api_channels__channel_id__pairings_get"];
         put?: never;
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/channels/{channel_id}/restart": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Restart Channel */
+        post: operations["restart_channel_api_channels__channel_id__restart_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -9518,6 +9552,24 @@ export interface paths {
         get: operations["api_git_summary_api_git_summary_get"];
         put?: never;
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/git/worktrees": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Worktrees */
+        get: operations["list_worktrees_api_git_worktrees_get"];
+        put?: never;
+        /** Create Worktree */
+        post: operations["create_worktree_api_git_worktrees_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -17823,6 +17875,77 @@ export interface components {
              */
             message_id: string;
         };
+        /** AssistantActivityItem */
+        AssistantActivityItem: {
+            /** Agent Ids */
+            agent_ids?: string[];
+            /** Id */
+            id: string;
+            /** Project Id */
+            project_id?: string | null;
+            /** Project Name */
+            project_name?: string | null;
+            /** Reason */
+            reason?: string | null;
+            /** Room Id */
+            room_id?: string | null;
+            /** Room Name */
+            room_name?: string | null;
+            /** Run Id */
+            run_id?: string | null;
+            /**
+             * Source
+             * @enum {string}
+             */
+            source: "run" | "project_task" | "collaboration_task";
+            /**
+             * State
+             * @enum {string}
+             */
+            state: "working" | "attention" | "completed";
+            /** Status */
+            status: string;
+            /** Task Id */
+            task_id?: string | null;
+            /** Thread Id */
+            thread_id?: string | null;
+            /** Title */
+            title: string;
+            /** Updated At */
+            updated_at: string;
+        };
+        /** AssistantActivityResponse */
+        AssistantActivityResponse: {
+            /** Has More */
+            has_more: boolean;
+            /** Items */
+            items: components["schemas"]["AssistantActivityItem"][];
+            /**
+             * Schema
+             * @default echo.assistant_activity.v1
+             * @constant
+             */
+            schema: "echo.assistant_activity.v1";
+            summary: components["schemas"]["AssistantActivitySummary"];
+        };
+        /** AssistantActivitySummary */
+        AssistantActivitySummary: {
+            /**
+             * Attention
+             * @default 0
+             */
+            attention: number;
+            /**
+             * Completed
+             * @default 0
+             */
+            completed: number;
+            /**
+             * Working
+             * @default 0
+             */
+            working: number;
+        };
         /** AuthProvider */
         AuthProvider: {
             /** Id */
@@ -18111,6 +18234,13 @@ export interface components {
         CapabilityPermissionsResponse: {
             /** Permissions */
             permissions: components["schemas"]["CapabilityPermissionWire"][];
+        };
+        /** ChannelRestartResponse */
+        ChannelRestartResponse: {
+            /** Message */
+            message: string;
+            /** Restarted */
+            restarted: string[];
         };
         /** CodexAccountResponse */
         CodexAccountResponse: {
@@ -19429,6 +19559,39 @@ export interface components {
             /** @example  */
             tenant?: string;
         };
+        /** GitWorktree */
+        GitWorktree: {
+            /** Branch */
+            branch: string;
+            /** Commit */
+            commit: string;
+            /** Current */
+            current: boolean;
+            /** Locked */
+            locked: boolean;
+            /** Path */
+            path: string;
+        };
+        /** GitWorktreeCreated */
+        GitWorktreeCreated: {
+            /** Branch */
+            branch: string;
+            /** Commit */
+            commit: string;
+            /** Path */
+            path: string;
+            /** Source */
+            source: string;
+        };
+        /** GitWorktreeList */
+        GitWorktreeList: {
+            /** Branches */
+            branches: string[];
+            /** Root */
+            root: string;
+            /** Worktrees */
+            worktrees: components["schemas"]["GitWorktree"][];
+        };
         /** GoogleClientBody */
         GoogleClientBody: {
             /** Client Id */
@@ -19726,12 +19889,12 @@ export interface components {
         LoopPolicy: {
             /**
              * Auto Approve
-             * @default true
+             * @default false
              */
             auto_approve: boolean;
             /**
              * Budget Auto Pause
-             * @default false
+             * @default true
              */
             budget_auto_pause: boolean;
             /**
@@ -19768,7 +19931,7 @@ export interface components {
             model?: string | null;
             /**
              * Permission Mode
-             * @default bypassPermissions
+             * @default acceptEdits
              */
             permission_mode: string;
             /**
@@ -19825,6 +19988,18 @@ export interface components {
             owner_id?: string | null;
             /** Parent Run Id */
             parent_run_id?: string | null;
+            /**
+             * Pause Detail
+             * @default
+             */
+            pause_detail: string;
+            /**
+             * Pause Reason
+             * @default
+             */
+            pause_reason: string;
+            /** Paused At */
+            paused_at?: string | null;
             policy?: components["schemas"]["LoopPolicy"];
             /** Resume Checkpoint Id */
             resume_checkpoint_id?: string | null;
@@ -19888,6 +20063,16 @@ export interface components {
             origin_run_id?: string | null;
             /** Parent Run Id */
             parent_run_id?: string | null;
+            /**
+             * Pause Detail
+             * @default
+             */
+            pause_detail: string;
+            /**
+             * Pause Reason
+             * @default
+             */
+            pause_reason: string;
             /** Recovery Audit */
             recovery_audit?: {
                 [key: string]: unknown;
@@ -19925,7 +20110,7 @@ export interface components {
          * LoopRunStatus
          * @enum {string}
          */
-        LoopRunStatus: "pending" | "running" | "verifying" | "repairing" | "completed" | "failed" | "cancelled" | "interrupted";
+        LoopRunStatus: "pending" | "running" | "verifying" | "repairing" | "completed" | "failed" | "cancelled" | "interrupted" | "paused";
         /** LoopRunsOverviewResponse */
         LoopRunsOverviewResponse: {
             /**
@@ -21761,6 +21946,16 @@ export interface components {
             files: components["schemas"]["WorkspaceOutputEntry"][];
             /** Thread Id */
             thread_id: string;
+        };
+        /** WorktreeCreateRequest */
+        WorktreeCreateRequest: {
+            /** Path */
+            path: string;
+            /**
+             * Revision
+             * @default HEAD
+             */
+            revision: string;
         };
         /** _GroupPayload */
         _GroupPayload: {
@@ -27402,6 +27597,37 @@ export interface operations {
             };
         };
     };
+    activity_api_assistant_activity_get: {
+        parameters: {
+            query?: {
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AssistantActivityResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     _auth_logout_api_auth_logout_post: {
         parameters: {
             query?: never;
@@ -29838,6 +30064,37 @@ export interface operations {
                     "application/json": {
                         [key: string]: unknown;
                     };
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    restart_channel_api_channels__channel_id__restart_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                channel_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ChannelRestartResponse"];
                 };
             };
             /** @description Validation Error */
@@ -40005,6 +40262,70 @@ export interface operations {
                     "application/json": {
                         [key: string]: unknown;
                     };
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_worktrees_api_git_worktrees_get: {
+        parameters: {
+            query: {
+                path: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GitWorktreeList"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    create_worktree_api_git_worktrees_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["WorktreeCreateRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GitWorktreeCreated"];
                 };
             };
             /** @description Validation Error */

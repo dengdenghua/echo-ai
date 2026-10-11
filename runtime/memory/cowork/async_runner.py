@@ -360,7 +360,9 @@ class AsyncWorkRunner:
         # tick_once/drain_all intentionally wait for a finite batch (CLI/tests);
         # using them here used to strand new work behind a 15-minute task even
         # with three vacant execution slots.
-        pool = ThreadPoolExecutor(max_workers=self._max_concurrency, thread_name_prefix="cowork-task")
+        pool = ThreadPoolExecutor(
+            max_workers=self._max_concurrency, thread_name_prefix="cowork-task"
+        )
         active = {}
 
         def completed(future):
@@ -391,7 +393,10 @@ class AsyncWorkRunner:
                         active[task.task_id] = future
                         future.add_done_callback(completed)
                     self._record_tick_result(
-                        success=True, recovered=recovered, ran_count=ran, concurrency=len(active),
+                        success=True,
+                        recovered=recovered,
+                        ran_count=ran,
+                        concurrency=len(active),
                     )
                 except Exception as exc:  # noqa: BLE001 — one worker must not kill dispatch
                     self._record_tick_result(success=False, error=f"{type(exc).__name__}: {exc}")

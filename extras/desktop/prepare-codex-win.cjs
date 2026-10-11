@@ -12,19 +12,19 @@ const { createRequire } = require("module");
 const repoRoot = path.resolve(__dirname, "..", "..");
 const frontendRoot = path.join(repoRoot, "frontend");
 const outputRoot = path.join(__dirname, "build", "codex");
-const CODEX_VERSION = "0.149.0";
+const CODEX_VERSION = "0.162.0";
 const PLATFORM_PACKAGE = "@openai/codex-win32-x64";
 const PLATFORM_PACKAGE_INTEGRITY =
-  "sha512-qKbwSOOO/fdhQ5MlXE2fts6taPxRPZ/zqeC+eqHD72hLRymV9rFCUbUxOCquognUPRPvS/2/kRCV0UVhoDd3yQ==";
+  "sha512-W8kqHaqpW0qPz71E0rRT5dq+socGz1BbJyYN7o3SP1TWQt8Zl6ML74R9Hvt/xn1NNLVlDTRfXqNmaMkte6yEMQ==";
 const TARGET_TRIPLE = "x86_64-pc-windows-msvc";
 const CODEX_CARGO_LOCK_SHA256 =
-  "0c32858e9c47d0acf82735c8620c96840a5381152eec63acad15d1acadb9edad";
-const CODEX_SOURCE_COMMIT = "758ef40f50c1a458425c7cfbf1eb12cbc07af0b0";
+  "49fe417bcafe3f69f1f6636e23274f90d37e75e388127a76888c39001a4f8117";
+const CODEX_SOURCE_COMMIT = "c1382380de69521303b416720a52f42d51af6248";
 const CARGO_ABOUT_VERSION = "0.9.2";
 const NATIVE_PROVENANCE_SHA256 =
-  "65e2c0c7f7b239ee758133ce17cfb680bc38aec84876ca81015458c41a988c7a";
+  "5f3387fd6b2bb618e3b8e889dd5aa11d9d3aa118f1997f53f78a901e2d049564";
 const NATIVE_NOTICE_SHA256 =
-  "da7997facd0e36f4ebca01594c60abdc1204f5421a35d28c4760b13addf247c5";
+  "d29f6f45e7ba6ca221326de7690739fe489709f222dc7270ab6f32feae9332fd";
 const NATIVE_COMPONENT_COUNT = 12;
 const NATIVE_LICENSE_INPUT_COUNT = 80;
 const RATATUI_VERSION = "0.30.2";
@@ -55,7 +55,7 @@ const LICENSE_FILES = [
       "THIRD_PARTY_LICENSES-codex-cli.html",
     ),
     destination: "third-party/codex-rust/THIRD_PARTY_LICENSES-codex-cli.html",
-    sha256: "841d5072916479fc3d6fbe8c4b240b66d468de9f625a2fcb658c34fe1a4ec771",
+    sha256: "7b1aa4f2b848e7f0e88adcf17e7a7184b454945e66a1d2967854b8a5183cb00d",
   },
   {
     source: path.join(
@@ -66,7 +66,7 @@ const LICENSE_FILES = [
     ),
     destination:
       "third-party/codex-rust/THIRD_PARTY_LICENSES-code-mode-host.html",
-    sha256: "6b562200ef39938051e8eca39ce61a4d032752e04e1d21ba0fe216bd0ad91434",
+    sha256: "3d0d447d99ebd115a11d1c21cba0c647ed31cdde805e34b6048ac339c744b74e",
   },
   {
     source: path.join(
@@ -77,7 +77,7 @@ const LICENSE_FILES = [
     ),
     destination:
       "third-party/codex-rust/THIRD_PARTY_LICENSES-windows-sandbox.html",
-    sha256: "8858ef427eb901498d06d12d14ce6c3ef53fdeb352251006276dac8ec53ac5e4",
+    sha256: "5a54dbd5ce12664d4b3a7b841bca95fea8e99cd37a97f6e21138faf0e8ba76eb",
   },
   {
     source: path.join(
@@ -87,7 +87,7 @@ const LICENSE_FILES = [
       "THIRD_PARTY_LICENSES.md",
     ),
     destination: "third-party/codex-rust/THIRD_PARTY_LICENSES.md",
-    sha256: "198967762991bc9c638b7c304a11bf5b564cb1898e48acf35eca793c2b4557ae",
+    sha256: "72de1154b17f9d9e73ac1ff3e749dd7a2e5b2f945ddc35826007611c2bd25fef",
   },
   {
     source: path.join(

@@ -28,6 +28,7 @@ import {
 import { useI18n } from "@/core/i18n/hooks";
 import type { Translations } from "@/core/i18n";
 import { cn } from "@/lib/utils";
+import { EchoAPIError } from "@/core/api/request";
 
 import {
   useCollab,
@@ -80,6 +81,7 @@ export function AnnotationThread({
 
   const [replyText, setReplyText] = useState("");
   const [replying, setReplying] = useState(false);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
   const handleReply = useCallback(async () => {
@@ -178,7 +180,17 @@ export function AnnotationThread({
                 variant="ghost"
                 size="icon"
                 className="size-6 text-destructive hover:text-destructive"
-                onClick={() => void deleteAnnotation(annotation.annotation_id)}
+                onClick={() => {
+                  setDeleteError(null);
+                  void deleteAnnotation(annotation.annotation_id).catch(
+                    (error) =>
+                      setDeleteError(
+                        error instanceof EchoAPIError && error.status === 403
+                          ? t.annotations.deleteForbidden
+                          : t.annotations.deleteFailed,
+                      ),
+                  );
+                }}
                 aria-label={t.annotations.delete}
                 disabled={!canWrite}
               >
@@ -191,6 +203,11 @@ export function AnnotationThread({
       </div>
 
       {/* Body */}
+      {deleteError && (
+        <p role="alert" className="mb-2 text-sm text-destructive">
+          {deleteError}
+        </p>
+      )}
       <p className="mb-2 whitespace-pre-wrap text-sm leading-relaxed">
         {annotation.body}
       </p>

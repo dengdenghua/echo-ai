@@ -18,6 +18,8 @@ from pathlib import Path
 from typing import Any
 from uuid import uuid4
 
+from runtime.memory.cowork._collaboration_activity import list_session_ids
+from runtime.memory.cowork._collaboration_activity import tasks_for_session as _tasks_for_session
 from runtime.memory.cowork._collaboration_project_actions import (
     CollaborationProjectActionStoreMixin,
 )
@@ -395,6 +397,8 @@ class CollaborationStore(
 ):
     """Canonical room/task storage keyed by collaboration session id."""
 
+    list_session_ids = list_session_ids
+
     def __init__(self, base_dir: Path | str | None = None) -> None:
         self._dir = Path(base_dir) if base_dir else _default_dir()
         self._dir.mkdir(parents=True, exist_ok=True)
@@ -715,16 +719,7 @@ class CollaborationStore(
         )
 
     def tasks_for_session(self, session_id: str) -> list[dict[str, Any]]:
-        if not session_id:
-            return []
-        session_id = require_cowork_id(session_id, label="session_id")
-        with self._lock, self._connect() as conn:
-            rows = conn.execute(
-                "SELECT task_json FROM collaboration_tasks WHERE session_id = ? "
-                "ORDER BY updated_at DESC, created_at DESC",
-                (session_id,),
-            ).fetchall()
-        return [item for row in rows if (item := _load(row[0])) is not None]
+        return _tasks_for_session(self, session_id, _load)
 
     def tasks_for_room(self, room_id: str) -> list[dict[str, Any]]:
         if not room_id:

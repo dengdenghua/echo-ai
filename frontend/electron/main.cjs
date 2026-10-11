@@ -908,6 +908,18 @@ function browserExtensions() {
   return ses.extensions ?? ses;
 }
 
+async function loadBrowserExtension(dir) {
+  const loaded = await browserExtensions().loadExtension(dir);
+  try {
+    await extensionHost?.prepareExtension(loaded);
+    return loaded;
+  } catch (error) {
+    browserExtensions().removeExtension(loaded.id);
+    extensionHost?.forget(loaded.id);
+    throw error;
+  }
+}
+
 // Store installs are unpacked here; removing one deletes its folder.
 const storeExtensionsDir = () =>
   path.join(app.getPath("userData"), "store-extensions");
@@ -922,7 +934,7 @@ async function installExtensionFromDir(dir, source = "folder") {
   const manifest = JSON.parse(
     await fsp.readFile(path.join(dir, "manifest.json"), "utf8"),
   );
-  const loaded = await browserExtensions().loadExtension(dir);
+  const loaded = await loadBrowserExtension(dir);
   const previous = readExtensionRegistry().find(
     (e) => e.path === dir || e.id === loaded.id,
   );
@@ -1010,7 +1022,7 @@ async function loadEnabledExtensions() {
   for (const ext of readExtensionRegistry()) {
     if (!ext.enabled) continue;
     try {
-      await browserExtensions().loadExtension(ext.path);
+      await loadBrowserExtension(ext.path);
     } catch (err) {
       console.warn(`[echo] extension ${ext.name} failed to load:`, err.message);
     }
@@ -1947,7 +1959,7 @@ function registerIpc() {
     if (!ext) return { ok: false, error: "extension not found" };
     try {
       if (enabled) {
-        const loaded = await browserExtensions().loadExtension(ext.path);
+        const loaded = await loadBrowserExtension(ext.path);
         ext.id = loaded.id;
       } else {
         browserExtensions().removeExtension(id);
@@ -1974,6 +1986,9 @@ function registerIpc() {
     extensionHost?.setPinned(id, pinned),
   );
   handle("extensions:openOptions", (id) => extensionHost?.openOptions(id));
+  handle("extensions:sidePanelState", () => extensionHost?.sidePanelState() ?? null);
+  handle("extensions:setSidePanelBounds", (bounds) => extensionHost?.setSidePanelBounds(bounds));
+  handle("extensions:closeSidePanel", (id) => extensionHost?.closeSidePanel(id));
   handle("extensions:remove", async (id) => {
     extensionHost?.forget(id, { purge: true });
     try {
@@ -2063,8 +2078,7 @@ function configureMcpOAuthPopup(popupWindow) {
 
 function isTrustedMainWindowURL(rawURL, useBuiltRenderer) {
   if (useBuiltRenderer) {
-    const parsed = desktopProtocol.parseDesktopAppURL(rawURL);
-    return parsed?.pathname === "/index.html" || parsed?.pathname === "/";
+    return desktopProtocol.isDesktopAppNavigationURL(rawURL);
   }
   try {
     return new URL(rawURL).origin === new URL(DEV_URL).origin;
@@ -2295,8 +2309,14 @@ if (!app.requestSingleInstanceLock()) {
       getMainWindow: () => mainWindow,
       getActiveTab: activeBrowserTarget,
       openUrlInTab: openUrlInBrowserTab,
-      sendToRenderer: (channel, ...args) =>
-        mainWindow?.webContents.send(channel, ...args),
+      sendToRenderer: (channel, ...args) => {
+        if (
+          mainWindow &&
+          !mainWindow.isDestroyed() &&
+          !mainWindow.webContents.isDestroyed()
+        )
+          mainWindow.webContents.send(channel, ...args);
+      },
       readRegistry: readExtensionRegistry,
       writeRegistry: writeExtensionRegistry,
     });
@@ -2395,6 +2415,7 @@ if (!app.requestSingleInstanceLock()) {
   // Clean up the packaged backend child process on quit (also covers
   // window-all-closed → app.quit() on non-macOS).
   app.on("before-quit", () => {
+    extensionHost?.dispose();
     browserControlBridge?.close();
     killBackend();
     petSidecar.shutdown();

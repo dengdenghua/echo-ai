@@ -359,7 +359,12 @@ def test_installed_package_incompatible_with_current_host_is_reported_broken(
 ) -> None:
     catalog, _plugin_root = _catalog(tmp_path, monkeypatch)
     catalog.install_plugin("narrative_studio", plugin_kind="workbench")
-    monkeypatch.setattr(cloud_catalog, "__version__", "0.3.0")
+    import runtime
+
+    # Product releases do not change the separately versioned host API.
+    monkeypatch.setattr(runtime, "__version__", "0.3.0")
+    assert catalog.plugin_statuses()["narrative_studio"]["enabled"] is True
+    monkeypatch.setattr(cloud_catalog, "HOST_API_VERSION", "0.3.0")
 
     status = catalog.plugin_statuses()["narrative_studio"]
 

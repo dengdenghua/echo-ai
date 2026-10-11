@@ -85,7 +85,7 @@ jobs:
           phase=$(python3 -c 'import json,sys;print(json.load(open(sys.argv[1]))["fileHashPhase"])' "$manifest_path")
           version=$(python3 -c 'import json,sys;print(json.load(open(sys.argv[1]))["version"])' "$manifest_path")
           [[ "$schema" == "echo.codex_bundle.v1" ]] || { echo "manifest schema=$schema"; exit 1; }
-          [[ "$version" == "0.149.0" ]] || { echo "manifest version=$version"; exit 1; }
+          [[ "$version" == "0.162.0" ]] || { echo "manifest version=$version"; exit 1; }
           [[ "$phase" == "pre-package" ]] || { echo "manifest fileHashPhase=$phase"; exit 1; }
           [[ "$target" == "x86_64-unknown-linux-musl" || "$target" == "aarch64-unknown-linux-musl" ]] || { echo "manifest target=$target"; exit 1; }
 

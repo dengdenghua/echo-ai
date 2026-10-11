@@ -57,7 +57,7 @@ closed; the application does not fall back to system Python/uv/Codex, PATH, or
 download dependencies on first launch. CI runs the bundled Codex App Server
 help command, starts the backend from `win-unpacked`, and requires `/readyz`
 before uploading artifacts. The prepared runtime also contains the exact Codex
-0.149.0 LICENSE/NOTICE, component-specific `cargo-about 0.9.2` reports for the
+0.162.0 LICENSE/NOTICE, component-specific `cargo-about 0.9.2` reports for the
 Windows normal-runtime Rust dependency graphs, the Ratatui 0.30.2 MIT license,
 and a separate `pcre2`-enabled report plus project license texts for ripgrep
 15.2.0. A companion native provenance manifest and notice bundle cover the

@@ -46,6 +46,8 @@ logger = logging.getLogger(__name__)
 try:
     from fastapi import APIRouter, HTTPException, Request
 
+    from .channels_lifecycle_router import create_channels_lifecycle_router
+
     FASTAPI_AVAILABLE = True
 except ImportError:  # pragma: no cover
     FASTAPI_AVAILABLE = False
@@ -207,8 +209,7 @@ def create_channels_router(
         if "admin" not in {str(r).lower() for r in roles}:
             raise HTTPException(403, "admin role required for channel configuration")
 
-    #
-    #
+    router.include_router(create_channels_lifecycle_router(manager, _require_admin))
 
     @router.get("/api/channels")
     def list_channels(request: Request) -> list[dict[str, Any]]:

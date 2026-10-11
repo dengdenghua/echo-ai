@@ -21,7 +21,8 @@ try {
 
 if (href.startsWith("chrome-extension://")) {
   const bridge = {
-    invoke: (method, args) => ipcRenderer.invoke("echo-ext:invoke", method, args),
+    invoke: (method, args) =>
+      ipcRenderer.invoke("echo-ext:invoke", method, args),
     listen: (callback) => {
       ipcRenderer.on("echo-ext:event", (_event, name, payload) =>
         callback(name, payload),
@@ -41,6 +42,35 @@ function installCompat(bridge) {
   if (!chrome?.runtime?.id) return;
   const manifest = chrome.runtime.getManifest?.() || {};
   const permissions = new Set(manifest.permissions || []);
+  // Chromium caches lazy API bindings and can expose them again after another
+  // extension loads. Patch that cached object so the host methods survive.
+  const patchApi = (name, methods) =>
+    Object.assign(chrome[name] || (chrome[name] = {}), methods);
+
+  // Keep the bootstrap view's native rule API intact. Other extension
+  // contexts wait for static initialization and record enabled-rule choices.
+  if (
+    (permissions.has("declarativeNetRequest") ||
+      permissions.has("declarativeNetRequestWithHostAccess")) &&
+    !(
+      globalThis.location?.pathname === "/manifest.json" &&
+      new URL(globalThis.location.href).searchParams.has("__echo-dnr-bootstrap")
+    ) &&
+    chrome.declarativeNetRequest
+  ) {
+    const methods = {};
+    for (const name of Object.keys(chrome.declarativeNetRequest))
+      if (typeof chrome.declarativeNetRequest[name] === "function")
+        methods[name] = (...args) => {
+          const callback =
+            typeof args.at(-1) === "function" ? args.pop() : undefined;
+          return settle(
+            bridge.invoke(`declarativeNetRequest.${name}`, args),
+            callback,
+          );
+        };
+    patchApi("declarativeNetRequest", methods);
+  }
 
   const events = new Map();
   const menuClicks = new Map();
@@ -51,6 +81,7 @@ function installCompat(bridge) {
     "menus.onClicked",
     "notifications.onClicked",
     "notifications.onClosed",
+    "commands.onCommand",
   ]);
   const pending = new Map();
   const deliver = (name, args) => {
@@ -165,7 +196,10 @@ function installCompat(bridge) {
       setPopup: m("setPopup"),
       getPopup: m("getPopup"),
       setIcon: (details, callback) =>
-        settle(bridge.invoke("action.setIcon", [iconDetails(details)]), callback),
+        settle(
+          bridge.invoke("action.setIcon", [iconDetails(details)]),
+          callback,
+        ),
       enable: m("enable"),
       disable: m("disable"),
       show: m("enable"),
@@ -177,10 +211,10 @@ function installCompat(bridge) {
       onUserSettingsChanged: event("action.onUserSettingsChanged"),
     };
   };
-  if (manifest.manifest_version >= 3) chrome.action = action();
+  if (manifest.manifest_version >= 3) patchApi("action", action());
   else {
-    if (manifest.browser_action) chrome.browserAction = action();
-    if (manifest.page_action) chrome.pageAction = action();
+    if (manifest.browser_action) patchApi("browserAction", action());
+    if (manifest.page_action) patchApi("pageAction", action());
   }
 
   // ── tabs ──
@@ -205,7 +239,7 @@ function installCompat(bridge) {
   }
 
   // ── windows ──
-  chrome.windows = {
+  patchApi("windows", {
     WINDOW_ID_NONE: -1,
     WINDOW_ID_CURRENT: -2,
     get: api("windows.get"),
@@ -219,7 +253,7 @@ function installCompat(bridge) {
     onRemoved: event("windows.onRemoved"),
     onFocusChanged: event("windows.onFocusChanged"),
     onBoundsChanged: event("windows.onBoundsChanged"),
-  };
+  });
 
   // ── context menus ──
   if (permissions.has("contextMenus")) {
@@ -228,7 +262,7 @@ function installCompat(bridge) {
       const { onclick, ...rest } = props;
       return [rest, onclick];
     };
-    chrome.contextMenus = {
+    patchApi("contextMenus", {
       ACTION_MENU_TOP_LEVEL_LIMIT: 6,
       create(props = {}, callback) {
         const id = props.id ?? `echo-auto-${++autoId}`;
@@ -253,12 +287,12 @@ function installCompat(bridge) {
       onClicked: event("menus.onClicked"),
       onShown: event("menus.onShown"),
       onHidden: event("menus.onHidden"),
-    };
+    });
   }
 
   // ── notifications ──
   if (permissions.has("notifications")) {
-    chrome.notifications = {
+    patchApi("notifications", {
       TemplateType: {
         BASIC: "basic",
         IMAGE: "image",
@@ -285,12 +319,12 @@ function installCompat(bridge) {
       onButtonClicked: event("notifications.onButtonClicked"),
       onPermissionLevelChanged: event("notifications.onPermissionLevelChanged"),
       onShowSettings: event("notifications.onShowSettings"),
-    };
+    });
   }
 
   // ── side panel ──
   if (permissions.has("sidePanel")) {
-    chrome.sidePanel = {
+    patchApi("sidePanel", {
       setOptions: api("sidePanel.setOptions"),
       getOptions: api("sidePanel.getOptions"),
       setPanelBehavior: api("sidePanel.setPanelBehavior"),
@@ -299,7 +333,7 @@ function installCompat(bridge) {
       close: api("sidePanel.close"),
       onOpened: event("sidePanel.onOpened"),
       onClosed: event("sidePanel.onClosed"),
-    };
+    });
   }
 
   // ── downloads ──
@@ -345,19 +379,12 @@ function installCompat(bridge) {
     };
   }
 
-  // ── commands: declared, never fired (no global shortcuts) ──
-  if (!chrome.commands) {
-    chrome.commands = {
-      getAll: resolved(
-        Object.entries(manifest.commands || {}).map(([name, command]) => ({
-          name,
-          description: command?.description || "",
-          shortcut: "",
-        })),
-      ),
-      onCommand: event("commands.onCommand"),
-    };
-  }
+  // ── commands: focused browser tabs, no global shortcuts ──
+  // Commands are scoped to focused browser tabs; no OS-wide registration.
+  patchApi("commands", {
+    getAll: api("commands.getAll"),
+    onCommand: event("commands.onCommand"),
+  });
 
   if (chrome.runtime && typeof chrome.runtime.openOptionsPage !== "function") {
     chrome.runtime.openOptionsPage = api("runtime.openOptionsPage");

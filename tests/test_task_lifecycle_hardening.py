@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import json
+import os
+import shlex
 import subprocess
 import sys
 import threading
@@ -29,14 +31,21 @@ from runtime.sensing.gateway.team_tasks_router import create_team_tasks_router
 
 def test_cron_timeout_kills_descendants(tmp_path: Path, monkeypatch: Any) -> None:
     marker = tmp_path / "descendant-survived"
-    monkeypatch.setattr(cron_executor, "SHELL_JOB_TIMEOUT_S", 0.2)
-    command = (
-        f'{sys.executable} -c "import pathlib,time; time.sleep(.8); '
-        f"pathlib.Path({str(marker)!r}).write_text('alive')\" & sleep 10"
+    started = tmp_path / "descendant-started"
+    monkeypatch.setattr(cron_executor, "SHELL_JOB_TIMEOUT_S", 2.0)
+    child = (
+        f"import pathlib,time; pathlib.Path({str(started)!r}).write_text('started'); "
+        f"time.sleep(3); pathlib.Path({str(marker)!r}).write_text('alive')"
     )
-    status, _ = cron_executor.default_shell_runner(command, {})
-    assert status == "timeout"
-    time.sleep(1.0)
+    parent = f"import subprocess,sys,time; subprocess.Popen([sys.executable,'-c',{child!r}]); time.sleep(10)"
+    script = tmp_path / "cron-parent.py"
+    script.write_text(parent, encoding="utf-8")
+    argv = [sys.executable, str(script)]
+    command = subprocess.list2cmdline(argv) if os.name == "nt" else shlex.join(argv)
+    status, output = cron_executor.default_shell_runner(command, {})
+    assert status == "timeout", output
+    assert started.exists(), "The descendant must actually start before testing tree cancellation"
+    time.sleep(3.2)
     assert not marker.exists()
 
 

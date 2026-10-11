@@ -390,16 +390,19 @@ function BackendBrowserTab({
     `${getBackendBaseURL()}/api/browser/relay/bookmarklet.js?app=`,
   )}+encodeURIComponent(location.origin)+"&t="+Date.now();document.documentElement.appendChild(s);})()`;
 
-  const refreshRelayStatus = async () => {
-    const status = await browserJson<BrowserRelayStatus>(
+  const relayRequest = useRef<Promise<BrowserRelayStatus> | null>(null);
+  const readRelayStatus = () =>
+    (relayRequest.current ??= browserJson<BrowserRelayStatus>(
       "/api/browser/relay/status",
-      {
-        headers: authHeaders(),
-      },
-    );
-    setRelayStatus(status);
-    return status;
-  };
+      { headers: authHeaders() },
+    ).finally(() => {
+      relayRequest.current = null;
+    }));
+  const refreshRelayStatus = () =>
+    readRelayStatus().then((status) => {
+      setRelayStatus(status);
+      return status;
+    });
 
   const openExtensionFolder = async () => {
     try {
@@ -733,12 +736,7 @@ function BackendBrowserTab({
 
     const tick = async () => {
       try {
-        const status = await browserJson<BrowserRelayStatus>(
-          "/api/browser/relay/status",
-          {
-            headers: authHeaders(),
-          },
-        );
+        const status = await readRelayStatus();
         if (!cancelled) {
           consecutiveFailures = 0;
           setRelayStatus(status);

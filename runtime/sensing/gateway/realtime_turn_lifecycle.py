@@ -1114,8 +1114,7 @@ async def _start_turn(
         # be corrected without making the user repeat the request.
         coordination = getattr(runtime, "_cowork_coordination", None)
         waiting_for_members = bool(
-            coordination is not None
-            and coordination.delivery.waiting_for_turn(thread_id, turn.id)
+            coordination is not None and coordination.delivery.waiting_for_turn(thread_id, turn.id)
         )
         if waiting_for_members:
             turn.outcome_reason = "completed_with_background"

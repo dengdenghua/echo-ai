@@ -49,25 +49,25 @@ CODEX_BUNDLE_EXECUTABLES = (
     "codex-path/rg.exe",
 )
 CODEX_BUNDLE_LICENSE_SOURCES = {
-    "LICENSE": ROOT / "extras/desktop/licenses/codex-0.149.0/LICENSE",
-    "NOTICE": ROOT / "extras/desktop/licenses/codex-0.149.0/NOTICE",
+    "LICENSE": ROOT / "extras/desktop/licenses/codex-0.162.0/LICENSE",
+    "NOTICE": ROOT / "extras/desktop/licenses/codex-0.162.0/NOTICE",
     "third-party/codex-rust/THIRD_PARTY_LICENSES-codex-cli.html": (
-        ROOT / "extras/desktop/licenses/codex-0.149.0/THIRD_PARTY_LICENSES-codex-cli.html"
+        ROOT / "extras/desktop/licenses/codex-0.162.0/THIRD_PARTY_LICENSES-codex-cli.html"
     ),
     "third-party/codex-rust/THIRD_PARTY_LICENSES-code-mode-host.html": (
-        ROOT / "extras/desktop/licenses/codex-0.149.0/THIRD_PARTY_LICENSES-code-mode-host.html"
+        ROOT / "extras/desktop/licenses/codex-0.162.0/THIRD_PARTY_LICENSES-code-mode-host.html"
     ),
     "third-party/codex-rust/THIRD_PARTY_LICENSES-windows-sandbox.html": (
-        ROOT / "extras/desktop/licenses/codex-0.149.0/THIRD_PARTY_LICENSES-windows-sandbox.html"
+        ROOT / "extras/desktop/licenses/codex-0.162.0/THIRD_PARTY_LICENSES-windows-sandbox.html"
     ),
     "third-party/codex-rust/THIRD_PARTY_LICENSES.md": (
-        ROOT / "extras/desktop/licenses/codex-0.149.0/THIRD_PARTY_LICENSES.md"
+        ROOT / "extras/desktop/licenses/codex-0.162.0/THIRD_PARTY_LICENSES.md"
     ),
     "third-party/codex-native/NATIVE_PROVENANCE.json": (
-        ROOT / "extras/desktop/licenses/codex-0.149.0/NATIVE_PROVENANCE.json"
+        ROOT / "extras/desktop/licenses/codex-0.162.0/NATIVE_PROVENANCE.json"
     ),
     "third-party/codex-native/NATIVE_THIRD_PARTY_NOTICES.md": (
-        ROOT / "extras/desktop/licenses/codex-0.149.0/NATIVE_THIRD_PARTY_NOTICES.md"
+        ROOT / "extras/desktop/licenses/codex-0.162.0/NATIVE_THIRD_PARTY_NOTICES.md"
     ),
     "third-party/ratatui/LICENSE": (ROOT / "extras/desktop/licenses/ratatui-0.30.2/LICENSE"),
     "third-party/ripgrep/COPYING": (ROOT / "extras/desktop/licenses/ripgrep-15.2.0/COPYING"),
@@ -103,31 +103,30 @@ def _materialize_packaged_codex_bundle(resources: Path) -> Path:
     manifest = {
         "schema": "echo.codex_bundle.v1",
         "package": "@openai/codex",
-        "version": "0.149.0",
+        "version": "0.162.0",
         "platformPackage": "@openai/codex-win32-x64",
         "platformPackageIntegrity": (
-            "sha512-qKbwSOOO/fdhQ5MlXE2fts6taPxRPZ/zqeC+eqHD72hLRymV9rFCUbUxOCquogn"
-            "UPRPvS/2/kRCV0UVhoDd3yQ=="
+            "sha512-W8kqHaqpW0qPz71E0rRT5dq+socGz1BbJyYN7o3SP1TWQt8Zl6ML74R9Hvt/xn1NNLVlDTRfXqNmaMkte6yEMQ=="
         ),
         "target": "x86_64-pc-windows-msvc",
         "fileHashPhase": "pre-authenticode",
         "licenses": {
             "codex": {
-                "version": "0.149.0",
-                "sourceTag": "rust-v0.149.0",
-                "sourceCommit": "758ef40f50c1a458425c7cfbf1eb12cbc07af0b0",
+                "version": "0.162.0",
+                "sourceTag": "rust-v0.162.0",
+                "sourceCommit": "c1382380de69521303b416720a52f42d51af6248",
                 "cargoLockSha256": (
-                    "0c32858e9c47d0acf82735c8620c96840a5381152eec63acad15d1acadb9edad"
+                    "49fe417bcafe3f69f1f6636e23274f90d37e75e388127a76888c39001a4f8117"
                 ),
                 "cargoAboutVersion": "0.9.2",
             },
             "native": {
                 "schemaVersion": "codex-native-notices.v1",
                 "provenanceSha256": (
-                    "65e2c0c7f7b239ee758133ce17cfb680bc38aec84876ca81015458c41a988c7a"
+                    "5f3387fd6b2bb618e3b8e889dd5aa11d9d3aa118f1997f53f78a901e2d049564"
                 ),
                 "noticeSha256": (
-                    "da7997facd0e36f4ebca01594c60abdc1204f5421a35d28c4760b13addf247c5"
+                    "d29f6f45e7ba6ca221326de7690739fe489709f222dc7270ab6f32feae9332fd"
                 ),
                 "componentCount": 12,
                 "licenseInputCount": 80,
@@ -443,7 +442,7 @@ def test_packaged_desktop_backend_has_no_uv_python_or_network_fallback() -> None
         for relative in (*CODEX_BUNDLE_EXECUTABLES, *CODEX_BUNDLE_LICENSE_SOURCES):
             assert f'"{relative}"' in source
     assert 'relative: "codex-package.json"' in source
-    assert "841d5072916479fc3d6fbe8c4b240b66d468de9f625a2fcb658c34fe1a4ec771" in source
+    assert "7b1aa4f2b848e7f0e88adcf17e7a7184b454945e66a1d2967854b8a5183cb00d" in source
     assert '"echo-codex-bundle.json"' in source
     assert "required.expectedSha256 || sourceHash" in source
     assert "refusing PATH/network fallback" in source
@@ -774,7 +773,7 @@ def test_windows_workflow_builds_and_smokes_canonical_offline_shell() -> None:
     assert 'Join-Path $codexRoot "bin/codex.exe"' in codex_preflight
     assert "echo.codex_bundle.v1" in codex_preflight
     assert "codex-native-notices.v1" in codex_preflight
-    assert 'version -ne "0.149.0"' in codex_preflight
+    assert 'version -ne "0.162.0"' in codex_preflight
     for relative in CODEX_BUNDLE_EXECUTABLES:
         assert f'"{relative}"' in codex_preflight
     for relative in CODEX_BUNDLE_LICENSE_SOURCES:
@@ -881,23 +880,23 @@ def test_windows_desktop_build_toolchain_is_declared_and_locked() -> None:
     assert root_package["optional-dependencies"]["desktop-build"] == [{"name": "pyinstaller"}]
 
     frontend = json.loads(FRONTEND_PACKAGE.read_text(encoding="utf-8"))
-    assert frontend["devDependencies"]["@openai/codex"] == "0.149.0"
+    assert frontend["devDependencies"]["@openai/codex"] == "0.162.0"
     lock = FRONTEND_LOCK.read_text(encoding="utf-8")
-    assert "'@openai/codex@0.149.0-win32-x64':" in lock
-    assert "'@openai/codex-win32-x64': '@openai/codex@0.149.0-win32-x64'" in lock
+    assert "'@openai/codex@0.162.0-win32-x64':" in lock
+    assert "'@openai/codex-win32-x64': '@openai/codex@0.162.0-win32-x64'" in lock
 
 
 def test_windows_codex_preparer_copies_only_the_locked_official_platform_package() -> None:
     source = CODEX_PREPARE.read_text(encoding="utf-8")
 
-    assert 'const CODEX_VERSION = "0.149.0";' in source
+    assert 'const CODEX_VERSION = "0.162.0";' in source
     assert 'const PLATFORM_PACKAGE = "@openai/codex-win32-x64";' in source
     assert "PLATFORM_PACKAGE_INTEGRITY" in source
     assert 'const TARGET_TRIPLE = "x86_64-pc-windows-msvc";' in source
-    assert 'const CODEX_SOURCE_COMMIT = "758ef40f50c1a458425c7cfbf1eb12cbc07af0b0";' in source
+    assert 'const CODEX_SOURCE_COMMIT = "c1382380de69521303b416720a52f42d51af6248";' in source
     assert 'const CARGO_ABOUT_VERSION = "0.9.2";' in source
-    assert "65e2c0c7f7b239ee758133ce17cfb680bc38aec84876ca81015458c41a988c7a" in source
-    assert "da7997facd0e36f4ebca01594c60abdc1204f5421a35d28c4760b13addf247c5" in source
+    assert "5f3387fd6b2bb618e3b8e889dd5aa11d9d3aa118f1997f53f78a901e2d049564" in source
+    assert "d29f6f45e7ba6ca221326de7690739fe489709f222dc7270ab6f32feae9332fd" in source
     assert 'const RATATUI_VERSION = "0.30.2";' in source
     assert "3274ba0a2c5e1bcad2a2005d20f4dc59dad26b2eb0940fb094500dba4099d57d" in source
     assert 'const RIPGREP_VERSION = "15.2.0";' in source
@@ -911,9 +910,9 @@ def test_windows_codex_preparer_copies_only_the_locked_official_platform_package
     for relative in CODEX_BUNDLE_LICENSE_SOURCES:
         assert f'"{relative}"' in source
     for report_hash in (
-        "841d5072916479fc3d6fbe8c4b240b66d468de9f625a2fcb658c34fe1a4ec771",
-        "6b562200ef39938051e8eca39ce61a4d032752e04e1d21ba0fe216bd0ad91434",
-        "8858ef427eb901498d06d12d14ce6c3ef53fdeb352251006276dac8ec53ac5e4",
+        "7b1aa4f2b848e7f0e88adcf17e7a7184b454945e66a1d2967854b8a5183cb00d",
+        "3d0d447d99ebd115a11d1c21cba0c647ed31cdde805e34b6048ac339c744b74e",
+        "5a54dbd5ce12664d4b3a7b841bca95fea8e99cd37a97f6e21138faf0e8ba76eb",
     ):
         assert report_hash in source
     assert "bundled license text failed its source hash" in source
@@ -929,32 +928,33 @@ def test_windows_codex_third_party_reports_are_reproducibly_pinned() -> None:
     # Same digests prepare-codex-*.cjs verify before bundling the reports.
     reports = {
         "THIRD_PARTY_LICENSES-codex-cli.html": (
-            "841d5072916479fc3d6fbe8c4b240b66d468de9f625a2fcb658c34fe1a4ec771"
+            "7b1aa4f2b848e7f0e88adcf17e7a7184b454945e66a1d2967854b8a5183cb00d"
         ),
         "THIRD_PARTY_LICENSES-code-mode-host.html": (
-            "6b562200ef39938051e8eca39ce61a4d032752e04e1d21ba0fe216bd0ad91434"
+            "3d0d447d99ebd115a11d1c21cba0c647ed31cdde805e34b6048ac339c744b74e"
         ),
         "THIRD_PARTY_LICENSES-windows-sandbox.html": (
-            "8858ef427eb901498d06d12d14ce6c3ef53fdeb352251006276dac8ec53ac5e4"
+            "5a54dbd5ce12664d4b3a7b841bca95fea8e99cd37a97f6e21138faf0e8ba76eb"
         ),
     }
 
-    assert 'CODEX_VERSION = "0.149.0"' in generator
-    assert 'CODEX_COMMIT = "758ef40f50c1a458425c7cfbf1eb12cbc07af0b0"' in generator
+    assert 'CODEX_VERSION = "0.162.0"' in generator
+    assert 'CODEX_COMMIT = "c1382380de69521303b416720a52f42d51af6248"' in generator
     assert 'RIPGREP_COMMIT = "e89fff89ac9af12e8d4ce9d5fd07beb408ca730f"' in generator
     assert 'CARGO_ABOUT_VERSION = "0.9.2"' in generator
     assert 'TARGET = "x86_64-pc-windows-msvc"' in generator
     assert '"--locked"' in generator
     assert '"--fail"' in generator
-    assert 'git", "archive"' in generator
+    assert '"archive"' in generator and '"--format=tar"' in generator
+    assert '"core.autocrlf=false"' in generator
     assert 'version = "0.0.0"' in generator
 
-    license_root = ROOT / "extras/desktop/licenses/codex-0.149.0"
+    license_root = ROOT / "extras/desktop/licenses/codex-0.162.0"
     for filename, expected_hash in reports.items():
         report = license_root / filename
         payload = report.read_bytes()
         assert _sha256(payload) == expected_hash
-        assert b"OpenAI Codex 0.149.0 Third-Party Licenses" in payload
+        assert b"OpenAI Codex 0.162.0 Third-Party Licenses" in payload
 
     config = (license_root / "cargo-about.toml").read_text(encoding="utf-8")
     assert 'targets = ["x86_64-pc-windows-msvc"]' in config
@@ -971,7 +971,7 @@ def test_windows_codex_third_party_reports_are_reproducibly_pinned() -> None:
     assert "ignore-transitive-dependencies = false" in ripgrep_config
 
     native_generator = CODEX_NATIVE_LICENSE_GENERATOR.read_text(encoding="utf-8")
-    assert 'CODEX_COMMIT = "758ef40f50c1a458425c7cfbf1eb12cbc07af0b0"' in native_generator
+    assert 'CODEX_COMMIT = "c1382380de69521303b416720a52f42d51af6248"' in native_generator
     assert 'RUSTY_V8_COMMIT = "5c15a6995c9bb4bacd3e341b59fff32c909c80bf"' in native_generator
     assert 'V8_COMMIT = "ac1e23989121713ca642f6650b34deff7b686896"' in native_generator
     assert 'ICU_COMMIT = "ee5f27adc28bd3f15b2c293f726d14d2e336cbd5"' in native_generator
@@ -1154,24 +1154,24 @@ def test_linux_backend_spec_mirrors_darwin_entry() -> None:
 def test_linux_codex_preparer_pins_only_the_locked_linux_packages() -> None:
     source = (ROOT / "extras/desktop/prepare-codex-linux.cjs").read_text(encoding="utf-8")
 
-    assert 'const CODEX_VERSION = "0.149.0";' in source
+    assert 'const CODEX_VERSION = "0.162.0";' in source
     assert 'platformPackage: "@openai/codex-linux-x64"' in source
     assert 'platformPackage: "@openai/codex-linux-arm64"' in source
     assert 'targetTriple: "x86_64-unknown-linux-musl"' in source
     assert 'targetTriple: "aarch64-unknown-linux-musl"' in source
     assert (
-        "sha512-uZXaN9JPxu0/jjnqqJeTd4kRYPnjVZK3MiVndfG1mHhEaoDKL7ScWHfPqvAEOjwsSDEmQSlMfUkmvYp/CHciYw=="
+        "sha512-qHWp6oKpf456PqjberGN8avs8zChv2oS+UuDiqVFYAuDOhq6vBc1drh8jEsnR7dBX+zcw03PN5VLtePGlMcC3w=="
         in source
     )
     assert (
-        "sha512-fAXPpvIob+11RNZJS9CVVTsKb+V4Hw3woGFPj42D7fU2wBJUKI2jfAc4fLJNtrpwRecLeW601mtkMHOSIbWuuA=="
+        "sha512-6NYWwy09FsZ+/0Dz/bvV/yz3aFhkNzj86fSiux9Ax9VMBOID5nPdwd51OySm7fy8TMRud4fgJFELSi3Enc1s7Q=="
         in source
     )
     assert '"codex-resources/bwrap"' in source
     assert 'EXECUTABLE_MAGIC = "7f454c46"' in source
     assert 'schema: "echo.codex_bundle.v1"' in source
     assert 'fileHashPhase: "pre-package"' in source
-    assert "841d5072916479fc3d6fbe8c4b240b66d468de9f625a2fcb658c34fe1a4ec771" in source
+    assert "7b1aa4f2b848e7f0e88adcf17e7a7184b454945e66a1d2967854b8a5183cb00d" in source
     # Linux binary is filtered from node_modules on every non-Linux host, so the
     # preparer must be able to fetch the registry tarball pinned by the lock's
     # integrity (verified byte-for-byte before extraction). Offline never applies
@@ -1183,7 +1183,7 @@ def test_linux_codex_preparer_pins_only_the_locked_linux_packages() -> None:
 
 
 def test_all_codex_preparers_pin_the_current_shared_license_report() -> None:
-    expected = "841d5072916479fc3d6fbe8c4b240b66d468de9f625a2fcb658c34fe1a4ec771"
+    expected = "7b1aa4f2b848e7f0e88adcf17e7a7184b454945e66a1d2967854b8a5183cb00d"
 
     for script_name in (
         "prepare-codex-win.cjs",

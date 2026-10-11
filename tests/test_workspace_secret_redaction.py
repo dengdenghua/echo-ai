@@ -356,21 +356,19 @@ def test_legacy_per_field_ciphertext_still_decrypts() -> None:
     assert decrypt_options(stored) == {"credentials": [{"token": "old-tok", "label": "first"}]}
 
 
-def test_plaintext_fallback_logs_a_warning_without_values(
+def test_unavailable_encryption_refuses_plaintext_without_disclosing_values(
     monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
 ) -> None:
     monkeypatch.setattr(crypto_mod, "_cipher", lambda: None)
     with caplog.at_level(logging.WARNING, logger="echo.workspace.crypto"):
-        stored = encrypt_options(OPTIONS)
-    assert json.loads(stored) == OPTIONS
-    [record] = [r for r in caplog.records if "PLAINTEXT" in r.getMessage()]
-    message = record.getMessage()
-    for path in SECRET_PATHS:
-        assert path in message
+        with pytest.raises(RuntimeError, match="credential encryption is unavailable") as failure:
+            encrypt_options(OPTIONS)
+    message = str(failure.value) + "\n" + caplog.text
     for secret in SECRET_VALUES:
         assert secret not in message
 
     caplog.clear()
     with caplog.at_level(logging.WARNING, logger="echo.workspace.crypto"):
-        encrypt_options({"username": "alice"})
+        stored = encrypt_options({"username": "alice"})
+    assert json.loads(stored) == {"username": "alice"}
     assert not [r for r in caplog.records if "PLAINTEXT" in r.getMessage()]

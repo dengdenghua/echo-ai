@@ -27,6 +27,7 @@ Native planner exports, loaded only when a caller actually requests them.
 | --- | --- |
 | `_planner_helpers.py` | Pure helper functions extracted from :mod:`runtime.core.cerebrum.llm_planner`. |
 | `_planner_parse.py` | Plan-JSON extraction + node validation for :class:`LLMPlanner`. |
+| `_react_action_review.py` | One approval gate shared by single actions and multi-action batches. |
 | `_react_approval_pause.py` | Approval outcomes that pause a ReAct turn instead of failing it. |
 | `_react_context_attachments.py` | User-message content assembly (attachments, images, JSONL manifest), message checkpoint (de)serialization helpers, and related-file prefetching. |
 | `_react_context_code.py` | Code-context prelude and mode/workflow/signals prompt builders. |
@@ -139,6 +140,13 @@ Native planner exports, loaded only when a caller actually requests them.
 | --- | --- | --- |
 | func | `def extract_plan_json(text)` | Extract the LLM's JSON plan from free-form text. |
 | func | `def validate_plan_nodes(nodes, registry, max_nodes)` | Validate the LLM's raw plan nodes against the skill registry. |
+
+### `_react_action_review.py`
+
+| Kind | Symbol | Doc |
+| --- | --- | --- |
+| class | `class ActionReview` |  |
+| func | `def review_tool_action(state, resolved_name, input_preview, call_id, iteration, guardian_reviewer, auto_review_provider, approval_timeout_s)` | Review immediately before dispatch, after earlier untrusted output taints the turn. |
 
 ### `_react_context_helpers.py`
 

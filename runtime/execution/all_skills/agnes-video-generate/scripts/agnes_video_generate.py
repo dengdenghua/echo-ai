@@ -9,9 +9,9 @@ Provider is auto-detected from ``base_url``:
   Request body uses a ``content`` array (text / image_url). Terminal success
   status is ``succeeded``; the video URL lives under ``content.video_url``.
 - **Agnes AI Gateway** — ``https://apihub.agnes-ai.com/v1``,
-  model ``agnes-video-v2.0``:
+  model ``agnes-video-2.5-flash`` (legacy v2.0 remains selectable):
     POST  {base}/videos        — create task
-    GET   {base}/videos/{id}   — poll status
+    GET   /agnesapi?video_id={id}&model_name={model} — poll 2.5 status
   Terminal success status is ``completed``; video URL is top-level.
 
 By default this skill blocks until the task completes (``wait=True``),
@@ -32,6 +32,7 @@ import os
 import time
 from dataclasses import dataclass
 from typing import Any
+from urllib.parse import urlencode, urlsplit, urlunsplit
 
 import requests
 
@@ -43,7 +44,7 @@ VOLC_MODEL = "doubao-seedance-1.5-pro"
 
 # Agnes AI Gateway — OpenAI 兼容
 AGNES_URL = "https://apihub.agnes-ai.com/v1"
-AGNES_MODEL = "agnes-video-v2.0"
+AGNES_MODEL = "agnes-video-2.5-flash"
 
 DEFAULT_BASE_URL = VOLC_URL
 DEFAULT_MODEL = VOLC_MODEL
@@ -110,6 +111,7 @@ def generate_video(
     height: int = 768,
     num_frames: int = 49,
     frame_rate: int = 24,
+    seconds: str | int = "5",
     image: str | list[str] | None = None,
     seed: int | None = None,
     wait: bool = True,
@@ -127,14 +129,17 @@ def generate_video(
         Text instruction for the desired video. Required.
     model
         Default ``doubao-seedance-1.5-pro`` (Volcano) if base URL is Volcano,
-        else ``agnes-video-v2.0``.
+        else ``agnes-video-2.5-flash``.
     width, height
         Output resolution hint. Used to derive ratio for Volcano.
     num_frames
-        Total frames. For Agnes must satisfy ``8n+1`` (49, 81, 121, ...).
+        Legacy Agnes v2.0 frames must satisfy ``8n+1`` (49, 81, 121, ...).
+        Agnes 2.5 uses ``seconds`` instead and omits legacy frame controls.
         For Volcano this maps to a ``duration`` hint (frames/fps, clamped ≥1).
     frame_rate
-        Frames per second, 1..60. Default 24.
+        Legacy/Volcano frames per second, 1..60. Default 24.
+    seconds
+        Agnes 2.5 duration, string or integer 4..12; default 5.
     image
         Optional reference image URL(s):
           - single string: image-to-video (first frame)
@@ -194,6 +199,40 @@ def generate_video(
         }
         if seed is not None:
             payload["seed"] = int(seed)
+    elif model in {"agnes-video-2.5", "agnes-video-2.5-flash"}:
+        # 2.5 uses seconds/mode/size; legacy frame controls are forbidden.
+        duration = str(seconds)
+        if duration not in {str(value) for value in range(4, 13)}:
+            raise ValueError("Agnes 2.5 seconds must be 4..12")
+        payload = {
+            "model": model,
+            "prompt": str(prompt).strip(),
+            "mode": "keyframe" if image is not None else "text",
+            "seconds": duration,
+            "size": "720P",
+        }
+        if image is not None:
+            frames = [image] if isinstance(image, str) else image
+            if not 1 <= len(frames) <= 2 or not all(
+                isinstance(item, str) and item for item in frames
+            ):
+                raise ValueError("Agnes 2.5 keyframes require one or two image URLs")
+            payload["first_frame"] = frames[0]
+            if len(frames) == 2:
+                payload["last_frame"] = frames[1]
+        if seed is not None:
+            payload["seed"] = int(seed)
+        forbidden = {
+            "width",
+            "height",
+            "num_frames",
+            "frame_rate",
+            "fps",
+            "num_inference_steps",
+            "quality",
+        }
+        if extra and forbidden.intersection(extra):
+            raise ValueError("Agnes 2.5 does not accept legacy frame controls")
     else:
         _validate_agnes_frames(int(num_frames))
         payload = {
@@ -252,7 +291,7 @@ def generate_video(
         )
 
     data = resp.json()
-    task_id = str(data.get("task_id") or data.get("id") or "")
+    task_id = str(data.get("video_id") or data.get("task_id") or data.get("id") or "")
     if not task_id:
         raise RuntimeError(f"video create returned no task_id: {data!r}")
 
@@ -274,6 +313,7 @@ def generate_video(
         api_key=api_key,
         base_url=base_url,
         initial=initial,
+        model=model,
         max_wait_seconds=int(max_wait_seconds),
         poll_interval_seconds=float(poll_interval_seconds),
     )
@@ -284,6 +324,7 @@ def poll_video(
     *,
     api_key: str | None = None,
     base_url: str | None = None,
+    model: str | None = None,
 ) -> dict[str, Any]:
     """One-shot status poll for a previously-submitted task."""
     if not task_id:
@@ -293,11 +334,28 @@ def poll_video(
         api_key = api_key or cfg.api_key
         base_url = (base_url or cfg.base_url).rstrip("/")
 
+    chosen_model = model or (VOLC_MODEL if _is_volcano(base_url) else AGNES_MODEL)
     poll_url = (
         f"{base_url}/contents/generations/tasks/{task_id}"
         if _is_volcano(base_url)
         else f"{base_url}/videos/{task_id}"
     )
+    if not _is_volcano(base_url) and chosen_model in {"agnes-video-2.5", "agnes-video-2.5-flash"}:
+        parts = urlsplit(base_url)
+        poll_url = urlunsplit(
+            (
+                parts.scheme,
+                parts.netloc,
+                "/agnesapi",
+                urlencode(
+                    {
+                        "video_id": task_id,
+                        "model_name": chosen_model,
+                    }
+                ),
+                "",
+            )
+        )
     headers = {"Authorization": f"Bearer {api_key}"}
     try:
         resp = requests.get(poll_url, headers=headers, timeout=30)
@@ -319,6 +377,7 @@ def _poll_until_done(
     api_key: str,
     base_url: str,
     initial: dict[str, Any],
+    model: str,
     max_wait_seconds: int,
     poll_interval_seconds: float,
 ) -> dict[str, Any]:
@@ -329,7 +388,7 @@ def _poll_until_done(
         time.sleep(interval)
         interval = min(15.0, interval * 1.2)
         try:
-            last = poll_video(task_id, api_key=api_key, base_url=base_url)
+            last = poll_video(task_id, api_key=api_key, base_url=base_url, model=model)
         except RuntimeError as exc:
             _LOG.warning("video poll transient error: %s", exc)
             continue

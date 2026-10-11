@@ -27,6 +27,25 @@ pnpm electron        # 仅拉起 Electron(假定 dev server 已在运行)
 打开桌面端浏览器标签页后才会显示为可操作；Codex 内部预览页不是 Echo Electron 标签页。
 数据目录、目标限制及真实集成测试见 [自动化插件架构](../../docs/architecture/automation-plugins.md)。
 
+浏览器扩展的 `commands` 在聚焦的浏览器标签页中处理，并支持
+`_execute_action`、`_execute_browser_action`、`_execute_page_action`。
+`getAll()` 返回实际分配；重复绑定、应用保留键和全局命令返回空快捷键。
+不会注册系统全局快捷键。工具栏动作、弹窗、右键菜单和快捷键的真实 Electron
+验收包含加载额外扩展后继续使用原 worker，避免 Chromium 的惰性 API 绑定覆盖兼容方法。
+
+`declarativeNetRequest` 使用 Chromium 原生规则编译器与网络匹配器，保留原生权限检查。
+安装和启动时初始化清单中的静态规则集，并保存用户启用的规则集（包括全部关闭）；
+禁用再启用和重启保留选择，卸载后同 ID 重装恢复清单默认值并清除旧动态/会话规则。
+动态规则由 Chromium 持久化，会话规则在重启后清空；普通浏览器配置中的规则不作用于
+独立的隐私会话。Windows 真实 Electron 验收覆盖阻断、重定向、修改请求头、权限边界、
+生命周期和无效规则回滚，不代表完整 Chrome 扩展 API 或其他平台已通过验收。
+
+扩展侧栏通过 `WebContentsView` 嵌入浏览器主窗口，网页与侧栏并排预留空间，
+保留独立扩展 origin、sandbox 和 contextIsolation。侧栏支持关闭按钮、窗口调整和
+应用缩放，离开浏览器页面时隐藏，禁用/移除扩展与退出时关闭原生内容。
+`setOptions` 的 tab 配置独立于默认配置，路径限于本扩展；扩展仍只能使用当前
+Echo 兼容的 API 子集，尚未实现 Chrome 的用户手势授权与多窗口侧栏语义。
+
 ## 打包渲染源
 
 - 正式包和 Electron 冒烟使用固定安全源 `echo-app://app/index.html`,不使用
@@ -66,7 +85,7 @@ pnpm electron        # 仅拉起 Electron(假定 dev server 已在运行)
   `extras/desktop/electron/` 已退役，不得直接产出安装包。
 - 当前生产打包仅支持 Windows x64。CI 先用 PyInstaller 生成
   `extras/desktop/build/backend/echo-backend.exe`，再从 pnpm 锁定的官方
-  `@openai/codex@0.149.0` Windows 平台包生成 `extras/desktop/build/codex/`，
+  `@openai/codex@0.162.0` Windows 平台包生成 `extras/desktop/build/codex/`，
   最后从 `frontend/` 执行 `pnpm electron:build:win`。macOS/Linux 在拥有对应的
   随包后端前明确拒绝发布。
 - 正式构建只从受保护的 `windows-code-signing` Environment 注入 base64 PKCS#12 与密码；

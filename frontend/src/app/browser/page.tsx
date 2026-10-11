@@ -36,6 +36,7 @@ import { useNavigate, useSearchParams } from "react-router-dom";
 import { TabBar } from "@/components/browser/tab-bar";
 import { AssistantSurface } from "@/components/browser/assistant-surface";
 import { UrlBar } from "@/components/browser/url-bar";
+import { ExtensionSidePanel } from "@/components/browser/extension-side-panel";
 import {
   BROWSER_HOME_URL,
   BROWSER_OPEN_URL_REQUEST_KEY,
@@ -950,6 +951,7 @@ function BrowserShell() {
                 </div>
               </div>
             </div>
+            <ExtensionSidePanel />
             <AssistantSurface
               open={state.copilotOpen}
               onOpenChange={setCopilotOpen}

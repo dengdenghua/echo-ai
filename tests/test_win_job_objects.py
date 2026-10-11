@@ -58,6 +58,33 @@ def _child_code(pid_file: Path, *, linger: bool) -> str:
     )
 
 
+@windows_only
+@pytest.mark.parametrize("runner", ["stream", "sandbox"])
+@pytest.mark.parametrize("timeout", [False, True])
+def test_execution_runners_preserve_daemons_only_on_normal_completion(
+    tmp_path: Path, reap: Any, runner: str, timeout: bool
+) -> None:
+    pid_file = tmp_path / "runner-grandchild.pid"
+    command = [sys.executable, "-c", _child_code(pid_file, linger=timeout)]
+    if runner == "stream":
+        from runtime.platform.process.streaming import stream_run
+
+        result = stream_run(command, cwd=str(tmp_path), timeout=2 if timeout else 10)
+        assert result["timed_out"] is timeout
+    else:
+        from runtime.safety.sandboxing.sandbox import SandboxPolicy, SandboxRunner
+
+        policy = SandboxPolicy(workspace=tmp_path, timeout_s=2 if timeout else 10)
+        result = SandboxRunner(policy).run(command)
+        assert result.timed_out is timeout
+    grandchild = _read_pid(pid_file)
+    reap(grandchild)
+    if timeout:
+        assert _wait_until(lambda: not windows_pid_alive(grandchild))
+    else:
+        assert windows_pid_alive(grandchild)
+
+
 @pytest.fixture
 def reap() -> Any:
     """Kill anything a failing test leaves behind (by pid, via taskkill)."""

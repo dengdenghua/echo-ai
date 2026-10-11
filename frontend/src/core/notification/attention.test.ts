@@ -450,6 +450,22 @@ describe("attention notification rules", () => {
 });
 
 describe("attention helpers", () => {
+  it("distinguishes review limits from approval timeouts", () => {
+    const signal = classifyPauseRequest({
+      reason: "approval_required",
+      note: "自动审查本轮已拒绝 3 次（shell 未执行），需要你决定是否继续。",
+    });
+    expect(signal).toEqual({ kind: "approval", reason: "auto_review_stopped" });
+    expect(
+      attentionTitle(attentionNotificationsZhCN, "approval", signal?.reason),
+    ).toBe("自动审查已暂停，需要你的决定");
+    expect(
+      classifyPauseRequest({
+        reason: "approval_required",
+        note: "shell: waiting for user",
+      }),
+    ).toEqual({ kind: "approval", reason: "approval_timeout" });
+  });
   it("parses the realtime thread route", () => {
     expect(threadIdFromPathname("/workspace/realtime/abc%20d")).toBe("abc d");
     expect(threadIdFromPathname("/workspace/projects")).toBeNull();

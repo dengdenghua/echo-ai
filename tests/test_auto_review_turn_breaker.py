@@ -367,6 +367,62 @@ def test_interactive_turn_denials_accumulate_across_iterations_and_pause(
 # ── background loop ──────────────────────────────────────────────────────
 
 
+@pytest.mark.parametrize("mode", ["default", "acceptEdits"])
+@pytest.mark.parametrize("approved", [False, True])
+def test_interactive_batch_reviews_each_shell_action(mode, approved) -> None:
+    shell_calls: list[str] = []
+    reviewer = _SequenceReviewer([], default="allow" if approved else "deny")
+    human_requests: list[Any] = []
+
+    class HumanApproval:
+        def request(self, request, **_kwargs):
+            human_requests.append(request)
+            return ApprovalDecision(approved=approved, reason="human decision")
+
+    batch = (
+        "Thought: execute both requested commands\nAction:\n"
+        'exec_shell({"command":"rm -rf a"})\n'
+        'exec_shell({"command":"rm -rf b"})\n'
+    )
+    stack = _Stack(_ScriptedRouter([batch, "Final Answer: done"]), reviewer, shell_calls)
+    intent = ParsedIntent(
+        raw="clean both directories",
+        intent_type="task",
+        normalized_goal="clean both directories",
+        user_context={"permission_mode": mode},
+    )
+    result = run_react_loop(
+        stack, intent, None, max_iterations=4, thread_id="batch", approval_provider=HumanApproval()
+    )
+
+    assert result is not None
+    assert len(human_requests if mode == "default" else reviewer.requests) == 2
+    assert shell_calls == (["rm -rf a", "rm -rf b"] if approved else [])
+
+
+def test_batch_review_stop_pauses_before_remaining_actions(pause_controller) -> None:
+    shell_calls: list[str] = []
+    reviewer = _SequenceReviewer([], default="deny")
+    batch = "Thought: clean all directories\nAction:\n" + "\n".join(
+        f'exec_shell({{"command":"rm -rf {target}"}})' for target in ("a", "b", "c", "d")
+    )
+    stack = _Stack(_ScriptedRouter([batch]), reviewer, shell_calls)
+    intent = ParsedIntent(
+        raw="clean directories",
+        intent_type="task",
+        normalized_goal="clean directories",
+        user_context={"permission_mode": "acceptEdits"},
+    )
+
+    result = run_react_loop(stack, intent, None, max_iterations=4, thread_id="batch-pause")
+
+    assert result.terminated_reason == "paused"
+    assert len(reviewer.requests) == 3
+    assert shell_calls == []
+    assert len(pause_controller.list_paused()) == 1
+    assert pause_controller.list_paused()[0].reason == "approval_required"
+
+
 def test_loop_pauses_for_a_person_after_repeated_review_denials(
     tmp_path, pause_controller: PauseController
 ) -> None:
@@ -414,13 +470,10 @@ def test_loop_shell_has_no_network_by_default(tmp_path, pause_controller) -> Non
     assert seen["model_asks"] is False
 
 
-def _network_probe_stack(reviewer: Any, router: Any, seen: list[bool]) -> _Stack:
-    """A stack with a ``lint`` tool that hits a sandbox violation without network.
-
-    ``lint`` is sandbox-escalable and read-only, so the executor's effect
-    store lets the approved rerun re-enter it (a side-effecting ``exec_shell``
-    rerun reuses the same step key and is refused as indeterminate).
-    """
+def _network_probe_stack(
+    reviewer: Any, router: Any, seen: list[bool], *, tool_name: str = "lint"
+) -> _Stack:
+    """A sandboxed tool: the first attempt fails, only an approved retry can run."""
     from runtime.execution.suckers._write_skills_exec import _resolved_allow_network
 
     stack = _Stack(router, reviewer, [])
@@ -434,25 +487,29 @@ def _network_probe_stack(reviewer: Any, router: Any, seen: list[bool]) -> _Stack
 
     stack.executor.registry.register(
         Skill(
-            name="lint",
+            name=tool_name,
             description="lint the workspace",
-            affinity=["lint", "verify"],
-            trusted_source="builtin://lint",
+            affinity=["shell", "exec", "dangerous"]
+            if tool_name == "exec_shell"
+            else ["lint", "verify"],
+            trusted_source=f"builtin://{tool_name}",
             handler=_lint,
         ),
         verify_tests=False,
+        replace=tool_name == "exec_shell",
     )
     return stack
 
 
-def test_loop_sandbox_escalation_is_one_shot(tmp_path, pause_controller) -> None:
+@pytest.mark.parametrize("tool_name", ["lint", "exec_shell"])
+def test_loop_sandbox_escalation_is_one_shot(tmp_path, pause_controller, tool_name) -> None:
     seen: list[bool] = []
     reviewer = _SequenceReviewer([], default="allow")
     script = [
-        f'Thought: lint {target}\nAction: lint({{"command": "lint {target}"}})\n'
+        f'Thought: lint {target}\nAction: {tool_name}({{"command": "lint {target}"}})\n'
         for target in ("a", "b")
     ] + ["Final Answer: lint is clean"]
-    stack = _network_probe_stack(reviewer, _ScriptedRouter(script), seen)
+    stack = _network_probe_stack(reviewer, _ScriptedRouter(script), seen, tool_name=tool_name)
     controller, store, _ = _controller(tmp_path, stack, pause_controller=pause_controller)
 
     controller.execute(_new_run(store, tmp_path).run_id)
@@ -461,7 +518,7 @@ def test_loop_sandbox_escalation_is_one_shot(tmp_path, pause_controller) -> None
     # and the next call is denied again: the escalation was not persisted.
     assert seen == [False, True, False, True]
     # The reviewer only saw the two escalations (lint itself is low risk).
-    assert len(reviewer.requests) == 2
+    assert len(reviewer.requests) == (4 if tool_name == "exec_shell" else 2)
     assert all("lint" in req.messages[-1].content for req in reviewer.requests)
 
 

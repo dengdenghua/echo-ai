@@ -93,7 +93,8 @@ Tool contracts are available without constructing the executor import graph.
 | Kind | Symbol | Doc |
 | --- | --- | --- |
 | func | `def args_fingerprint(args)` |  |
-| func | `def effect_key(task_id, step_id, sucker_id, args)` |  |
+| func | `def effect_key(task_id, step_id, sucker_id, args, attempt)` |  |
+| func | `def recovered_effect_step(resolution, step_id, node_id, call, journal, task_id, arm_id, actor, span)` | Record a cached or uncertain effect without ever entering its handler. |
 | func | `def is_side_effecting(affinity)` | Fail closed for unknown affinity; known read-only tags may retry. |
 | func | `def not_executed_effect_receipt(call_id, tool_name, reason)` | Return the server-owned proof used by pre-dispatch rejection paths. |
 | func | `def build_server_effect_receipt(skill, call_id, handler_executed, result_status, resolution, receipt_rewrite_source)` | Seal one conservative execution-effect classification. |

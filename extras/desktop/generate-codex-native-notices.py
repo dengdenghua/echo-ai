@@ -27,10 +27,10 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Literal, overload
 
-CODEX_VERSION = "0.149.0"
+CODEX_VERSION = "0.162.0"
 CODEX_TAG = f"rust-v{CODEX_VERSION}"
-CODEX_COMMIT = "758ef40f50c1a458425c7cfbf1eb12cbc07af0b0"
-CODEX_LOCK_SHA256 = "0c32858e9c47d0acf82735c8620c96840a5381152eec63acad15d1acadb9edad"
+CODEX_COMMIT = "c1382380de69521303b416720a52f42d51af6248"
+CODEX_LOCK_SHA256 = "49fe417bcafe3f69f1f6636e23274f90d37e75e388127a76888c39001a4f8117"
 RIPGREP_VERSION = "15.2.0"
 RIPGREP_TAG = RIPGREP_VERSION
 RIPGREP_COMMIT = "e89fff89ac9af12e8d4ce9d5fd07beb408ca730f"
@@ -97,10 +97,10 @@ class CrateSpec:
 CRATES = (
     CrateSpec(
         "aws-lc-sys",
-        "0.39.0",
-        "1fa7e52a4c5c547c741610a2c6f123f3881e409b714cd27e6798ef020c514f0a",
-        "d61726b69d589460645e1b22ebd9a847b7f2f63a",
-        "fb6ac984c1eba4cfdc56591241ed2d390e0e788d7bb9dd0e490e9586fc794955",
+        "0.45.0",
+        "9bff6c3b54fad79a2e60b8102caf565819711497c1f5f092f49508e2f5c31b27",
+        "7943223c99d909bc399bdf1b856821bb04f1f3c5",
+        "3d5536db635b1ff8436446935194bb637accd8693de65ec8678717842571619e",
         ("codex-cli", "code-mode-host", "windows-sandbox"),
         (
             LicenseFile(

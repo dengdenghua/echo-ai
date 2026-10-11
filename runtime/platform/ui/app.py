@@ -176,7 +176,11 @@ def create_app(
         oct_link_store=oct_link_store,
     )
     mount_pages(ctx)
-    mount_meta(ctx, oct_config=oct_config)
+    mount_meta(
+        ctx,
+        oct_config=oct_config,
+        include_default_skill_library=registry is None or stack is not None,
+    )
     mount_routers_a(ctx, journal_path=journal_path)
     mount_routers_b(ctx, journal_path=journal_path)
     return ctx.app

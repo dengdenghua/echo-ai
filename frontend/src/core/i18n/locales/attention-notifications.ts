@@ -10,6 +10,7 @@ export interface AttentionNotificationCopy {
   failedTitle: string;
   approvalTitle: string;
   approvalTimeoutTitle: string;
+  autoReviewStoppedTitle: string;
   blockedTitle: string;
   pausedTitle: string;
   pausedBudgetTitle: string;
@@ -42,6 +43,7 @@ export const attentionNotificationsEnUS: AttentionNotificationCopy = {
   failedTitle: "Task failed",
   approvalTitle: "Needs your approval",
   approvalTimeoutTitle: "Approval timed out — task paused",
+  autoReviewStoppedTitle: "Automatic review stopped — needs your decision",
   blockedTitle: "Waiting for your reply",
   pausedTitle: "Task paused",
   pausedBudgetTitle: "Task paused: budget limit reached",
@@ -75,6 +77,7 @@ export const attentionNotificationsZhCN: AttentionNotificationCopy = {
   failedTitle: "任务失败",
   approvalTitle: "需要你的审批",
   approvalTimeoutTitle: "审批超时，任务已暂停",
+  autoReviewStoppedTitle: "自动审查已暂停，需要你的决定",
   blockedTitle: "等待你的回复",
   pausedTitle: "任务已暂停",
   pausedBudgetTitle: "任务已暂停：预算已达上限",
@@ -105,6 +108,7 @@ export const attentionNotificationsJaJP: AttentionNotificationCopy = {
   failedTitle: "タスクが失敗しました",
   approvalTitle: "承認が必要です",
   approvalTimeoutTitle: "承認がタイムアウトし、タスクを一時停止しました",
+  autoReviewStoppedTitle: "自動審査を一時停止しました。判断が必要です",
   blockedTitle: "返信を待っています",
   pausedTitle: "タスクを一時停止しました",
   pausedBudgetTitle: "一時停止：予算の上限に達しました",
@@ -137,6 +141,7 @@ export const attentionNotificationsKoKR: AttentionNotificationCopy = {
   failedTitle: "작업이 실패했습니다",
   approvalTitle: "승인이 필요합니다",
   approvalTimeoutTitle: "승인 시간이 초과되어 작업이 일시 중지되었습니다",
+  autoReviewStoppedTitle: "자동 검토가 중지되었습니다. 결정이 필요합니다",
   blockedTitle: "답장을 기다리고 있습니다",
   pausedTitle: "작업이 일시 중지되었습니다",
   pausedBudgetTitle: "일시 중지: 예산 한도에 도달했습니다",

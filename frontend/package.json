@@ -1,6 +1,6 @@
 {
   "name": "echo-frontend",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Echo — intelligent character platform powered by EchoOS",
   "author": "EchoOS Authors",
   "license": "Apache-2.0",
@@ -140,7 +140,7 @@
     "@commitlint/config-conventional": "^21.2.0",
     "@eslint/eslintrc": "^3.3.1",
     "@fiahfy/ico": "^0.0.5",
-    "@openai/codex": "0.149.0",
+    "@openai/codex": "0.162.0",
     "@playwright/test": "^1.59.1",
     "@tailwindcss/postcss": "^4.0.15",
     "@tailwindcss/vite": "^4.2.2",

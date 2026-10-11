@@ -340,10 +340,11 @@ def test_unserializable_result_fails_loud() -> None:
 
 def test_cancel_mid_run() -> None:
     started = asyncio.Event()
+    release = asyncio.Event()
 
     async def slow_dispatch(request: dict[str, Any]) -> dict[str, Any]:
         started.set()
-        await asyncio.sleep(0.5)
+        await release.wait()
         return {"ok": True, "output": "OUT", "structured": None, "stop_reason": "completed"}
 
     async def scenario() -> Any:
@@ -354,6 +355,7 @@ def test_cancel_mid_run() -> None:
             run.cancel("user asked to stop")
             return await asyncio.wait_for(run.result, timeout=10)
         finally:
+            release.set()
             await run.dispose()
 
     result = asyncio.run(scenario())
@@ -512,7 +514,9 @@ def test_run_total_duration_cap() -> None:
     assert result.agents_started in {0, 1}
 
 
-@pytest.mark.skipif(not hasattr(os, "getsid"), reason="POSIX session IDs are unavailable on Windows")
+@pytest.mark.skipif(
+    not hasattr(os, "getsid"), reason="POSIX session IDs are unavailable on Windows"
+)
 def test_worker_runs_in_own_session() -> None:
     """The worker subprocess must be a session leader so tree termination
     can kill its children (audit T-10)."""

@@ -18,6 +18,7 @@ export interface ThreadAttentionSignal {
   kind: "approval" | "blocked" | "paused";
   reason?:
     | "approval_timeout"
+    | "auto_review_stopped"
     | "budget"
     | "iteration"
     | "wall_clock"

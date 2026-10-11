@@ -288,7 +288,14 @@ export function useDirectTurnSenders({
       if (!text || isLoading || !readyForMutations) return;
       event.preventDefault();
       markSidebarThreadRunning(threadId);
-      void sendMessage(threadId, { text, files: [] });
+      void sendMessage(threadId, {
+        text,
+        files: [],
+        clientMessageId:
+          typeof detail?.clientMessageId === "string"
+            ? detail.clientMessageId
+            : undefined,
+      });
     };
     window.addEventListener(QUICK_REPLY_EVENT, handleQuickReply);
     return () => {

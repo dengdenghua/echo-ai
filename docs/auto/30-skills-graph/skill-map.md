@@ -149,6 +149,8 @@ tier: "standard"
 | `search_image_by_image` | kimi_compat |  | — | — |
 | `search_image_by_text` | kimi_compat |  | — | — |
 | `search_skills` | agent_meta | ✅ | — | build-agent, echo, echo_mira_voss, eve, kane, leon, luna, noah, policy-test-member, raven, research-agent, shion, zero |
+| `show_ui` | visual | ✅ | — | build-agent, echo, echo_mira_voss, eve, kane, leon, luna, noah, policy-test-member, raven, research-agent, shion, zero |
+| `show_visual` | visual |  | — | — |
 | `todo_read` | agent_meta | ✅ | — | build-agent, echo, echo_mira_voss, eve, kane, leon, luna, noah, policy-test-member, raven, research-agent, shion, zero |
 | `todo_write` | agent_meta | ✅ | — | build-agent, echo, echo_mira_voss, eve, kane, leon, luna, noah, policy-test-member, raven, research-agent, shion, zero |
 | `tree` | fs_search | ✅ | — | build-agent, echo, echo_mira_voss, eve, kane, leon, luna, noah, policy-test-member, raven, research-agent, shion, zero |
@@ -156,6 +158,8 @@ tier: "standard"
 | `update_soul` | memory | ✅ | — | build-agent, echo, echo_mira_voss, eve, kane, leon, luna, noah, policy-test-member, raven, research-agent, shion, zero |
 | `use_capability` | agent_meta | ✅ | — | build-agent, echo, echo_mira_voss, eve, kane, leon, luna, noah, policy-test-member, raven, research-agent, shion, zero |
 | `use_chatgpt_connector` | builtin | ✅ | — | build-agent, echo, echo_mira_voss, eve, kane, leon, luna, noah, policy-test-member, raven, research-agent, shion, zero |
+| `visual_guidelines` | visual | ✅ | — | build-agent, echo, echo_mira_voss, eve, kane, leon, luna, noah, policy-test-member, raven, research-agent, shion, zero |
+| `visual_status` | visual |  | — | — |
 | `web_fetch` | web |  | ecommerce_mind, general, vibe_selling, web_read | echo, echo_mira_voss, eve, kane, leon, luna, noah, shion, zero |
 | `web_search` | web |  | ecommerce_mind, general, vibe_selling, web_read | echo, echo_mira_voss, eve, kane, leon, luna, noah, shion, zero |
 | `website_version_manager` | kimi_compat |  | — | — |

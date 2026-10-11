@@ -55,6 +55,38 @@ function isDesktopAppURL(rawURL) {
   return parseDesktopAppURL(rawURL) !== null;
 }
 
+function isDesktopRoutePath(pathname) {
+  const root =
+    /^\/(workspace|share|apps)(\/|$)/.test(pathname) ||
+    /^\/(login|register|about|terms|privacy|settings|desktop|browser|plugins)\/?$/.test(
+      pathname,
+    );
+  if (!root) return false;
+  try {
+    const decoded = decodeURIComponent(pathname);
+    return (
+      !decoded.includes("\\") &&
+      !decoded.includes("\0") &&
+      !decoded
+        .split("/")
+        .some((segment) => segment === "." || segment === "..") &&
+      !path.posix.extname(decoded)
+    );
+  } catch {
+    return false;
+  }
+}
+
+function isDesktopAppNavigationURL(rawURL) {
+  const url = parseDesktopAppURL(rawURL);
+  return (
+    !!url &&
+    (url.pathname === "/" ||
+      url.pathname === "/index.html" ||
+      isDesktopRoutePath(url.pathname))
+  );
+}
+
 function isBackendRoute(pathname) {
   return BACKEND_ROUTE_PREFIXES.some(
     (prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`),
@@ -228,7 +260,12 @@ function createDesktopProtocolHandler({
     if (request.method !== "GET" && request.method !== "HEAD") {
       return errorResponse(405, "desktop_asset_method_denied");
     }
-    const assetPath = resolveDesktopAssetPath(distRoot, appURL.pathname);
+    const routePath = appURL.pathname;
+    const assetPath =
+      resolveDesktopAssetPath(distRoot, routePath) ||
+      (isDesktopRoutePath(routePath)
+        ? resolveDesktopAssetPath(distRoot, "/index.html")
+        : null);
     if (!assetPath) {
       return errorResponse(404, "desktop_asset_not_found");
     }
@@ -253,6 +290,7 @@ module.exports = {
   createDesktopProtocolHandler,
   isBackendRoute,
   isDesktopAppURL,
+  isDesktopAppNavigationURL,
   normalizeLoopbackBackendBaseURL,
   parseDesktopAppURL,
   resolveDesktopAssetPath,

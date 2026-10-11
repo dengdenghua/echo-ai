@@ -485,12 +485,9 @@ def stream_run(
 
     started_at = time.monotonic()
     try:
-        from runtime.platform.process.tree import (
-            process_group_kwargs,
-            terminate_process_tree,
-        )
+        from runtime.platform.process import tree
 
-        proc = subprocess.Popen(
+        proc = tree.spawn_in_job(
             _popen_args(argv),
             stdin=subprocess.PIPE if input_data is not None else subprocess.DEVNULL,
             stdout=subprocess.PIPE,
@@ -502,7 +499,6 @@ def stream_run(
             env=run_env,
             bufsize=1,
             shell=False,
-            **process_group_kwargs(),
         )
     except FileNotFoundError as e:
         return {
@@ -579,12 +575,12 @@ def stream_run(
         while True:
             if cancel_token.is_cancelled:
                 cancelled = True
-                killed = terminate_process_tree(proc)
+                killed = tree.terminate_process_tree(proc)
                 break
             remaining = None if deadline is None else deadline - time.monotonic()
             if remaining is not None and remaining <= 0:
                 timed_out = True
-                killed = terminate_process_tree(proc)
+                killed = tree.terminate_process_tree(proc)
                 if on_timeout is not None:
                     with contextlib.suppress(Exception):
                         on_timeout(proc)
@@ -600,6 +596,9 @@ def stream_run(
     finally:
         t_out.join(timeout=2.0)
         t_err.join(timeout=2.0)
+        # Preserve daemons after normal completion; timeout/cancel already
+        # terminated the whole job, including descendants of an exited parent.
+        tree.detach_process_job(proc)
 
     raw_stdout = "".join(stdout_parts)
     raw_stderr = "".join(stderr_parts)

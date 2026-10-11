@@ -702,6 +702,13 @@ def test_cloud_public_share_enforces_owner_quota_ttl_and_gc(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    from types import SimpleNamespace
+    from runtime.cloud_edge import store as edge_store
+
+    # Freeze only persistence time while checking the quota, then expire it.
+    # Real request latency must not silently reclaim the first share.
+    clock = SimpleNamespace(now=int(time.time()))
+    monkeypatch.setattr(edge_store, "time", SimpleNamespace(time=lambda: clock.now))
     client = _app(tmp_path, share_max_per_owner=1, share_ttl_seconds=1)
     _device_id, access_token = _enroll_and_token(client)
     headers = {"Authorization": f"Bearer {access_token}"}
@@ -711,10 +718,8 @@ def test_cloud_public_share_enforces_owner_quota_ttl_and_gc(
     assert client.post("/edge/v1/thread-shares", headers=headers, json=body).status_code == 409
 
     token = created.json()["token"]
-    future = int(time.time()) + 2
-    with monkeypatch.context() as patch:
-        patch.setattr("runtime.cloud_edge.store.time.time", lambda: future)
-        expired = client.post("/api/public/thread-shares/resolve", json={"token": token})
+    clock.now += 2
+    expired = client.post("/api/public/thread-shares/resolve", json={"token": token})
     assert expired.status_code == 404
     assert expired.headers["cache-control"] == "no-store"
     with sqlite3.connect(tmp_path / "edge.sqlite3") as conn:

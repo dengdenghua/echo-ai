@@ -1075,6 +1075,22 @@ async def test_real_codex_app_server_completes_scoped_text_and_tool_loop(
                     {"threadId": execution.inner_thread_id},
                     timeout_s=20.0,
                 )
+                # The RPC acknowledges scheduling; keep the server alive until
+                # it reports the compaction item completed (0.162 protocol).
+                while True:
+                    # Compaction gets a fresh turn ID, so it is outside the
+                    # completed execution turn's notification filter.
+                    notification = await execution._require_client().next_notification(
+                        timeout_s=10.0
+                    )
+                    notifications.append(notification)
+                    item = notification.params.get("item")
+                    if notification.method == "thread/compacted" or (
+                        notification.method == "item/completed"
+                        and isinstance(item, dict)
+                        and item.get("type") == "contextCompaction"
+                    ):
+                        break
         finally:
             await execution.close()
 

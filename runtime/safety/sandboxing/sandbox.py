@@ -1161,13 +1161,10 @@ class SandboxRunner:
         cmd_list, env, run_cwd = self.backend.transform(cmd_list, env, run_cwd, self.policy)
 
         started_at = time.monotonic()
-        from runtime.platform.process.tree import (
-            process_group_kwargs,
-            terminate_process_tree,
-        )
+        from runtime.platform.process import tree
 
         try:
-            proc = subprocess.Popen(
+            proc = tree.spawn_in_job(
                 cmd_list,
                 cwd=str(run_cwd),
                 env=env,
@@ -1177,7 +1174,6 @@ class SandboxRunner:
                 text=True,
                 encoding="utf-8",
                 errors="replace",
-                **process_group_kwargs(),
             )
         except FileNotFoundError as exc:
             raise SandboxViolation(f"executable not found: {exc.filename}") from exc
@@ -1234,11 +1230,14 @@ class SandboxRunner:
         except subprocess.TimeoutExpired:
             timed_out = True
             killed = True
-            terminate_process_tree(proc)
+            tree.terminate_process_tree(proc)
             exit_code = proc.returncode if proc.returncode is not None else -1
 
         out_thread.join(timeout=1.0)
         err_thread.join(timeout=1.0)
+        # Normal completion keeps intentional daemons; timeout has already
+        # killed the entire job before releasing its handle.
+        tree.detach_process_job(proc)
 
         return SandboxResult(
             exit_code=exit_code,

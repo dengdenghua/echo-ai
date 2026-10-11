@@ -1,6 +1,6 @@
 {
   "schema": "echo.kernel-release.v1",
-  "manifestVersion": "1.0.0",
+  "manifestVersion": "1.0.1",
   "authority": "echo-ai",
   "scope": "selected shared cross-device and safety sources; not the entire runtime or a signed bundle",
   "deviceProtocolVersion": "1.0",
@@ -63,7 +63,7 @@
         },
         {
           "path": "runtime/safety/sandboxing/sandbox.py",
-          "sha256": "6903e9db6bd03b0e38c28f28cbf1a8dc435d929cdf6ef5cdb1098759d49aa494"
+          "sha256": "07427952940c93f5873a65c3e94e6473c8dfbf20a1e74733cb07e64a1796f04e"
         },
         {
           "path": "runtime/safety/auth/principal.py",
@@ -71,7 +71,7 @@
         },
         {
           "path": "runtime/platform/process/streaming.py",
-          "sha256": "3fae0548be34d598bb18d123cce6fafdc580c5784fbe04a9dde3cdab9078329b"
+          "sha256": "a1ddc1338ca2a7d3b0d0858bb2617e5cc411980b98d2932a22d2608174e6bc5e"
         }
       ]
     },
@@ -106,5 +106,5 @@
       ]
     }
   },
-  "revision": "sha256:26342e4634dd0d3d215e07daf33a951b4fdb2ee988078e5afac3a3392c4c9c2d"
+  "revision": "sha256:81016b95ac6bb2371afb5a868e46b7ab0fe57d740663204f814f7e8aad9a4c57"
 }

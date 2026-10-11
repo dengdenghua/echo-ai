@@ -5,12 +5,13 @@ from __future__ import annotations
 from typing import Any
 
 from runtime.platform.capabilities.tenant_context import current_capability_scope
+from runtime.platform.native_ui import UI_GUIDANCE, ui_tool_schema, validate_ui
 from runtime.platform.process.session import current_session
 from runtime.platform.visuals import create_visual, visual_status
 
 from .registry import Skill, SkillRegistry
 
-VISUAL_SKILL_NAMES = ("visual_guidelines", "show_visual", "visual_status")
+VISUAL_SKILL_NAMES = ("visual_guidelines", "show_visual", "visual_status", "show_ui")
 _COMMON = (
     "用图解释关系、过程、空间或参数变化。简单流程用 mermaid 代码块；静态定制图用 SVG；"
     "有交互价值才用 HTML。标题、单位、图例清楚，颜色之外也用文字/线型区分，支持窄屏。"
@@ -35,8 +36,10 @@ def _thread_id() -> str:
 
 
 def _guidelines(module: str = "diagram") -> dict[str, Any]:
+    if module == "ui":
+        return {"ok": True, "module": module, "guidance": UI_GUIDANCE}
     if module not in _GUIDES:
-        return {"ok": False, "error": "Unknown module", "modules": list(_GUIDES)}
+        return {"ok": False, "error": "Unknown module", "modules": [*_GUIDES, "ui"]}
     return {"ok": True, "module": module, "guidance": _COMMON + _GUIDES[module]}
 
 
@@ -54,11 +57,17 @@ def _status(visual_id: str) -> dict[str, Any]:
     return visual_status(visual_id, current_capability_scope(), _thread_id())
 
 
+def _show_ui(document: dict[str, Any]) -> dict[str, Any]:
+    session = current_session()
+    thread_id = str((session.thread_id or session.conversation_id or "") if session else "")
+    return validate_ui(document, thread_id)
+
+
 def register_visual_skills(registry: SkillRegistry) -> int:
     for name, summary, handler in (
         (
             "visual_guidelines",
-            "Load visual authoring guidance: module=diagram/interactive/chart/layout.",
+            "Load visual authoring guidance: module=diagram/interactive/chart/layout/ui.",
             _guidelines,
         ),
         (
@@ -82,4 +91,15 @@ def register_visual_skills(registry: SkillRegistry) -> int:
                 trusted_source=f"skill://public/{name}",
             )
         )
+    registry.register(
+        Skill(
+            name="show_ui",
+            summary="Display native forms, comparisons or this task's plan. Read visual_guidelines(module=ui) first.",
+            description="Display an inert validated UI document. Form responses are ordinary user messages, without automatic actions.",
+            affinity=["meta", "visual"],
+            handler=_show_ui,
+            input_schema=ui_tool_schema(),
+            trusted_source="skill://public/show_ui",
+        )
+    )
     return len(VISUAL_SKILL_NAMES)

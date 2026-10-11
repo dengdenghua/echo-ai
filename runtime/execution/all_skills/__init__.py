@@ -97,6 +97,7 @@ from runtime.execution.suckers.plan_mode import (
 from runtime.execution.suckers.skill_library_skills import (
     register_skill_library_skills as _register_skill_library,
 )
+from runtime.execution.suckers.visual_skills import register_visual_skills as _register_visual
 from runtime.execution.suckers.web_skills import (
     register_web_skills as _register_web,
 )
@@ -131,6 +132,10 @@ _CATALOG: dict[str, dict[str, Any]] = {
     "count_words": {"group": "builtin", "atomic": True},
     "hash_text": {"group": "builtin", "atomic": True},
     "use_chatgpt_connector": {"group": "builtin", "atomic": True},
+    "visual_guidelines": {"group": "visual", "atomic": True},
+    "show_ui": {"group": "visual", "atomic": True},
+    "show_visual": {"group": "visual", "atomic": False},
+    "visual_status": {"group": "visual", "atomic": False},
     # File-system discovery/search. These are read-only and are mentioned by
     # the builtin tool descriptions, so they must be callable anywhere the
     # model can see those hints.
@@ -418,6 +423,7 @@ def skills_in_group(group: str) -> frozenset[str]:
 
 _GROUP_REGISTRARS: dict[str, Callable[[SkillRegistry], Any]] = {
     "builtin": _register_builtins,
+    "visual": _register_visual,
     "fs_search": _register_fs_search,
     "web": _register_web,
     "crawler": _register_crawler,
@@ -457,6 +463,7 @@ _GROUP_REGISTRARS: dict[str, Callable[[SkillRegistry], Any]] = {
 LOCAL_SKILL_GROUPS: frozenset[str] = frozenset(
     {
         "builtin",
+        "visual",
         "fs_search",
         "fs_write",
         "code_quality",
@@ -582,6 +589,7 @@ def register_base(registry: SkillRegistry) -> None:
     module import will scream if they drift.
     """
     _register_builtins(registry)
+    _register_visual(registry)
     _register_fs_search(registry)
     _register_memory(registry)
     _register_mode(registry)
@@ -696,6 +704,7 @@ def register_group(
 _SYSTEM_GROUPS: frozenset[str] = frozenset(
     {
         "builtin",
+        "visual",
         "fs_search",
         "memory",
         "mode",

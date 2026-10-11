@@ -32,13 +32,34 @@ afterEach(() => {
 });
 
 describe("desktop renderer origin", () => {
+  it("allows app navigation while keeping assets, APIs and foreign origins out", () => {
+    for (const pathname of [
+      "/index.html",
+      "/",
+      "/workspace/projects",
+      "/login",
+      "/share/123",
+    ]) {
+      expect(
+        desktopProtocol.isDesktopAppNavigationURL(`echo-app://app${pathname}`),
+      ).toBe(true);
+    }
+    for (const url of [
+      "echo-app://evil/workspace/projects",
+      "echo-app://app/api/health",
+      "echo-app://app/assets/page.html",
+      "echo-app://app/workspace/x%5csecret",
+    ]) {
+      expect(desktopProtocol.isDesktopAppNavigationURL(url)).toBe(false);
+    }
+  });
   it("accepts only the fixed app scheme and host", () => {
-    expect(
-      desktopProtocol.isDesktopAppURL("echo-app://app/index.html"),
-    ).toBe(true);
-    expect(
-      desktopProtocol.isDesktopAppURL("echo-app://evil/index.html"),
-    ).toBe(false);
+    expect(desktopProtocol.isDesktopAppURL("echo-app://app/index.html")).toBe(
+      true,
+    );
+    expect(desktopProtocol.isDesktopAppURL("echo-app://evil/index.html")).toBe(
+      false,
+    );
     expect(desktopProtocol.isDesktopAppURL("https://app/index.html")).toBe(
       false,
     );
@@ -121,6 +142,39 @@ describe("desktop protocol handler", () => {
     );
   });
 
+  it("loads the workbench entry for a direct route navigation", async () => {
+    const fetchImpl = vi.fn(async () => new Response("<main>Echo</main>"));
+    const response = await makeHandler(fetchImpl)(
+      new Request(
+        "echo-app://app/workspace/projects?project=P-desktop-closure",
+      ),
+    );
+    expect(response.status).toBe(200);
+    expect(fileURLToPath(fetchImpl.mock.calls[0][0])).toBe(
+      realpathSync(path.join(distRoot, "index.html")),
+    );
+  });
+
+  it.each([
+    "/workspace/missing.js",
+    "/assets/missing.js",
+    "/api.evil/health",
+    "/workspace/x%5csecret",
+    "/workspace/x/%2e%2e%2fsecret",
+  ])(
+    "keeps missing or unsafe navigation %s out of the SPA fallback",
+    async (pathname) => {
+      const fetchImpl = vi.fn();
+      const response = await makeHandler(fetchImpl)(
+        new Request(`echo-app://app${pathname}`, {
+          headers: { Accept: "text/html" },
+        }),
+      );
+      expect(response.status).toBe(404);
+      expect(fetchImpl).not.toHaveBeenCalled();
+    },
+  );
+
   it("proxies native /api and /api/plugins URLs only to loopback", async () => {
     const fetchImpl = vi.fn(async () =>
       Response.json({ ok: true }, { headers: { "X-Backend": "echo" } }),
@@ -198,8 +252,6 @@ describe("desktop protocol handler", () => {
     );
 
     expect(response.status).toBe(307);
-    expect(response.headers.get("location")).toBe(
-      "echo-app://app/api/health/",
-    );
+    expect(response.headers.get("location")).toBe("echo-app://app/api/health/");
   });
 });

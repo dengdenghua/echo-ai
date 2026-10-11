@@ -72,9 +72,11 @@ export function ExtensionToolbar({
   useEffect(() => {
     if (!menuOpen) return;
     const close = (event: MouseEvent) => {
-      const target = event.target as Node;
-      if (menuRef.current?.contains(target)) return;
-      if (puzzleRef.current?.contains(target)) return;
+      const target = event.target;
+      if (target instanceof Node) {
+        if (menuRef.current?.contains(target)) return;
+        if (puzzleRef.current?.contains(target)) return;
+      }
       setMenuOpen(false);
     };
     window.addEventListener("mousedown", close);

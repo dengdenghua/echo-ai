@@ -401,6 +401,16 @@ class OrgStore:
             )
             if cur.rowcount == 0:
                 return False
+            owned = conn.execute(
+                "SELECT m.channel_id FROM channel_members m "
+                "JOIN channels c ON c.id=m.channel_id "
+                "WHERE c.org_id=? AND m.member_id=? AND m.role='owner'",
+                (org_id, member_id),
+            ).fetchall()
+            for row in owned:
+                if _is_last_channel_owner(conn, str(row[0]), member_id):
+                    # Raising rolls back the membership deletion in this transaction.
+                    raise LastOwnerError("transfer channel ownership before removing this member")
             # Leaving the org revokes every channel grant inside it, so a
             # removed member cannot keep reading channels via a stale ACL row.
             conn.execute(

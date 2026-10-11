@@ -1,4 +1,8 @@
 import { useMemo, useState } from "react";
+import { useNavigate } from "react-router-dom";
+import { taskWorkspaceRoute } from "@/core/router/task-workspace-route";
+import { worktreeCopy } from "@/core/i18n/locales/worktrees";
+import { WorktreeDialog } from "./worktree-dialog";
 import {
   FileDiffIcon,
   FileTextIcon,
@@ -57,6 +61,8 @@ export function WorkspaceContextMenu({
 }: WorkspaceContextMenuProps) {
   const { t, locale } = useI18n();
   const [open, setOpen] = useState(false);
+  const [worktreesOpen, setWorktreesOpen] = useState(false);
+  const navigate = useNavigate();
   const { summary, error, isLoading, refresh } = useGitSummary(workDir, {
     enabled: open,
   });
@@ -105,6 +111,7 @@ export function WorkspaceContextMenu({
   const rowClass = "min-h-8 gap-2.5 rounded-lg px-2 text-xs";
 
   return (
+    <>
     <DropdownMenu
       modal={false}
       open={open}
@@ -136,6 +143,12 @@ export function WorkspaceContextMenu({
             <DropdownMenuLabel className="px-2 pb-1 pt-0.5 text-xs font-normal text-muted-foreground">
               {t.workspaceNote.environmentSection}
             </DropdownMenuLabel>
+            {hasRepository && summary && (
+              <DropdownMenuItem className={rowClass} onSelect={() => setWorktreesOpen(true)}>
+                <GitForkIcon className="size-3.5" />
+                <span>{worktreeCopy(locale).title}</span>
+              </DropdownMenuItem>
+            )}
             {hasRepository && summary && (
               <DropdownMenuItem className={rowClass} onSelect={onOpenDiff}>
                 <FileDiffIcon className="size-3.5" />
@@ -257,5 +270,8 @@ export function WorkspaceContextMenu({
 
       </DropdownMenuContent>
     </DropdownMenu>
+    <WorktreeDialog open={worktreesOpen} onOpenChange={setWorktreesOpen} projectPath={workDir ?? ""}
+      onOpenTask={(workspacePath) => { void navigate(taskWorkspaceRoute({ workspacePath })); }} />
+    </>
   );
 }

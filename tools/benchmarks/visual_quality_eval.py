@@ -16,7 +16,7 @@ import math
 import sys
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
-from typing import Any, List, Optional
+from typing import Any
 
 
 @dataclass
@@ -32,14 +32,14 @@ class VisualQualityReport:
     target_path: str
     total_score: float
     grade: str
-    defects: List[VisualDefect] = field(default_factory=list)
+    defects: list[VisualDefect] = field(default_factory=list)
     metrics: dict[str, Any] = field(default_factory=dict)
     passed: bool = True
 
 
 def analyze_image_file(image_path: Path) -> VisualQualityReport:
     """Analyze a single visual screenshot artifact."""
-    defects: List[VisualDefect] = []
+    defects: list[VisualDefect] = []
     metrics: dict[str, Any] = {}
 
     if not image_path.exists():
@@ -57,7 +57,12 @@ def analyze_image_file(image_path: Path) -> VisualQualityReport:
     # Check for empty or corrupted file
     if file_size < 100:
         defects.append(
-            VisualDefect("P0", "blank_screen", "Image file is suspiciously small (< 100 bytes), likely blank or corrupt", 60.0)
+            VisualDefect(
+                "P0",
+                "blank_screen",
+                "Image file is suspiciously small (< 100 bytes), likely blank or corrupt",
+                60.0,
+            )
         )
 
     # If Pillow is available, perform perceptual pixel analysis
@@ -73,7 +78,12 @@ def analyze_image_file(image_path: Path) -> VisualQualityReport:
                 # Check if dimensions are unreasonably small
                 if width < 100 or height < 100:
                     defects.append(
-                        VisualDefect("P1", "aspect_ratio", f"Snapshot dimensions too small ({width}x{height})", 15.0)
+                        VisualDefect(
+                            "P1",
+                            "aspect_ratio",
+                            f"Snapshot dimensions too small ({width}x{height})",
+                            15.0,
+                        )
                     )
 
                 # Check for pure blank/monochrome screen by sampling pixel variance
@@ -82,11 +92,21 @@ def analyze_image_file(image_path: Path) -> VisualQualityReport:
                 metrics["grayscale_extrema"] = extrema
                 if extrema[0] == extrema[1]:
                     defects.append(
-                        VisualDefect("P0", "blank_screen", f"Uniform monochrome image detected (value={extrema[0]}), page failed to paint", 50.0)
+                        VisualDefect(
+                            "P0",
+                            "blank_screen",
+                            f"Uniform monochrome image detected (value={extrema[0]}), page failed to paint",
+                            50.0,
+                        )
                     )
                 elif (extrema[1] - extrema[0]) < 10:
                     defects.append(
-                        VisualDefect("P1", "contrast", f"Extremely low overall dynamic range ({extrema[1] - extrema[0]}), poor contrast", 20.0)
+                        VisualDefect(
+                            "P1",
+                            "contrast",
+                            f"Extremely low overall dynamic range ({extrema[1] - extrema[0]}), poor contrast",
+                            20.0,
+                        )
                     )
 
                 # Color histogram entropy
@@ -100,7 +120,12 @@ def analyze_image_file(image_path: Path) -> VisualQualityReport:
                 metrics["shannon_entropy"] = round(entropy, 2)
                 if entropy < 1.0 and extrema[0] != extrema[1]:
                     defects.append(
-                        VisualDefect("P2", "entropy", f"Very low visual complexity/entropy ({entropy:.2f}), possible missing content", 10.0)
+                        VisualDefect(
+                            "P2",
+                            "entropy",
+                            f"Very low visual complexity/entropy ({entropy:.2f}), possible missing content",
+                            10.0,
+                        )
                     )
         except (PermissionError, OSError) as e:
             metrics["io_warning"] = str(e)
@@ -114,7 +139,9 @@ def analyze_image_file(image_path: Path) -> VisualQualityReport:
             )
 
     except ImportError:
-        metrics["note"] = "Pillow (PIL) not installed in current environment; basic metadata analysis applied."
+        metrics["note"] = (
+            "Pillow (PIL) not installed in current environment; basic metadata analysis applied."
+        )
 
     total_penalty = sum(d.penalty for d in defects)
     total_score = max(0.0, min(100.0, 100.0 - total_penalty))
@@ -156,7 +183,7 @@ EXCLUDE_DIRS = {
 
 def evaluate_directory(directory: Path, min_score: float = 75.0) -> int:
     """Evaluate all PNG screenshots in a directory against visual quality benchmarks."""
-    png_files: List[Path] = []
+    png_files: list[Path] = []
     for p in directory.rglob("*.png"):
         # Skip vendor / virtualenv directories
         if any(part in EXCLUDE_DIRS for part in p.parts):
@@ -168,7 +195,7 @@ def evaluate_directory(directory: Path, min_score: float = 75.0) -> int:
         return 0
 
     print(f"[VisualQA] Evaluating {len(png_files)} screenshots in {directory}...")
-    reports: List[VisualQualityReport] = []
+    reports: list[VisualQualityReport] = []
     has_failures = False
 
     for png in sorted(png_files):
@@ -177,13 +204,17 @@ def evaluate_directory(directory: Path, min_score: float = 75.0) -> int:
         status_tag = "[PASS]" if report.passed else "[FAIL]"
         print(f"  {status_tag} [{report.grade}] {report.total_score:5.1f}/100 - {png.name}")
         for defect in report.defects:
-            print(f"      -> [{defect.level}] {defect.category}: {defect.description} (-{defect.penalty})")
+            print(
+                f"      -> [{defect.level}] {defect.category}: {defect.description} (-{defect.penalty})"
+            )
 
         if not report.passed or report.total_score < min_score:
             has_failures = True
 
     avg_score = sum(r.total_score for r in reports) / len(reports) if reports else 0
-    print(f"\n[VisualQA Summary] Total evaluated: {len(reports)} | Average VQS: {avg_score:.1f}/100")
+    print(
+        f"\n[VisualQA Summary] Total evaluated: {len(reports)} | Average VQS: {avg_score:.1f}/100"
+    )
 
     summary_file = directory / "visual_quality_summary.json"
     with open(summary_file, "w", encoding="utf-8") as f:
@@ -196,7 +227,9 @@ def evaluate_directory(directory: Path, min_score: float = 75.0) -> int:
 def main() -> None:
     parser = argparse.ArgumentParser(description="Echo-AI Visual Quality Assessment Benchmark")
     parser.add_argument("path", help="Path to a screenshot PNG file or directory of screenshots")
-    parser.add_argument("--min-score", type=float, default=75.0, help="Minimum passing score (default: 75.0)")
+    parser.add_argument(
+        "--min-score", type=float, default=75.0, help="Minimum passing score (default: 75.0)"
+    )
     parser.add_argument("--json", action="store_true", help="Output result as pure JSON")
 
     args = parser.parse_args()
@@ -214,9 +247,13 @@ def main() -> None:
             print(json.dumps(asdict(report), indent=2, ensure_ascii=False))
         else:
             status = "PASSED" if report.passed else "FAILED"
-            print(f"Visual Quality: {status} | Score: {report.total_score}/100 (Grade {report.grade})")
+            print(
+                f"Visual Quality: {status} | Score: {report.total_score}/100 (Grade {report.grade})"
+            )
             for defect in report.defects:
-                print(f"  [{defect.level}] {defect.category}: {defect.description} (-{defect.penalty})")
+                print(
+                    f"  [{defect.level}] {defect.category}: {defect.description} (-{defect.penalty})"
+                )
         sys.exit(0 if report.passed else 1)
 
 

@@ -19,6 +19,7 @@ from __future__ import annotations
 
 import contextlib
 import hashlib
+import os
 import shutil
 import subprocess
 import sys
@@ -62,6 +63,8 @@ def test_bugfix_demo_v2_runs_and_restores_soul():
         [sys.executable, "-m", "runtime", "bugfix-demo-v2", "--no-color"],
         capture_output=True,
         text=True,
+        encoding="utf-8",
+        env={**os.environ, "PYTHONIOENCODING": "utf-8", "PYTHONUTF8": "1"},
         timeout=120,
         cwd=str(ROOT),
     )

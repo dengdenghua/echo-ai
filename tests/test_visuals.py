@@ -78,10 +78,12 @@ def test_valid_payload_pending_and_guidance_on_demand():
 
 def test_visual_tool_schemas_remain_available():
     registry = SkillRegistry()
-    assert register_visual_skills(registry) == 3
+    assert register_visual_skills(registry) == 4
     specs = build_anthropic_tool_specs(registry)
     show = next(spec for spec in specs if spec.name == "show_visual")
     assert {"title", "code", "format"} <= set(show.input_schema["properties"])
+    native = next(spec for spec in specs if spec.name == "show_ui")
+    assert "document" in native.input_schema["properties"]
 
 
 def test_http_receipt_auth_and_invalid_tokens():

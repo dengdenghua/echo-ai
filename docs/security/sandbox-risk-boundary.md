@@ -19,7 +19,7 @@
 | `strict` | 强制硬后端；不可用则拒绝执行（fail closed） |
 | `bwrap` / `bubblewrap`（Linux） | 用户态命名空间/容器隔离 |
 | `seatbelt` / `sandbox-exec`（macOS） | Seatbelt 沙箱 |
-| Windows | Job Object + 受限令牌（自动） |
+| Windows | Job Object 进程树生命周期约束；工作区与环境检查为软约束，无受限令牌隔离 |
 
 商用/共享模式强制硬后端，且不能降级到 soft（`runtime/safety/sandboxing/sandbox.py`）。
 

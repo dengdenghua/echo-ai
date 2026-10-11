@@ -541,7 +541,9 @@ class HostToolBroker:
                 else {"type": "object", "properties": {}, "additionalProperties": True}
             )
             raw_description = getattr(spec, "description", "") or f"Run Echo skill {skill_name}."
-            if skill_name == "call_agent" and not raw_description.startswith("Current group members"):
+            if skill_name == "call_agent" and not raw_description.startswith(
+                "Current group members"
+            ):
                 from runtime.execution.suckers._delegation_skills_common import _format_role_catalog
 
                 raw_description = (

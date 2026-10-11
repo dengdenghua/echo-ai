@@ -6,7 +6,6 @@ import {
   apiPost,
   apiPut,
   failureDetail,
-  untypedApi,
   type ApiFailure,
 } from "@/core/api/request";
 
@@ -191,14 +190,12 @@ export async function replayAdaptive(
   id: string,
   request: AdaptiveReplayRequest,
 ): Promise<ReplayResult> {
-  return untypedApi.post<ReplayResult>(
-    `/api/teach-repeat/templates/${encodeURIComponent(id)}/replay-adaptive`,
-    {
-      reason:
-        "templates/{id}/replay-adaptive is not in the OpenAPI snapshot (the " +
-        "backend declares templates/{id}/replay/adaptive); URL kept as-is",
+  return looseBody(
+    await apiPost("/api/teach-repeat/templates/{template_id}/replay/adaptive", {
+      path: { template_id: id },
       body: request,
       errorMessage: detailOr("Failed to run adaptive replay"),
-    },
+    }),
+    isReplayResult,
   );
 }

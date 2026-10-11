@@ -19,11 +19,13 @@ const {
 } = require("electron");
 
 const compat = require("./extension-compat.cjs");
+const commands = require("./extension-commands.cjs");
+const { createNativeDnrHost } = require("./extension-dnr.cjs");
+const { createEmbeddedSidePanel } = require("./extension-side-panel.cjs");
 
 const PRELOAD = path.join(__dirname, "extension-preload.cjs");
 const { WINDOW_ID, WINDOW_ID_CURRENT } = compat;
 const EXTENSION_WINDOW_BASE = 1000;
-const SIDE_PANEL_WIDTH = 380;
 // The natural size of a popup page laid out in a tiny window.
 const MEASURE_PAGE = `(() => {
   const root = document.documentElement;
@@ -49,10 +51,21 @@ function createExtensionHost({
   writeRegistry,
 }) {
   const extensions = session.extensions ?? session;
+  const dnr = createNativeDnrHost({
+    session,
+    preferencesPath: path.join(app.getPath("userData"), "extension-dnr-preferences.json"),
+  });
   const actionState = new Map(); // id → { global, tabs: Map<tabId, {}> }
   const iconCache = new Map();
   const anchors = new Map(); // id → last toolbar button rect
-  const sidePanels = new Map(); // id → { behavior, options, win }
+  const sidePanels = new Map(); // id → { behavior, options, tabs }
+  const embeddedPanel = createEmbeddedSidePanel({
+    session, getMainWindow, getActiveTab,
+    getExtension: (id) => getExtension(id),
+    getOptions: (id, tabId) => ({ ...sidePanel(id).options, ...sidePanel(id).tabs.get(tabId) }),
+    openUrlInTab, dispatch: (...args) => dispatch(...args), windowId: WINDOW_ID,
+    notify: (state) => sendToRenderer("browser:extension-side-panel-changed", state),
+  });
   const notifications = new Map(); // `${id}:${notificationId}` → Notification
   const extensionWindows = new Map(); // window id → { win, extensionId }
   const hookedWorkers = new Set();
@@ -294,7 +307,7 @@ function createExtensionHost({
       sidePanels.set(id, {
         behavior: { openPanelOnActionClick: false },
         options: { enabled: true },
-        win: null,
+        tabs: new Map(),
       });
     return sidePanels.get(id);
   };
@@ -444,62 +457,8 @@ function createExtensionHost({
   }
 
   // ── side panel ──
-  function placeSidePanel(win) {
-    const main = mainWindow();
-    if (!main || win.isDestroyed()) return;
-    const bounds = main.getContentBounds();
-    win.setBounds({
-      x: bounds.x + bounds.width - SIDE_PANEL_WIDTH,
-      y: bounds.y,
-      width: SIDE_PANEL_WIDTH,
-      height: bounds.height,
-    });
-  }
-
   function toggleSidePanel(id, want = null) {
-    const panel = sidePanel(id);
-    if (panel.win && !panel.win.isDestroyed()) {
-      if (want === true) panel.win.focus();
-      else panel.win.close();
-      return { ok: true };
-    }
-    if (want === false) return { ok: true };
-    const ext = getExtension(id);
-    const page =
-      panel.options.path || ext?.manifest?.side_panel?.default_path || "";
-    const main = mainWindow();
-    if (!ext || !page || !main || panel.options.enabled === false)
-      return { ok: false, error: "no side panel" };
-    const win = new BrowserWindow({
-      parent: main,
-      title: ext.name,
-      autoHideMenuBar: true,
-      minimizable: false,
-      maximizable: false,
-      fullscreenable: false,
-      skipTaskbar: true,
-      show: false,
-      webPreferences: { session, sandbox: true, contextIsolation: true },
-    });
-    panel.win = win;
-    placeSidePanel(win);
-    const follow = () => placeSidePanel(win);
-    main.on("move", follow);
-    main.on("resize", follow);
-    win.once("ready-to-show", () => win.show());
-    win.on("closed", () => {
-      main.off("move", follow);
-      main.off("resize", follow);
-      if (panel.win === win) panel.win = null;
-      dispatch(id, "sidePanel.onClosed", [{ path: page, windowId: WINDOW_ID }]);
-    });
-    win.webContents.setWindowOpenHandler(({ url }) => {
-      openUrlInTab(url);
-      return { action: "deny" };
-    });
-    win.loadURL(extensionUrl(id, page)).catch(() => {});
-    dispatch(id, "sidePanel.onOpened", [{ path: page, windowId: WINDOW_ID }]);
-    return { ok: true, opened: "sidePanel" };
+    return embeddedPanel.toggle(id, want);
   }
 
   async function clickAction(id, tabId, anchor) {
@@ -936,24 +895,60 @@ function createExtensionHost({
     },
 
     "sidePanel.setOptions": (id, _ctx, args) => {
-      Object.assign(sidePanel(id).options, details(args));
+      const { tabId, ...options } = details(args);
+      if (options.enabled !== undefined && typeof options.enabled !== "boolean")
+        throw new Error("Side panel enabled must be a boolean");
+      if (options.path !== undefined) {
+        if (typeof options.path !== "string" || !options.path)
+          throw new Error("Side panel path must be a non-empty string");
+        const target = new URL(extensionUrl(id, options.path));
+        if (target.protocol !== "chrome-extension:" || target.hostname !== id)
+          throw new Error("Side panel must be a page in its own extension");
+      }
+      const panel = sidePanel(id);
+      if (tabId != null) {
+        if (!tabContents(tabId)) throw new Error("Browser tab not found");
+        panel.tabs.set(tabId, { ...panel.tabs.get(tabId), ...options });
+      } else Object.assign(panel.options, options);
+      return embeddedPanel.optionsChanged(id);
     },
-    "sidePanel.getOptions": (id) => ({ ...sidePanel(id).options }),
+    "sidePanel.getOptions": (id, _ctx, args) => ({
+      path: getExtension(id)?.manifest?.side_panel?.default_path,
+      ...sidePanel(id).options, ...sidePanel(id).tabs.get(details(args).tabId),
+    }),
     "sidePanel.setPanelBehavior": (id, _ctx, args) => {
       Object.assign(sidePanel(id).behavior, details(args));
     },
     "sidePanel.getPanelBehavior": (id) => ({ ...sidePanel(id).behavior }),
-    "sidePanel.open": (id) => void toggleSidePanel(id, true),
-    "sidePanel.close": (id) => void toggleSidePanel(id, false),
+    "sidePanel.open": async (id, _ctx, args) => {
+      const options = details(args);
+      if (options.windowId != null && options.windowId !== WINDOW_ID)
+        throw new Error("Browser window not found");
+      if (options.tabId != null && !tabContents(options.tabId))
+        throw new Error("Browser tab not found");
+      await embeddedPanel.toggle(id, true, options);
+    },
+    "sidePanel.close": (id) => embeddedPanel.close(id),
 
     "downloads.download": (id, _ctx, args) => {
       session.downloadURL(extensionUrl(id, details(args).url));
       return ++downloadSeq;
     },
     "runtime.openOptionsPage": (id) => void openOptions(id),
+    "commands.getAll": (id) =>
+      commands
+        .commandAssignments(extensions.getAllExtensions())
+        .filter((row) => row.extensionId === id)
+        .map(({ name, description, shortcut }) => ({
+          name,
+          description,
+          shortcut,
+        })),
   };
 
   function call(extensionId, ctx, method, args) {
+    if (typeof method === "string" && method.startsWith("declarativeNetRequest."))
+      return dnr.invoke(getExtension(extensionId), method.slice("declarativeNetRequest.".length), Array.isArray(args) ? args : []);
     const fn = Object.hasOwn(calls, method) ? calls[method] : null;
     if (!fn) throw new Error(`${method} is not available in Echo`);
     return fn(extensionId, ctx, Array.isArray(args) ? args : []);
@@ -972,6 +967,13 @@ function createExtensionHost({
 
   // ── tab events ──
   function watchTab(contents) {
+    commands.watchCommands(contents, {
+      eligible: () => isBrowserTab(contents),
+      extensions: () => extensions.getAllExtensions(),
+      clickAction,
+      dispatch,
+      tab: () => tabById(contents.id),
+    });
     let created = false;
     const updated = (changeInfo) => {
       if (!isBrowserTab(contents)) return;
@@ -998,6 +1000,8 @@ function createExtensionHost({
     contents.once("destroyed", () => {
       favicons.delete(id);
       for (const state of actionState.values()) state.tabs.delete(id);
+      for (const panel of sidePanels.values()) panel.tabs.delete(id);
+      embeddedPanel.forgetTab(id);
       if (created)
         broadcast("tabs.onRemoved", [id, { windowId: WINDOW_ID, isWindowClosing: false }]);
     });
@@ -1005,6 +1009,7 @@ function createExtensionHost({
 
   /** The browser UI switched tabs (bridge:setActiveTab). */
   function tabActivated(tabId) {
+    embeddedPanel.sync();
     if (tabId == null || tabId === lastActiveTabId) return;
     lastActiveTabId = tabId;
     broadcast("tabs.onActivated", [{ tabId, windowId: WINDOW_ID }]);
@@ -1013,9 +1018,9 @@ function createExtensionHost({
 
   /** An extension was turned off or removed: drop what it left behind. */
   function forget(id, { purge = false } = {}) {
+    dnr.forget(id, { purge });
     if (popup?.extensionId === id && !popup.win.isDestroyed()) popup.win.close();
-    const panel = sidePanels.get(id);
-    if (panel?.win && !panel.win.isDestroyed()) panel.win.close();
+    embeddedPanel.close(id);
     sidePanels.delete(id);
     for (const [windowId, entry] of extensionWindows)
       if (entry.extensionId === id && !entry.win.isDestroyed()) {
@@ -1075,6 +1080,11 @@ function createExtensionHost({
     contextMenuItems,
     tabActivated,
     forget,
+    prepareExtension: dnr.prepare,
+    sidePanelState: embeddedPanel.state,
+    setSidePanelBounds: embeddedPanel.setBounds,
+    closeSidePanel: embeddedPanel.close,
+    dispose: () => { embeddedPanel.dispose(); dnr.dispose(); },
   };
 }
 

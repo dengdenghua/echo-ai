@@ -108,10 +108,16 @@ def _linked_state(tmp_path: Path):
 def test_personal_removal_preserves_linked_group_and_other_members(tmp_path: Path) -> None:
     identities, rooms, threads, groups, collaboration = _linked_state(tmp_path)
     app = FastAPI()
-    app.include_router(create_thread_state_router(
-        store=threads, identity_store=identities, require_auth=True,
-        group_store=groups, collaboration_store=collaboration, team_rooms_router=rooms,
-    ))
+    app.include_router(
+        create_thread_state_router(
+            store=threads,
+            identity_store=identities,
+            require_auth=True,
+            group_store=groups,
+            collaboration_store=collaboration,
+            team_rooms_router=rooms,
+        )
+    )
     client = TestClient(app)
     before = threads.get("project-thread")
     events = groups.events("project-thread")
@@ -123,8 +129,14 @@ def test_personal_removal_preserves_linked_group_and_other_members(tmp_path: Pat
         assert "project-thread" in {row["thread_id"] for row in visible}
     assert client.get("/api/threads/project-thread", headers=_headers("bob")).status_code == 200
     assert client.put(path, json={"hidden": True}, headers=_headers("mallory")).status_code == 404
-    assert client.put("/api/threads/private-thread/list-visibility", json={"hidden": True},
-                      headers=_headers("bob")).status_code == 404
+    assert (
+        client.put(
+            "/api/threads/private-thread/list-visibility",
+            json={"hidden": True},
+            headers=_headers("bob"),
+        ).status_code
+        == 404
+    )
     assert client.put(path, json={"hidden": False}, headers=_headers("bob")).status_code == 200
     assert threads.get("project-thread") == before
     assert groups.events("project-thread") == events

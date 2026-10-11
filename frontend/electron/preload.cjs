@@ -23,6 +23,7 @@ const EVENT_CHANNELS = [
   "browser:webview-pointer",
   "browser:password-offer",
   "browser:extension-actions-changed",
+  "browser:extension-side-panel-changed",
   "browser:open-extensions",
   "browser:focus-webcontents",
   "browser:close-webcontents",
@@ -95,6 +96,9 @@ const api = {
     showActionMenu: invoke("extensions:showActionMenu"),
     setPinned: invoke("extensions:setPinned"),
     openOptions: invoke("extensions:openOptions"),
+    sidePanelState: invoke("extensions:sidePanelState"),
+    setSidePanelBounds: invoke("extensions:setSidePanelBounds"),
+    closeSidePanel: invoke("extensions:closeSidePanel"),
   },
 
   app: {

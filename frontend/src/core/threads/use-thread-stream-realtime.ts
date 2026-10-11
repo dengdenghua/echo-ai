@@ -72,6 +72,7 @@ import {
 import {
   RETRY_PENDING_MESSAGE_EVENT,
   acknowledgedClientMessageIds,
+  newClientMessageId,
   mergeOptimisticHumanMessages,
   optimisticMessageReducer,
   type OptimisticMessageAction,
@@ -119,14 +120,6 @@ function isSameThreadEpoch(left: ThreadEpoch, right: ThreadEpoch): boolean {
   );
 }
 
-function newClientMessageId(): string {
-  const suffix =
-    typeof crypto !== "undefined" && "randomUUID" in crypto
-      ? crypto.randomUUID()
-      : `${Date.now()}_${Math.random().toString(16).slice(2)}`;
-  return `itm_user_${suffix}`;
-}
-
 export type UseThreadStreamRealtimeResult = readonly [
   ExposedRealtimeThread & { vitals: StreamVitals },
   SendMessageFn,
@@ -136,7 +129,11 @@ export type UseThreadStreamRealtimeResult = readonly [
   {
     pendingApprovals: PendingApproval[];
     loadedItemIds: string[];
-    resolveApproval: (requestId: string | number, accept: boolean, preparedRoles?: Record<string, string>) => void;
+    resolveApproval: (
+      requestId: string | number,
+      accept: boolean,
+      preparedRoles?: Record<string, string>,
+    ) => void;
     hasMoreTurns: boolean;
     loadOlderTurns: () => Promise<void>;
   },
@@ -315,7 +312,7 @@ function mcpItemToLiveEvent(
   // panel can render a tile from the spawn moment instead of waiting
   // for the first ``sub_tool_*`` event.
   if (item.tool === "__subagent_spawned__") {
-    const args = (item.arguments ?? {});
+    const args = item.arguments ?? {};
     const codename =
       typeof args.codename === "string" ? args.codename : undefined;
     const avatar = typeof args.avatar === "string" ? args.avatar : undefined;
@@ -360,7 +357,7 @@ function mcpItemToLiveEvent(
     };
   }
   if (item.tool === "__subagent_finished__") {
-    const args = (item.arguments ?? {});
+    const args = item.arguments ?? {};
     const result = (item.result ?? {}) as Record<string, unknown>;
     const codename =
       typeof result.codename === "string" ? result.codename : undefined;
@@ -438,7 +435,7 @@ function mcpItemToLiveEvent(
     };
   }
   if (item.tool === "__subagent_progress__") {
-    const args = (item.arguments ?? {});
+    const args = item.arguments ?? {};
     const preview = item.progress?.preview;
     return {
       id: item.id,
@@ -481,7 +478,7 @@ function mcpItemToLiveEvent(
       ...finishFields(status, startedAt, turn, item.durationMs),
     };
   }
-  const args = (item.arguments ?? {});
+  const args = item.arguments ?? {};
   const isSubagentTool = item.server === "subagent";
   const childRole =
     typeof args.sub_agent_role === "string"
@@ -1384,7 +1381,9 @@ export function useThreadStreamRealtime(
       pendingApprovals: state.pendingApprovals,
       // Include items folded into process replay or coalesced by the adapter:
       // their room projections must not reappear as separate chat bubbles.
-      loadedItemIds: state.turns.flatMap(turn => turn.items.map(item => item.id)),
+      loadedItemIds: state.turns.flatMap((turn) =>
+        turn.items.map((item) => item.id),
+      ),
       resolveApproval,
       // Backwards pagination — thread/resume returns the newest window
       // for large threads; older history pages in on demand.
@@ -1593,31 +1592,30 @@ export function useThreadStreamRealtime(
   const exposedThread = useMemo<
     ExposedRealtimeThread & { compact: typeof compact; vitals: typeof vitals }
   >(
-    () =>
-      ({
-        messages: visibleMessages,
-        streamingMessage,
-        subgraphStreams: {},
-        values: mapped,
-        isLoading: isUiLoading,
-        isThreadLoading,
-        error,
-        stop,
-        refresh,
-        submit: () => {
-          // ``submit`` is only called by the stream consumer's
-          // internal plumbing; the realtime path routes through
-          // ``sendMessage`` -> ``startTurn`` instead. Providing a no-op
-          // keeps the BaseStream contract satisfied for the few places
-          // that might introspect the shape.
-        },
-        threadId: activeThreadId || null,
-        compact,
-        vitals,
-        connectionPhase,
-        readyForMutations,
-        lastTurnStatus,
-      }),
+    () => ({
+      messages: visibleMessages,
+      streamingMessage,
+      subgraphStreams: {},
+      values: mapped,
+      isLoading: isUiLoading,
+      isThreadLoading,
+      error,
+      stop,
+      refresh,
+      submit: () => {
+        // ``submit`` is only called by the stream consumer's
+        // internal plumbing; the realtime path routes through
+        // ``sendMessage`` -> ``startTurn`` instead. Providing a no-op
+        // keeps the BaseStream contract satisfied for the few places
+        // that might introspect the shape.
+      },
+      threadId: activeThreadId || null,
+      compact,
+      vitals,
+      connectionPhase,
+      readyForMutations,
+      lastTurnStatus,
+    }),
     [
       mapped,
       visibleMessages,
@@ -1665,9 +1663,14 @@ export function useThreadStreamRealtime(
           if (!isCurrentThreadEpoch(deliveryEpoch)) return;
           await steer({ input: text, itemId: outbound.clientMessageId });
           if (!isCurrentThreadEpoch(deliveryEpoch)) return;
-          window.dispatchEvent(new CustomEvent(STEER_RECEIPT_EVENT, {
-            detail: { threadId: outbound.threadId, clientMessageId: outbound.clientMessageId },
-          }));
+          window.dispatchEvent(
+            new CustomEvent(STEER_RECEIPT_EVENT, {
+              detail: {
+                threadId: outbound.threadId,
+                clientMessageId: outbound.clientMessageId,
+              },
+            }),
+          );
           return;
         }
         if (isLoading) {
@@ -1925,7 +1928,7 @@ export function useThreadStreamRealtime(
       const effectiveThreadId =
         _threadId && _threadId !== "new" ? _threadId : threadId;
       const outbound: PendingOutboundMessage = {
-        clientMessageId: newClientMessageId(),
+        clientMessageId: newClientMessageId(message.clientMessageId),
         threadId: effectiveThreadId,
         intent: runningTurnId ? "steer" : "start",
         ...(runningTurnId ? { targetTurnId: runningTurnId } : {}),

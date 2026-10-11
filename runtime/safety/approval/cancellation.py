@@ -150,6 +150,7 @@ class CancellationToken:
         if self.is_cancelled:
             child.cancel(reason=self._source._reason or "parent cancelled")
             return child
+
         # Otherwise, relay any future cancellation to the child.
         def relay(reason: str) -> None:
             child.cancel(reason=reason or "parent cancelled")

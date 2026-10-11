@@ -461,9 +461,7 @@ def test_parallel_group_dispatch_accepts_large_batch_and_rejects_overflow(servic
         assert result["accepted"] and not result["completed"]
         assert len(result["results"]) == count
         retry = _call_agent_parallel(specs)
-        assert [r["task_id"] for r in retry["results"]] == [
-            r["task_id"] for r in result["results"]
-        ]
+        assert [r["task_id"] for r in retry["results"]] == [r["task_id"] for r in result["results"]]
     assert len(service.queue.list("group")) == count
 
 

@@ -14,6 +14,8 @@ export type PromptInputFilePart = FileUIPart & {
 
 /** A composed message from the input box: plain text plus uploaded files. */
 export type PromptInputMessage = {
+  /** Stable ID for a user-initiated native form retry; reconciled by the server. */
+  clientMessageId?: string;
   text: string;
   files: PromptInputFilePart[];
 };

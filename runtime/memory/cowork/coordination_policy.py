@@ -53,7 +53,9 @@ def capture_policy(session, *, parent=None):
         value[key] = [str(p) for p in value[key]]
     metadata = {k: session.metadata[k] for k in _METADATA if k in session.metadata}
     context = {
-        "scope": value, "metadata": metadata, "turn_id": session.turn_id,
+        "scope": value,
+        "metadata": metadata,
+        "turn_id": session.turn_id,
         "auto_delivery": True,
     }
     if task is not None and getattr(task, "resources", None) is not None:

@@ -186,16 +186,16 @@ _REQUIRED_TRACKED_RELEASE_FILES = (
         "extras/desktop/generate-codex-native-notices.py",
         "extras/desktop/generate-codex-third-party-licenses.py",
         "extras/desktop/prepare-codex-win.cjs",
-        "extras/desktop/licenses/codex-0.149.0/LICENSE",
-        "extras/desktop/licenses/codex-0.149.0/NATIVE_PROVENANCE.json",
-        "extras/desktop/licenses/codex-0.149.0/NATIVE_THIRD_PARTY_NOTICES.md",
-        "extras/desktop/licenses/codex-0.149.0/NOTICE",
-        "extras/desktop/licenses/codex-0.149.0/THIRD_PARTY_LICENSES-code-mode-host.html",
-        "extras/desktop/licenses/codex-0.149.0/THIRD_PARTY_LICENSES-codex-cli.html",
-        "extras/desktop/licenses/codex-0.149.0/THIRD_PARTY_LICENSES-windows-sandbox.html",
-        "extras/desktop/licenses/codex-0.149.0/THIRD_PARTY_LICENSES.md",
-        "extras/desktop/licenses/codex-0.149.0/cargo-about.hbs",
-        "extras/desktop/licenses/codex-0.149.0/cargo-about.toml",
+        "extras/desktop/licenses/codex-0.162.0/LICENSE",
+        "extras/desktop/licenses/codex-0.162.0/NATIVE_PROVENANCE.json",
+        "extras/desktop/licenses/codex-0.162.0/NATIVE_THIRD_PARTY_NOTICES.md",
+        "extras/desktop/licenses/codex-0.162.0/NOTICE",
+        "extras/desktop/licenses/codex-0.162.0/THIRD_PARTY_LICENSES-code-mode-host.html",
+        "extras/desktop/licenses/codex-0.162.0/THIRD_PARTY_LICENSES-codex-cli.html",
+        "extras/desktop/licenses/codex-0.162.0/THIRD_PARTY_LICENSES-windows-sandbox.html",
+        "extras/desktop/licenses/codex-0.162.0/THIRD_PARTY_LICENSES.md",
+        "extras/desktop/licenses/codex-0.162.0/cargo-about.hbs",
+        "extras/desktop/licenses/codex-0.162.0/cargo-about.toml",
         "extras/desktop/licenses/ratatui-0.30.2/LICENSE",
         "extras/desktop/licenses/ripgrep-15.2.0/COPYING",
         "extras/desktop/licenses/ripgrep-15.2.0/LICENSE-MIT",
@@ -501,6 +501,7 @@ def _build_wheel(source: Path, tmp_path: Path) -> tuple[set[str], Path]:
             ".",
         ],
         cwd=source,
+        timeout=300,
         check=False,
         capture_output=True,
         text=True,
@@ -579,6 +580,7 @@ def _assert_bundled_plugins_in_wheel(
         ],
         cwd=tmp_path,
         env=env,
+        timeout=120,
         check=False,
         capture_output=True,
         text=True,
@@ -586,6 +588,7 @@ def _assert_bundled_plugins_in_wheel(
     assert plugin_smoke.returncode == 0, f"{plugin_smoke.stdout}\n{plugin_smoke.stderr}"
 
 
+@pytest.mark.timeout(600)
 def test_clean_tracked_source_wheel_contains_bundled_market_skills(tmp_path: Path) -> None:
     """A clean wheel must retain an offline prompt catalog without skills/public."""
 
@@ -626,6 +629,7 @@ def test_clean_tracked_source_wheel_contains_bundled_market_skills(tmp_path: Pat
         ],
         cwd=tmp_path,
         env=env,
+        timeout=120,
         check=False,
         capture_output=True,
         text=True,
@@ -633,6 +637,7 @@ def test_clean_tracked_source_wheel_contains_bundled_market_skills(tmp_path: Pat
     assert installed_smoke.returncode == 0, f"{installed_smoke.stdout}\n{installed_smoke.stderr}"
 
 
+@pytest.mark.timeout(600)
 def test_candidate_wheel_contains_declared_runtime_and_bundled_plugins(tmp_path: Path) -> None:
     """A not-yet-staged candidate can be complete without weakening the Git gate."""
 

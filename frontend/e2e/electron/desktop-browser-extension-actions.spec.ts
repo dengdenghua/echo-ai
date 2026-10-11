@@ -12,7 +12,10 @@ const PNG = Buffer.from(
   "base64",
 );
 
-async function writeExtension(dir: string, files: Record<string, string | Buffer>) {
+async function writeExtension(
+  dir: string,
+  files: Record<string, string | Buffer>,
+) {
   await mkdir(dir, { recursive: true });
   for (const [name, body] of Object.entries(files))
     await writeFile(path.join(dir, name), body);
@@ -22,6 +25,15 @@ test("desktop extensions get toolbar buttons, popups and context menus", async (
   const root = await mkdtemp(path.join(tmpdir(), "echo-browser-actions-"));
   const popupDir = path.join(root, "toolbar-probe");
   const clickDir = path.join(root, "click-probe");
+  const lateDir = path.join(root, "late-probe");
+  await writeExtension(lateDir, {
+    "manifest.json": JSON.stringify({
+      manifest_version: 3,
+      name: "Late probe",
+      version: "1.0.0",
+      permissions: ["contextMenus"],
+    }),
+  });
   await writeExtension(popupDir, {
     "manifest.json": JSON.stringify({
       manifest_version: 3,
@@ -59,6 +71,9 @@ test("desktop extensions get toolbar buttons, popups and context menus", async (
       name: "Click Probe",
       version: "1.0.0",
       action: { default_title: "Click" },
+      commands: {
+        probe: { suggested_key: "Ctrl+Shift+Y", description: "Probe shortcut" },
+      },
       background: { service_worker: "sw.js" },
     }),
     "sw.js": `
@@ -66,6 +81,12 @@ test("desktop extensions get toolbar buttons, popups and context menus", async (
         const win = await chrome.windows.getCurrent();
         chrome.action.setBadgeText({ text: "ok", tabId: tab.id });
         chrome.action.setTitle({ title: "window " + win.id, tabId: tab.id });
+      });
+      chrome.commands.onCommand.addListener(async (command, tab) => {
+        if (command !== "probe") return;
+        const bindings = await chrome.commands.getAll();
+        chrome.action.setTitle({ title: bindings.find((b) => b.name === command).shortcut, tabId: tab.id });
+        chrome.action.setBadgeText({ text: "key", tabId: tab.id });
       });`,
   });
   const server = createServer((_req, res) => {
@@ -90,14 +111,24 @@ test("desktop extensions get toolbar buttons, popups and context menus", async (
   try {
     const win = await app.firstWindow();
     await win.waitForLoadState("domcontentloaded");
+    await app.evaluate(({ BrowserWindow }) => {
+      const main = BrowserWindow.getAllWindows().find(
+        (window) => !window.getParentWindow(),
+      )!;
+      main.webContents.setBackgroundThrottling(false);
+      main.show();
+    });
     // Stand in for the folder picker: one folder per call.
-    await app.evaluate(({ dialog }, dirs) => {
-      const queue = [...dirs];
-      dialog.showOpenDialog = (async () => ({
-        canceled: false,
-        filePaths: [queue.shift()!],
-      })) as unknown as typeof dialog.showOpenDialog;
-    }, [popupDir, clickDir]);
+    await app.evaluate(
+      ({ dialog }, dirs) => {
+        const queue = [...dirs];
+        dialog.showOpenDialog = (async () => ({
+          canceled: false,
+          filePaths: [queue.shift()!],
+        })) as unknown as typeof dialog.showOpenDialog;
+      },
+      [popupDir, clickDir, lateDir],
+    );
     const install = () =>
       win.evaluate(() => window.echo!.extensions.installFromFolder());
     const probeId = (await install()).extension!.id;
@@ -144,13 +175,21 @@ test("desktop extensions get toolbar buttons, popups and context menus", async (
       badgeColor: "rgba(200, 0, 0, 1)",
       icon: expect.stringMatching(/^data:image\/png;base64,/),
     });
-    expect(await action(clickId)).toMatchObject({ hasPopup: false, badgeText: "" });
+    expect(await action(clickId)).toMatchObject({
+      hasPopup: false,
+      badgeText: "",
+    });
+
+    // Loading another extension refreshes Chromium's lazy API bindings.
+    // Existing workers must keep the host action and menu methods.
+    expect((await install()).ok).toBe(true);
 
     // The popup opens under its button and sees the active tab.
     const anchor = { left: 700, top: 10, right: 732, bottom: 42 };
     expect(
       await win.evaluate(
-        ({ id, tab, anchor }) => window.echo!.extensions.clickAction(id, tab, anchor),
+        ({ id, tab, anchor }) =>
+          window.echo!.extensions.clickAction(id, tab, anchor),
         { id: probeId, tab: tabId, anchor },
       ),
     ).toMatchObject({ ok: true, opened: "popup" });
@@ -196,7 +235,8 @@ test("desktop extensions get toolbar buttons, popups and context menus", async (
     // Clicking the button again closes it.
     expect(
       await win.evaluate(
-        ({ id, tab, anchor }) => window.echo!.extensions.clickAction(id, tab, anchor),
+        ({ id, tab, anchor }) =>
+          window.echo!.extensions.clickAction(id, tab, anchor),
         { id: probeId, tab: tabId, anchor },
       ),
     ).toMatchObject({ ok: true, closed: true });
@@ -208,7 +248,10 @@ test("desktop extensions get toolbar buttons, popups and context menus", async (
       const g = globalThis as unknown as {
         __menu?: Electron.MenuItemConstructorOptions[];
       };
-      Menu.buildFromTemplate = ((template: Electron.MenuItemConstructorOptions[]) => {
+      const build = Menu.buildFromTemplate;
+      Menu.buildFromTemplate = ((
+        template: Electron.MenuItemConstructorOptions[],
+      ) => {
         g.__menu = template;
         return { popup() {} };
       }) as unknown as typeof Menu.buildFromTemplate;
@@ -228,41 +271,107 @@ test("desktop extensions get toolbar buttons, popups and context menus", async (
       );
       const item = g.__menu!.find((entry) => entry.label === "Probe hello");
       (item?.click as (() => void) | undefined)?.();
+      Menu.buildFromTemplate = build;
       return g.__menu!.map((entry) => entry.label ?? entry.type);
     }, tabId);
     expect(menuLabels).toContain("Probe hello");
-    await expect.poll(async () => (await action(probeId))?.badgeText).toBe("hit");
-    expect((await action(probeId))?.title).toBe(`clicked hello in ${base}/page`);
+    await expect
+      .poll(async () => (await action(probeId))?.badgeText)
+      .toBe("hit");
+    expect((await action(probeId))?.title).toBe(
+      `clicked hello in ${base}/page`,
+    );
     // Per-tab: other tabs keep the extension-wide badge.
     expect((await action(probeId, 999_999))?.badgeText).toBe("5");
 
     // No popup: the click goes to the extension, with the tab.
     expect(
       await win.evaluate(
-        ({ id, tab, anchor }) => window.echo!.extensions.clickAction(id, tab, anchor),
+        ({ id, tab, anchor }) =>
+          window.echo!.extensions.clickAction(id, tab, anchor),
         { id: clickId, tab: tabId, anchor },
       ),
     ).toMatchObject({ ok: true, dispatched: true });
-    await expect.poll(async () => (await action(clickId))?.badgeText).toBe("ok");
+    await expect
+      .poll(async () => (await action(clickId))?.badgeText)
+      .toBe("ok");
     expect((await action(clickId))?.title).toBe("window 1");
 
+    // Native Chromium input reaches the focused browser's command handler.
+    // No physical key press or OS-wide shortcut registration is involved.
+    await app.evaluate(({ BrowserWindow, webContents }, id) => {
+      const main = BrowserWindow.getAllWindows().find(
+        (window) => !window.getParentWindow(),
+      )!;
+      main.show();
+      main.focus();
+      const tab = webContents.fromId(id)!;
+      tab.focus();
+    }, tabId);
+    await expect
+      .poll(() =>
+        app.evaluate(
+          ({ BrowserWindow, webContents }, id) =>
+            BrowserWindow.getAllWindows().some((window) =>
+              window.isFocused(),
+            ) && webContents.fromId(id)!.isFocused(),
+          tabId,
+        ),
+      )
+      .toBe(true);
+    await app.evaluate(({ webContents }, id) => {
+      const tab = webContents.fromId(id)!;
+      const modifiers =
+        process.platform === "darwin"
+          ? ["meta", "shift"]
+          : ["control", "shift"];
+      tab.sendInputEvent({ type: "keyDown", keyCode: "Y", modifiers });
+      tab.sendInputEvent({ type: "keyUp", keyCode: "Y", modifiers });
+    }, tabId);
+    await expect
+      .poll(async () => (await action(clickId))?.badgeText)
+      .toBe("key");
+    expect((await action(clickId))?.title).toBe("Ctrl+Shift+Y");
+
     // Pinning, and removal clears the toolbar and the menu.
-    await win.evaluate((id) => window.echo!.extensions.setPinned(id, false), clickId);
+    await win.evaluate(
+      (id) => window.echo!.extensions.setPinned(id, false),
+      clickId,
+    );
     expect((await action(clickId))?.pinned).toBe(false);
     await win.evaluate((id) => window.echo!.extensions.remove(id), probeId);
     expect(await action(probeId)).toBeUndefined();
-    const afterRemoval = await app.evaluate(({ webContents }, id) => {
+    const afterRemoval = await app.evaluate(({ Menu, webContents }, id) => {
       const g = globalThis as unknown as {
         __menu?: Electron.MenuItemConstructorOptions[];
       };
+      const build = Menu.buildFromTemplate;
+      Menu.buildFromTemplate = ((
+        template: Electron.MenuItemConstructorOptions[],
+      ) => {
+        g.__menu = template;
+        return { popup() {} };
+      }) as unknown as typeof Menu.buildFromTemplate;
       webContents.fromId(id)!.emit(
         "context-menu",
         { preventDefault() {} },
-        { x: 1, y: 1, selectionText: "hello", isEditable: false, linkURL: "", mediaType: "none", srcURL: "" },
+        {
+          x: 1,
+          y: 1,
+          selectionText: "hello",
+          isEditable: false,
+          linkURL: "",
+          mediaType: "none",
+          srcURL: "",
+        },
       );
+      Menu.buildFromTemplate = build;
       return g.__menu!.map((entry) => entry.label ?? entry.type);
     }, tabId);
     expect(afterRemoval).not.toContain("Probe hello");
+  } catch (error) {
+    console.error("extension native test failed:", String(error));
+    throw error;
   } finally {
     await app.close();
     await new Promise<void>((resolve) => server.close(() => resolve()));

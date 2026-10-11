@@ -407,7 +407,7 @@ def _generate_video(
     for selected, overrides in candidates:
         try:
             if task_id.strip():
-                result = module.poll_video(task_id.strip(), **overrides)
+                result = module.poll_video(task_id.strip(), model=model, **overrides)
             else:
                 result = module.generate_video(
                     prompt,

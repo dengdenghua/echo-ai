@@ -6400,6 +6400,8 @@ export const zhCN: Translations = {
 
   // Annotations
   annotations: {
+    deleteForbidden: "只有作者或房间管理员可删除这条批注。",
+    deleteFailed: "删除批注失败，请重试。",
     resolve: "标记解决",
     unresolve: "取消解决",
     delete: "删除",

@@ -190,4 +190,7 @@ def create_fs_router(
         group_store=group_store,
     )
     register_endpoints(router, ctx)
+    from .git_worktrees_router import register_git_worktree_endpoints
+
+    register_git_worktree_endpoints(router, ctx)
     return router

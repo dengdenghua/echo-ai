@@ -299,8 +299,8 @@ export async function getChannelsStatus(): Promise<ChannelsStatusResponse> {
 export async function restartChannel(
   name: ChannelName,
 ): Promise<{ message: string }> {
-  return untypedApi.post<{ message: string }>(`/api/channels/${name}/restart`, {
-    reason: "POST /api/channels/{name}/restart is not in the OpenAPI snapshot",
+  return apiPost("/api/channels/{channel_id}/restart", {
+    path: { channel_id: name },
     headers: JSON_CONTENT_TYPE,
     errorMessage: failed(`Failed to restart channel ${name}`),
   });

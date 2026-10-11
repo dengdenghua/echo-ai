@@ -27,7 +27,12 @@ from pathlib import Path
 REPO_ROOT = Path(__file__).resolve().parent.parent.parent
 ROOT = REPO_ROOT / "runtime"
 BASELINE = REPO_ROOT / "tools/lint/sqlite_schema_baseline.txt"
-EXEMPT = {"runtime/platform/io/sqlite_schema.py"}
+EXEMPT = {
+    "runtime/platform/io/sqlite_schema.py",
+    # Bundled standalone inspector opens external databases with mode=ro.
+    # Its table_info reads report columns; they never migrate runtime stores.
+    "runtime/execution/all_skills/database-inspector/scripts/db_explorer.py",
+}
 PATTERN_RE = re.compile(r"""\.executescript\(|PRAGMA\s+table_info""", re.IGNORECASE)
 
 

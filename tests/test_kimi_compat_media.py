@@ -2,6 +2,9 @@ from __future__ import annotations
 
 import json
 from types import SimpleNamespace
+from urllib.parse import parse_qs, urlsplit
+
+import pytest
 
 import runtime.execution.suckers.kimi_compat_skills as media
 
@@ -254,3 +257,66 @@ def test_agnes_video_25_omits_forbidden_legacy_frame_controls(monkeypatch) -> No
     assert "height" not in captured["payload"]
     assert "num_frames" not in captured["payload"]
     assert "frame_rate" not in captured["payload"]
+
+
+def test_agnes_video_keyframes_poll_the_video_identifier_with_model(monkeypatch) -> None:
+    module = media._load_bundled_media_module("video")
+    requests: list[dict] = []
+
+    def post(url, **kwargs):
+        requests.append(json.loads(kwargs["data"]))
+        return SimpleNamespace(
+            status_code=200,
+            json=lambda: {
+                "id": "task-id",
+                "video_id": "query-id",
+                "status": "queued",
+            },
+        )
+
+    def get(url, **kwargs):
+        requests.append({"url": url})
+        return SimpleNamespace(
+            status_code=200,
+            json=lambda: {
+                "status": "completed",
+                "url": "https://example.test/video.mp4",
+            },
+        )
+
+    monkeypatch.setattr(module.requests, "post", post)
+    monkeypatch.setattr(module.requests, "get", get)
+    monkeypatch.setattr(module.time, "sleep", lambda _: None)
+    result = module.generate_video(
+        "turn towards the window",
+        seconds="8",
+        image=["https://example.test/a.png", "https://example.test/b.png"],
+        api_key="test",
+        base_url="https://apihub.agnes-ai.com/v1",
+    )
+    assert requests[0]["mode"] == "keyframe"
+    assert requests[0]["seconds"] == "8"
+    assert requests[0]["first_frame"].endswith("/a.png")
+    assert requests[0]["last_frame"].endswith("/b.png")
+    query = urlsplit(requests[1]["url"])
+    assert query.path == "/agnesapi"
+    assert parse_qs(query.query) == {
+        "video_id": ["query-id"],
+        "model_name": ["agnes-video-2.5-flash"],
+    }
+    assert result["task_id"] == "query-id"
+    assert result["video_url"].endswith("/video.mp4")
+
+
+def test_agnes_video_rejects_legacy_extra_before_submission(monkeypatch) -> None:
+    module = media._load_bundled_media_module("video")
+    monkeypatch.setattr(
+        module.requests, "post", lambda *args, **kwargs: pytest.fail("invalid payload submitted")
+    )
+    with pytest.raises(ValueError, match="legacy frame controls"):
+        module.generate_video(
+            "a cat",
+            api_key="test",
+            base_url="https://apihub.agnes-ai.com/v1",
+            extra={"num_frames": 49},
+        )

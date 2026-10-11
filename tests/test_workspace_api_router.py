@@ -590,17 +590,35 @@ def test_endpoints_return_403_when_flag_off(
 
 
 def test_execution_directory_uses_workspace_acl(tmp_path, monkeypatch):
-    from runtime.safety.auth.principal import CurrentPrincipal
     import runtime.sensing.gateway.workspace_api_router as module
+    from runtime.safety.auth.principal import CurrentPrincipal
 
     store = WorkspaceStore(db_path=tmp_path / "scope.db")
-    ws = store.create_workspace(name="shared", mount_type="local", mount_target=str(tmp_path), owner_id="owner", tenant_id="team")
+    ws = store.create_workspace(
+        name="shared",
+        mount_type="local",
+        mount_target=str(tmp_path),
+        owner_id="owner",
+        tenant_id="team",
+    )
     store.add_member(ws.id, "reader", role="viewer")
     store.add_member(ws.id, "editor", role="editor")
     client = _client(tmp_path, workspace_store=store)
-    for actor, tenant, expected in [("reader", "team", 403), ("stranger", "team", 404), ("editor", "other", 404), ("editor", "team", 200)]:
-        principal = CurrentPrincipal(tenant_id=tenant, actor_id=actor, roles=frozenset({"user"}), scopes=frozenset(), authn_method="test", request_id="test")
-        monkeypatch.setattr(module, "resolve_principal", lambda *a, **k: principal)
+    for actor, tenant, expected in [
+        ("reader", "team", 403),
+        ("stranger", "team", 404),
+        ("editor", "other", 404),
+        ("editor", "team", 200),
+    ]:
+        principal = CurrentPrincipal(
+            tenant_id=tenant,
+            actor_id=actor,
+            roles=frozenset({"user"}),
+            scopes=frozenset(),
+            authn_method="test",
+            request_id="test",
+        )
+        monkeypatch.setattr(module, "resolve_principal", lambda *a, bound=principal, **k: bound)
         response = client.get(f"/api/workspaces/{ws.id}/execution-directory")
         assert response.status_code == expected
         if expected == 200:

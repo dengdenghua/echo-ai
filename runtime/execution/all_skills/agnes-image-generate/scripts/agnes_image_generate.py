@@ -6,7 +6,7 @@ from ``base_url``:
 - **Volcano (火山方舟)** — ``https://ark.cn-beijing.volces.com/api/plan/v3``,
   model ``doubao-seedream-5.0-lite``（文生图 + 图生图）。
 - **Agnes AI Gateway** — ``https://apihub.agnes-ai.com/v1``,
-  model ``agnes-image-2.1-flash``（OpenAI 兼容）。
+  model ``agnes-image-2.5-flash``（OpenAI 兼容）。
 
 Both are thin adapters: Authorization header + body shape, returns hosted
 image URL(s).
@@ -40,7 +40,7 @@ VOLC_MODEL = "doubao-seedream-5.0-lite"
 
 # Agnes AI Gateway — OpenAI 兼容
 AGNES_URL = "https://apihub.agnes-ai.com/v1"
-AGNES_MODEL = "agnes-image-2.1-flash"
+AGNES_MODEL = "agnes-image-2.5-flash"
 
 DEFAULT_BASE_URL = VOLC_URL
 DEFAULT_MODEL = VOLC_MODEL
@@ -105,7 +105,7 @@ def generate_image(
         Text description of the desired image. Required.
     model
         Model id. Defaults to ``doubao-seedream-5.0-lite`` (Volcano) when the
-        base URL is Volcano, else ``agnes-image-2.1-flash``.
+        base URL is Volcano, else ``agnes-image-2.5-flash``.
     size
         Optional WxH string like ``"2048x2048"`` (Volcano) or ``"1024x1024"``
         (Agnes). When omitted the gateway picks a sensible default.
@@ -149,7 +149,20 @@ def generate_image(
         "n": max(1, int(n)),
     }
     if size:
-        payload["size"] = size
+        # The skill accepts aspect-ratio aliases; the gateway expects a size.
+        agnes_sizes = {
+            "1:1": "1024x1024",
+            "3:4": "864x1152",
+            "4:3": "1152x864",
+            "16:9": "1312x736",
+            "9:16": "736x1312",
+            "2:3": "832x1248",
+            "3:2": "1248x832",
+            "21:9": "1568x672",
+        }
+        payload["size"] = size if volcano else agnes_sizes.get(size, size)
+    elif not volcano:
+        payload["size"] = "1024x1024"
     if image is not None:
         # Volcano: image is a first-class request field; Agnes keeps it
         # under extra_body for backward compatibility.

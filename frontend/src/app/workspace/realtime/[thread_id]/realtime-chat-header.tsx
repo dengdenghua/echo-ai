@@ -23,6 +23,7 @@ import {
 import { RealtimeGroupHeaderLayout } from "@/components/workspace/realtime/realtime-group-header-layout";
 import { TaskCollaboratorControl } from "@/components/workspace/realtime/task-collaborator-control";
 import { RunDurationBadge } from "@/components/workspace/run-duration-badge";
+import { AssistantActivityTrigger } from "@/components/workspace/assistant-activity-trigger";
 import { ShareMenu } from "@/components/workspace/share-menu";
 import type { TeamMode } from "@/components/workspace/team-mode-picker";
 import { ThreadTitle } from "@/components/workspace/thread-title";
@@ -336,6 +337,7 @@ function RealtimeEchoAssistantHeader({
         {headerEchoShare}
         {headerEnvironment}
         <AssistantChannels />
+        <AssistantActivityTrigger />
         <Button
           type="button"
           aria-label="自动化与订阅"

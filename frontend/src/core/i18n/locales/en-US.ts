@@ -6780,6 +6780,9 @@ Strategy:
 
   // Annotations
   annotations: {
+    deleteForbidden:
+      "Only the author or a room admin can delete this annotation.",
+    deleteFailed: "Could not delete the annotation. Please try again.",
     resolve: "Resolve",
     unresolve: "Unresolve",
     delete: "Delete",

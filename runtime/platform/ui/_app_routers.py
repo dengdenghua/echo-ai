@@ -26,6 +26,59 @@ def _workspaces_router_root(ctx: AppContext) -> Any:
     return ctx.thread_workspace_root or (app_paths().data_dir / "workspaces")
 
 
+def _mount_visuals_router(ctx: AppContext) -> None:
+    from runtime.sensing.gateway.visuals_router import create_visuals_router
+
+    ctx.app.include_router(
+        create_visuals_router(
+            identity_store=ctx.identity_store,
+            require_auth=ctx.require_auth,
+            jwt_secret=ctx.jwt_secret,
+            jwt_issuer=ctx.jwt_issuer,
+            jwt_audience=ctx.jwt_audience,
+        )
+    )
+
+
+def _mount_assistant_activity_router(ctx: AppContext, collaboration_store: Any) -> None:
+    try:
+        from runtime.sensing.gateway.task_runs_router import create_task_runs_router
+
+        ctx.app.include_router(
+            create_task_runs_router(
+                supervisor=getattr(ctx.state, "task_supervisor", None),
+                identity_store=ctx.identity_store,
+                require_auth=ctx.require_auth,
+                jwt_secret=ctx.jwt_secret,
+                jwt_issuer=ctx.jwt_issuer,
+                jwt_audience=ctx.jwt_audience,
+            )
+        )
+    except Exception as _task_runs_exc:  # noqa: BLE001
+        logging.getLogger(__name__).warning(
+            "task runs router failed to mount: %s",
+            _task_runs_exc,
+        )
+
+    from runtime.sensing.gateway.assistant_activity_router import create_assistant_activity_router
+
+    ctx.app.include_router(
+        create_assistant_activity_router(
+            supervisor=getattr(ctx.state, "task_supervisor", None),
+            project_store=ctx.project_store,
+            collaboration_store=collaboration_store,
+            thread_store=ctx.thread_store,
+            group_store=getattr(ctx.cowork_runtime, "group_store", None),
+            team_rooms_router=ctx.team_rooms_router,
+            identity_store=ctx.identity_store,
+            require_auth=ctx.require_auth,
+            jwt_secret=ctx.jwt_secret,
+            jwt_issuer=ctx.jwt_issuer,
+            jwt_audience=ctx.jwt_audience,
+        )
+    )
+
+
 def mount_routers_a(
     ctx: AppContext,
     *,
@@ -46,7 +99,9 @@ def mount_routers_a(
     from runtime.sensing.gateway.execution_nodes_router import create_execution_nodes_router
     from runtime.sensing.gateway.system_router import create_system_router
 
-    collaboration_store = getattr(ctx.cowork_runtime, "collaboration_store", None) or CollaborationStore()
+    collaboration_store = (
+        getattr(ctx.cowork_runtime, "collaboration_store", None) or CollaborationStore()
+    )
     app.include_router(
         create_execution_nodes_router(
             collaboration_store=collaboration_store,
@@ -91,12 +146,7 @@ def mount_routers_a(
         )
     )
 
-    from runtime.sensing.gateway.visuals_router import create_visuals_router
-
-    app.include_router(create_visuals_router(
-        identity_store=ctx.identity_store, require_auth=ctx.require_auth,
-        jwt_secret=ctx.jwt_secret, jwt_issuer=ctx.jwt_issuer, jwt_audience=ctx.jwt_audience,
-    ))
+    _mount_visuals_router(ctx)
 
     # Unified control plane for browser / Chrome / webview / computer sessions.
     from runtime.sensing.gateway.control_sessions_router import create_control_sessions_router
@@ -420,25 +470,7 @@ def mount_routers_a(
             _loop_exc,
         )
 
-    try:
-        from runtime.sensing.gateway.task_runs_router import create_task_runs_router
-
-        app.include_router(
-            create_task_runs_router(
-                supervisor=getattr(state, "task_supervisor", None),
-                identity_store=ctx.identity_store,
-                require_auth=ctx.require_auth,
-                jwt_secret=ctx.jwt_secret,
-                jwt_issuer=ctx.jwt_issuer,
-                jwt_audience=ctx.jwt_audience,
-            )
-        )
-    except Exception as _task_runs_exc:  # noqa: BLE001
-        logging.getLogger(__name__).warning(
-            "task runs router failed to mount: %s",
-            _task_runs_exc,
-        )
-
+    _mount_assistant_activity_router(ctx, collaboration_store)
     from runtime.sensing.gateway.verify_router import create_verify_router
 
     app.include_router(

@@ -5833,6 +5833,8 @@ export interface Translations {
 
   // Annotations
   annotations: {
+    deleteForbidden: string;
+    deleteFailed: string;
     resolve: string;
     unresolve: string;
     delete: string;

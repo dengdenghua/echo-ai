@@ -37,7 +37,9 @@ def test_hide_restore_does_not_touch_thread_and_filters_before_pagination(tmp_pa
     removed = client.post("/api/threads/search", json={"hidden_only": True}).json()
     assert [row["thread_id"] for row in removed] == ["c"]
     assert client.put("/api/threads/c/list-visibility", json={"hidden": "false"}).status_code == 422
-    assert client.put("/api/threads/missing/list-visibility", json={"hidden": True}).status_code == 404
+    assert (
+        client.put("/api/threads/missing/list-visibility", json={"hidden": True}).status_code == 404
+    )
     assert client.put("/api/threads/c/list-visibility", json={"hidden": False}).status_code == 200
     assert len(client.post("/api/threads/search", json={}).json()) == 3
     assert before == {name: store.get(name) for name in ("a", "b", "c")}

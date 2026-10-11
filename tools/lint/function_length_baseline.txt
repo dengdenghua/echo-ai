@@ -3,19 +3,19 @@
 
 runtime/sensing/gateway/_tool_bridge_loop.py::_stream_agentic_fallback_impl	1894
 runtime/sensing/gateway/_team_stream_group_fanout.py::_drive_group_fanout	1590
-runtime/sensing/gateway/realtime_turn_lifecycle.py::_start_turn	1252
+runtime/sensing/gateway/realtime_turn_lifecycle.py::_start_turn	1251
 runtime/execution/subagents/bridge.py::call_subagent	1537
 runtime/platform/ui/browser_router.py::create_browser_router	1179
-runtime/core/cerebrum/_react_execution_phase6d.py::_phase_6d_dispatch_and_observe	1120
+runtime/core/cerebrum/_react_execution_phase6d.py::_phase_6d_dispatch_and_observe	969
 runtime/tentacle/dashboard.py::create_tentacle_router	984
-runtime/execution/tool_engine/executor.py::ToolExecutor.execute_step	1001
+runtime/execution/tool_engine/executor.py::ToolExecutor.execute_step	997
 runtime/sensing/gateway/agent_world_router.py::create_agent_world_router	961
 runtime/core/cerebrum/react_model_stream.py::_phase_6b_model_stream	946
 runtime/sensing/gateway/computer_router.py::create_computer_router	269
 runtime/sensing/gateway/team_tasks_router.py::create_team_tasks_router	429
 runtime/core/cerebrum/react_loop.py::_stream_react_loop_impl	899
 runtime/sensing/gateway/team_rooms_router.py::create_team_rooms_router	872
-runtime/platform/ui/_app_routers.py::mount_routers_a	844
+runtime/platform/ui/_app_routers.py::mount_routers_a	823
 runtime/platform/ui/_app_routers_extra.py::mount_routers_b	790
 runtime/sensing/gateway/_fs_router_endpoints.py::register_endpoints	794
 runtime/sensing/gateway/_realtime_react_stream_drive.py::_drive_react	789
@@ -26,7 +26,7 @@ runtime/execution/suckers/_delegation_skills_parallel.py::_call_agent_parallel	7
 runtime/execution/suckers/ephemeral_runner.py::make_llm_ephemeral_runner._runner	708
 runtime/execution/suckers/delegation_skills.py::register_delegation_skills	707
 runtime/sensing/gateway/mcp_router.py::create_mcp_router	698
-runtime/sensing/gateway/channels_router.py::create_channels_router	687
+runtime/sensing/gateway/channels_router.py::create_channels_router	686
 runtime/core/cerebrum/react_phase_6c.py::_phase_6c_parse_and_guard	682
 runtime/sensing/gateway/_agents_endpoints_crud.py::_register_agents_crud	674
 runtime/sensing/gateway/team_invitations_router.py::register_team_invitation_routes	625
@@ -54,7 +54,7 @@ runtime/sensing/gateway/_observability_journal.py::register_journal_endpoints	42
 runtime/sensing/gateway/realtime_thread_history.py::_flatten_turns_to_messages	419
 runtime/sensing/gateway/teach_repeat_router.py::create_teach_repeat_router	416
 runtime/sensing/gateway/org_router.py::create_org_router	414
-runtime/core/cerebrum/react_parallel_dispatch.py::_dispatch_parallel_actions	408
+runtime/core/cerebrum/react_parallel_dispatch.py::_dispatch_parallel_actions	407
 runtime/core/cerebrum/_react_execution_phase6g.py::_phase_6g_housekeeping	406
 runtime/execution/suckers/_memory_skills_handlers.py::register_memory_skills	406
 runtime/sensing/gateway/remote_backends_router.py::create_remote_backends_router	361
@@ -67,7 +67,7 @@ runtime/platform/ui/_reflex_admin_stats.py::register_reflex_stats_endpoints	383
 runtime/safety/recovery/scheduler.py::RegenerationScheduler._tick_once	378
 runtime/sensing/gateway/registry_consumer_router.py::create_registry_consumer_router	371
 runtime/platform/plugins/bundled/narrative_studio/__init__.py::NarrativeStudioPlugin.register_routes	370
-runtime/platform/process/streaming.py::stream_run	367
+runtime/platform/process/streaming.py::stream_run	366
 runtime/sensing/gateway/_config_endpoints_custom_models.py::_register_custom_models	354
 runtime/platform/plugins/bundled/clip_studio/project_store.py::_apply_operation	353
 runtime/sensing/gateway/execution_nodes_router.py::create_execution_nodes_router	353
@@ -83,7 +83,7 @@ runtime/platform/plugins/cloud_catalog.py::CloudCatalog._install_plugin_unlocked
 runtime/core/cerebrum/react_terminal.py::_finalize_react_turn	332
 runtime/sensing/gateway/media_router.py::create_media_router	331
 runtime/sensing/gateway/team_gateway.py::create_team_gateway	328
-runtime/core/cerebrum/_react_execution_dispatch.py::_execute_action_via_beak	324
+runtime/core/cerebrum/_react_execution_dispatch.py::_execute_action_via_beak	303
 runtime/cli.py::_main	312
 runtime/sensing/gateway/_config_endpoints_codex.py::_register_coder_codex	311
 runtime/sensing/model_router/anthropic_router.py::AnthropicModelRouter.call_stream	310

@@ -32,7 +32,8 @@ export function projectConflict(
   if (!(error instanceof EchoAPIError) || error.status !== 409) return null;
   const detail: unknown = error.detail;
   if (!detail || typeof detail !== "object") return null;
-  const { code, status } = detail as { code?: unknown; status?: unknown };
+  const code = "code" in detail ? detail.code : undefined;
+  const status = "status" in detail ? detail.status : undefined;
   return {
     code: typeof code === "string" ? code : "",
     status: typeof status === "string" ? status : "",

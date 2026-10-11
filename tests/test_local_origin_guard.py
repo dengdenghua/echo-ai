@@ -202,6 +202,20 @@ def test_origin_allowlist_env(monkeypatch):
     assert _ws_code(client, {"Origin": "https://tools.example.com"}) == 1008
 
 
+def test_extension_origin_requires_exact_allowlist_entry(monkeypatch):
+    origin = "chrome-extension://aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+    other = "chrome-extension://bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+    monkeypatch.delenv(ALLOWED_ORIGINS_ENV, raising=False)
+    client = _client()
+    assert _ws_code(client, {"Origin": origin}) == 1008
+    monkeypatch.setenv(ALLOWED_ORIGINS_ENV, origin)
+    assert _ws_code(client, {"Origin": origin}) == "hello"
+    assert _ws_code(client, {"Origin": other}) == 1008
+    assert _ws_code(client, {"Origin": origin + "/forged"}) == 1008
+    assert client.post("/probe", headers={"Origin": origin}).status_code == 200
+    assert client.post("/probe", headers={"Origin": other}).status_code == 403
+
+
 # ── Origin on HTTP (CSRF) ──────────────────────────────────────
 
 

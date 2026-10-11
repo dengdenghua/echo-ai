@@ -675,6 +675,201 @@
         "title": "AssistBody",
         "type": "object"
       },
+      "AssistantActivityItem": {
+        "properties": {
+          "agent_ids": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Agent Ids",
+            "type": "array"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "project_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Project Id"
+          },
+          "project_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Project Name"
+          },
+          "reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reason"
+          },
+          "room_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Room Id"
+          },
+          "room_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Room Name"
+          },
+          "run_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Run Id"
+          },
+          "source": {
+            "enum": [
+              "run",
+              "project_task",
+              "collaboration_task"
+            ],
+            "title": "Source",
+            "type": "string"
+          },
+          "state": {
+            "enum": [
+              "working",
+              "attention",
+              "completed"
+            ],
+            "title": "State",
+            "type": "string"
+          },
+          "status": {
+            "title": "Status",
+            "type": "string"
+          },
+          "task_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Task Id"
+          },
+          "thread_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Thread Id"
+          },
+          "title": {
+            "title": "Title",
+            "type": "string"
+          },
+          "updated_at": {
+            "title": "Updated At",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "source",
+          "title",
+          "status",
+          "state",
+          "updated_at"
+        ],
+        "title": "AssistantActivityItem",
+        "type": "object"
+      },
+      "AssistantActivityResponse": {
+        "properties": {
+          "has_more": {
+            "title": "Has More",
+            "type": "boolean"
+          },
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/AssistantActivityItem"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "schema": {
+            "const": "echo.assistant_activity.v1",
+            "default": "echo.assistant_activity.v1",
+            "title": "Schema",
+            "type": "string"
+          },
+          "summary": {
+            "$ref": "#/components/schemas/AssistantActivitySummary"
+          }
+        },
+        "required": [
+          "items",
+          "summary",
+          "has_more"
+        ],
+        "title": "AssistantActivityResponse",
+        "type": "object"
+      },
+      "AssistantActivitySummary": {
+        "properties": {
+          "attention": {
+            "default": 0,
+            "title": "Attention",
+            "type": "integer"
+          },
+          "completed": {
+            "default": 0,
+            "title": "Completed",
+            "type": "integer"
+          },
+          "working": {
+            "default": 0,
+            "title": "Working",
+            "type": "integer"
+          }
+        },
+        "title": "AssistantActivitySummary",
+        "type": "object"
+      },
       "AuthProvider": {
         "additionalProperties": true,
         "properties": {
@@ -1304,6 +1499,27 @@
           "permissions"
         ],
         "title": "CapabilityPermissionsResponse",
+        "type": "object"
+      },
+      "ChannelRestartResponse": {
+        "properties": {
+          "message": {
+            "title": "Message",
+            "type": "string"
+          },
+          "restarted": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Restarted",
+            "type": "array"
+          }
+        },
+        "required": [
+          "message",
+          "restarted"
+        ],
+        "title": "ChannelRestartResponse",
         "type": "object"
       },
       "CodexAccountResponse": {
@@ -4818,6 +5034,99 @@
         },
         "type": "object"
       },
+      "GitWorktree": {
+        "additionalProperties": false,
+        "properties": {
+          "branch": {
+            "title": "Branch",
+            "type": "string"
+          },
+          "commit": {
+            "title": "Commit",
+            "type": "string"
+          },
+          "current": {
+            "title": "Current",
+            "type": "boolean"
+          },
+          "locked": {
+            "title": "Locked",
+            "type": "boolean"
+          },
+          "path": {
+            "title": "Path",
+            "type": "string"
+          }
+        },
+        "required": [
+          "path",
+          "branch",
+          "commit",
+          "locked",
+          "current"
+        ],
+        "title": "GitWorktree",
+        "type": "object"
+      },
+      "GitWorktreeCreated": {
+        "additionalProperties": false,
+        "properties": {
+          "branch": {
+            "title": "Branch",
+            "type": "string"
+          },
+          "commit": {
+            "title": "Commit",
+            "type": "string"
+          },
+          "path": {
+            "title": "Path",
+            "type": "string"
+          },
+          "source": {
+            "title": "Source",
+            "type": "string"
+          }
+        },
+        "required": [
+          "path",
+          "branch",
+          "commit",
+          "source"
+        ],
+        "title": "GitWorktreeCreated",
+        "type": "object"
+      },
+      "GitWorktreeList": {
+        "additionalProperties": false,
+        "properties": {
+          "branches": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Branches",
+            "type": "array"
+          },
+          "root": {
+            "title": "Root",
+            "type": "string"
+          },
+          "worktrees": {
+            "items": {
+              "$ref": "#/components/schemas/GitWorktree"
+            },
+            "title": "Worktrees",
+            "type": "array"
+          }
+        },
+        "required": [
+          "root",
+          "branches",
+          "worktrees"
+        ],
+        "title": "GitWorktreeList",
+        "type": "object"
+      },
       "GoogleClientBody": {
         "properties": {
           "client_id": {
@@ -5372,12 +5681,12 @@
       "LoopPolicy": {
         "properties": {
           "auto_approve": {
-            "default": true,
+            "default": false,
             "title": "Auto Approve",
             "type": "boolean"
           },
           "budget_auto_pause": {
-            "default": false,
+            "default": true,
             "title": "Budget Auto Pause",
             "type": "boolean"
           },
@@ -5431,7 +5740,7 @@
             "title": "Model"
           },
           "permission_mode": {
-            "default": "bypassPermissions",
+            "default": "acceptEdits",
             "title": "Permission Mode",
             "type": "string"
           },
@@ -5581,6 +5890,27 @@
               }
             ],
             "title": "Parent Run Id"
+          },
+          "pause_detail": {
+            "default": "",
+            "title": "Pause Detail",
+            "type": "string"
+          },
+          "pause_reason": {
+            "default": "",
+            "title": "Pause Reason",
+            "type": "string"
+          },
+          "paused_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Paused At"
           },
           "policy": {
             "$ref": "#/components/schemas/LoopPolicy"
@@ -5748,6 +6078,16 @@
             ],
             "title": "Parent Run Id"
           },
+          "pause_detail": {
+            "default": "",
+            "title": "Pause Detail",
+            "type": "string"
+          },
+          "pause_reason": {
+            "default": "",
+            "title": "Pause Reason",
+            "type": "string"
+          },
           "recovery_audit": {
             "additionalProperties": true,
             "title": "Recovery Audit",
@@ -5835,7 +6175,8 @@
           "completed",
           "failed",
           "cancelled",
-          "interrupted"
+          "interrupted",
+          "paused"
         ],
         "title": "LoopRunStatus",
         "type": "string"
@@ -10102,6 +10443,29 @@
           "count"
         ],
         "title": "WorkspaceOutputsResponse",
+        "type": "object"
+      },
+      "WorktreeCreateRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "path": {
+            "maxLength": 4096,
+            "minLength": 1,
+            "title": "Path",
+            "type": "string"
+          },
+          "revision": {
+            "default": "HEAD",
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Revision",
+            "type": "string"
+          }
+        },
+        "required": [
+          "path"
+        ],
+        "title": "WorktreeCreateRequest",
         "type": "object"
       },
       "_GroupPayload": {
@@ -19160,6 +19524,51 @@
         ]
       }
     },
+    "/api/assistant/activity": {
+      "get": {
+        "operationId": "activity_api_assistant_activity_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 100,
+              "maximum": 200,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AssistantActivityResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Activity",
+        "tags": [
+          "assistant"
+        ]
+      }
+    },
     "/api/auth/logout": {
       "post": {
         "operationId": "_auth_logout_api_auth_logout_post",
@@ -22533,6 +22942,49 @@
         },
         "summary": "List Pairings",
         "tags": [
+          "channels"
+        ]
+      }
+    },
+    "/api/channels/{channel_id}/restart": {
+      "post": {
+        "operationId": "restart_channel_api_channels__channel_id__restart_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "channel_id",
+            "required": true,
+            "schema": {
+              "title": "Channel Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ChannelRestartResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Restart Channel",
+        "tags": [
+          "channels",
           "channels"
         ]
       }
@@ -37704,6 +38156,89 @@
           }
         },
         "summary": "Api Git Summary",
+        "tags": [
+          "fs"
+        ]
+      }
+    },
+    "/api/git/worktrees": {
+      "get": {
+        "operationId": "list_worktrees_api_git_worktrees_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "path",
+            "required": true,
+            "schema": {
+              "maxLength": 4096,
+              "minLength": 1,
+              "title": "Path",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GitWorktreeList"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "List Worktrees",
+        "tags": [
+          "fs"
+        ]
+      },
+      "post": {
+        "operationId": "create_worktree_api_git_worktrees_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/WorktreeCreateRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GitWorktreeCreated"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Create Worktree",
         "tags": [
           "fs"
         ]

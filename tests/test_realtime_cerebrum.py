@@ -2581,10 +2581,15 @@ def test_persistent_cowork_chat_without_mention_completes_without_model(
     assert [item["type"] for item in turn["items"]] == ["userMessage"]
     assert _LAST_STREAM_ARGS == {}
 
-    broadcaster.assert_awaited_once_with("room-project", {
-        "type": "thread:update", "thread_id": "th-project-room",
-        "reason": "message", "participant_id": "",
-    })
+    broadcaster.assert_awaited_once_with(
+        "room-project",
+        {
+            "type": "thread:update",
+            "thread_id": "th-project-room",
+            "reason": "message",
+            "participant_id": "",
+        },
+    )
 
     messages = collaboration.messages_for_session("th-project-room")
     assert len(messages) == 1
@@ -5509,10 +5514,13 @@ def test_group_results_auto_resume_original_leader_without_public_user_stub(tmp_
     for member in ("leader", "worker"):
         groups.append("group", MemberEvent(action="invite", actor="user", target_id=member))
     groups.append("group", MemberEvent(action="mode", actor="user", mode="cluster"))
-    service = CoordinationService(groups, CollaborationStore(tmp_path), AsyncWorkStore(tmp_path, groups))
+    service = CoordinationService(
+        groups, CollaborationStore(tmp_path), AsyncWorkStore(tmp_path, groups)
+    )
     service.logs_root = tmp_path / "threads"
-    runtime = CerebrumRuntime(stack=object(), agent=SimpleNamespace(agent_id="leader"),
-                              logs_root=str(service.logs_root))
+    runtime = CerebrumRuntime(
+        stack=object(), agent=SimpleNamespace(agent_id="leader"), logs_root=str(service.logs_root)
+    )
     runtime._cowork_coordination = service
     calls = []
 
@@ -5526,7 +5534,9 @@ def test_group_results_auto_resume_original_leader_without_public_user_stub(tmp_
             service.sync("group")
             response = "已安排成员分析。"
         else:
-            assert current_session().metadata["_coordination_delivery_parent"] == batch["parent"]["id"]
+            assert (
+                current_session().metadata["_coordination_delivery_parent"] == batch["parent"]["id"]
+            )
             assert current_session().agent_id == "leader"
             assert "成员已核对产品参数" in args[1].user_context["mode_contract"]
             response = "已验收成员结果，统一交付。"

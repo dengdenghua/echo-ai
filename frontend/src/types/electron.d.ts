@@ -107,6 +107,12 @@ export type DesktopOwnerLoginResult =
       detail?: string;
     };
 
+export interface ExtensionSidePanelState {
+  id: string;
+  name: string;
+  path: string;
+}
+
 export interface EchoElectronAPI {
   isElectron: true;
   platform: NodeJS.Platform;
@@ -330,6 +336,16 @@ export interface EchoElectronAPI {
     ) => Promise<{ ok: boolean }>;
     setPinned: (id: string, pinned: boolean) => Promise<{ ok: boolean }>;
     openOptions: (id: string) => Promise<{ ok: boolean; error?: string }>;
+    sidePanelState: () => Promise<ExtensionSidePanelState | null>;
+    setSidePanelBounds: (
+      bounds: {
+        left: number;
+        top: number;
+        width: number;
+        height: number;
+      } | null,
+    ) => Promise<void>;
+    closeSidePanel: (id: string) => Promise<void>;
   };
 
   app: {
@@ -521,6 +537,7 @@ export interface EchoElectronAPI {
       | "browser:webview-pointer"
       | "browser:password-offer"
       | "browser:extension-actions-changed"
+      | "browser:extension-side-panel-changed"
       | "browser:open-extensions"
       | "browser:focus-webcontents"
       | "browser:close-webcontents"

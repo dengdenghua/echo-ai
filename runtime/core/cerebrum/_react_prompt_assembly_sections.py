@@ -37,6 +37,8 @@ from runtime.core.cerebrum.react_prompt_contracts import (
 )
 from runtime.core.cerebrum.react_prompt_contracts import (
     SKILL_SELECTION_CONTRACT as _SKILL_SELECTION_CONTRACT,
+)
+from runtime.core.cerebrum.react_prompt_contracts import (
     VISUAL_EXPRESSION_CONTRACT as _VISUAL_EXPRESSION_CONTRACT,
 )
 from runtime.core.cerebrum.react_prompt_contracts import (

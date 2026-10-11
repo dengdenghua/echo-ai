@@ -157,20 +157,20 @@ jobs:
           $manifest = Get-Content -LiteralPath $manifestPath -Raw | ConvertFrom-Json
           if ($manifest.schema -ne "echo.codex_bundle.v1" -or
               $manifest.package -ne "@openai/codex" -or
-              $manifest.version -ne "0.149.0" -or
-              $manifest.platformPackageIntegrity -ne "sha512-qKbwSOOO/fdhQ5MlXE2fts6taPxRPZ/zqeC+eqHD72hLRymV9rFCUbUxOCquognUPRPvS/2/kRCV0UVhoDd3yQ==" -or
+              $manifest.version -ne "0.162.0" -or
+              $manifest.platformPackageIntegrity -ne "sha512-W8kqHaqpW0qPz71E0rRT5dq+socGz1BbJyYN7o3SP1TWQt8Zl6ML74R9Hvt/xn1NNLVlDTRfXqNmaMkte6yEMQ==" -or
               $manifest.target -ne "x86_64-pc-windows-msvc" -or
               $manifest.fileHashPhase -ne "pre-authenticode") {
             throw "Pinned Codex bundle manifest is invalid"
           }
-          if ($manifest.licenses.codex.version -ne "0.149.0" -or
-              $manifest.licenses.codex.sourceTag -ne "rust-v0.149.0" -or
-              $manifest.licenses.codex.sourceCommit -ne "758ef40f50c1a458425c7cfbf1eb12cbc07af0b0" -or
-              $manifest.licenses.codex.cargoLockSha256 -ne "0c32858e9c47d0acf82735c8620c96840a5381152eec63acad15d1acadb9edad" -or
+          if ($manifest.licenses.codex.version -ne "0.162.0" -or
+              $manifest.licenses.codex.sourceTag -ne "rust-v0.162.0" -or
+              $manifest.licenses.codex.sourceCommit -ne "c1382380de69521303b416720a52f42d51af6248" -or
+              $manifest.licenses.codex.cargoLockSha256 -ne "49fe417bcafe3f69f1f6636e23274f90d37e75e388127a76888c39001a4f8117" -or
               $manifest.licenses.codex.cargoAboutVersion -ne "0.9.2" -or
               $manifest.licenses.native.schemaVersion -ne "codex-native-notices.v1" -or
-              $manifest.licenses.native.provenanceSha256 -ne "65e2c0c7f7b239ee758133ce17cfb680bc38aec84876ca81015458c41a988c7a" -or
-              $manifest.licenses.native.noticeSha256 -ne "da7997facd0e36f4ebca01594c60abdc1204f5421a35d28c4760b13addf247c5" -or
+              $manifest.licenses.native.provenanceSha256 -ne "5f3387fd6b2bb618e3b8e889dd5aa11d9d3aa118f1997f53f78a901e2d049564" -or
+              $manifest.licenses.native.noticeSha256 -ne "d29f6f45e7ba6ca221326de7690739fe489709f222dc7270ab6f32feae9332fd" -or
               $manifest.licenses.native.componentCount -ne 12 -or
               $manifest.licenses.native.licenseInputCount -ne 80 -or
               $manifest.licenses.ratatui.version -ne "0.30.2" -or
@@ -319,8 +319,8 @@ jobs:
           }
           $codexManifest = Get-Content -LiteralPath $codexManifestPath -Raw | ConvertFrom-Json
           if ($codexManifest.licenses.native.schemaVersion -ne "codex-native-notices.v1" -or
-              $codexManifest.licenses.native.provenanceSha256 -ne "65e2c0c7f7b239ee758133ce17cfb680bc38aec84876ca81015458c41a988c7a" -or
-              $codexManifest.licenses.native.noticeSha256 -ne "da7997facd0e36f4ebca01594c60abdc1204f5421a35d28c4760b13addf247c5" -or
+              $codexManifest.licenses.native.provenanceSha256 -ne "5f3387fd6b2bb618e3b8e889dd5aa11d9d3aa118f1997f53f78a901e2d049564" -or
+              $codexManifest.licenses.native.noticeSha256 -ne "d29f6f45e7ba6ca221326de7690739fe489709f222dc7270ab6f32feae9332fd" -or
               $codexManifest.licenses.native.componentCount -ne 12 -or
               $codexManifest.licenses.native.licenseInputCount -ne 80) {
             throw "Packaged Codex native provenance manifest is invalid"

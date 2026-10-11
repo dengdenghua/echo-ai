@@ -161,7 +161,9 @@ describe("LoginPage", () => {
     localLoginMock.mockResolvedValue(undefined);
     const user = userEvent.setup();
     renderPage();
-    const password = await screen.findByLabelText("密码", { selector: "input" });
+    const password = await screen.findByLabelText("密码", {
+      selector: "input",
+    });
     expect(screen.queryByLabelText("用户名")).not.toBeInTheDocument();
     await user.type(password, "12345678{Enter}");
     await waitFor(() =>
@@ -184,7 +186,9 @@ describe("LoginPage", () => {
     const user = userEvent.setup();
     renderPage();
 
-    const password = await screen.findByLabelText("密码", { selector: "input" });
+    const password = await screen.findByLabelText("密码", {
+      selector: "input",
+    });
     expect(password).toHaveAttribute("type", "password");
 
     const toggleBtn = screen.getByRole("button", { name: "显示密码" });
@@ -213,8 +217,12 @@ describe("LoginPage", () => {
   it("defaults to the email form with email + code fields visible", async () => {
     await renderPageAtLoginForm();
     expect(screen.getByRole("textbox", { name: "邮箱" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: /Google/ })).toBeDisabled();
-    expect(screen.getByRole("button", { name: /GitHub/ })).toBeDisabled();
+    expect(
+      screen.queryByRole("button", { name: /Google/ }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: /GitHub/ }),
+    ).not.toBeInTheDocument();
     expect(screen.getByRole("textbox", { name: "验证码" })).toBeInTheDocument();
     // Legacy password tab was removed upstream · nothing here asks
     // for a password.
@@ -275,9 +283,7 @@ describe("LoginPage", () => {
 
     renderPage();
 
-    expect(
-      screen.getByText("暂时无法连接 Echo 服务"),
-    ).toBeInTheDocument();
+    expect(screen.getByText("暂时无法连接 Echo 服务")).toBeInTheDocument();
     expect(retryAuthMock).not.toHaveBeenCalled();
 
     await vi.advanceTimersByTimeAsync(2_000);
@@ -294,7 +300,7 @@ describe("LoginPage", () => {
   it("shows email + local tabs when both providers are available", async () => {
     getAuthProvidersMock.mockResolvedValue([
       { id: "oct" },
-      { id: "local", label: "本地账户" },
+      { id: "local", label: "本地账户", password_required: true },
     ]);
 
     renderPage();

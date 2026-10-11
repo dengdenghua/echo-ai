@@ -9,6 +9,7 @@ yields, and fencing untrusted tool output against prompt injection.
 
 from __future__ import annotations
 
+import contextlib
 import contextvars
 import logging
 import time
@@ -35,6 +36,7 @@ from runtime.safety.validation.prompt_injection import (
     is_untrusted_tool,
     mark_injection_taint,
     scan_for_injection,
+    set_injection_gate_handled,
     wrap_untrusted_observation,
 )
 
@@ -214,6 +216,49 @@ def _consume_late_lane_result(
         )
 
 
+def _execute_batch_lane(
+    *,
+    stack: Any,
+    action: str,
+    name: str | None,
+    disabled: dict[str, str] | None,
+    parent_session: Any,
+    reviewed: bool,
+    **execution: Any,
+) -> tuple[str | None, Any]:
+    """Execute one reviewed lane with the parent session rebound in a worker."""
+    if name is None:
+        if disabled is not None:
+            parsed = _parse_action(action)
+            tool_name = parsed[0] if parsed else "unknown"
+            return (
+                f"(工具未注册) {tool_name} 所属组 '{disabled['group']}' 被配置关闭"
+                f"({disabled['config_flag']}=false)。如需启用:在 config.local.yaml "
+                f"设置 {disabled['config_flag']}: true 并重启后端,或调用 "
+                "POST /api/capabilities/enable 临时启用。当前请改用其他工具"
+                "或告知用户该能力不可用。",
+                None,
+            )
+        return f"(工具未注册或无法解析) action: {action[:200]}", None
+    from runtime.platform.process.session import _current_session
+    from runtime.safety.governance.execution_policy import caller_reviewed_tool_call
+
+    token = _current_session.set(parent_session) if parent_session is not None else None
+    try:
+        scope = caller_reviewed_tool_call(name) if reviewed else contextlib.nullcontext()
+        with scope:
+            if reviewed:
+                set_injection_gate_handled(True)
+            try:
+                return _execute_action_via_beak(stack, action, **execution)
+            finally:
+                if reviewed:
+                    set_injection_gate_handled(False)
+    finally:
+        if token is not None:
+            _current_session.reset(token)
+
+
 def _dispatch_parallel_actions(
     actions: list[str],
     *,
@@ -225,6 +270,7 @@ def _dispatch_parallel_actions(
     intent: ParsedIntent,
     beak_step_sink: list[Any] | None = None,
     parallel_batch_timeout_s: float = _DEFAULT_PARALLEL_BATCH_TIMEOUT_S,
+    review_action: Callable[..., Any] | None = None,
 ) -> Generator[Any, None, tuple[str, list[dict[str, object]]]]:
     """Concurrent multi-action dispatcher (口子 2).
 
@@ -344,55 +390,32 @@ def _dispatch_parallel_actions(
         )
 
     serial = has_write_tool or has_unregistered or has_risky_or_untrusted
+    reviews: list[Any] = [None] * len(actions)
+
+    def _review_one(idx: int):
+        if review_action is not None and resolved_names[idx] is not None:
+            review = yield from review_action(
+                resolved_names[idx], parsed_pairs[idx][1], call_ids[idx]
+            )
+            reviews[idx] = review
+            if not review.allowed:
+                observations[idx] = review.observation
+            return review
+        return None
 
     def _run_one(idx: int) -> tuple[str | None, Any]:
-        # Skip dispatch for unregistered tools — the single-action
-        # path's "(tool not registered)" message is reproduced here
-        # so the model gets a uniform observation. When the tool is
-        # recognized as config-disabled (e.g. web_search under
-        # enable_web_skills=False), augment the message with the reason
-        # and the remediation path so the model stops retrying and can
-        # inform the user.
-        if resolved_names[idx] is None:
-            _di = disabled_infos[idx]
-            if _di is not None:
-                _parsed_pair = parsed_pairs[idx]
-                _tool_name = _parsed_pair[0] if _parsed_pair else "unknown"
-                return (
-                    f"(工具未注册) {_tool_name} 所属组 '{_di['group']}' 被配置关闭"
-                    f"({_di['config_flag']}=false)。如需启用:在 config.local.yaml "
-                    f"设置 {_di['config_flag']}: true 并重启后端,或调用 "
-                    f"POST /api/capabilities/enable 临时启用。当前请改用其他工具"
-                    f"或告知用户该能力不可用。",
-                    None,
-                )
-            return (
-                f"(工具未注册或无法解析) action: {actions[idx][:200]}",
-                None,
-            )
-        if parent_session is None:
-            return _execute_action_via_beak(
-                stack,
-                actions[idx],
-                react_task_id=react_task_id,
-                react_step_counter=iteration,
-                agent=agent,
-                intent=intent,
-            )
-        from runtime.platform.process.session import _current_session
-
-        session_token = _current_session.set(parent_session)
-        try:
-            return _execute_action_via_beak(
-                stack,
-                actions[idx],
-                react_task_id=react_task_id,
-                react_step_counter=iteration,
-                agent=agent,
-                intent=intent,
-            )
-        finally:
-            _current_session.reset(session_token)
+        return _execute_batch_lane(
+            stack=stack,
+            action=actions[idx],
+            name=resolved_names[idx],
+            disabled=disabled_infos[idx],
+            parent_session=parent_session,
+            reviewed=review_action is not None,
+            react_task_id=react_task_id,
+            react_step_counter=iteration,
+            agent=agent,
+            intent=intent,
+        )
 
     observations: list[str | None] = [None] * len(actions)
     beak_steps: list[Any] = [None] * len(actions)
@@ -410,10 +433,26 @@ def _dispatch_parallel_actions(
             key=lambda j: 0 if (j < len(untrusted_flags) and untrusted_flags[j]) else 1,
         )
         for idx in exec_order:
+            review = yield from _review_one(idx)
+            if review is not None and not review.allowed:
+                if review.stop_batch:
+                    for pending_idx in exec_order[exec_order.index(idx) + 1 :]:
+                        observations[pending_idx] = "(工具执行已取消 · 任务等待审批)"
+                    break
+                continue
             obs, bk = _run_one(idx)
             observations[idx] = obs
             beak_steps[idx] = bk
     else:
+        # Pure reads may still be denied by a configured approval policy.
+        # Resolve approvals on the caller thread before submitting any lane.
+        for idx in range(len(actions)):
+            review = yield from _review_one(idx)
+            if review is not None and review.stop_batch:
+                for pending_idx in range(len(actions)):
+                    if observations[pending_idx] is None:
+                        observations[pending_idx] = "(工具执行已取消 · 任务等待审批)"
+                break
         max_workers = min(len(actions), _MAX_PARALLEL_ACTIONS)
         # A raw ThreadPoolExecutor does NOT propagate contextvars to its
         # workers, so the ambient cancellation token (and any other
@@ -462,6 +501,7 @@ def _dispatch_parallel_actions(
             futures = {
                 pool.submit(_parent_context.copy().run, _run_one_in_batch, idx): idx
                 for idx in range(len(actions))
+                if observations[idx] is None
             }
             collection_outcome = _collect_parallel_lane_results(
                 futures,
@@ -545,6 +585,8 @@ def _dispatch_parallel_actions(
         )
         if bk is not None:
             _ok = _beak_step_effective_success(bk)
+        if reviews[idx] is not None and not reviews[idx].allowed:
+            _ok = False
         _duration_ms = int((time.monotonic() - started_at[idx]) * 1000)
         # Indirect prompt-injection defense: a tool whose output is
         # external (web/browser/MCP) is attacker-influenceable. Fence its
@@ -596,13 +638,15 @@ def _dispatch_parallel_actions(
         # Routed through ``extras`` by ``normalize_tool_lifecycle_event``.
         if disabled_infos[idx] is not None:
             _end_payload["capability_disabled"] = disabled_infos[idx]
-        yield tool_lifecycle_event_to_react_event(
-            normalize_tool_lifecycle_event(
-                "tool_end",
-                _end_payload,
-                origin="react_compat",
+        # The shared gate already emitted the terminal row for a denial/pause.
+        if reviews[idx] is None or reviews[idx].allowed:
+            yield tool_lifecycle_event_to_react_event(
+                normalize_tool_lifecycle_event(
+                    "tool_end",
+                    _end_payload,
+                    origin="react_compat",
+                )
             )
-        )
         _trusted_execution, _execution_source = _execution_receipt_trust(bk)
         results.append(
             {

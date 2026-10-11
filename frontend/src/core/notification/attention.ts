@@ -143,7 +143,14 @@ export function classifyPauseRequest(
     case "user_request":
       return null;
     case "approval_required":
-      return { kind: "approval", reason: "approval_timeout" };
+      return {
+        kind: "approval",
+        reason: /自动审查本轮|auto.review.*(?:turn.stop|denial|budget)/i.test(
+          request.note ?? "",
+        )
+          ? "auto_review_stopped"
+          : "approval_timeout",
+      };
     case "budget_near_limit":
       return { kind: "paused", reason: "budget" };
     case "iteration_near_limit":
@@ -212,6 +219,7 @@ export function attentionTitle(
     case "blocked":
       return copy.blockedTitle;
     case "approval":
+      if (reason === "auto_review_stopped") return copy.autoReviewStoppedTitle;
       return reason === "approval_timeout"
         ? copy.approvalTimeoutTitle
         : copy.approvalTitle;

@@ -33,9 +33,12 @@ runtime.execution.all_skills · unified skill catalog.
 
 | Module | Summary |
 | --- | --- |
+| `agnes-image-generate/scripts/agnes_image_generate.py` | AI image generation skill — dual-provider (Volcano / Agnes). |
+| `agnes-video-generate/scripts/agnes_video_generate.py` | AI video generation skill (async) — dual-provider (Volcano / Agnes). |
 | `auto-stat-test/scripts/statistical_test_suite.py` | statistical_test_suite.py — 根据数据自动选择统计检验并输出通俗解读 |
 | `cn-finance-data/scripts/api_client.py` | Tushare API 客户端 |
 | `code-vuln-audit/scripts/security_scan.py` | security_scan.py — 代码安全扫描工具 |
+| `database-inspector/scripts/db_explorer.py` | db_explorer.py — SQLite / PostgreSQL 只读数据库探索工具 |
 | `pricing-advisor/scripts/pricing_modeler.py` | Pricing modeler — projects revenue at different price points and recommends tier structure. |
 | `seedance-video-generate/scripts/seedance_video_generate.py` | Seedance Video Generation Skill for Echo-Agent Uses Volcano Engine Seedance API to generate videos from text, images, or existing videos. |
 | `seedream-image-generate/scripts/seedream_image_generate.py` | Seedream Image Generation Skill for Echo-Agent Uses Volcano Engine Seedream API to generate images from text prompts. |
@@ -52,6 +55,21 @@ runtime.execution.all_skills · unified skill catalog.
 ## Key classes & functions
 
 > AST 自动提取 · 仅列公开顶层 class / function · 签名与真实代码一致。
+
+### `agnes-image-generate/scripts/agnes_image_generate.py`
+
+| Kind | Symbol | Doc |
+| --- | --- | --- |
+| class | `class AgnesConfig` | Runtime config resolved from env vars. |
+| func | `def generate_image(prompt, model, size, n, image, api_key, base_url, extra)` | Generate one or more images via Volcano or Agnes. |
+
+### `agnes-video-generate/scripts/agnes_video_generate.py`
+
+| Kind | Symbol | Doc |
+| --- | --- | --- |
+| class | `class AgnesConfig` |  |
+| func | `def generate_video(prompt, model, width, height, num_frames, frame_rate, seconds, image, seed, wait, max_wait_seconds, poll_interval_seconds, api_key, base_url, extra)` | Create a video generation task and (optionally) wait for completion. |
+| func | `def poll_video(task_id, api_key, base_url, model)` | One-shot status poll for a previously-submitted task. |
 
 ### `auto-stat-test/scripts/statistical_test_suite.py`
 
@@ -96,6 +114,15 @@ runtime.execution.all_skills · unified skill catalog.
 | func | `def format_text(target, modules, findings)` | Format findings as human-readable text. |
 | func | `def format_json(target, modules, findings)` | Format findings as JSON. |
 | func | `def deduplicate(findings)` | Remove duplicate findings (same file + line + name). |
+| func | `def build_parser()` |  |
+| func | `def main()` |  |
+
+### `database-inspector/scripts/db_explorer.py`
+
+| Kind | Symbol | Doc |
+| --- | --- | --- |
+| class | `class SQLiteExplorer` |  |
+| class | `class PostgreSQLExplorer` |  |
 | func | `def build_parser()` |  |
 | func | `def main()` |  |
 

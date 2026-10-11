@@ -6,6 +6,7 @@
 // CI exactly like the OpenAPI snapshot gate.
 
 import { execFileSync } from "node:child_process";
+import { existsSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -15,13 +16,23 @@ const REPO_ROOT = resolve(
   dirname(fileURLToPath(import.meta.url)),
   "../../../../",
 );
+const REPO_PYTHON = resolve(
+  REPO_ROOT,
+  process.platform === "win32"
+    ? ".venv/Scripts/python.exe"
+    : ".venv/bin/python",
+);
 
 describe("realtime protocol enums are generated", () => {
   it("regenerating produces no diff (source of truth is items.py)", () => {
     expect(() =>
       execFileSync(
         process.env.PYTHON ??
-          (process.platform === "win32" ? "python" : "python3"),
+          (existsSync(REPO_PYTHON)
+            ? REPO_PYTHON
+            : process.platform === "win32"
+              ? "python"
+              : "python3"),
         [
           resolve(REPO_ROOT, "scripts/gen_realtime_protocol_enums.py"),
           "--check",

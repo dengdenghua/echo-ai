@@ -21,10 +21,13 @@ class ThreadListVisibility:
             if not self._path.exists():
                 return set()
             with closing(self._connect()) as conn:
-                return {row[0] for row in conn.execute(
-                    "SELECT thread_id FROM hidden_threads WHERE tenant=? AND actor=?",
-                    (tenant, actor),
-                )}
+                return {
+                    row[0]
+                    for row in conn.execute(
+                        "SELECT thread_id FROM hidden_threads WHERE tenant=? AND actor=?",
+                        (tenant, actor),
+                    )
+                }
 
     def set_hidden(self, tenant: str, actor: str, thread_id: str, hidden: bool) -> None:
         with self._lock:

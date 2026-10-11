@@ -51,8 +51,8 @@ from runtime.execution.tool_engine.effect_receipts import (
     EffectResolution,
     ToolEffectReceiptIndex,
     build_server_effect_receipt,
-    indeterminate_step,
     is_side_effecting,
+    recovered_effect_step,
 )
 from runtime.execution.tool_engine.effect_store import EffectStore, SQLiteEffectStore
 from runtime.execution.tool_engine.skill_gate import (
@@ -268,6 +268,7 @@ class ToolExecutor:
         predicted_cost: CostEntry | None = None,
         actor: str | None = None,
         trusted_browser_loopback: bool = False,
+        effect_attempt: str | None = None,
     ) -> Step:
         with trace_stage(
             "beak.execute_step",
@@ -727,6 +728,7 @@ class ToolExecutor:
                             sucker_id=sucker_id,
                             args=args,
                             side_effecting=_effect_side,
+                            attempt=effect_attempt,
                         )
                         if _effect_resolution.kind != "execute":
                             budget.commit(reservation, CostEntry())
@@ -736,23 +738,17 @@ class ToolExecutor:
                                 actor=actor,
                                 cost=CostEntry(),
                             )
-                            if _effect_resolution.kind == "replay":
-                                assert _effect_resolution.step is not None
-                                replayed = _effect_resolution.step
-                                self.journal.write_step(task_id, arm_id, replayed, actor=actor)
-                                span.set_attribute("echo.effect.replayed", True)
-                                return replayed
-                            uncertain = indeterminate_step(
+                            return recovered_effect_step(
+                                _effect_resolution,
                                 step_id=step_id,
                                 node_id=node_id,
                                 call=call,
-                                effect_key=_effect_resolution.key,
-                                fencing_token=_effect_resolution.fencing_token,
-                                reason=_effect_resolution.reason,
+                                journal=self.journal,
+                                task_id=task_id,
+                                arm_id=arm_id,
+                                actor=actor,
+                                span=span,
                             )
-                            self.journal.write_step(task_id, arm_id, uncertain, actor=actor)
-                            span.set_attribute("echo.effect.indeterminate", True)
-                            return uncertain
                     _lease_target = _file_write_lease_target(skill, args)
                     if _lease_target is not None:
                         from runtime.platform.process.session import current_session

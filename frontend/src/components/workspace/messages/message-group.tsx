@@ -78,7 +78,7 @@ import {
   toolResources,
 } from "@/core/automation/references";
 import { MarkdownContent } from "./markdown-content";
-import { InlineVisualMessages } from "./inline-visual";
+import { InteractiveMessages } from "./interactive-messages";
 import { stripTraceLabelPrefixes } from "./trace-labels";
 import {
   assignTimelineRoles,
@@ -1910,7 +1910,7 @@ export function MessageGroup({
       open={processReplayExpanded}
       data-process-mode={codeMode ? "code" : "chat"}
     >
-      <InlineVisualMessages messages={messages} />
+      <InteractiveMessages messages={messages} />
       {showProcessReplayDisclosure && (
         <button
           type="button"

@@ -1,6 +1,6 @@
 # Windows Job Object 进程树约束
 
-状态：工具与非内核启动点已落地；`sandbox.py` / `streaming.py` 的接入是**待审核方案**，本文只给出 diff 草案，没有应用。
+状态：工具、非内核启动点和 `sandbox.py` / `streaming.py` 已接入。内核接入经本次行为测试后登记为公共清单 1.0.1；OS 产品适配源码保持独立。
 
 ## 问题
 
@@ -25,7 +25,7 @@ Windows 上原来的子进程管理是 `CREATE_NEW_PROCESS_GROUP` 加 `taskkill 
 `runtime/platform/process/tree.py` 提供的高层用法：
 
 - `spawn_in_job(args, *, limits=None, **popen_kwargs)`：POSIX 上等同于 `Popen(..., start_new_session=True)`。Windows 上的流程是 `CREATE_NEW_PROCESS_GROUP | CREATE_SUSPENDED` → assign → resume。
-- `terminate_process_tree(proc)`：有 job 时先 `TerminateJobObject`，即使 `proc` 已经退出也执行，这样能结束被遗弃的孙进程；没有 job 时仍走原来的 `taskkill` 路径。**没有 job 的调用方行为完全不变**，包括两个内核文件。
+- `terminate_process_tree(proc)`：有 job 时先 `TerminateJobObject`，即使 `proc` 已经退出也执行，这样能结束被遗弃的孙进程；没有 job 时仍走原来的 `taskkill` 路径。没有 job 的调用方仍走原有进程组清理。
 - `close_process_job(proc)`：立即关闭 job，kill-on-close 会结束残留进程。
 - `detach_process_job(proc)`：先清除 kill-on-close 再关闭句柄，残留进程继续运行，与 POSIX 上 setsid 守护进程的语义一致。
 
@@ -56,96 +56,33 @@ Windows 上原来的子进程管理是 `CREATE_NEW_PROCESS_GROUP` 加 `taskkill 
 | `arms/process_tree.ProcessTreeManager.spawn` | asyncio 版本：挂起、assign、恢复；`untrack` / `terminate_all` 时释放 job |
 | `workflow/engine` worker | kill-on-close；`dispose` 时关闭 job，结束 worker 退出后留下的子孙进程 |
 
-## 内核文件接入方案（待审核，未应用）
+## 内核执行路径与语义
 
-两个文件都登记在 `runtime/kernel-release.json` 的 `ai` profile 里，`os` profile 中有各自的版本。
+`stream_run` 和 `SandboxRunner.run` 通过 `spawn_in_job` 启动进程；正常结束后
+`detach_process_job` 释放句柄并保留命令启动的守护进程。这样 adb、编译服务器
+等正常命令的语义保持，与现有 POSIX 行为一致。超时和取消先调用
+`terminate_process_tree`，结束作业内整棵树，包括父进程先退出后留下的孙进程。
+后端异常退出期间句柄由 Windows 关闭，仍在执行的命令树会被结束。
 
-### `runtime/platform/process/streaming.py`（`stream_run`）
+持久后台任务继续使用不带 kill-on-close 的作业，以便后端重启后按元数据恢复。
+不开放 breakaway：命令显式申请离开作业会失败；可通过已有总开关回退到旧路径，
+但关闭作业机制会失去后端崩溃时的树清理保证。没有增加新的内存/进程数策略字段。
 
-```diff
-     started_at = time.monotonic()
-     try:
-         from runtime.platform.process.tree import (
--            process_group_kwargs,
-+            detach_process_job,
-+            spawn_in_job,
-             terminate_process_tree,
-         )
+Job Object 只约束进程树生命周期，不提供受限令牌、文件系统或网络隔离。
+Windows 的当前沙箱仍属于软约束；严格/共享模式要求硬后端，缺失时拒绝执行。
 
--        proc = subprocess.Popen(
-+        proc = spawn_in_job(
-             _popen_args(argv),
-             stdin=subprocess.PIPE if input_data is not None else subprocess.DEVNULL,
-             stdout=subprocess.PIPE,
-             stderr=subprocess.PIPE,
-             text=True,
-             encoding=encoding or _child_text_encoding(output_argv, run_env),
-             errors="replace",
-             cwd=run_cwd,
-             env=run_env,
-             bufsize=1,
-             shell=False,
--            **process_group_kwargs(),
-         )
-@@
-     finally:
-         t_out.join(timeout=2.0)
-         t_err.join(timeout=2.0)
-+        # Timeout/cancel already ended the whole job in terminate_process_tree.
-+        # Normal exit: daemons the command started (adb server, build servers)
-+        # keep running, matching POSIX setsid daemons. Strict alternative:
-+        # close_process_job(proc) kills them at command end.
-+        detach_process_job(proc)
-```
+## 版本与验证
 
-### `runtime/safety/sandboxing/sandbox.py`（`SandboxRunner.run`）
+两个文件属于 `ai` profile；更新后的源摘要进入 1.0.1 清单，并由新的固定摘要审核。
+1.0.0 原审核摘要保留，校验器仍拒绝任意自算 revision 的未登记载荷。
+共享源码和 `os` profile 未被覆盖；两仓共同登记新的清单与审核摘要。
 
-```diff
-         started_at = time.monotonic()
-         from runtime.platform.process.tree import (
--            process_group_kwargs,
-+            detach_process_job,
-+            spawn_in_job,
-             terminate_process_tree,
-         )
+本次验证包括真实 Windows 子孙进程、正常结束保留守护进程、超时清理，
+以及沙箱平台合同和跨设备任务回归。命令与结果保存在收尾进度记录。
+此验证不代表真机 Android、所有第三方程序兼容或正式安装包验收。
 
-         try:
--            proc = subprocess.Popen(
-+            proc = spawn_in_job(
-                 cmd_list,
-                 cwd=str(run_cwd),
-                 env=env,
-                 stdin=subprocess.PIPE if stdin_text else subprocess.DEVNULL,
-                 stdout=subprocess.PIPE,
-                 stderr=subprocess.PIPE,
-                 text=True,
-                 encoding="utf-8",
-                 errors="replace",
--                **process_group_kwargs(),
-             )
-@@
-         out_thread.join(timeout=1.0)
-         err_thread.join(timeout=1.0)
-+        detach_process_job(proc)
-
-         return SandboxResult(
-```
-
-可选的第二步：给 `SandboxPolicy` 增加 `max_process_memory_bytes` / `max_processes`，通过 `limits=JobLimits(...)` 传进去，并把 `"windows_job": process_job(proc) is not None` 写进 `execution_policy` 快照。这两项会改变策略和回执的 schema，需要单独评审。
-
-### 为什么需要人工审核
-
-1. 两个文件是所有 `exec_shell` / 沙箱命令的唯一执行路径。清单的作用就是让它们的每次行为变化都有人核验，而不是重算摘要了事（见 `docs/kernel-release.md`）。
-2. 有语义选择要人来定：正常结束后残留的守护进程，是保留（`detach`，与 POSIX 一致）还是结束（`close`，最严格的"不留孤儿"）。
-3. job 内的进程不能 breakaway。少数程序用 `CREATE_BREAKAWAY_FROM_JOB` 启动子进程，在 job 里会以 `ERROR_ACCESS_DENIED` 失败。是否给 job 加 `JOB_OBJECT_LIMIT_BREAKAWAY_OK`，需要在兼容性和约束强度之间取舍。
-4. 修改后要更新 `ai` profile 的 sha256 和 `revision`，以及 `runtime.release_identity.SUPPORTED_RELEASES` 里固定的审核摘要，并重新运行安全行为门（`tests/test_sandbox_platform_contract.py` 等）和跨端任务回归。
-
-### 对 echo-os 的影响
-
-- POSIX 上 `spawn_in_job` 等同于原来的 `start_new_session=True`，echo-os 在 macOS/Linux 上没有行为变化。
-- echo-os 的 `streaming.py` / `sandbox.py` 是 `os` profile 下的独立版本，不会被 echo-ai 覆盖。如果要采用同样的改动，必须先同步 `runtime/platform/process/win_job.py` 和新版 `tree.py`。echo-os 当前的 `tree.py` 是旧版，没有 `spawn_in_job`，只同步内核文件会在 import 时失败。
-- 采用后，`os` profile 的摘要也要更新，两个仓库的共同 `revision` 随之变化，要按双仓流程运行 `tools/kernel_release.py --ai-repo ... --os-repo ...`。
-- echo-os 如果有 Windows 构建，并且由外层的 kill-on-close job 托管后端，嵌套 job（Windows 8 及以上）照常工作；外层 job 带 silent-breakaway 时（uv 和 venv 的启动器都是这样），子进程会离开外层 job，但仍留在本 job 中。
+OS 如需接入同一 Windows 启动机制，必须同时引入 `win_job.py` 与新版 `tree.py`，
+再按双仓流程更新产品摘要。本次未替换 OS 的进程/沙箱适配层。
 
 ## 已知限制
 

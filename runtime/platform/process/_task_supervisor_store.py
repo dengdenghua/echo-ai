@@ -131,6 +131,30 @@ class TaskSupervisorStore:
                 "offset": clean_offset,
             }
 
+    def list_snapshot(
+        self,
+        *,
+        status: str | None = None,
+        kind: str | None = None,
+        owner_id: str | None = None,
+        thread_id: str | None = None,
+        include_unowned: bool = True,
+    ) -> _TaskRecordList:
+        """Read every matching record from one consistent ledger snapshot.
+
+        Offset pages each reread and sort the JSON ledger. Aggregations that
+        need all records can use this instead, without truncating older active
+        tasks or racing a writer between pages. Nothing is cached across reads.
+        """
+        with self._lock:
+            return self._filtered_tasks(
+                status=status,
+                kind=kind,
+                owner_id=owner_id,
+                thread_id=thread_id,
+                include_unowned=include_unowned,
+            )
+
     def count(
         self,
         *,

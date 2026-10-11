@@ -6744,6 +6744,9 @@ export const jaJP: Translations = {
 
   // Annotations
   annotations: {
+    deleteForbidden:
+      "このコメントを削除できるのは投稿者またはルーム管理者だけです。",
+    deleteFailed: "コメントを削除できませんでした。再試行してください。",
     resolve: "Resolve",
     unresolve: "Unresolve",
     delete: "Delete",

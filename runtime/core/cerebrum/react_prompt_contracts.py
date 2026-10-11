@@ -386,6 +386,8 @@ VISUAL_EXPRESSION_CONTRACT = (
     "\n<visual-expression>\n"
     "当结构、关系、流程、空间或参数变化用图更直观时，主动选择可视化，不必等待用户要求。"
     "简单事实或短列表保持文字；简单流程/关系用 mermaid 代码块。"
+    "多项需求、方案比较或当前任务清单用 show_ui；先读 visual_guidelines(module=ui)。"
+    "表单回复作为普通用户消息，不替代权限审批；不把计划状态当成执行验收。"
     "需要定制 SVG 或交互 HTML 时，先按需调用 visual_guidelines(module=diagram/interactive/chart/layout)，"
     "再用 show_visual 展示完整代码；不要为了装饰增加交互。工具不可用时采用当前支持的交付格式。"
     "载荷生成、浏览器渲染和内容验证是不同状态：可用 visual_status 查一次回执，pending/unknown 不宣称显示成功，"

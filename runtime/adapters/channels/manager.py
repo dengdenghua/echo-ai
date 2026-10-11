@@ -5,6 +5,7 @@ import contextlib
 import contextvars
 import logging
 import sys
+import threading
 import time
 from hashlib import sha256
 from typing import Any, cast
@@ -17,6 +18,7 @@ from runtime.platform.models import (
     BudgetLimits,
     ParsedIntent,
 )
+from runtime.platform.process.daemon_executor import DaemonThreadPoolExecutor
 from runtime.platform.step_format import (
     step_effective_success as _step_effective_success,
 )
@@ -95,9 +97,10 @@ class ChannelManager:
         # configuration.
         self._channel_assignments: dict[str, str] = {}
         self._channel_group_assignments: dict[str, str] = {}
-        self._executor = concurrent.futures.ThreadPoolExecutor(
-            max_workers=8, thread_name_prefix="ch-send"
-        )
+        self._executor = DaemonThreadPoolExecutor(max_workers=8, thread_name_prefix="ch-send")
+        self._delivery_lock = threading.RLock()
+        self._deliveries: dict[concurrent.futures.Future, str] = {}
+        self._closed = False
 
     def register(self, channel: Channel) -> None:
         if not channel.channel_id:
@@ -182,20 +185,57 @@ class ChannelManager:
                     extra={"channel": channel_id, "error": type(exc).__name__},
                 )
 
-    def stop_all(self) -> None:
+    def stop_all(self, *, timeout: float = 5.0) -> None:
         self._started = False
-        for ch in self._channels.values():
-            with contextlib.suppress(Exception):
-                ch.stop()
-        self.shutdown()
+        deadline = time.monotonic() + max(0, timeout)
+        # Drain outbound work while transports are still usable.
+        self.shutdown(timeout=timeout)
+        stopper = DaemonThreadPoolExecutor(max_workers=8, thread_name_prefix="ch-stop")
+        stops = [stopper.submit(ch.stop) for ch in self._channels.values()]
+        stopper.shutdown(wait=False)
+        if stops:
+            _, pending = concurrent.futures.wait(stops, timeout=max(0, deadline - time.monotonic()))
+            if pending:
+                logger.warning("channel stop grace expired: %d transports", len(pending))
+            for future in stops:
+                if future.done() and future.exception():
+                    logger.warning("channel stop failed: %s", type(future.exception()).__name__)
 
     def send_async(self, channel_id: str, msg: OutboundMessage) -> concurrent.futures.Future:
         if channel_id not in self._channels:
             raise ChannelRoutingError(f"unknown channel: {channel_id!r}")
-        return self._executor.submit(self.send_to_channel, channel_id, msg)
+        with self._delivery_lock:
+            if self._closed:
+                raise ChannelRoutingError("channel manager is shutting down")
+            future = self._executor.submit(self.send_to_channel, channel_id, msg)
+            self._deliveries[future] = channel_id
+            future.add_done_callback(self._delivery_finished)
+            return future
 
-    def shutdown(self, wait: bool = True) -> None:
-        self._executor.shutdown(wait=wait)
+    def _delivery_finished(self, future: concurrent.futures.Future) -> None:
+        with self._delivery_lock:
+            self._deliveries.pop(future, None)
+
+    def shutdown(self, wait: bool = True, *, timeout: float = 5.0) -> None:
+        with self._delivery_lock:
+            if self._closed:
+                return
+            self._closed = True
+            deliveries = dict(self._deliveries)
+        self._executor.shutdown(wait=False)
+        pending = set(deliveries)
+        if wait and pending:
+            _, pending = concurrent.futures.wait(pending, timeout=max(0, timeout))
+        for future in pending:
+            if future.done():
+                continue
+            cancelled = future.cancel()
+            self._operations.record_error(
+                deliveries[future],
+                "shutdown cancelled queued outbound delivery"
+                if cancelled
+                else "shutdown grace expired; outbound delivery outcome unknown",
+            )
 
     def process_inbound(self, msg: InboundMessage) -> OutboundMessage:
         if msg.channel_id not in self._channels:

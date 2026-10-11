@@ -123,6 +123,12 @@ def test_set_channel_assignment_blocks_non_admin() -> None:
     assert "admin role required" in resp.json()["detail"]
 
 
+def test_restart_channel_blocks_non_admin_before_transport_lookup() -> None:
+    client, keys = _build_app()
+    response = client.post("/api/channels/discord/restart", headers=_bearer(keys["bob"]))
+    assert response.status_code == 403
+
+
 def test_set_channel_assignment_allows_admin() -> None:
     """Admin can set channel assignment."""
     client, keys = _build_app()

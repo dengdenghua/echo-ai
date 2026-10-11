@@ -97,6 +97,33 @@ def client(isolated_cwd: Path) -> Iterator[TestClient]:
         yield test_client
 
 
+def test_assistant_activity_is_mounted_on_the_real_app(empty_home, isolated_cwd):
+    from runtime.projectos.model import Milestone, Project, Task
+
+    app = create_app(tentacle_enabled=False)
+    store = app.state.project_store
+    store.save_project(Project(id="activity-project", name="Activity", goal="Ship"))
+    store.save_milestone(
+        "activity-project", Milestone(id="activity-ms", name="Build", goal="Build")
+    )
+    store.save_task(
+        Task(
+            id="activity-task",
+            milestone_id="activity-ms",
+            type="code",
+            goal="Verify wiring",
+            status="blocked",
+        )
+    )
+    with TestClient(app) as client:
+        response = client.get("/api/assistant/activity")
+    assert response.status_code == 200
+    body = response.json()
+    assert body["schema"] == "echo.assistant_activity.v1"
+    item = next(row for row in body["items"] if row["task_id"] == "activity-task")
+    assert item["project_id"] == "activity-project" and item["state"] == "attention"
+
+
 class TestSecurityHeaders:
     def test_default_http_responses_block_sniffing_and_cross_origin_frames(
         self,
@@ -683,32 +710,28 @@ class TestAgentMarket:
         assert data["key_skills"] == ["kyc-doc-parse", "kyc-rules", "xlsx-author"]
         assert data["available_skills"] == data["key_skills"]
 
-    def test_financial_services_templates_stay_registry_only_with_local_twins(
+    def test_financial_services_and_twin_presets_stay_catalog_only(
         self,
         client: TestClient,
     ) -> None:
-        """The category may contain physical local roles, but not catalog templates.
-
-        The four digital-twin profiles are shipped under ``agents/`` and therefore
-        belong in the local store. The ten Anthropic financial-services templates
-        remain registry-only and must not leak into this list.
-        """
+        """Presets moved from active agents into the opt-in role catalog."""
         r = client.get("/api/agent-market/store?category=financial&limit=50")
         assert r.status_code == 200
 
         data = r.json()
-        assert {agent["id"] for agent in data["agents"]} == {
+        assert data["agents"] == []
+        assert data["total"] == 0
+        catalog = client.get("/api/agent-market/echo/catalog")
+        assert catalog.status_code == 200
+        financial = {
+            agent["id"] for agent in catalog.json()["agents"] if agent["category"] == "financial"
+        }
+        assert {
             "twin_audit",
             "twin_finance",
             "twin_investment",
             "twin_tax",
-        }
-        assert data["total"] == 4
-        assert all(
-            agent["author"] != "anthropics/financial-services"
-            and not agent["id"].startswith("financial_")
-            for agent in data["agents"]
-        )
+        } <= financial
 
     def test_financial_services_install_carries_key_skills(
         self,

@@ -119,6 +119,7 @@ def test_daemon_pool_uses_worker_context_protocol_when_available(monkeypatch) ->
         workers = list(pool._threads)
         assert len(workers) == 1
         assert workers[0].daemon
-        assert _cf_thread._threads_queues[workers[0]] is pool._work_queue
+        # Global registration would join a stuck daemon at interpreter exit.
+        assert workers[0] not in _cf_thread._threads_queues
     finally:
         pool.shutdown(wait=True, cancel_futures=True)

@@ -181,7 +181,9 @@ function buildTracePlugin() {
 }
 
 export default defineConfig({
-  base: "./",
+  // The desktop serves a fixed echo-app://app origin. Nested routes must
+  // resolve assets from that origin, including after a full-page reload.
+  base: "/",
   define: {
     __VITE_VERSION__: JSON.stringify(vitePackage.version),
   },

@@ -6654,6 +6654,9 @@ export const koKR: Translations = {
 
   // Annotations
   annotations: {
+    deleteForbidden:
+      "작성자 또는 채팅방 관리자만 이 주석을 삭제할 수 있습니다.",
+    deleteFailed: "주석을 삭제하지 못했습니다. 다시 시도해 주세요.",
     resolve: "해결됨으로 표시",
     unresolve: "해결 취소",
     delete: "삭제",

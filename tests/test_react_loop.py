@@ -8508,10 +8508,12 @@ def test_write_tool_in_parallel_block_forces_serial_dispatch(tmp_path) -> None:
             ]
         )
     )
+    intent = _intent("mixed batch")
+    intent.user_context["auto_approve"] = True
     events, result = _drain(
         stream_react_loop(
             stack,
-            _intent("mixed batch"),
+            intent,
             agent=None,
             max_iterations=3,
         )
