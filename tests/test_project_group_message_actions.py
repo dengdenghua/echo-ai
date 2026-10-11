@@ -12,7 +12,7 @@ from fastapi.testclient import TestClient
 from runtime.memory.cowork.collaboration_store import CollaborationStore
 from runtime.memory.cowork.group_store import GroupStore
 from runtime.memory.cowork.session import link_room
-from runtime.projectos.cowork_bridge import full_project_state
+from runtime.projectos.group_execution import full_project_state
 from runtime.projectos.model import Milestone, Project
 from runtime.projectos.store import ProjectStore
 from runtime.sensing.gateway.cowork_group_router import create_cowork_group_router

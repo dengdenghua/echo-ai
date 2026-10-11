@@ -17,15 +17,15 @@ from uuid import uuid4
 
 from fastapi import HTTPException, Request
 
-from runtime.projectos.cowork_bridge import (
-    engine_for_group,
-    full_project_state,
-    roster_from_group,
-)
 from runtime.projectos.engine import (
     ProjectEngine,
     stub_decompose_tasks,
     stub_generate_milestones,
+)
+from runtime.projectos.group_execution import (
+    engine_for_group,
+    full_project_state,
+    roster_from_group,
 )
 from runtime.projectos.store import (
     ProjectStore,

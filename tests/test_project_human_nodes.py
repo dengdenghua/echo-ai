@@ -10,8 +10,8 @@ from __future__ import annotations
 import pytest
 
 from runtime.projectos._store_helpers import _normalize_task
-from runtime.projectos.cowork_bridge import team_execute_for_group
 from runtime.projectos.engine import HUMAN_NODE_UNCLAIMED, ProjectEngine
+from runtime.projectos.group_execution import team_execute_for_group
 from runtime.projectos.model import Milestone, Task, normalize_team_mode
 from runtime.projectos.store import ProjectStore
 

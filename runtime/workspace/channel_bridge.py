@@ -2,7 +2,7 @@
 
 A Channel (org + department + ACL, persisted by ``OrgStore``) is bound to a
 cowork thread via an event-sourced ``room_link`` MemberEvent — the same pattern
-``cowork_bridge.link_workspace_to_group`` uses for Workspaces. Once linked, the
+``group_binding.link_workspace_to_group`` uses for Workspaces. Once linked, the
 channel's member ACL is mirrored into the group as invite/leave events so the
 thread sees a live view of "who can talk in this channel", and the channel's
 messages are persisted to a ``RoomMessageStore`` keyed by the channel id.

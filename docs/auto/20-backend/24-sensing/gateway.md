@@ -276,7 +276,6 @@ tier: "standard"
 | `openai_gateway/turn_context.py` | Shared turn/session preparation for the OpenAI compatibility gateway. |
 | `openai_gateway_router.py` | — |
 | `org_router.py` | Organization API router (阶段一 企业协作 · 组织 API 路由). |
-| `organizations_router.py` | REST endpoints for team-topology management. |
 | `parallel_agents_router.py` | — |
 | `plugin_hub_router.py` | PluginHub management REST API. |
 | `plugins_router.py` | — |
@@ -352,6 +351,7 @@ tier: "standard"
 | `thread_state_router.py` | Thread state HTTP router used by the realtime UI. |
 | `thread_workspace.py` | Server-managed workspace paths for authenticated thread filesystem access. |
 | `tool_bridge.py` | tool_bridge · the agentic-loop helper that turns Echo skills into Claude-native ``tool_use`` calls and loops result → next turn. |
+| `topology_router.py` | REST endpoints for team-topology management. |
 | `turn_session.py` | Turn session metadata assembly for realtime execution. |
 | `uploads_router.py` | Thread uploads / artifacts router. |
 | `verify_router.py` | Verification router · ``/api/verify/*``. |
@@ -1489,12 +1489,6 @@ tier: "standard"
 | --- | --- | --- |
 | func | `def create_org_router(org_store, identity_store, require_auth, jwt_secret, jwt_issuer, jwt_audience, audit_chain_path, audit_chain_secret)` |  |
 
-### `organizations_router.py`
-
-| Kind | Symbol | Doc |
-| --- | --- | --- |
-| func | `def create_organizations_router(identity_store, require_auth, jwt_secret, jwt_issuer, jwt_audience, agent_registry)` |  |
-
 ### `parallel_agents_router.py`
 
 | Kind | Symbol | Doc |
@@ -1986,6 +1980,12 @@ tier: "standard"
 | func | `def stage_managed_workspace_deletion(workspace_root, thread_id, metadata)` | Atomically isolate a verified workspace below the managed trash root. |
 | func | `def discard_staged_managed_workspace(token)` | Remove one staged managed workspace, raising on any residual data. |
 | func | `def ensure_managed_thread_workspace(workspace_root, thread_id, actor_id, tenant_id, store)` | Return (and, for a new thread, allocate) its authenticated workspace. |
+
+### `topology_router.py`
+
+| Kind | Symbol | Doc |
+| --- | --- | --- |
+| func | `def create_topology_router(identity_store, require_auth, jwt_secret, jwt_issuer, jwt_audience, agent_registry)` |  |
 
 ### `turn_session.py`
 

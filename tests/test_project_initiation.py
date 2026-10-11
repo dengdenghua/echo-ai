@@ -41,7 +41,7 @@ def test_review_command_requires_one_proposal_id():
 
 
 def test_single_step_command_keeps_the_approval_path_and_one_tick_limit():
-    from runtime.projectos.cowork_bridge import _project_action_specs
+    from runtime.projectos.group_execution import _project_action_specs
 
     assert _parse_project_os_control("/project tick") == {"type": "run", "goal": "", "max_ticks": 1}
     assert _parse_project_os_control("/project tick extra") == {"type": "help"}
@@ -323,7 +323,7 @@ def test_gateway_approval_creates_plan_without_running_tasks(tmp_path, monkeypat
         }
         return {"ok": False, "message": "plan recorded"}
 
-    monkeypatch.setattr("runtime.projectos.cowork_bridge.run_project_from_group", plan)
+    monkeypatch.setattr("runtime.projectos.group_execution.run_project_from_group", plan)
     asyncio.run(
         _drive_project_os(
             runtime,

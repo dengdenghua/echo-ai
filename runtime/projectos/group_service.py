@@ -15,7 +15,7 @@ from typing import Any
 from uuid import uuid4
 
 from runtime.memory.cowork.session import link_room
-from runtime.projectos.cowork_bridge import full_project_state
+from runtime.projectos.group_execution import full_project_state
 from runtime.sensing.gateway.thread_workspace import ensure_managed_thread_workspace
 
 _LOG = logging.getLogger(__name__)

@@ -84,7 +84,7 @@ async def approve_initiation_in_chat(
     Chat asks for it the same way it asks for a phase: one approval prompt on
     the exact plan and team, recorded through the shared owner decision.
     """
-    from runtime.projectos.cowork_bridge import roster_from_group
+    from runtime.projectos.group_execution import roster_from_group
     from runtime.projectos.owner_decisions import (
         OwnerDecisionError,
         approve_initiation,

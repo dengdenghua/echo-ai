@@ -113,7 +113,7 @@ runtime/sensing/gateway/_computer_appshot_routes.py::register_computer_appshot_r
 runtime/execution/suckers/_delegation_skills_agent.py::_call_agent	270
 runtime/sensing/gateway/openai_gateway/stream_handler.py::_stream_chat	270
 runtime/sensing/gateway/android_router.py::create_android_router	206
-runtime/projectos/cowork_bridge.py::team_execute_for_group	267
+runtime/projectos/group_execution.py::team_execute_for_group	267
 runtime/core/cerebrum/_react_execution_phase6g.py::_phase_6d_pre_dispatch_guards	264
 runtime/core/cerebrum/_react_prompt_assembly_guidance.py::_assemble_delegation_guidance	262
 runtime/safety/validation/gate.py::check_outbound	257
@@ -177,7 +177,7 @@ runtime/adapters/integrations/oct/router_auth.py::create_auth_router	205
 runtime/platform/plugins/plugin_hub.py::PluginHub.load	205
 runtime/sensing/model_router/anthropic_router.py::AnthropicModelRouter.call	204
 runtime/execution/suckers/web_skills.py::_web_fetch	202
-runtime/sensing/gateway/organizations_router.py::create_organizations_router	202
+runtime/sensing/gateway/topology_router.py::create_topology_router	202
 runtime/execution/suckers/kimi_compat_skills.py::register_kimi_compat_skills	201
 runtime/sensing/gateway/_agents_endpoints_tasks.py::_register_tasks	201
 runtime/execution/arms/tool_registry.py::ToolRegistry.call_tool	200

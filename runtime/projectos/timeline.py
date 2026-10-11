@@ -10,7 +10,7 @@ from __future__ import annotations
 from datetime import UTC, datetime
 from typing import Any
 
-from runtime.projectos.cowork_bridge import full_project_state
+from runtime.projectos.group_execution import full_project_state
 from runtime.projectos.store import ProjectStore
 
 _MAX_EVENT_LIMIT = 500

@@ -1,6 +1,6 @@
 """Compact audit trace for a Project OS run over a cowork group.
 
-Split out of :mod:`runtime.projectos.cowork_bridge`, which re-exports
+Split out of :mod:`runtime.projectos.group_execution`, which re-exports
 ``project_run_trace`` and records the trace on ``project.run_from_group``.
 """
 

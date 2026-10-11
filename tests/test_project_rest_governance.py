@@ -15,16 +15,16 @@ import pytest
 
 from runtime.memory.cowork.group_store import GroupStore
 from runtime.memory.cowork.service import invite_member
-from runtime.projectos.cowork_bridge import (
-    engine_for_group,
-    ensure_project_for_thread,
-    run_project_from_group,
-)
 from runtime.projectos.engine import ProjectEngine
 from runtime.projectos.governance import (
     governed_milestone_spec,
     initiation_state,
     phase_authorized,
+)
+from runtime.projectos.group_execution import (
+    engine_for_group,
+    ensure_project_for_thread,
+    run_project_from_group,
 )
 from runtime.projectos.model import (
     PROJECT_ORIGIN_APP,

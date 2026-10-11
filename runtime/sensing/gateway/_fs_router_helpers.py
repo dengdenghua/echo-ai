@@ -610,7 +610,7 @@ def _broadcast_file_written(
     if ctx.group_store is None or not thread_id:
         return
     try:
-        from runtime.workspace.cowork_bridge import broadcast_file_written
+        from runtime.workspace.group_binding import broadcast_file_written
 
         broadcast_file_written(
             ctx.group_store,

@@ -13,10 +13,10 @@ from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, Request
 
-from runtime.projectos.cowork_bridge import (
+from runtime.projectos.governance import governed_milestone_spec
+from runtime.projectos.group_execution import (
     run_project_from_group,
 )
-from runtime.projectos.governance import governed_milestone_spec
 from runtime.projectos.model import PROJECT_ORIGIN_APP
 from runtime.projectos.store import (
     ProjectBindingActiveError,

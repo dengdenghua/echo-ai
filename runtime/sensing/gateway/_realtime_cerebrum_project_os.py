@@ -567,7 +567,7 @@ async def _drive_project_os(
         if explicit_goal:
             goal = explicit_goal
         control = None
-    from runtime.projectos.cowork_bridge import full_project_state, run_project_from_group
+    from runtime.projectos.group_execution import full_project_state, run_project_from_group
 
     newly_initiated = False
     if control is None and project_store.project_for_thread(thread_id) is None:
@@ -688,7 +688,7 @@ async def _drive_project_os(
                 }
             engine = None
             if control.get("type") in {"recover", "task"}:
-                from runtime.projectos.cowork_bridge import engine_for_group
+                from runtime.projectos.group_execution import engine_for_group
 
                 engine = engine_for_group(
                     project_store,

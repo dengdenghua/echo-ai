@@ -4176,7 +4176,7 @@ def _seed_existing_project(projects, groups, thread_id):
     New-project approval is exercised through the authenticated WebSocket flow above.
     This setup only creates a deterministic plan; no task is executed.
     """
-    from runtime.projectos.cowork_bridge import run_project_from_group
+    from runtime.projectos.group_execution import run_project_from_group
 
     return run_project_from_group(
         projects, groups, thread_id, name="Existing project", goal="Deliver the project", run=False
@@ -4202,7 +4202,7 @@ def test_explicit_project_command_unhandled_failure_reports_driver_source(
         raise RuntimeError("project engine exploded")
 
     monkeypatch.setattr(
-        "runtime.projectos.cowork_bridge.run_project_from_group",
+        "runtime.projectos.group_execution.run_project_from_group",
         fail_project,
     )
     runtime = CerebrumRuntime(

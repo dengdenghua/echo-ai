@@ -341,12 +341,12 @@ def mount_routers_b(
     # Fail-soft mount: a missing organization package or a route
     # collision degrades to a warning, never breaks the whole app.
     try:
-        from runtime.sensing.gateway.organizations_router import (
-            create_organizations_router,
+        from runtime.sensing.gateway.topology_router import (
+            create_topology_router,
         )
 
         app.include_router(
-            create_organizations_router(
+            create_topology_router(
                 identity_store=ctx.identity_store,
                 require_auth=ctx.require_auth,
                 jwt_secret=ctx.jwt_secret,

@@ -296,7 +296,7 @@ tier: "core"
   - `runtime/projectos/_store_project_deletion.py`
   - `runtime/projectos/_store_task_claims.py`
   - `runtime/projectos/_store_thread_bindings.py`
-  - `runtime/projectos/cowork_bridge.py`
+  - `runtime/projectos/engine.py`
   - _… and 2 more_
 - **`runtime/safety/`** · 22 file(s)
   - `runtime/safety/evolution/auto_trigger.py`

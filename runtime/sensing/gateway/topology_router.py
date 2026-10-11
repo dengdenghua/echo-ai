@@ -50,7 +50,7 @@ from runtime.safety.organization.promotion_lift import (
     compute_topology_promotion_lift,
 )
 
-_logger = logging.getLogger("echo.sensing.organizations_router")
+_logger = logging.getLogger("echo.sensing.topology_router")
 
 
 def _proposals_path() -> Path:
@@ -80,7 +80,7 @@ def _topology_payload(topology: TeamTopology) -> dict[str, Any]:
     return payload
 
 
-def create_organizations_router(
+def create_topology_router(
     *,
     identity_store: Any = None,
     require_auth: bool = False,
@@ -284,4 +284,4 @@ def create_organizations_router(
     return router
 
 
-__all__ = ["create_organizations_router"]
+__all__ = ["create_topology_router"]

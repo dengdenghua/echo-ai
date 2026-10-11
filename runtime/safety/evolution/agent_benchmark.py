@@ -346,7 +346,7 @@ BENCHMARK_CASES: tuple[AgentBenchmarkCase, ...] = (
         weight=9,
         paths=(
             "runtime/projectos/engine.py",
-            "runtime/projectos/cowork_bridge.py",
+            "runtime/projectos/group_execution.py",
             "runtime/projectos/timeline.py",
             "runtime/sensing/gateway/projects_router.py",
             "tests/test_projectos.py",
@@ -354,7 +354,7 @@ BENCHMARK_CASES: tuple[AgentBenchmarkCase, ...] = (
         ),
         required_terms=(
             "ProjectEngine",
-            "cowork_bridge",
+            "group_execution",
             "process_timeline",
             "run_project_from_group",
         ),

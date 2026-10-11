@@ -35,7 +35,7 @@ def stub_decompose_tasks(ms: Milestone) -> list[Task]:
     """No-LLM fallback: a research → execution pair (a 2-node DAG).
 
     The research node defaults to ``team_mode="swarm"`` so a roster-aware
-    engine (cowork_bridge injects ``run_task_team``) brainstorms it across the
+    engine (group_execution injects ``run_task_team``) brainstorms it across the
     group; the execution node stays ``single`` unless a caller opts it into
     cluster."""
     return [

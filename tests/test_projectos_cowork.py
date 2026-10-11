@@ -14,15 +14,15 @@ from runtime.memory.cowork.group import MemberEvent
 from runtime.memory.cowork.group_store import GroupStore
 from runtime.memory.cowork.session import link_room
 from runtime.platform.process.session import Session, current_session
-from runtime.projectos import cowork_bridge
-from runtime.projectos.cowork_bridge import (
+from runtime.projectos import group_execution
+from runtime.projectos.engine import ProjectEngine, stub_decompose_tasks, stub_generate_milestones
+from runtime.projectos.group_execution import (
     engine_for_group,
     nominate_assigner,
     roster_from_group,
     run_project_from_group,
     team_execute_for_group,
 )
-from runtime.projectos.engine import ProjectEngine, stub_decompose_tasks, stub_generate_milestones
 from runtime.projectos.model import Milestone, Project, Task
 from runtime.projectos.store import ProjectStore
 from runtime.projectos.timeline import project_process_timeline
@@ -481,7 +481,7 @@ def test_new_project_attach_failure_preserves_plan_and_returns_recovery(
     monkeypatch.setattr(project_store, "bind_thread_versioned", capture_bind)
     if failure_stage == "state":
         monkeypatch.setattr(
-            cowork_bridge,
+            group_execution,
             "full_project_state",
             lambda *_args, **_kwargs: (_ for _ in ()).throw(
                 RuntimeError("injected attach state failure")

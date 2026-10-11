@@ -19,8 +19,8 @@ from runtime.safety.organization import (  # noqa: E402
     TeamTopology,
 )
 from runtime.safety.organization.forge import save_registry  # noqa: E402
-from runtime.sensing.gateway.organizations_router import (  # noqa: E402
-    create_organizations_router,
+from runtime.sensing.gateway.topology_router import (  # noqa: E402
+    create_topology_router,
 )
 
 
@@ -29,7 +29,7 @@ def app(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> FastAPI:
     monkeypatch.chdir(tmp_path)
     (tmp_path / "data").mkdir(exist_ok=True)
     a = FastAPI()
-    a.include_router(create_organizations_router())
+    a.include_router(create_topology_router())
     return a
 
 

@@ -45,20 +45,21 @@ substituted merely because two surfaces use the word “team” or “workspace�
 | Term | Meaning and authority | Implementation |
 |---|---|---|
 | Organization | Enterprise membership, department tree and internal channel ACL. Platform read roles do not grant organization writes. | `runtime/workspace/org.py`, `org_store.py`, `/api/orgs`; [management guide](guide/organizations.md) |
-| Evolution organization/topology | Agent roles, coordination protocol and evolution proposals; distinct from enterprise membership. | `runtime/safety/organization/`, `/api/organizations/topologies` |
+| Evolution organization/topology | Agent roles, coordination protocol and evolution proposals; distinct from enterprise membership. | `runtime/safety/organization/`, `topology_router.py`, `/api/organizations/topologies` |
 | Internal channel | An organization-owned channel/group with its own membership roles. A channel admin must remain an organization member. | `runtime/sensing/gateway/org_router.py`, `runtime/workspace/org_store.py` |
 | External channel | A message adapter/connection such as Slack or WeChat, including pairing and credentials. | `runtime/sensing/gateway/channels_router.py`, `/workspace/channels` |
 | Team room | A persistent shared room with agent roster, human participants and speaker policy. Legacy room configuration still has a JSON projection. | `team_rooms_models.py`, `_team_rooms_state.py`, `runtime/memory/cowork/collaboration_store.py` |
 | Group/cowork thread | The thread's event-sourced membership and context grants; chat/cluster/swarm selects the response strategy without changing membership. | `runtime/memory/cowork/group.py`, `group_store.py` |
-| Project team | The agents assigned to execute a Project OS project; a linked cowork roster can supply the agent pool. | `runtime/projectos/cowork_bridge.py` |
-| Workspace mount | An execution/file mount with owner/editor/reviewer/viewer permissions; linking it to a group mirrors those permissions into participant/observer context grants. | `runtime/workspace/model.py`, `store.py`, `cowork_bridge.py` |
+| Project team | The agents assigned to execute a Project OS project; a linked cowork roster can supply the agent pool. | `runtime/projectos/group_execution.py` |
+| Workspace mount | An execution/file mount with owner/editor/reviewer/viewer permissions; linking it to a group mirrors those permissions into participant/observer context grants. | `runtime/workspace/model.py`, `store.py`, `group_binding.py` |
 | Thread workspace | Per-thread artifact directories and manifest, governed by thread access; distinct from mount membership even when IDs match. | `workspaces_router.py`, `GET /api/threads/{thread_id}/workspace` |
 | Workspace UI | The human navigation/control surface. Navigating a UI route does not create a mount or confer its permissions. | `frontend/src/app/workspace/` |
 
-The two `cowork_bridge.py` modules serve different integrations: Project OS
-execution versus workspace mount membership/file events. Their qualified module
-paths identify the boundary; sharing a basename is not evidence of duplicate
-behavior. In the complete application, `GET /api/workspaces/{workspace_id}`
+Project OS `group_execution.py` attaches and executes a project with the group
+roster; workspace `group_binding.py` mirrors mount membership and compatibility
+file events. `topology_router.py` serves evolution topologies; enterprise
+membership uses `org_router.py`. These names identify each integration's
+authority boundary. In the complete application, `GET /api/workspaces/{workspace_id}`
 returns the mount entity and requires the remote-workspace feature flag and
 current membership. Thread manifests use `GET /api/threads/{thread_id}/workspace`;
 the standalone thread router retains the deprecated `/api/workspaces/{thread_id}`

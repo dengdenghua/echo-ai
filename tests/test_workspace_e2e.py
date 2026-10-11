@@ -7,7 +7,7 @@ multi-user remote workspace collaboration:
   * ``runtime.platform.io.lease.LeaseStore``        — file leases with TTL
   * ``runtime.sensing.server.mount_backend``        — LocalMountBackend + Registry
   * ``runtime.sensing.gateway.fs_router``           — remote FS + ACL + lease gate
-  * ``runtime.workspace.cowork_bridge``             — role → grant mapping
+  * ``runtime.workspace.group_binding``             — role → grant mapping
 
 Most tests operate at the business-logic layer (direct Store/Backend
 calls, no HTTP). The ACL enforcement tests (``test_acl_*``) and the
@@ -39,7 +39,7 @@ from runtime.sensing.server.mount_backend import (
 )
 from runtime.workspace import WorkspaceStore
 from runtime.workspace import crypto as crypto_mod
-from runtime.workspace.cowork_bridge import grant_for_workspace_role
+from runtime.workspace.group_binding import grant_for_workspace_role
 
 # ═══════════════════════════════════════════════════════════
 # Fixtures

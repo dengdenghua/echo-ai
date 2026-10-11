@@ -394,7 +394,7 @@ REQUIREMENTS: tuple[CertificationRequirement, ...] = (
         paths=(
             "runtime/safety/evolution/subagent_team_promotion.py",
             "runtime/safety/organization/promotion_lift.py",
-            "runtime/sensing/gateway/organizations_router.py",
+            "runtime/sensing/gateway/topology_router.py",
             "runtime/sensing/gateway/team_tasks_router.py",
             "runtime/execution/parallel_agents/orchestrator.py",
             "runtime/execution/parallel_agents/models.py",
@@ -489,7 +489,7 @@ REQUIREMENTS: tuple[CertificationRequirement, ...] = (
         paths=(
             "runtime/safety/evolution/digital_employee_quality.py",
             "runtime/sensing/gateway/evolution_router.py",
-            "runtime/projectos/cowork_bridge.py",
+            "runtime/projectos/group_execution.py",
             "runtime/projectos/timeline.py",
             "runtime/sensing/gateway/realtime_cerebrum.py",
             "runtime/sensing/gateway/projects_router.py",

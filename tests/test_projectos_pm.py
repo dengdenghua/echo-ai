@@ -12,7 +12,7 @@ from datetime import UTC, datetime
 
 from runtime.memory.cowork import service
 from runtime.memory.cowork.group_store import GroupStore
-from runtime.projectos.cowork_bridge import full_project_state
+from runtime.projectos.group_execution import full_project_state
 from runtime.projectos.model import Milestone, Project, Task
 from runtime.projectos.pm import (
     build_pm_report,

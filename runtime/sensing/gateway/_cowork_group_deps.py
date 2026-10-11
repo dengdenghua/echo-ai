@@ -94,7 +94,7 @@ def _make_ensure_project_for_thread(
         response strategy or running any project work. It fails soft when
         planning is unavailable."""
         try:
-            from runtime.projectos.cowork_bridge import ensure_project_for_thread
+            from runtime.projectos.group_execution import ensure_project_for_thread
 
             name = ""
             thread_store = getattr(runtime, "thread_store", None)

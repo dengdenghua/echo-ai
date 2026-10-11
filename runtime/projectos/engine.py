@@ -91,7 +91,7 @@ def _default_gate(milestone: Milestone, tasks: list[Task]) -> dict[str, Any]:
 
 def _default_assign(task: Task) -> str:
     """Default routing: the fixed role for the task type. A custom group injects
-    an assigner that picks one of ITS actual members instead (see cowork_bridge)."""
+    an assigner that picks one of ITS actual members instead (see group_execution)."""
     return ROLE_FOR_TASK.get(task.type, "engineer")
 
 

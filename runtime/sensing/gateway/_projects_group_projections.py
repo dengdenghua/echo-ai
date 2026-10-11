@@ -12,7 +12,7 @@ from typing import Any
 
 from fastapi import HTTPException, Request
 
-from runtime.projectos.cowork_bridge import (
+from runtime.projectos.group_execution import (
     full_project_state,
     project_task_to_collaboration,
 )
