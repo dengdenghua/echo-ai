@@ -314,7 +314,7 @@ class CollaborationCollectorStoreMixin:
     @classmethod
     def _collector_snapshot(cls, conn: Any, run_id: str) -> dict[str, Any] | None:
         row = conn.execute(
-            f"SELECT {_COLLECTOR_COLUMNS} FROM collaboration_collectors WHERE run_id=?",
+            f"SELECT {_COLLECTOR_COLUMNS} FROM collaboration_collectors WHERE run_id=?",  # nosec B608 # literal column list; query values are bound
             (run_id,),
         ).fetchone()
         if row is None:
@@ -613,7 +613,7 @@ class CollaborationCollectorStoreMixin:
                 clauses.append("child_id=?")
                 params.append(normalized_child)
             rows = conn.execute(
-                "SELECT child_id,generation,seq,text,actor_id,created_at "
+                "SELECT child_id,generation,seq,text,actor_id,created_at "  # nosec B608 # fixed predicates; all steering values are bound
                 "FROM collaboration_collector_steering WHERE "
                 + " AND ".join(clauses)
                 + " ORDER BY seq,child_id",
@@ -1061,7 +1061,7 @@ class CollaborationCollectorStoreMixin:
             # not merely threads sharing one CollaborationStore instance.
             conn.execute("BEGIN IMMEDIATE")
             collector = conn.execute(
-                f"SELECT {_COLLECTOR_COLUMNS} FROM collaboration_collectors WHERE run_id=?",
+                f"SELECT {_COLLECTOR_COLUMNS} FROM collaboration_collectors WHERE run_id=?",  # nosec B608 # literal column list; query values are bound
                 (run_id,),
             ).fetchone()
             if collector is None:

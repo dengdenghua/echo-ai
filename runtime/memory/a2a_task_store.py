@@ -212,7 +212,8 @@ class A2ATaskStore:
         with self._lock, self._connect() as conn:
             conn.execute("BEGIN IMMEDIATE")
             row = conn.execute(
-                f"SELECT {_COLUMNS} FROM a2a_tasks WHERE local_task_id=?", (local_task_id,)
+                f"SELECT {_COLUMNS} FROM a2a_tasks WHERE local_task_id=?",
+                (local_task_id,),  # nosec B608 # literal column list; query values are bound
             ).fetchone()
             if row:
                 current = _from_row(row)
@@ -241,7 +242,8 @@ class A2ATaskStore:
                 timestamp=timestamp,
             )
             row = conn.execute(
-                f"SELECT {_COLUMNS} FROM a2a_tasks WHERE local_task_id=?", (local_task_id,)
+                f"SELECT {_COLUMNS} FROM a2a_tasks WHERE local_task_id=?",
+                (local_task_id,),  # nosec B608 # literal column list; query values are bound
             ).fetchone()
         return _from_row(row), True
 
@@ -264,7 +266,8 @@ class A2ATaskStore:
         with self._lock, self._connect() as conn:
             conn.execute("BEGIN IMMEDIATE")
             row = conn.execute(
-                f"SELECT {_COLUMNS} FROM a2a_tasks WHERE local_task_id=?", (local_task_id,)
+                f"SELECT {_COLUMNS} FROM a2a_tasks WHERE local_task_id=?",
+                (local_task_id,),  # nosec B608 # literal column list; query values are bound
             ).fetchone()
             if not row:
                 raise KeyError(f"A2A task not found: {local_task_id}")
@@ -299,14 +302,16 @@ class A2ATaskStore:
                 timestamp=timestamp,
             )
             row = conn.execute(
-                f"SELECT {_COLUMNS} FROM a2a_tasks WHERE local_task_id=?", (local_task_id,)
+                f"SELECT {_COLUMNS} FROM a2a_tasks WHERE local_task_id=?",
+                (local_task_id,),  # nosec B608 # literal column list; query values are bound
             ).fetchone()
         return _from_row(row)
 
     def get(self, local_task_id: str) -> dict[str, Any] | None:
         with self._lock, self._connect() as conn:
             row = conn.execute(
-                f"SELECT {_COLUMNS} FROM a2a_tasks WHERE local_task_id=?", (local_task_id,)
+                f"SELECT {_COLUMNS} FROM a2a_tasks WHERE local_task_id=?",
+                (local_task_id,),  # nosec B608 # literal column list; query values are bound
             ).fetchone()
         return _from_row(row) if row else None
 

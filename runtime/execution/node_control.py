@@ -180,7 +180,7 @@ class ExecutionNodeControl:
         self.reconcile()
         with self.store._connect() as conn:
             rows = conn.execute(
-                f"SELECT {_RUN_COLUMNS} FROM collaboration_runs WHERE kind=? "
+                f"SELECT {_RUN_COLUMNS} FROM collaboration_runs WHERE kind=? "  # nosec B608 # literal column list; query values are bound
                 "AND json_extract(input_json,'$.tenant_id')=? "
                 "AND (? IS NULL OR json_extract(input_json,'$.actor_id')=?) ORDER BY created_at DESC LIMIT 500",
                 (kind, tenant_id, actor_id, actor_id),
@@ -193,7 +193,7 @@ class ExecutionNodeControl:
         self.reconcile()
         with self.store._connect() as conn:
             rows = conn.execute(
-                f"SELECT {_RUN_COLUMNS} FROM collaboration_runs WHERE kind='execution_node' "
+                f"SELECT {_RUN_COLUMNS} FROM collaboration_runs WHERE kind='execution_node' "  # nosec B608 # literal column list; query values are bound
                 "AND status IN ('queued','interrupted','running') "
                 "AND json_extract(input_json,'$.tenant_id')=? "
                 "AND EXISTS(SELECT 1 FROM json_each(input_json,'$.node_ids') WHERE value=?) "

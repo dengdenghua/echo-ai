@@ -199,7 +199,8 @@ class CollaborationRunStoreMixin:
         with self._lock, self._connect() as conn:
             conn.execute("BEGIN IMMEDIATE")
             row = conn.execute(
-                f"SELECT {_RUN_COLUMNS} FROM collaboration_runs WHERE run_id=?", (run_id,)
+                f"SELECT {_RUN_COLUMNS} FROM collaboration_runs WHERE run_id=?",
+                (run_id,),  # nosec B608 # literal column list; query values are bound
             ).fetchone()
             if row:
                 current = _run_from_row(row)
@@ -236,7 +237,8 @@ class CollaborationRunStoreMixin:
                 created_at=timestamp,
             )
             row = conn.execute(
-                f"SELECT {_RUN_COLUMNS} FROM collaboration_runs WHERE run_id=?", (run_id,)
+                f"SELECT {_RUN_COLUMNS} FROM collaboration_runs WHERE run_id=?",
+                (run_id,),  # nosec B608 # literal column list; query values are bound
             ).fetchone()
         return _run_from_row(row)
 
@@ -244,7 +246,8 @@ class CollaborationRunStoreMixin:
         run_id = require_cowork_id(run_id, label="run_id")
         with self._lock, self._connect() as conn:
             row = conn.execute(
-                f"SELECT {_RUN_COLUMNS} FROM collaboration_runs WHERE run_id=?", (run_id,)
+                f"SELECT {_RUN_COLUMNS} FROM collaboration_runs WHERE run_id=?",
+                (run_id,),  # nosec B608 # literal column list; query values are bound
             ).fetchone()
         return _run_from_row(row) if row else None
 
@@ -314,7 +317,8 @@ class CollaborationRunStoreMixin:
         with self._lock, self._connect() as conn:
             conn.execute("BEGIN IMMEDIATE")
             row = conn.execute(
-                f"SELECT {_RUN_COLUMNS} FROM collaboration_runs WHERE run_id=?", (run_id,)
+                f"SELECT {_RUN_COLUMNS} FROM collaboration_runs WHERE run_id=?",
+                (run_id,),  # nosec B608 # literal column list; query values are bound
             ).fetchone()
             if not row:
                 raise KeyError(f"collaboration run not found: {run_id}")
@@ -350,7 +354,8 @@ class CollaborationRunStoreMixin:
                 created_at=timestamp,
             )
             row = conn.execute(
-                f"SELECT {_RUN_COLUMNS} FROM collaboration_runs WHERE run_id=?", (run_id,)
+                f"SELECT {_RUN_COLUMNS} FROM collaboration_runs WHERE run_id=?",
+                (run_id,),  # nosec B608 # literal column list; query values are bound
             ).fetchone()
         return _run_from_row(row)
 
@@ -386,7 +391,8 @@ class CollaborationRunStoreMixin:
             if changed != 1:
                 raise RuntimeError("collaboration run lease is not owned by this worker")
             row = conn.execute(
-                f"SELECT {_RUN_COLUMNS} FROM collaboration_runs WHERE run_id=?", (run_id,)
+                f"SELECT {_RUN_COLUMNS} FROM collaboration_runs WHERE run_id=?",
+                (run_id,),  # nosec B608 # literal column list; query values are bound
             ).fetchone()
         return _run_from_row(row)
 
@@ -415,7 +421,8 @@ class CollaborationRunStoreMixin:
         with self._lock, self._connect() as conn:
             conn.execute("BEGIN IMMEDIATE")
             row = conn.execute(
-                f"SELECT {_RUN_COLUMNS} FROM collaboration_runs WHERE run_id=?", (run_id,)
+                f"SELECT {_RUN_COLUMNS} FROM collaboration_runs WHERE run_id=?",
+                (run_id,),  # nosec B608 # literal column list; query values are bound
             ).fetchone()
             if not row:
                 raise KeyError(f"collaboration run not found: {run_id}")
@@ -466,7 +473,8 @@ class CollaborationRunStoreMixin:
                 created_at=timestamp,
             )
             row = conn.execute(
-                f"SELECT {_RUN_COLUMNS} FROM collaboration_runs WHERE run_id=?", (run_id,)
+                f"SELECT {_RUN_COLUMNS} FROM collaboration_runs WHERE run_id=?",
+                (run_id,),  # nosec B608 # literal column list; query values are bound
             ).fetchone()
         return _run_from_row(row)
 

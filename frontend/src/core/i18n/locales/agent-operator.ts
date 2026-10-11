@@ -3,6 +3,9 @@ export type AgentOperatorCopy = Record<string, string>;
 export const agentOperatorEnUS: AgentOperatorCopy = {};
 
 export const agentOperatorZhCN: AgentOperatorCopy = {
+  "Continue execution": "继续执行",
+  "Recovery requested for task {task}.": "已请求继续执行任务 {task}。",
+  "Task recovery was not accepted.": "任务恢复请求未被接受。",
   "Operator loop": "运营闭环",
   "Agent evolution queue": "Agent 进化队列",
   "Task runs become review candidates first, then you decide what is promoted into memory, backlog, rules, or archive.":
@@ -311,6 +314,10 @@ export const agentOperatorZhCN: AgentOperatorCopy = {
 // Keep the operator surface useful while the long-tail governance vocabulary
 // is translated. Missing entries still fall back to the English source key.
 export const agentOperatorJaJP: AgentOperatorCopy = {
+  "Continue execution": "実行を再開",
+  "Recovery requested for task {task}.":
+    "タスク {task} の実行再開を要求しました。",
+  "Task recovery was not accepted.": "タスクの再開要求は受理されませんでした。",
   "Operator loop": "オペレーターループ",
   "Agent evolution queue": "Agent進化キュー",
   "Task runs become review candidates first, then you decide what is promoted into memory, backlog, rules, or archive.":
@@ -590,6 +597,10 @@ export const agentOperatorJaJP: AgentOperatorCopy = {
 };
 
 export const agentOperatorKoKR: AgentOperatorCopy = {
+  "Continue execution": "실행 재개",
+  "Recovery requested for task {task}.":
+    "작업 {task}의 실행 재개를 요청했습니다.",
+  "Task recovery was not accepted.": "작업 재개 요청이 수락되지 않았습니다.",
   "Operator loop": "운영 루프",
   "Agent evolution queue": "Agent 진화 큐",
   "Task runs become review candidates first, then you decide what is promoted into memory, backlog, rules, or archive.":

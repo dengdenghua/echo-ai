@@ -87,7 +87,7 @@ def bubblewrap_argv(executable: str, image: Path) -> list[str]:
         "/home/worker",
         "--setenv",
         "TMPDIR",
-        "/tmp",
+        "/tmp",  # nosec B108 # private bubblewrap tmpfs, never host /tmp
         "--setenv",
         "LANG",
         "C.UTF-8",
@@ -95,7 +95,7 @@ def bubblewrap_argv(executable: str, image: Path) -> list[str]:
         "PYTHONHOME",
         python_home,
         "--tmpfs",
-        "/tmp",
+        "/tmp",  # nosec B108 # private bubblewrap tmpfs, never host /tmp
         "--dir",
         "/home/worker",
         "--dir",

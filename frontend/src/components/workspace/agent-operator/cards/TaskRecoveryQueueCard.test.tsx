@@ -1,4 +1,4 @@
-import { screen } from "@testing-library/react";
+import { fireEvent, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 
 import type {
@@ -51,6 +51,7 @@ describe("TaskRecoveryQueueCard", () => {
         ])}
         busyId={null}
         onTakeover={vi.fn()}
+        onResume={vi.fn()}
       />,
     );
 
@@ -67,6 +68,7 @@ describe("TaskRecoveryQueueCard", () => {
         queue={queue([item({ pause_reason: "approval_required" })])}
         busyId={null}
         onTakeover={vi.fn()}
+        onResume={vi.fn()}
       />,
       { locale: "zh-CN" },
     );
@@ -87,9 +89,63 @@ describe("TaskRecoveryQueueCard", () => {
         ])}
         busyId={null}
         onTakeover={vi.fn()}
+        onResume={vi.fn()}
       />,
     );
 
     expect(screen.queryByText(/^Paused/)).not.toBeInTheDocument();
+  });
+
+  it("offers execution recovery only for an eligible native objective", () => {
+    const onResume = vi.fn();
+    renderWithProviders(
+      <TaskRecoveryQueueCard
+        queue={queue([
+          item({
+            task_id: "native",
+            kind: "realtime_objective",
+            thread_id: "thread-1",
+          }),
+          item({ task_id: "loop", kind: "loop", thread_id: "thread-2" }),
+          item({
+            task_id: "approval",
+            kind: "realtime_objective",
+            thread_id: "thread-3",
+            status: "waiting_approval",
+          }),
+          item({
+            task_id: "expired",
+            kind: "realtime_objective",
+            thread_id: "thread-4",
+            can_takeover: true,
+          }),
+        ])}
+        busyId={null}
+        onTakeover={vi.fn()}
+        onResume={onResume}
+      />,
+    );
+    const buttons = screen.getAllByRole("button", {
+      name: "Continue execution",
+    });
+    expect(buttons).toHaveLength(1);
+    fireEvent.click(buttons[0]!);
+    expect(onResume).toHaveBeenCalledWith("native");
+    expect(screen.getByRole("button", { name: "Take over" })).toBeEnabled();
+  });
+
+  it("blocks repeated actions while a recovery request is pending", () => {
+    renderWithProviders(
+      <TaskRecoveryQueueCard
+        queue={queue([
+          item({ kind: "realtime_objective", thread_id: "thread-1" }),
+        ])}
+        busyId="resume-task:loop-run-1"
+        onTakeover={vi.fn()}
+        onResume={vi.fn()}
+      />,
+      { locale: "zh-CN" },
+    );
+    expect(screen.getByRole("button", { name: "继续执行" })).toBeDisabled();
   });
 });

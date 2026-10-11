@@ -360,9 +360,11 @@ def test_unavailable_encryption_refuses_plaintext_without_disclosing_values(
     monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
 ) -> None:
     monkeypatch.setattr(crypto_mod, "_cipher", lambda: None)
-    with caplog.at_level(logging.WARNING, logger="echo.workspace.crypto"):
-        with pytest.raises(RuntimeError, match="credential encryption is unavailable") as failure:
-            encrypt_options(OPTIONS)
+    with (
+        caplog.at_level(logging.WARNING, logger="echo.workspace.crypto"),
+        pytest.raises(RuntimeError, match="credential encryption is unavailable") as failure,
+    ):
+        encrypt_options(OPTIONS)
     message = str(failure.value) + "\n" + caplog.text
     for secret in SECRET_VALUES:
         assert secret not in message

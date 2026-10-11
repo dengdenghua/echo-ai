@@ -25,17 +25,26 @@ from runtime.platform.mailbox import MailboxService, MailError, address
 
 MAIL_SCOPE = "https://mail.google.com/"
 TOKEN_URL = "https://oauth2.googleapis.com/token"
+USERINFO_URL = "https://openidconnect.googleapis.com/v1/userinfo"
 _flows: dict[str, Flow] = {}
 _lock = threading.Lock()
 
 
+class _NoOAuthRedirect(urllib.request.HTTPRedirectHandler):
+    def redirect_request(self, req, fp, code, msg, headers, newurl):
+        # Never forward an access token or grant to a redirected endpoint.
+        raise MailError("Google 授权服务返回了不允许的重定向。")
+
+
 def google_json(url: str, *, form: dict[str, str] | None = None, token: str = "") -> dict[str, Any]:
+    if url not in {TOKEN_URL, USERINFO_URL}:
+        raise MailError("不允许的 Google 授权服务地址。")
     headers = {"Accept": "application/json"}
     if token:
         headers["Authorization"] = "Bearer " + token
     data = urllib.parse.urlencode(form).encode() if form is not None else None
     try:
-        with urllib.request.urlopen(
+        with urllib.request.build_opener(_NoOAuthRedirect()).open(
             urllib.request.Request(url, data=data, headers=headers), timeout=20
         ) as response:
             return json.load(response)
@@ -72,9 +81,7 @@ def save_grant(svc: MailboxService, config: dict[str, str], tokens: dict[str, An
         raise MailError("未授予 Gmail 邮箱访问权限，请重新连接并勾选邮箱权限。")
     if not tokens.get("access_token") or not tokens.get("refresh_token"):
         raise MailError("Google 未返回持续访问凭据，请重新连接并完成授权。")
-    profile = google_json(
-        "https://openidconnect.googleapis.com/v1/userinfo", token=tokens["access_token"]
-    )
+    profile = google_json(USERINFO_URL, token=tokens["access_token"])
     if profile.get("email_verified") is not True:
         raise MailError("Google 未返回已验证的邮箱地址。")
     email = address(str(profile.get("email", ""))).lower()

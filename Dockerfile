@@ -28,6 +28,7 @@ WORKDIR /webui
 
 # 利用 Docker 层缓存: 先复制清单 + pnpm 锁文件 -> 安装依赖 -> 再复制源码
 COPY frontend/package.json frontend/pnpm-lock.yaml frontend/pnpm-workspace.yaml ./
+COPY frontend/patches/ ./patches/
 RUN corepack enable && pnpm install --frozen-lockfile
 
 # 源码变更不影响依赖缓存层

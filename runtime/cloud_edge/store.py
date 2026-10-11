@@ -487,19 +487,14 @@ class CloudEdgeStore:
     ) -> list[dict[str, Any]]:
         current = int(time.time()) if now is None else int(now)
         clean_source = str(source_thread_id or "").strip()[:128] or None
-        where = "tenant_id=? AND owner_id=?"
-        params: list[Any] = [tenant_id, owner_id]
-        if clean_source is not None:
-            where += " AND source_thread_id=?"
-            params.append(clean_source)
-        params.append(max(1, min(int(limit), 500)))
         with self._lock, self._connect() as conn:
             self._gc_thread_shares_conn(conn, current)
             rows = conn.execute(
-                f"""SELECT share_id, source_thread_id, snapshot_json, created_at, expires_at
-                FROM public_thread_shares WHERE {where}
+                """SELECT share_id, source_thread_id, snapshot_json, created_at, expires_at
+                FROM public_thread_shares WHERE tenant_id=? AND owner_id=?
+                AND (? IS NULL OR source_thread_id=?)
                 ORDER BY created_at DESC, share_id DESC LIMIT ?""",
-                params,
+                (tenant_id, owner_id, clean_source, clean_source, max(1, min(int(limit), 500))),
             ).fetchall()
         result: list[dict[str, Any]] = []
         for row in rows:

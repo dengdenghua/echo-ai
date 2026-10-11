@@ -52,7 +52,7 @@ test.describe("Visual regression · workspace surfaces", () => {
       )
       .toBeDefined();
     await expect(
-      page.getByRole("heading", { name: /Hello, I am|你好，我是/ }),
+      page.getByRole("heading", { name: "Echo", exact: true }),
     ).toBeVisible({
       timeout: 15_000,
     });

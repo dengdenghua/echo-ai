@@ -204,7 +204,7 @@ class CollaborationContextLifecycleStoreMixin:
         with self._lock, self._connect() as conn:
             conn.execute("BEGIN IMMEDIATE")
             existing = conn.execute(
-                f"SELECT {_TURN_COLUMNS} FROM collaboration_context_turns "
+                f"SELECT {_TURN_COLUMNS} FROM collaboration_context_turns "  # nosec B608 # literal column list; query values are bound
                 "WHERE session_id=? AND turn_id=?",
                 (session_id, turn_id),
             ).fetchone()
@@ -403,7 +403,7 @@ class CollaborationContextLifecycleStoreMixin:
         turn_id = require_cowork_id(turn_id, label="turn_id")
         with self._lock, self._connect() as conn:
             turn = conn.execute(
-                f"SELECT {_TURN_COLUMNS} FROM collaboration_context_turns "
+                f"SELECT {_TURN_COLUMNS} FROM collaboration_context_turns "  # nosec B608 # literal column list; query values are bound
                 "WHERE session_id=? AND turn_id=?",
                 (session_id, turn_id),
             ).fetchone()

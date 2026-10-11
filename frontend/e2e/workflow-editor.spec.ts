@@ -15,10 +15,9 @@ test.describe("Legacy workflow route", () => {
     await expect(page).toHaveURL(
       /#\/workspace\/agents\?surface=chat&tab=skills/,
     );
-    await expect(page.getByRole("tab", { name: "Skills" })).toHaveAttribute(
-      "aria-selected",
-      "true",
-    );
-    await expect(page.getByRole("textbox").first()).toBeVisible();
+    await expect(
+      page.getByRole("tab", { name: /^(Skills|技能)$/ }),
+    ).toHaveAttribute("aria-selected", "true");
+    await expect(page.getByRole("searchbox").first()).toBeVisible();
   });
 });

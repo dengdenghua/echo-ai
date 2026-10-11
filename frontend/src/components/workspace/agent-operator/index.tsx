@@ -41,7 +41,6 @@ import {
   queueReplayEvidenceHint,
   rejectStaleBrowserDesktopReplayArtifacts,
   rerunBrowserDesktopRepairRecipeEvidenceBatch,
-  takeoverTaskRun,
 } from "@/core/agent-trace/api";
 import type {
   AgentCompetitorScorecard,
@@ -105,6 +104,7 @@ import { PublisherTrustCard } from "./cards/PublisherTrustCard";
 import { ReviewQueueRow } from "./cards/ReviewQueueRow";
 import { SubagentRiskCard } from "./cards/SubagentRiskCard";
 import { TaskRecoveryQueueCard } from "./cards/TaskRecoveryQueueCard";
+import { useTaskRecoveryActions } from "./use-task-recovery-actions";
 import { TimelinePreview } from "./cards/TimelinePreview";
 import { ToolSafetyCard } from "./cards/ToolSafetyCard";
 import { TopologyPolicyCard } from "./cards/TopologyPolicyCard";
@@ -768,22 +768,14 @@ export function AgentOperatorPanel() {
     }
   };
 
-  const onTakeoverTaskRun = async (taskId: string) => {
-    setBusyId(`takeover-task:${taskId}`);
-    try {
-      await takeoverTaskRun(taskId);
-      setLastApplyResult(
-        formatOperatorCopy(to, "Took over task {task}.", { task: taskId }),
-      );
-      await Promise.all([refreshTaskRuns(), refreshQueue()]);
-      setError(null);
-    } catch (err) {
-      swallow(err);
-      setError(readRequestErrorMessage(err));
-    } finally {
-      setBusyId(null);
-    }
-  };
+  const { onTakeoverTaskRun, onResumeTaskRun } = useTaskRecoveryActions({
+    setBusyId,
+    setError,
+    setLastApplyResult,
+    refreshTaskRuns,
+    refreshQueue,
+    to,
+  });
 
   // Only the *first* load may take over the whole panel. Once data has
   // landed, an action failure must keep the operator queue usable and
@@ -906,6 +898,7 @@ export function AgentOperatorPanel() {
         queue={taskRecoveryQueue}
         busyId={busyId}
         onTakeover={(taskId) => void onTakeoverTaskRun(taskId)}
+        onResume={(taskId) => void onResumeTaskRun(taskId)}
       />
       <CompetitorScorecardCard
         report={agentScorecard}

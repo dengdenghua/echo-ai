@@ -225,7 +225,7 @@ def _delete_project_rows(conn: Any, project_id: str) -> None:
         if conn.execute(
             "SELECT 1 FROM sqlite_master WHERE type='table' AND name=?", (table,)
         ).fetchone():
-            conn.execute(f"DELETE FROM {table} WHERE project_id=?", (project_id,))
+            conn.execute(f"DELETE FROM {table} WHERE project_id=?", (project_id,))  # nosec B608 # two literal table names; project_id is bound
     conn.execute("DELETE FROM projects WHERE id=?", (project_id,))
 
 

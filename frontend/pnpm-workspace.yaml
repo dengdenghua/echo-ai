@@ -5,6 +5,8 @@ allowBuilds:
   sharp: true
 
 overrides:
+  # Mermaid also embeds KaTeX; keep its renderer on the patched trust checks.
+  katex@<0.18.2: '0.18.2'
   # Security fixes pinned within their existing major release families.
   '@xmldom/xmldom@>=0.7.0 <0.8.15': '0.8.15'
   browserslist@<4.28.7: '4.28.7'

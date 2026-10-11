@@ -1,5 +1,6 @@
 import base64
 import hashlib
+import io
 import time
 import urllib.error
 import urllib.parse
@@ -39,6 +40,44 @@ def google(monkeypatch):
 def configured(svc):
     oauth.configure(svc, "client.apps.googleusercontent.com", "client-secret")
     return oauth.client_config(svc)
+
+
+@pytest.mark.parametrize(
+    "url",
+    [
+        "file:///etc/passwd",
+        "http://oauth2.googleapis.com/token",
+        "https://oauth2.googleapis.com.evil.test/token",
+        oauth.TOKEN_URL + "?redirect=evil",
+    ],
+)
+def test_google_requests_reject_untrusted_endpoints_before_network(monkeypatch, url):
+    opener = MagicMock()
+    monkeypatch.setattr(oauth.urllib.request, "build_opener", opener)
+    with pytest.raises(MailError):
+        oauth.google_json(url, token="access-secret")
+    opener.assert_not_called()
+
+
+def test_google_oauth_redirect_never_forwards_credentials():
+    request = urllib.request.Request(oauth.USERINFO_URL, headers={"Authorization": "Bearer secret"})
+    with pytest.raises(MailError):
+        oauth._NoOAuthRedirect().redirect_request(
+            request, None, 302, "Found", {}, "https://evil.test/stolen"
+        )
+
+
+@pytest.mark.parametrize("url", [oauth.TOKEN_URL, oauth.USERINFO_URL])
+def test_google_requests_use_allowed_endpoints_and_reject_redirects(monkeypatch, url):
+    opener = MagicMock()
+    opener.open.return_value = io.BytesIO(b'{"ok":true}')
+    factory = MagicMock(return_value=opener)
+    monkeypatch.setattr(oauth.urllib.request, "build_opener", factory)
+    assert oauth.google_json(url, token="access-secret") == {"ok": True}
+    assert isinstance(factory.call_args.args[0], oauth._NoOAuthRedirect)
+    sent = opener.open.call_args.args[0]
+    assert sent.full_url == url
+    assert sent.get_header("Authorization") == "Bearer access-secret"
 
 
 def test_loopback_pkce_state_and_owner_binding(svc, google):

@@ -18,10 +18,12 @@ export function TaskRecoveryQueueCard({
   queue,
   busyId,
   onTakeover,
+  onResume,
 }: {
   queue: AgentTraceTaskRecoveryQueue;
   busyId: string | null;
   onTakeover: (taskId: string) => void;
+  onResume: (taskId: string) => void;
 }) {
   const to = useOperatorCopy();
   const actionable = queue.items.filter(
@@ -44,9 +46,7 @@ export function TaskRecoveryQueueCard({
             <GitBranchIcon
               className={cn(
                 "size-4",
-                healthy
-                  ? "text-success"
-                  : "text-warning",
+                healthy ? "text-success" : "text-warning",
               )}
             />
             {to("Task recovery queue")}
@@ -81,7 +81,14 @@ export function TaskRecoveryQueueCard({
       {queue.items.length > 0 && (
         <div className="mt-2 grid gap-2 lg:grid-cols-2">
           {queue.items.slice(0, 4).map((item) => {
-            const busy = busyId === `takeover-task:${item.task_id}`;
+            const busy = busyId !== null;
+            const canResumeExecution =
+              item.kind === "realtime_objective" &&
+              item.can_resume &&
+              item.has_checkpoint &&
+              !!item.thread_id &&
+              !item.can_takeover &&
+              item.status !== "waiting_approval";
             const steps = taskRecoverySteps(item);
             const checkpointId =
               item.checkpoint_id ||
@@ -170,6 +177,18 @@ export function TaskRecoveryQueueCard({
                     >
                       <GitBranchIcon className="mr-1 size-3" />
                       {to("Take over")}
+                    </Button>
+                  )}
+                  {canResumeExecution && (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      className="h-7 shrink-0 px-2 text-xs"
+                      disabled={busy}
+                      onClick={() => onResume(item.task_id)}
+                    >
+                      {to("Continue execution")}
                     </Button>
                   )}
                 </div>

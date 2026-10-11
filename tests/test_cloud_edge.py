@@ -703,6 +703,7 @@ def test_cloud_public_share_enforces_owner_quota_ttl_and_gc(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     from types import SimpleNamespace
+
     from runtime.cloud_edge import store as edge_store
 
     # Freeze only persistence time while checking the quota, then expire it.

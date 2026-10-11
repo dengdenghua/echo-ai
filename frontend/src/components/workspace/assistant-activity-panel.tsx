@@ -260,7 +260,7 @@ export function AssistantActivityPanel({
                     onOpen={() => {
                       const route = assistantActivityRoute(item);
                       if (!route) return;
-                      navigate(route, {
+                      void navigate(route, {
                         state: {
                           openProjectWorkbench: Boolean(item.project_id),
                         },
