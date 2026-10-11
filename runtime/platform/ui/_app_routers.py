@@ -56,6 +56,33 @@ def _workspaces_router_root(ctx: AppContext) -> Any:
     return ctx.thread_workspace_root or (app_paths().data_dir / "workspaces")
 
 
+def _mount_thread_workspace_router(ctx: AppContext) -> None:
+    try:
+        from runtime.sensing.gateway.workspaces_router import create_workspaces_router
+
+        ctx.app.include_router(
+            create_workspaces_router(
+                # The execution stack derives this root from the active
+                # journal. Artifact listing/preview must read from that exact
+                # location; app_paths() may point at an appliance data dir
+                # while turns are writing into a project-local journal.
+                workspace_root=_workspaces_router_root(ctx),
+                include_legacy_info_route=False,
+                thread_store=ctx.thread_store,
+                identity_store=ctx.identity_store,
+                require_auth=ctx.require_auth,
+                jwt_secret=ctx.jwt_secret,
+                jwt_issuer=ctx.jwt_issuer,
+                jwt_audience=ctx.jwt_audience,
+            )
+        )
+    except Exception as _workspace_exc:  # noqa: BLE001
+        logging.getLogger(__name__).warning(
+            "workspaces router failed to mount: %s",
+            _workspace_exc,
+        )
+
+
 def _project_collaboration_services(ctx: AppContext) -> dict[str, Any]:
     """Keep project endpoints on the application collaboration transport/stores."""
     return {
@@ -355,29 +382,7 @@ def mount_routers_a(
         )
     )
 
-    try:
-        from runtime.sensing.gateway.workspaces_router import create_workspaces_router
-
-        app.include_router(
-            create_workspaces_router(
-                # The execution stack derives this root from the active
-                # journal. Artifact listing/preview must read from that exact
-                # location; app_paths() may point at an appliance data dir
-                # while turns are writing into a project-local journal.
-                workspace_root=_workspaces_router_root(ctx),
-                thread_store=ctx.thread_store,
-                identity_store=ctx.identity_store,
-                require_auth=ctx.require_auth,
-                jwt_secret=ctx.jwt_secret,
-                jwt_issuer=ctx.jwt_issuer,
-                jwt_audience=ctx.jwt_audience,
-            )
-        )
-    except Exception as _workspace_exc:  # noqa: BLE001
-        logging.getLogger(__name__).warning(
-            "workspaces router failed to mount: %s",
-            _workspace_exc,
-        )
+    _mount_thread_workspace_router(ctx)
 
     try:
         from runtime.sensing.gateway.org_router import create_org_router

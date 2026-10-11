@@ -91,6 +91,17 @@ if FASTAPI_AVAILABLE:
         reviewed_sha256: str | None = None
 
 
+def _register_legacy_info_route(router: Any, endpoint: Any) -> None:
+    """Keep the deprecated alias only in standalone thread integrations."""
+    router.add_api_route(
+        "/api/workspaces/{thread_id}",
+        endpoint,
+        methods=["GET"],
+        response_model=WorkspaceInfoResponse,
+        deprecated=True,
+    )
+
+
 def create_workspaces_router(
     *,
     workspace_root: Path | str,
@@ -100,6 +111,7 @@ def create_workspaces_router(
     jwt_secret: str | None = None,
     jwt_issuer: str | None = None,
     jwt_audience: str | None = None,
+    include_legacy_info_route: bool = True,
 ) -> Any:
     require_fastapi(__name__)
 
@@ -325,20 +337,15 @@ def create_workspaces_router(
         }
 
     @router.get(
-        "/api/workspaces/{thread_id}",
-        response_model=WorkspaceInfoResponse,
-    )
-    def api_workspace_info(request: Request, thread_id: str) -> dict[str, Any]:
-        _require_thread_access(request, thread_id)
-        return _info(thread_id)
-
-    @router.get(
         "/api/threads/{thread_id}/workspace",
         response_model=WorkspaceInfoResponse,
     )
     def api_thread_workspace_info(request: Request, thread_id: str) -> dict[str, Any]:
         _require_thread_access(request, thread_id)
         return _info(thread_id)
+
+    if include_legacy_info_route:
+        _register_legacy_info_route(router, api_thread_workspace_info)
 
     @router.get(
         "/api/workspaces/{thread_id}/outputs",

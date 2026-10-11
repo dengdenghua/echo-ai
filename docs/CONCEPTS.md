@@ -52,13 +52,20 @@ substituted merely because two surfaces use the word “team” or “workspace�
 | Group/cowork thread | The thread's event-sourced membership and context grants; chat/cluster/swarm selects the response strategy without changing membership. | `runtime/memory/cowork/group.py`, `group_store.py` |
 | Project team | The agents assigned to execute a Project OS project; a linked cowork roster can supply the agent pool. | `runtime/projectos/cowork_bridge.py` |
 | Workspace mount | An execution/file mount with owner/editor/reviewer/viewer permissions; linking it to a group mirrors those permissions into participant/observer context grants. | `runtime/workspace/model.py`, `store.py`, `cowork_bridge.py` |
+| Thread workspace | Per-thread artifact directories and manifest, governed by thread access; distinct from mount membership even when IDs match. | `workspaces_router.py`, `GET /api/threads/{thread_id}/workspace` |
 | Workspace UI | The human navigation/control surface. Navigating a UI route does not create a mount or confer its permissions. | `frontend/src/app/workspace/` |
 
 The two `cowork_bridge.py` modules serve different integrations: Project OS
 execution versus workspace mount membership/file events. Their qualified module
 paths identify the boundary; sharing a basename is not evidence of duplicate
-behavior. These distinctions do not imply that every legacy JSON projection has
-been migrated or that polling has become shared multi-worker pub/sub.
+behavior. In the complete application, `GET /api/workspaces/{workspace_id}`
+returns the mount entity and requires the remote-workspace feature flag and
+current membership. Thread manifests use `GET /api/threads/{thread_id}/workspace`;
+the standalone thread router retains the deprecated `/api/workspaces/{thread_id}`
+alias by default, but integrations mounting both routers must disable that alias
+with `include_legacy_info_route=False`. Existing artifact output paths remain
+available. These distinctions do not imply that every legacy projection has
+been migrated.
 
 ## Three-Layer Language Rule
 

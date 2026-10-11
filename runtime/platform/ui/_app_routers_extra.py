@@ -86,15 +86,9 @@ def _start_ambient_scheduler(app: Any) -> None:
 
 def _mount_workspace_api(ctx: AppContext) -> None:
     # ─── Workspace HTTP API (feature-flag gated) ─────────────────────────
-    # Mount + membership + file-lease CRUD on top of WorkspaceStore /
-    # MountBackendRegistry / LeaseStore. Registered AFTER the per-thread
-    # ``workspaces_router`` so that router's ``GET /api/workspaces/{thread_id}/outputs``
-    # continues to win for output listing; the new router owns the
-    # create / list / members / lease / health endpoints. The new
-    # ``GET /api/workspaces/{workspace_id}`` is shadowed by the thread
-    # router's ``GET /api/workspaces/{thread_id}`` when both are
-    # mounted — callers that need the Workspace entity by id should
-    # filter the ``GET /api/workspaces?user_id=...`` list response.
+    # Entity CRUD uses /api/workspaces; thread manifests use the explicit
+    # /api/threads/{thread_id}/workspace route in the complete application.
+    # The standalone thread router retains its deprecated legacy info alias.
     try:
         from runtime.sensing.gateway.workspace_api_router import (
             create_workspace_api_router,

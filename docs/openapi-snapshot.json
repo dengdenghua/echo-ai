@@ -60115,48 +60115,6 @@
         ]
       }
     },
-    "/api/workspaces/{thread_id}": {
-      "get": {
-        "operationId": "api_workspace_info_api_workspaces__thread_id__get",
-        "parameters": [
-          {
-            "in": "path",
-            "name": "thread_id",
-            "required": true,
-            "schema": {
-              "title": "Thread Id",
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/WorkspaceInfoResponse"
-                }
-              }
-            },
-            "description": "Successful Response"
-          },
-          "422": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            },
-            "description": "Validation Error"
-          }
-        },
-        "summary": "Api Workspace Info",
-        "tags": [
-          "workspaces"
-        ]
-      }
-    },
     "/api/workspaces/{thread_id}/outputs": {
       "get": {
         "operationId": "api_workspace_outputs_api_workspaces__thread_id__outputs_get",

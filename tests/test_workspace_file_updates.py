@@ -253,6 +253,15 @@ def test_full_application_workspace_api_and_fs_share_existing_stores(tmp_path, m
         )
         assert created.status_code == 200, created.text
         workspace_id = created.json()["workspace"]["id"]
+        entity = client.get(f"/api/workspaces/{workspace_id}")
+        assert entity.status_code == 200, entity.text
+        assert entity.json()["workspace"]["id"] == workspace_id
+        assert "thread_id" not in entity.json()
+        manifest = client.get(f"/api/threads/{workspace_id}/workspace")
+        assert manifest.status_code == 200, manifest.text
+        assert manifest.json()["thread_id"] == workspace_id
+        assert "workspace" not in manifest.json()
+        assert "/api/workspaces/{thread_id}" not in app.openapi()["paths"]
         with client.websocket_connect(f"/api/fs/workspaces/{workspace_id}/updates") as socket:
             assert socket.receive_json()["type"] == "workspace:ready"
             written = client.post(

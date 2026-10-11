@@ -2074,7 +2074,7 @@ tier: "standard"
 
 | Kind | Symbol | Doc |
 | --- | --- | --- |
-| func | `def create_workspaces_router(workspace_root, thread_store, identity_store, require_auth, jwt_secret, jwt_issuer, jwt_audience)` |  |
+| func | `def create_workspaces_router(workspace_root, thread_store, identity_store, require_auth, jwt_secret, jwt_issuer, jwt_audience, include_legacy_info_route)` |  |
 
 
 ## Who imports this
