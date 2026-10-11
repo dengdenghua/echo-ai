@@ -21,6 +21,23 @@
  * 因此列表退回元数据行、聚合块整体不渲染，且不弹 alert、不打断既有错误态。
  */
 
+import type {
+  PmeReport,
+  ProjectFull,
+  ProjectSummary,
+} from "@/core/projects/cockpit-types";
+import {
+  ProjectLoadFailure,
+  ProjectRequestError,
+  traceIdFromDetail,
+  traceIdFromResponse,
+  withTraceId,
+} from "@/components/workspace/projects/project-request-feedback";
+import {
+  EmptyHint,
+  MetricCard,
+  healthIcon,
+} from "@/components/workspace/projects/project-cockpit-metrics";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useSearchParams, useNavigate } from "react-router-dom";
@@ -30,9 +47,7 @@ import {
   ArrowRightIcon,
   CalendarRangeIcon,
   CheckCircle2Icon,
-  CircleIcon,
   ClipboardListIcon,
-  FlagIcon,
   LayersIcon,
   ListChecksIcon,
   MessageSquareIcon,
@@ -60,7 +75,6 @@ import { useI18n } from "@/core/i18n/hooks";
 import { CreateProjectDialog } from "@/components/workspace/create-project-dialog";
 import {
   type Project,
-  type ProjectGovernance,
   useEnsureProjectHome,
   usePortfolio,
 } from "@/core/projects/hooks";
@@ -100,196 +114,10 @@ import {
   governanceRunBlock,
 } from "@/components/workspace/projects/project-governance-panel";
 
-// ─── types（与 runtime/projectos/pm.py 的返回结构对应）───────────────
-
-type Health = "on_track" | "at_risk" | "overdue" | "blocked" | "completed";
-
-interface MilestonePM {
-  id: string;
-  name: string;
-  status: string;
-  health: Health;
-  priority: string;
-  planned_start: string;
-  due_at: string;
-  done: number;
-  total: number;
-  failed: number;
-  progress: number;
-  total_estimate: number;
-  remaining_estimate: number;
-  overdue_tasks: Array<{
-    id: string;
-    goal: string;
-    due_at: string;
-    priority: string;
-  }>;
-  success_criteria: string[];
-}
-
-interface PmeReport {
-  project_id: string;
-  name: string;
-  status: string;
-  overall_progress: number;
-  done_tasks: number;
-  total_tasks: number;
-  total_estimate: number;
-  remaining_estimate: number;
-  milestones: MilestonePM[];
-  burndown: Array<{
-    milestone: string;
-    health: Health;
-    done: number;
-    total: number;
-    remaining_estimate: number;
-  }>;
-  risks: Array<{
-    type: "milestone" | "task";
-    milestone?: string;
-    task_id?: string;
-    task?: string;
-    health: string;
-    detail: string;
-  }>;
-  blockers: string[];
-  overdue: Array<{ milestone: string; tasks: MilestonePM["overdue_tasks"] }>;
-  next_actions: Array<{
-    milestone: string;
-    task_id: string;
-    task: string;
-    priority: string;
-    estimate: number;
-    due_at: string;
-  }>;
-  assignments: Record<string, string[]>;
-}
-
-interface Retro {
-  project_id: string;
-  name: string;
-  goal: string;
-  status: string;
-  milestone_count: number;
-  task_count: number;
-  done_tasks: number;
-  failed_tasks: number;
-  rejected_tasks: number;
-  attempts_total: number;
-  total_estimate: number;
-  duration_days: number | null;
-  blocked_milestones: string[];
-  risks_hit: string[];
-  recommendations: string[];
-}
-
-interface ActionSpec {
-  action: string;
-  label: string;
-  api: { method: string; path: string; body?: Record<string, unknown> };
-  realtime_command?: string;
-}
-
-interface TaskReadModel {
-  id: string;
-  milestone_id: string;
-  type: string;
-  goal: string;
-  assigned_role: string;
-  assigned_agent: string;
-  team_mode: string;
-  priority: string;
-  estimate: number;
-  due_at: string;
-  acceptance_criteria: string[];
-  status: string;
-  attempts: number;
-}
-
-interface ProjectFull {
-  project: {
-    id: string;
-    name: string;
-    goal: string;
-    status: string;
-    owner: string;
-    owner_id?: string;
-    created_at: string;
-    started_at: string;
-    finished_at: string;
-    execution_thread_id?: string;
-  };
-  milestones: Array<Record<string, unknown> & { id: string; name: string }>;
-  tasks: Record<string, TaskReadModel[]>;
-  pm: PmeReport | null;
-  retro: Retro | null;
-  available_actions: string[];
-  action_specs: ActionSpec[];
-  governance?: ProjectGovernance;
-}
-
-interface ProjectSummary {
-  id: string;
-  name: string;
-  goal?: string;
-  status?: string;
-  created_at?: string;
-  execution_thread_id?: string;
-}
-
 const BASE = () => `${getBackendBaseURL()}/api/projects`;
-const PROJECT_LOAD_ERROR_MESSAGE = "项目加载失败，请稍后重试。";
 const PROJECT_ACTION_ERROR_MESSAGE = "操作失败，请稍后重试。";
 // Actions that execute the project: unavailable while governance blocks them.
 const RUN_ACTIONS = new Set(["run", "tick", "recover_and_run"]);
-const TRACE_HEADER_NAMES = [
-  "x-trace-id",
-  "x-request-id",
-  "trace-id",
-  "request-id",
-] as const;
-
-class ProjectRequestError extends Error {
-  readonly traceId: string | null;
-
-  constructor(traceId: string | null) {
-    super(PROJECT_LOAD_ERROR_MESSAGE);
-    this.name = "ProjectRequestError";
-    this.traceId = traceId;
-  }
-}
-
-function normalizeTraceId(value: string | null | undefined): string | null {
-  const traceId = value?.trim();
-  if (!traceId || traceId.length > 128) return null;
-  return /^[A-Za-z0-9._:/-]+$/.test(traceId) ? traceId : null;
-}
-
-function traceIdFromResponse(
-  response: Pick<Response, "headers">,
-): string | null {
-  for (const header of TRACE_HEADER_NAMES) {
-    const traceId = normalizeTraceId(response.headers.get(header));
-    if (traceId) return traceId;
-  }
-  return null;
-}
-
-function traceIdFromError(error: unknown): string | null {
-  return error instanceof ProjectRequestError ? error.traceId : null;
-}
-
-function traceIdFromDetail(detail: string): string | null {
-  const match = detail.match(
-    /\b(?:trace[_ -]?id|request[_ -]?id)\s*[:=]\s*([A-Za-z0-9._/-]{6,128})/i,
-  );
-  return normalizeTraceId(match?.[1]);
-}
-
-function withTraceId(message: string, traceId: string | null): string {
-  return traceId ? `${message} 追踪 ID：${traceId}` : message;
-}
-
 function safeRiskDetail(risk: PmeReport["risks"][number]): string {
   if (risk.type === "milestone") {
     return "里程碑存在阻塞或延期，请检查相关任务状态。";
@@ -301,99 +129,6 @@ function safeRiskDetail(risk: PmeReport["risks"][number]): string {
     return "任务执行失败或受阻，请检查配置后重试。";
   }
   return "任务状态需要关注，请检查任务详情。";
-}
-
-function ProjectLoadFailure({
-  error,
-  onRetry,
-  className = "",
-}: {
-  error: unknown;
-  onRetry: () => void;
-  className?: string;
-}) {
-  const traceId = traceIdFromError(error);
-  return (
-    <div
-      role="alert"
-      className={`flex flex-col items-center justify-center gap-3 px-4 text-center ${className}`}
-    >
-      <div>
-        <p className="text-sm font-medium text-foreground">
-          {PROJECT_LOAD_ERROR_MESSAGE}
-        </p>
-        {traceId && (
-          <p className="mt-1 text-xs text-muted-foreground">
-            追踪 ID：<code>{traceId}</code>
-          </p>
-        )}
-      </div>
-      <Button type="button" variant="outline" size="sm" onClick={onRetry}>
-        <RefreshCwIcon className="size-3.5" />
-        重试
-      </Button>
-    </div>
-  );
-}
-
-function healthIcon(health: Health) {
-  if (health === "on_track") return <CheckCircle2Icon className="size-3.5" />;
-  if (health === "at_risk") return <AlertTriangleIcon className="size-3.5" />;
-  if (health === "overdue") return <TimerIcon className="size-3.5" />;
-  if (health === "blocked") return <FlagIcon className="size-3.5" />;
-  return <CircleIcon className="size-3.5" />;
-}
-
-function MetricCard({
-  label,
-  value,
-  sub,
-  icon,
-  tone,
-}: {
-  label: string;
-  value: string;
-  sub?: string;
-  icon: React.ReactNode;
-  tone?: "danger" | "warn" | "ok";
-}) {
-  const toneClass =
-    tone === "danger"
-      ? "text-orange-600"
-      : tone === "warn"
-        ? "text-amber-600"
-        : tone === "ok"
-          ? "text-emerald-600"
-          : "";
-  return (
-    <Card className="bg-card/60">
-      <CardContent className="flex items-start gap-3 p-4">
-        <div className="mt-0.5 flex size-8 shrink-0 items-center justify-center rounded-lg bg-muted/60 text-muted-foreground">
-          {icon}
-        </div>
-        <div className="min-w-0">
-          <div className="text-xs text-muted-foreground">{label}</div>
-          <div className={`mt-0.5 truncate text-lg font-semibold ${toneClass}`}>
-            {value}
-          </div>
-          {sub && (
-            <div className="mt-0.5 truncate text-xs text-muted-foreground">
-              {sub}
-            </div>
-          )}
-        </div>
-      </CardContent>
-    </Card>
-  );
-}
-
-/** 空态里的「下一步该做什么」提示 —— 不再只写「暂无 X。」 */
-function EmptyHint({ text }: { text: string }) {
-  return (
-    <div className="rounded-md border border-dashed px-2.5 py-2 text-xs text-muted-foreground">
-      {text}
-    </div>
-  );
 }
 
 export default function ProjectsPage() {
@@ -429,9 +164,10 @@ export default function ProjectsPage() {
       if (
         data &&
         typeof data === "object" &&
-        Array.isArray((data as { projects?: unknown }).projects)
+        "projects" in data &&
+        Array.isArray(data.projects)
       ) {
-        return (data as { projects: ProjectSummary[] }).projects;
+        return data.projects as ProjectSummary[];
       }
       return [];
     },

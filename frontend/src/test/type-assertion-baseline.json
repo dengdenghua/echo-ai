@@ -15,7 +15,7 @@
     "src/app/workspace/narrative/page.tsx": 2,
     "src/app/workspace/observability/page.tsx": 3,
     "src/app/workspace/paper-trading/page.tsx": 1,
-    "src/app/workspace/projects/page.tsx": 3,
+    "src/app/workspace/projects/page.tsx": 2,
     "src/app/workspace/realtime/[thread_id]/page-utils.ts": 1,
     "src/app/workspace/realtime/[thread_id]/page.tsx": 1,
     "src/app/workspace/realtime/[thread_id]/realtime-turn-utils.ts": 2,
