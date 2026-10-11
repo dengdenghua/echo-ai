@@ -912,17 +912,13 @@ def _sbpl_escape(value: str) -> str:
     return value.replace("\\", "\\\\").replace('"', '\\"')
 
 
-# ═══════════════════════════════════════════════════════════
-# Resolved posture — single source of truth for the execution
-# contract.  ``select_process_backend`` above stays as the cheap,
-# pure resolver (used by embedders and tests); production entry
-# points call ``resolved_process_backend`` so the whole process
-# shares ONE verified backend instead of each exec path re-deriving
-# one (and silently downgrading).
-# ═══════════════════════════════════════════════════════════
+# Production resolves one verified backend per process. The cheap resolver
+# remains available for embedders; a PATH-shadowed CLI must not be the probe.
 
 _PROBE_COMMAND = (
-    (sys.executable, "-c", "pass") if os.name == "nt" else ("echo", "echo-sandbox-probe")
+    (sys.executable, "-c", "pass")
+    if os.name == "nt"
+    else (shutil.which("echo", path=os.defpath) or "/bin/echo", "echo-sandbox-probe")
 )
 _probe_cache: dict[tuple[str, str], bool] = {}
 _probe_lock = threading.Lock()

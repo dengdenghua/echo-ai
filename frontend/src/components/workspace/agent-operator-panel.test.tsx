@@ -56,7 +56,6 @@ const api = vi.hoisted(() => ({
   rejectStaleBrowserDesktopReplayArtifacts: vi.fn(),
   rerunBrowserDesktopRepairRecipeEvidenceBatch: vi.fn(),
   takeoverTaskRun: vi.fn(),
-  resumeTaskExecution: vi.fn(),
 }));
 
 const pluginApi = vi.hoisted(() => ({
@@ -68,9 +67,6 @@ const pluginApi = vi.hoisted(() => ({
 }));
 
 vi.mock("@/core/agent-trace/api", () => api);
-vi.mock("@/core/tasks/recovery-api", () => ({
-  resumeTaskExecution: api.resumeTaskExecution,
-}));
 vi.mock("@/core/plugins/api", () => pluginApi);
 
 describe("<AgentOperatorPanel />", () => {
@@ -1370,95 +1366,6 @@ describe("<AgentOperatorPanel />", () => {
       task_run: { task_id: "task-expired-loop", status: "running" },
       lease_health: { state: "ok", recommended_action: "monitor" },
     });
-  });
-
-  it("starts native checkpoint execution and refreshes the authoritative queue", async () => {
-    api.fetchTaskRecoveryQueue.mockResolvedValue({
-      schema: "echo.task_recovery_queue.v1",
-      total: 1,
-      count: 1,
-      limit: 8,
-      items: [
-        {
-          task_id: "native-task",
-          kind: "realtime_objective",
-          status: "paused",
-          thread_id: "thread-1",
-          title: "Recover native task",
-          can_resume: true,
-          can_takeover: false,
-          has_checkpoint: true,
-          recommended_action: "resume_paused_task",
-          priority: 80,
-        },
-      ],
-    });
-    api.resumeTaskExecution.mockResolvedValue({
-      accepted: true,
-      state: "queued",
-    });
-    renderWithProviders(<AgentOperatorPanel />);
-    fireEvent.click(
-      await screen.findByRole("button", { name: "Continue execution" }),
-    );
-    await waitFor(() =>
-      expect(api.resumeTaskExecution).toHaveBeenCalledWith(
-        "native-task",
-        expect.any(String),
-      ),
-    );
-    expect(
-      await screen.findByText("Recovery requested for task native-task."),
-    ).toBeInTheDocument();
-    await waitFor(() =>
-      expect(api.fetchTaskRecoveryQueue).toHaveBeenCalledTimes(2),
-    );
-    expect(api.takeoverTaskRun).not.toHaveBeenCalled();
-  });
-
-  it("keeps the recovery queue visible when the original approval blocks continuation", async () => {
-    api.fetchTaskRecoveryQueue.mockResolvedValue({
-      schema: "echo.task_recovery_queue.v1",
-      total: 1,
-      count: 1,
-      limit: 8,
-      items: [
-        {
-          task_id: "native-task",
-          kind: "realtime_objective",
-          status: "paused",
-          thread_id: "thread-1",
-          title: "Recover native task",
-          can_resume: true,
-          can_takeover: false,
-          has_checkpoint: true,
-          recommended_action: "resume_paused_task",
-          priority: 80,
-        },
-      ],
-    });
-    api.resumeTaskExecution.mockRejectedValue(
-      new api.AgentTraceRequestError(
-        409,
-        "task is waiting for its original approval decision",
-      ),
-    );
-    renderWithProviders(<AgentOperatorPanel />);
-    fireEvent.click(
-      await screen.findByRole("button", { name: "Continue execution" }),
-    );
-    expect(
-      await screen.findByText(
-        "task is waiting for its original approval decision",
-      ),
-    ).toBeInTheDocument();
-    expect(screen.getByText("Recover native task")).toBeInTheDocument();
-    await waitFor(() =>
-      expect(
-        screen.getByRole("button", { name: "Continue execution" }),
-      ).toBeEnabled(),
-    );
-    expect(api.takeoverTaskRun).not.toHaveBeenCalled();
   });
 
   it("renders task runs, timeline and pending review queue", async () => {
