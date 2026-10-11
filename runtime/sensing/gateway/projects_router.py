@@ -11,14 +11,17 @@ from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, Request, Response
 
+from runtime.platform.process.shared_pubsub import RedisPubSub
 from runtime.platform.process.task_supervisor import TaskSupervisor
 from runtime.projectos.http_dispatcher import ProjectHTTPDispatcher
 from runtime.projectos.http_models import ProjectExecutionAccepted
+from runtime.projectos.live_updates import ProjectChangeFeed
 from runtime.projectos.store import (
     ProjectClaimActiveError,
     ProjectStore,
 )
 from runtime.projectos.timeline import project_process_timeline
+from runtime.safety.auth.websocket_auth import WebSocketAuthConfig
 
 from ._projects_governance_endpoints import _register_project_governance
 from ._projects_group_endpoints import (
@@ -27,6 +30,7 @@ from ._projects_group_endpoints import (
     _register_project_creation,
 )
 from ._projects_http_execution import register_project_http_execution, require_project_initiation
+from ._projects_live_updates import create_project_live_router
 from ._projects_models import (
     DetachFromGroupBody as DetachFromGroupBody,
 )
@@ -95,6 +99,7 @@ def create_projects_router(
     jwt_secret: str | None = None,
     jwt_issuer: str | None = None,
     jwt_audience: str | None = None,
+    shared_bus: RedisPubSub | None = None,
 ) -> APIRouter:
     """Create the ``/api/projects/*`` router."""
     d = build_projects_deps(
@@ -115,9 +120,11 @@ def create_projects_router(
         jwt_audience=jwt_audience,
     )
     _auth_dep = d.auth_dep
+    feed = ProjectChangeFeed(shared_bus)
     dispatcher = ProjectHTTPDispatcher(
         task_supervisor
-        or TaskSupervisor.from_path(d.project_store._db.with_name("project-http-tasks.json"))
+        or TaskSupervisor.from_path(d.project_store._db.with_name("project-http-tasks.json")),
+        on_change=feed.notify,
     )
     standing = StandingProjectService(d, dispatcher, identity_store)
     router = APIRouter(
@@ -135,7 +142,22 @@ def create_projects_router(
     _register_project_governance(router, d, cancel_execution=dispatcher.cancel)
     _register_project_execution(router, d, dispatcher)
 
-    return router
+    combined = APIRouter()
+    combined.include_router(router)
+    combined.include_router(
+        create_project_live_router(
+            d,
+            feed,
+            WebSocketAuthConfig(
+                identity_store=identity_store,
+                require_auth=require_auth,
+                jwt_secret=jwt_secret,
+                jwt_issuer=jwt_issuer,
+                jwt_audience=jwt_audience,
+            ),
+        )
+    )
+    return combined
 
 
 # The two groups below stay in this file: capability evidence scanners in

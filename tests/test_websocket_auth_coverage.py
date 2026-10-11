@@ -59,6 +59,7 @@ EXPECTED_ROUTES = frozenset(
         "/api/tentacle/screen/stream",
         "/api/tentacle/device/ws",
         "/api/teams/{team_id}/ws",
+        "/api/projects/{project_id}/updates",
     }
 )
 

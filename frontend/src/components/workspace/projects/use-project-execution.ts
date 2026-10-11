@@ -1,5 +1,5 @@
 import { useEffect, useRef } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 
 import {
@@ -10,6 +10,7 @@ import {
   type ApiFailure,
 } from "@/core/api/request";
 import type { components } from "@/core/api/openapi-types";
+import { subscribeProjectUpdates } from "./project-updates-api";
 
 export interface ExecutionAction {
   action: string;
@@ -41,6 +42,7 @@ export function useProjectExecution({
   refresh: () => void;
   errorMessage: (failure: ApiFailure) => string;
 }) {
+  const queryClient = useQueryClient();
   const refreshRef = useRef(refresh);
   refreshRef.current = refresh;
   const lastReceipt = useRef("");
@@ -62,6 +64,15 @@ export function useProjectExecution({
         : false,
   });
   const job = execution.data;
+  useEffect(() => {
+    if (!projectId) return;
+    return subscribeProjectUpdates(projectId, () => {
+      void queryClient.invalidateQueries({
+        queryKey: ["project-execution", projectId],
+      });
+      refreshRef.current();
+    });
+  }, [projectId, queryClient]);
   useEffect(() => {
     if (!job) return;
     const receipt = `${job.task_id}:${job.updated_at}:${job.status}:${job.can_takeover}`;

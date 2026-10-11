@@ -28,6 +28,16 @@ for (const width of [1280, 390]) {
       document.cookie = "locale=en-US; path=/";
     });
     let active = false;
+    let completed = false;
+    let executionReads = 0;
+    let pushUpdate: (() => void) | undefined;
+    await page.routeWebSocket(/\/api\/projects\/P\/updates$/, (socket) => {
+      pushUpdate = () =>
+        socket.send(
+          JSON.stringify({ type: "project:update", project_id: "P" }),
+        );
+      socket.send(JSON.stringify({ type: "project:ready", project_id: "P" }));
+    });
     const decisions: string[] = [];
     const project = {
       id: "P",
@@ -98,7 +108,20 @@ for (const width of [1280, 390]) {
         };
       else if (path === "/api/projects") data = { projects: [project] };
       else if (path === "/api/projects/portfolio") data = { portfolio: [] };
-      else if (path === "/api/projects/P")
+      else if (path === "/api/projects/P/execution") {
+        executionReads += 1;
+        data = {
+          execution: completed
+            ? {
+                task_id: "finished-offline-task",
+                status: "completed",
+                updated_at: "completed-from-other-worker",
+                can_takeover: true,
+                cancel_requested: false,
+              }
+            : null,
+        };
+      } else if (path === "/api/projects/P")
         data = {
           project,
           milestones: phases,
@@ -172,6 +195,15 @@ for (const width of [1280, 390]) {
     const frame = page.frameLocator('iframe[title="项目管理"]');
     const panel = frame.getByRole("region", { name: "Unattended progress" });
     await expect(panel).toBeVisible({ timeout: 20_000 });
+    await expect.poll(() => executionReads).toBeGreaterThan(0);
+    await expect.poll(() => typeof pushUpdate).toBe("function");
+    const readsBeforePush = executionReads;
+    completed = true;
+    pushUpdate!();
+    await expect(
+      frame.getByText("本轮执行已结束", { exact: true }),
+    ).toBeVisible();
+    expect(executionReads).toBeGreaterThan(readsBeforePush);
     await panel.getByRole("checkbox", { name: "Reviewed phase" }).check();
     await panel
       .getByRole("textbox", { name: "Total project AI ceiling (USD)" })

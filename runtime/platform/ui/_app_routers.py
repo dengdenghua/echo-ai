@@ -56,6 +56,17 @@ def _workspaces_router_root(ctx: AppContext) -> Any:
     return ctx.thread_workspace_root or (app_paths().data_dir / "workspaces")
 
 
+def _project_collaboration_services(ctx: AppContext) -> dict[str, Any]:
+    """Keep project endpoints on the application collaboration transport/stores."""
+    return {
+        "group_store": getattr(ctx.cowork_runtime, "group_store", None),
+        "collaboration_store": getattr(ctx.cowork_runtime, "collaboration_store", None),
+        "team_rooms_router": ctx.team_rooms_router,
+        "thread_store": ctx.thread_store,
+        "shared_bus": ctx.shared_realtime,
+    }
+
+
 def _mount_visuals_router(ctx: AppContext) -> None:
     from runtime.sensing.gateway.visuals_router import create_visuals_router
 
@@ -283,18 +294,7 @@ def mount_routers_a(
     app.include_router(
         create_projects_router(
             store=project_store,
-            group_store=(
-                getattr(ctx.cowork_runtime, "group_store", None)
-                if ctx.cowork_runtime is not None
-                else None
-            ),
-            collaboration_store=(
-                getattr(ctx.cowork_runtime, "collaboration_store", None)
-                if ctx.cowork_runtime is not None
-                else None
-            ),
-            team_rooms_router=ctx.team_rooms_router,
-            thread_store=ctx.thread_store,
+            **_project_collaboration_services(ctx),
             workspace_root=ctx.thread_workspace_root,
             logs_root=(ctx.paths.data_dir / "threads" if ctx.paths is not None else None),
             task_supervisor=getattr(ctx.state, "task_supervisor", None),

@@ -248,7 +248,7 @@ tier: "core"
 
 ## Who imports this
 
-**208** file(s) reference this package:
+**210** file(s) reference this package:
 
 - **`runtime/adapters/`** · 6 file(s)
   - `runtime/adapters/integrations/local_auth/router.py`
@@ -305,13 +305,13 @@ tier: "core"
   - `runtime/safety/evolution/fitness.py`
   - `runtime/safety/evolution/proposal_ledger.py`
   - _… and 17 more_
-- **`runtime/sensing/`** · 91 file(s)
+- **`runtime/sensing/`** · 93 file(s)
   - `runtime/sensing/gateway/_agent_trace_router_stores.py`
   - `runtime/sensing/gateway/_config_endpoints.py`
   - `runtime/sensing/gateway/_config_endpoints_codex.py`
   - `runtime/sensing/gateway/_config_endpoints_local_models.py`
   - `runtime/sensing/gateway/_config_endpoints_models.py`
-  - _… and 86 more_
+  - _… and 88 more_
 - **`runtime/tentacle/`** · 3 file(s)
   - `runtime/tentacle/coordinator.py`
   - `runtime/tentacle/dashboard.py`

@@ -45,6 +45,7 @@ jobs:
         run: >-
           uv run --no-sync python -m pytest -q
           tests/test_shared_collaboration_pubsub.py tests/test_cowork_presence.py
+          tests/test_project_shared_updates.py
           --junitxml=shared-collaboration.xml
           -o faulthandler_timeout=60
       - name: Upload acceptance evidence

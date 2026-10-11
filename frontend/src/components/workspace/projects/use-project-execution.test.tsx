@@ -13,11 +13,17 @@ const mocks = vi.hoisted(() => ({
   success: vi.fn(),
   error: vi.fn(),
   refresh: vi.fn(),
+  updates: vi.fn<(projectId: string, onUpdate: () => void) => () => void>(
+    () => () => {},
+  ),
 }));
 vi.mock("sonner", () => ({
   toast: { success: mocks.success, error: mocks.error },
 }));
 vi.mock("@/core/config", () => ({ getBackendBaseURL: () => "" }));
+vi.mock("./project-updates-api", () => ({
+  subscribeProjectUpdates: mocks.updates,
+}));
 
 function Harness() {
   const execution = useProjectExecution({
@@ -50,6 +56,43 @@ function Harness() {
 beforeEach(() => {
   vi.resetAllMocks();
   vi.stubGlobal("fetch", mocks.fetch);
+});
+
+it("refetches an idle execution from a push hint without waiting for polling", async () => {
+  mocks.fetch
+    .mockResolvedValueOnce(Response.json({ execution: null }))
+    .mockResolvedValue(
+      Response.json({
+        execution: {
+          task_id: "push-task",
+          project_id: "P-1",
+          status: "completed",
+          updated_at: "pushed",
+          cancel_requested: false,
+          can_takeover: true,
+        },
+      }),
+    );
+  const client = new QueryClient({
+    defaultOptions: { queries: { retry: false, gcTime: Infinity } },
+  });
+  const view = renderWithProviders(<Harness />, { queryClient: client });
+  try {
+    await waitFor(() => expect(mocks.fetch).toHaveBeenCalledTimes(1));
+    const notify = mocks.updates.mock.calls[0][1];
+    await act(async () => notify());
+    await waitFor(() =>
+      expect(screen.getByRole("status")).toHaveTextContent("本轮执行已结束"),
+    );
+    expect(mocks.fetch).toHaveBeenCalledTimes(2);
+    expect(client.getQueryData(["project-execution", "P-1"])).toMatchObject({
+      task_id: "push-task",
+      status: "completed",
+    });
+  } finally {
+    view.unmount();
+    client.clear();
+  }
 });
 
 it("uses background execution for run and recover-and-run while preserving controls", () => {

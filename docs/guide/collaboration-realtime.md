@@ -44,8 +44,8 @@ receipts, tasks, grants and read cursors remain in their existing source
 stores. Recover missed messages through the existing HTTP history/catch-up
 endpoints after reconnecting; an unavailable publisher, oversized frame or
 full delivery queue can lose a live update while committed source data
-survives. Project HTTP execution status has its existing polling contract;
-this change does not add a project status subscription API.
+survives. Project updates have a separate authorized subscription described
+below; existing HTTP catch-up and lease-expiry polling remain available.
 
 Frames are capped at 256 KiB, each worker's delivery queue at 256 events and
 its duplicate window at 4096 event IDs. Socket delivery waits at most two
@@ -81,3 +81,33 @@ to a Bash launcher which accepts a port and logfile and execs Redis. Set
 `ECHO_REQUIRE_REDIS_TESTS=1` in acceptance runs to fail if the client or server
 is missing. Ordinary environments without this optional extra skip the module;
 the dedicated CI job requires the real service and uploads its test report.
+
+## Project updates
+
+`/api/projects/{project_id}/updates` is a read-only WebSocket subscription with
+the same owner/tenant boundary as the HTTP execution-status endpoint. It uses
+the shared session/Origin gate and browser bearer subprotocol. Credentials and
+canonical project access are checked again before each update, and every
+15 seconds while idle. The socket never accepts execution commands.
+
+Committed project transactions and HTTP job admission/running/completion/cancel
+changes enqueue a non-blocking invalidation only after a successful SQLite
+commit. Transaction contexts close their handles first; failed commits,
+rollbacks and read-only transactions do not notify, and a
+notification failure cannot reverse a committed write. A separate delivery
+thread coalesces bursts for 50 ms and publishes `project:changed` through the
+same configured Redis transport. Remote hints are never republished. A feed
+allows at most 1024 active subscriptions and carries no project content.
+
+The client receives `project:ready` or `project:update` with its project ID and
+refreshes authorized HTTP reads. Heartbeats carry no execution state. The
+project page reconnects with fresh credentials, ignores old sockets and
+account changes, and keeps HTTP polling for dropped notifications and expired
+worker leases. Delivery is an invalidation, not an ordered execution-event log;
+it neither grants budget nor restarts a task.
+
+`tests/test_project_shared_updates.py` uses two spawned HTTP/WS workers sharing
+SQLite and a real Redis server. An owner cancellation on one worker wakes the
+other worker's owner socket, followed by a canonical HTTP read of the terminal
+state. Other actors in the same tenant and actors in another tenant cannot
+subscribe. The dedicated acceptance workflow requires this real-service test.

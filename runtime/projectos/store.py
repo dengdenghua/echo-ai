@@ -76,6 +76,7 @@ from runtime.projectos._store_thread_bindings import (
 from runtime.projectos._store_thread_bindings import (
     delete_project as _delete_project,
 )
+from runtime.projectos.commit_notifications import ProjectCommitObserverMixin
 from runtime.projectos.model import Milestone, Project, Task
 from runtime.safety.auth.scope import TenantScope
 
@@ -100,6 +101,7 @@ def _default_dir() -> Path:
 
 
 class ProjectStore(
+    ProjectCommitObserverMixin,
     ProjectBindingStoreMixin,
     ProjectClaimStoreMixin,
     ProjectMessageActionStoreMixin,
@@ -116,6 +118,7 @@ class ProjectStore(
         self._db = d / "projectos.db"
         self._lock = threading.Lock()
         self._scope = scope
+        self._commit_listeners = []
         with self._lock, configure(connect_closing(str(self._db)), wal=False) as conn:
             migrate(conn, _MIGRATIONS, name="projectos")
             conn.execute("BEGIN IMMEDIATE")
@@ -131,6 +134,7 @@ class ProjectStore(
         view._db = self._db
         view._lock = self._lock
         view._scope = scope
+        view._commit_listeners = self._commit_listeners
         return view
 
     def _effective_scope(self, scope: TenantScope | None) -> TenantScope | None:
@@ -174,9 +178,6 @@ class ProjectStore(
         return (
             project if self._scope_project_allowed(project, self._effective_scope(scope)) else None
         )
-
-    def _conn(self) -> sqlite3.Connection:
-        return connect_closing(str(self._db), timeout=10.0)
 
     # ── projects ─────────────────────────────────────────────────────────────
     def save_project(

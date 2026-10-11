@@ -28,7 +28,14 @@ _LOG = logging.getLogger(__name__)
 
 
 class ProjectHTTPDispatcher:
-    def __init__(self, supervisor: TaskSupervisor, *, max_workers: int = 2, max_queued: int = 8):
+    def __init__(
+        self,
+        supervisor: TaskSupervisor,
+        *,
+        max_workers: int = 2,
+        max_queued: int = 8,
+        on_change: Callable[[], None] | None = None,
+    ):
         # A distinct holder fences other HTTP workers, including routers in the
         # same process. The shared task store already locks across processes.
         self.supervisor = TaskSupervisor(
@@ -46,6 +53,14 @@ class ProjectHTTPDispatcher:
         self._closed = False
         self._stopped = threading.Event()
         self._monitor: threading.Thread | None = None
+        self._on_change = on_change
+
+    def _notify_change(self) -> None:
+        if self._on_change is not None:
+            try:
+                self._on_change()
+            except Exception:  # noqa: BLE001 -- a wake-up cannot change durable execution outcome
+                _LOG.warning("project execution wake-up unavailable; HTTP catch-up retained")
 
     @staticmethod
     def task_id(project: Any) -> str:
@@ -129,9 +144,11 @@ class ProjectHTTPDispatcher:
                 self.supervisor.transition(
                     task_id, TaskRunStatus.FAILED, reason="worker submission failed"
                 )
+                self._notify_change()
                 raise
             self._futures[task_id] = future
             future.add_done_callback(lambda completed: self._forget(task_id, completed))
+        self._notify_change()
         return {
             "accepted": True,
             "task_id": task_id,
@@ -177,6 +194,7 @@ class ProjectHTTPDispatcher:
                 "http_request_id"
             ):
                 source.cancel(reason=reason)
+        self._notify_change()
         return self.state(project)
 
     def _heartbeat(self) -> None:
@@ -198,6 +216,7 @@ class ProjectHTTPDispatcher:
     ) -> None:
         try:
             record = self.supervisor.transition(task_id, TaskRunStatus.RUNNING)
+            self._notify_change()
             if record.metadata.get("http_cancel_requested"):
                 source.cancel(reason="cancelled by operator")
             with scoped_cancellation(source.token):
@@ -228,6 +247,7 @@ class ProjectHTTPDispatcher:
             self._terminal(
                 task_id, TaskRunStatus.CANCELLED, "project worker closed before starting"
             )
+        self._notify_change()
 
     def close(self) -> None:
         with self._lock:
