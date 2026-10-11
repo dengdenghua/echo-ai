@@ -182,6 +182,7 @@ export function buildRealtimeStreamContext({
       // current first-person viewpoint is deliberately last so it remains
       // the actual executor for this turn without mutating that roster.
       private_conversation: privateConversation,
+      group_conversation: isGroupConversation,
       agent_name: mainPerspectiveAgentId,
       execution_engine: selectedExecutionEngine,
       work_location: isGroupConversation

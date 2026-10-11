@@ -1,4 +1,5 @@
 import { getLocalSettings } from "@/core/settings/local";
+import { StreamingSendActions } from "./StreamingSendActions";
 import { queueFollowup } from "@/core/threads/task-interaction";
 import {
   BookOpenIcon,
@@ -647,7 +648,7 @@ export function ChatComposer({
       (!sendableText && !hasImages && !hasFiles) ||
       submissionBlocked ||
       isBusy ||
-      (status === "streaming" && (hasImages || hasFiles))
+      (status === "streaming" && !isGroupConversation && (hasImages || hasFiles))
     ) {
       return;
     }
@@ -832,6 +833,7 @@ export function ChatComposer({
     t,
     threadId,
     activeLongTaskMode,
+    isGroupConversation,
   ]);
 
   const addMaterial = useCallback((material: Partial<ResearchMaterial>) => {
@@ -2122,29 +2124,16 @@ export function ChatComposer({
           </div>
           {status === "streaming" && sendableDraftText ? (
             <>
-              <button
-                type="button"
-                title="当前回复结束后执行；附件请在任务结束后发送"
-                disabled={isBusy || submissionBlocked || pendingImages.length > 0 || pendingFiles.length > 0}
-                className="shrink-0 rounded-md px-2 py-1 text-xs text-muted-foreground hover:bg-muted disabled:opacity-50"
-                onClick={() => {
+              <StreamingSendActions group={isGroupConversation} busy={isBusy}
+                blocked={submissionBlocked} blockedLabel={connectionBlockedLabel}
+                hasAttachments={pendingImages.length > 0 || pendingFiles.length > 0}
+                onSubmit={() => { void handleSubmit(); }}
+                onQueueLater={() => {
                   const parsed = parseComposerDraft(draft.trim());
                   const quoted = quoteText.split(/\r?\n/).map(line => `> ${line}`).join("\n");
                   const text = serializeComposerDraft({ ...parsed, body: quoteText ? `${parsed.body}\n\n${quoted}` : parsed.body });
                   if (queueFollowup(threadId, text)) { setVisibleDraft(""); setQuoteText(""); }
-                }}
-              >稍后执行</button>
-              <button
-                type="button"
-                onClick={handleSubmit}
-                data-testid="chat-steer-button"
-                disabled={isBusy || submissionBlocked}
-                className="flex size-[42px] items-center justify-center rounded-lg bg-foreground text-background transition-all duration-base hover:bg-foreground/90 active:scale-95 disabled:cursor-wait disabled:opacity-70 sm:size-8"
-                title={submissionBlocked ? connectionBlockedLabel : "现在补充，不中断当前操作"}
-                aria-label="现在补充"
-              >
-                <SendHorizontalIcon className="size-3.5" />
-              </button>
+                }} />
               <button
                 type="button"
                 onClick={onStop}

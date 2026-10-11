@@ -8,7 +8,7 @@
 //
 // State is a Conversation; ``startTurn`` returns when the server emits
 // turn/completed for that turn — or, if the socket drops mid-turn after
-// the turn was confirmed started (turn/started observed), it resolves
+// its durable user-item receipt was observed, it resolves
 // early and leaves turn-state recovery to reconnect + resume. It only
 // rejects when the turn was never delivered. Approvals show up as
 // ``state.pendingApprovals`` and are resolved via ``resolveApproval``.
@@ -49,6 +49,7 @@ import {
   type VitalsMarks,
 } from "./stream-vitals";
 import { useStreamVitals } from "./use-stream-vitals";
+import { createTurnDeliveryWatch, turnContainsUserItem } from "./turn-delivery";
 import {
   appendStreamTelemetry,
   createStreamTurnTelemetry,
@@ -517,8 +518,9 @@ export function useRealtimeThread(
   // the turn/start RPC response until the whole turn has run to
   // completion, so ANY mid-turn socket drop rejects the pending request
   // even though the turn was accepted and the user message persisted.
-  // A turn/started notification observed after the request went out is
-  // the real delivery signal — ``startTurn`` uses it to swallow later
+  // A matching durable user item is the delivery signal, including when
+  // another participant starts a turn while this input is still queued.
+  // ``startTurn`` uses that receipt to swallow later
   // transport rejections (reconnect + resume recover the turn state).
   const turnDeliveryWatchesRef = useRef<
     Set<{ delivered: boolean; clientItemId?: string }>
@@ -1416,18 +1418,14 @@ export function useRealtimeThread(
         note.method === "turn/started" &&
         note.params?.threadId === args.threadId
       ) {
-        // Historical turns replay through the thread/resume *response*,
-        // never through this notification path, so a turn/started seen
-        // here means a live turn actually began after the watched
-        // turn/start request went out on this connection. The server
-        // runs turns sequentially per thread, so starts pair FIFO with
-        // in-flight requests — mark only the oldest undelivered watch,
-        // not all of them (an overlapping second send must not inherit
-        // the first turn's start).
+        // Match the durable input coordinate: peer starts can arrive while
+        // this request is waiting and must never acknowledge its delivery.
         for (const watch of turnDeliveryWatchesRef.current) {
-          if (!watch.delivered) {
+          if (
+            !watch.delivered && watch.clientItemId &&
+            turnContainsUserItem(note.params?.turn, watch.clientItemId)
+          ) {
             watch.delivered = true;
-            break;
           }
         }
       } else if (
@@ -1739,14 +1737,12 @@ export function useRealtimeThread(
     async (input) => {
       const client = clientRef.current;
       if (!client) throw new Error("realtime client not ready");
-      const watch = {
-        delivered: false,
-        ...(input.clientItemId ? { clientItemId: input.clientItemId } : {}),
-      };
+      const watch = createTurnDeliveryWatch(input.clientItemId);
       turnDeliveryWatchesRef.current.add(watch);
       try {
         await client.request("turn/start", {
           threadId: args.threadId,
+          queueIfBusy: true,
           input: [
             {
               type: "text",
@@ -1757,7 +1753,7 @@ export function useRealtimeThread(
               ...(input.metadata ? { metadata: input.metadata } : {}),
             },
           ],
-          ...(input.clientItemId ? { userItemId: input.clientItemId } : {}),
+          userItemId: watch.clientItemId,
           ...(input.cwd ? { cwd: input.cwd } : {}),
           approvalPolicy: input.approvalPolicy ?? "on-request",
           ...(input.sandboxPolicy
@@ -1773,16 +1769,14 @@ export function useRealtimeThread(
         // The turn/start response only arrives once the whole turn has
         // finished, so a disconnect at any point of a long turn rejects
         // the pending request even though the message was delivered and
-        // persisted server-side. If turn/started was observed after this
-        // request went out, resolve normally: surfacing the rejection
+        // persisted server-side. If its user-item receipt was observed,
+        // resolve normally: surfacing the rejection
         // would make callers flag a successful send as failed (error
         // banner + draft restore → duplicate sends). Turn state is
         // recovered by the reconnect/resume path.
-        const persistedAfterStart = input.clientItemId
-          ? stateRef.current.turns.some((turn) =>
-              turn.items.some((item) => item.id === input.clientItemId),
-            )
-          : false;
+        const persistedAfterStart = stateRef.current.turns.some((turn) =>
+          turn.items.some((item) => item.id === watch.clientItemId),
+        );
         if (!watch.delivered && !persistedAfterStart) throw err;
       } finally {
         turnDeliveryWatchesRef.current.delete(watch);

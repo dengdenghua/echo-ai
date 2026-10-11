@@ -16,6 +16,7 @@ import {
 } from "@/core/threads/realtime-adapter";
 import { swallow } from "@/core/utils/log";
 import { STEER_RECEIPT_EVENT } from "./task-interaction";
+import { queuesGroupInput } from "./group-turn-policy";
 import { toast } from "sonner";
 import { useI18n } from "@/core/i18n/hooks";
 import {
@@ -1160,7 +1161,7 @@ export function useThreadStreamRealtime(
     onToolEnd,
     context,
   } = opts;
-
+  const queuesGroup = queuesGroupInput(context);
   const realtime = useRealtimeThread({ threadId });
   const {
     state,
@@ -1673,7 +1674,7 @@ export function useThreadStreamRealtime(
           );
           return;
         }
-        if (isLoading) {
+        if (isLoading && !queuesGroup) {
           throw new Error(t.conversation.previousMessagePending);
         }
         setUploadingForEpoch(deliveryEpoch, hasFileUploads);
@@ -1811,6 +1812,7 @@ export function useThreadStreamRealtime(
       effectiveSandboxPolicy,
       model,
       context,
+      queuesGroup,
       threadEpoch,
       permissionRuntime.mode,
       permissionRuntime.approvalReviewer,
@@ -1836,8 +1838,7 @@ export function useThreadStreamRealtime(
     const queued = pending.messages.filter(
       (message) => message.deliveryState === "queued",
     );
-    // Normal UI flow permits only one unacknowledged start. Keep this loop so
-    // restored steering rows still preserve FIFO if a reconnect races them.
+    // Restored group starts and steering rows preserve their submission order.
     for (const outbound of queued) {
       deliverOutbound(outbound);
     }
@@ -1868,14 +1869,14 @@ export function useThreadStreamRealtime(
           message.clientMessageId !== clientMessageId &&
           message.deliveryState !== "failed",
       );
-      if (waitingForFirstTurnReceipt) {
+      if (waitingForFirstTurnReceipt && !queuesGroup) {
         setSendErrorForEpoch(
           threadEpoch,
           t.conversation.previousMessagePending,
         );
         return;
       }
-      if (pending.intent === "start" && isLoading) {
+      if (pending.intent === "start" && isLoading && !queuesGroup) {
         setSendErrorForEpoch(
           threadEpoch,
           t.conversation.previousMessagePending,
@@ -1909,6 +1910,7 @@ export function useThreadStreamRealtime(
     isCurrentThreadEpoch,
     isLoading,
     runningTurnId,
+    queuesGroup,
     setSendErrorForEpoch,
     t.conversation.previousMessagePending,
     t.conversation.steeringTurnUnavailable,
@@ -1930,8 +1932,8 @@ export function useThreadStreamRealtime(
       const outbound: PendingOutboundMessage = {
         clientMessageId: newClientMessageId(message.clientMessageId),
         threadId: effectiveThreadId,
-        intent: runningTurnId ? "steer" : "start",
-        ...(runningTurnId ? { targetTurnId: runningTurnId } : {}),
+        intent: runningTurnId && !queuesGroup ? "steer" : "start",
+        ...(runningTurnId && !queuesGroup ? { targetTurnId: runningTurnId } : {}),
         message: { text: rawText, files },
         displayText,
         createdAt: new Date().toISOString(),
@@ -1944,7 +1946,7 @@ export function useThreadStreamRealtime(
       const waitingForFirstTurnReceipt =
         !isLoading &&
         pendingMessages.some((pending) => pending.deliveryState !== "failed");
-      if (waitingForFirstTurnReceipt) {
+      if (waitingForFirstTurnReceipt && !queuesGroup) {
         const errorMessage = t.conversation.previousMessagePending;
         const failed = {
           ...outbound,
@@ -1983,6 +1985,7 @@ export function useThreadStreamRealtime(
       isCurrentThreadEpoch,
       isLoading,
       runningTurnId,
+      queuesGroup,
       setSendErrorForEpoch,
       t.conversation.previousMessagePending,
       threadEpoch,

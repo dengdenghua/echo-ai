@@ -1601,13 +1601,17 @@ def test_subagent_store_lock_does_not_delay_interrupt_terminal(
         set_subagent_session_store(previous)
 
 
-def test_turn_start_user_item_id_is_stable_and_retry_is_idempotent(gateway: Any) -> None:
+@pytest.mark.parametrize("queue_if_busy", [False, True])
+def test_turn_start_user_item_id_is_stable_and_retry_is_idempotent(
+    gateway: Any, queue_if_busy: bool
+) -> None:
     from runtime.memory.threads.event_log import EventLog, thread_log_path
 
     client, logs_root = gateway
     params = {
         "threadId": "th-idempotent-user-item",
         "userItemId": "itm_client_retry_1234",
+        "queueIfBusy": queue_if_busy,
         "input": [
             {
                 "type": "text",

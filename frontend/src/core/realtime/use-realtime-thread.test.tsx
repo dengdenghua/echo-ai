@@ -2254,7 +2254,7 @@ describe("useRealtimeThread turn/start delivery anchoring", () => {
               id: "t-live",
               threadId: "th",
               status: "inProgress",
-              items: [],
+              items: [{ type: "userMessage", id: "itm_user_client_stable", text: "hello" }],
               startedAt: "2026-01-01T00:00:00.000Z",
               completedAt: null,
               error: null,
@@ -2267,7 +2267,7 @@ describe("useRealtimeThread turn/start delivery anchoring", () => {
     },
   );
 
-  it("resolves startTurn when turn/started arrived before the socket-drop rejection", async () => {
+  it("resolves startTurn when its user-item receipt arrived before socket rejection", async () => {
     const { rendered, handles } = setupDelivery();
     await waitFor(() =>
       expect(rendered.result.current.state.resumeState).toBe("resumed"),
@@ -2276,7 +2276,7 @@ describe("useRealtimeThread turn/start delivery anchoring", () => {
     let outcome!: ReturnType<typeof watchSettlement>;
     act(() => {
       outcome = watchSettlement(
-        rendered.result.current.startTurn({ input: "hello" }),
+        rendered.result.current.startTurn({ input: "hello", clientItemId: "itm_user_started" }),
       );
     });
 
@@ -2289,7 +2289,7 @@ describe("useRealtimeThread turn/start delivery anchoring", () => {
             id: "t-live",
             threadId: "th",
             status: "inProgress",
-            items: [],
+            items: [{ type: "userMessage", id: "itm_user_started", text: "hello" }],
             startedAt: "2026-01-01T00:00:00.000Z",
             completedAt: null,
             error: null,

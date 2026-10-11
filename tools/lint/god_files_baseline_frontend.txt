@@ -38,7 +38,7 @@ frontend/src/components/workspace/artifacts/artifact-file-detail.tsx	1330
 frontend/src/components/workspace/browser-preview-panel.tsx	2358
 frontend/src/components/workspace/channel-credential-dialog.tsx	1070
 frontend/src/components/workspace/chat-input-box.test.tsx	2316
-frontend/src/components/workspace/chat-input-box/ChatComposer.tsx	2247
+frontend/src/components/workspace/chat-input-box/ChatComposer.tsx	2236
 frontend/src/components/workspace/coder-engine-control.test.tsx	1262
 frontend/src/components/workspace/coder-engine-control.tsx	2284
 frontend/src/components/workspace/collab/collab-provider.tsx	1329
@@ -72,7 +72,7 @@ frontend/src/core/realtime/client.test.ts	1149
 frontend/src/core/realtime/reducer.test.ts	2042
 frontend/src/core/realtime/reducer.ts	1478
 frontend/src/core/realtime/use-realtime-thread.test.tsx	3127
-frontend/src/core/realtime/use-realtime-thread.ts	2153
+frontend/src/core/realtime/use-realtime-thread.ts	2142
 frontend/src/core/threads/realtime-adapter.test.ts	1948
 frontend/src/core/threads/realtime-adapter.ts	1588
 frontend/src/core/threads/use-thread-stream-realtime.test.ts	2729

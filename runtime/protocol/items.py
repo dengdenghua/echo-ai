@@ -565,6 +565,9 @@ class TurnParams(BaseModel):
         max_length=96,
         pattern=r"^itm_[A-Za-z0-9][A-Za-z0-9_-]*$",
     )
+    # Explicit live waiting request; it is withdrawn if the requester drops
+    # before execution. The OS claim still protects every admitted turn.
+    queue_if_busy: bool = Field(default=False, alias="queueIfBusy", strict=True)
     input: list[dict[str, Any]] = Field(default_factory=list)
     cwd: str | None = None
     approval_policy: Literal["never", "on-request", "untrusted"] = Field(

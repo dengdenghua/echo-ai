@@ -126,6 +126,7 @@ from runtime.sensing.gateway.realtime_interrupt_control import (
     tail_contains_interrupt,
     thread_store_principal,
 )
+from runtime.sensing.gateway.realtime_turn_queue import wait_for_turn_claim
 
 _logger = logging.getLogger(__name__)
 
@@ -770,7 +771,14 @@ class RealtimeGateway(_RealtimeGatewaySessionMixin):
         # or enter the runtime at all. The descriptor moves into the resident
         # task so requester disconnects do not release a still-running turn.
         try:
-            claim = self._acquire_thread_turn_claim(thread_id)
+            if validated_params.queue_if_busy and self._turn_claim_logs_root is not None:
+                claim = await wait_for_turn_claim(
+                    self._turn_claim_logs_root,
+                    thread_id,
+                    is_connected=lambda: not conn._closed,
+                )
+            else:
+                claim = self._acquire_thread_turn_claim(thread_id)
         except ThreadTurnClaimConflict as exc:
             raise self._turn_claim_conflict_error(thread_id, exc) from None
         except ThreadTurnClaimUnavailable:
@@ -779,6 +787,15 @@ class RealtimeGateway(_RealtimeGatewaySessionMixin):
         try:
             from runtime.memory.threads import ThreadPermanentlyDeletedError
 
+            # Queueing is not permission: membership can change while waiting.
+            access = self._require_realtime_thread_access(thread_id, conn, access="write")
+            if validated_params.queue_if_busy:
+                params = self._sanitize_turn_params(
+                    params,
+                    conn,
+                    thread_owner_actor_id=getattr(access, "owner_actor_id", None),
+                    thread_tenant_id=getattr(access, "tenant_id", None),
+                )
             try:
                 assert_thread_accepts_runtime_writes(
                     self._runtime,
@@ -851,8 +868,8 @@ class RealtimeGateway(_RealtimeGatewaySessionMixin):
         # handler (the shield below re-raises without touching the
         # resident); the turn keeps running, its events re-attach to
         # whoever resumes the thread, and the terminal snapshot still fans
-        # out. A second turn/start now receives a deterministic conflict
-        # instead of waiting behind the first with a stale user request.
+        # out. Explicit live queueing admits waiting requests in FIFO order;
+        # legacy callers retain deterministic conflict responses.
         self._resident_turn_tasks.add(resident)
         resident.add_done_callback(self._resident_turn_tasks.discard)
         # Defensive ownership handoff: if the task is cancelled before its

@@ -70,6 +70,7 @@ describe("realtime outbound wire contract", () => {
     const started = requests.find((request) => request.method === "turn/start");
     expect(started?.params).toMatchObject({
       threadId: "thread-send-contract",
+      queueIfBusy: true,
       userItemId: "itm_user_wire_1",
       input: [
         {
