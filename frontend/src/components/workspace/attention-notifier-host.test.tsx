@@ -11,6 +11,10 @@ import { renderWithProviders } from "@/test/harness";
 
 import { AttentionNotifierHost } from "./attention-notifier-host";
 
+vi.mock("./project-patrol-notifier", () => ({
+  ProjectPatrolNotifier: () => null,
+}));
+
 const tasksState = vi.hoisted(() => ({
   current: {
     data: undefined as TasksListResponse | undefined,

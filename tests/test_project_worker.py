@@ -71,6 +71,6 @@ def test_cancelled_project_does_not_dispatch_next_task(tmp_path):
     assert reviewed == []
     task = engine.store.get_task(executed[0])
     assert task.status == "pending"
-    assert task.attempts == 1
+    assert task.attempts == 0
     assert task.output == "partial output"
     assert task.qa_verdict["review_error"] is True

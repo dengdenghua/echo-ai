@@ -680,9 +680,12 @@ class ProjectEngine(ProjectInterventionMixin):
         events: list[str],
         guard: ExecutionClaimGuard,
     ) -> None:
+        from runtime.projectos._engine_task_interruptions import interrupt_claimed_task
         from runtime.safety.approval.cancellation import current_cancellation_token
 
-        def commit(task: Task, claim_id: str, event: str, events: list[str]) -> bool:
+        def commit(
+            task: Task, claim_id: str, event: str, events: list[str], *, interrupted: bool = False
+        ) -> bool:
             if guard.claim_lost:
                 # Preserve durable state only; never publish the abandoned output.
                 current = self.store.get_task(task.id)
@@ -695,7 +698,7 @@ class ProjectEngine(ProjectInterventionMixin):
                     self.store.finalize_task_claim(current, claim_id)
                 events.append(f"task_stale_result_ignored:{task.id}")
                 return False
-            return self._commit_task_claim(task, claim_id, event, events)
+            return self._commit_task_claim(task, claim_id, event, events, interrupted=interrupted)
 
         # Operator reassignment wins; otherwise pick a concrete group member
         # or fallback role for this execution. Assignment happens after the
@@ -720,6 +723,7 @@ class ProjectEngine(ProjectInterventionMixin):
                 if allowed is not None and task.assigned_agent not in allowed:
                     raise ValueError("selected agent is not authorized for this phase")
         except Exception as exc:  # noqa: BLE001 — assignment is an injected hook
+            interrupt_claimed_task(task, claim_id, events, commit)
             task.output = f"assignment error: {_error_text(exc)}"
             if task.attempts >= MAX_TASK_ATTEMPTS:
                 task.status = "failed"
@@ -772,11 +776,8 @@ class ProjectEngine(ProjectInterventionMixin):
                 from runtime.projectos.governance import record_usage
 
                 record_usage(self.store, project.id, {}, task_id=task.id, milestone_id=ms.id)
+            interrupt_claimed_task(task, claim_id, events, commit)
             task.output = f"error: {type(exc).__name__}: {exc}"
-            if current_cancellation_token().is_cancelled:
-                task.status = "pending"
-                commit(task, claim_id, f"task_interrupted:{task.id}", events)
-                current_cancellation_token().throw_if_cancelled()
             if task.attempts >= MAX_TASK_ATTEMPTS:
                 task.status = "failed"
                 event = f"task_failed:{task.id}"
@@ -785,19 +786,12 @@ class ProjectEngine(ProjectInterventionMixin):
                 event = f"task_error_retry:{task.id}"
             commit(task, claim_id, event, events)
             return
-        if current_cancellation_token().is_cancelled:
-            task.status = "pending"
-            task.qa_verdict = {
-                "approved": False,
-                "review_error": True,
-                "reason": "执行已停止，原产物待质量检查",
-            }
-            commit(task, claim_id, f"task_interrupted:{task.id}", events)
-            current_cancellation_token().throw_if_cancelled()
+        interrupt_claimed_task(task, claim_id, events, commit, preserve_output=True)
         try:
             guard.checkpoint()
             verdict = self._qa(task, ms)
         except Exception as exc:  # noqa: BLE001 — QA is an injected hook
+            interrupt_claimed_task(task, claim_id, events, commit, preserve_output=True)
             task.qa_verdict = {
                 "approved": False,
                 "review_error": True,
@@ -812,15 +806,7 @@ class ProjectEngine(ProjectInterventionMixin):
             commit(task, claim_id, event, events)
             current_cancellation_token().throw_if_cancelled()
             return
-        if current_cancellation_token().is_cancelled:
-            task.status = "pending"
-            task.qa_verdict = {
-                "approved": False,
-                "review_error": True,
-                "reason": "质量检查期间已停止，待重新检查",
-            }
-            commit(task, claim_id, f"task_interrupted:{task.id}", events)
-            current_cancellation_token().throw_if_cancelled()
+        interrupt_claimed_task(task, claim_id, events, commit, preserve_output=True)
         task.qa_verdict = verdict
         if verdict.get("approved"):
             task.status = "done"
@@ -855,9 +841,14 @@ class ProjectEngine(ProjectInterventionMixin):
         claim_id: str,
         event: str,
         events: list[str],
+        *,
+        interrupted: bool = False,
     ) -> bool:
         _current, committed = self.store.finalize_task_claim(
-            task, claim_id, stale_before=time.time() - self._task_claim_timeout_seconds
+            task,
+            claim_id,
+            stale_before=time.time() - self._task_claim_timeout_seconds,
+            interrupted=interrupted,
         )
         if committed:
             events.append(event)

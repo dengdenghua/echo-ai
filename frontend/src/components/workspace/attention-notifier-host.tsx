@@ -35,6 +35,7 @@ import { deriveThreadTitle } from "@/core/threads/sidebar";
 import type { AgentThread } from "@/core/threads/types";
 import { isRecord } from "@/core/utils/guards";
 import { swallow } from "@/core/utils/log";
+import { ProjectPatrolNotifier } from "./project-patrol-notifier";
 
 /** ``/api/tasks`` only polls itself while a task is active. A slow idle
  * poll catches work started outside this window (background loops,
@@ -185,5 +186,5 @@ export function AttentionNotifierHost() {
     }
   }, [navigate]);
 
-  return null;
+  return <ProjectPatrolNotifier />;
 }

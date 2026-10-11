@@ -39,7 +39,7 @@ runtime/platform/plugins/bundled/paper_trading/quote_hub.py	1238
 runtime/platform/plugins/cloud_catalog.py	3088
 runtime/platform/plugins/plugin_hub.py	1404
 runtime/platform/ui/browser_router.py	1277
-runtime/projectos/engine.py	1157
+runtime/projectos/engine.py	1040
 runtime/projectos/store.py	1071
 runtime/safety/organization/team_runner.py	1017
 runtime/safety/recovery/gepa_bridge.py	1025

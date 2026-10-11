@@ -239,6 +239,7 @@ def _event_title(kind: str) -> str:
         "project.run": "Project run",
         "project.run_from_group": "Cowork group run",
         "project.recover": "Project recovered",
+        "project.daily_patrol_attention": "Daily project attention",
         "project.decompose_failed": "Task decomposition failed",
         "project.decompose_empty": "Task decomposition empty",
         "project.gate_failed": "Milestone gate failed",

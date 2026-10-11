@@ -208,6 +208,7 @@ def finalize_task_claim(
     claim_id: str,
     *,
     stale_before: float | None = None,
+    interrupted: bool = False,
     scope: TenantScope | None = None,
 ) -> tuple[Task | None, bool]:
     """Persist a claimed result only while its opaque fencing token still wins."""
@@ -216,6 +217,10 @@ def finalize_task_claim(
     safe_claim_id = _require_id(claim_id, label="task_claim_id")
     if candidate.status == "running":
         raise ValueError("claimed task result must leave running status")
+    if interrupted and (
+        candidate.status != "pending" or (candidate.qa_verdict or {}).get("approved")
+    ):
+        raise ValueError("interrupted work must remain pending and unapproved")
     with store._lock, store._conn() as conn:
         conn.execute("BEGIN IMMEDIATE")
         loaded = _task_row_for_scope(store, conn, candidate.id, scope)
@@ -242,7 +247,7 @@ def finalize_task_claim(
             return current, False
         if candidate.milestone_id != milestone_id:
             raise ValueError("task is already attached to another milestone")
-        candidate.attempts = current.attempts
+        candidate.attempts = max(0, current.attempts - int(interrupted))
         candidate = _normalize_task(candidate)
         deleted = conn.execute(
             "DELETE FROM task_claims WHERE task_id=? AND claim_id=?",
@@ -795,9 +800,12 @@ class ProjectClaimStoreMixin:
         claim_id: str,
         *,
         stale_before: float | None = None,
+        interrupted: bool = False,
         scope: TenantScope | None = None,
     ) -> tuple[Task | None, bool]:
-        return finalize_task_claim(self, task, claim_id, stale_before=stale_before, scope=scope)
+        return finalize_task_claim(
+            self, task, claim_id, stale_before=stale_before, interrupted=interrupted, scope=scope
+        )
 
     def heartbeat_task_claim(
         self,

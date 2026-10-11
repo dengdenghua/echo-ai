@@ -110,6 +110,7 @@ tier: "standard"
 | `_projects_group_projections.py` | Project-group read-model projections and compensation helpers. |
 | `_projects_http_execution.py` | Background HTTP project routes and execution adapter. |
 | `_projects_models.py` | Request bodies for the Project OS router. |
+| `_projects_patrol.py` | Owner-scoped daily project attention, backed by scheduled sealed events. |
 | `_projects_read_endpoints.py` | Read endpoints for the Project OS router: lists, state, reports, audit. |
 | `_projects_router_deps.py` | Shared state and access helpers for the Project OS router. |
 | `_realtime_cerebrum_project_os.py` | Explicit Project OS command bridge for the realtime runtime. |
@@ -633,6 +634,14 @@ tier: "standard"
 | class | `class InitiationApprovalBody(OwnerDecisionBody)` |  |
 | class | `class ProjectBudgetBody(OwnerDecisionBody)` |  |
 | class | `class DetachFromGroupBody(BaseModel)` |  |
+
+### `_projects_patrol.py`
+
+| Kind | Symbol | Doc |
+| --- | --- | --- |
+| class | `class ProjectPatrolNotice(BaseModel)` |  |
+| class | `class ProjectPatrolResponse(BaseModel)` |  |
+| func | `def register_project_patrol(router, d)` |  |
 
 ### `_projects_router_deps.py`
 

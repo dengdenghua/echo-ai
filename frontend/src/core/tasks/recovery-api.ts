@@ -1,5 +1,6 @@
 import { apiPost, EchoAPIError } from "@/core/api/request";
 import { AgentTraceRequestError } from "@/core/agent-trace/api";
+import { isRecord } from "@/core/utils/guards";
 
 export interface TaskResumeExecutionResult {
   schema: "echo.task_run_resume_execution.v1";
@@ -27,19 +28,29 @@ export async function resumeTaskExecution(
     }
     throw error;
   }
-  if (!result || typeof result !== "object") {
+  if (!isRecord(result)) {
     throw new Error("Invalid task recovery response");
   }
-  const body = result as Record<string, unknown>;
   if (
-    body.schema !== "echo.task_run_resume_execution.v1" ||
-    typeof body.accepted !== "boolean" ||
-    !["queued", "turn_started", "replayed"].includes(String(body.state)) ||
-    body.task_id !== taskId ||
-    typeof body.thread_id !== "string" ||
-    typeof body.request_id !== "string"
+    result.schema !== "echo.task_run_resume_execution.v1" ||
+    typeof result.accepted !== "boolean" ||
+    (result.state !== "queued" &&
+      result.state !== "turn_started" &&
+      result.state !== "replayed") ||
+    result.task_id !== taskId ||
+    typeof result.thread_id !== "string" ||
+    (result.turn_id !== null && typeof result.turn_id !== "string") ||
+    typeof result.request_id !== "string"
   ) {
     throw new Error("Invalid task recovery response");
   }
-  return body as unknown as TaskResumeExecutionResult;
+  return {
+    schema: result.schema,
+    accepted: result.accepted,
+    state: result.state,
+    task_id: result.task_id,
+    thread_id: result.thread_id,
+    turn_id: result.turn_id,
+    request_id: result.request_id,
+  };
 }

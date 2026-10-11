@@ -7438,6 +7438,55 @@
         "title": "ProjectHistoryBody",
         "type": "object"
       },
+      "ProjectPatrolNotice": {
+        "properties": {
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "project_id": {
+            "title": "Project Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "project_id",
+          "name"
+        ],
+        "title": "ProjectPatrolNotice",
+        "type": "object"
+      },
+      "ProjectPatrolResponse": {
+        "properties": {
+          "day": {
+            "title": "Day",
+            "type": "string"
+          },
+          "digest_id": {
+            "title": "Digest Id",
+            "type": "string"
+          },
+          "notices": {
+            "items": {
+              "$ref": "#/components/schemas/ProjectPatrolNotice"
+            },
+            "title": "Notices",
+            "type": "array"
+          }
+        },
+        "required": [
+          "day",
+          "digest_id",
+          "notices"
+        ],
+        "title": "ProjectPatrolResponse",
+        "type": "object"
+      },
       "ProjectSnapshotBody": {
         "properties": {
           "count": {
@@ -47978,6 +48027,27 @@
         "summary": "Api Progress",
         "tags": [
           "observability"
+        ]
+      }
+    },
+    "/api/project-attention": {
+      "get": {
+        "operationId": "project_attention_api_project_attention_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProjectPatrolResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Project Attention",
+        "tags": [
+          "projectos"
         ]
       }
     },

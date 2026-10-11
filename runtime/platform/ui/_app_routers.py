@@ -38,6 +38,18 @@ def _mark_interrupted_projects(project_store: Any, task_supervisor: Any) -> None
         logging.getLogger(__name__).debug("project restart sweep failed", exc_info=True)
 
 
+def _initialize_project_store(ctx: AppContext) -> Any:
+    from runtime.projectos.store import ProjectStore
+
+    from ._app_project_patrol import mount_project_patrol
+
+    store = ProjectStore()
+    ctx.app.state.project_store = store
+    _mark_interrupted_projects(store, getattr(ctx.state, "task_supervisor", None))
+    mount_project_patrol(ctx.app, store)
+    return store
+
+
 def _workspaces_router_root(ctx: AppContext) -> Any:
     """Use the same workspace root as turn execution and thread storage."""
 
@@ -222,19 +234,9 @@ def mount_routers_a(
     # ─── Project OS store · shared by the project-mode auto-bind below and the
     # projects_router, so a project created by switching a thread to project
     # mode is the same store the workbench 项目 tab reads from.
-    from runtime.projectos.store import ProjectStore
     from runtime.sensing.gateway.projects_router import create_projects_router
 
-    project_store = ProjectStore()
-    app.state.project_store = project_store
-
-    # Nothing advances a project on its own: the engine only runs from an
-    # explicit command/endpoint/CLI call. Accepted HTTP background jobs hold
-    # renewable task leases; another live worker must survive this sweep. A backend
-    # killed mid-run leaves a ``running`` project with no driver, so record the
-    # discontinuity instead of presenting it as still in flight. This marks
-    # only — resuming would spend budget and invoke tools without approval.
-    _mark_interrupted_projects(project_store, getattr(ctx.state, "task_supervisor", None))
+    project_store = _initialize_project_store(ctx)
     bind_team_project_store = getattr(ctx.team_rooms_router, "bind_project_store", None)
     if callable(bind_team_project_store):
         bind_team_project_store(project_store)

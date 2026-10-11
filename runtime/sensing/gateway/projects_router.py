@@ -57,6 +57,7 @@ from ._projects_models import (
 from ._projects_models import (
     TaskInterventionBody as TaskInterventionBody,
 )
+from ._projects_patrol import register_project_patrol
 from ._projects_read_endpoints import _register_project_reads
 from ._projects_router_deps import ProjectsDeps, build_projects_deps
 
@@ -122,6 +123,7 @@ def create_projects_router(
 
     # Registration order is FastAPI's path-matching priority — keep it.
     _register_project_reads(router, d)
+    register_project_patrol(router, d)
     _register_process_timeline(router, d)
     _register_project_creation(router, d)
     _register_project_binding(router, d)

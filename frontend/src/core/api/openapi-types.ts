@@ -13092,6 +13092,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/project-attention": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Project Attention */
+        get: operations["project_attention_api_project_attention_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/projects": {
         parameters: {
             query?: never;
@@ -20687,6 +20704,24 @@ export interface components {
              * @default 1
              */
             steps: number;
+        };
+        /** ProjectPatrolNotice */
+        ProjectPatrolNotice: {
+            /** Id */
+            id: string;
+            /** Name */
+            name: string;
+            /** Project Id */
+            project_id: string;
+        };
+        /** ProjectPatrolResponse */
+        ProjectPatrolResponse: {
+            /** Day */
+            day: string;
+            /** Digest Id */
+            digest_id: string;
+            /** Notices */
+            notices: components["schemas"]["ProjectPatrolNotice"][];
         };
         /** ProjectSnapshotBody */
         ProjectSnapshotBody: {
@@ -47294,6 +47329,26 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    project_attention_api_project_attention_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProjectPatrolResponse"];
                 };
             };
         };

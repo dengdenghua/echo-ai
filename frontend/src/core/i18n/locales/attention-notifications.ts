@@ -24,6 +24,8 @@ export interface AttentionNotificationCopy {
   untitledThread: string;
   summaryTitle: (count: number) => string;
   summaryBody: string;
+  projectDigestTitle: (count: number) => string;
+  projectDigestBody: string;
 
   settingsHeading: string;
   settingsHint: string;
@@ -56,6 +58,10 @@ export const attentionNotificationsEnUS: AttentionNotificationCopy = {
   summaryTitle: (count) =>
     `${count} more task ${count === 1 ? "update" : "updates"}`,
   summaryBody: "Open Echo to see which tasks need you.",
+  projectDigestTitle: (count) =>
+    `${count} ${count === 1 ? "project needs" : "projects need"} your attention`,
+  projectDigestBody:
+    "Daily check: open your projects to review blockers, overdue work and acceptance.",
 
   settingsHeading: "Notify me when",
   settingsHint:
@@ -72,6 +78,8 @@ export const attentionNotificationsEnUS: AttentionNotificationCopy = {
 };
 
 export const attentionNotificationsZhCN: AttentionNotificationCopy = {
+  projectDigestTitle: (count) => `${count} 个项目需要你处理`,
+  projectDigestBody: "每日巡检：打开项目查看阻塞、逾期和待验收事项。",
   completedTitle: "任务已完成",
   finishedTitle: "任务已结束",
   failedTitle: "任务失败",
@@ -103,6 +111,9 @@ export const attentionNotificationsZhCN: AttentionNotificationCopy = {
 };
 
 export const attentionNotificationsJaJP: AttentionNotificationCopy = {
+  projectDigestTitle: (count) => `${count} 件のプロジェクトに対応が必要です`,
+  projectDigestBody:
+    "日次確認：プロジェクトで障害、期限超過、承認待ちを確認してください。",
   completedTitle: "タスクが完了しました",
   finishedTitle: "タスクが終了しました",
   failedTitle: "タスクが失敗しました",
@@ -136,6 +147,9 @@ export const attentionNotificationsJaJP: AttentionNotificationCopy = {
 };
 
 export const attentionNotificationsKoKR: AttentionNotificationCopy = {
+  projectDigestTitle: (count) => `${count}개 프로젝트에 확인이 필요합니다`,
+  projectDigestBody:
+    "일일 점검: 프로젝트에서 차단, 기한 초과 및 검수 대기 항목을 확인하세요.",
   completedTitle: "작업이 완료되었습니다",
   finishedTitle: "작업이 종료되었습니다",
   failedTitle: "작업이 실패했습니다",
