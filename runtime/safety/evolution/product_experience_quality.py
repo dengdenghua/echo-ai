@@ -43,6 +43,7 @@ CHECKS: tuple[ProductExperienceCheck, ...] = (
         title="Projects workspace empty state and first action",
         paths=(
             "frontend/src/app/workspace/projects/page.tsx",
+            "frontend/src/components/workspace/projects/project-cockpit-metrics.tsx",
             "frontend/src/app/workspace/projects/page.test.tsx",
             "frontend/src/components/workspace/create-project-dialog.tsx",
         ),
