@@ -331,15 +331,15 @@ class ProjectStore(
                         json.dumps(milestone.to_dict(), ensure_ascii=False),
                     ),
                 )
-            conn.execute(
-                "INSERT INTO project_events(id, project_id, kind, payload, created_at) "
-                "VALUES (?, ?, 'project.planned', ?, ?)",
-                (
-                    event_id,
-                    candidate_project.id,
-                    json.dumps(event_payload, ensure_ascii=False),
-                    created_at,
-                ),
+            insert_sealed_event(
+                conn,
+                {
+                    "id": event_id,
+                    "project_id": candidate_project.id,
+                    "kind": "project.planned",
+                    "payload": event_payload,
+                    "created_at": created_at,
+                },
             )
         return candidate_project, resolved
 

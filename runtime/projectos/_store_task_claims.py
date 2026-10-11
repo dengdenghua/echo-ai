@@ -9,6 +9,7 @@ from datetime import UTC, datetime
 from typing import Any
 from uuid import uuid4
 
+from runtime.projectos._store_event_write import insert_sealed_event
 from runtime.projectos._store_helpers import (
     _milestone_from_doc,
     _normalize_milestone,
@@ -334,26 +335,22 @@ def orphan_stale_task_claims(
             if milestone.status not in {"done", "failed"}:
                 milestone.status = "blocked"
                 blocked_milestones[str(milestone_id)] = milestone
-            conn.execute(
-                "INSERT INTO project_events(id, project_id, kind, payload, created_at) "
-                "VALUES (?, ?, ?, ?, ?)",
-                (
-                    f"EV-{uuid4().hex[:12]}",
-                    safe_project_id,
-                    "task.claim_orphaned",
-                    json.dumps(
-                        {
-                            "task_id": task.id,
-                            "milestone_id": task.milestone_id,
-                            "claimed_at": float(claimed_at),
-                            "detected_at": detected_at,
-                            "recovery_required": True,
-                            **({"cause": cause} if cause else {}),
-                        },
-                        ensure_ascii=False,
-                    ),
-                    detected_at,
-                ),
+            insert_sealed_event(
+                conn,
+                {
+                    "id": f"EV-{uuid4().hex[:12]}",
+                    "project_id": safe_project_id,
+                    "kind": "task.claim_orphaned",
+                    "payload": {
+                        "task_id": task.id,
+                        "milestone_id": task.milestone_id,
+                        "claimed_at": float(claimed_at),
+                        "detected_at": detected_at,
+                        "recovery_required": True,
+                        **({"cause": cause} if cause else {}),
+                    },
+                    "created_at": detected_at,
+                },
             )
             orphaned.append(task)
         for milestone_id, milestone in blocked_milestones.items():
@@ -459,25 +456,21 @@ def orphan_stale_milestone_claims(
                 "UPDATE milestones SET doc=? WHERE id=?",
                 (json.dumps(milestone.to_dict(), ensure_ascii=False), milestone.id),
             )
-            conn.execute(
-                "INSERT INTO project_events(id, project_id, kind, payload, created_at) "
-                "VALUES (?, ?, ?, ?, ?)",
-                (
-                    f"EV-{uuid4().hex[:12]}",
-                    safe_project_id,
-                    "milestone.decomposition_claim_orphaned",
-                    json.dumps(
-                        {
-                            "milestone_id": milestone.id,
-                            "claimed_at": float(claimed_at),
-                            "detected_at": detected_at,
-                            "recovery_required": True,
-                            **({"cause": cause} if cause else {}),
-                        },
-                        ensure_ascii=False,
-                    ),
-                    detected_at,
-                ),
+            insert_sealed_event(
+                conn,
+                {
+                    "id": f"EV-{uuid4().hex[:12]}",
+                    "project_id": safe_project_id,
+                    "kind": "milestone.decomposition_claim_orphaned",
+                    "payload": {
+                        "milestone_id": milestone.id,
+                        "claimed_at": float(claimed_at),
+                        "detected_at": detected_at,
+                        "recovery_required": True,
+                        **({"cause": cause} if cause else {}),
+                    },
+                    "created_at": detected_at,
+                },
             )
             orphaned.append(milestone)
         if orphaned and project.status not in {"done", "failed"}:

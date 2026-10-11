@@ -11,6 +11,7 @@ from typing import Protocol, cast
 from uuid import uuid4
 
 from runtime.platform.io.sqlite_schema import add_column, execute_script
+from runtime.projectos._store_event_write import insert_sealed_event
 from runtime.projectos._store_helpers import _json_dict, _require_id, _require_kind
 from runtime.projectos.model import Project
 from runtime.safety.auth.scope import TenantScope
@@ -791,16 +792,15 @@ def begin_project_delete(
             )
         _assert_project_deletable(conn, project)
         threads = tuple(sorted(_pending_threads(conn, project_id, event_kind)))
-        conn.execute(
-            "INSERT INTO project_events(id, project_id, kind, payload, created_at) "
-            "VALUES (?, ?, ?, ?, ?)",
-            (
-                f"EV-{uuid4().hex[:12]}",
-                project_id,
-                event_kind,
-                json.dumps({"thread_ids": list(threads)}, ensure_ascii=False),
-                time.time(),
-            ),
+        insert_sealed_event(
+            conn,
+            {
+                "id": f"EV-{uuid4().hex[:12]}",
+                "project_id": project_id,
+                "kind": event_kind,
+                "payload": {"thread_ids": list(threads)},
+                "created_at": time.time(),
+            },
         )
         token = f"PD-{uuid4().hex}"
         conn.execute(

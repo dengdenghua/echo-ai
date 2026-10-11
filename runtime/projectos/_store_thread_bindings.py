@@ -9,6 +9,7 @@ from datetime import UTC, datetime
 from typing import Any
 from uuid import uuid4
 
+from runtime.projectos._store_event_write import insert_sealed_event
 from runtime.projectos._store_helpers import (
     _json_dict,
     _normalize_project,
@@ -534,16 +535,15 @@ def unbind_thread_versioned(
             )
             project = normalized
         if kind is not None:
-            conn.execute(
-                "INSERT INTO project_events(id, project_id, kind, payload, created_at) "
-                "VALUES (?, ?, ?, ?, ?)",
-                (
-                    event_id,
-                    project_id,
-                    kind,
-                    json.dumps(payload, ensure_ascii=False),
-                    created_at,
-                ),
+            insert_sealed_event(
+                conn,
+                {
+                    "id": event_id,
+                    "project_id": project_id,
+                    "kind": kind,
+                    "payload": payload,
+                    "created_at": created_at,
+                },
             )
         return project, _bump_binding_generation(conn, thread)
 
@@ -690,23 +690,19 @@ def restore_thread_bindings(
                 ).fetchone()
                 project.execution_thread_id = str(replacement[0]) if replacement else ""
         if not execution_restored:
-            conn.execute(
-                "INSERT INTO project_events(id, project_id, kind, payload, created_at) "
-                "VALUES (?, ?, ?, ?, ?)",
-                (
-                    f"EV-{uuid4().hex[:12]}",
-                    project_id,
-                    "project.binding_restore_conflict",
-                    json.dumps(
-                        {
-                            "original_execution_thread_id": original_execution,
-                            "active_execution_preserved": active_execution_conflict,
-                            "conflict_project_ids": conflicts,
-                        },
-                        ensure_ascii=False,
-                    ),
-                    time.time(),
-                ),
+            insert_sealed_event(
+                conn,
+                {
+                    "id": f"EV-{uuid4().hex[:12]}",
+                    "project_id": project_id,
+                    "kind": "project.binding_restore_conflict",
+                    "payload": {
+                        "original_execution_thread_id": original_execution,
+                        "active_execution_preserved": active_execution_conflict,
+                        "conflict_project_ids": conflicts,
+                    },
+                    "created_at": time.time(),
+                },
             )
         normalized = _normalize_project(project)
         conn.execute(
