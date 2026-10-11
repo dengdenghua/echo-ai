@@ -168,9 +168,64 @@ describe("<TeamTasksPanel /> process timeline", () => {
       locale: "zh-CN",
     });
 
-    expect(await screen.findByText("timeline evidence smoke")).toBeInTheDocument();
-    expect(screen.getByTestId("adaptive-orchestration-badge")).toHaveTextContent(
-      "动态编排",
+    expect(
+      await screen.findByText("timeline evidence smoke"),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByTestId("adaptive-orchestration-badge"),
+    ).toHaveTextContent("动态编排");
+  });
+
+  test("cancels the displayed revision and refreshes after a conflict without retrying", async () => {
+    const user = userEvent.setup();
+    let conflicted = false;
+    fetchMock.mockImplementation(
+      (input: RequestInfo | URL, init?: RequestInit) => {
+        const url = String(input);
+        if (init?.method === "PATCH") {
+          conflicted = true;
+          return Promise.resolve(
+            new Response(
+              JSON.stringify({ detail: { code: "TEAM_TASK_STATE_CONFLICT" } }),
+              { status: 409, headers: { "Content-Type": "application/json" } },
+            ),
+          );
+        }
+        if (url.includes("/api/team-tasks")) {
+          return Promise.resolve(
+            jsonResponse({
+              tasks: [
+                taskFixture({
+                  revision: conflicted ? 4 : 3,
+                  status: conflicted ? "done" : "running",
+                  title: conflicted
+                    ? "Latest committed result"
+                    : "Running task",
+                }),
+              ],
+              count: 1,
+            }),
+          );
+        }
+        return Promise.resolve(jsonResponse({}));
+      },
     );
+    renderWithProviders(
+      <TeamTasksPanel roomId="room-1" team={teamFixture()} />,
+      { locale: "zh-CN" },
+    );
+    expect(await screen.findByText("Running task")).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "暂停" }));
+    expect(
+      await screen.findByText("Latest committed result"),
+    ).toBeInTheDocument();
+    const writes = fetchMock.mock.calls.filter(
+      ([, init]) => init?.method === "PATCH",
+    );
+    expect(writes).toHaveLength(1);
+    expect(JSON.parse(writes[0]![1].body)).toEqual({
+      status: "cancelled",
+      expected_revision: 3,
+    });
   });
 });

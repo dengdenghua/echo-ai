@@ -63,16 +63,7 @@ class CoworkGroupSessionView:
         return [participant.model_dump() for participant in room.participants]
 
     def room_tasks(self, room_id: str) -> list[dict[str, Any]]:
-        canonical = self.collaboration_store().tasks_for_room(room_id)
-        if canonical:
-            return canonical
-
-        from runtime.platform.process.paths import app_paths
-        from runtime.sensing.gateway.team_tasks_router import _load_state
-
-        path = self._team_tasks_state_path or (app_paths().data_dir / "team_tasks.json")
-        tasks = _load_state(Path(path))
-        return [task.model_dump() for task in tasks.values() if task.room_id == room_id]
+        return self.collaboration_store().tasks_for_room(room_id)
 
     def room_messages(
         self,

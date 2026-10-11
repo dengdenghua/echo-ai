@@ -146,7 +146,10 @@ export function TeamTasksPanel({
     try {
       await updateTask.mutateAsync({
         taskId: task.id,
-        input: { status: "cancelled" },
+        input: {
+          status: "cancelled",
+          ...(task.revision ? { expected_revision: task.revision } : {}),
+        },
       });
       toast.success(t.teamTasksPanel.toast.taskPaused);
     } catch (error) {

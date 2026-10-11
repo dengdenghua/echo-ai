@@ -140,9 +140,13 @@ def _build_app(
         )
         keys[actor] = api_key
 
+    from runtime.memory.cowork.collaboration_store import CollaborationStore
+
+    collaboration = CollaborationStore(tmp_path / "cowork")
     app = FastAPI()
     rooms_router = create_team_rooms_router(
         state_path=tmp_path / "rooms.json",
+        room_projection=collaboration.upsert_room_by_id,
         identity_store=store,
         require_auth=True,
     )
@@ -153,6 +157,7 @@ def _build_app(
 
     tasks_router = create_team_tasks_router(
         state_path=tmp_path / "tasks.json",
+        collaboration_store=collaboration,
         workspace_root=workspace_root,
         logs_root=logs_root,
         identity_store=store,
@@ -726,10 +731,16 @@ def test_single_user_dev_mode_skips_membership_check(tmp_path: Path) -> None:
     """When require_auth=False (single-user dev mode), the membership
     resolver is a no-op so tests / local dev flows aren't broken."""
     app = FastAPI()
-    rooms = create_team_rooms_router(state_path=tmp_path / "rooms.json")
+    from runtime.memory.cowork.collaboration_store import CollaborationStore
+
+    collaboration = CollaborationStore(tmp_path / "cowork")
+    rooms = create_team_rooms_router(
+        state_path=tmp_path / "rooms.json", room_projection=collaboration.upsert_room_by_id
+    )
     app.include_router(rooms)
     tasks = create_team_tasks_router(
         state_path=tmp_path / "tasks.json",
+        collaboration_store=collaboration,
         require_auth=False,
         room_membership_resolver=rooms.list_room_members,
     )

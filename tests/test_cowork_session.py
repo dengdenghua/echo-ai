@@ -104,15 +104,15 @@ def test_session_folds_room_tasks_via_provider(tmp_path) -> None:
 
 
 def test_collab_endpoint_includes_room_tasks(tmp_path) -> None:
+    from runtime.memory.cowork.collaboration_store import CollaborationStore
+    from runtime.memory.cowork.team_task_authority import TeamTaskAuthority
     from runtime.sensing.gateway.team_tasks_router import (
         TeamTaskWire,
     )
-    from runtime.sensing.gateway.team_tasks_router import (
-        _save_state as _save_tasks,
-    )
 
-    # Seed the team_tasks store the cowork router will read.
-    tt_path = tmp_path / "team_tasks.json"
+    collaboration = CollaborationStore(tmp_path / "cowork")
+    collaboration.upsert_room("t1", {"id": "room-9", "name": "Room"})
+    collaboration.upsert_room("other-thread", {"id": "room-OTHER", "name": "Other"})
     task = TeamTaskWire(
         id="task-1",
         room_id="room-9",
@@ -128,13 +128,15 @@ def test_collab_endpoint_includes_room_tasks(tmp_path) -> None:
         created_at="t0",
         updated_at="t0",
     )
-    _save_tasks(tt_path, {"task-1": task, "task-2": other})
+    authority = TeamTaskAuthority(collaboration)
+    authority.create("t1", task.model_dump(exclude={"revision"}))
+    authority.create("other-thread", other.model_dump(exclude={"revision"}))
 
     app = FastAPI()
     app.include_router(
         create_cowork_group_router(
             store=GroupStore(base_dir=tmp_path),
-            team_tasks_state_path=tt_path,
+            collaboration_store=collaboration,
         )
     )
     c = TestClient(app)
@@ -434,8 +436,12 @@ def test_collab_task_endpoint_auto_creates_room_and_folds_task(tmp_path) -> None
 
     store = GroupStore(base_dir=tmp_path / "cowork")
     collab_store = CollaborationStore(base_dir=tmp_path / "cowork")
-    rooms = create_team_rooms_router(state_path=tmp_path / "team_rooms.json")
-    tasks = create_team_tasks_router(state_path=tmp_path / "team_tasks.json")
+    rooms = create_team_rooms_router(
+        state_path=tmp_path / "team_rooms.json", room_projection=collab_store.upsert_room_by_id
+    )
+    tasks = create_team_tasks_router(
+        state_path=tmp_path / "team_tasks.json", collaboration_store=collab_store
+    )
     app = FastAPI()
     app.include_router(rooms)
     app.include_router(tasks)

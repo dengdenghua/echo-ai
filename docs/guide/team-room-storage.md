@@ -72,6 +72,21 @@ whole import. The source remains untouched and is never consulted again after
 a successful import, including after canonical task deletion. Legacy running
 records have no durable owner and become explicit failures requiring a retry.
 
-This authority API is available for the gateway cutover. The existing
-`/api/team-tasks` router still uses its legacy JSON/cache until that integration
-is completed; adding the schema alone does not migrate or activate those routes.
+The `/api/team-tasks` HTTP routes, collaboration session lists, and task creation
+now use this authority. Production composition supplies the same store to every
+consumer and restores actual Room projections before importing legacy tasks.
+The retired JSON/cache helpers are removed. Events are emitted after committing
+the authoritative row; event delivery failure cannot undo a committed task.
+Database failures return 503, and stale operator revisions return 409 without
+writing or retrying. Task responses expose `revision`; PATCH accepts optional
+`expected_revision` for older clients, and the task panel sends its displayed
+revision and refreshes after a conflict.
+
+Schema version 3 supports an explicit Room/session transfer used by the authorized
+collaboration Room linker. It compares the old ownership binding and updates the
+Room, messages, task bindings, metadata and task revisions in one transaction.
+Task IDs, extra fields and history are preserved. Running tasks become cancelled
+and their claims request cancellation; old results remain fenced and capacity
+remains occupied until acknowledgement, owner death or expiry. A retry does not
+restart work. Generic Room writes still cannot move an owned task or bypass the
+versioned project APIs, and a failed transfer rolls back the entire transaction.

@@ -224,6 +224,10 @@ def test_cron_lock_skips_concurrent_tick(tmp_path: Path) -> None:
 
 
 def test_team_task_running_state_is_reconciled_after_restart(tmp_path: Path) -> None:
+    from runtime.memory.cowork.collaboration_store import CollaborationStore
+
+    collaboration = CollaborationStore(tmp_path / "cowork")
+    collaboration.upsert_room_by_id({"id": "room-1", "name": "Legacy room"})
     path = tmp_path / "team_tasks.json"
     path.write_text(
         json.dumps(
@@ -243,7 +247,7 @@ def test_team_task_running_state_is_reconciled_after_restart(tmp_path: Path) -> 
         encoding="utf-8",
     )
     app = FastAPI()
-    app.include_router(create_team_tasks_router(state_path=path))
+    app.include_router(create_team_tasks_router(state_path=path, collaboration_store=collaboration))
     with TestClient(app) as client:
         response = client.get("/api/team-tasks/task-orphan")
     payload = response.json()

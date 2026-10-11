@@ -204,6 +204,12 @@ class TeamTaskAuthority:
             conn.execute("BEGIN IMMEDIATE")
             return reconcile_claims(conn, time.time())
 
+    def reset(self) -> None:
+        """Atomically retire all owned tasks and request their workers to stop."""
+        with self.store._lock, self.store._connect() as conn:
+            conn.execute("BEGIN IMMEDIATE")
+            conn.execute("DELETE FROM collaboration_tasks WHERE task_authority='team'")
+
     def import_legacy(self, source_path: Path | str) -> int:
         from runtime.memory.cowork._collaboration_team_import import import_legacy_tasks
 

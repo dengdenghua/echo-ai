@@ -744,45 +744,6 @@ def _normalize_status(status: str | None) -> str:
     return normalized
 
 
-def _load_state(path: Path) -> dict[str, TeamTaskWire]:
-    if not path.exists():
-        return {}
-    try:
-        raw = json.loads(path.read_text(encoding="utf-8"))
-    except (OSError, json.JSONDecodeError) as exc:
-        _LOG.warning("failed to load team tasks from %s: %s", path, exc)
-        return {}
-    items = raw.get("tasks") if isinstance(raw, dict) else raw
-    if not isinstance(items, list):
-        return {}
-    out: dict[str, TeamTaskWire] = {}
-    for item in items:
-        if not isinstance(item, dict):
-            _LOG.warning("skipping non-dict task entry: %s", type(item).__name__)
-            continue
-        try:
-            task = TeamTaskWire.model_validate(item)
-        except (ValueError, TypeError) as exc:
-            _LOG.warning("skipping invalid task entry (id=%s): %s", item.get("id"), exc)
-            continue
-        out[task.id] = task
-    return out
-
-
-def _save_state(path: Path, tasks: dict[str, TeamTaskWire]) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    payload = {
-        "tasks": [t.model_dump() for t in tasks.values()],
-        "updated_at": _now(),
-    }
-    tmp = path.with_suffix(path.suffix + ".tmp")
-    tmp.write_text(
-        json.dumps(payload, ensure_ascii=False, indent=2),
-        encoding="utf-8",
-    )
-    tmp.replace(path)
-
-
 __all__ = [
     "TeamEventBroadcaster",
     "TaskProjection",
@@ -817,6 +778,4 @@ __all__ = [
     "_jsonable",
     "_now",
     "_normalize_status",
-    "_load_state",
-    "_save_state",
 ]

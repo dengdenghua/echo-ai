@@ -84,6 +84,12 @@ export function useUpdateTeamTask() {
         queryKey: teamTaskQueryKeys.processTimeline(task.id),
       });
     },
+    onError: (_error, { taskId }) => {
+      void qc.invalidateQueries({ queryKey: TEAM_TASKS_KEY });
+      void qc.invalidateQueries({
+        queryKey: teamTaskQueryKeys.processTimeline(taskId),
+      });
+    },
   });
 }
 

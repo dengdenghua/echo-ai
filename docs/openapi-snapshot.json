@@ -9939,6 +9939,18 @@
             ],
             "title": "Description"
           },
+          "expected_revision": {
+            "anyOf": [
+              {
+                "minimum": 1.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Expected Revision"
+          },
           "sop_template": {
             "anyOf": [
               {
@@ -55176,7 +55188,6 @@
     },
     "/api/team-tasks": {
       "get": {
-        "description": "List tasks. ``room_id`` query param scopes to one room\n(omit to list all — useful for admin/debug, not the typical\nUI flow).",
         "operationId": "list_tasks_api_team_tasks_get",
         "parameters": [
           {

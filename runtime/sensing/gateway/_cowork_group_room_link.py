@@ -139,12 +139,15 @@ async def link_session_room_fail_safe(
 
     binder = getattr(team_rooms_router, "bind_team_thread", None)
     try:
+        from runtime.memory.cowork._collaboration_team_transfer import prepare_room_projection
+
+        project_room = prepare_room_projection(collaboration, room_id)
         room = (
             await _maybe_await(binder(request, room_id, thread_id))
             if callable(binder)
             else (prior_room or {"id": room_id})
         )
-        collaboration.upsert_room(thread_id, dict(room))
+        project_room(thread_id, dict(room))
     except Exception as exc:
         # The GroupStore reservation is already durable. Never roll it back:
         # doing so could erase a concurrent retry's winner. A commit-then-raise

@@ -39,6 +39,7 @@ class TeamTaskWire(BaseModel):
     completed_at: str | None = None
     produced_artifacts: list[dict[str, Any]] = Field(default_factory=list)
     metadata: dict[str, Any] = Field(default_factory=dict)
+    revision: int = 0  # server-owned canonical row revision; never persisted in task_json
 
 
 class CreateTeamTaskRequest(BaseModel):
@@ -60,6 +61,7 @@ class UpdateTeamTaskRequest(BaseModel):
     status: str | None = None
     assignees: list[TaskAssigneeWire] | None = None
     sop_template: str | None = None
+    expected_revision: int | None = Field(default=None, ge=1, strict=True)
 
 
 __all__ = [

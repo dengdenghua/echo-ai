@@ -320,7 +320,14 @@ def _register_room_link(router: APIRouter, d: CoworkGroupDeps) -> None:
             runner = getattr(team_tasks_router, "run_task_from_request", None)
             if callable(runner):
                 task = await _maybe_await(runner(request, task["id"]))
-        task = await asyncio.to_thread(_collaboration_store().upsert_task, thread_id, dict(task))
+        from runtime.memory.cowork.team_task_authority import TeamTaskAuthority
+
+        committed = await asyncio.to_thread(
+            TeamTaskAuthority(_collaboration_store()).get, task["id"]
+        )
+        if committed is None or committed.binding["session_id"] != thread_id:
+            raise HTTPException(409, "team task was not committed to this collaboration session")
+        task = {**committed.payload, "revision": committed.revision}
         return {
             "ok": True,
             "room_id": room_id,

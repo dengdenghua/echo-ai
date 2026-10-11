@@ -15565,12 +15565,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /**
-         * List Tasks
-         * @description List tasks. ``room_id`` query param scopes to one room
-         *     (omit to list all — useful for admin/debug, not the typical
-         *     UI flow).
-         */
+        /** List Tasks */
         get: operations["list_tasks_api_team_tasks_get"];
         put?: never;
         /** Create Task */
@@ -21734,6 +21729,8 @@ export interface components {
             assignees?: components["schemas"]["TaskAssigneeWire"][] | null;
             /** Description */
             description?: string | null;
+            /** Expected Revision */
+            expected_revision?: number | null;
             /** Sop Template */
             sop_template?: string | null;
             /** Status */

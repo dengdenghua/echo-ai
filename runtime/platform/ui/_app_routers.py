@@ -191,13 +191,11 @@ def mount_routers_a(
         set_execution_lifecycle,
     )
     from runtime.execution.node_worker import mount_execution_node_worker
-    from runtime.memory.cowork.collaboration_store import CollaborationStore
+    from runtime.platform.ui._app_agents import _collaboration_store_for_app
     from runtime.sensing.gateway.execution_nodes_router import create_execution_nodes_router
     from runtime.sensing.gateway.system_router import create_system_router
 
-    collaboration_store = (
-        getattr(ctx.cowork_runtime, "collaboration_store", None) or CollaborationStore()
-    )
+    collaboration_store = _collaboration_store_for_app(ctx)
     app.include_router(
         create_execution_nodes_router(
             collaboration_store=collaboration_store,

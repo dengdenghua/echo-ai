@@ -160,10 +160,14 @@ tier: "standard"
 | `_team_rooms_state.py` | Persistence and wire-serialization helpers for Team Rooms. |
 | `_team_stream_group_fanout.py` | Group fan-out stream driver — 蜂群 / 冒泡 cowork dispatch. |
 | `_team_stream_topology.py` | Multi-agent team-topology stream driver — topology resolution + bridge. |
+| `_team_task_events.py` | Post-commit task notifications and optional compatibility consumers. |
+| `_team_task_execution.py` | Runner construction and the server-owned team execution boundary. |
+| `_team_task_mobile.py` | Cancellable mobile execution for a claimed team task. |
+| `_team_task_worker.py` | One claimed worker: renewal, atomic process events and fenced settlement. |
 | `_team_tasks_access.py` | Authorization helpers for the persistent team-tasks router. |
 | `_team_tasks_helpers.py` | Module-level helpers for the persistent team tasks router. |
 | `_team_tasks_models.py` | Pydantic wire models for the persistent team tasks API. |
-| `_team_tasks_runtime.py` | Task-store, broadcast, execution, and action helpers for the team tasks router. |
+| `_team_tasks_runtime.py` | Authorized task actions against the single canonical TeamTask authority. |
 | `_thread_history_fork.py` | Verified conversation-only forks, without live requests or native bindings. |
 | `_thread_state_auto_title.py` | Auto-title service wiring shared by the thread state router. |
 | `_thread_state_delete.py` | Fail-closed thread deletion with a durable Project OS binding fence. |
@@ -356,7 +360,7 @@ tier: "standard"
 | `team_rooms_ws.py` | Realtime Team Room WebSocket handler. |
 | `team_speaker_policy.py` | Pure team-room governance helpers. |
 | `team_store.py` | Team model catalog and single-use invitation exchange, backed by SQLite. |
-| `team_tasks_router.py` | Persistent team tasks API. |
+| `team_tasks_router.py` | Canonical team tasks API with process-fenced execution inside a team room. |
 | `tentacle_join_router.py` | Tentacle join router · ``/api/tentacle/join-info``. |
 | `terminal_router.py` | terminal_router · WebSocket-based persistent shell sessions. |
 | `thread_access.py` | Shared authorization for canonical threads linked to Team Rooms. |
@@ -837,6 +841,25 @@ tier: "standard"
 | --- | --- | --- |
 | func | `def legacy_room_tenant(owner_id, require_auth, identity_store)` | Freeze the original owner's tenant on import, retaining unknown-owner isolation. |
 
+### `_team_task_events.py`
+
+| Kind | Symbol | Doc |
+| --- | --- | --- |
+| class | `class TeamTaskEvents` |  |
+
+### `_team_task_mobile.py`
+
+| Kind | Symbol | Doc |
+| --- | --- | --- |
+| func | `def mobile_records(task, prepared, source, loop)` |  |
+
+### `_team_task_worker.py`
+
+| Kind | Symbol | Doc |
+| --- | --- | --- |
+| func | `def task_wire(snapshot)` |  |
+| class | `class TeamTaskWorker` |  |
+
 ### `_team_tasks_access.py`
 
 | Kind | Symbol | Doc |
@@ -851,6 +874,15 @@ tier: "standard"
 | class | `class TeamTaskWire(BaseModel)` |  |
 | class | `class CreateTeamTaskRequest(BaseModel)` |  |
 | class | `class UpdateTeamTaskRequest(BaseModel)` |  |
+
+### `_team_tasks_runtime.py`
+
+| Kind | Symbol | Doc |
+| --- | --- | --- |
+| func | `def state_conflict(exc)` |  |
+| func | `def authority_unavailable(exc)` |  |
+| func | `def validate_sop(value)` |  |
+| class | `class TeamTaskRuntime` |  |
 
 ### `_thread_history_fork.py`
 
@@ -1941,7 +1973,7 @@ tier: "standard"
 
 | Kind | Symbol | Doc |
 | --- | --- | --- |
-| func | `def create_team_tasks_router(state_path, workspace_root, logs_root, identity_store, require_auth, jwt_secret, jwt_issuer, jwt_audience, reset_callback, team_event_broadcaster, task_projection, task_delete_projection, runner_factory, room_membership_resolver, room_participant_resolver, max_concurrent_runs)` | Create ``/api/team-tasks/*`` routes. |
+| func | `def create_team_tasks_router(state_path, collaboration_store, workspace_root, logs_root, identity_store, require_auth, jwt_secret, jwt_issuer, jwt_audience, reset_callback, team_event_broadcaster, task_projection, task_delete_projection, runner_factory, room_membership_resolver, room_participant_resolver, max_concurrent_runs, claim_lease_seconds, heartbeat_interval_seconds)` | Create routes on the existing canonical collaboration database. |
 
 ### `tentacle_join_router.py`
 

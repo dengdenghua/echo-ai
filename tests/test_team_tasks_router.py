@@ -122,7 +122,12 @@ def _client(
     *,
     task_projection=None,
     task_delete_projection=None,
+    broadcaster_override=None,
 ) -> TestClient:
+    from runtime.memory.cowork.collaboration_store import CollaborationStore
+
+    store = CollaborationStore(tmp_path / "cowork")
+    store.upsert_room_by_id({"id": "team-alpha", "name": "Team Alpha"})
     app = FastAPI()
 
     async def _broadcast(room_id: str, payload: dict[str, Any]) -> None:
@@ -131,7 +136,8 @@ def _client(
     app.include_router(
         create_team_tasks_router(
             state_path=tmp_path / "team_tasks.json",
-            team_event_broadcaster=_broadcast,
+            collaboration_store=store,
+            team_event_broadcaster=broadcaster_override or _broadcast,
             task_projection=task_projection,
             task_delete_projection=task_delete_projection,
             runner_factory=runner_factory,
@@ -141,14 +147,19 @@ def _client(
 
 
 def _client_with_team_room_ws(tmp_path: Path) -> TestClient:
+    from runtime.memory.cowork.collaboration_store import CollaborationStore
+
+    store = CollaborationStore(tmp_path / "cowork")
     app = FastAPI()
     rooms_router = create_team_rooms_router(
         state_path=tmp_path / "team_rooms.json",
+        room_projection=store.upsert_room_by_id,
     )
     app.include_router(rooms_router)
     app.include_router(
         create_team_tasks_router(
             state_path=tmp_path / "team_tasks.json",
+            collaboration_store=store,
             team_event_broadcaster=rooms_router.broadcast,
             runner_factory=_SuccessRunner,
         ),
@@ -302,6 +313,7 @@ def test_create_task_persists_source_metadata(tmp_path: Path) -> None:
     assert body["metadata"] == {
         "source": "company_workbench",
         "company_task_id": "task-1",
+        "collab_session_id": "team:team-alpha",
     }
 
 

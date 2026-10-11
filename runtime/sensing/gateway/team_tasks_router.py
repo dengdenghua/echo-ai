@@ -1,65 +1,25 @@
-"""Persistent team tasks API.
-
-A team task is the unit of "work" inside a team room — distinct from
-chat messages or the AI roster. Each task represents a goal the team
-(humans + agents) is collaborating on, optionally driven by a SOP /
-meta-skill workflow.
-
-This router intentionally mirrors ``team_rooms_router`` in shape:
-JSON-on-disk persistence, a Lock-guarded in-memory dict, the same auth
-hook, and matching field naming so the frontend can reuse client
-patterns. WebSocket presence + invite are NOT included — task lifecycle
-events will be broadcast through the existing team-room WS in a later
-patch (P3) when TeamRunner is wired in.
-
-Schema notes:
-- ``room_id`` ties each task to exactly one team room. Listing scopes
-  by room_id; cross-room queries are not supported by design.
-- ``sop_template`` is the meta-skill name (matches a YAML in
-  ``meta_skills/``); empty means "freeform task without a workflow".
-- ``assignees`` is a list of {kind: "agent"|"participant", ref: name|id}
-  so a task can be assigned to AI roster members AND human participants
-  uniformly. The runner side will fan out per-kind in P3.
-- ``status`` is the lifecycle: pending → running → done|failed|cancelled.
-  No automatic transitions in M0 — explicit PATCH only. P3 will hook
-  TeamRunner callbacks to drive these.
-- ``produced_artifacts`` placeholder for future runner output (final
-  text, file paths, etc.) — empty in M0.
-"""
+"""Canonical team tasks API with process-fenced execution inside a team room."""
 
 from __future__ import annotations
 
 import asyncio
 from collections.abc import Callable
 from pathlib import Path
-from threading import Lock
 from typing import Any
 
 from runtime.platform.process.paths import app_paths
-from runtime.safety.approval.cancellation import CancellationSource, scoped_cancellation
 from runtime.sensing.gateway._team_tasks_access import TeamTaskAccess
 from runtime.sensing.gateway._team_tasks_helpers import (
-    _LOG,
     _MAX_CONCURRENT_RUNS,
     RoomMembershipResolver,
     RoomParticipantResolver,
     RunnerFactory,
     TaskProjection,
     TeamEventBroadcaster,
-    _fallback_topology,  # noqa: F401 — compatibility re-export
-    _jsonable,
-    _load_state,
-    _mobile_artifacts,
-    _normalize_status,
-    _now,
-    _runner_artifacts,
-    _runner_metadata,
-    _runner_result_error,
-    _runner_result_success,
-    _save_state,
-    _task_input_text,  # noqa: F401 — compatibility re-export
     _team_task_process_timeline,
 )
+from runtime.sensing.gateway._team_tasks_helpers import _fallback_topology as _fallback_topology
+from runtime.sensing.gateway._team_tasks_helpers import _task_input_text as _task_input_text
 from runtime.sensing.gateway._team_tasks_models import (
     CreateTeamTaskRequest,
     TaskAssigneeWire,
@@ -77,20 +37,16 @@ except ImportError:  # pragma: no cover
     HTTPException = None  # type: ignore[assignment,misc]
     Request = None  # type: ignore[assignment,misc]
 
-from runtime.sensing._fastapi_guard import require_fastapi  # noqa: E402, I001 — after FASTAPI_AVAILABLE flag
-from runtime.sensing.gateway._team_tasks_runtime import (  # noqa: E402
-    _make_task_actions,
-    _make_task_execution,
-    _make_task_persistence,
-    _make_task_records,
-)
-
-# ── Router factory ──────────────────────────────────────────────────
+from runtime.sensing._fastapi_guard import require_fastapi  # noqa: E402
+from runtime.sensing.gateway._team_task_events import TeamTaskEvents  # noqa: E402
+from runtime.sensing.gateway._team_task_worker import task_wire  # noqa: E402
+from runtime.sensing.gateway._team_tasks_runtime import TeamTaskRuntime  # noqa: E402
 
 
 def create_team_tasks_router(
     *,
     state_path: Path | None = None,
+    collaboration_store: Any = None,
     workspace_root: Path | None = None,
     logs_root: Path | None = None,
     identity_store: Any = None,
@@ -106,71 +62,30 @@ def create_team_tasks_router(
     room_membership_resolver: RoomMembershipResolver | None = None,
     room_participant_resolver: RoomParticipantResolver | None = None,
     max_concurrent_runs: int = _MAX_CONCURRENT_RUNS,
+    claim_lease_seconds: float = 15.0,
+    heartbeat_interval_seconds: float = 1.0,
 ) -> Any:
-    """Create ``/api/team-tasks/*`` routes.
+    """Create routes on the existing canonical collaboration database.
 
-    ╔════════════════════════════════════════════════════════════════════╗
-    ║ team_tasks_router.py · navigation map (with private helpers).      ║
-    ║                                                                    ║
-    ║   §1 Pydantic wires + state schemas              ~L1-138           ║
-    ║   §2 create_team_tasks_router(...) factory       ~L139             ║
-    ║       §2.1 _auth + _resolve_room_member helpers  ~L160-400         ║
-    ║       §2.2 GET /api/team-tasks (list)             ~L410             ║
-    ║       §2.3 POST /api/team-tasks (create)          ~L427             ║
-    ║       §2.4 GET /api/team-tasks/{id}               ~L463             ║
-    ║       §2.5 POST /api/team-tasks/{id}/run          ~L475             ║
-    ║       §2.6 PATCH /api/team-tasks/{id}             ~L542             ║
-    ║       §2.7 DELETE /api/team-tasks/{id}            ~L590             ║
-    ║   §3 background runner + event broadcasting     ~L600-end          ║
-    ╚════════════════════════════════════════════════════════════════════╝
-
-    Mirrors the signature of ``create_team_rooms_router`` so the host
-    app can wire both with the same identity / auth knobs.
-
-    ``room_participant_resolver`` returns the current participant record and
-    is authoritative when present: viewers may read tasks, while owners and
-    members may create, run, update, or delete them. The legacy
-    ``room_membership_resolver`` only proves membership and remains supported
-    for older embedders that do not expose room roles yet. When
-    ``require_auth`` is true, every per-task endpoint enforces membership.
-    When ``require_auth`` is false (single-user dev mode) the check is
-    skipped — matching the existing single-user bypass behavior.
+    ``state_path`` identifies only the retired JSON import source. A custom
+    source without an explicit store uses ``source.parent/cowork``. Rooms must
+    already have canonical bindings; neither development mode nor migration
+    invents a roomless session. Compatibility projection callbacks run only
+    after the authoritative commit and are not task storage.
     """
     require_fastapi(__name__)
+    from runtime.memory.cowork.collaboration_store import CollaborationStore
+    from runtime.memory.cowork.team_task_authority import TeamTaskAuthority
 
-    router: Any = APIRouter(tags=["team-tasks"])
     path = state_path or (app_paths().data_dir / "team_tasks.json")
-    lock = Lock()
-    tasks: dict[str, TeamTaskWire] = _load_state(path)
-    running: dict[str, CancellationSource] = {}
-
-    # ``running`` is intentionally in-memory, so a process restart cannot
-    # reconstruct the worker thread that owned a persisted running task.
-    # Leaving that record untouched creates a permanent false-positive: the
-    # next /run call returns it as already running forever.  Until checkpoint
-    # resume exists, converge such records to an explicit terminal failure so
-    # operators can retry and the UI can explain what happened.
-    orphaned = False
-    for task_id, task in list(tasks.items()):
-        if task.status != "running":
-            continue
-        metadata = dict(task.metadata)
-        metadata["failure_code"] = "worker_lost_on_restart"
-        metadata["error"] = "task worker was lost when the service restarted"
-        metadata["recovered_at"] = _now()
-        tasks[task_id] = task.model_copy(
-            update={
-                "status": "failed",
-                "updated_at": _now(),
-                "completed_at": _now(),
-                "metadata": metadata,
-            }
-        )
-        orphaned = True
-    if orphaned:
-        _save_state(path, tasks)
-        _LOG.warning("team task startup reconciliation marked orphaned running tasks failed")
-
+    store = (
+        collaboration_store
+        if collaboration_store is not None
+        else CollaborationStore(path.parent / "cowork")
+    )
+    authority = TeamTaskAuthority(store)
+    authority.import_legacy(path)
+    authority.reconcile()
     access = TeamTaskAccess(
         identity_store=identity_store,
         require_auth=require_auth,
@@ -181,506 +96,96 @@ def create_team_tasks_router(
         room_participant_resolver=room_participant_resolver,
         http_exception=HTTPException,
     )
-    _identity = access.identity
-    _require_member = access.require_member
-    _is_member = access.is_member
-
-    (
-        _validate_sop_template,
-        _save,
-        _project_task,
-        _project_task_delete,
-        _broadcast_task_event,
-        _broadcast_from_worker,
-    ) = _make_task_persistence(
-        path=path,
-        lock=lock,
-        tasks=tasks,
-        task_projection=task_projection,
-        task_delete_projection=task_delete_projection,
-        team_event_broadcaster=team_event_broadcaster,
-    )
-    (
-        _task_payload,
-        _build_terminal_task,
-        _persist_prebuilt_task,
-        _append_process_event,
-    ) = _make_task_records(lock=lock, tasks=tasks, save=_save, project_task=_project_task)
-    _current_metadata, _runner_instance, _host_execution_boundary = _make_task_execution(
-        lock=lock,
-        tasks=tasks,
+    runtime = TeamTaskRuntime(
+        authority=authority,
+        access=access,
+        events=TeamTaskEvents(team_event_broadcaster, task_projection, task_delete_projection),
+        max_concurrent_runs=max_concurrent_runs,
         runner_factory=runner_factory,
         workspace_root=workspace_root,
         logs_root=logs_root,
+        lease=claim_lease_seconds,
+        heartbeat_interval=heartbeat_interval_seconds,
+        reset_callback=reset_callback,
     )
-
-    def _run_task_worker(
-        task: TeamTaskWire,
-        prepared: dict[str, Any],
-        source: CancellationSource,
-        loop: asyncio.AbstractEventLoop | None,
-        host_boundary: Any,
-    ) -> None:
-        topology = prepared["topology"]
-        completed_roles: set[str] = set()
-        total_roles = max(1, len(getattr(topology, "agents", {}) or {}))
-
-        def _current_task() -> TeamTaskWire:
-            with lock:
-                return tasks.get(task.id) or task
-
-        def _emit_runner_event(event: dict[str, Any]) -> None:
-            event_type = str(event.get("type") or "runner_event")
-            role = str(event.get("role") or "")
-            if event_type == "team_role_end" and role:
-                completed_roles.add(role)
-            status = str(event.get("status") or "")
-            _append_process_event(
-                task.id,
-                {
-                    "ts": _now(),
-                    "type": event_type,
-                    "role": role,
-                    "agent_id": event.get("agent_id"),
-                    "status": status,
-                    "event": _jsonable(event),
-                },
-            )
-            _broadcast_from_worker(
-                loop,
-                task.room_id,
-                _task_payload(
-                    _current_task(),
-                    event="role_completed" if event_type == "team_role_end" else event_type,
-                    extra={
-                        "runner_event": event,
-                        "role": role or None,
-                        "role_status": status or None,
-                        "completed_roles": len(completed_roles),
-                        "total_roles": total_roles,
-                        "progress": min(1.0, len(completed_roles) / total_roles),
-                    },
-                ),
-            )
-
-        def _record_terminal_event(
-            updated: TeamTaskWire,
-            *,
-            status: str,
-            error: str = "",
-        ) -> None:
-            event_type = f"run_{status}"
-            _broadcast_from_worker(
-                loop,
-                updated.room_id,
-                _task_payload(
-                    updated,
-                    event=event_type,
-                    extra={"error": error} if error else None,
-                ),
-            )
-
-        result: Any = None
-        try:
-            # ── Mobile route ────────────────────────────────────
-            # Task assigned to connected phones (ref ``mobile_*``): run the goal
-            # on each device through the in-process tentacle bridge and record
-            # what it did. Falls through to CLI / topology when none assigned.
-            mobile_refs = [
-                a.ref.strip()
-                for a in task.assignees
-                if a.kind.strip().lower() == "agent" and a.ref.strip().startswith("mobile_")
-            ]
-            if mobile_refs:
-                import asyncio as _asyncio
-
-                from runtime.tentacle.team_bridge import (
-                    device_id_from_ref,
-                    get_active_coordinator,
-                    run_device_task,
-                )
-
-                coordinator = get_active_coordinator()
-                records: list[dict[str, Any]] = []
-                if coordinator is None or loop is None:
-                    records = [
-                        {
-                            "tentacle_id": device_id_from_ref(ref),
-                            "ok": False,
-                            "output": "",
-                            "error": "mobile bridge not running",
-                        }
-                        for ref in mobile_refs
-                    ]
-                else:
-                    for ref in mobile_refs:
-                        tentacle_id = device_id_from_ref(ref)
-                        try:
-                            with scoped_cancellation(source.token):
-                                future = _asyncio.run_coroutine_threadsafe(
-                                    run_device_task(
-                                        coordinator, tentacle_id, prepared["task_input"]
-                                    ),
-                                    loop,
-                                )
-                                records.append(future.result(timeout=260.0))
-                        except Exception as exc:  # noqa: BLE001 — isolate per device
-                            records.append(
-                                {
-                                    "tentacle_id": tentacle_id,
-                                    "ok": False,
-                                    "output": "",
-                                    "error": f"{type(exc).__name__}: {exc}",
-                                }
-                            )
-                succeeded = sum(1 for r in records if r.get("ok"))
-                final_status = (
-                    "cancelled" if source.is_cancelled else ("done" if succeeded else "failed")
-                )
-                metadata = {
-                    **_current_metadata(task.id, fallback=task.metadata),
-                    "runner": {
-                        "engine": "mobile",
-                        "devices": len(records),
-                        "succeeded": succeeded,
-                    },
-                }
-                if final_status == "failed":
-                    metadata["error"] = "no connected device completed the task"
-                mobile_updates: dict[str, Any] = {
-                    "status": final_status,
-                    "completed_at": _now(),
-                    "metadata": metadata,
-                }
-                if final_status == "done":
-                    mobile_updates["produced_artifacts"] = _mobile_artifacts(records)
-                updated = _build_terminal_task(
-                    task.id,
-                    mobile_updates,
-                    status=final_status,
-                    error=str(metadata.get("error") or ""),
-                )
-                if updated is not None:
-                    _record_terminal_event(
-                        updated,
-                        status=final_status,
-                        error=str(metadata.get("error") or ""),
-                    )
-                    _persist_prebuilt_task(updated)
-                return
-
-            runner = _runner_instance(_emit_runner_event)
-            from runtime.execution.request import execution_request_scope
-            from runtime.platform.process.session import session_scope
-
-            with (
-                execution_request_scope(host_boundary.request),
-                session_scope(host_boundary.session),
-                scoped_cancellation(source.token),
-            ):
-                result = runner.run(
-                    topology,
-                    prepared["task_input"],
-                    context=prepared["context"],
-                )
-            final_status = (
-                "cancelled"
-                if source.is_cancelled
-                else ("done" if _runner_result_success(result) else "failed")
-            )
-            metadata = {
-                **_current_metadata(task.id, fallback=task.metadata),
-                "runner": _runner_metadata(result, prepared),
-            }
-            if final_status == "failed":
-                metadata["error"] = _runner_result_error(result) or "TeamRunner reported failure"
-            updates: dict[str, Any] = {
-                "status": final_status,
-                "completed_at": _now(),
-                "metadata": metadata,
-            }
-            if final_status == "done":
-                updates["produced_artifacts"] = _runner_artifacts(result, prepared)
-            updated = _build_terminal_task(
-                task.id,
-                updates,
-                status=final_status,
-                error=str(metadata.get("error") or ""),
-            )
-            if updated is not None:
-                _record_terminal_event(
-                    updated,
-                    status=final_status,
-                    error=str(metadata.get("error") or ""),
-                )
-                _persist_prebuilt_task(updated)
-        except Exception as exc:  # noqa: BLE001
-            _LOG.exception("team task runner failed for %s", task.id)
-            error = f"{type(exc).__name__}: {exc}"
-            updated = _build_terminal_task(
-                task.id,
-                {
-                    "status": "failed",
-                    "completed_at": _now(),
-                    "metadata": {
-                        **_current_metadata(task.id, fallback=task.metadata),
-                        "error": error,
-                        "runner": {
-                            "topology": getattr(topology, "name", ""),
-                            "meta_skill": prepared.get("meta_skill"),
-                        },
-                    },
-                },
-                status="failed",
-                error=error,
-            )
-            if updated is not None:
-                _record_terminal_event(updated, status="failed", error=error)
-                _persist_prebuilt_task(updated)
-        finally:
-            projected_after_exit: TeamTaskWire | None = None
-            with lock:
-                running.pop(task.id, None)
-                # Safety net: if the task is still "running" after the
-                # worker exits (e.g. BaseException bypassed the except
-                # clause), mark it "failed" so it never gets stuck.
-                current = tasks.get(task.id)
-                if current is not None and current.status == "running":
-                    projected_after_exit = current.model_copy(
-                        update={
-                            "status": "failed",
-                            "completed_at": _now(),
-                            "metadata": {
-                                **dict(current.metadata),
-                                "error": "worker exited without setting terminal status",
-                            },
-                        }
-                    )
-                    tasks[task.id] = projected_after_exit
-                    _save()
-            if projected_after_exit is not None:
-                _project_task(projected_after_exit)
-
-    def _reset_state() -> None:
-        with lock:
-            for source in running.values():
-                source.cancel(reason="team task router reset")
-            running.clear()
-            tasks.clear()
-        if callable(reset_callback):
-            reset_callback()
-
-    (
-        _create_task_for_actor,
-        _run_task_for_actor,
-        _create_task_from_payload,
-        _run_task_from_request,
-    ) = _make_task_actions(
-        lock=lock,
-        tasks=tasks,
-        running=running,
-        max_concurrent_runs=max_concurrent_runs,
-        identity=_identity,
-        require_member=_require_member,
-        validate_sop_template=_validate_sop_template,
-        save=_save,
-        project_task=_project_task,
-        broadcast_task_event=_broadcast_task_event,
-        task_payload=_task_payload,
-        host_execution_boundary=_host_execution_boundary,
-        append_process_event=_append_process_event,
-        run_task_worker=_run_task_worker,
-    )
-
+    router: Any = APIRouter(tags=["team-tasks"])
     _register_task_routes(
         router,
-        lock=lock,
-        tasks=tasks,
-        running=running,
+        runtime,
         require_auth=require_auth,
-        room_participant_resolver=room_participant_resolver,
-        room_membership_resolver=room_membership_resolver,
-        _identity=_identity,
-        _require_member=_require_member,
-        _is_member=_is_member,
-        _validate_sop_template=_validate_sop_template,
-        _save=_save,
-        _project_task=_project_task,
-        _project_task_delete=_project_task_delete,
-        _broadcast_task_event=_broadcast_task_event,
-        _task_payload=_task_payload,
-        _create_task_for_actor=_create_task_for_actor,
-        _run_task_for_actor=_run_task_for_actor,
+        has_membership_resolver=room_membership_resolver is not None
+        or room_participant_resolver is not None,
     )
-
-    router.reset_state = _reset_state
-    router.create_task_from_payload = _create_task_from_payload
-    router.run_task_from_request = _run_task_from_request
+    router.reset_state = runtime.reset
+    router.create_task_from_payload = runtime.create_from_payload
+    router.run_task_from_request = runtime.run_from_request
+    router.task_authority = authority
     return router
 
 
-# The HTTP routes stay in this file: a capability evidence scanner looks for
-# the process-timeline route in ``team_tasks_router.py`` itself.
 def _register_task_routes(
     router: Any,
+    runtime: TeamTaskRuntime,
     *,
-    lock: Lock,
-    tasks: dict[str, TeamTaskWire],
-    running: dict[str, CancellationSource],
     require_auth: bool,
-    room_participant_resolver: RoomParticipantResolver | None,
-    room_membership_resolver: RoomMembershipResolver | None,
-    _identity: Callable[..., Any],
-    _require_member: Callable[..., Any],
-    _is_member: Callable[..., bool],
-    _validate_sop_template: Callable[[str], str],
-    _save: Callable[[], None],
-    _project_task: Callable[[TeamTaskWire], None],
-    _project_task_delete: Callable[[str], None],
-    _broadcast_task_event: Callable[..., Any],
-    _task_payload: Callable[..., dict[str, Any]],
-    _create_task_for_actor: Callable[..., Any],
-    _run_task_for_actor: Callable[..., Any],
+    has_membership_resolver: bool,
 ) -> None:
-    """List / create / read / run / update / delete team tasks."""
-
+    # Keep HTTP route declarations here for the capability evidence scanner.
     @router.get("/api/team-tasks")
     def list_tasks(request: Request, room_id: str | None = None) -> dict[str, Any]:
-        """List tasks. ``room_id`` query param scopes to one room
-        (omit to list all — useful for admin/debug, not the typical
-        UI flow)."""
-        actor, tenant_id = _identity(request)
-        with lock:
-            items = list(tasks.values())
+        actor, tenant = runtime.access.identity(request)
         if room_id:
-            _require_member(actor, room_id, tenant_id)
-            items = [t for t in items if t.room_id == room_id]
-        elif require_auth:
-            # An omitted room filter is a convenience query, not an
-            # authorization bypass. Return the union of rooms the caller can
-            # actually enter instead of every persisted team's task list.
-            if room_participant_resolver is None and room_membership_resolver is None:
-                raise HTTPException(503, "room membership resolver unavailable")
-            items = [task for task in items if _is_member(actor, task.room_id, tenant_id)]
-        items.sort(key=lambda t: t.updated_at, reverse=True)
-        return {
-            "tasks": [t.model_dump() for t in items],
-            "count": len(items),
-        }
+            runtime.access.require_member(actor, room_id, tenant)
+        elif require_auth and not has_membership_resolver:
+            raise HTTPException(503, "room membership resolver unavailable")
+        items = runtime.list_tasks(room_id)
+        if require_auth and room_id is None:
+            items = [
+                item
+                for item in items
+                if runtime.access.is_member(actor, item.payload["room_id"], tenant)
+            ]
+        return {"tasks": [task_wire(item).model_dump() for item in items], "count": len(items)}
 
     @router.post("/api/team-tasks")
-    async def create_task(
-        request: Request,
-        body: CreateTeamTaskRequest,
-    ) -> dict[str, Any]:
-        actor, tenant_id = _identity(request)
-        task = await _create_task_for_actor(actor, tenant_id, body)
-        return task.model_dump()
+    async def create_task(request: Request, body: CreateTeamTaskRequest) -> dict[str, Any]:
+        actor, tenant = runtime.access.identity(request)
+        return (await runtime.create_for_actor(actor, tenant, body)).model_dump()
 
     @router.get("/api/team-tasks/{task_id}")
     def get_task(request: Request, task_id: str) -> dict[str, Any]:
-        actor, tenant_id = _identity(request)
-        with lock:
-            task = tasks.get(task_id)
-            if task is None:
-                raise HTTPException(404, f"task not found: {task_id}")
-            payload = task.model_dump()
-            room_id = task.room_id
-        _require_member(actor, room_id, tenant_id)
-        return payload
+        actor, tenant = runtime.access.identity(request)
+        task = task_wire(runtime.current(task_id))
+        runtime.access.require_member(actor, task.room_id, tenant)
+        return task.model_dump()
 
     @router.get("/api/team-tasks/{task_id}/process-timeline")
     def get_task_process_timeline(request: Request, task_id: str) -> dict[str, Any]:
-        actor, tenant_id = _identity(request)
-        with lock:
-            task = tasks.get(task_id)
-            if task is None:
-                raise HTTPException(404, f"task not found: {task_id}")
-            room_id = task.room_id
-            payload = task.model_dump()
-        _require_member(actor, room_id, tenant_id)
-        return {"timeline": _team_task_process_timeline(payload)}
+        actor, tenant = runtime.access.identity(request)
+        task = task_wire(runtime.current(task_id))
+        runtime.access.require_member(actor, task.room_id, tenant)
+        return {"timeline": _team_task_process_timeline(task.model_dump())}
 
     @router.post("/api/team-tasks/{task_id}/run")
     async def run_task(request: Request, task_id: str) -> dict[str, Any]:
-        actor, tenant_id = _identity(request)
-        updated = await _run_task_for_actor(actor, tenant_id, task_id)
-        return updated.model_dump()
+        actor, tenant = runtime.access.identity(request)
+        return (await runtime.run_for_actor(actor, tenant, task_id)).model_dump()
 
     @router.patch("/api/team-tasks/{task_id}")
     async def update_task(
-        request: Request,
-        task_id: str,
-        body: UpdateTeamTaskRequest,
+        request: Request, task_id: str, body: UpdateTeamTaskRequest
     ) -> dict[str, Any]:
-        actor, tenant_id = _identity(request)
-        with lock:
-            current = tasks.get(task_id)
-            if current is None:
-                raise HTTPException(404, f"task not found: {task_id}")
-            _require_member(actor, current.room_id, tenant_id, write=True)
-            updates: dict[str, Any] = {"updated_at": _now()}
-            if body.title is not None:
-                title = body.title.strip()
-                if not title:
-                    raise HTTPException(400, "title cannot be empty")
-                updates["title"] = title
-            if body.description is not None:
-                updates["description"] = body.description.strip()
-            if body.sop_template is not None:
-                updates["sop_template"] = _validate_sop_template(body.sop_template)
-            if body.assignees is not None:
-                updates["assignees"] = list(body.assignees)
-            if body.status is not None:
-                next_status = _normalize_status(body.status)
-                updates["status"] = next_status
-                # Stamp lifecycle timestamps when crossing the boundary.
-                # Re-running a done task is allowed (status → running
-                # again resets started_at), but completed_at only sets
-                # when a task transitions INTO a terminal state.
-                if next_status == "running" and current.status != "running":
-                    updates["started_at"] = _now()
-                if next_status in {"done", "failed", "cancelled"}:
-                    updates["completed_at"] = _now()
-                if next_status == "cancelled":
-                    source = running.get(task_id)
-                    if source is not None:
-                        source.cancel(reason="team task cancelled")
-            updated = current.model_copy(update=updates)
-            tasks[task_id] = updated
-            _save()
-        _project_task(updated)
-        await _broadcast_task_event(
-            updated.room_id,
-            _task_payload(updated, event="task_updated"),
-        )
-        return updated.model_dump()
+        actor, tenant = runtime.access.identity(request)
+        task = await asyncio.to_thread(runtime.update, actor, tenant, task_id, body)
+        await runtime.events.broadcast(task, "task_updated")
+        return task.model_dump()
 
     @router.delete("/api/team-tasks/{task_id}")
     async def delete_task(request: Request, task_id: str) -> dict[str, Any]:
-        actor, tenant_id = _identity(request)
-        with lock:
-            existing = tasks.get(task_id)
-            if existing is None:
-                raise HTTPException(404, f"task not found: {task_id}")
-            _require_member(actor, existing.room_id, tenant_id, write=True)
-            existed = tasks.pop(task_id, None)
-            source = running.pop(task_id, None)
-            if source is not None:
-                source.cancel(reason="team task deleted")
-            if existed is not None:
-                _save()
-                _project_task_delete(existed.id)
-        if existed is not None:
-            await _broadcast_task_event(
-                existed.room_id,
-                _task_payload(
-                    existed,
-                    event="task_deleted",
-                    extra={"deleted": True},
-                ),
-            )
-        return {"ok": True, "deleted": existed is not None, "task_id": task_id}
+        actor, tenant = runtime.access.identity(request)
+        task = await asyncio.to_thread(runtime.delete, actor, tenant, task_id)
+        await runtime.events.broadcast(task, "task_deleted", deleted=True)
+        return {"ok": True, "deleted": True, "task_id": task_id}
 
 
 __all__ = [
