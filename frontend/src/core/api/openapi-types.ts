@@ -13329,6 +13329,40 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/projects/{project_id}/execution": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Execution State */
+        get: operations["execution_state_api_projects__project_id__execution_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/projects/{project_id}/execution/cancel": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Cancel Execution */
+        post: operations["cancel_execution_api_projects__project_id__execution_cancel_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/projects/{project_id}/initiation/approve": {
         parameters: {
             query?: never;
@@ -20546,6 +20580,64 @@ export interface components {
              */
             validate_only: boolean;
         };
+        /** ProjectExecutionAccepted */
+        ProjectExecutionAccepted: {
+            execution: components["schemas"]["ProjectExecutionReceipt"];
+            /**
+             * Ok
+             * @default true
+             * @constant
+             */
+            ok: true;
+        };
+        /** ProjectExecutionReceipt */
+        ProjectExecutionReceipt: {
+            /**
+             * Accepted
+             * @default true
+             * @constant
+             */
+            accepted: true;
+            /** Project Id */
+            project_id: string;
+            /** Request Id */
+            request_id: string;
+            /**
+             * Status
+             * @default queued
+             * @constant
+             */
+            status: "queued";
+            /** Task Id */
+            task_id: string;
+        };
+        /** ProjectExecutionState */
+        ProjectExecutionState: {
+            /** Can Takeover */
+            can_takeover: boolean;
+            /** Cancel Requested */
+            cancel_requested: boolean;
+            /** Completed At */
+            completed_at: string | null;
+            /** Project Id */
+            project_id: string;
+            /** Request Id */
+            request_id: string | null;
+            /** Result */
+            result: {
+                [key: string]: unknown;
+            } | null;
+            /** Status */
+            status: string;
+            /** Task Id */
+            task_id: string;
+            /** Updated At */
+            updated_at: string;
+        };
+        /** ProjectExecutionStateResponse */
+        ProjectExecutionStateResponse: {
+            execution: components["schemas"]["ProjectExecutionState"] | null;
+        };
         /** ProjectExportBody */
         ProjectExportBody: {
             /**
@@ -20706,6 +20798,11 @@ export interface components {
         };
         /** RecoverBody */
         RecoverBody: {
+            /**
+             * Background
+             * @default false
+             */
+            background: boolean;
             /**
              * Clear Outputs
              * @default true
@@ -20909,6 +21006,11 @@ export interface components {
         };
         /** RunBody */
         RunBody: {
+            /**
+             * Background
+             * @default false
+             */
+            background: boolean;
             /**
              * Max Ticks
              * @default 50
@@ -21293,6 +21395,11 @@ export interface components {
             assigned_agent?: string | null;
             /** Assigned Role */
             assigned_role?: string | null;
+            /**
+             * Background
+             * @default false
+             */
+            background: boolean;
             /**
              * Cascade
              * @default true
@@ -47644,6 +47751,68 @@ export interface operations {
             };
         };
     };
+    execution_state_api_projects__project_id__execution_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                project_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProjectExecutionStateResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    cancel_execution_api_projects__project_id__execution_cancel_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                project_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProjectExecutionStateResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     approve_project_initiation_api_projects__project_id__initiation_approve_post: {
         parameters: {
             query?: never;
@@ -47851,6 +48020,15 @@ export interface operations {
                     };
                 };
             };
+            /** @description Accepted */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProjectExecutionAccepted"];
+                };
+            };
             /** @description Validation Error */
             422: {
                 headers: {
@@ -47954,6 +48132,15 @@ export interface operations {
                     };
                 };
             };
+            /** @description Accepted */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProjectExecutionAccepted"];
+                };
+            };
             /** @description Validation Error */
             422: {
                 headers: {
@@ -47990,6 +48177,15 @@ export interface operations {
                     "application/json": {
                         [key: string]: unknown;
                     };
+                };
+            };
+            /** @description Accepted */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProjectExecutionAccepted"];
                 };
             };
             /** @description Validation Error */

@@ -108,6 +108,7 @@ tier: "standard"
 | `_projects_governance_endpoints.py` | Owner decisions for governed projects over HTTP (the project page). |
 | `_projects_group_endpoints.py` | Project creation and cowork-group binding endpoints for the Project OS router. |
 | `_projects_group_projections.py` | Project-group read-model projections and compensation helpers. |
+| `_projects_http_execution.py` | Background HTTP project routes and execution adapter. |
 | `_projects_models.py` | Request bodies for the Project OS router. |
 | `_projects_read_endpoints.py` | Read endpoints for the Project OS router: lists, state, reports, audit. |
 | `_projects_router_deps.py` | Shared state and access helpers for the Project OS router. |
@@ -607,6 +608,13 @@ tier: "standard"
 | Kind | Symbol | Doc |
 | --- | --- | --- |
 | class | `class ProjectGroupProjectionContext` | Coordinate Project OS projections without owning HTTP route policy. |
+
+### `_projects_http_execution.py`
+
+| Kind | Symbol | Doc |
+| --- | --- | --- |
+| func | `def require_project_initiation(d, request, project)` | Refuse to drive a project whose initiation the owner has not approved. |
+| func | `def register_project_http_execution(router, d, dispatcher)` |  |
 
 ### `_projects_models.py`
 
@@ -1411,7 +1419,7 @@ tier: "standard"
 
 | Kind | Symbol | Doc |
 | --- | --- | --- |
-| func | `def create_projects_router(store, group_store, collaboration_store, team_rooms_router, thread_store, workspace_root, logs_root, model_router, planning_model, subagent_runner, identity_store, require_auth, jwt_secret, jwt_issuer, jwt_audience)` | Create the ``/api/projects/*`` router. |
+| func | `def create_projects_router(store, group_store, collaboration_store, team_rooms_router, thread_store, workspace_root, logs_root, model_router, planning_model, subagent_runner, task_supervisor, identity_store, require_auth, jwt_secret, jwt_issuer, jwt_audience)` | Create the ``/api/projects/*`` router. |
 
 ### `prompts_router.py`
 

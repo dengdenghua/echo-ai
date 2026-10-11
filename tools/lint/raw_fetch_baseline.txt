@@ -16,7 +16,7 @@ frontend/src/app/workspace/design/plugin-node-frame.tsx	4
 frontend/src/components/workspace/code-editor.tsx	4
 frontend/src/hooks/use-ambient-suggestions.ts	4
 frontend/src/hooks/use-remote-backends.ts	4
-frontend/src/app/workspace/projects/page.tsx	3
+frontend/src/app/workspace/projects/page.tsx	2
 frontend/src/components/workspace/execution-plan-review.tsx	3
 frontend/src/components/browser/url-bar.tsx	2
 frontend/src/components/browser/weather.ts	2

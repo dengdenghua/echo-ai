@@ -20,6 +20,24 @@ from runtime.platform.process.paths import app_paths
 from ._app_context import AppContext
 
 
+def _mark_interrupted_projects(project_store: Any, task_supervisor: Any) -> None:
+    try:
+        from runtime.projectos.restart_sweep import sweep_projects_interrupted_by_restart
+
+        interrupted_projects = sweep_projects_interrupted_by_restart(
+            project_store, task_supervisor=task_supervisor
+        )
+        if interrupted_projects:
+            logging.getLogger(__name__).warning(
+                "projectos: %d project(s) were left running by a previous process "
+                "and are awaiting an explicit continue: %s",
+                len(interrupted_projects),
+                ", ".join(item["project_id"] for item in interrupted_projects),
+            )
+    except Exception:  # noqa: BLE001 - the sweep must never block app wiring
+        logging.getLogger(__name__).debug("project restart sweep failed", exc_info=True)
+
+
 def _workspaces_router_root(ctx: AppContext) -> Any:
     """Use the same workspace root as turn execution and thread storage."""
 
@@ -211,23 +229,12 @@ def mount_routers_a(
     app.state.project_store = project_store
 
     # Nothing advances a project on its own: the engine only runs from an
-    # explicit command/endpoint/CLI call, bound to that one request. A backend
+    # explicit command/endpoint/CLI call. Accepted HTTP background jobs hold
+    # renewable task leases; another live worker must survive this sweep. A backend
     # killed mid-run leaves a ``running`` project with no driver, so record the
     # discontinuity instead of presenting it as still in flight. This marks
     # only — resuming would spend budget and invoke tools without approval.
-    try:
-        from runtime.projectos.restart_sweep import sweep_projects_interrupted_by_restart
-
-        interrupted_projects = sweep_projects_interrupted_by_restart(project_store)
-        if interrupted_projects:
-            logging.getLogger(__name__).warning(
-                "projectos: %d project(s) were left running by a previous process "
-                "and are awaiting an explicit continue: %s",
-                len(interrupted_projects),
-                ", ".join(item["project_id"] for item in interrupted_projects),
-            )
-    except Exception:  # noqa: BLE001 - the sweep must never block app wiring
-        logging.getLogger(__name__).debug("project restart sweep failed", exc_info=True)
+    _mark_interrupted_projects(project_store, getattr(ctx.state, "task_supervisor", None))
     bind_team_project_store = getattr(ctx.team_rooms_router, "bind_project_store", None)
     if callable(bind_team_project_store):
         bind_team_project_store(project_store)
@@ -288,6 +295,7 @@ def mount_routers_a(
             thread_store=ctx.thread_store,
             workspace_root=ctx.thread_workspace_root,
             logs_root=(ctx.paths.data_dir / "threads" if ctx.paths is not None else None),
+            task_supervisor=getattr(ctx.state, "task_supervisor", None),
             model_router=project_model_router,
             planning_model=project_planning_model,
             subagent_runner=ctx.subagent_runner,

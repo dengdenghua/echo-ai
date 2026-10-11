@@ -85,6 +85,8 @@ export function echoRequestHeaders(
 
 /** Everything known about a non-2xx response, read once. */
 export interface ApiFailure {
+  /** Response headers for safe diagnostic identifiers; never render the body. */
+  headers?: Headers;
   method: string;
   path: string;
   status: number;
@@ -123,6 +125,7 @@ export async function readApiFailure(
         ? payload.detail
         : payload;
   return {
+    headers: new Headers(resp.headers),
     method,
     path,
     status: resp.status,
@@ -255,13 +258,19 @@ export class EchoClient {
 
     search: <T = Record<string, unknown>>(
       params?: Record<string, unknown>,
-    ): Promise<Thread<T>[]> => this.post<Thread<T>[]>("/threads/search", params),
+    ): Promise<Thread<T>[]> =>
+      this.post<Thread<T>[]>("/threads/search", params),
 
     delete: (threadId: string): Promise<void> =>
       this.delete<void>(`/threads/${threadId}`),
 
-    setListVisibility: (threadId: string, hidden: boolean): Promise<{ thread_id: string; hidden: boolean }> =>
-      this.put(`/threads/${encodeURIComponent(threadId)}/list-visibility`, { hidden }),
+    setListVisibility: (
+      threadId: string,
+      hidden: boolean,
+    ): Promise<{ thread_id: string; hidden: boolean }> =>
+      this.put(`/threads/${encodeURIComponent(threadId)}/list-visibility`, {
+        hidden,
+      }),
 
     getState: <T = Record<string, unknown>>(
       threadId: string,

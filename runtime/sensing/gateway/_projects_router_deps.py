@@ -506,6 +506,11 @@ def build_projects_deps(
         }
 
     def _principal(request: Request) -> CurrentPrincipal | None:
+        # Request state is server-owned. A detached background request carries
+        # the already authenticated principal, never a retained bearer token.
+        cached = getattr(request.state, "project_principal", None)
+        if isinstance(cached, CurrentPrincipal):
+            return cached
         principal = resolve_principal(
             request,
             identity_store,

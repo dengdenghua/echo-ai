@@ -9,9 +9,11 @@ from __future__ import annotations
 
 from typing import Any
 
-from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi import APIRouter, Depends, HTTPException, Request, Response
 
-from runtime.projectos.governance import INITIATION_REQUIRED_STATES, initiation_state
+from runtime.platform.process.task_supervisor import TaskSupervisor
+from runtime.projectos.http_dispatcher import ProjectHTTPDispatcher
+from runtime.projectos.http_models import ProjectExecutionAccepted
 from runtime.projectos.store import (
     ProjectClaimActiveError,
     ProjectStore,
@@ -24,6 +26,7 @@ from ._projects_group_endpoints import (
     _register_project_binding,
     _register_project_creation,
 )
+from ._projects_http_execution import register_project_http_execution, require_project_initiation
 from ._projects_models import (
     DetachFromGroupBody as DetachFromGroupBody,
 )
@@ -83,6 +86,7 @@ def create_projects_router(
     model_router: Any = None,
     planning_model: str | None = None,
     subagent_runner: Any = None,
+    task_supervisor: TaskSupervisor | None = None,
     identity_store: Any = None,
     require_auth: bool = False,
     jwt_secret: str | None = None,
@@ -108,7 +112,13 @@ def create_projects_router(
         jwt_audience=jwt_audience,
     )
     _auth_dep = d.auth_dep
-    router = APIRouter(tags=["projectos"], dependencies=[Depends(_auth_dep)])
+    dispatcher = ProjectHTTPDispatcher(
+        task_supervisor
+        or TaskSupervisor.from_path(d.project_store._db.with_name("project-http-tasks.json"))
+    )
+    router = APIRouter(
+        tags=["projectos"], dependencies=[Depends(_auth_dep)], lifespan=dispatcher.lifespan
+    )
 
     # Registration order is FastAPI's path-matching priority — keep it.
     _register_project_reads(router, d)
@@ -116,8 +126,8 @@ def create_projects_router(
     _register_project_creation(router, d)
     _register_project_binding(router, d)
     _register_group_detach(router, d)
-    _register_project_governance(router, d)
-    _register_project_execution(router, d)
+    _register_project_governance(router, d, cancel_execution=dispatcher.cancel)
+    _register_project_execution(router, d, dispatcher)
 
     return router
 
@@ -148,7 +158,9 @@ def _register_process_timeline(router: APIRouter, d: ProjectsDeps) -> None:
         return {"timeline": timeline}
 
 
-def _register_project_execution(router: APIRouter, d: ProjectsDeps) -> None:
+def _register_project_execution(
+    router: APIRouter, d: ProjectsDeps, dispatcher: ProjectHTTPDispatcher
+) -> None:
     """Tick, run, recover, and per-task interventions (execution boundary)."""
     _principal = d.principal
     _engine = d.engine
@@ -162,21 +174,10 @@ def _register_project_execution(router: APIRouter, d: ProjectsDeps) -> None:
     _project_to_collaboration = d.project_to_collaboration
     _auth_dep = d.auth_dep
 
+    _submit = register_project_http_execution(router, d, dispatcher)
+
     def _require_initiation(request: Request, project: Any) -> None:
-        """Refuse to drive a project whose initiation the owner has not approved."""
-        if project.status not in {"planning", "running"}:
-            return
-        state = initiation_state(_scoped_store(request), project)
-        if state in INITIATION_REQUIRED_STATES:
-            raise HTTPException(
-                409,
-                {
-                    "code": "INITIATION_APPROVAL_REQUIRED",
-                    "message": "the owner must approve the project initiation before it runs",
-                    "project_id": project.id,
-                    "initiation_state": state,
-                },
-            )
+        require_project_initiation(d, request, project)
 
     @router.post("/api/projects/{project_id}/tick", dependencies=[Depends(_auth_dep)])
     def tick(request: Request, project_id: str) -> dict[str, Any]:
@@ -193,9 +194,15 @@ def _register_project_execution(router: APIRouter, d: ProjectsDeps) -> None:
         except ValueError as exc:
             raise _bad_request(exc) from exc
 
-    @router.post("/api/projects/{project_id}/run", dependencies=[Depends(_auth_dep)])
-    def run(request: Request, project_id: str, body: RunBody) -> dict[str, Any]:
+    @router.post(
+        "/api/projects/{project_id}/run",
+        dependencies=[Depends(_auth_dep)],
+        responses={202: {"model": ProjectExecutionAccepted}},
+    )
+    def run(request: Request, project_id: str, body: RunBody, response: Response) -> dict[str, Any]:
         """Drive the loop until the project is done/blocked or max_ticks."""
+        if body.background:
+            return _submit(request, project_id, body.max_ticks, response)
         project = _project_or_404(request, project_id)
         _require_execution_context(request, project_id)
         _require_initiation(request, project)
@@ -211,8 +218,14 @@ def _register_project_execution(router: APIRouter, d: ProjectsDeps) -> None:
         except ValueError as exc:
             raise _bad_request(exc) from exc
 
-    @router.post("/api/projects/{project_id}/recover", dependencies=[Depends(_auth_dep)])
-    def recover(request: Request, project_id: str, body: RecoverBody) -> dict[str, Any]:
+    @router.post(
+        "/api/projects/{project_id}/recover",
+        dependencies=[Depends(_auth_dep)],
+        responses={202: {"model": ProjectExecutionAccepted}},
+    )
+    def recover(
+        request: Request, project_id: str, body: RecoverBody, response: Response
+    ) -> dict[str, Any]:
         """Reopen blocked project work after an operator fixes the cause."""
         _project_or_404(request, project_id)
         engine = _execution_engine(request, project_id)
@@ -228,6 +241,8 @@ def _register_project_execution(router: APIRouter, d: ProjectsDeps) -> None:
         except ValueError as exc:
             raise _bad_request(exc) from exc
         if body.run:
+            if body.background:
+                return _submit(request, project_id, body.max_ticks, response)
             _require_execution_context(request, project_id)
             try:
                 with _project_execution_scope(request, project_id):
@@ -249,12 +264,14 @@ def _register_project_execution(router: APIRouter, d: ProjectsDeps) -> None:
     @router.post(
         "/api/projects/{project_id}/tasks/{task_id}/intervene",
         dependencies=[Depends(_auth_dep)],
+        responses={202: {"model": ProjectExecutionAccepted}},
     )
     def intervene_task(
         request: Request,
         project_id: str,
         task_id: str,
         body: TaskInterventionBody,
+        response: Response,
     ) -> dict[str, Any]:
         """Manually reassign, reset, complete, or skip a task."""
         _project_or_404(request, project_id)
@@ -295,6 +312,8 @@ def _register_project_execution(router: APIRouter, d: ProjectsDeps) -> None:
         if any(str(event).startswith("unknown_task_action:") for event in intervention["events"]):
             raise HTTPException(400, "unknown task intervention action")
         if body.run:
+            if body.background:
+                return _submit(request, project_id, body.max_ticks, response)
             _require_execution_context(request, project_id)
             try:
                 with _project_execution_scope(request, project_id):

@@ -46,7 +46,7 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 
-import { authHeaders, jsonAuthHeaders } from "@/core/auth/api";
+import { authHeaders } from "@/core/auth/api";
 import { getBackendBaseURL } from "@/core/config";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -77,6 +77,8 @@ import {
 import { TodayQueuePanel } from "@/components/workspace/projects/today-queue";
 import { ProjectSwitcher } from "@/components/workspace/projects/project-switcher";
 import { ProjectTimeline } from "@/components/workspace/projects/project-timeline";
+import { useProjectExecution } from "@/components/workspace/projects/use-project-execution";
+import { ProjectExecutionStatus } from "@/components/workspace/projects/project-execution-status";
 import {
   EstimateStack,
   HealthDonut,
@@ -261,7 +263,9 @@ function normalizeTraceId(value: string | null | undefined): string | null {
   return /^[A-Za-z0-9._:/-]+$/.test(traceId) ? traceId : null;
 }
 
-function traceIdFromResponse(response: Response): string | null {
+function traceIdFromResponse(
+  response: Pick<Response, "headers">,
+): string | null {
   for (const header of TRACE_HEADER_NAMES) {
     const traceId = normalizeTraceId(response.headers.get(header));
     if (traceId) return traceId;
@@ -395,7 +399,9 @@ export default function ProjectsPage() {
   const navigate = useNavigate();
   const ensureProjectHome = useEnsureProjectHome();
   const [searchParams] = useSearchParams();
-  const [selectedId, setSelectedId] = useState<string | null>(searchParams.get("project"));
+  const [selectedId, setSelectedId] = useState<string | null>(
+    searchParams.get("project"),
+  );
   useEffect(() => {
     const id = searchParams.get("project");
     if (id) setSelectedId(id);
@@ -480,40 +486,21 @@ export default function ProjectsPage() {
   const pm = detail?.pm ?? null;
   const retro = detail?.retro ?? null;
 
-  const executeAction = async (
-    spec: ActionSpec,
-    overrides?: Record<string, unknown>,
-  ) => {
-    if (!spec.api) return;
-    try {
-      const res = await fetch(spec.api.path, {
-        method: spec.api.method,
-        headers: jsonAuthHeaders(),
-        body:
-          spec.api.body || overrides
-            ? JSON.stringify({ ...(spec.api.body ?? {}), ...(overrides ?? {}) })
-            : undefined,
-      });
-      if (!res.ok) {
-        toast.error(
-          withTraceId(PROJECT_ACTION_ERROR_MESSAGE, traceIdFromResponse(res)),
-        );
-        return;
-      }
-      toast.success(`${spec.label} 已执行`);
-      void detailQuery.refetch();
-      void projectsQuery.refetch();
-      void portfolioQuery.refetch();
-    } catch {
-      toast.error(PROJECT_ACTION_ERROR_MESSAGE);
-    }
-  };
-
   const refresh = () => {
     void detailQuery.refetch();
     void projectsQuery.refetch();
     void portfolioQuery.refetch();
   };
+  const { job, isRunning, executeAction, cancelExecution } =
+    useProjectExecution({
+      projectId: selectedId,
+      refresh,
+      errorMessage: (failure) =>
+        withTraceId(
+          PROJECT_ACTION_ERROR_MESSAGE,
+          traceIdFromResponse({ headers: failure.headers ?? new Headers() }),
+        ),
+    });
 
   const handleProjectDeleted = (projectId: string) => {
     setSelectedId(projects.find((p) => p.id !== projectId)?.id ?? null);
@@ -746,6 +733,11 @@ export default function ProjectsPage() {
                                 <MessageSquareIcon className="size-3.5" />
                                 进入项目群
                               </Button>
+                              <ProjectExecutionStatus
+                                job={job}
+                                isRunning={isRunning}
+                                cancel={() => void cancelExecution()}
+                              />
                               <ProjectLifecycleActions
                                 project={detail.project}
                                 onDeleted={handleProjectDeleted}
@@ -757,7 +749,8 @@ export default function ProjectsPage() {
                                   size="sm"
                                   className="gap-1.5 text-xs"
                                   disabled={
-                                    !!runBlock && RUN_ACTIONS.has(spec.action)
+                                    (!!runBlock || isRunning) &&
+                                    RUN_ACTIONS.has(spec.action)
                                   }
                                   title={
                                     RUN_ACTIONS.has(spec.action)
@@ -812,8 +805,8 @@ export default function ProjectsPage() {
                                   整体进度
                                 </span>
                                 <span>
-                                  {pm.done_tasks}/{pm.total_tasks} 任务 · 剩余估时{" "}
-                                  {pm.remaining_estimate}d / 共{" "}
+                                  {pm.done_tasks}/{pm.total_tasks} 任务 ·
+                                  剩余估时 {pm.remaining_estimate}d / 共{" "}
                                   {pm.total_estimate}d
                                 </span>
                               </div>
@@ -848,12 +841,10 @@ export default function ProjectsPage() {
                             <MetricCard
                               label="风险"
                               value={`${pm.risks.length}`}
-                              sub={`${pm.blockers.length} 个阻塞里程碑 · ${
-                                pm.overdue.reduce(
-                                  (sum, group) => sum + group.tasks.length,
-                                  0,
-                                )
-                              } 个逾期任务`}
+                              sub={`${pm.blockers.length} 个阻塞里程碑 · ${pm.overdue.reduce(
+                                (sum, group) => sum + group.tasks.length,
+                                0,
+                              )} 个逾期任务`}
                               tone={pm.risks.length > 0 ? "warn" : undefined}
                               icon={<AlertTriangleIcon className="size-4" />}
                             />
@@ -934,7 +925,8 @@ export default function ProjectsPage() {
                                               className={`gap-1 text-[10px] ${HEALTH_TONE[m.health] ?? ""}`}
                                             >
                                               {healthIcon(m.health)}
-                                              {HEALTH_LABEL[m.health] ?? m.health}
+                                              {HEALTH_LABEL[m.health] ??
+                                                m.health}
                                             </Badge>
                                             <Badge
                                               variant="outline"
@@ -955,8 +947,7 @@ export default function ProjectsPage() {
                                             )}
                                             {m.planned_start && (
                                               <span>
-                                                计划{" "}
-                                                {fmtDate(m.planned_start)}
+                                                计划 {fmtDate(m.planned_start)}
                                               </span>
                                             )}
                                             <span>

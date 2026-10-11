@@ -2,7 +2,7 @@
 
 A project's durable state survives a restart, but nothing advances it: the
 engine only runs from an explicit ``/project`` command, the REST endpoint, or
-the CLI, and its worker is bound to that single request. A backend killed while
+the CLI. Live background task leases are preserved across workers. A backend killed while
 a project was running therefore leaves a ``running`` document that no longer
 has anything driving it, and the UI keeps presenting it as in-flight.
 
@@ -41,6 +41,7 @@ def sweep_projects_interrupted_by_restart(
     store: Any,
     *,
     started_at: float | None = None,
+    task_supervisor: Any = None,
 ) -> list[dict[str, Any]]:
     """Mark every ``running`` project as interrupted by a restart.
 
@@ -72,6 +73,23 @@ def sweep_projects_interrupted_by_restart(
         project_id = str(getattr(project, "id", "") or "")
         if not project_id:
             continue
+        if task_supervisor is not None:
+            from runtime.platform.process.task_supervisor import TERMINAL_TASK_STATUSES
+            from runtime.projectos.http_dispatcher import ProjectHTTPDispatcher
+
+            task = task_supervisor.store.get(ProjectHTTPDispatcher.task_id(project))
+            if (
+                task is not None
+                and task.kind == "project_http"
+                and task.owner_id == (project.owner_id or None)
+                and task.metadata.get("tenant_id") == project.tenant_id
+                and task.status not in TERMINAL_TASK_STATUSES
+                and task.lease is not None
+                and not task.lease.expired
+            ):
+                # Another worker can still own this project. A cold start is
+                # not evidence that its renewed claims have been abandoned.
+                continue
         # Decide on the pre-sweep status: releasing a claim blocks the
         # project, but it was still running when the previous process died.
         was_running = str(getattr(project, "status", "") or "") == "running"

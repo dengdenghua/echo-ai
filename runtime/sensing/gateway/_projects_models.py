@@ -63,6 +63,7 @@ class MoveThreadBody(BaseModel):
 
 class RunBody(BaseModel):
     max_ticks: int = Field(default=DEFAULT_RUN_MAX_TICKS, ge=1, le=HARD_MAX_RUN_TICKS)
+    background: bool = False
 
 
 class RecoverBody(BaseModel):
@@ -70,11 +71,13 @@ class RecoverBody(BaseModel):
     reset_attempts: bool = True
     clear_outputs: bool = True
     run: bool = False
+    background: bool = False
     max_ticks: int = Field(default=DEFAULT_RUN_MAX_TICKS, ge=1, le=HARD_MAX_RUN_TICKS)
 
 
 class TaskInterventionBody(BaseModel):
     action: str = Field(min_length=1)
+    background: bool = False
     assigned_agent: str | None = None
     assigned_role: str | None = None
     output: Any = None

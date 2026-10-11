@@ -33,7 +33,12 @@ from ._projects_models import (
 from ._projects_router_deps import ProjectsDeps
 
 
-def _register_project_governance(router: APIRouter, d: ProjectsDeps) -> None:
+def _register_project_governance(
+    router: APIRouter,
+    d: ProjectsDeps,
+    *,
+    cancel_execution: Callable[..., Any] | None = None,
+) -> None:
     """Initiation approval, phase authorization, delivery acceptance, budget, cancel."""
     _principal = d.principal
     _scoped_store = d.scoped_store
@@ -179,7 +184,7 @@ def _register_project_governance(router: APIRouter, d: ProjectsDeps) -> None:
         body: ProjectCancelBody | None = None,
     ) -> dict[str, Any]:
         """Abandon a project: terminal ``failed``, live claims voided, deletable."""
-        _project_or_404(request, project_id)
+        project = _project_or_404(request, project_id)
         principal = _principal(request)
         try:
             cancelled = d.engine(principal).cancel(
@@ -203,6 +208,8 @@ def _register_project_governance(router: APIRouter, d: ProjectsDeps) -> None:
                     "status": cancelled["project_status"],
                 },
             )
+        if cancel_execution is not None:
+            cancel_execution(project, reason=(body or ProjectCancelBody()).reason.strip())
         thread_project = _scoped_store(request).thread_for_project(project_id)
         _project_to_collaboration(request, project_id, thread_id=thread_project or "")
         return {"ok": True, "cancel": cancelled, **_full_state(request, project_id)}

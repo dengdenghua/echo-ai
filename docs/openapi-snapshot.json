@@ -7157,6 +7157,153 @@
         "title": "ProjectEditBody",
         "type": "object"
       },
+      "ProjectExecutionAccepted": {
+        "properties": {
+          "execution": {
+            "$ref": "#/components/schemas/ProjectExecutionReceipt"
+          },
+          "ok": {
+            "const": true,
+            "default": true,
+            "title": "Ok",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "execution"
+        ],
+        "title": "ProjectExecutionAccepted",
+        "type": "object"
+      },
+      "ProjectExecutionReceipt": {
+        "properties": {
+          "accepted": {
+            "const": true,
+            "default": true,
+            "title": "Accepted",
+            "type": "boolean"
+          },
+          "project_id": {
+            "title": "Project Id",
+            "type": "string"
+          },
+          "request_id": {
+            "title": "Request Id",
+            "type": "string"
+          },
+          "status": {
+            "const": "queued",
+            "default": "queued",
+            "title": "Status",
+            "type": "string"
+          },
+          "task_id": {
+            "title": "Task Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "task_id",
+          "project_id",
+          "request_id"
+        ],
+        "title": "ProjectExecutionReceipt",
+        "type": "object"
+      },
+      "ProjectExecutionState": {
+        "properties": {
+          "can_takeover": {
+            "title": "Can Takeover",
+            "type": "boolean"
+          },
+          "cancel_requested": {
+            "title": "Cancel Requested",
+            "type": "boolean"
+          },
+          "completed_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Completed At"
+          },
+          "project_id": {
+            "title": "Project Id",
+            "type": "string"
+          },
+          "request_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Request Id"
+          },
+          "result": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Result"
+          },
+          "status": {
+            "title": "Status",
+            "type": "string"
+          },
+          "task_id": {
+            "title": "Task Id",
+            "type": "string"
+          },
+          "updated_at": {
+            "title": "Updated At",
+            "type": "string"
+          }
+        },
+        "required": [
+          "task_id",
+          "project_id",
+          "request_id",
+          "status",
+          "updated_at",
+          "completed_at",
+          "cancel_requested",
+          "result",
+          "can_takeover"
+        ],
+        "title": "ProjectExecutionState",
+        "type": "object"
+      },
+      "ProjectExecutionStateResponse": {
+        "properties": {
+          "execution": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ProjectExecutionState"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "execution"
+        ],
+        "title": "ProjectExecutionStateResponse",
+        "type": "object"
+      },
       "ProjectExportBody": {
         "properties": {
           "include_audio": {
@@ -7635,6 +7782,11 @@
       },
       "RecoverBody": {
         "properties": {
+          "background": {
+            "default": false,
+            "title": "Background",
+            "type": "boolean"
+          },
           "clear_outputs": {
             "default": true,
             "title": "Clear Outputs",
@@ -8023,6 +8175,11 @@
       },
       "RunBody": {
         "properties": {
+          "background": {
+            "default": false,
+            "title": "Background",
+            "type": "boolean"
+          },
           "max_ticks": {
             "default": 50,
             "maximum": 200.0,
@@ -8945,6 +9102,11 @@
               }
             ],
             "title": "Assigned Role"
+          },
+          "background": {
+            "default": false,
+            "title": "Background",
+            "type": "boolean"
           },
           "cascade": {
             "default": true,
@@ -48437,6 +48599,90 @@
         ]
       }
     },
+    "/api/projects/{project_id}/execution": {
+      "get": {
+        "operationId": "execution_state_api_projects__project_id__execution_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "title": "Project Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProjectExecutionStateResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Execution State",
+        "tags": [
+          "projectos"
+        ]
+      }
+    },
+    "/api/projects/{project_id}/execution/cancel": {
+      "post": {
+        "operationId": "cancel_execution_api_projects__project_id__execution_cancel_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "title": "Project Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProjectExecutionStateResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Cancel Execution",
+        "tags": [
+          "projectos"
+        ]
+      }
+    },
     "/api/projects/{project_id}/initiation/approve": {
       "post": {
         "description": "Approve the plan and team; a legacy project gets its governance fields.",
@@ -48758,6 +49004,16 @@
             },
             "description": "Successful Response"
           },
+          "202": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProjectExecutionAccepted"
+                }
+              }
+            },
+            "description": "Accepted"
+          },
           "422": {
             "content": {
               "application/json": {
@@ -48903,6 +49159,16 @@
             },
             "description": "Successful Response"
           },
+          "202": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProjectExecutionAccepted"
+                }
+              }
+            },
+            "description": "Accepted"
+          },
           "422": {
             "content": {
               "application/json": {
@@ -48966,6 +49232,16 @@
               }
             },
             "description": "Successful Response"
+          },
+          "202": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProjectExecutionAccepted"
+                }
+              }
+            },
+            "description": "Accepted"
           },
           "422": {
             "content": {

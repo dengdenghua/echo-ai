@@ -32,7 +32,7 @@ graph LR
   sensing[sensing]
   adapters[adapters]
   platform[platform]
-  sensing -- 209 --> platform
+  sensing -- 211 --> platform
   execution -- 171 --> platform
   sensing -- 165 --> safety
   sensing -- 136 --> execution
@@ -45,9 +45,9 @@ graph LR
   platform -- 56 --> execution
   platform -- 56 --> safety
   sensing -- 42 --> core
+  sensing -- 41 --> projectos
   execution -- 40 --> memory
   sensing -- 38 --> adapters
-  sensing -- 37 --> projectos
   core -- 34 --> safety
   core -- 29 --> execution
   memory -- 26 --> safety
@@ -59,13 +59,13 @@ graph LR
   core -- 14 --> memory
   safety -- 14 --> adapters
   platform -- 13 --> core
+  projectos -- 13 --> platform
   sensing -- 13 --> workspace
   adapters -- 12 --> platform
   adapters -- 11 --> safety
   platform -- 11 --> adapters
-  projectos -- 11 --> platform
+  projectos -- 11 --> safety
   memory -- 10 --> execution
-  projectos -- 10 --> safety
   tentacle -- 10 --> platform
   execution -- 9 --> adapters
   projectos -- 8 --> execution
