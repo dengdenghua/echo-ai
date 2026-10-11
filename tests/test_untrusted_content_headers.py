@@ -144,7 +144,7 @@ def deployments_root(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
                     {
                         "id": "20260927-demo",
                         "label": "demo",
-                        "source": "C:/Users/someone/project",
+                        "source": "C:/workspace/project",
                         "path": str(site),
                         "url": "http://127.0.0.1:8310/api/deployments/20260927-demo/index.html",
                         "created_at": 1.0,

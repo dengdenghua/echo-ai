@@ -8,7 +8,8 @@ from fastapi import APIRouter, HTTPException, Request, Response
 from pydantic import BaseModel, Field
 
 from runtime.platform.visuals import report_visual
-from runtime.safety.auth.scope import scope_from_request
+from runtime.safety.auth.principal import resolve_principal
+from runtime.safety.auth.scope import scope_from_principal
 
 
 class VisualReceipt(BaseModel):
@@ -31,9 +32,7 @@ def create_visuals_router(
     def receipt(
         visual_id: str, body: VisualReceipt, request: Request, response: Response
     ) -> dict[str, bool]:
-        from runtime.sensing.gateway.openai_gateway.request_parser import _resolve_actor
-
-        _resolve_actor(
+        principal = resolve_principal(
             request,
             identity_store,
             require_auth,
@@ -43,7 +42,7 @@ def create_visuals_router(
         )
         response.headers["Cache-Control"] = "no-store"
         if not report_visual(
-            visual_id, body.receipt_token, scope_from_request(request), body.status, body.detail
+            visual_id, body.receipt_token, scope_from_principal(principal), body.status, body.detail
         ):
             raise HTTPException(404, "Visual receipt expired or unavailable")
         return {"ok": True}

@@ -74,7 +74,7 @@ jobs:
           UV_PYTHON_DOWNLOADS: never
         run: >-
           uv sync --locked --python ${{ matrix.python-version }}
-          --extra dev --extra web --extra serve --extra discord
+          --extra dev --extra web --extra serve --extra discord --extra anthropic
 
       - name: Activate locked environment
         shell: bash

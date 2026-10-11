@@ -102,7 +102,7 @@ class _Relay:
 
         self.runtime, self.turn, self.log, self.emitter = runtime, turn, log, emitter
         self.items: dict[str, Any] = {}
-        self.adapter = TypeAdapter(Item)
+        self.adapter: TypeAdapter[Any] = TypeAdapter(Item)
         self.remote_turn_id = ""
 
     def _local(self, params: dict[str, Any]) -> dict[str, Any]:
@@ -138,7 +138,7 @@ class _Relay:
 
     async def notification(self, method: str, params: dict[str, Any]) -> None:
         if method == "turn/started":
-            turn = params.get("turn") if isinstance(params.get("turn"), dict) else {}
+            turn = raw_turn if isinstance(raw_turn := params.get("turn"), dict) else {}
             self.remote_turn_id = str(turn.get("id") or params.get("turnId") or "")
         elif method == "item/started":
             await self.item_started(params.get("item"))

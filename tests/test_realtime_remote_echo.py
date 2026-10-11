@@ -269,7 +269,7 @@ def test_relay_mirrors_remote_items_deltas_and_approvals(relay_setup) -> None:
         "type": "commandExecution",
         "id": "cmd-1",
         "command": "ls",
-        "cwd": "/home/me",
+        "cwd": "/workspaces/remote",
         "status": "inProgress",
     }
     remote = {"threadId": "thread-1", "turnId": "remote-turn"}

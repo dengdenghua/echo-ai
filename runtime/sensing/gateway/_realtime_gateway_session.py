@@ -381,7 +381,7 @@ class _RealtimeGatewaySessionMixin:
     def _schedule_auto_turn(self, thread_id: str, cowork_only: bool = False) -> None:
         """Dedupe rapid wakeups: one pending task claims every parked report."""
         if not hasattr(self, "_auto_turn_again"):
-            self._auto_turn_again = {}
+            self._auto_turn_again: dict[str, bool] = {}
         if thread_id in self._auto_turn_tasks:
             self._auto_turn_again[thread_id] = (
                 self._auto_turn_again.get(thread_id, True) and cowork_only

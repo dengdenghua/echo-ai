@@ -573,7 +573,7 @@ def test_cli_show_and_verify_report_the_shipped_bundle(capsys: pytest.CaptureFix
     assert run_bundle(argparse.Namespace(manifest=None, bundle_op="show"), color=False) == 0
     shown = capsys.readouterr().out
     assert "echo-runtime" in shown
-    assert "resources   : 53" in shown
+    assert "resources   : 51" in shown
 
     assert run_bundle(argparse.Namespace(manifest=None, bundle_op="verify"), color=False) == 0
     assert "resources intact" in capsys.readouterr().out
@@ -685,7 +685,7 @@ def test_doctor_reports_the_shipped_kernel_as_intact() -> None:
     result = report.results[0]
     assert result.status == "ok", result.message
     assert "echo-runtime" in result.message
-    assert "53 resources intact" in result.message
+    assert "51 resources intact" in result.message
 
 
 def test_doctor_warns_about_a_drifted_kernel_without_touching_it(tmp_path: Path) -> None:

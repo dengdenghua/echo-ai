@@ -113,6 +113,8 @@ tier: "standard"
 | `_projects_patrol.py` | Owner-scoped daily project attention, backed by scheduled sealed events. |
 | `_projects_read_endpoints.py` | Read endpoints for the Project OS router: lists, state, reports, audit. |
 | `_projects_router_deps.py` | Shared state and access helpers for the Project OS router. |
+| `_projects_standing_endpoints.py` | Explicit authenticated owner decisions for unattended project progress. |
+| `_projects_standing_service.py` | Opt-in standing grants resume through bounded, leased project workers. |
 | `_realtime_cerebrum_project_os.py` | Explicit Project OS command bridge for the realtime runtime. |
 | `_realtime_cerebrum_requests.py` | JSON-RPC method dispatch for the realtime runtime. |
 | `_realtime_cerebrum_steering.py` | Active-turn lease + steering management for the realtime runtime. |
@@ -138,9 +140,13 @@ tier: "standard"
 | `_realtime_turn_lifecycle_resume.py` | Resume-intent persistence for the realtime turn lifecycle. |
 | `_realtime_turn_start_phases.py` | Straight-line startup phases of ``realtime_turn_lifecycle._start_turn``. |
 | `_team_room_binding.py` | Canonical Team Room thread binding helpers. |
+| `_team_room_broadcast.py` | Local socket delivery plus tenant-fenced cross-worker room wake-ups. |
 | `_team_room_creation.py` | Atomic Team Room creation primitives. |
 | `_team_room_delete.py` | Durable, fail-closed Team Room deletion. |
+| `_team_room_departure.py` | Scoped socket departure and floor maintenance, separate from WS framing. |
 | `_team_room_persistence.py` | Cross-process optimistic persistence for Team Room state. |
+| `_team_room_presence.py` | Worker-local heartbeat timestamps, separate from durable room membership. |
+| `_team_room_store.py` | Versioned SQLite authority for rooms; JSON is a one-time import source. |
 | `_team_rooms_access.py` | Room membership and administration checks for the Team Rooms router. |
 | `_team_rooms_state.py` | Persistence and wire-serialization helpers for Team Rooms. |
 | `_team_stream_group_fanout.py` | Group fan-out stream driver — 蜂群 / 冒泡 cowork dispatch. |
@@ -232,8 +238,10 @@ tier: "standard"
 | `execution_nodes_router.py` | Authenticated task dispatch, node claims and verified result collection. |
 | `fs_router.py` | Filesystem router · ``/api/fs/{tree,read,write}``. |
 | `git_worktrees_router.py` | Local Git worktree task entry points, sharing the filesystem boundary. |
+| `group_reply_stream.py` | Deliver committed fan-out replies while the synchronous worker is still running. |
 | `hotspot_control.py` | Local Echo control plane for the separate invitation-authenticated listener. |
 | `hotspot_discovery.py` | Read an invited hotspot's models from the receiving Echo backend. |
+| `hotspot_local.py` | Local listener controls without importing the optional A2A server. |
 | `hotspot_store.py` | Durable, atomic invitation budgets; no upstream credentials in this store. |
 | `inbound_role_execution.py` | Give an inbound role the same host task boundary as local delegation. |
 | `index_router.py` | Code index router · ``/api/index/*``. |
@@ -299,6 +307,7 @@ tier: "standard"
 | `realtime_turn_input.py` | Turn-input shaping for the realtime runtime. |
 | `realtime_turn_lifecycle.py` | Realtime turn validation, dispatch, resume handling, and finalization. |
 | `realtime_turn_outcome.py` | Turn outcome inspection for the realtime runtime. |
+| `realtime_turn_queue.py` | Async ownership and cancellation boundary for explicit queued turn/start. |
 | `realtime_turn_routing.py` | Turn-routing helpers for the realtime runtime. |
 | `realtime_turn_support.py` | Observable-output, cowork-context, and resume-intent helpers. |
 | `realtime_workbench.py` | Workbench snapshot + workspace-focus helpers for the realtime runtime. |
@@ -650,6 +659,18 @@ tier: "standard"
 | class | `class ProjectsDeps` | Per-router stores and closures shared by the endpoint groups. |
 | func | `def build_projects_deps(store, group_store, collaboration_store, team_rooms_router, thread_store, workspace_root, logs_root, model_router, planning_model, subagent_runner, identity_store, require_auth, jwt_secret, jwt_issuer, jwt_audience)` | Build the shared state in the order the factory used to. |
 
+### `_projects_standing_endpoints.py`
+
+| Kind | Symbol | Doc |
+| --- | --- | --- |
+| func | `def register_project_standing_authorization(router, d)` |  |
+
+### `_projects_standing_service.py`
+
+| Kind | Symbol | Doc |
+| --- | --- | --- |
+| class | `class StandingProjectService` |  |
+
 ### `_realtime_claim_aware_emitter.py`
 
 | Kind | Symbol | Doc |
@@ -711,6 +732,12 @@ tier: "standard"
 | --- | --- | --- |
 | func | `def team_thread_binding_helpers(lock, teams, require_admin, group_store, save, room_payload, http_exception)` | Bind the internal cowork bridge without exposing thread ids publicly. |
 
+### `_team_room_broadcast.py`
+
+| Kind | Symbol | Doc |
+| --- | --- | --- |
+| class | `class TeamRoomBroadcast` |  |
+
 ### `_team_room_creation.py`
 
 | Kind | Symbol | Doc |
@@ -721,7 +748,13 @@ tier: "standard"
 
 | Kind | Symbol | Doc |
 | --- | --- | --- |
-| func | `def delete_team_room_fail_safe(request, team_id, teams, lock, group_store, principal, require_owner, invite_store, save, delete_reserved_state, delete_projection)` | Delete a room only after winning the canonical GroupStore reservation. |
+| func | `def delete_team_room_fail_safe(request, team_id, teams, lock, group_store, principal, require_owner, invite_store, save, delete_reserved_state, delete_projection, notify_deleted)` | Delete a room only after winning the canonical GroupStore reservation. |
+
+### `_team_room_departure.py`
+
+| Kind | Symbol | Doc |
+| --- | --- | --- |
+| func | `def disconnect_room(ctx, ws, team_id, participant_id)` |  |
 
 ### `_team_room_persistence.py`
 
@@ -731,11 +764,34 @@ tier: "standard"
 | func | `def delete_reserved_team_room_state(path, team_id, tenant_id, owner_id, legacy_tenant_for_owner)` | Delete the latest scoped room after GroupStore granted a durable token. |
 | func | `def refresh_team_room_state(path, legacy_tenant_for_owner)` | Read one strict, cross-process-consistent durable room snapshot. |
 
+### `_team_room_presence.py`
+
+| Kind | Symbol | Doc |
+| --- | --- | --- |
+| func | `def room_presence_scope(room)` | Tenant-scoped cache keys even for independently served data homes. |
+| func | `def overlay_room_presence(rooms, seen, live)` |  |
+
+### `_team_room_store.py`
+
+| Kind | Symbol | Doc |
+| --- | --- | --- |
+| func | `def room_database_path(path)` | Keep custom state filenames isolated, including filenames without suffixes. |
+| func | `def read_rooms(conn)` |  |
+| func | `def write_room_delta(conn, upserts, deleted)` | Write only the caller's changed rows inside its existing transaction. |
+| func | `def commit_room_delta(conn, upserts, deleted)` | Commit the CAS check and delta together; exceptions roll back before commit. |
+| func | `def room_connection(path, resolver, strict)` |  |
+
 ### `_team_rooms_access.py`
 
 | Kind | Symbol | Doc |
 | --- | --- | --- |
 | class | `class TeamRoomAccess` | Keep room ACL decisions independent from HTTP route registration. |
+
+### `_team_rooms_state.py`
+
+| Kind | Symbol | Doc |
+| --- | --- | --- |
+| func | `def legacy_room_tenant(owner_id, require_auth, identity_store)` | Freeze the original owner's tenant on import, retaining unknown-owner isolation. |
 
 ### `_team_tasks_access.py`
 
@@ -1012,8 +1068,6 @@ tier: "standard"
 
 | Kind | Symbol | Doc |
 | --- | --- | --- |
-| func | `def owner_token(root)` |  |
-| func | `async def bounded_body(request)` |  |
 | func | `def create_hotspot(root, source_home, port, auth, transport, task_runner)` |  |
 | func | `def main()` |  |
 
@@ -1205,6 +1259,13 @@ tier: "standard"
 | class | `class GitWorktreeCreated(BaseModel)` |  |
 | func | `def register_git_worktree_endpoints(router, ctx)` |  |
 
+### `group_reply_stream.py`
+
+| Kind | Symbol | Doc |
+| --- | --- | --- |
+| func | `async def stream_worker_replies(worker, *args, emit_reply, should_cancel, max_pending, **kwargs)` | Bridge worker callbacks onto the owner loop; never emit from provider threads. |
+| class | `class FanoutReplyEmitter` | Emit member bubbles once in arrival order, then safely replay the final snapshot. |
+
 ### `hotspot_control.py`
 
 | Kind | Symbol | Doc |
@@ -1222,6 +1283,13 @@ tier: "standard"
 | --- | --- | --- |
 | func | `def normalize_hotspot_url(value)` |  |
 | func | `async def discover_hotspot(body, transport)` |  |
+
+### `hotspot_local.py`
+
+| Kind | Symbol | Doc |
+| --- | --- | --- |
+| func | `def owner_token(root)` |  |
+| func | `async def bounded_body(request)` |  |
 
 ### `hotspot_store.py`
 
@@ -1590,6 +1658,12 @@ tier: "standard"
 | --- | --- | --- |
 | func | `def external_model_owner(params)` | Identify model ownership for shaping input, not execution admission. |
 
+### `realtime_turn_queue.py`
+
+| Kind | Symbol | Doc |
+| --- | --- | --- |
+| func | `async def wait_for_turn_claim(logs_root, thread_id, is_connected)` |  |
+
 ### `realtime_turn_routing.py`
 
 | Kind | Symbol | Doc |
@@ -1794,7 +1868,7 @@ tier: "standard"
 
 | Kind | Symbol | Doc |
 | --- | --- | --- |
-| func | `def create_team_rooms_router(state_path, identity_store, require_auth, jwt_secret, jwt_issuer, jwt_audience, reset_callback, room_message_store, room_projection, room_delete_projection, room_message_projection, room_receipt_projection, room_message_provider, invitation_store, project_store, group_store, twin_responder)` | Create `/api/teams/*` routes. |
+| func | `def create_team_rooms_router(state_path, shared_bus, live_presence, identity_store, require_auth, jwt_secret, jwt_issuer, jwt_audience, reset_callback, room_message_store, room_projection, room_delete_projection, room_message_projection, room_receipt_projection, room_message_provider, invitation_store, project_store, group_store, twin_responder)` | Create `/api/teams/*` routes. |
 
 ### `team_rooms_ws.py`
 

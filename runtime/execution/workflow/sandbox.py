@@ -84,7 +84,7 @@ def bubblewrap_argv(executable: str, image: Path) -> list[str]:
         "--clearenv",
         "--setenv",
         "HOME",
-        "/home/worker",
+        "/home/worker",  # lint: allow-user-path -- empty sandbox home, never a host mount
         "--setenv",
         "TMPDIR",
         "/tmp",  # nosec B108 # private bubblewrap tmpfs, never host /tmp
@@ -97,7 +97,7 @@ def bubblewrap_argv(executable: str, image: Path) -> list[str]:
         "--tmpfs",
         "/tmp",  # nosec B108 # private bubblewrap tmpfs, never host /tmp
         "--dir",
-        "/home/worker",
+        "/home/worker",  # lint: allow-user-path -- created inside the isolated namespace
         "--dir",
         "/work",
         "--dev",

@@ -6,6 +6,7 @@ import concurrent.futures.thread as thread_impl
 import threading
 import weakref
 from concurrent.futures import ThreadPoolExecutor
+from typing import cast
 
 
 class DaemonThreadPoolExecutor(ThreadPoolExecutor):
@@ -45,4 +46,4 @@ class DaemonThreadPoolExecutor(ThreadPoolExecutor):
             daemon=True,
         )
         worker.start()
-        self._threads.add(worker)
+        cast(set[threading.Thread], self._threads).add(worker)

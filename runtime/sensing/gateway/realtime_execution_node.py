@@ -135,7 +135,8 @@ async def drive_execution_node(
                 store.transition_collaboration_run, run_id, status="cancelled", event_type="cancel"
             )
             return
-        run = await asyncio.to_thread(store.collaboration_run, run_id) or run
+        refreshed_run = await asyncio.to_thread(store.collaboration_run, run_id)
+        run = refreshed_run or run
         status = run.get("status")
         if status == "completed":
             break

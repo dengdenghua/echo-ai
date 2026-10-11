@@ -39,7 +39,7 @@ jobs:
           UV_PYTHON_DOWNLOADS: never
         run: >-
           uv sync --locked --python 3.11.9
-          --extra dev --extra web --extra serve --extra discord
+          --extra dev --extra web --extra serve --extra discord --extra anthropic
       - name: Activate locked environment
         shell: bash
         run: echo "${GITHUB_WORKSPACE}/.venv/Scripts" >> "${GITHUB_PATH}"

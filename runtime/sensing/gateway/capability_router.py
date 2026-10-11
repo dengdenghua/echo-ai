@@ -673,6 +673,8 @@ async def _local_and_codex_capabilities(
     local = asyncio.to_thread(registry.list)
     if codex_catalog is None:
         return await local
+    items: list[dict[str, Any]] | BaseException
+    remote: list[dict[str, Any]] | BaseException
     items, remote = await asyncio.gather(
         local,
         codex_catalog.list_plugins(scope, force_refetch=force_refetch),

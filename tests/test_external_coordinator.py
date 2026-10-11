@@ -176,7 +176,11 @@ def test_a_text_only_turn_keeps_the_previous_route(requested, monkeypatch):
     assert _select(_turn_with(requested, image=False)).engine is EngineId.OPENCODE
 
 
-def test_vision_is_derived_from_attachments_not_from_prompt_wording():
+def test_vision_is_derived_from_attachments_not_from_prompt_wording(monkeypatch):
+    monkeypatch.setattr(
+        "runtime.execution.opencode_backend.inspect_readiness",
+        Mock(return_value={"available": True, "reason": ""}),
+    )
     turn = _turn_with("auto", image=False)
     turn.params.input[0]["text"] = "请识别这张图片里的内容"
     assert _select(turn).engine is EngineId.OPENCODE

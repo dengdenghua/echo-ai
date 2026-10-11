@@ -19,6 +19,8 @@ from __future__ import annotations
 import sys
 from uuid import uuid4
 
+import pytest
+
 from runtime.core.cerebrum import env_health
 from runtime.core.cerebrum.react_execution_receipts import _execution_receipt_trust
 from runtime.core.cerebrum.react_final_answer_guards import (
@@ -50,6 +52,13 @@ from runtime.platform.models import (
     TaskId,
 )
 from runtime.safety.auth import TrustEngine
+
+
+@pytest.fixture(autouse=True)
+def isolated_execution_canary(monkeypatch):
+    """Trajectory cases start unknown; startup-canary cases set their own verdict."""
+    monkeypatch.setattr(env_health, "_CANARY_DEGRADED", None)
+
 
 # An observation exactly as the dispatcher renders an environment-blocked
 # exec (sandbox-exec EPERM): the marker the detector matches on.

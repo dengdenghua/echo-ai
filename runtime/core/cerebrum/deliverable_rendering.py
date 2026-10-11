@@ -27,7 +27,7 @@ from __future__ import annotations
 
 import re
 from collections.abc import Iterable
-from pathlib import Path
+from pathlib import Path, PureWindowsPath
 
 from runtime.core.cerebrum.react_prompt_contracts import (
     DELIVERABLE_HEADING,
@@ -50,7 +50,8 @@ _ALLOWED_TAIL_RE = re.compile(r"^[ \t]*(?:[-*][ \t].*)?$")
 def deliverable_label(path: str | Path) -> str:
     """Label for ``path``: bare file name, no directory, no extension."""
 
-    name = Path(str(path)).name
+    windows = PureWindowsPath(str(path))
+    name = windows.name if windows.drive else Path(str(path)).name
     if not name:
         return ""
     # ``.gitignore``-style names keep the dot: stripping it would produce a
@@ -65,6 +66,9 @@ def deliverable_label(path: str | Path) -> str:
 def deliverable_target(path: str | Path) -> str:
     """Absolute, forward-slash target path for a markdown link."""
 
+    windows = PureWindowsPath(str(path))
+    if windows.is_absolute():
+        return windows.as_posix()
     candidate = Path(str(path)).expanduser()
     if not candidate.is_absolute():
         candidate = Path.cwd() / candidate
@@ -86,7 +90,7 @@ def deliverable_line(path: str | Path) -> str:
 def _dedupe_key(path: str) -> str:
     key = path.replace("\\", "/")
     # Windows paths are case-insensitive; POSIX ones are not.
-    return key.lower() if len(key) > 1 and key[1] == ":" else key
+    return key.lower() if PureWindowsPath(key).drive else key
 
 
 def unique_paths(paths: Iterable[str | Path]) -> list[str]:

@@ -1092,31 +1092,35 @@ def test_uninstall_reaps_replacement_and_rejects_prechecked_connect_until_reinst
 
     def paused_uninstall(selected: str) -> bool:
         uninstall_entered.set()
-        assert release_uninstall.wait(timeout=20), "test did not release uninstall"
+        assert release_uninstall.wait(timeout=120), "test did not release uninstall"
         return real_uninstall(selected)
 
     monkeypatch.setattr(connector_registry, "uninstall", paused_uninstall)
     try:
         with concurrent.futures.ThreadPoolExecutor(max_workers=2) as pool:
-            uninstall = pool.submit(
-                client.delete,
-                f"/api/capabilities/{connector_id}/install",
-            )
-            # Synchronize on the lifecycle boundary, not a one-second catalog
-            # scan assumption (filesystem/manifest checks are slower on Windows).
-            assert uninstall_entered.wait(timeout=10)
-            assert replacement_proc.terminated is True
-            assert replacement_proc.wait_calls == 1
+            try:
+                uninstall = pool.submit(
+                    client.delete,
+                    f"/api/capabilities/{connector_id}/install",
+                )
+                # Synchronize on the lifecycle boundary, not a one-second catalog
+                # scan assumption (filesystem/manifest checks are slower on Windows).
+                assert uninstall_entered.wait(timeout=60)
+                assert replacement_proc.terminated is True
+                assert replacement_proc.wait_calls == 1
 
-            connect = pool.submit(
-                client.post,
-                f"/api/capabilities/{connector_id}/connect",
-                json={"tokens": {"access_token": "must-not-store"}},
-            )
-            assert not connect.done()
-            release_uninstall.set()
-            uninstall_response = uninstall.result(timeout=10)
-            connect_response = connect.result(timeout=10)
+                connect = pool.submit(
+                    client.post,
+                    f"/api/capabilities/{connector_id}/connect",
+                    json={"tokens": {"access_token": "must-not-store"}},
+                )
+                assert not connect.done()
+                release_uninstall.set()
+                uninstall_response = uninstall.result(timeout=60)
+                connect_response = connect.result(timeout=60)
+            finally:
+                # Release the worker before the executor joins it on assertion failure.
+                release_uninstall.set()
 
         assert uninstall_response.status_code == 200
         assert connect_response.status_code == 409

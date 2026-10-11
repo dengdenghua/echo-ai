@@ -19,7 +19,7 @@ import re
 import time
 import uuid
 from collections.abc import Callable, Generator
-from typing import Any
+from typing import Any, cast
 
 from runtime.core.cerebrum._react_action_review import review_tool_action
 from runtime.core.cerebrum._react_approval_pause import (  # noqa: F401 — re-exported for tests
@@ -596,7 +596,7 @@ def _phase_6d_dispatch_and_observe(
                         if _review.control == _LoopControl.NEXT_ITERATION:
                             _record_rejected_step(steps, messages, step, observation)
                             _flush_guard_notices(state, messages)
-                        return _review.control
+                        return cast(_LoopControl, _review.control)
                     if output_chunk_sink is not None:
                         from runtime.core.cerebrum.tool_output_sink import push_sink
 

@@ -259,6 +259,12 @@ def _execute_batch_lane(
             _current_session.reset(token)
 
 
+def _action_arguments(pair: tuple[str, dict[str, Any]] | None) -> dict[str, Any]:
+    """A resolved batch lane has already passed action parsing."""
+    assert pair is not None
+    return pair[1]
+
+
 def _dispatch_parallel_actions(
     actions: list[str],
     *,
@@ -395,7 +401,7 @@ def _dispatch_parallel_actions(
     def _review_one(idx: int):
         if review_action is not None and resolved_names[idx] is not None:
             review = yield from review_action(
-                resolved_names[idx], parsed_pairs[idx][1], call_ids[idx]
+                resolved_names[idx], _action_arguments(parsed_pairs[idx]), call_ids[idx]
             )
             reviews[idx] = review
             if not review.allowed:

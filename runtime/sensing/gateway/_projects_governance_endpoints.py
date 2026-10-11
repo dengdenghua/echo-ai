@@ -10,7 +10,7 @@ execution — ``/run`` stays a separate, explicit request.
 from __future__ import annotations
 
 from collections.abc import Callable
-from typing import Any
+from typing import Any, TypedDict
 
 from fastapi import APIRouter, Depends, HTTPException, Request
 
@@ -31,6 +31,10 @@ from ._projects_models import (
     ProjectCancelBody,
 )
 from ._projects_router_deps import ProjectsDeps
+
+
+class _InitiationBudget(TypedDict, total=False):
+    ai_budget_usd: float | None
 
 
 def _register_project_governance(
@@ -85,7 +89,7 @@ def _register_project_governance(
         request: Request, project_id: str, body: InitiationApprovalBody
     ) -> dict[str, Any]:
         """Approve the plan and team; a legacy project gets its governance fields."""
-        budget = (
+        budget: _InitiationBudget = (
             {"ai_budget_usd": body.ai_budget_usd}
             if "ai_budget_usd" in body.model_fields_set
             else {}

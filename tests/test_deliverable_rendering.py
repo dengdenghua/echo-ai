@@ -7,7 +7,7 @@ format cannot drift with model behaviour.
 
 from __future__ import annotations
 
-from pathlib import Path
+from pathlib import Path, PureWindowsPath
 
 from runtime.core.cerebrum.deliverable_rendering import (
     deliverable_label,
@@ -38,7 +38,19 @@ def test_target_is_absolute_with_forward_slashes() -> None:
     target = deliverable_target("D:\\echo-ai\\docs\\report.md")
 
     assert target == "D:/echo-ai/docs/report.md"
-    assert Path(target).is_absolute()
+    assert Path(target).is_absolute() or PureWindowsPath(target).is_absolute()
+
+
+def test_unc_deliverable_uses_windows_lexical_paths_on_any_host() -> None:
+    path = r"\\server\share\documents\report.md"
+    assert deliverable_target(path) == "//server/share/documents/report.md"
+    assert deliverable_label(path) == "report"
+    assert unique_paths([path, "//SERVER/share/documents/report.md"]) == [path]
+
+
+def test_relative_native_deliverable_resolves_against_local_directory(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    assert deliverable_target("docs/report.md") == (tmp_path / "docs" / "report.md").as_posix()
 
 
 def test_rendered_line_satisfies_the_prompt_contract_validator() -> None:

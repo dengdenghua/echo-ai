@@ -120,6 +120,7 @@ def create_cowork_group_router(
         return decision.can_write if write else decision.can_read
 
     coordination.authorize = _coordination_authorized
+    invite_member: Callable[[str, InviteBody, Request], dict[str, Any]]
     mount_coordination_routes(
         router,
         coordination,

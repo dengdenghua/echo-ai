@@ -20,11 +20,6 @@
       "expand": "dirs"
     },
     {
-      "path": "skills/public",
-      "kind": "skill-catalog",
-      "expand": "dirs"
-    },
-    {
       "path": "prompts",
       "kind": "prompt-assets",
       "expand": "files",
@@ -217,7 +212,7 @@
     {
       "path": "runtime/execution/all_skills/skill-creator",
       "kind": "skill-catalog",
-      "sha256": "sha256:60e469b15fd5ac6d8732922915d19a3062cac2ce90cb2278ad9ed067a8745c98"
+      "sha256": "sha256:573dead029b0ff743b6f0642d2f88a2d1622704f96d5b57f4af7defc7840da34"
     },
     {
       "path": "runtime/execution/all_skills/spreadsheets",
@@ -253,16 +248,6 @@
       "path": "runtime/execution/all_skills/work-report-expert",
       "kind": "skill-catalog",
       "sha256": "sha256:e879c3515de9a5b394dc930f4c792099568a777fd208c9a6fe677ec6d10d5f56"
-    },
-    {
-      "path": "skills/public/code-quality",
-      "kind": "skill-catalog",
-      "sha256": "sha256:40bd1e2927d7026f57e05deffd7aae04797504019484a29af9da4635106cb455"
-    },
-    {
-      "path": "skills/public/typescript-best-practices",
-      "kind": "skill-catalog",
-      "sha256": "sha256:cce4e4b03a7e67ab51c0308e05b17324ec0349e1276007855462f5b5d7e64161"
     },
     {
       "path": "prompts/agent_reminder.yaml",

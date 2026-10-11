@@ -68,6 +68,7 @@ class ThreadTurnQueue:
                 or ticket in seen
                 or not isinstance(thread, str)
                 or not thread
+                or not isinstance(expires, (int, float))
                 or type(expires) not in (int, float)
                 or not math.isfinite(expires)
             ):

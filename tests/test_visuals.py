@@ -101,3 +101,29 @@ def test_http_receipt_auth_and_invalid_tokens():
     protected = FastAPI()
     protected.include_router(create_visuals_router(require_auth=True))
     assert TestClient(protected).post(url, json=body).status_code in {401, 403}
+
+
+def test_http_receipt_token_does_not_authorize_another_owner_or_tenant():
+    from runtime.safety.auth import Identity, IdentityStore
+
+    identities = IdentityStore()
+    for actor, tenant in (("alice", "tenant-a"), ("bob", "tenant-a"), ("outsider", "tenant-b")):
+        identities.add(
+            Identity(actor_id=actor, metadata={"tenant_id": tenant}),
+            api_key_plaintext=f"key-{actor}",
+        )
+    app = FastAPI()
+    app.include_router(create_visuals_router(identity_store=identities, require_auth=True))
+    client = TestClient(app)
+    owner = TenantScope("tenant-a", "alice")
+    receipt = visuals.create_visual(owner, "task")
+    url = f"/api/visuals/{receipt['visual_id']}/receipt"
+    body = {"receipt_token": receipt["receipt_token"], "status": "rendered"}
+    assert client.post(url, json=body).status_code == 401
+    for actor in ("bob", "outsider"):
+        response = client.post(url, json=body, headers={"Authorization": f"Bearer key-{actor}"})
+        assert response.status_code == 404
+        assert visuals.visual_status(receipt["visual_id"], owner, "task")["status"] == "pending"
+    response = client.post(url, json=body, headers={"Authorization": "Bearer key-alice"})
+    assert response.status_code == 200
+    assert visuals.visual_status(receipt["visual_id"], owner, "task")["status"] == "rendered"
