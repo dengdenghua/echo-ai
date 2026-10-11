@@ -457,6 +457,27 @@ class TentacleConfig(BaseModel):
     ws_port: int = Field(default=8765, ge=1, le=65535)
 
 
+class CollaborationRealtimeConfig(BaseModel):
+    """Shared wake-ups and transient presence for independently served workers."""
+
+    model_config = ConfigDict(frozen=True)
+    backend: Literal["local", "redis"] = "local"
+    redis_url: str | None = Field(default=None, repr=False)
+    namespace: str | None = Field(
+        default=None, min_length=1, max_length=64, pattern=r"^[A-Za-z0-9_-]+$"
+    )
+    connect_timeout_seconds: float = Field(default=2.0, ge=0.1, le=10.0)
+    require_distributed: bool = False
+
+    @model_validator(mode="after")
+    def _validate_transport(self) -> CollaborationRealtimeConfig:
+        if self.backend == "redis" and (not self.redis_url or not self.namespace):
+            raise ValueError("collaboration_realtime redis requires redis_url and namespace")
+        if self.require_distributed and self.backend != "redis":
+            raise ValueError("distributed collaboration requires the redis backend")
+        return self
+
+
 class ToolEffectsConfig(BaseModel):
     """Durable receipt plane for at-most-once external tool effects."""
 
@@ -507,6 +528,9 @@ class AgentConfig(BaseModel):
     scheduler: SchedulerConfig = Field(default_factory=SchedulerConfig)
     tentacle: TentacleConfig = Field(default_factory=TentacleConfig)
     tool_effects: ToolEffectsConfig = Field(default_factory=ToolEffectsConfig)
+    collaboration_realtime: CollaborationRealtimeConfig = Field(
+        default_factory=CollaborationRealtimeConfig
+    )
 
     intel_sources: list[IntelSourceConfig] = Field(default_factory=list)
     mcp_servers: list[MCPServerConfigEntry] = Field(default_factory=list)

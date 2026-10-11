@@ -44,6 +44,7 @@ broadcast presence without changing durable room rows or `updated_at`.
 comparisons. Refreshing durable membership overlays the live timestamps while
 retaining server-owned role, mute, removal and delegation decisions. Connection
 and disconnection still commit membership/status and floor transitions when
-needed; these are separate from heartbeats. Timestamps disappear on worker
-restart. Presence is currently local to the socket-owning worker; shared
-multiworker presence and pub/sub are separate pending work.
+needed; these are separate from heartbeats. Timestamps disappear when all workers
+restart. For shared multiworker presence and socket delivery, configure the
+explicit Redis backend described in [shared collaboration delivery](collaboration-realtime.md).
+The default local backend serves one process.

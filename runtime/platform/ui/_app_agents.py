@@ -9,9 +9,21 @@ rooms / team tasks routers with collaboration projections.
 from __future__ import annotations
 
 import logging
+from functools import partial
 from typing import Any
 
 from ._app_context import AppContext
+
+
+def _collaboration_room_messages(app, room_id, limit, after_seq, q) -> list[dict[str, Any]]:
+    collab_store = getattr(app.state, "collaboration_store", None)
+    if collab_store is None:
+        return []
+    if str(q or "").strip():
+        search = getattr(collab_store, "search_messages_for_room", None)
+        return search(room_id, q, limit=limit) if callable(search) else []
+    history = getattr(collab_store, "messages_for_room", None)
+    return history(room_id, limit=limit, after_seq=after_seq) if callable(history) else []
 
 
 def mount_agents(
@@ -156,21 +168,6 @@ def mount_agents(
             ),
         )
 
-    def _collaboration_room_messages(
-        room_id: str,
-        limit: int,
-        after_seq: int,
-        q: str,
-    ) -> list[dict[str, Any]]:
-        collab_store = getattr(app.state, "collaboration_store", None)
-        if collab_store is None:
-            return []
-        if str(q or "").strip():
-            search = getattr(collab_store, "search_messages_for_room", None)
-            return search(room_id, q, limit=limit) if callable(search) else []
-        history = getattr(collab_store, "messages_for_room", None)
-        return history(room_id, limit=limit, after_seq=after_seq) if callable(history) else []
-
     def _project_room_receipt_to_collaboration(
         room_id: str,
         receipt: dict[str, Any],
@@ -182,7 +179,12 @@ def mount_agents(
             payload.pop("room_id", None)
             record(room_id, **payload)
 
+    from ._app_realtime import configure_collaboration_realtime
+
+    configure_collaboration_realtime(ctx)
     team_rooms_router = create_team_rooms_router(
+        shared_bus=ctx.shared_realtime,
+        live_presence=ctx.live_presence,
         identity_store=ctx.identity_store,
         require_auth=ctx.require_auth,
         jwt_secret=ctx.jwt_secret,
@@ -196,7 +198,7 @@ def mount_agents(
         room_delete_projection=_delete_room_from_collaboration,
         room_message_projection=_project_room_message_to_collaboration,
         room_receipt_projection=_project_room_receipt_to_collaboration,
-        room_message_provider=_collaboration_room_messages,
+        room_message_provider=partial(_collaboration_room_messages, app),
         group_store=(
             getattr(ctx.cowork_runtime, "group_store", None)
             if ctx.cowork_runtime is not None

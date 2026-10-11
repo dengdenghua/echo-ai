@@ -26,10 +26,8 @@ from runtime.platform.process.sliding_window_limiter import SlidingWindowLimiter
 from runtime.safety.auth.websocket_auth import WebSocketAuthConfig, authenticate_websocket
 
 from .team_speaker_policy import (
-    _TURN_POLICIES,
     _authorized_to_speak_for,
     _is_moderator,
-    _next_speaker,
     _normalize_participant_role,
     _normalize_speak_mode,
     _normalize_speaker_policy,
@@ -41,10 +39,19 @@ from .team_speaker_policy import (
     apply_floor_yield,
 )
 
+_SOCKET_ERRORS: tuple[type[BaseException], ...] = (
+    ConnectionError,
+    TimeoutError,
+    OSError,
+    RuntimeError,
+)
+
 try:
+    from anyio import BrokenResourceError, ClosedResourceError, EndOfStream
     from fastapi import WebSocket, WebSocketDisconnect
 
     FASTAPI_AVAILABLE = True
+    _SOCKET_ERRORS += (BrokenResourceError, ClosedResourceError, EndOfStream, WebSocketDisconnect)
 except ImportError:  # pragma: no cover
     FASTAPI_AVAILABLE = False
     WebSocket = None  # type: ignore[assignment,misc]
@@ -149,7 +156,7 @@ async def broadcast_authorized_team_sockets(
             raise RuntimeError("WebSocket owner loop is closed")
 
     for _participant_id, socket, owner_loop in revoked:
-        with contextlib.suppress(ConnectionError, TimeoutError, OSError, RuntimeError):
+        with contextlib.suppress(*_SOCKET_ERRORS):
             await _dispatch(socket, owner_loop, close=True)
 
     dead: list[tuple[str, WebSocket]] = []
@@ -158,7 +165,7 @@ async def broadcast_authorized_team_sockets(
             continue
         try:
             await _dispatch(socket, owner_loop, close=False)
-        except (ConnectionError, TimeoutError, OSError, RuntimeError):
+        except _SOCKET_ERRORS:
             dead.append((participant_id, socket))
     if dead:
         with lock:
@@ -198,6 +205,7 @@ class TeamRoomWsContext:
     # foreign-loop socket intermittently deadlocks both loops.
     socket_loops: dict[str, dict[str, asyncio.AbstractEventLoop]] = field(default_factory=dict)
     presence_seen: dict[tuple[str, str], str] = field(default_factory=dict)
+    live_presence: Any = None
     # Twin speaking (optional injection — keeps the gateway a leaf): when the
     # floor lands on a participant who bound a digital-twin agent
     # (``speak_mode == "twin"``), the handler asks this callback for a line
@@ -920,52 +928,9 @@ async def team_room_ws(ctx: TeamRoomWsContext, ws: WebSocket, team_id: str) -> N
     except (ConnectionError, TimeoutError, OSError):  # noqa: BLE001 — WS send failed; cleanup proceeds
         pass
     finally:
-        floor_broadcast: TeamRoomWire | None = None
-        with lock:
-            room = live_sockets.get(team_id)
-            owns_presence = bool(room and room.get(participant_id) is ws)
-            if owns_presence and room is not None:
-                room.pop(participant_id, None)
-                socket_loops.get(team_id, {}).pop(participant_id, None)
-            current = teams.get(team_id)
-            if current is not None and owns_presence:
-                left_at = _now()
-                ctx.presence_seen[(team_id, participant_id)] = left_at
-                participants = [
-                    p.model_copy(
-                        update={
-                            "last_seen_at": left_at,
-                            "status": "offline",
-                        }
-                    )
-                    if p.id == participant_id and p.status != "removed"
-                    else p
-                    for p in current.participants
-                ]
-                updates: dict[str, Any] = {
-                    "participants": participants,
-                    "updated_at": left_at,
-                }
-                # Keep turn-based rooms live if the floor holder drops:
-                # round_robin advances past them, roll_call/moderated
-                # re-open the floor. Also drop them from the hand queue.
-                policy_now = _normalize_speaker_policy(current.speaker_policy)
-                if policy_now in _TURN_POLICIES and current.current_speaker_id == participant_id:
-                    rebuilt = current.model_copy(update={"participants": participants})
-                    updates["current_speaker_id"] = (
-                        _next_speaker(rebuilt, participant_id)
-                        if policy_now == "round_robin"
-                        else None
-                    )
-                if participant_id in (current.floor_requests or []):
-                    updates["floor_requests"] = [
-                        q for q in current.floor_requests if q != participant_id
-                    ]
-                new_team = current.model_copy(update=updates)
-                teams[team_id] = new_team
-                _save()
-                if "current_speaker_id" in updates or "floor_requests" in updates:
-                    floor_broadcast = new_team
+        from ._team_room_departure import disconnect_room
+
+        floor_broadcast = disconnect_room(ctx, ws, team_id, participant_id)
         await _broadcast_presence(team_id)
         if floor_broadcast is not None:
             await _broadcast_floor(team_id, floor_broadcast)

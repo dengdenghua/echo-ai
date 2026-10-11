@@ -55,7 +55,6 @@ from .team_rooms_models import (
 )
 from .team_rooms_ws import (
     TeamRoomWsContext,
-    broadcast_authorized_team_sockets,
     team_room_ws,
 )
 from .team_speaker_policy import (
@@ -69,7 +68,6 @@ from .team_speaker_policy import (
     _normalize_speaker_policy,
     _now,
     _participant_can_speak,
-    _resolve_moderator,
 )
 
 _LOG = logging.getLogger("echo.team_rooms")
@@ -91,6 +89,8 @@ from runtime.sensing._fastapi_guard import require_fastapi  # noqa: E402, I001 â
 def create_team_rooms_router(
     *,
     state_path: Path | None = None,
+    shared_bus: Any = None,
+    live_presence: Any = None,
     identity_store: Any = None,
     require_auth: bool = False,
     jwt_secret: str | None = None,
@@ -147,6 +147,9 @@ def create_team_rooms_router(
     live_sockets: dict[str, dict[str, WebSocket]] = {}
     socket_loops: dict[str, dict[str, asyncio.AbstractEventLoop]] = {}
     presence_seen: dict[tuple[str, str], str] = {}
+    from runtime.memory.cowork.transient_presence import TransientPresence
+
+    live_presence = live_presence or TransientPresence(shared_bus)
 
     def _project_binding_for_room(team: TeamRoomWire) -> tuple[str | None, bool]:
         bound_store = project_store_holder.get("store")
@@ -226,7 +229,7 @@ def create_team_rooms_router(
                 legacy_tenant_for_owner=_legacy_tenant_for_owner,
             )
             teams.clear()
-            teams.update(overlay_room_presence(durable, presence_seen))
+            teams.update(overlay_room_presence(durable, presence_seen, live_presence))
             persisted_teams = dict(durable)
 
     def _assert_room_creatable(team_id: str, tenant_id: str, owner_id: str) -> None:
@@ -276,7 +279,7 @@ def create_team_rooms_router(
             legacy_tenant_for_owner=_legacy_tenant_for_owner,
         )
         teams.clear()
-        teams.update(overlay_room_presence(merged, presence_seen))
+        teams.update(overlay_room_presence(merged, presence_seen, live_presence))
         persisted_teams = dict(merged)
         if room_projection is not None:
             for team in list(merged.values()):
@@ -402,68 +405,21 @@ def create_team_rooms_router(
         await _broadcast_team_update(team_id, updated)
         return _public_room_payload(updated)
 
-    def _presence_payload(team_id: str) -> dict[str, Any]:
-        team = teams.get(team_id)
-        participants = team.participants if team else []
-        online_ids = set(live_sockets.get(team_id, {}).keys())
-        return {
-            "type": "presence",
-            "team_id": team_id,
-            "participants": [
-                p.model_dump() for p in participants if p.status == "active" and p.id in online_ids
-            ],
-            "count": len(online_ids),
-            "server_time": _now(),
-        }
+    from ._team_room_broadcast import TeamRoomBroadcast
 
-    async def _broadcast(
-        team_id: str,
-        payload: dict[str, Any] | Callable[[], dict[str, Any]],
-        *,
-        exclude: str | None = None,
-        include: str | None = None,
-    ) -> None:
-        await broadcast_authorized_team_sockets(
-            team_id=team_id,
-            payload=payload,
-            teams=teams,
-            lock=lock,
-            live_sockets=live_sockets,
-            socket_loops=socket_loops,
-            refresh=_refresh_state,
-            exclude=exclude,
-            include=include,
-        )
-
-    async def _broadcast_presence(team_id: str) -> None:
-        await _broadcast(team_id, lambda: _presence_payload(team_id))
-
-    async def _broadcast_team_update(team_id: str, team: TeamRoomWire) -> None:
-        await _broadcast(
-            team_id,
-            {
-                "type": "team:update",
-                "team_id": team_id,
-                "team": _public_room_payload(team),
-                "server_time": _now(),
-            },
-        )
-
-    async def _broadcast_floor(team_id: str, team: TeamRoomWire) -> None:
-        """Push the current turn-engine floor state so clients can render
-        whose turn it is and the raised-hands queue."""
-        await _broadcast(
-            team_id,
-            {
-                "type": "floor",
-                "team_id": team_id,
-                "speaker_policy": _normalize_speaker_policy(team.speaker_policy),
-                "current_speaker_id": getattr(team, "current_speaker_id", None),
-                "moderator_id": _resolve_moderator(team),
-                "floor_requests": list(getattr(team, "floor_requests", []) or []),
-                "server_time": _now(),
-            },
-        )
+    broadcaster = TeamRoomBroadcast(
+        teams=teams,
+        lock=lock,
+        sockets=live_sockets,
+        loops=socket_loops,
+        refresh=_refresh_state,
+        room_payload=_public_room_payload,
+        seen=presence_seen,
+        live=live_presence,
+        bus=shared_bus,
+    )
+    _broadcast, _broadcast_presence = broadcaster.broadcast, broadcaster.presence
+    _broadcast_team_update, _broadcast_floor = broadcaster.team_update, broadcaster.floor
 
     def _active_participant(team_id: str, participant_id: str) -> TeamParticipantWire | None:
         team = teams.get(team_id)
@@ -577,6 +533,7 @@ def create_team_rooms_router(
             save=_save,
             delete_reserved_state=_delete_reserved_team_state,
             delete_projection=_project_room_delete,
+            notify_deleted=broadcaster.deleted,
         )
 
     def _bind_project_store(bound_store: Any) -> None:
@@ -643,6 +600,7 @@ def create_team_rooms_router(
             return _public_room_payload(updated)
 
     router.broadcast = _broadcast
+    router.live_presence = live_presence
     router.create_team_from_payload = _create_team_from_payload
     router.create_team_from_payload_exact = _create_team_from_payload_exact
     router.delete_team_from_payload = delete_team
@@ -913,6 +871,7 @@ def create_team_rooms_router(
         live_sockets=live_sockets,
         socket_loops=socket_loops,
         presence_seen=presence_seen,
+        live_presence=live_presence,
         ws_auth=auth_config,
         save=_save,
         broadcast=_broadcast,

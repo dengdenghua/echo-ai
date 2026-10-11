@@ -46,4 +46,6 @@ class AppContext:
     team_rooms_router: Any = None
     team_tasks_router: Any = None
     realtime_runtime: Any = None
+    shared_realtime: Any = None
+    live_presence: Any = None
     allow_approval_bypass: bool = False

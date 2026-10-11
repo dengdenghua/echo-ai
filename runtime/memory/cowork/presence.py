@@ -32,6 +32,9 @@ from runtime.memory.cowork.ids import require_cowork_id
 from runtime.platform.io.sqlite import connect_closing
 from runtime.platform.io.sqlite_schema import Migration, add_column, configure, migrate
 
+from ._presence_cache import presence_cache
+from .transient_presence import TransientPresence
+
 _SCHEMA = """
 CREATE TABLE IF NOT EXISTS read_state (
     thread_id    TEXT NOT NULL,
@@ -87,7 +90,9 @@ def _now_iso() -> str:
 class PresenceStore:
     """Read receipts + presence heartbeats, keyed by (thread, member)."""
 
-    def __init__(self, base_dir: Path | str | None = None) -> None:
+    def __init__(
+        self, base_dir: Path | str | None = None, *, live_presence: TransientPresence | None = None
+    ) -> None:
         if base_dir is None:
             from runtime.platform.process.paths import app_paths
 
@@ -96,6 +101,7 @@ class PresenceStore:
         self._dir.mkdir(parents=True, exist_ok=True)
         self._db = self._dir / "presence.db"
         self._lock = threading.Lock()
+        self._live = presence_cache(self._dir, live_presence)
         with self._lock, self._connect() as conn:
             migrate(conn, _MIGRATIONS, name="presence")
 
@@ -143,14 +149,7 @@ class PresenceStore:
         thread_id = require_cowork_id(thread_id, label="thread_id")
         member_id = require_cowork_id(member_id, label="member_id")
         ts = now or _now_iso()
-        with self._lock, self._connect() as conn:
-            conn.execute(
-                "INSERT INTO read_state(thread_id, member_id, last_seen_at, updated_at) "
-                "VALUES (?, ?, ?, ?) "
-                "ON CONFLICT(thread_id, member_id) DO UPDATE SET "
-                "last_seen_at=excluded.last_seen_at, updated_at=excluded.updated_at",
-                (thread_id, member_id, ts, ts),
-            )
+        self._live.record("cowork", thread_id, member_id, ts)
 
     def get(self, thread_id: str, member_id: str) -> dict[str, Any]:
         """``{last_read, last_seen_at}`` for one member (defaults if unseen)."""
@@ -158,15 +157,17 @@ class PresenceStore:
         member_id = require_cowork_id(member_id, label="member_id")
         with self._lock, self._connect() as conn:
             row = conn.execute(
-                "SELECT last_read, last_read_message_seq, last_seen_at FROM read_state WHERE thread_id=? AND member_id=?",
+                "SELECT last_read, last_read_message_seq FROM read_state WHERE thread_id=? AND member_id=?",
                 (thread_id, member_id),
             ).fetchone()
+        self._live.ensure_started()
+        seen = self._live.values("cowork", thread_id).get(member_id, {}).get("last_seen_at")
         if not row:
-            return {"last_read": 0, "last_read_message_seq": 0, "last_seen_at": None}
+            return {"last_read": 0, "last_read_message_seq": 0, "last_seen_at": seen}
         return {
             "last_read": int(row[0]),
             "last_read_message_seq": int(row[1]),
-            "last_seen_at": row[2],
+            "last_seen_at": seen,
         }
 
     def all(self, thread_id: str) -> dict[str, dict[str, Any]]:
@@ -174,18 +175,30 @@ class PresenceStore:
         thread_id = require_cowork_id(thread_id, label="thread_id")
         with self._lock, self._connect() as conn:
             rows = conn.execute(
-                "SELECT member_id, last_read, last_read_message_seq, last_seen_at FROM read_state WHERE thread_id=?",
+                "SELECT member_id, last_read, last_read_message_seq FROM read_state WHERE thread_id=?",
                 (thread_id,),
             ).fetchall()
         result: dict[str, dict[str, Any]] = {}
         for r in rows:
-            value: dict[str, Any] = {"last_read": int(r[1]), "last_seen_at": r[3]}
+            value: dict[str, Any] = {"last_read": int(r[1]), "last_seen_at": None}
             # Keep the legacy shape stable for members who have never used the
             # message cursor; expose the new field once it carries information.
             if int(r[2]) > 0:
                 value["last_read_message_seq"] = int(r[2])
             result[r[0]] = value
+        self._live.ensure_started()
+        for member_id, live in self._live.values("cowork", thread_id).items():
+            result.setdefault(member_id, {"last_read": 0})["last_seen_at"] = live["last_seen_at"]
         return result
+
+    def online_members(self, thread_id: str) -> set[str]:
+        """Monotonic TTL also bounds heartbeats with a future wall timestamp."""
+        thread_id = require_cowork_id(thread_id, label="thread_id")
+        return {
+            member
+            for member, value in self._live.values("cowork", thread_id).items()
+            if value["online"]
+        }
 
 
 def _is_online(last_seen_at: str | None, now: datetime, window_s: int) -> bool:
@@ -232,6 +245,7 @@ def group_presence(
     join_seq = _join_seq_by_member(events)
     state = group_store.state(thread_id)
     recorded = presence_store.all(thread_id)
+    live_members = presence_store.online_members(thread_id)
 
     out: list[MemberPresence] = []
     for member in state.roster:
@@ -250,7 +264,8 @@ def group_presence(
                 member_id=member.id,
                 last_read=int(rec["last_read"]),
                 last_seen_at=rec["last_seen_at"],
-                online=_is_online(rec["last_seen_at"], current, online_window_s),
+                online=member.id in live_members
+                and _is_online(rec["last_seen_at"], current, online_window_s),
                 unread=unread,
                 last_read_message_seq=int(rec.get("last_read_message_seq", 0)),
             )

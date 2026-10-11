@@ -217,6 +217,9 @@ mantle-ssh = [
 hearts-redis = [
     "redis>=5.0",
 ]
+collaboration-redis = [
+    "redis>=5.0",
+]
 hearts-etcd = [
     # Legacy optional adapter. PyPI has no 0.2 release; 0.1.6 is the latest
     # published version. Keep the constraint honest so every extra resolves.

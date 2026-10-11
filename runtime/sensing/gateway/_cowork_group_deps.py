@@ -145,7 +145,7 @@ def _make_ensure_project_for_thread(
 
 
 def _make_lazy_room_stores(
-    *, group_store: GroupStore, room_message_store: Any
+    *, group_store: GroupStore, room_message_store: Any, live_presence: Any = None
 ) -> tuple[Callable[[], Any], Callable[[], Any]]:
     """Presence and room-transcript stores, built on first use, once per router."""
     _presence_holder: dict[str, Any] = {}
@@ -155,7 +155,7 @@ def _make_lazy_room_stores(
         if store is None:
             from runtime.memory.cowork.presence import PresenceStore
 
-            store = PresenceStore(base_dir=group_store.base_dir)
+            store = PresenceStore(base_dir=group_store.base_dir, live_presence=live_presence)
             _presence_holder["v"] = store
         return store
 
@@ -290,7 +290,9 @@ def build_cowork_group_deps(
         return AsyncWorkStore(base_dir=group_store.base_dir, group_store=group_store)
 
     _presence_store, _room_message_store = _make_lazy_room_stores(
-        group_store=group_store, room_message_store=room_message_store
+        group_store=group_store,
+        room_message_store=room_message_store,
+        live_presence=getattr(team_rooms_router, "live_presence", None),
     )
 
     session_view = CoworkGroupSessionView(
