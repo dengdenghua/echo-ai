@@ -17,6 +17,7 @@ vi.mock("sonner", () => ({ toast: toastMocks }));
 vi.mock("@/core/auth/api", () => ({
   authHeaders: () => ({ Authorization: "Bearer test-token" }),
   getToken: () => "test-token",
+  currentActorId: () => "test-owner",
   jsonAuthHeaders: () => ({
     Authorization: "Bearer test-token",
     "Content-Type": "application/json",
@@ -25,6 +26,7 @@ vi.mock("@/core/auth/api", () => ({
 vi.mock("@/core/config", () => ({
   getBackendBaseURL: () => "",
   getEchoBaseURL: () => "",
+  getBackendWebSocketBaseURL: () => "ws://localhost",
 }));
 vi.mock("@/components/workspace/create-project-dialog", () => ({
   CreateProjectDialog: ({ open }: { open: boolean }) =>

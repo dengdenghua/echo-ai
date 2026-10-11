@@ -9293,6 +9293,20 @@
             "title": "Approved",
             "type": "boolean"
           },
+          "expected_approval_version": {
+            "anyOf": [
+              {
+                "maxLength": 64,
+                "minLength": 64,
+                "pattern": "^[0-9a-f]{64}$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Expected Approval Version"
+          },
           "reason": {
             "anyOf": [
               {

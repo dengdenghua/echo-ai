@@ -10,6 +10,10 @@ export interface UpdateSubscription {
   updateKind: string;
 }
 
+function isUpdateFrame(value: unknown): value is Record<string, unknown> {
+  return value !== null && typeof value === "object" && !Array.isArray(value);
+}
+
 /** Hints invalidate authorized HTTP reads; frames never contain source data. */
 export function subscribeAuthenticatedUpdates(
   subscription: UpdateSubscription,
@@ -50,11 +54,9 @@ export function subscribeAuthenticatedUpdates(
       try {
         const frame: unknown = JSON.parse(String(event.data));
         if (
-          frame &&
-          typeof frame === "object" &&
+          isUpdateFrame(frame) &&
           subscription.idField in frame &&
-          (frame as Record<string, unknown>)[subscription.idField] ===
-            subscription.id &&
+          frame[subscription.idField] === subscription.id &&
           "type" in frame &&
           (frame.type === subscription.readyKind ||
             frame.type === subscription.updateKind)

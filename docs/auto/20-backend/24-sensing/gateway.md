@@ -141,6 +141,7 @@ tier: "standard"
 | `_realtime_turn_lifecycle_helpers.py` | Shared helpers for the realtime turn lifecycle. |
 | `_realtime_turn_lifecycle_resume.py` | Resume-intent persistence for the realtime turn lifecycle. |
 | `_realtime_turn_start_phases.py` | Straight-line startup phases of ``realtime_turn_lifecycle._start_turn``. |
+| `_task_approval_router.py` | One task approval route, with optional consent binding for upgraded clients. |
 | `_team_room_binding.py` | Canonical Team Room thread binding helpers. |
 | `_team_room_broadcast.py` | Local socket delivery plus tenant-fenced cross-worker room wake-ups. |
 | `_team_room_creation.py` | Atomic Team Room creation primitives. |
@@ -741,6 +742,13 @@ tier: "standard"
 | func | `def turn_for_user_item_id(logs_root, thread_id, user_item_id)` | Return the durable turn that already owns one client item id. |
 | func | `def turn_input_text(params)` |  |
 | func | `def existing_user_item_text(turn)` |  |
+
+### `_task_approval_router.py`
+
+| Kind | Symbol | Doc |
+| --- | --- | --- |
+| class | `class TaskApprovalDecisionRequest(BaseModel)` |  |
+| func | `def register_task_approval_route(router, auth, store, supervisor, require_access)` |  |
 
 ### `_team_room_binding.py`
 
@@ -1819,7 +1827,6 @@ tier: "standard"
 
 | Kind | Symbol | Doc |
 | --- | --- | --- |
-| class | `class TaskApprovalDecisionRequest(BaseModel)` |  |
 | class | `class TaskTakeoverRequest(BaseModel)` |  |
 | class | `class TaskResumeExecutionRequest(BaseModel)` | One explicit operator request to continue a checkpointed objective. |
 | func | `def create_task_runs_router(supervisor, identity_store, require_auth, jwt_secret, jwt_issuer, jwt_audience)` |  |

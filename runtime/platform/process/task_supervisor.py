@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hmac
 import socket
 import threading
 import time
@@ -8,6 +9,7 @@ from pathlib import Path
 from typing import Any
 from uuid import uuid4
 
+from runtime.platform.process._task_approval_identity import approval_request_version
 from runtime.platform.process._task_supervisor_analysis import (
     build_task_recovery_queue,
     build_task_runs_overview,
@@ -350,6 +352,7 @@ class TaskSupervisor:
         approved: bool,
         decided_by: str | None = None,
         reason: str = "",
+        expected_approval_version: str | None = None,
         resume_status: TaskRunStatus = TaskRunStatus.RUNNING,
     ) -> TaskRunRecord:
         now = _now_iso()
@@ -362,6 +365,10 @@ class TaskSupervisor:
         def _mutate(current: TaskRunRecord) -> TaskRunRecord:
             if current.status != TaskRunStatus.WAITING_APPROVAL:
                 raise ValueError("task is not waiting for approval")
+            if expected_approval_version is not None and not hmac.compare_digest(
+                expected_approval_version, approval_request_version(current)
+            ):
+                raise ValueError("approval request changed; refresh and review it again")
             self._assert_current_holder(current)
             metadata = dict(current.metadata)
             if bool(metadata.get("capability_denied")):

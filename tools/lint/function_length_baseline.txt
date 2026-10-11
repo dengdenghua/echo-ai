@@ -39,7 +39,7 @@ runtime/sensing/gateway/stub_router.py::create_stub_router	552
 runtime/sensing/gateway/plugins_router.py::create_plugins_router	546
 runtime/sensing/gateway/subagents_router.py::create_subagents_router	543
 runtime/sensing/gateway/team_rooms_ws.py::team_room_ws	476
-runtime/sensing/gateway/task_runs_router.py::create_task_runs_router	530
+runtime/sensing/gateway/task_runs_router.py::create_task_runs_router	508
 runtime/platform/ui/_reflex_admin_editor.py::register_reflex_editor_endpoints	517
 runtime/cloud_edge/router.py::create_cloud_edge_router	495
 runtime/sensing/gateway/_realtime_cerebrum_project_os.py::_drive_project_os	492

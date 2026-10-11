@@ -21524,6 +21524,8 @@ export interface components {
         TaskApprovalDecisionRequest: {
             /** Approved */
             approved: boolean;
+            /** Expected Approval Version */
+            expected_approval_version?: string | null;
             /** Reason */
             reason?: string | null;
         };
