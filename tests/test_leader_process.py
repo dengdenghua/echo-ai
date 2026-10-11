@@ -284,7 +284,8 @@ def test_loopback_rejects_client_with_wrong_token(
         leader_socket.write_text(json.dumps(endpoint), encoding="utf-8")
         with (
             LeaderClient.connect(leader_socket) as client,
-            pytest.raises((LeaderError, ConnectionResetError)),
+            # Windows may report a peer's authentication rejection as WSAECONNABORTED.
+            pytest.raises((LeaderError, ConnectionResetError, ConnectionAbortedError)),
         ):
             client.call("ping", {})
     finally:
