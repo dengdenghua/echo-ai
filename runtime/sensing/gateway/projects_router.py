@@ -60,6 +60,8 @@ from ._projects_models import (
 from ._projects_patrol import register_project_patrol
 from ._projects_read_endpoints import _register_project_reads
 from ._projects_router_deps import ProjectsDeps, build_projects_deps
+from ._projects_standing_endpoints import register_project_standing_authorization
+from ._projects_standing_service import StandingProjectService
 
 
 def _claim_active(exc: ProjectClaimActiveError) -> HTTPException:
@@ -117,13 +119,15 @@ def create_projects_router(
         task_supervisor
         or TaskSupervisor.from_path(d.project_store._db.with_name("project-http-tasks.json"))
     )
+    standing = StandingProjectService(d, dispatcher, identity_store)
     router = APIRouter(
-        tags=["projectos"], dependencies=[Depends(_auth_dep)], lifespan=dispatcher.lifespan
+        tags=["projectos"], dependencies=[Depends(_auth_dep)], lifespan=standing.lifespan
     )
 
     # Registration order is FastAPI's path-matching priority — keep it.
     _register_project_reads(router, d)
     register_project_patrol(router, d)
+    register_project_standing_authorization(router, d)
     _register_process_timeline(router, d)
     _register_project_creation(router, d)
     _register_project_binding(router, d)

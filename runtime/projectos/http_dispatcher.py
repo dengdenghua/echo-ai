@@ -79,7 +79,12 @@ class ProjectHTTPDispatcher:
         }
 
     def submit(
-        self, project: Any, worker: Callable[[], dict[str, Any]], *, thread_id: str = ""
+        self,
+        project: Any,
+        worker: Callable[[], dict[str, Any]],
+        *,
+        thread_id: str = "",
+        standing_grant_id: str = "",
     ) -> dict[str, Any]:
         task_id = self.task_id(project)
         with self._lock:
@@ -104,6 +109,7 @@ class ProjectHTTPDispatcher:
                     "http_request_id": request_id,
                     "http_cancel_requested": False,
                     "http_result": None,
+                    "standing_grant_id": standing_grant_id,
                 },
             )
             source = CancellationSource()
@@ -132,7 +138,11 @@ class ProjectHTTPDispatcher:
         }
 
     def cancel(
-        self, project: Any, *, reason: str = "cancelled by operator"
+        self,
+        project: Any,
+        *,
+        reason: str = "cancelled by operator",
+        standing_grant_id: str = "",
     ) -> dict[str, Any] | None:
         task_id = self.task_id(project)
         task = self.supervisor.store.get(task_id)
@@ -149,6 +159,7 @@ class ProjectHTTPDispatcher:
                     "metadata": {
                         **current.metadata,
                         "http_cancel_requested": True,
+                        "http_cancel_standing_grant_id": standing_grant_id,
                     }
                 },
                 deep=True,

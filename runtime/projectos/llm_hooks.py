@@ -23,6 +23,7 @@ from typing import Any
 from uuid import uuid4
 
 from runtime.projectos.model import ROLE_FOR_TASK, Milestone, Task, normalize_team_mode
+from runtime.projectos.standing_model_calls import project_model_call
 
 _LOG = logging.getLogger("echo.projectos.hooks")
 DEFAULT_MODEL = "claude-haiku-4-5"
@@ -140,13 +141,14 @@ def parse_tasks(text: str, milestone_id: str) -> list[Task]:
 def _llm_text(router: Any, prompt: str, *, model: str, max_tokens: int = 1500) -> str:
     from runtime.sensing.model_router import Message, ModelRequest
 
-    resp = router.call(
+    resp = project_model_call(
+        router,
         ModelRequest(
             model=model,
             messages=[Message(role="user", content=prompt)],
             max_tokens=max_tokens,
             temperature=0.2,
-        )
+        ),
     )
     return resp.text or ""
 
@@ -353,13 +355,14 @@ def spec_qa(router: Any = None, *, model: str = DEFAULT_MODEL) -> Callable[[Task
             from runtime.sensing.model_router import Message, ModelRequest
 
             text = (
-                router.call(
+                project_model_call(
+                    router,
                     ModelRequest(
                         model=model,
                         messages=[Message(role="user", content=prompt)],
                         max_tokens=300,
                         temperature=0.0,
-                    )
+                    ),
                 ).text
                 or ""
             )

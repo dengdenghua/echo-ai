@@ -14,9 +14,9 @@ from pathlib import Path
 from typing import Any
 from uuid import uuid4
 
-from runtime.platform.integrity.chain import GENESIS, seal_step
 from runtime.platform.io.sqlite import connect_closing
 from runtime.platform.io.sqlite_schema import configure, migrate
+from runtime.projectos._store_event_write import insert_sealed_event
 from runtime.projectos._store_helpers import (
     _MAX_NAME_LENGTH,
     _available_milestone_id,
@@ -417,36 +417,7 @@ class ProjectStore(
                 )
             if self._project_doc_for_scope(conn, project, scope) is None:
                 raise PermissionError("project belongs to another tenant or does not exist")
-            last = conn.execute(
-                "SELECT seq, seal FROM project_events WHERE project_id=? ORDER BY seq DESC LIMIT 1",
-                (project,),
-            ).fetchone()
-            seq = (int(last[0]) + 1) if last else 1
-            prev_seal = str(last[1]) if last and last[1] else GENESIS
-            event["seq"] = seq
-            event["seal_prev"] = prev_seal
-            event["seal"] = seal_step(
-                prev_seal,
-                scope=project,
-                seq=seq,
-                record_id=event["id"],
-                payload=json.dumps(event["payload"], ensure_ascii=False),
-                ts=event["created_at"],
-            )
-            conn.execute(
-                "INSERT INTO project_events(id, project_id, kind, payload, created_at, "
-                "seq, seal_prev, seal) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
-                (
-                    event["id"],
-                    event["project_id"],
-                    event["kind"],
-                    json.dumps(event["payload"], ensure_ascii=False),
-                    event["created_at"],
-                    seq,
-                    event["seal_prev"],
-                    event["seal"],
-                ),
-            )
+            insert_sealed_event(conn, event)
         return event
 
     def events_for_project(

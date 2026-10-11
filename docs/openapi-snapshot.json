@@ -8690,6 +8690,250 @@
         "title": "SplitRequest",
         "type": "object"
       },
+      "StandingConfirmBody": {
+        "additionalProperties": false,
+        "properties": {
+          "confirmed": {
+            "const": true,
+            "title": "Confirmed",
+            "type": "boolean"
+          },
+          "review_id": {
+            "maxLength": 128,
+            "minLength": 1,
+            "title": "Review Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "review_id",
+          "confirmed"
+        ],
+        "title": "StandingConfirmBody",
+        "type": "object"
+      },
+      "StandingConfirmationResponse": {
+        "properties": {
+          "grant_id": {
+            "title": "Grant Id",
+            "type": "string"
+          },
+          "replayed": {
+            "title": "Replayed",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "grant_id",
+          "replayed"
+        ],
+        "title": "StandingConfirmationResponse",
+        "type": "object"
+      },
+      "StandingGrantResponse": {
+        "properties": {
+          "budget_basis": {
+            "const": "cumulative_project_spend",
+            "title": "Budget Basis",
+            "type": "string"
+          },
+          "grant_id": {
+            "title": "Grant Id",
+            "type": "string"
+          },
+          "granted_by": {
+            "title": "Granted By",
+            "type": "string"
+          },
+          "limit_usd": {
+            "exclusiveMinimum": 0.0,
+            "title": "Limit Usd",
+            "type": "number"
+          },
+          "owner_id": {
+            "title": "Owner Id",
+            "type": "string"
+          },
+          "phase_fingerprints": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Phase Fingerprints",
+            "type": "array"
+          },
+          "phase_ids": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Phase Ids",
+            "type": "array"
+          },
+          "project_id": {
+            "title": "Project Id",
+            "type": "string"
+          },
+          "review_id": {
+            "title": "Review Id",
+            "type": "string"
+          },
+          "tenant_id": {
+            "title": "Tenant Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "grant_id",
+          "project_id",
+          "owner_id",
+          "tenant_id",
+          "granted_by",
+          "review_id",
+          "phase_ids",
+          "phase_fingerprints",
+          "limit_usd",
+          "budget_basis"
+        ],
+        "title": "StandingGrantResponse",
+        "type": "object"
+      },
+      "StandingReviewBody": {
+        "additionalProperties": false,
+        "properties": {
+          "limit_usd": {
+            "exclusiveMinimum": 0.0,
+            "title": "Limit Usd",
+            "type": "number"
+          },
+          "phase_ids": {
+            "items": {
+              "type": "string"
+            },
+            "maxItems": 100,
+            "minItems": 1,
+            "title": "Phase Ids",
+            "type": "array"
+          }
+        },
+        "required": [
+          "phase_ids",
+          "limit_usd"
+        ],
+        "title": "StandingReviewBody",
+        "type": "object"
+      },
+      "StandingReviewResponse": {
+        "properties": {
+          "budget_basis": {
+            "const": "cumulative_project_spend",
+            "title": "Budget Basis",
+            "type": "string"
+          },
+          "expires_at": {
+            "title": "Expires At",
+            "type": "number"
+          },
+          "limit_usd": {
+            "exclusiveMinimum": 0.0,
+            "title": "Limit Usd",
+            "type": "number"
+          },
+          "owner_id": {
+            "title": "Owner Id",
+            "type": "string"
+          },
+          "phases": {
+            "items": {
+              "$ref": "#/components/schemas/StandingReviewedPhase"
+            },
+            "title": "Phases",
+            "type": "array"
+          },
+          "project_id": {
+            "title": "Project Id",
+            "type": "string"
+          },
+          "review_id": {
+            "title": "Review Id",
+            "type": "string"
+          },
+          "tenant_id": {
+            "title": "Tenant Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "review_id",
+          "project_id",
+          "owner_id",
+          "tenant_id",
+          "phases",
+          "limit_usd",
+          "expires_at",
+          "budget_basis"
+        ],
+        "title": "StandingReviewResponse",
+        "type": "object"
+      },
+      "StandingReviewedPhase": {
+        "properties": {
+          "ai_budget_usd": {
+            "title": "Ai Budget Usd",
+            "type": "number"
+          },
+          "fingerprint": {
+            "title": "Fingerprint",
+            "type": "string"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "fingerprint",
+          "ai_budget_usd"
+        ],
+        "title": "StandingReviewedPhase",
+        "type": "object"
+      },
+      "StandingRevocationResponse": {
+        "properties": {
+          "revocation_id": {
+            "title": "Revocation Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "revocation_id"
+        ],
+        "title": "StandingRevocationResponse",
+        "type": "object"
+      },
+      "StandingStateResponse": {
+        "properties": {
+          "grant": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/StandingGrantResponse"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "grant"
+        ],
+        "title": "StandingStateResponse",
+        "type": "object"
+      },
       "StartRecordingRequest": {
         "properties": {
           "description": {
@@ -49251,6 +49495,192 @@
           }
         },
         "summary": "Run",
+        "tags": [
+          "projectos"
+        ]
+      }
+    },
+    "/api/projects/{project_id}/standing-authorization": {
+      "delete": {
+        "operationId": "revoke_api_projects__project_id__standing_authorization_delete",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "title": "Project Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StandingRevocationResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Revoke",
+        "tags": [
+          "projectos"
+        ]
+      },
+      "get": {
+        "operationId": "state_api_projects__project_id__standing_authorization_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "title": "Project Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StandingStateResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "State",
+        "tags": [
+          "projectos"
+        ]
+      }
+    },
+    "/api/projects/{project_id}/standing-authorization/confirm": {
+      "post": {
+        "operationId": "confirm_api_projects__project_id__standing_authorization_confirm_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "title": "Project Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/StandingConfirmBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StandingConfirmationResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Confirm",
+        "tags": [
+          "projectos"
+        ]
+      }
+    },
+    "/api/projects/{project_id}/standing-authorization/review": {
+      "post": {
+        "operationId": "review_api_projects__project_id__standing_authorization_review_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "title": "Project Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/StandingReviewBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StandingReviewResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Review",
         "tags": [
           "projectos"
         ]

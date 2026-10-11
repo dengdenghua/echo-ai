@@ -8,6 +8,7 @@ from runtime.platform.process.task_supervisor import TaskLeaseConflict
 from runtime.projectos.governance import INITIATION_REQUIRED_STATES, initiation_state
 from runtime.projectos.http_dispatcher import ProjectHTTPDispatcher
 from runtime.projectos.http_models import ProjectExecutionStateResponse
+from runtime.projectos.standing_review import standing_authorization_state
 
 from ._projects_router_deps import ProjectsDeps
 
@@ -97,6 +98,21 @@ def register_project_http_execution(
     @router.post("/api/projects/{project_id}/execution/cancel")
     def cancel_execution(request: Request, project_id: str) -> ProjectExecutionStateResponse:
         project = _project_or_404(request, project_id)
-        return ProjectExecutionStateResponse(execution=dispatcher.cancel(project))
+        grant = (
+            standing_authorization_state(
+                d.project_store,
+                project_id,
+                actor_id=project.owner_id,
+                tenant_id=project.tenant_id,
+            )
+            if project.owner_id and project.tenant_id
+            else None
+        )
+        return ProjectExecutionStateResponse(
+            execution=dispatcher.cancel(
+                project,
+                standing_grant_id=grant["grant_id"] if grant else "",
+            )
+        )
 
     return _submit

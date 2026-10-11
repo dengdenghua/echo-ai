@@ -30,6 +30,7 @@ from runtime.projectos._default_plan import (
     stub_generate_milestones as stub_generate_milestones,
 )
 from runtime.projectos._engine_interventions import ProjectInterventionMixin
+from runtime.projectos._engine_task_interruptions import handle_decomposition_failure
 from runtime.projectos.model import (
     ROLE_FOR_TASK,
     TEAM_MODES_AI,
@@ -554,23 +555,8 @@ class ProjectEngine(ProjectInterventionMixin):
             ):
                 raise ValueError(f"任务拆解超过已审批数量上限：{limit}；未启动执行")
         except Exception as exc:  # noqa: BLE001 — decompose hook failure should block, not crash tick
-            events.append(f"tasks_decompose_failed:{ms.id}")
-            saved_ms, committed = self.store.finalize_milestone_decomposition(
-                project_id,
-                ms.id,
-                [],
-                claim_id,
-                blocked=True,
-            )
-            if committed and project is not None:
-                ms.status = saved_ms.status if saved_ms is not None else "blocked"
-                self._block_project(project, ms.id, events, reason="decompose_failed")
-            elif not committed:
-                events.append(f"milestone_stale_decompose_failure_ignored:{ms.id}")
-            self._audit(
-                project_id,
-                "project.decompose_failed",
-                {"milestone_id": ms.id, "error": _error_text(exc)},
+            handle_decomposition_failure(
+                self, project_id, project, ms, claim_id, events, _error_text(exc)
             )
             return
         if not new_tasks:

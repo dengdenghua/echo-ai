@@ -71,4 +71,16 @@ def _adopt_v1(conn: sqlite3.Connection) -> None:
     _migrate_project_event_seal_columns(conn)
 
 
-_MIGRATIONS = (Migration(1, _adopt_v1),)
+def _migrate_project_event_decision_index(conn: sqlite3.Connection) -> None:
+    # Long-lived grants must remain cheap to find after months of unrelated
+    # audit events; candidate sweeps and scoped decision reads filter by kind.
+    conn.execute(
+        "CREATE INDEX IF NOT EXISTS idx_project_event_decisions "
+        "ON project_events(kind, project_id, seq)"
+    )
+
+
+_MIGRATIONS = (
+    Migration(1, _adopt_v1),
+    Migration(2, _migrate_project_event_decision_index),
+)

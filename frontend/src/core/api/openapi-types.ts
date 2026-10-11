@@ -13560,6 +13560,58 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/projects/{project_id}/standing-authorization": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** State */
+        get: operations["state_api_projects__project_id__standing_authorization_get"];
+        put?: never;
+        post?: never;
+        /** Revoke */
+        delete: operations["revoke_api_projects__project_id__standing_authorization_delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/projects/{project_id}/standing-authorization/confirm": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Confirm */
+        post: operations["confirm_api_projects__project_id__standing_authorization_confirm_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/projects/{project_id}/standing-authorization/review": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Review */
+        post: operations["review_api_projects__project_id__standing_authorization_review_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/projects/{project_id}/tasks/{task_id}/intervene": {
         parameters: {
             query?: never;
@@ -21271,6 +21323,98 @@ export interface components {
             model_name?: string | null;
             /** Task */
             task: string;
+        };
+        /** StandingConfirmBody */
+        StandingConfirmBody: {
+            /**
+             * Confirmed
+             * @constant
+             */
+            confirmed: true;
+            /** Review Id */
+            review_id: string;
+        };
+        /** StandingConfirmationResponse */
+        StandingConfirmationResponse: {
+            /** Grant Id */
+            grant_id: string;
+            /** Replayed */
+            replayed: boolean;
+        };
+        /** StandingGrantResponse */
+        StandingGrantResponse: {
+            /**
+             * Budget Basis
+             * @constant
+             */
+            budget_basis: "cumulative_project_spend";
+            /** Grant Id */
+            grant_id: string;
+            /** Granted By */
+            granted_by: string;
+            /** Limit Usd */
+            limit_usd: number;
+            /** Owner Id */
+            owner_id: string;
+            /** Phase Fingerprints */
+            phase_fingerprints: string[];
+            /** Phase Ids */
+            phase_ids: string[];
+            /** Project Id */
+            project_id: string;
+            /** Review Id */
+            review_id: string;
+            /** Tenant Id */
+            tenant_id: string;
+        };
+        /** StandingReviewBody */
+        StandingReviewBody: {
+            /** Limit Usd */
+            limit_usd: number;
+            /** Phase Ids */
+            phase_ids: string[];
+        };
+        /** StandingReviewResponse */
+        StandingReviewResponse: {
+            /**
+             * Budget Basis
+             * @constant
+             */
+            budget_basis: "cumulative_project_spend";
+            /** Expires At */
+            expires_at: number;
+            /** Limit Usd */
+            limit_usd: number;
+            /** Owner Id */
+            owner_id: string;
+            /** Phases */
+            phases: components["schemas"]["StandingReviewedPhase"][];
+            /** Project Id */
+            project_id: string;
+            /** Review Id */
+            review_id: string;
+            /** Tenant Id */
+            tenant_id: string;
+        };
+        /** StandingReviewedPhase */
+        StandingReviewedPhase: {
+            /** Ai Budget Usd */
+            ai_budget_usd: number;
+            /** Fingerprint */
+            fingerprint: string;
+            /** Id */
+            id: string;
+            /** Name */
+            name: string;
+        };
+        /** StandingRevocationResponse */
+        StandingRevocationResponse: {
+            /** Revocation Id */
+            revocation_id: string;
+        };
+        /** StandingStateResponse */
+        StandingStateResponse: {
+            grant: components["schemas"]["StandingGrantResponse"] | null;
         };
         /** StartRecordingRequest */
         StartRecordingRequest: {
@@ -48194,6 +48338,138 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ProjectExecutionAccepted"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    state_api_projects__project_id__standing_authorization_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                project_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StandingStateResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    revoke_api_projects__project_id__standing_authorization_delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                project_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StandingRevocationResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    confirm_api_projects__project_id__standing_authorization_confirm_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                project_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["StandingConfirmBody"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StandingConfirmationResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    review_api_projects__project_id__standing_authorization_review_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                project_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["StandingReviewBody"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StandingReviewResponse"];
                 };
             };
             /** @description Validation Error */

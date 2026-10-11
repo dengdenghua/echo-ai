@@ -16,7 +16,7 @@ The bounds reuse what Project OS already enforces:
 * **Spending stops at this grant's own ceiling**, checked on top of — never
   instead of — the per-phase ``ai_budget_usd`` gate in ``governance``. That gate
   already compares cumulative project spend against the active phase's cap;
-  this one bounds what unattended execution in particular may add.
+  this one bounds cumulative reported project spend, including earlier manual runs.
 * **Revocation is durable and immediate in effect**: once revoked, the next
   admission check fails. In-flight work settles under the existing stop
   semantics rather than being killed mid-task.
@@ -42,9 +42,9 @@ _logger = logging.getLogger(__name__)
 GRANTED_KIND = "project.standing_authorization_granted"
 REVOKED_KIND = "project.standing_authorization_revoked"
 
-# A grant is recorded by an explicit human confirmation in the UI. Anything
-# else — a script, an API caller replaying a payload — is not a human approval,
-# so the source is recorded and checked rather than assumed.
+# Legacy grant payloads record this source label. Production admission also
+# requires the matching authenticated owner-bound review in standing_review;
+# a caller-supplied label alone cannot establish that decision.
 UI_CONFIRMATION_SOURCE = "ui_owner_confirmation"
 
 # Events are read newest-first; a grant/revocation pair lives near the head.

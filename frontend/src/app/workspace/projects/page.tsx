@@ -91,8 +91,9 @@ import {
   STATUS_LABEL,
   STATUS_TONE,
   fmtDate,
-  fmtDateTime,
 } from "@/components/workspace/projects/project-meta";
+import { ProjectLifecycleDates } from "@/components/workspace/projects/project-lifecycle-dates";
+import { StandingAuthorizationPanel } from "@/components/workspace/projects/standing-authorization-panel";
 import { ProjectLifecycleActions } from "@/components/workspace/projects/project-lifecycle-actions";
 import {
   ProjectGovernancePanel,
@@ -212,6 +213,7 @@ interface ProjectFull {
     goal: string;
     status: string;
     owner: string;
+    owner_id?: string;
     created_at: string;
     started_at: string;
     finished_at: string;
@@ -778,25 +780,12 @@ export default function ProjectsPage() {
                             onChanged={refresh}
                           />
 
-                          {/* lifecycle timestamps */}
-                          <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted-foreground">
-                            <span className="inline-flex items-center gap-1">
-                              <CalendarRangeIcon className="size-3.5" />
-                              创建 {fmtDateTime(detail.project.created_at)}
-                            </span>
-                            {detail.project.started_at && (
-                              <span className="inline-flex items-center gap-1">
-                                <PlayIcon className="size-3.5" />
-                                启动 {fmtDateTime(detail.project.started_at)}
-                              </span>
-                            )}
-                            {detail.project.finished_at && (
-                              <span className="inline-flex items-center gap-1">
-                                <CheckCircle2Icon className="size-3.5" />
-                                完成 {fmtDateTime(detail.project.finished_at)}
-                              </span>
-                            )}
-                          </div>
+                          <StandingAuthorizationPanel
+                            projectId={detail.project.id}
+                            ownerId={detail.project.owner_id}
+                            phases={detail.milestones}
+                          />
+                          <ProjectLifecycleDates project={detail.project} />
 
                           {pm && (
                             <div className="space-y-1.5">
