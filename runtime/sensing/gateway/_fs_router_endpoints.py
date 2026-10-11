@@ -41,11 +41,9 @@ from ._fs_router_helpers import (
     _broadcast_file_written,
     _check_acl,
     _check_lease_conflict_or_acquire,
-    _dir_entry_to_tree,
     _extract_user_id,
     _filesystem_roots,
     _FsContext,
-    _is_ignored_remote_dir,
     _parse_workspace_path,
     _pick_directory_macos,
     _pick_directory_tk,
@@ -53,15 +51,12 @@ from ._fs_router_helpers import (
     _remote_backend_for,
     _require_local_thread_scope,
     _resolve_remote_workspace,
-    _tree_depth_of,
-    _walk_tree,
+    _workspace_relative_path,
 )
 from ._fs_router_models import (
     FsImportDirectoryResponse,
     FsPickDirectoryResponse,
-    FsReadResponse,
     FsRootsResponse,
-    FsTreeResponse,
     FsWriteResponse,
 )
 from ._fs_router_paths import _assert_within_allowed_roots, _safe_relative_parts
@@ -193,6 +188,10 @@ def _parse_git_branch_line(raw: str) -> tuple[str, str | None, int, int, bool]:
 
 
 def register_endpoints(router: Any, ctx: _FsContext) -> None:
+    from ._fs_file_reads import register_file_read_endpoints
+
+    register_file_read_endpoints(router, ctx)
+
     @router.get("/api/fs/roots", response_model=FsRootsResponse)
     def api_fs_roots(
         request: Request,
@@ -367,67 +366,6 @@ def register_endpoints(router: Any, ctx: _FsContext) -> None:
             "files": saved,
         }
 
-    @router.get("/api/fs/tree", response_model=FsTreeResponse)
-    async def api_fs_tree(
-        request: Request,
-        path: str,
-        depth: int = Query(default=2, ge=0, le=6),
-        thread_id: str | None = None,
-        workspace_path: str | None = None,
-        include_ignored: bool = Query(default=False),
-    ) -> dict[str, Any]:
-        # Remote-workspace routing: if ``path`` carries a ``workspace_id:``
-        # prefix and the workspace exists, list_dir via the MountBackend.
-        workspace_id, rel_path = _parse_workspace_path(path)
-        ws = _resolve_remote_workspace(ctx, workspace_id)
-        if ws is not None:
-            _check_acl(ctx, request, ws.id, write=False)
-            backend = _remote_backend_for(ctx, ws)
-            if backend is None:
-                raise HTTPException(
-                    500,
-                    {
-                        "error": "mount_backend_unavailable",
-                        "workspace_id": ws.id,
-                        "mount_type": ws.mount_type,
-                    },
-                )
-            try:
-                entries = await backend.list_dir(rel_path, depth)
-            except FileNotFoundError as exc:
-                raise HTTPException(404, str(exc)) from exc
-            except NotADirectoryError as exc:
-                raise HTTPException(404, str(exc)) from exc
-            except Exception as exc:  # noqa: BLE001 — backend error
-                raise HTTPException(500, f"backend list_dir failed: {exc}") from exc
-            tree = [
-                _dir_entry_to_tree(e, depth=_tree_depth_of(e.path, rel_path))
-                for e in entries
-                if not _is_ignored_remote_dir(e)
-            ]
-            return {"entries": tree}
-        # Local-path fallback (existing behaviour).
-        _assert_local_request_scope(
-            ctx,
-            request,
-            thread_id=thread_id,
-            workspace_path=workspace_path,
-        )
-        root = _assert_in_scope(
-            ctx,
-            Path(path),
-            thread_id=thread_id,
-            workspace_path=workspace_path,
-        )
-        return {
-            "entries": await asyncio.to_thread(
-                _walk_tree,
-                root,
-                max_depth=depth,
-                include_ignored=include_ignored,
-            ),
-        }
-
     @router.get("/api/fs/preview")
     async def api_fs_preview(
         request: Request,
@@ -461,81 +399,6 @@ def register_endpoints(router: Any, ctx: _FsContext) -> None:
             headers={"Cache-Control": "no-store", "X-Content-Type-Options": "nosniff"},
         )
 
-    @router.get("/api/fs/read", response_model=FsReadResponse)
-    async def api_fs_read(
-        request: Request,
-        path: str,
-        max_lines: int = Query(default=500, ge=1, le=5000),
-        thread_id: str | None = None,
-        workspace_path: str | None = None,
-    ) -> dict[str, Any]:
-        # Remote-workspace routing: if ``path`` carries a ``workspace_id:``
-        # prefix and the workspace exists, read_file via the MountBackend.
-        workspace_id, rel_path = _parse_workspace_path(path)
-        ws = _resolve_remote_workspace(ctx, workspace_id)
-        if ws is not None:
-            _check_acl(ctx, request, ws.id, write=False)
-            backend = _remote_backend_for(ctx, ws)
-            if backend is None:
-                raise HTTPException(
-                    500,
-                    {
-                        "error": "mount_backend_unavailable",
-                        "workspace_id": ws.id,
-                        "mount_type": ws.mount_type,
-                    },
-                )
-            try:
-                raw = await backend.read_file(rel_path)
-            except FileNotFoundError as exc:
-                raise HTTPException(404, str(exc)) from exc
-            except Exception as exc:  # noqa: BLE001 — backend error
-                raise HTTPException(500, f"backend read_file failed: {exc}") from exc
-            if isinstance(raw, (bytes, bytearray)):
-                content = raw.decode("utf-8", errors="replace")
-            else:
-                content = str(raw)
-            lines = content.splitlines()
-            return {
-                "path": f"{ws.id}:{rel_path}",
-                "content": "\n".join(lines[:max_lines]),
-                "lines": lines[:max_lines],
-                "truncated": len(lines) > max_lines,
-            }
-        # Local-path fallback (existing behaviour).
-        _assert_local_request_scope(
-            ctx,
-            request,
-            thread_id=thread_id,
-            workspace_path=workspace_path,
-        )
-        file_path = _assert_in_scope(
-            ctx,
-            Path(path),
-            thread_id=thread_id,
-            workspace_path=workspace_path,
-        )
-        if not file_path.exists() or not file_path.is_file():
-            raise HTTPException(404, f"file not found: {file_path}")
-        try:
-            content = await asyncio.to_thread(
-                file_path.read_text,
-                encoding="utf-8",
-                errors="replace",
-            )
-        except OSError as exc:
-            raise HTTPException(
-                500,
-                f"failed to read file: {exc}",
-            ) from exc
-        lines = content.splitlines()
-        return {
-            "path": str(file_path),
-            "content": "\n".join(lines[:max_lines]),
-            "lines": lines[:max_lines],
-            "truncated": len(lines) > max_lines,
-        }
-
     @router.post("/api/fs/write", response_model=FsWriteResponse)
     async def api_fs_write(
         request: Request,
@@ -553,6 +416,7 @@ def register_endpoints(router: Any, ctx: _FsContext) -> None:
         workspace_id, rel_path = _parse_workspace_path(path_value)
         ws = _resolve_remote_workspace(ctx, workspace_id)
         if ws is not None:
+            rel_path = _workspace_relative_path(rel_path)
             _check_acl(
                 ctx,
                 request,

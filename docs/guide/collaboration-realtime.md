@@ -90,10 +90,10 @@ the shared session/Origin gate and browser bearer subprotocol. Credentials and
 canonical project access are checked again before each update, and every
 15 seconds while idle. The socket never accepts execution commands.
 
-Committed project transactions and HTTP job admission/running/completion/cancel
-changes enqueue a non-blocking invalidation only after a successful SQLite
-commit. Transaction contexts close their handles first; failed commits,
-rollbacks and read-only transactions do not notify, and a
+Successful project SQLite commits enqueue a non-blocking invalidation.
+HTTP job admission/running/completion/cancel changes enqueue after their durable
+task-state write. SQLite transaction contexts close their handles first; failed
+commits, rollbacks and read-only transactions do not notify, and a
 notification failure cannot reverse a committed write. A separate delivery
 thread coalesces bursts for 50 ms and publishes `project:changed` through the
 same configured Redis transport. Remote hints are never republished. A feed
@@ -111,3 +111,42 @@ SQLite and a real Redis server. An owner cancellation on one worker wakes the
 other worker's owner socket, followed by a canonical HTTP read of the terminal
 state. Other actors in the same tenant and actors in another tenant cannot
 subscribe. The dedicated acceptance workflow requires this real-service test.
+
+## Workspace file updates
+
+`/api/fs/workspaces/{workspace_id}/updates` is a read-only WebSocket using the
+same session/Origin gate and current tenant/membership checks as workspace
+reads. Access is rechecked before updates and every 15 seconds while idle;
+revocation or a disabled `ui.remote_workspace` flag closes the subscription.
+Frames contain only a type and workspace ID, never file paths, credentials or
+contents. A viewer may subscribe and read, but cannot write through HTTP or
+the socket. Administrative access retains the HTTP operator policy.
+
+The application wires filesystem operations and workspace CRUD to the same
+existing WorkspaceStore, LeaseStore and mount registry, keeping their current
+database paths. A successful remote write enqueues `workspace:changed` through
+the configured collaboration transport. Failed writes do not notify. Caller
+`thread_id` values do not select a notification recipient. Production delivery
+bypasses the old `file_written` blackboard list; standalone routers without
+the optional live feed retain the compatibility helper and its old data.
+
+The shared invalidation feed has at most 1024 subscriptions and 256 pending
+workspace keys per worker. Repeated writes coalesce; excess live hints may be
+dropped. It never performs network I/O in a source write callback, and remote
+hints are not republished. The filesystem remains authoritative: the file
+tree refreshes authorized HTTP reads on ready/update and reconnects with fresh
+credentials. Loading again or manual refresh catches up after missed hints.
+
+The actual FileTree subscribes using the authorized thread's stored
+`workspace_id`, or a remote workspace path prefix. Late binding results,
+disposed trees and old sockets cannot refresh a different tree. A workspace
+selection event rebinds the subscription. Mount-relative paths resolve inside
+the selected mount: `/file`, `./file` and `file` share a canonical lease key;
+host drive/UNC paths, parent traversal and alternate streams are rejected.
+Active legacy lease aliases remain honored until expiration and are not deleted.
+
+`tests/test_workspace_shared_file_updates.py` serves two spawned workers with
+a real Redis server and an actual local mount. An owner write on one worker
+wakes the other worker's viewer, followed by an authorized file read. Another
+tenant is refused even if an old membership row exists; revocation closes the
+viewer before sending the next hint. The dedicated workflow requires this test.

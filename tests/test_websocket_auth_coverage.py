@@ -60,6 +60,7 @@ EXPECTED_ROUTES = frozenset(
         "/api/tentacle/device/ws",
         "/api/teams/{team_id}/ws",
         "/api/projects/{project_id}/updates",
+        "/api/fs/workspaces/{workspace_id}/updates",
     }
 )
 

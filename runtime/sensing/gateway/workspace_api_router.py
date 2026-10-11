@@ -54,6 +54,8 @@ from runtime.workspace import (
     VALID_MOUNT_TYPES,
     WorkspaceStore,
 )
+from runtime.workspace.access import authorized_workspace
+from runtime.workspace.paths import conflicting_workspace_lease, workspace_relative_path
 
 # ═══════════════════════════════════════════════════════════
 # Request bodies
@@ -328,36 +330,7 @@ def create_workspace_api_router(
     ) -> tuple[Any, CurrentPrincipal | None]:
         """Load a workspace, then authorize against its persisted ACL."""
         principal = _principal(request)
-        scoped_store = _scoped_store(request)
-        ws = scoped_store.get_workspace(workspace_id)
-        if ws is None:
-            raise HTTPException(404, f"workspace {workspace_id!r} not found")
-        if principal is None:
-            return ws, None
-
-        global_operator = bool(principal.roles.intersection({"admin", "operator"}))
-        explicit_workspace_tenant = bool(ws.tenant_id and not ws.tenant_id.startswith("legacy:"))
-        explicit_principal_tenant = bool(
-            principal.tenant_id and not principal.tenant_id.startswith("legacy:")
-        )
-        if (
-            (explicit_workspace_tenant or explicit_principal_tenant)
-            and ws.tenant_id != principal.tenant_id
-            and not global_operator
-        ):
-            # Legacy and other-tenant workspaces are indistinguishable
-            # from missing resources to ordinary principals.
-            raise HTTPException(404, f"workspace {workspace_id!r} not found")
-
-        role = scoped_store.get_member_role(workspace_id, principal.actor_id)
-        if role is None:
-            # Hide workspace existence from non-members.
-            raise HTTPException(404, f"workspace {workspace_id!r} not found")
-        if action == "admin" and role != "owner" and not global_operator:
-            raise HTTPException(403, "workspace owner or operator role required")
-        if action == "write" and role not in {"owner", "editor"} and not global_operator:
-            raise HTTPException(403, "workspace write membership required")
-        return ws, principal
+        return authorized_workspace(store, workspace_id, principal, action=action), principal
 
     def _lease_or_404(request: Request, lease_id: str):
         for lease in _scoped_leases(request).list_active():
@@ -583,9 +556,13 @@ def create_workspace_api_router(
                 raise HTTPException(403, "holder_id must match the authenticated actor")
             holder_id = principal.actor_id
         try:
+            file_path = workspace_relative_path(body.file_path)
+            conflict = conflicting_workspace_lease(leases, workspace_id, file_path, holder_id)
+            if conflict is not None:
+                raise LeaseConflictError(conflict)
             lease = _scoped_leases(request).acquire(
                 workspace_id=workspace_id,
-                file_path=body.file_path,
+                file_path=file_path,
                 holder_id=holder_id,
                 ttl_seconds=body.ttl_seconds,
                 kind=body.kind,

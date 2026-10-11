@@ -120,6 +120,34 @@ def _mount_assistant_activity_router(ctx: AppContext, collaboration_store: Any) 
     )
 
 
+def _mount_fs_router(ctx: AppContext) -> None:
+    # Local loopback users can choose a directory before creating a thread.
+    # Shared deployments keep the authenticated, managed-thread boundary.
+    from runtime.sensing.gateway.fs_router import create_fs_router
+
+    from ._app_workspace_services import ensure_workspace_services
+
+    ensure_workspace_services(ctx)
+
+    ctx.app.include_router(
+        create_fs_router(
+            thread_store=ctx.thread_store,
+            identity_store=ctx.identity_store,
+            require_auth=ctx.require_auth,
+            allow_local_workspace_access=ctx.allow_local_workspace_access,
+            jwt_secret=ctx.jwt_secret,
+            jwt_issuer=ctx.jwt_issuer,
+            jwt_audience=ctx.jwt_audience,
+            workspace_root=ctx.thread_workspace_root,
+            workspace_store=ctx.workspace_store,
+            lease_store=ctx.workspace_leases,
+            mount_registry=ctx.workspace_mounts,
+            file_updates=ctx.workspace_updates,
+            require_remote_flag=True,
+        )
+    )
+
+
 def mount_routers_a(
     ctx: AppContext,
     *,
@@ -312,22 +340,7 @@ def mount_routers_a(
     ctx.project_model_router = project_model_router
 
     # ─── FS router · extracted to fs_router.py ─────────
-    # Local loopback users can choose a directory before creating a thread.
-    # Shared deployments keep the authenticated, managed-thread boundary.
-    from runtime.sensing.gateway.fs_router import create_fs_router
-
-    app.include_router(
-        create_fs_router(
-            thread_store=ctx.thread_store,
-            identity_store=ctx.identity_store,
-            require_auth=ctx.require_auth,
-            allow_local_workspace_access=ctx.allow_local_workspace_access,
-            jwt_secret=ctx.jwt_secret,
-            jwt_issuer=ctx.jwt_issuer,
-            jwt_audience=ctx.jwt_audience,
-            workspace_root=ctx.thread_workspace_root,
-        )
-    )
+    _mount_fs_router(ctx)
 
     from runtime.sensing.gateway.agent_modes_router import create_agent_modes_router
 

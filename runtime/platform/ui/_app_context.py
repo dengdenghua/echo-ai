@@ -48,4 +48,8 @@ class AppContext:
     realtime_runtime: Any = None
     shared_realtime: Any = None
     live_presence: Any = None
+    workspace_store: Any = None
+    workspace_leases: Any = None
+    workspace_mounts: Any = None
+    workspace_updates: Any = None
     allow_approval_bypass: bool = False

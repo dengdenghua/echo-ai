@@ -17,6 +17,8 @@ from typing import Any
 
 from fastapi import HTTPException, Request
 
+from runtime.platform.process.invalidation_feed import InvalidationFeed
+
 from ._fs_router_models import TREE_IGNORED_DIRS
 from ._fs_router_paths import (
     _allowed_fs_roots,
@@ -42,6 +44,8 @@ class _FsContext:
     lease_store: Any = None
     mount_registry: Any = None
     group_store: Any = None
+    file_updates: InvalidationFeed | None = None
+    require_remote_flag: bool = False
 
 
 def _resolved_path(path_value: str | Path) -> Path:
@@ -387,10 +391,25 @@ def _resolve_remote_workspace(
     """
     if not workspace_id or ctx.workspace_store is None:
         return None
+    if ctx.require_remote_flag:
+        from runtime.platform import feature_flags
+
+        if not feature_flags.is_on("ui.remote_workspace"):
+            raise HTTPException(403, "remote workspace disabled")
     try:
         return ctx.workspace_store.get_workspace(workspace_id)
     except Exception:  # noqa: BLE001 — store errors fall through to local path
         return None
+
+
+def _workspace_relative_path(value: str) -> str:
+    """A workspace prefix selects the mount root, never a host absolute path."""
+    from runtime.workspace.paths import workspace_relative_path
+
+    try:
+        return workspace_relative_path(value)
+    except ValueError as exc:
+        raise HTTPException(400, str(exc)) from exc
 
 
 def _remote_backend_for(ctx: _FsContext, ws: Any):
@@ -475,6 +494,16 @@ def _check_acl(
             },
         )
     principal = getattr(getattr(request, "state", None), "principal", None)
+    if principal is not None:
+        from runtime.workspace.access import authorized_workspace
+
+        authorized_workspace(
+            ctx.workspace_store,
+            workspace_id,
+            principal,
+            action="write" if write else "read",
+            operator_without_membership=True,
+        )
     if principal is not None and getattr(principal, "roles", frozenset()).intersection(
         {"admin", "operator"}
     ):
@@ -524,6 +553,13 @@ def _check_lease_conflict_or_acquire(
         return
     try:
         existing = ctx.lease_store.get_by_path(workspace_id, file_path)
+        if existing is None or existing.holder_id == holder_id:
+            from runtime.workspace.paths import conflicting_workspace_lease
+
+            existing = (
+                conflicting_workspace_lease(ctx.lease_store, workspace_id, file_path, holder_id)
+                or existing
+            )
     except Exception as exc:
         raise HTTPException(503, "file lease service unavailable; write was not performed") from exc
     if existing is not None and existing.holder_id != holder_id:
@@ -568,6 +604,9 @@ def _broadcast_file_written(
     """Best-effort broadcast of a ``file_written`` event on the bound
     cowork group's blackboard. Silently skips when ``group_store`` or
     ``thread_id`` is missing."""
+    if ctx.file_updates is not None:
+        ctx.file_updates.notify(workspace_id)
+        return
     if ctx.group_store is None or not thread_id:
         return
     try:

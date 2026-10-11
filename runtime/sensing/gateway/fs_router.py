@@ -57,7 +57,9 @@ from typing import Any
 
 from fastapi import APIRouter, Depends, Request
 
+from runtime.platform.process.invalidation_feed import InvalidationFeed
 from runtime.safety.auth.principal import resolve_principal
+from runtime.safety.auth.websocket_auth import WebSocketAuthConfig
 from runtime.sensing._fastapi_guard import require_fastapi
 
 from ._fs_router_diff import (
@@ -124,6 +126,8 @@ def create_fs_router(
     lease_store: Any = None,
     mount_registry: Any = None,
     group_store: Any = None,
+    file_updates: InvalidationFeed | None = None,
+    require_remote_flag: bool = False,
 ) -> Any:
     """Build the FastAPI router. State is per-request (the path
     parameter); auth, when an identity store is wired and ``require_auth``
@@ -188,9 +192,30 @@ def create_fs_router(
         lease_store=lease_store,
         mount_registry=mount_registry,
         group_store=group_store,
+        file_updates=file_updates,
+        require_remote_flag=require_remote_flag,
     )
     register_endpoints(router, ctx)
     from .git_worktrees_router import register_git_worktree_endpoints
 
     register_git_worktree_endpoints(router, ctx)
-    return router
+    if file_updates is None:
+        return router
+    from ._workspace_file_updates import create_workspace_file_updates_router
+
+    combined = APIRouter()
+    combined.include_router(router)
+    combined.include_router(
+        create_workspace_file_updates_router(
+            ctx,
+            file_updates,
+            WebSocketAuthConfig(
+                identity_store=identity_store,
+                require_auth=require_auth,
+                jwt_secret=jwt_secret,
+                jwt_issuer=jwt_issuer,
+                jwt_audience=jwt_audience,
+            ),
+        )
+    )
+    return combined

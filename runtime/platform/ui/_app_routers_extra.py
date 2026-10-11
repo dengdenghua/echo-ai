@@ -84,6 +84,45 @@ def _start_ambient_scheduler(app: Any) -> None:
         )
 
 
+def _mount_workspace_api(ctx: AppContext) -> None:
+    # ─── Workspace HTTP API (feature-flag gated) ─────────────────────────
+    # Mount + membership + file-lease CRUD on top of WorkspaceStore /
+    # MountBackendRegistry / LeaseStore. Registered AFTER the per-thread
+    # ``workspaces_router`` so that router's ``GET /api/workspaces/{thread_id}/outputs``
+    # continues to win for output listing; the new router owns the
+    # create / list / members / lease / health endpoints. The new
+    # ``GET /api/workspaces/{workspace_id}`` is shadowed by the thread
+    # router's ``GET /api/workspaces/{thread_id}`` when both are
+    # mounted — callers that need the Workspace entity by id should
+    # filter the ``GET /api/workspaces?user_id=...`` list response.
+    try:
+        from runtime.sensing.gateway.workspace_api_router import (
+            create_workspace_api_router,
+        )
+
+        from ._app_workspace_services import ensure_workspace_services
+
+        ensure_workspace_services(ctx)
+
+        ctx.app.include_router(
+            create_workspace_api_router(
+                workspace_store=ctx.workspace_store,
+                lease_store=ctx.workspace_leases,
+                registry=ctx.workspace_mounts,
+                identity_store=ctx.identity_store,
+                require_auth=ctx.require_auth,
+                jwt_secret=ctx.jwt_secret,
+                jwt_issuer=ctx.jwt_issuer,
+                jwt_audience=ctx.jwt_audience,
+            )
+        )
+    except Exception as _wsa_exc:  # noqa: BLE001
+        logging.getLogger(__name__).warning(
+            "workspace_api_router failed to mount: %s",
+            _wsa_exc,
+        )
+
+
 def mount_routers_b(
     ctx: AppContext,
     *,
@@ -138,35 +177,7 @@ def mount_routers_b(
             _rb_exc,
         )
 
-    # ─── Workspace HTTP API (feature-flag gated) ─────────────────────────
-    # Mount + membership + file-lease CRUD on top of WorkspaceStore /
-    # MountBackendRegistry / LeaseStore. Registered AFTER the per-thread
-    # ``workspaces_router`` so that router's ``GET /api/workspaces/{thread_id}/outputs``
-    # continues to win for output listing; the new router owns the
-    # create / list / members / lease / health endpoints. The new
-    # ``GET /api/workspaces/{workspace_id}`` is shadowed by the thread
-    # router's ``GET /api/workspaces/{thread_id}`` when both are
-    # mounted — callers that need the Workspace entity by id should
-    # filter the ``GET /api/workspaces?user_id=...`` list response.
-    try:
-        from runtime.sensing.gateway.workspace_api_router import (
-            create_workspace_api_router,
-        )
-
-        app.include_router(
-            create_workspace_api_router(
-                identity_store=ctx.identity_store,
-                require_auth=ctx.require_auth,
-                jwt_secret=ctx.jwt_secret,
-                jwt_issuer=ctx.jwt_issuer,
-                jwt_audience=ctx.jwt_audience,
-            )
-        )
-    except Exception as _wsa_exc:  # noqa: BLE001
-        logging.getLogger(__name__).warning(
-            "workspace_api_router failed to mount: %s",
-            _wsa_exc,
-        )
+    _mount_workspace_api(ctx)
 
     # ─── Prompts hot-reload (feature-flag gated) ───────────────────────────
     # Lives at <data>/prompt_templates/ to stay out of the way of the

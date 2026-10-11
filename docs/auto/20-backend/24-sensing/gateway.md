@@ -81,6 +81,7 @@ tier: "standard"
 | `_evolution_ops_learning_endpoints.py` | Learning-insight and skill-forge endpoints for the evolution ops router. |
 | `_evolution_ops_proposal_endpoints.py` | Skill, model, and MCP proposal endpoints for the evolution ops router. |
 | `_evolution_repair_endpoints.py` | Repair-recipe, verifier, and subagent endpoints for the evolution router. |
+| `_fs_file_reads.py` | Filesystem read endpoints, retaining canonical workspace and local ACLs. |
 | `_fs_router_diff.py` | Unified-diff parsing / reverse-apply helpers for the filesystem router. |
 | `_fs_router_endpoints.py` | Endpoint handlers for the filesystem router. |
 | `_fs_router_helpers.py` | Shared helpers for the filesystem router factory. |
@@ -171,6 +172,7 @@ tier: "standard"
 | `_tool_bridge_scoring.py` | Per-turn quality scoring + auto-evolution tick helpers. |
 | `_tool_bridge_session.py` | Session metadata + browser operation guidance helpers. |
 | `_untrusted_content.py` | Response hardening for user/agent-generated files served inline. |
+| `_workspace_file_updates.py` | Read-only hints for authorized workspace readers, without paths or content. |
 | `a2a_router.py` | A2A (Agent-to-Agent) remote agent registry + relay router. |
 | `a2a_server.py` | Official A2A v1 inbound server mounted on the Echo runtime. |
 | `account_usage_router.py` | — |
@@ -554,6 +556,12 @@ tier: "standard"
 | func | `def evolution_learning_curve_payload(journal, weeks)` |  |
 | func | `def evolution_recommendations_payload(journal, registry, planner)` |  |
 
+### `_fs_file_reads.py`
+
+| Kind | Symbol | Doc |
+| --- | --- | --- |
+| func | `def register_file_read_endpoints(router, ctx)` |  |
+
 ### `_fs_router_endpoints.py`
 
 | Kind | Symbol | Doc |
@@ -867,6 +875,12 @@ tier: "standard"
 | func | `def guess_media_type(path)` | Mirror Starlette's ``FileResponse`` guess so headers match the body. |
 | func | `def untrusted_content_headers(media_type, allow_scripts, download)` | Headers for serving untrusted file bytes from the app origin. |
 | func | `def untrusted_file_response(path, filename, download, media_type, allow_scripts, headers, **kwargs)` | ``FileResponse`` for user/agent-generated content with sandbox headers. |
+
+### `_workspace_file_updates.py`
+
+| Kind | Symbol | Doc |
+| --- | --- | --- |
+| func | `def create_workspace_file_updates_router(ctx, feed, auth_config)` |  |
 
 ### `a2a_router.py`
 
@@ -1254,7 +1268,7 @@ tier: "standard"
 
 | Kind | Symbol | Doc |
 | --- | --- | --- |
-| func | `def create_fs_router(thread_store, identity_store, require_auth, allow_local_workspace_access, jwt_secret, jwt_issuer, jwt_audience, workspace_root, workspace_store, lease_store, mount_registry, group_store)` | Build the FastAPI router. State is per-request (the path parameter); auth, when an identity store is wired and ``require_auth`` is set, is e |
+| func | `def create_fs_router(thread_store, identity_store, require_auth, allow_local_workspace_access, jwt_secret, jwt_issuer, jwt_audience, workspace_root, workspace_store, lease_store, mount_registry, group_store, file_updates, require_remote_flag)` | Build the FastAPI router. State is per-request (the path parameter); auth, when an identity store is wired and ``require_auth`` is set, is e |
 
 ### `git_worktrees_router.py`
 
