@@ -504,16 +504,22 @@ class OrgStore:
     def delete_department(self, department_id: str, *, org_id: str) -> bool:
         """Remove a department of ``org_id`` and any channels attached to it.
         Returns True if a row was deleted; a department that belongs to another
-        org is treated as missing. (Nested children are not auto-removed to
-        avoid surprising data loss; callers should re-parent first.)"""
+        org is treated as missing. Children and their channels are retained;
+        direct children move to the deleted department's parent atomically."""
         if not department_id or not org_id:
             return False
         with self._lock, self._connect() as conn:
             exists = conn.execute(
-                "SELECT 1 FROM departments WHERE id=? AND org_id=?", (department_id, org_id)
+                "SELECT parent_id FROM departments WHERE id=? AND org_id=?", (department_id, org_id)
             ).fetchone()
             if not exists:
                 return False
+            # Retain the subtree without leaving children pointing at a deleted
+            # department. The update cannot touch another organization's rows.
+            conn.execute(
+                "UPDATE departments SET parent_id=? WHERE parent_id=? AND org_id=?",
+                (exists[0], department_id, org_id),
+            )
             channels = [
                 r[0]
                 for r in conn.execute(

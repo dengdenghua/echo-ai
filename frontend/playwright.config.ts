@@ -28,6 +28,7 @@ export default defineConfig({
     "chat.spec.ts",
     "inline-visual.spec.ts",
     "native-ui.spec.ts",
+    "organizations.spec.ts",
     "subagent-layout.spec.ts",
     "mobile-smoke.spec.ts",
     "stream-timeline-narrative.spec.ts",

@@ -97,6 +97,9 @@ const ChatPage = lazy(
   () => import("./app/workspace/realtime/[thread_id]/page"),
 );
 const TeamJoinPage = lazy(() => import("./app/workspace/team/join/page"));
+const OrganizationsPage = lazy(
+  () => import("./app/workspace/organizations/page"),
+);
 const AgentsPage = lazy(loadAgentsPage);
 const AgentsNewPage = lazy(() => import("./app/workspace/agents/new/page"));
 // Workspace-scoped observability surface: focused tabs for swarm
@@ -213,6 +216,7 @@ export function AppRouter() {
                 />
                 <Route path="realtime/:threadId" element={<ChatPage />} />
                 <Route path="team/join" element={<TeamJoinPage />} />
+                <Route path="organizations" element={<OrganizationsPage />} />
                 <Route path="devices" element={<DevicesPage />} />
                 {/* Browser previews stay in the Agent workbench. The complete
                     desktop browser mode owns the top-level /browser route. */}

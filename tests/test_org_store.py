@@ -201,6 +201,34 @@ def test_delete_department_returns_false_when_missing(store: OrgStore) -> None:
     assert store.delete_department("ghost", org_id="org") is False
 
 
+@pytest.mark.parametrize("nested", [False, True])
+def test_delete_department_preserves_and_reparents_children(store: OrgStore, nested: bool) -> None:
+    org = store.create_organization(name="Acme", owner_id="u1")
+    parent = store.create_department(org_id=org.id, name="Root") if nested else None
+    department = store.create_department(
+        org_id=org.id, name="Engineering", parent_id=parent.id if parent else None
+    )
+    child = store.create_department(org_id=org.id, name="Software", parent_id=department.id)
+    grandchild = store.create_department(org_id=org.id, name="Build", parent_id=child.id)
+    removed_channel = store.create_channel(org_id=org.id, name="Eng", department_id=department.id)
+    retained_channel = store.create_channel(org_id=org.id, name="Dev", department_id=child.id)
+    for channel in (removed_channel, retained_channel):
+        store.add_channel_member(channel.id, "u1", role="owner")
+    other = store.create_organization(name="Other", owner_id="u2")
+    other_department = store.create_department(org_id=other.id, name="Other department")
+
+    assert store.delete_department(department.id, org_id=other.id) is False
+    assert store.get_department(child.id).parent_id == department.id
+    assert store.delete_department(department.id, org_id=org.id) is True
+    assert store.get_department(child.id).parent_id == (parent.id if parent else None)
+    assert store.get_department(grandchild.id).parent_id == child.id
+    assert store.get_department(other_department.id).org_id == other.id
+    assert store.get_channel(removed_channel.id) is None
+    assert store.list_channel_members(removed_channel.id) == []
+    assert store.get_channel(retained_channel.id).department_id == child.id
+    assert store.can_access_channel(retained_channel.id, "u1")
+
+
 # ─── 4. Channel CRUD ───────────────────────────────────────────────────────
 
 

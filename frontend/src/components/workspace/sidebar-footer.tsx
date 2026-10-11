@@ -8,6 +8,7 @@ import {
   RefreshCwIcon,
   SettingsIcon,
   UserCircleIcon,
+  UsersIcon,
 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
@@ -29,6 +30,7 @@ import {
   isPrimaryPersonaAgentId,
 } from "@/core/agents/persona-policy";
 import { useI18n } from "@/core/i18n/hooks";
+import { ORG_COPY } from "@/core/organizations/copy";
 import { taskWorkspaceRoute } from "@/core/router/task-workspace-route";
 import { agentHudHref } from "@/core/workspace/sidebar-routing";
 import { useOctLink } from "@/core/oct/hooks";
@@ -90,7 +92,7 @@ export function AgentFooter() {
   const _navigate = useNavigate();
   const { pathname, search } = useLocation();
   const octLink = useOctLink();
-  const { t } = useI18n();
+  const { t, locale } = useI18n();
   const credits = octLink.data?.credits?.surplusCredits;
   const [creditsOpen, setCreditsOpen] = useState(false);
   const [agentMenuOpen, setAgentMenuOpen] = useState(false);
@@ -409,6 +411,13 @@ export function AgentFooter() {
             )}
           </DropdownMenuItem>
           <DropdownMenuSeparator />
+          <DropdownMenuItem
+            onSelect={() => void _navigate("/workspace/organizations")}
+            className="flex min-h-9 items-center gap-2 rounded-lg px-2 py-1.5 text-xs focus:bg-foreground/[0.035]"
+          >
+            <UsersIcon className="size-4 shrink-0 opacity-70" />
+            <span>{ORG_COPY[locale].title}</span>
+          </DropdownMenuItem>
           <DropdownMenuLabel className="px-2 py-1.5 text-xs font-medium text-muted-foreground">
             {t.sidebar.switchAgentMenuTitle}
           </DropdownMenuLabel>

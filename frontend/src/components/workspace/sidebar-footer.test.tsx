@@ -107,6 +107,21 @@ describe("AgentAvatar", () => {
 });
 
 describe("AgentFooter roster states", () => {
+  it("opens organization management from the account menu", async () => {
+    const user = userEvent.setup();
+    renderWithProviders(
+      <>
+        <AgentFooter />
+        <RouteProbe />
+      </>,
+      { locale: "zh-CN" },
+    );
+    await user.click(screen.getByRole("button", { name: /当前角色/ }));
+    await user.click(screen.getByRole("menuitem", { name: "组织管理" }));
+    expect(screen.getByTestId("route")).toHaveTextContent(
+      "/workspace/organizations",
+    );
+  });
   it.each([undefined, 0])(
     "keeps the account entry usable with credits %s",
     async (credits) => {

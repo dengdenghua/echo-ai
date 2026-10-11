@@ -37,6 +37,29 @@ What each part means:
 | Model Router | Selects and calls model providers | Eyes |
 | IO Gateway | Exposes HTTP, streaming, channels, and UI APIs | Siphon |
 
+## Collaboration and membership
+
+These objects have different authority boundaries. IDs and roles must not be
+substituted merely because two surfaces use the word “team” or “workspace”.
+
+| Term | Meaning and authority | Implementation |
+|---|---|---|
+| Organization | Enterprise membership, department tree and internal channel ACL. Platform read roles do not grant organization writes. | `runtime/workspace/org.py`, `org_store.py`, `/api/orgs`; [management guide](guide/organizations.md) |
+| Evolution organization/topology | Agent roles, coordination protocol and evolution proposals; distinct from enterprise membership. | `runtime/safety/organization/`, `/api/organizations/topologies` |
+| Internal channel | An organization-owned channel/group with its own membership roles. A channel admin must remain an organization member. | `runtime/sensing/gateway/org_router.py`, `runtime/workspace/org_store.py` |
+| External channel | A message adapter/connection such as Slack or WeChat, including pairing and credentials. | `runtime/sensing/gateway/channels_router.py`, `/workspace/channels` |
+| Team room | A persistent shared room with agent roster, human participants and speaker policy. Legacy room configuration still has a JSON projection. | `team_rooms_models.py`, `_team_rooms_state.py`, `runtime/memory/cowork/collaboration_store.py` |
+| Group/cowork thread | The thread's event-sourced membership and context grants; chat/cluster/swarm selects the response strategy without changing membership. | `runtime/memory/cowork/group.py`, `group_store.py` |
+| Project team | The agents assigned to execute a Project OS project; a linked cowork roster can supply the agent pool. | `runtime/projectos/cowork_bridge.py` |
+| Workspace mount | An execution/file mount with owner/editor/reviewer/viewer permissions; linking it to a group mirrors those permissions into participant/observer context grants. | `runtime/workspace/model.py`, `store.py`, `cowork_bridge.py` |
+| Workspace UI | The human navigation/control surface. Navigating a UI route does not create a mount or confer its permissions. | `frontend/src/app/workspace/` |
+
+The two `cowork_bridge.py` modules serve different integrations: Project OS
+execution versus workspace mount membership/file events. Their qualified module
+paths identify the boundary; sharing a basename is not evidence of duplicate
+behavior. These distinctions do not imply that every legacy JSON projection has
+been migrated or that polling has become shared multi-worker pub/sub.
+
 ## Three-Layer Language Rule
 
 Echo uses three vocabularies for three audiences:
