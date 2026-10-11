@@ -4,9 +4,9 @@ from __future__ import annotations
 
 import asyncio
 import contextlib
-import json
+import json  # noqa: F401 - live dependency of extracted lifecycle phases
 import logging
-import time
+import time  # noqa: F401 - live dependency of extracted lifecycle phases
 from typing import TYPE_CHECKING, Any
 
 from runtime.execution.agents.group_fanout import (
@@ -14,18 +14,18 @@ from runtime.execution.agents.group_fanout import (
 )
 from runtime.execution.codex_backend import BackpressureError
 from runtime.execution.tool_engine.session_reference_uri import (
-    SUPPORTED_SESSION_REFERENCE_SCHEMES,
+    SUPPORTED_SESSION_REFERENCE_SCHEMES,  # noqa: F401 - live dependency of extracted lifecycle phases
 )
 from runtime.platform.models.primitives import now_utc
 from runtime.protocol import (
-    AgentMessageItem,
+    AgentMessageItem,  # noqa: F401 - live dependency of extracted lifecycle phases
     ErrorItem,
     ItemStatus,
     ServerMethod,
     Turn,
     TurnParams,
     TurnStatus,
-    VerificationItem,
+    VerificationItem,  # noqa: F401 - live dependency of extracted lifecycle phases
 )
 from runtime.safety.approval.approval_gate import (
     ApprovalProvider,  # noqa: F401 - re-export; used by _realtime_turn_start_phases
@@ -34,13 +34,13 @@ from runtime.sensing.gateway._realtime_cerebrum_project_os import (
     _is_project_os_command,  # noqa: F401 - re-export; used by _realtime_turn_start_phases
 )
 from runtime.sensing.gateway._realtime_turn_lifecycle_helpers import (
-    _background_task_is_verification,
+    _background_task_is_verification,  # noqa: F401 - live dependency of extracted lifecycle phases
     _inject_cowork_turn_plan,  # noqa: F401 - re-export; used by _realtime_turn_start_phases
     _persist_cowork_user_message,  # noqa: F401 - re-export; used by _realtime_turn_start_phases
     _resolve_cowork_responder_agent,  # noqa: F401 - re-export; used by _realtime_turn_start_phases
     _start_cowork_orchestration_run,  # noqa: F401 - re-export; used by _realtime_turn_start_phases
-    _turn_has_cowork_coordination_evidence,
-    _turn_has_cowork_delivery_evidence,
+    _turn_has_cowork_coordination_evidence,  # noqa: F401 - live dependency of extracted lifecycle phases
+    _turn_has_cowork_delivery_evidence,  # noqa: F401 - live dependency of extracted lifecycle phases
     _turn_has_observable_output,
 )
 from runtime.sensing.gateway._realtime_turn_lifecycle_resume import (
@@ -57,9 +57,28 @@ __all__ = [
     "_record_pending_resume_intent",
 ]
 from runtime.execution.agents.preparation import RolePreparationError
-from runtime.execution.engines import EngineSelectionError, ExecutionPhase
+from runtime.execution.engines import (  # noqa: F401 - live dependency of extracted lifecycle phases
+    EngineSelectionError,
+    ExecutionPhase,
+)
 from runtime.sensing.gateway._realtime_react_stream_helpers import (
     _should_use_direct_text_path,  # noqa: F401 - re-export; used by _realtime_turn_start_phases
+)
+from runtime.sensing.gateway._realtime_turn_dispatch import (
+    _apply_composer_markers,
+    _repair_coordinated_delivery,
+    _route_simple_turn_model,
+)
+from runtime.sensing.gateway._realtime_turn_reporting import (
+    _close_turn,
+    _finish_startup_interrupt,
+    _item_outlives_turn,  # noqa: F401 - live dependency of extracted lifecycle phases
+    _notify_terminal,
+    _refill_subagent_wake_budget,  # noqa: F401 - live dependency of extracted lifecycle phases
+    _resolve_session_reference_mentions,
+    _schedule_pending_subagent_reports,
+    _schedule_subagent_wake_budget_refill,
+    _surface_pending_subagent_reports,  # noqa: F401 - live dependency of extracted lifecycle phases
 )
 from runtime.sensing.gateway._realtime_turn_start_phases import (
     _anchor_user_message,
@@ -74,6 +93,7 @@ from runtime.sensing.gateway._realtime_turn_start_phases import (
     _route_turn_input,
     _select_turn_route,
 )
+from runtime.sensing.gateway._realtime_turn_verification import _verify_turn_code_changes
 from runtime.sensing.gateway.realtime_approval import (
     GatewayApprovalProvider,  # noqa: F401 - re-export; used by _realtime_turn_start_phases
 )
@@ -88,24 +108,24 @@ from runtime.sensing.gateway.realtime_thread_history import (
 )
 from runtime.sensing.gateway.realtime_turn_input import (
     _build_intent,
-    _extract_codex_composer_mode,
+    _extract_codex_composer_mode,  # noqa: F401 - live dependency of extracted lifecycle phases
     _input_attachments,  # noqa: F401 - re-export; used by _realtime_turn_start_phases
-    _input_metadata,
-    _join_text,
+    _input_metadata,  # noqa: F401 - live dependency of extracted lifecycle phases
+    _join_text,  # noqa: F401 - live dependency of extracted lifecycle phases
     _resume_confirmation_text,
     _should_default_planning_mode,  # noqa: F401 - re-export; used by _realtime_turn_start_phases
     _should_default_topology,  # noqa: F401 - re-export; used by _realtime_turn_start_phases
     _turn_mode,
-    external_model_owner,
+    external_model_owner,  # noqa: F401 - live dependency of extracted lifecycle phases
 )
 from runtime.sensing.gateway.realtime_turn_outcome import (
-    _code_change_paths,
-    _file_change_item_ids,
-    _turn_has_failed_code_verification,
-    _turn_has_unverified_code_changes,
-    _turn_verification_environment_blocked,
-    _verification_plan_for_code_paths,
-    _verification_plan_stdout_tail,
+    _code_change_paths,  # noqa: F401 - live dependency of extracted lifecycle phases
+    _file_change_item_ids,  # noqa: F401 - live dependency of extracted lifecycle phases
+    _turn_has_failed_code_verification,  # noqa: F401 - live dependency of extracted lifecycle phases
+    _turn_has_unverified_code_changes,  # noqa: F401 - live dependency of extracted lifecycle phases
+    _turn_verification_environment_blocked,  # noqa: F401 - live dependency of extracted lifecycle phases
+    _verification_plan_for_code_paths,  # noqa: F401 - live dependency of extracted lifecycle phases
+    _verification_plan_stdout_tail,  # noqa: F401 - live dependency of extracted lifecycle phases
 )
 
 if TYPE_CHECKING:
@@ -149,364 +169,6 @@ _AGENT_VERIFY_ROUND_LIMIT = 1
 _UNPAIRED_ITEM_MARKERS = frozenset({"__subagent_spawned__"})
 
 
-async def _notify_terminal(
-    emitter: EventEmitter,
-    method: ServerMethod,
-    params: dict[str, Any],
-) -> None:
-    """Send a terminal event through the emitter's convergence path.
-
-    Detached resident turns expose ``notify_terminal`` so an exception or
-    cancellation reaches sibling tabs while the owner is still alive.  The
-    fallback preserves the public EventEmitter contract for standalone
-    runtimes that only implement ``notify``.
-    """
-    terminal = getattr(emitter, "notify_terminal", None)
-    if callable(terminal):
-        await terminal(method, params)
-    else:
-        await emitter.notify(method, params)
-
-
-def _item_outlives_turn(item: Any) -> bool:
-    """True when this item is *meant* to still be running at turn end.
-
-    ``background_exec`` hands work to a task that deliberately outlives the
-    turn; a watcher completes the item minutes later. Sweeping it would
-    overwrite a real result that is still coming.
-    """
-    preview = getattr(item, "input_preview", None) or getattr(item, "inputPreview", None)
-    if isinstance(preview, dict) and preview.get("background") is True:
-        return True
-    return bool(getattr(item, "task_id", None))
-
-
-def _close_turn(
-    log: Any,
-    thread_id: str,
-    turn: Any,
-    *,
-    error: dict[str, Any] | None = None,
-) -> None:
-    """Terminate any still-running item, then log the turn as completed.
-
-    Every path out of a turn goes through here so no path can forget. An item
-    left at ``inProgress`` spins in the UI forever: in thread
-    teD7hPf9dkGOExwO0dIiBE an interrupted turn stranded three ``bb_read``
-    calls and one ``call_agent_parallel``, and the interrupt path logged
-    ``turn_completed`` without touching them.
-
-    The sweep runs *before* ``turn_completed`` so the journal keeps its
-    chronology -- a completion appended after the turn closed would replay out
-    of order.
-    """
-    # Settle governed canary evidence before writing the terminal journal
-    # record. Completed and failed turns are gradable; user-driven pause,
-    # cancellation, and interruption are explicitly discarded.
-    try:
-        from runtime.safety.evolution.runtime_outcomes import (
-            settle_runtime_candidate_outcomes,
-        )
-
-        candidate_success: bool | None
-        if getattr(turn, "status", None) is TurnStatus.COMPLETED:
-            candidate_success = True
-        elif getattr(turn, "status", None) is TurnStatus.FAILED:
-            turn_error = turn.error if isinstance(getattr(turn, "error", None), dict) else None
-            candidate_success = (
-                None if turn_error and turn_error.get("disposition") == "blocked_on_user" else False
-            )
-        else:
-            candidate_success = None
-        settle_runtime_candidate_outcomes(
-            str(getattr(turn, "id", "") or ""),
-            success=candidate_success,
-        )
-    except Exception:  # noqa: BLE001 — evolution telemetry must not break the turn
-        _logger.debug("candidate outcome settlement skipped", exc_info=True)
-
-    for item in getattr(turn, "items", None) or []:
-        if getattr(item, "status", None) is not ItemStatus.IN_PROGRESS:
-            continue
-        if str(getattr(item, "tool", "") or "") in _UNPAIRED_ITEM_MARKERS:
-            continue
-        if _item_outlives_turn(item):
-            continue
-        item.status = ItemStatus.FAILED
-        # Say why it stopped rather than leaving a bare failure: the turn's own
-        # outcome is the cause, and without it the item looks like the command
-        # itself broke. Item models carry a message in different fields and
-        # ``CommandExecutionItem`` -- the type that actually leaked here -- has
-        # no ``error`` at all, so route by declared field. Assigning to a field
-        # a pydantic model does not declare raises ValueError, not
-        # AttributeError, so ask the model rather than catching.
-        detail = f"turn ended while this was still running ({turn.status.value})"
-        fields = getattr(type(item), "model_fields", {})
-        if "error" in fields and not getattr(item, "error", None):
-            item.error = detail
-        elif "aggregated_output" in fields:
-            existing = getattr(item, "aggregated_output", None) or ""
-            item.aggregated_output = f"{existing}\n[{detail}]".lstrip()
-        with contextlib.suppress(Exception):
-            log.item_completed(thread_id, turn.id, item)
-    log.turn_completed(thread_id, turn.id, turn.status, error)
-
-    # Codex owns its inner loop, so it cannot use the native tool bridge's
-    # per-round scoring hook. Record the same coarse quality signal at the
-    # shared lifecycle boundary instead. Keeping this here (rather than in
-    # the Codex adapter) also guarantees one score for a turn that receives a
-    # late steering continuation or is closed through an interrupt path.
-    if str(getattr(turn, "execution_engine", "") or "").strip().lower() == "codex":
-        try:
-            from runtime.sensing.gateway._tool_bridge_scoring import (
-                _record_codex_turn_score_safe,
-            )
-
-            _record_codex_turn_score_safe(turn=turn)
-        except Exception:  # noqa: BLE001 — learning must never block closure
-            _logger.debug("codex lifecycle score skipped", exc_info=True)
-
-    # dsh ``Stop``: fired when a full agent turn completes, successfully or
-    # not (notification-type hook — post-hoc audit / metrics). Every path
-    # out of a turn funnels through this helper, so a single dispatch here
-    # covers normal, error, cancel, and interrupt endings. Best-effort:
-    # hook failures must never break the turn lifecycle.
-    try:
-        from runtime.platform.process.session import current_session
-        from runtime.safety.hooks.runner import dispatch_stop
-
-        dispatch_stop(
-            thread_id=thread_id,
-            success=getattr(turn, "status", None) is TurnStatus.COMPLETED,
-            step_count=len(getattr(turn, "items", None) or []),
-            session=current_session(),
-        )
-    except Exception:  # noqa: BLE001 — notification is best-effort
-        _logger.debug("dispatch_stop skipped", exc_info=True)
-
-
-def _finish_startup_interrupt(
-    runtime: CerebrumRuntime,
-    turn: Turn,
-    log: Any,
-    emitter: EventEmitter,
-    *,
-    intent: Any | None,
-) -> bool:
-    """Close an explicit Stop before an execution driver owns the turn.
-
-    ReAct, topology, reflection, and partner drivers each have their own
-    cancellation boundary. Startup work happens before any of those drivers
-    exist, so relying on their pollers lets an already-acknowledged Stop drift
-    through report discovery, intent construction, and agent resolution.
-    Preserve the durable user-message anchor, then terminate the turn here.
-    """
-
-    if not emitter.is_turn_interrupted(turn.id):
-        return False
-    runtime._set_turn_steering_accepting(turn, False)
-    turn.status = TurnStatus.CANCELLED
-    turn.outcome_reason = "user_cancelled"
-    if not turn.interrupt_reason:
-        with contextlib.suppress(Exception):
-            turn.interrupt_reason = emitter.get_interrupt_reason(turn.id)
-    log.turn_updated(
-        turn.thread_id,
-        turn.id,
-        objective_id=turn.objective_id,
-        task_id=turn.task_id,
-        outcome_reason=turn.outcome_reason,
-    )
-    _close_turn(log, turn.thread_id, turn)
-    runtime._snapshot_to_thread_store(turn.thread_id, log, intent)
-    return True
-
-
-def _resolve_session_reference_mentions(
-    text: str,
-    thread_id: str,
-) -> tuple[str, str | None]:
-    """Resolve session aliases and canonical Echo mentions in a user prompt.
-
-    Both current ``echo-session:`` references and historical
-    ``dsh-session:`` references are accepted.
-
-    Returns ``(clean_text, frame)`` — mention tokens replaced by their
-    readable labels plus the rendered referenced-sessions frame when any
-    mention resolved (``None`` otherwise). Best-effort: a missing store,
-    read failure, or budget error leaves the prompt untouched so mention
-    resolution can never break a turn.
-    """
-    if not text:
-        return text, None
-    if (
-        "@session:" not in text
-        and "@subagent:" not in text
-        and not any(scheme in text for scheme in SUPPORTED_SESSION_REFERENCE_SCHEMES)
-    ):
-        return text, None
-    try:
-        from runtime.execution.subagents.sessions import (
-            get_subagent_session_store,
-        )
-
-        store = get_subagent_session_store()
-        if store is None:
-            return text, None
-        resolved = store.resolve_session_mentions(
-            text,
-            target_id=thread_id,
-            strip_mentions=True,
-        )
-        clean = resolved.content
-        if isinstance(clean, str) and clean.strip():
-            text = clean
-        frame: str | None = None
-        if resolved.additional_context is not None:
-            content = resolved.additional_context.get("content")
-            if isinstance(content, list) and content and isinstance(content[0], dict):
-                frame_text = content[0].get("text")
-                if isinstance(frame_text, str) and frame_text.strip():
-                    frame = frame_text
-        return text, frame
-    except Exception:  # noqa: BLE001 — mention resolution is best-effort
-        _logger.debug("session-reference mention resolution skipped", exc_info=True)
-        return text, None
-
-
-async def _surface_pending_subagent_reports(
-    thread_id: str,
-) -> tuple[int, int]:
-    """Claim parked subagent reports without blocking realtime delivery.
-
-    Durable session discovery can parse every session JSON while holding the
-    store's main lock.  It used to run before ``turn_started`` and therefore
-    made an unrelated cold scan or lock holder look like a failed Send.  Run
-    the exact same claim/inject/ack sequence in a worker after the user anchor
-    is visible.  ``inject_report_into_thread`` is explicitly worker-safe: it
-    crosses into the active turn through the steering registry.
-
-    Returns ``(pending_count, injected_count)`` for startup diagnostics.
-    A report is still acknowledged only after successful injection, preserving
-    the existing at-least-once durable / exactly-once steering boundary.
-    """
-
-    def _surface() -> tuple[int, int]:
-        from runtime.execution.subagents.sessions import (
-            get_subagent_session_store,
-            inject_report_into_thread,
-        )
-
-        store = get_subagent_session_store()
-        if store is None:
-            return 0, 0
-        pending = store.pending_thread_reports(thread_id)
-        injected = 0
-        for session_id, index, report in pending:
-            if inject_report_into_thread(thread_id, report.content):
-                store.mark_reports_delivered(session_id, up_to_index=index)
-                injected += 1
-        return len(pending), injected
-
-    try:
-        return await asyncio.to_thread(_surface)
-    except Exception:  # noqa: BLE001 — report surfacing is best-effort
-        _logger.debug("pending subagent report surfacing skipped", exc_info=True)
-        return 0, 0
-
-
-async def _refill_subagent_wake_budget(thread_id: str) -> None:
-    """Best-effort human-turn wake-budget refill on the store worker lane."""
-
-    def _refill() -> None:
-        from runtime.execution.subagents.sessions import get_subagent_session_store
-
-        store = get_subagent_session_store()
-        if store is not None:
-            store.refill_thread_wake_budget(thread_id)
-
-    try:
-        await asyncio.to_thread(_refill)
-    except Exception:  # noqa: BLE001 — budget refill is best-effort
-        _logger.debug("subagent wake-budget refill skipped", exc_info=True)
-
-
-def _schedule_subagent_wake_budget_refill(
-    runtime: CerebrumRuntime,
-    thread_id: str,
-) -> None:
-    registry = getattr(runtime, "_pending_subagent_refill_tasks", None)
-    if not isinstance(registry, dict):
-        registry = {}
-        runtime._pending_subagent_refill_tasks = registry
-    existing = registry.get(thread_id)
-    if existing is not None and not existing.done():
-        return
-    task = asyncio.create_task(
-        _refill_subagent_wake_budget(thread_id),
-        name=f"subagent-wake-refill:{thread_id}",
-    )
-    registry[thread_id] = task
-
-    def _discard(done: asyncio.Task[None]) -> None:
-        if registry.get(thread_id) is done:
-            registry.pop(thread_id, None)
-
-    task.add_done_callback(_discard)
-
-
-def _schedule_pending_subagent_reports(
-    runtime: CerebrumRuntime,
-    *,
-    thread_id: str,
-    turn_id: str,
-) -> asyncio.Task[tuple[int, int]]:
-    """Return the one live report-surfacing task for ``thread_id``."""
-
-    registry = getattr(runtime, "_pending_subagent_report_tasks", None)
-    if not isinstance(registry, dict):
-        registry = {}
-        runtime._pending_subagent_report_tasks = registry
-    existing = registry.get(thread_id)
-    if existing is not None and not existing.done():
-        return existing
-
-    worker_started_at = time.perf_counter()
-    task = asyncio.create_task(
-        _surface_pending_subagent_reports(thread_id),
-        name=f"pending-subagent-reports:{thread_id}",
-    )
-    registry[thread_id] = task
-
-    def _complete(done: asyncio.Task[tuple[int, int]]) -> None:
-        if registry.get(thread_id) is done:
-            registry.pop(thread_id, None)
-        if done.cancelled():
-            _logger.debug(
-                "pending subagent report worker cancelled thread_id=%s turn_id=%s",
-                thread_id,
-                turn_id,
-            )
-            return
-        try:
-            pending_count, injected_count = done.result()
-        except Exception:  # noqa: BLE001 — diagnostics cannot break task cleanup
-            _logger.debug("pending subagent report worker failed", exc_info=True)
-            return
-        _logger.info(
-            "realtime pending reports worker completed thread_id=%s turn_id=%s "
-            "pending_count=%d injected_count=%d worker_ms=%.3f",
-            thread_id,
-            turn_id,
-            pending_count,
-            injected_count,
-            (time.perf_counter() - worker_started_at) * 1000,
-        )
-
-    task.add_done_callback(_complete)
-    return task
-
-
 async def _start_turn(
     runtime: CerebrumRuntime,
     params: dict[str, Any],
@@ -522,46 +184,7 @@ async def _start_turn(
     # it shares the durable-session lock with cold disk discovery and must not
     # hold the visible Send acknowledgement hostage.  An auto-woken parent
     # still never refills the budget.
-    _input_meta = _input_metadata(validated)
-    _auto_wake = bool(
-        isinstance(_input_meta.get("context"), dict)
-        and bool(_input_meta["context"].get("auto_wake"))
-    )
-    text = _join_text(validated.input)
-    stripped_text, marker_mode = _extract_codex_composer_mode(text)
-    if marker_mode is not None:
-        text = stripped_text
-        patched_input: list[dict[str, Any]] = []
-        marker_applied = False
-        for block in validated.input:
-            if (
-                not marker_applied
-                and isinstance(block, dict)
-                and block.get("type") == "text"
-                and isinstance(block.get("text"), str)
-            ):
-                next_block = dict(block)
-                next_block["text"] = stripped_text
-                metadata = dict(next_block.get("metadata") or {})
-                context = dict(metadata.get("context") or {})
-                context.setdefault("workflow_mode", marker_mode)
-                context.setdefault("completion_policy", marker_mode)
-                context.setdefault("mode_preset", f"{marker_mode}.mode")
-                context.setdefault("workflow_preset", f"{marker_mode}.mode")
-                if marker_mode == "goal":
-                    context.setdefault("goal_mode", True)
-                metadata["context"] = context
-                next_block["metadata"] = metadata
-                patched_input.append(next_block)
-                marker_applied = True
-                continue
-            patched_input.append(block)
-        validated = validated.model_copy(
-            update={
-                "input": patched_input,
-                **({"planning_mode": True} if marker_mode in {"plan", "spec"} else {}),
-            },
-        )
+    _auto_wake, text, validated = _apply_composer_markers(validated=validated)
     text, validated, requested_model_before_routing = _route_turn_input(
         text=text, validated=validated, _logger=_logger
     )
@@ -570,81 +193,7 @@ async def _start_turn(
     # the cheap tier. Complex / research / topology / code-mode
     # turns stay on the user's primary. Explicit ``model`` pins
     # bypass this entirely.
-    try:
-        from runtime.core.cerebrum.todo_protocol import (
-            should_require_todo_protocol,
-        )
-        from runtime.core.cerebrum.turn_complexity import (
-            estimate_turn_complexity,
-            select_model_for_complexity,
-        )
-        from runtime.sensing.gateway.realtime_turn_routing import (
-            looks_like_tool_intent,
-        )
-
-        _meta = _input_metadata(validated)
-        _user_ctx_for_complexity = (
-            _meta.get("context") if isinstance(_meta.get("context"), dict) else _meta
-        )
-        _mode_str = (
-            _user_ctx_for_complexity.get("mode")
-            if isinstance(_user_ctx_for_complexity, dict)
-            else None
-        ) or ""
-        _capability_mode_str = (
-            _user_ctx_for_complexity.get("capability_mode")
-            if isinstance(_user_ctx_for_complexity, dict)
-            else None
-        ) or ""
-        _external_model_owner = external_model_owner(validated)
-        _is_code_mode_for_routing = bool(_mode_str == "code" or _capability_mode_str)
-        _verdict = estimate_turn_complexity(
-            text,
-            has_explicit_model=bool(
-                "model" in getattr(validated, "model_fields_set", set()) and validated.model
-            ),
-            has_topology=bool(getattr(validated, "topology_id", None)),
-            is_code_mode=_is_code_mode_for_routing,
-            is_swarm_mode=str(_mode_str).lower() in {"swarm", "swarms"},
-            is_research_mode=str(_mode_str).lower() in {"deep", "deep_research", "research"},
-            is_goal_mode=bool(getattr(validated, "planning_mode", False)),
-            looks_tool_intent=looks_like_tool_intent(text),
-            requires_todo_protocol=should_require_todo_protocol(
-                text,
-                _user_ctx_for_complexity,
-            ),
-        )
-        # AI mode override (Marvis-style efficiency / privacy).
-        # Privacy mode pins every turn to ``local`` regardless of
-        # complexity so no data leaves the box. Efficiency is a
-        # pass-through.
-        try:
-            from runtime.core.cerebrum.ai_mode import apply_ai_mode_override
-
-            _verdict = apply_ai_mode_override(_verdict)
-        except ImportError:  # noqa: BLE001 — ai mode is optional
-            pass
-        if _external_model_owner:
-            # External engines own their effective models. Realtime still estimates complexity for its own
-            # lifecycle policy, but must not overwrite or report a model that
-            # will never execute.
-            _routed_model, _route_reason = None, f"external_engine:{_external_model_owner}"
-        else:
-            _routed_model, _route_reason = select_model_for_complexity(
-                _verdict,
-                user_model=validated.model,
-                is_code_mode=_is_code_mode_for_routing,
-            )
-        if _routed_model:
-            validated = validated.model_copy(update={"model": _routed_model})
-            _logger.info(
-                "smart routing: %s → %s (%s)",
-                text[:60].replace("\n", " "),
-                _routed_model,
-                _route_reason,
-            )
-    except Exception as exc:  # noqa: BLE001 — smart routing is best-effort; never block a turn
-        _logger.debug("smart routing skipped: %s", exc, exc_info=True)
+    validated = _route_simple_turn_model(text=text, validated=validated)
 
     # ── PHASE 2 · thread setup + turn registration ─────────────────
     # Sweep any background command watchers left running from a
@@ -1112,114 +661,20 @@ async def _start_turn(
         # wrote a confident answer. Require server-observed delegation. Give
         # the coordinator one bounded repair round so an omitted tool call can
         # be corrected without making the user repeat the request.
-        coordination = getattr(runtime, "_cowork_coordination", None)
-        waiting_for_members = bool(
-            coordination is not None and coordination.delivery.waiting_for_turn(thread_id, turn.id)
+        turn_driver = await _repair_coordinated_delivery(
+            runtime=runtime,
+            turn=turn,
+            log=log,
+            emitter=emitter,
+            thread_id=thread_id,
+            intent=intent,
+            validated=validated,
+            execution=execution,
+            text=text,
+            explicit_project_command=explicit_project_command,
+            _team_pattern_execution=_team_pattern_execution,
+            turn_driver=turn_driver,
         )
-        if waiting_for_members:
-            turn.outcome_reason = "completed_with_background"
-            log.turn_updated(thread_id, turn.id, outcome_reason=turn.outcome_reason)
-        if (
-            _team_pattern_execution == "orchestrated"
-            and not waiting_for_members
-            # Project OS owns durable execution and acceptance evidence. Its
-            # control response must not launch a second chat orchestration run.
-            and not explicit_project_command
-            and turn.status
-            not in {
-                TurnStatus.PAUSED,
-                TurnStatus.CANCELLED,
-                TurnStatus.INTERRUPTED,
-                TurnStatus.FAILED,
-            }
-            and not _turn_has_cowork_delivery_evidence(turn)
-        ):
-            has_coordination = _turn_has_cowork_coordination_evidence(turn)
-            repair_reason = (
-                "missing_coordinator_synthesis"
-                if has_coordination
-                else "missing_delegation_evidence"
-            )
-            # The repair pass receives a synthetic instruction. Bind it to the
-            # current turn explicitly because its frozen conversation snapshot
-            # may end at an older unfinished task. Without this objective
-            # anchor, a valid new request can accidentally resume that old task
-            # during orchestration repair.
-            repair_objective = json.dumps(str(text or "").strip(), ensure_ascii=False)
-            repair_prompt = (
-                "协调执行验收未通过：成员调用已有记录，但缺少队长在成员结果之后的统一结论。"
-                "请核验已有成员结果并立即给出最终综合交付，不要再次重复分派。"
-                f"本轮唯一目标（JSON 字符串）是：{repair_objective}。"
-                "只围绕这个目标修复，不得恢复其他历史任务。"
-                if has_coordination
-                else (
-                    "协调执行验收未通过：本轮只有计划或文字结论，没有服务端可核验的成员调用记录。"
-                    "请现在实际调用合适的成员代理完成拆分任务，核验成员结果后再统一交付；"
-                    "不要只声称‘已分派’或重复计划。"
-                    f"本轮唯一目标（JSON 字符串）是：{repair_objective}。"
-                    "只围绕这个目标修复，不得恢复其他历史任务。"
-                )
-            )
-            repair_context = dict(intent.user_context or {})
-            repair_context["cowork_orchestration_repair"] = {
-                "attempt": 1,
-                "max_attempts": 1,
-                "reason": repair_reason,
-            }
-            repair_notice = AgentMessageItem(
-                text=(
-                    "成员结果已经返回，但缺少队长综合，正在自动补齐最终交付。"
-                    if has_coordination
-                    else "首次交付缺少真实成员执行记录，正在自动重新分派并验收。"
-                ),
-                message_kind="commentary",
-            )
-            turn.items.append(repair_notice)
-            await runtime._emit_item_started(turn, log, emitter, repair_notice)
-            repair_notice.status = ItemStatus.COMPLETED
-            await runtime._emit_item_completed(turn, log, emitter, repair_notice)
-            repair_intent = intent.model_copy(
-                update={
-                    "raw": repair_prompt,
-                    "normalized_goal": repair_prompt,
-                    "user_context": repair_context,
-                }
-            )
-            turn_driver = execution.route.driver_for(ExecutionPhase.REPAIR)
-            await execution.execute(
-                TurnExecutionRequest(repair_intent, repair_prompt, validated.model),
-                phase=ExecutionPhase.REPAIR,
-            )
-            if turn.status not in {
-                TurnStatus.PAUSED,
-                TurnStatus.CANCELLED,
-                TurnStatus.INTERRUPTED,
-                TurnStatus.FAILED,
-            } and not _turn_has_cowork_delivery_evidence(turn):
-                err = ErrorItem(
-                    message=(
-                        "协调执行缺少成员调用或队长最终综合，已停止将不完整交付误报为任务完成。"
-                        "该任务可继续恢复。"
-                    ),
-                    error_info={
-                        "code": "coordination_delivery_incomplete",
-                        "reason": repair_reason,
-                        "repair_attempts": 1,
-                        "recoverable": True,
-                    },
-                )
-                turn.items.append(err)
-                await runtime._emit_item_started(turn, log, emitter, err)
-                await runtime._emit_item_completed(turn, log, emitter, err)
-                turn.status = TurnStatus.INTERRUPTED
-                turn.outcome_reason = "coordination_delivery_incomplete"
-                log.turn_updated(
-                    thread_id,
-                    turn.id,
-                    objective_id=turn.objective_id,
-                    task_id=turn.task_id,
-                    outcome_reason=turn.outcome_reason,
-                )
 
         # ── PHASE 6 · status finalization + snapshot ───────────────
         if turn.status in {
@@ -1248,380 +703,20 @@ async def _start_turn(
             runtime._snapshot_to_thread_store(thread_id, log, intent)
             return turn
 
-        repair_attempt = 0
-        requested_sandbox = params.get("sandboxPolicy")
-        from runtime.safety.evolution.auto_verifier import (
-            _sandbox_allows_auto_verification,
+        terminal = await _verify_turn_code_changes(
+            runtime=runtime,
+            turn=turn,
+            log=log,
+            emitter=emitter,
+            thread_id=thread_id,
+            intent=intent,
+            validated=validated,
+            execution=execution,
+            params=params,
+            turn_driver=turn_driver,
         )
-
-        repair_limit = (
-            2
-            if turn_driver == "react"
-            and _sandbox_allows_auto_verification(requested_sandbox)
-            and _sandbox_allows_auto_verification(validated.sandbox_policy)
-            else 0
-        )
-        if _turn_has_failed_code_verification(turn):
-            failed_items = [
-                item
-                for item in turn.items
-                if isinstance(item, VerificationItem) and item.status == ItemStatus.FAILED
-            ]
-            # ── Environment-blocked degrade ──────────────────────
-            # All failed verification items are environment-blocked
-            # (missing tool / no network): don't burn repair attempts or
-            # hard-fail the turn on an environment problem. Surface a
-            # manual-confirmation item and complete.
-            if not repair_limit and _turn_verification_environment_blocked(turn):
-                degrade_item = VerificationItem(
-                    command="manual verification required (environment blocked)",
-                    kind="manual",
-                    status=ItemStatus.COMPLETED,
-                    exit_code=None,
-                    summary=(
-                        "代码已修改，但验证命令因环境受限未能执行 "
-                        "(工具缺失/网络不可用)。请人工运行下列推荐命令确认后继续。"
-                    ),
-                    stdout_tail=_verification_plan_stdout_tail(
-                        _verification_plan_for_code_paths(_code_change_paths(turn), intent)
-                    ),
-                    stderr_tail=None,
-                    related_files=_code_change_paths(turn),
-                    related_change_item_ids=_file_change_item_ids(turn),
-                )
-                turn.items.append(degrade_item)
-                await runtime._emit_item_started(turn, log, emitter, degrade_item)
-                await runtime._emit_item_completed(turn, log, emitter, degrade_item)
-                turn.status = TurnStatus.COMPLETED
-                _close_turn(log, thread_id, turn)
-                runtime._snapshot_to_thread_store(thread_id, log, intent)
-                return turn
-            if repair_limit:
-                from runtime.safety.evolution.auto_verifier import (
-                    build_verification_repair_request,
-                )
-
-                verification_plan = _verification_plan_for_code_paths(
-                    _code_change_paths(turn),
-                    intent,
-                )
-                repair_attempt = 1
-                repair_request = build_verification_repair_request(
-                    verification_plan,
-                    failed_items,
-                    attempt=repair_attempt,
-                    max_attempts=repair_limit,
-                )
-                with contextlib.suppress(Exception):
-                    from runtime.safety.evolution.auto_verifier_metrics import (
-                        record_auto_verifier_repair_attempt,
-                    )
-
-                    record_auto_verifier_repair_attempt(
-                        attempt=repair_attempt,
-                        max_attempts=repair_limit,
-                        status="requested",
-                        failed_commands=[item.command for item in failed_items],
-                    )
-                repair_context = dict(intent.user_context or {})
-                repair_context["verification_repair"] = repair_request
-                repair_intent = intent.model_copy(
-                    update={
-                        "raw": repair_request["prompt"],
-                        "normalized_goal": repair_request["prompt"],
-                        "user_context": repair_context,
-                    }
-                )
-                await execution.execute(
-                    TurnExecutionRequest(
-                        repair_intent, repair_intent.normalized_goal, validated.model
-                    ),
-                    phase=ExecutionPhase.REPAIR,
-                )
-                if turn.status == TurnStatus.INTERRUPTED:
-                    _close_turn(log, thread_id, turn)
-                    runtime._snapshot_to_thread_store(thread_id, log, intent)
-                    return turn
-                if turn.status == TurnStatus.FAILED:
-                    _close_turn(log, thread_id, turn)
-                    runtime._record_failed_turn_proposal(
-                        turn,
-                        intent=intent,
-                        failure_source="verification_repair_failed",
-                    )
-                    runtime._snapshot_to_thread_store(thread_id, log, intent)
-                    return turn
-            else:
-                turn.status = TurnStatus.FAILED
-                _close_turn(log, thread_id, turn)
-                runtime._record_failed_turn_proposal(
-                    turn,
-                    intent=intent,
-                    failure_source="verification_failed",
-                )
-                runtime._snapshot_to_thread_store(thread_id, log, intent)
-                return turn
-
-        if _turn_has_unverified_code_changes(turn):
-            # ── Await in-flight background verification ─────────────
-            # The model may have handed verification to a background task
-            # (background_exec) that is still running when the loop
-            # returned. Failing with "verification required" while those
-            # tasks are in flight would blame the model for work that is
-            # genuinely still finishing. Wait a bounded window for their
-            # outcome; if one is still running afterwards, close the turn
-            # as completed-with-background (the verifier keeps running)
-            # instead of a spurious verification-required failure.
-            pending_bg_tasks = [
-                task
-                for task in runtime._thread_background_tasks.get(thread_id, [])
-                if not task.done()
-            ]
-            # Only bypass the gate when a pending task is plausibly the
-            # delegated verification itself. An unrelated watcher / dev
-            # server / poller still running is not a reason to silently
-            # green unverified code — in that case fall through to the
-            # normal verification gate below.
-            if any(_background_task_is_verification(task.get_name()) for task in pending_bg_tasks):
-                await asyncio.wait(
-                    pending_bg_tasks,
-                    timeout=_BACKGROUND_VERIFY_WAIT_S,
-                )
-                if any(not task.done() for task in pending_bg_tasks):
-                    turn.status = TurnStatus.COMPLETED
-                    turn.outcome_reason = "completed_with_background"
-                    _close_turn(log, thread_id, turn)
-                    runtime._snapshot_to_thread_store(thread_id, log, intent)
-                    return turn
-
-            code_change_paths = _code_change_paths(turn)
-            verification_plan = _verification_plan_for_code_paths(
-                code_change_paths,
-                intent,
-            )
-            auto_items: list[VerificationItem] = []
-            while True:
-                try:
-                    from runtime.safety.evolution.auto_verifier import (
-                        build_verification_repair_request,
-                        run_verification_plan,
-                    )
-
-                    auto_items = run_verification_plan(
-                        verification_plan,
-                        sandbox_policy=validated.sandbox_policy,
-                    )
-                except Exception:  # noqa: BLE001 - auto verification is best-effort
-                    auto_items = []
-                for auto_item in auto_items:
-                    turn.items.append(auto_item)
-                    await runtime._emit_item_started(turn, log, emitter, auto_item)
-                    await runtime._emit_item_completed(turn, log, emitter, auto_item)
-                if repair_attempt:
-                    with contextlib.suppress(Exception):
-                        from runtime.safety.evolution.auto_verifier_metrics import (
-                            record_auto_verifier_repair_attempt,
-                        )
-
-                        record_auto_verifier_repair_attempt(
-                            attempt=repair_attempt,
-                            max_attempts=repair_limit,
-                            status=(
-                                "passed"
-                                if auto_items
-                                and all(item.status == ItemStatus.COMPLETED for item in auto_items)
-                                else "failed"
-                                if auto_items
-                                else "no_evidence"
-                            ),
-                            failed_commands=[],
-                            fresh_evidence_commands=[item.command for item in auto_items],
-                        )
-                if all(item.status == ItemStatus.COMPLETED for item in auto_items):
-                    if not auto_items:
-                        break
-                    turn.status = TurnStatus.COMPLETED
-                    _close_turn(log, thread_id, turn)
-                    runtime._record_successful_turn_example(turn, intent=intent)
-                    await runtime._maybe_compact(thread_id, log, emitter)
-                    runtime._snapshot_to_thread_store(thread_id, log, intent)
-                    return turn
-                if not auto_items or repair_attempt >= repair_limit:
-                    break
-
-                repair_attempt += 1
-                repair_request = build_verification_repair_request(
-                    verification_plan,
-                    auto_items,
-                    attempt=repair_attempt,
-                    max_attempts=repair_limit,
-                )
-                with contextlib.suppress(Exception):
-                    from runtime.safety.evolution.auto_verifier_metrics import (
-                        record_auto_verifier_repair_attempt,
-                    )
-
-                    record_auto_verifier_repair_attempt(
-                        attempt=repair_attempt,
-                        max_attempts=repair_limit,
-                        status="requested",
-                        failed_commands=[item.command for item in auto_items],
-                    )
-                repair_context = dict(intent.user_context or {})
-                repair_context["verification_repair"] = repair_request
-                repair_intent = intent.model_copy(
-                    update={
-                        "raw": repair_request["prompt"],
-                        "normalized_goal": repair_request["prompt"],
-                        "user_context": repair_context,
-                    }
-                )
-                await execution.execute(
-                    TurnExecutionRequest(
-                        repair_intent, repair_intent.normalized_goal, validated.model
-                    ),
-                    phase=ExecutionPhase.REPAIR,
-                )
-                if turn.status == TurnStatus.INTERRUPTED:
-                    _close_turn(log, thread_id, turn)
-                    runtime._snapshot_to_thread_store(thread_id, log, intent)
-                    return turn
-                verification_plan = _verification_plan_for_code_paths(
-                    _code_change_paths(turn),
-                    intent,
-                )
-
-            if not auto_items:
-                # ── Agent-driven verification loop-back ────────────
-                # Auto-verification produced no evidence (sandbox didn't
-                # allow it, or no allowlisted command fit) and the agent
-                # ended without recording a verification step. Instead of
-                # hard-ending with a manual "verification required" error,
-                # give the agent a bounded round to run the recommended
-                # commands itself, fix anything that fails, and report.
-                from runtime.safety.evolution.auto_verifier import (
-                    build_agent_verification_request,
-                )
-
-                agent_verify_attempt = 0
-                while agent_verify_attempt < _AGENT_VERIFY_ROUND_LIMIT:
-                    if not _turn_has_unverified_code_changes(turn):
-                        break
-                    agent_verify_attempt += 1
-                    verify_request = build_agent_verification_request(
-                        verification_plan,
-                        attempt=agent_verify_attempt,
-                    )
-                    verify_context = dict(intent.user_context or {})
-                    verify_context["verification_repair"] = verify_request
-                    verify_intent = intent.model_copy(
-                        update={
-                            "raw": verify_request["prompt"],
-                            "normalized_goal": verify_request["prompt"],
-                            "user_context": verify_context,
-                        }
-                    )
-                    await execution.execute(
-                        TurnExecutionRequest(
-                            verify_intent, verify_intent.normalized_goal, validated.model
-                        ),
-                        phase=ExecutionPhase.VERIFICATION,
-                    )
-                    if turn.status in {
-                        TurnStatus.INTERRUPTED,
-                        TurnStatus.CANCELLED,
-                        TurnStatus.PAUSED,
-                        TurnStatus.FAILED,
-                    }:
-                        _close_turn(log, thread_id, turn)
-                        runtime._snapshot_to_thread_store(thread_id, log, intent)
-                        return turn
-                if not _turn_has_unverified_code_changes(turn):
-                    turn.status = TurnStatus.COMPLETED
-                    _close_turn(log, thread_id, turn)
-                    runtime._record_successful_turn_example(turn, intent=intent)
-                    await runtime._maybe_compact(thread_id, log, emitter)
-                    runtime._snapshot_to_thread_store(thread_id, log, intent)
-                    return turn
-
-            if auto_items:
-                # ── Environment-blocked degrade ──────────────────────
-                # The verifier could not run at all (missing tool /
-                # no network / corepack download failure), so a hard
-                # failure would blame the code for an environment
-                # problem. Degrade to a manual-confirmation turn: the
-                # change is preserved, the UI shows the exact command
-                # the user must run to close the loop.
-                if _turn_verification_environment_blocked(turn):
-                    degrade_item = VerificationItem(
-                        command="manual verification required (environment blocked)",
-                        kind="manual",
-                        status=ItemStatus.COMPLETED,
-                        exit_code=None,
-                        summary=(
-                            "代码已修改，但验证命令因环境受限未能执行 "
-                            "(工具缺失/网络不可用)。请人工运行下列推荐命令确认后继续。"
-                        ),
-                        stdout_tail=_verification_plan_stdout_tail(verification_plan),
-                        stderr_tail=None,
-                        related_files=code_change_paths,
-                        related_change_item_ids=_file_change_item_ids(turn),
-                    )
-                    turn.items.append(degrade_item)
-                    await runtime._emit_item_started(turn, log, emitter, degrade_item)
-                    await runtime._emit_item_completed(turn, log, emitter, degrade_item)
-                    turn.status = TurnStatus.COMPLETED
-                    _close_turn(log, thread_id, turn)
-                    runtime._snapshot_to_thread_store(thread_id, log, intent)
-                    return turn
-
-                turn.status = TurnStatus.FAILED
-                _close_turn(log, thread_id, turn)
-                runtime._record_failed_turn_proposal(
-                    turn,
-                    intent=intent,
-                    failure_source="verification_failed",
-                )
-                runtime._snapshot_to_thread_store(thread_id, log, intent)
-                return turn
-
-            verification_item = VerificationItem(
-                command="verification required",
-                kind="manual",
-                status=ItemStatus.FAILED,
-                exit_code=None,
-                summary=(
-                    "Code changes were produced but no verification step "
-                    "was recorded before final answer."
-                ),
-                stdout_tail=_verification_plan_stdout_tail(verification_plan),
-                stderr_tail=None,
-                related_files=code_change_paths,
-                related_change_item_ids=_file_change_item_ids(turn),
-            )
-            turn.items.append(verification_item)
-            await runtime._emit_item_started(turn, log, emitter, verification_item)
-            await runtime._emit_item_completed(turn, log, emitter, verification_item)
-            # ── Environment-blocked degrade ──────────────────────
-            # The agent changed code but could not run ANY verifier
-            # because the environment itself is broken (missing tool /
-            # no network / corepack shim download failure). Keep the
-            # change visible and ask the user to confirm manually instead
-            # of failing the turn on an environment problem.
-            if _turn_verification_environment_blocked(turn):
-                turn.status = TurnStatus.COMPLETED
-                _close_turn(log, thread_id, turn)
-                runtime._snapshot_to_thread_store(thread_id, log, intent)
-                return turn
-            turn.status = TurnStatus.FAILED
-            _close_turn(log, thread_id, turn)
-            runtime._record_failed_turn_proposal(
-                turn,
-                intent=intent,
-                failure_source="verification_required",
-            )
-            runtime._snapshot_to_thread_store(thread_id, log, intent)
-            return turn
+        if terminal is not None:
+            return terminal
 
         if not _turn_has_observable_output(turn):
             err = ErrorItem(

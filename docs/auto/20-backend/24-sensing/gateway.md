@@ -137,10 +137,13 @@ tier: "standard"
 | `_realtime_subagent_journal_items.py` | Journal-to-realtime item projections for sub-agent workbench lanes. |
 | `_realtime_team_stream_mesh.py` | Mesh swarm stream driver — auto-selecting swarm (mesh vs team) + fallback. |
 | `_realtime_thread_delete_probe.py` | Durable permanent-delete fence shared by realtime turn boundaries. |
+| `_realtime_turn_dispatch.py` | Composer routing and coordinated delivery acceptance for realtime turns. |
 | `_realtime_turn_idempotency.py` | Durable ``userItemId`` replay helpers for realtime turn startup. |
 | `_realtime_turn_lifecycle_helpers.py` | Shared helpers for the realtime turn lifecycle. |
 | `_realtime_turn_lifecycle_resume.py` | Resume-intent persistence for the realtime turn lifecycle. |
+| `_realtime_turn_reporting.py` | Terminal notifications, item closure and parked subagent report scheduling. |
 | `_realtime_turn_start_phases.py` | Straight-line startup phases of ``realtime_turn_lifecycle._start_turn``. |
+| `_realtime_turn_verification.py` | Verification evidence, bounded repair and terminal outcomes for one turn. |
 | `_task_approval_router.py` | One task approval route, with optional consent binding for upgraded clients. |
 | `_team_room_binding.py` | Canonical Team Room thread binding helpers. |
 | `_team_room_broadcast.py` | Local socket delivery plus tenant-fenced cross-worker room wake-ups. |

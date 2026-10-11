@@ -34,13 +34,13 @@ graph LR
   platform[platform]
   sensing -- 219 --> platform
   execution -- 171 --> platform
-  sensing -- 170 --> safety
+  sensing -- 171 --> safety
   sensing -- 136 --> execution
   sensing -- 127 --> memory
   safety -- 102 --> platform
   execution -- 97 --> safety
   memory -- 80 --> platform
-  sensing -- 64 --> protocol
+  sensing -- 67 --> protocol
   core -- 60 --> platform
   platform -- 56 --> execution
   platform -- 56 --> safety
