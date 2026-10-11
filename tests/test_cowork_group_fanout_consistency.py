@@ -13,6 +13,7 @@ Regression coverage for three group-response defects:
 from __future__ import annotations
 
 import asyncio
+import threading
 from types import SimpleNamespace
 from typing import Any
 from unittest.mock import AsyncMock
@@ -114,6 +115,67 @@ def _history(current: str) -> list[dict[str, str]]:
         {"role": "assistant", "content": "收到，这个方案先记下。"},
         {"role": "user", "content": current},
     ]
+
+
+def test_gateway_persists_and_announces_fast_member_before_slow_member_finishes(
+    tmp_path, monkeypatch
+) -> None:
+    release = threading.Event()
+    slow_finished = threading.Event()
+
+    def call_agent(**kwargs: Any) -> dict[str, Any]:
+        agent_id = str(kwargs["agent_id"])
+        if agent_id == "gamma":
+            assert release.wait(3)
+            slow_finished.set()
+        return {
+            "success": True,
+            "output": f"结论：{agent_id} 建议先在预发环境演练一次，主要风险是回填期间主库负载升高。",
+        }
+
+    monkeypatch.setattr("runtime.execution.suckers.delegation_skills._call_agent", call_agent)
+    runtime = _runtime(_group(tmp_path, mode="swarm"))
+    turn = Turn(threadId=THREAD, params=TurnParams(threadId=THREAD))
+    log = EventLog(tmp_path / "live-events.jsonl")
+    log.turn_started(THREAD, turn)
+    intent = ParsedIntent(
+        raw="分头推进上线准备", normalized_goal="上线准备", intent_type="task", user_context={}
+    )
+    _inject_cowork_turn_plan(runtime, thread_id=THREAD, text=intent.raw, intent=intent)
+
+    async def scenario() -> None:
+        fast_visible = asyncio.Event()
+
+        async def notify(method, payload) -> None:
+            if method == "item/completed" and payload.get("item", {}).get("agentId") == "alpha":
+                fast_visible.set()
+
+        task = asyncio.create_task(
+            _drive_group_fanout(
+                runtime,
+                turn,
+                log,
+                SimpleNamespace(notify=notify, is_turn_interrupted=lambda _: False),
+                intent,
+                text=intent.raw,
+            )
+        )
+        try:
+            await asyncio.wait_for(fast_visible.wait(), 2)
+            assert not slow_finished.is_set()
+            assert not task.done()
+            assert any(
+                isinstance(item, AgentMessageItem) and item.agent_id == "alpha"
+                for item in turn.items
+            )
+        finally:
+            release.set()
+        await task
+        messages = [item for item in turn.items if isinstance(item, AgentMessageItem)]
+        for agent_id in ELIGIBLE:
+            assert sum(item.agent_id == agent_id for item in messages) == 1
+
+    asyncio.run(scenario())
 
 
 class _RoomStore:

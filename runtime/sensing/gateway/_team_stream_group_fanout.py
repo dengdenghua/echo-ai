@@ -36,6 +36,7 @@ from runtime.protocol import (
     SubagentItem,
     Turn,
 )
+from runtime.sensing.gateway.group_reply_stream import FanoutReplyEmitter, stream_worker_replies
 from runtime.sensing.gateway.realtime_approval import GatewayApprovalProvider
 from runtime.sensing.gateway.realtime_gateway import EventEmitter
 
@@ -1704,10 +1705,18 @@ async def _drive_group_fanout(
 
             debate_rounds = 1 if has_remote_members else _wants_debate()
             mentioned = _mentioned_names()
-            result = await asyncio.to_thread(
+            reply_emitter = FanoutReplyEmitter(
+                _emit,
+                mention_target=lambda body: _extract_mention_target(body, chat_members),
+                friendly_error=_friendly_member_error,
+                should_cancel=_group_fanout_cancelled,
+            )
+            result = await stream_worker_replies(
                 run_group_fanout,
                 text,
                 chat_members,
+                emit_reply=reply_emitter.reply,
+                max_pending=fanout_limit * 3,
                 agent_caller=_member_caller,
                 # Cover the whole roster (a small hard cap would silently drop
                 # members ordered last).
@@ -1760,39 +1769,9 @@ async def _drive_group_fanout(
                     turn.items.append(audit_item)
                     log.item_started(turn.thread_id, turn.id, audit_item)
                     log.item_completed(turn.thread_id, turn.id, audit_item)
-            last_round_emitted = 0
             for reply in result.get("replies", []):
-                body = str(reply.get("reply") or "").strip()
-                round_no = int(reply.get("round") or 1)
-                if round_no > 1 and round_no != last_round_emitted:
-                    last_round_emitted = round_no
-                    await _emit(
-                        "⚔️ 第 "
-                        + str(round_no)
-                        + " 轮 · 成员互见辩论 —— 大家看到彼此观点后点名回应：",
-                        display_name="主持人",
-                        agent_id="swarm-moderator",
-                        icon="⚔️",
-                    )
-                if reply.get("ok") and body:
-                    reply_to = _extract_mention_target(body, chat_members)
-                    await _emit(
-                        body,
-                        display_name=str(reply.get("display_name") or ""),
-                        agent_id=str(reply.get("agent_id") or ""),
-                        reply_to=reply_to,
-                    )
-                    spoke += 1
-                elif not reply.get("ok") and not reply.get("cancelled"):
-                    err = str(reply.get("error") or "no reply")
-                    await _emit(
-                        "⚠️ "
-                        + str(reply.get("display_name") or reply.get("agent_id") or "成员")
-                        + " 未能回应 · "
-                        + _friendly_member_error(err),
-                        display_name=str(reply.get("display_name") or ""),
-                        agent_id=str(reply.get("agent_id") or ""),
-                    )
+                await reply_emitter.reply(reply)
+            spoke = reply_emitter.spoke
             summary = None if fanout_cancelled else _group_summary(result)
             if summary:
                 await _emit(summary)

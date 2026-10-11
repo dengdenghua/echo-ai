@@ -2,7 +2,7 @@
 # Shortening or splitting one? Remove (or lower) its line so the win is locked in.
 
 runtime/sensing/gateway/_tool_bridge_loop.py::_stream_agentic_fallback_impl	1894
-runtime/sensing/gateway/_team_stream_group_fanout.py::_drive_group_fanout	1590
+runtime/sensing/gateway/_team_stream_group_fanout.py::_drive_group_fanout	1568
 runtime/sensing/gateway/realtime_turn_lifecycle.py::_start_turn	1251
 runtime/execution/subagents/bridge.py::call_subagent	1537
 runtime/platform/ui/browser_router.py::create_browser_router	1179
