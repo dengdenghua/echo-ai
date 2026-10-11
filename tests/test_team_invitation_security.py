@@ -126,17 +126,17 @@ def _raise_once_after_commit(
     store: TeamInvitationStore,
     boundary: str,
 ) -> None:
-    if boundary == "json":
+    if boundary == "membership":
         from runtime.sensing.gateway import _team_room_persistence as persistence
 
-        original = persistence._save_state
+        original = persistence.commit_room_delta
 
-        def save_then_raise(path: Path, teams: dict[str, Any]) -> None:
-            original(path, teams)
-            monkeypatch.setattr(persistence, "_save_state", original)
-            raise RuntimeError("json committed before response failure")
+        def save_then_raise(conn, upserts, deleted) -> None:
+            original(conn, upserts, deleted)
+            monkeypatch.setattr(persistence, "commit_room_delta", original)
+            raise RuntimeError("membership committed before response failure")
 
-        monkeypatch.setattr(persistence, "_save_state", save_then_raise)
+        monkeypatch.setattr(persistence, "commit_room_delta", save_then_raise)
         return
 
     original_finalize = store._finalize_reservation
@@ -144,7 +144,7 @@ def _raise_once_after_commit(
     def finalize_then_raise(reservation_id: str) -> None:
         original_finalize(reservation_id)
         monkeypatch.setattr(store, "_finalize_reservation", original_finalize)
-        raise RuntimeError("sqlite finalized before response failure")
+        raise RuntimeError("invitation finalized before response failure")
 
     monkeypatch.setattr(store, "_finalize_reservation", finalize_then_raise)
 
@@ -152,13 +152,13 @@ def _raise_once_after_commit(
 def _fail_once_before_membership_commit(monkeypatch: pytest.MonkeyPatch) -> None:
     from runtime.sensing.gateway import _team_room_persistence as persistence
 
-    original = persistence._save_state
+    original = persistence.commit_room_delta
 
-    def fail_before_save(_path: Path, _teams: dict[str, Any]) -> None:
-        monkeypatch.setattr(persistence, "_save_state", original)
+    def fail_before_save(_conn, _upserts, _deleted) -> None:
+        monkeypatch.setattr(persistence, "commit_room_delta", original)
         raise RuntimeError("membership failed before durable commit")
 
-    monkeypatch.setattr(persistence, "_save_state", fail_before_save)
+    monkeypatch.setattr(persistence, "commit_room_delta", fail_before_save)
 
 
 def test_create_is_backwards_compatible_but_secret_is_not_projected_or_persisted(
@@ -173,7 +173,10 @@ def test_create_is_backwards_compatible_but_secret_is_not_projected_or_persisted
     assert created["invite_role"] == "viewer"
     assert created["invite_id"].startswith("invite-")
     assert created["invite_hash_path"].endswith(token)
-    assert token not in (tmp_path / "rooms.json").read_text(encoding="utf-8")
+    from runtime.sensing.gateway._team_room_store import room_database_path
+
+    with sqlite3.connect(room_database_path(tmp_path / "rooms.json")) as conn:
+        assert token not in json.dumps(conn.execute("SELECT payload FROM rooms").fetchall())
     assert "invite_token" not in json.dumps(room)
     assert projections and "invite_token" not in json.dumps(projections[-1])
 
@@ -477,7 +480,7 @@ def test_failed_room_mutation_retains_capacity_for_same_actor_retry(tmp_path: Pa
     assert [item["actor_id"] for item in store.acceptances(invite_id=invitation["id"])] == ["bob"]
 
 
-@pytest.mark.parametrize("boundary", ["json", "sqlite"])
+@pytest.mark.parametrize("boundary", ["membership", "invitation"])
 def test_direct_join_commit_then_raise_cannot_oversell_and_replays(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -495,8 +498,9 @@ def test_direct_join_commit_then_raise_cannot_oversell_and_replays(
             headers=_bearer(keys, "bob"),
             json={"display_name": "Bob"},
         )
-    durable = json.loads((tmp_path / "rooms.json").read_text(encoding="utf-8"))
-    room = next(item for item in durable["teams"] if item["id"] == "secure-room")
+    from runtime.sensing.gateway._team_rooms_state import _load_state
+
+    room = _load_state(tmp_path / "rooms.json")["secure-room"].model_dump()
     assert len([item for item in room["participants"] if item.get("actor_id") == "bob"]) == 1
     assert store.find_by_token(token, tenant_id="tenant-acme")["use_count"] == 1
     revoked = client.delete(
@@ -569,8 +573,9 @@ def test_reserved_direct_join_without_membership_stays_blocked_after_restart(
         json={"display_name": "Bob retry"},
     )
     assert retry.status_code == 410, retry.json()
-    durable = json.loads((tmp_path / "rooms.json").read_text(encoding="utf-8"))
-    room = next(item for item in durable["teams"] if item["id"] == "secure-room")
+    from runtime.sensing.gateway._team_rooms_state import _load_state
+
+    room = _load_state(tmp_path / "rooms.json")["secure-room"].model_dump()
     assert not [
         item
         for item in room["participants"]
@@ -587,8 +592,8 @@ def test_removed_member_with_pending_direct_reservation_is_not_resurrected(
     _create_room(client, keys)
     invite = _create_invite(client, keys, max_uses=1)
     token = invite["invite_token"]
-    _raise_once_after_commit(monkeypatch, store, "json")
-    with pytest.raises(RuntimeError, match="json committed"):
+    _raise_once_after_commit(monkeypatch, store, "membership")
+    with pytest.raises(RuntimeError, match="membership committed"):
         client.post(
             f"/api/team-invites/{token}/join",
             headers=_bearer(keys, "bob"),
@@ -632,8 +637,11 @@ def test_direct_join_stable_participant_conflict_returns_409(
         )
 
     state_path = tmp_path / "rooms.json"
-    durable = json.loads(state_path.read_text(encoding="utf-8"))
-    room = next(item for item in durable["teams"] if item["id"] == "secure-room")
+    from runtime.sensing.gateway._team_rooms_state import _load_state, _save_state
+    from runtime.sensing.gateway.team_rooms_models import TeamRoomWire
+
+    durable = _load_state(state_path)
+    room = durable["secure-room"].model_dump()
     owner = room["participants"][0]
     room["participants"].append(
         {
@@ -643,7 +651,8 @@ def test_direct_join_stable_participant_conflict_returns_409(
             "display_name": "Bob legacy",
         }
     )
-    state_path.write_text(json.dumps(durable), encoding="utf-8")
+    durable["secure-room"] = TeamRoomWire.model_validate(room)
+    _save_state(state_path, durable)
     client.close()
 
     restarted, restarted_keys, restarted_store, _router = _build_app(tmp_path)

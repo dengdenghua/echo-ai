@@ -12,6 +12,7 @@ import asyncio
 import contextlib
 import logging
 from collections.abc import Awaitable, Callable
+from functools import partial
 from pathlib import Path
 from threading import Lock
 from typing import Any
@@ -21,11 +22,13 @@ from runtime.platform.process.paths import app_paths
 from runtime.safety.auth.principal import CurrentPrincipal
 from runtime.safety.auth.websocket_auth import WebSocketAuthConfig, require_connection_principal
 
+from ._team_room_presence import overlay_room_presence
 from ._team_rooms_access import TeamRoomAccess
 from ._team_rooms_state import (
     _load_state,
     _room_payload,
     _team_project_helpers,
+    legacy_room_tenant,
 )
 from ._team_rooms_state import (
     _room_storage_payload as _room_storage_payload,
@@ -127,13 +130,9 @@ def create_team_rooms_router(
     lock = Lock()
     scrub_legacy_room_invites(path)
 
-    def _legacy_tenant_for_owner(owner_id: str | None) -> str:
-        owner = str(owner_id or "").strip()
-        if not require_auth:
-            return "local"
-        identity = identity_store.get(owner) if identity_store is not None and owner else None
-        tenant = str((getattr(identity, "metadata", None) or {}).get("tenant_id") or "").strip()
-        return tenant or (f"legacy:{owner}" if owner else "local")
+    _legacy_tenant_for_owner = partial(
+        legacy_room_tenant, require_auth=require_auth, identity_store=identity_store
+    )
 
     teams: dict[str, TeamRoomWire] = _load_state(
         path,
@@ -147,6 +146,7 @@ def create_team_rooms_router(
     group_store_holder: dict[str, Any] = {"store": group_store}
     live_sockets: dict[str, dict[str, WebSocket]] = {}
     socket_loops: dict[str, dict[str, asyncio.AbstractEventLoop]] = {}
+    presence_seen: dict[tuple[str, str], str] = {}
 
     def _project_binding_for_room(team: TeamRoomWire) -> tuple[str | None, bool]:
         bound_store = project_store_holder.get("store")
@@ -226,7 +226,7 @@ def create_team_rooms_router(
                 legacy_tenant_for_owner=_legacy_tenant_for_owner,
             )
             teams.clear()
-            teams.update(durable)
+            teams.update(overlay_room_presence(durable, presence_seen))
             persisted_teams = dict(durable)
 
     def _assert_room_creatable(team_id: str, tenant_id: str, owner_id: str) -> None:
@@ -276,7 +276,7 @@ def create_team_rooms_router(
             legacy_tenant_for_owner=_legacy_tenant_for_owner,
         )
         teams.clear()
-        teams.update(merged)
+        teams.update(overlay_room_presence(merged, presence_seen))
         persisted_teams = dict(merged)
         if room_projection is not None:
             for team in list(merged.values()):
@@ -315,6 +315,7 @@ def create_team_rooms_router(
         with lock:
             teams.clear()
             live_sockets.clear()
+            presence_seen.clear()
             invite_store.clear()
         if callable(reset_callback):
             reset_callback()
@@ -911,6 +912,7 @@ def create_team_rooms_router(
         lock=lock,
         live_sockets=live_sockets,
         socket_loops=socket_loops,
+        presence_seen=presence_seen,
         ws_auth=auth_config,
         save=_save,
         broadcast=_broadcast,

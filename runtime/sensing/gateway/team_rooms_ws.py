@@ -197,6 +197,7 @@ class TeamRoomWsContext:
     # each send on the loop that accepted that socket; directly awaiting a
     # foreign-loop socket intermittently deadlocks both loops.
     socket_loops: dict[str, dict[str, asyncio.AbstractEventLoop]] = field(default_factory=dict)
+    presence_seen: dict[tuple[str, str], str] = field(default_factory=dict)
     # Twin speaking (optional injection — keeps the gateway a leaf): when the
     # floor lands on a participant who bound a digital-twin agent
     # (``speak_mode == "twin"``), the handler asks this callback for a line
@@ -571,6 +572,7 @@ async def team_room_ws(ctx: TeamRoomWsContext, ws: WebSocket, team_id: str) -> N
                 teams[team_id] = team
                 live_sockets.setdefault(team_id, {})[participant_id] = ws
                 socket_loops.setdefault(team_id, {})[participant_id] = owner_loop
+                ctx.presence_seen[(team_id, participant_id)] = now
                 display_name = participant.display_name
                 _save()
                 ready_payload = {
@@ -626,20 +628,14 @@ async def team_room_ws(ctx: TeamRoomWsContext, ws: WebSocket, team_id: str) -> N
                             p.model_copy(
                                 update={
                                     "last_seen_at": seen,
-                                    "status": "active",
                                 }
                             )
                             if p.id == participant_id
                             else p
                             for p in current.participants
                         ]
-                        teams[team_id] = current.model_copy(
-                            update={
-                                "participants": participants,
-                                "updated_at": seen,
-                            }
-                        )
-                        _save()
+                        ctx.presence_seen[(team_id, participant_id)] = seen
+                        teams[team_id] = current.model_copy(update={"participants": participants})
                 await _broadcast(
                     team_id,
                     {"type": "pong", "server_time": _now()},
@@ -934,6 +930,7 @@ async def team_room_ws(ctx: TeamRoomWsContext, ws: WebSocket, team_id: str) -> N
             current = teams.get(team_id)
             if current is not None and owns_presence:
                 left_at = _now()
+                ctx.presence_seen[(team_id, participant_id)] = left_at
                 participants = [
                     p.model_copy(
                         update={

@@ -7,9 +7,8 @@ from pathlib import Path
 
 from fastapi import HTTPException
 
-from runtime.platform.io import path_transaction
-
-from ._team_rooms_state import _load_state, _room_storage_payload, _save_state
+from ._team_room_store import commit_room_delta, read_rooms, room_connection
+from ._team_rooms_state import _room_storage_payload
 from .team_rooms_models import TeamRoomWire
 
 
@@ -38,16 +37,16 @@ def merge_team_room_state(
     changed = {
         team_id
         for team_id in set(local).intersection(baseline)
-        if local[team_id] != baseline[team_id]
+        if _room_storage_payload(local[team_id]) != _room_storage_payload(baseline[team_id])
     }
-    with path_transaction(path):
-        durable = _load_state(
-            path,
-            legacy_tenant_for_owner=legacy_tenant_for_owner,
-            strict=True,
-        )
+    with room_connection(path, legacy_tenant_for_owner) as conn:
+        conn.execute("BEGIN IMMEDIATE")
+        durable = read_rooms(conn)
         for team_id in changed | deleted:
-            if durable.get(team_id) != baseline.get(team_id):
+            current = durable.get(team_id)
+            if current is None or _room_storage_payload(current) != _room_storage_payload(
+                baseline[team_id]
+            ):
                 raise HTTPException(
                     409,
                     {
@@ -61,10 +60,12 @@ def merge_team_room_state(
             merged.pop(team_id, None)
         for team_id in changed:
             merged[team_id] = local[team_id]
+        inserted: dict[str, TeamRoomWire] = {}
         for team_id in added:
             current = durable.get(team_id)
             if current is None:
                 merged[team_id] = local[team_id]
+                inserted[team_id] = local[team_id]
             elif not _same_exact_room(current, local[team_id]):
                 raise HTTPException(
                     409,
@@ -74,7 +75,7 @@ def merge_team_room_state(
                         "team_id": team_id,
                     },
                 )
-        _save_state(path, merged)
+        commit_room_delta(conn, {key: local[key] for key in changed} | inserted, deleted)
         return merged
 
 
@@ -88,12 +89,9 @@ def delete_reserved_team_room_state(
 ) -> tuple[dict[str, TeamRoomWire], TeamRoomWire | None]:
     """Delete the latest scoped room after GroupStore granted a durable token."""
 
-    with path_transaction(path):
-        durable = _load_state(
-            path,
-            legacy_tenant_for_owner=legacy_tenant_for_owner,
-            strict=True,
-        )
+    with room_connection(path, legacy_tenant_for_owner) as conn:
+        conn.execute("BEGIN IMMEDIATE")
+        durable = read_rooms(conn)
         current = durable.get(team_id)
         if current is not None:
             if current.tenant_id != tenant_id or current.owner_id != owner_id:
@@ -111,7 +109,7 @@ def delete_reserved_team_room_state(
                 )
         merged = dict(durable)
         merged.pop(team_id, None)
-        _save_state(path, merged)
+        commit_room_delta(conn, {}, {team_id} if current is not None else set())
         return merged, current
 
 
@@ -122,12 +120,8 @@ def refresh_team_room_state(
 ) -> dict[str, TeamRoomWire]:
     """Read one strict, cross-process-consistent durable room snapshot."""
 
-    with path_transaction(path):
-        return _load_state(
-            path,
-            legacy_tenant_for_owner=legacy_tenant_for_owner,
-            strict=True,
-        )
+    with room_connection(path, legacy_tenant_for_owner) as conn:
+        return read_rooms(conn)
 
 
 __all__ = [

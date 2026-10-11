@@ -108,12 +108,13 @@ def test_legacy_invite_scrub_serializes_with_live_room_create(
 ) -> None:
     import runtime.platform.io.transactional as transactional
     import runtime.sensing.gateway._team_room_persistence as persistence
+    from runtime.sensing.gateway._team_rooms_state import _load_state
     from runtime.sensing.gateway.team_invitations_router import scrub_legacy_room_invites
 
     state_path = tmp_path / "team_rooms.json"
     client = _client(tmp_path)
     existing = client.post("/api/teams", json=_team_body("Legacy")).json()
-    raw = json.loads(state_path.read_text(encoding="utf-8"))
+    raw = {"teams": [existing]}
     raw["teams"][0]["invite_token"] = "plaintext-secret"
     raw["teams"][0]["invite_role"] = "member"
     state_path.write_text(json.dumps(raw), encoding="utf-8")
@@ -149,11 +150,13 @@ def test_legacy_invite_scrub_serializes_with_live_room_create(
         response = created.result(timeout=5)
 
     assert response.status_code == 200, response.json()
-    durable = json.loads(state_path.read_text(encoding="utf-8"))["teams"]
-    assert {item["id"] for item in durable} == {existing["id"], response.json()["id"]}
+    durable = _load_state(state_path)
+    assert set(durable) == {existing["id"], response.json()["id"]}
+    backup = json.loads(state_path.read_text(encoding="utf-8"))["teams"]
+    assert {item["id"] for item in backup} == {existing["id"]}
     assert all(
         field not in item
-        for item in durable
+        for item in backup
         for field in ("invite_token", "invite_role", "invite_created_at")
     )
 
