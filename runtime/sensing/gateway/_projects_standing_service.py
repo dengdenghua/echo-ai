@@ -117,6 +117,12 @@ class StandingProjectService:
                     }
                 ):
                     continue
+                # A valid active lease already owns execution. Avoid rebuilding
+                # the full project graph on every scanner tick while its worker
+                # is committing progress or cancellation on the same database.
+                receipt = self.dispatcher.state(project)
+                if receipt and receipt["status"] in {"queued", "pending", "running"}:
+                    continue
                 d.require_execution_context(request, project_id)
                 state = d.full_state(request, project_id)
                 if state.get("governance", {}).get("blocked_reason"):
@@ -134,9 +140,6 @@ class StandingProjectService:
                     ).encode()
                 ).hexdigest()
                 if self._seen.get(project_id) == signature:
-                    continue
-                receipt = self.dispatcher.state(project)
-                if receipt and receipt["status"] in {"queued", "running"}:
                     continue
 
                 def execute(project=project, grant_id=grant["grant_id"]):

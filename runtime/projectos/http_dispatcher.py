@@ -17,6 +17,7 @@ from runtime.platform.process.task_supervisor import (
     TaskSupervisor,
     task_lease_health,
 )
+from runtime.projectos._claim_process import claim_owner_alive, current_claim_owner
 from runtime.safety.approval.cancellation import (
     CancellationSource,
     OperationCancelled,
@@ -61,9 +62,10 @@ class ProjectHTTPDispatcher:
             return None
         health = task_lease_health(task)
         expired = bool(task.lease and task.lease.expired)
+        dead = claim_owner_alive(task.metadata.get("process_owner", "")) is False
         status = (
             "interrupted"
-            if expired and task.status not in TERMINAL_TASK_STATUSES
+            if (expired or dead) and task.status not in TERMINAL_TASK_STATUSES
             else task.status.value
         )
         return {
@@ -110,6 +112,7 @@ class ProjectHTTPDispatcher:
                     "http_cancel_requested": False,
                     "http_result": None,
                     "standing_grant_id": standing_grant_id,
+                    "process_owner": current_claim_owner(),
                 },
             )
             source = CancellationSource()

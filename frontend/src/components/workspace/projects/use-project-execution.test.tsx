@@ -1,5 +1,5 @@
 import { QueryClient } from "@tanstack/react-query";
-import { fireEvent, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, screen, waitFor } from "@testing-library/react";
 import { beforeEach, expect, it, vi } from "vitest";
 import { renderWithProviders } from "@/test/harness";
 import { ProjectExecutionStatus } from "./project-execution-status";
@@ -143,4 +143,50 @@ it("keeps a conflict generic and never turns a rejected request into completion"
   await waitFor(() => expect(mocks.error).toHaveBeenCalledWith("safe failure"));
   expect(mocks.success).not.toHaveBeenCalled();
   expect(screen.queryByRole("status")).not.toBeInTheDocument();
+});
+
+it("refreshes an interrupted job until its lease permits takeover, then stops polling", async () => {
+  vi.useFakeTimers();
+  let canTakeover = false;
+  mocks.fetch.mockImplementation(() =>
+    Promise.resolve(
+      Response.json({
+        execution: {
+          task_id: "interrupted-task",
+          status: "interrupted",
+          updated_at: "unchanged-durable-timestamp",
+          can_takeover: canTakeover,
+          cancel_requested: false,
+        },
+      }),
+    ),
+  );
+  const client = new QueryClient({
+    defaultOptions: { queries: { retry: false, gcTime: Infinity } },
+  });
+  const view = renderWithProviders(<Harness />, { queryClient: client });
+  try {
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(1);
+    });
+    expect(mocks.fetch).toHaveBeenCalledTimes(1);
+    mocks.refresh.mockClear();
+    canTakeover = true;
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(2001);
+    });
+    expect(mocks.fetch).toHaveBeenCalledTimes(2);
+    expect(mocks.refresh).toHaveBeenCalledTimes(1);
+    expect(client.getQueryData(["project-execution", "P-1"])).toMatchObject({
+      can_takeover: true,
+    });
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(10000);
+    });
+    expect(mocks.fetch).toHaveBeenCalledTimes(2);
+  } finally {
+    view.unmount();
+    client.clear();
+    vi.useRealTimers();
+  }
 });

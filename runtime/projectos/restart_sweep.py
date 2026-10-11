@@ -1,25 +1,15 @@
-"""Mark projects left mid-run by a previous process, without resuming them.
+"""Mark interrupted projects without reclaiming a live executor or resuming work.
 
-A project's durable state survives a restart, but nothing advances it: the
-engine only runs from an explicit ``/project`` command, the REST endpoint, or
-the CLI. Live background task leases are preserved across workers. A backend killed while
-a project was running therefore leaves a ``running`` document that no longer
-has anything driving it, and the UI keeps presenting it as in-flight.
+Live HTTP job leases are preserved across workers. Task/decomposition claims
+carry a local process creation identity and their configured lease duration.
+A confirmed dead local process can be fenced immediately; legacy, foreign or
+uninspectable claims remain held until their lease expires. A startup timestamp
+alone does not prove that an executor has died.
 
-This sweep records that discontinuity so the surface can show "interrupted —
-continue when you're ready". It deliberately does **not** call
-``ProjectEngine.run``: resuming would spend AI budget, write files and invoke
-tools on a restart the user never approved. Phase authorization and owner
-acceptance stay exactly where the previous process left them.
-
-The one thing it does settle is the execution claims the dead process still
-held. Claims carry no process identity, but the sweep runs while the app is
-being wired — before this process can have claimed anything — so every claim
-last renewed before the sweep started belongs to a previous process. Left in
-place they would keep ``recover`` refusing (``ProjectClaimActiveError``) and
-``run`` idling until the claim TTL expired. They are fenced exactly like an
-expired claim: the task, its phase and the project become ``blocked`` (a
-recoverable state) and an audit event records it. Nothing is re-run.
+Abandoned work becomes blocked with a sealed audit event and requires explicit
+recovery. The sweep never runs the engine, approves phases or accepts delivery.
+Idle restart markers are deduplicated transactionally and do not cross a claim
+that another worker acquired while this sweep was inspecting the project.
 """
 
 from __future__ import annotations
@@ -27,6 +17,11 @@ from __future__ import annotations
 import logging
 import time
 from typing import Any
+from uuid import uuid4
+
+from runtime.projectos._claim_process import claim_owner_alive
+from runtime.projectos._store_event_write import insert_sealed_event
+from runtime.projectos._store_project_deletion import assert_project_not_deleting
 
 _logger = logging.getLogger(__name__)
 
@@ -45,8 +40,8 @@ def sweep_projects_interrupted_by_restart(
 ) -> list[dict[str, Any]]:
     """Mark every ``running`` project as interrupted by a restart.
 
-    Execution claims last renewed at or before ``started_at`` (default: now,
-    i.e. service start) are released first, see the module docstring.
+    Only expired or confirmed-dead claims last renewed before ``started_at``
+    (default: now) are released. Unexpired unknown owners remain fenced.
 
     Returns the marked projects as ``{"project_id", "name", "thread_id",
     "orphaned_task_ids", "orphaned_milestone_ids"}`` for startup logging.
@@ -86,6 +81,7 @@ def sweep_projects_interrupted_by_restart(
                 and task.status not in TERMINAL_TASK_STATUSES
                 and task.lease is not None
                 and not task.lease.expired
+                and claim_owner_alive(task.metadata.get("process_owner", "")) is not False
             ):
                 # Another worker can still own this project. A cold start is
                 # not evidence that its renewed claims have been abandoned.
@@ -98,13 +94,11 @@ def sweep_projects_interrupted_by_restart(
         )
         if not was_running:
             continue
-        if _already_marked(store, project_id):
-            continue
         thread_id = str(getattr(project, "execution_thread_id", "") or "")
         try:
-            append_event(
+            if not _record_restart_marker(
+                store,
                 project_id,
-                kind=RESTART_INTERRUPTED_KIND,
                 payload={
                     # State is intact; only the driver is gone. Say so
                     # explicitly so this is never read as a failed project.
@@ -115,7 +109,8 @@ def sweep_projects_interrupted_by_restart(
                     "orphaned_milestone_ids": orphaned_milestones,
                     "recovery_required": bool(orphaned_tasks or orphaned_milestones),
                 },
-            )
+            ):
+                continue
         except Exception:  # noqa: BLE001 - a single project must not stop the sweep
             _logger.debug("project restart sweep could not mark %s", project_id, exc_info=True)
             continue
@@ -170,31 +165,36 @@ def _release_previous_process_claims(
     return task_ids, milestone_ids
 
 
-def _already_marked(store: Any, project_id: str) -> bool:
-    """Whether this project's latest run already carries a restart marker.
-
-    A marker is superseded once the project is driven again, so the sweep
-    compares against events recorded after the most recent run event rather
-    than against the whole history.
-    """
-
-    events_for_project = getattr(store, "events_for_project", None)
-    if not callable(events_for_project):
-        return False
-    try:
-        # The store selects the newest rows and then reverses them, so this
-        # list is oldest-first. Walk it backwards to see the latest first.
-        events = list(events_for_project(project_id))
-    except Exception:  # noqa: BLE001 - unreadable history must not block marking
-        _logger.debug("project restart sweep could not read %s", project_id, exc_info=True)
-        return False
-    for event in reversed(events):
-        kind = str((event or {}).get("kind") or "") if isinstance(event, dict) else ""
-        if kind == RESTART_INTERRUPTED_KIND:
-            return True
-        # ``project.run`` is written once per explicit drive (engine.run), so a
-        # newer run supersedes an older marker and the project can be marked
-        # again if it is interrupted a second time.
-        if kind == "project.run":
+def _record_restart_marker(store: Any, project_id: str, *, payload: dict[str, Any]) -> bool:
+    """Check claims, deduplicate and seal the marker inside one transaction."""
+    with store._lock, store._conn() as conn:
+        conn.execute("BEGIN IMMEDIATE")
+        project = store._project_doc_for_scope(conn, project_id, None)
+        if project is None or project.status not in {"running", "blocked"}:
             return False
-    return False
+        assert_project_not_deleting(conn, project_id)
+        active = conn.execute(
+            "SELECT 1 FROM task_claims c INNER JOIN tasks t ON t.id=c.task_id "
+            "INNER JOIN milestones m ON m.id=t.milestone_id WHERE m.project_id=? "
+            "UNION ALL SELECT 1 FROM milestone_claims c "
+            "INNER JOIN milestones m ON m.id=c.milestone_id WHERE m.project_id=? LIMIT 1",
+            (project_id, project_id),
+        ).fetchone()
+        latest = conn.execute(
+            "SELECT kind FROM project_events WHERE project_id=? AND kind IN (?, ?) "
+            "ORDER BY seq DESC LIMIT 1",
+            (project_id, RESTART_INTERRUPTED_KIND, "project.run"),
+        ).fetchone()
+        if active or (latest and latest[0] == RESTART_INTERRUPTED_KIND):
+            return False
+        insert_sealed_event(
+            conn,
+            {
+                "id": f"EV-{uuid4().hex[:12]}",
+                "project_id": project_id,
+                "kind": RESTART_INTERRUPTED_KIND,
+                "payload": {**payload, "execution_thread_id": project.execution_thread_id or ""},
+                "created_at": time.time(),
+            },
+        )
+        return True

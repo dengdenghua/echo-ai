@@ -9,6 +9,12 @@ from datetime import UTC, datetime
 from typing import Any
 from uuid import uuid4
 
+from runtime.projectos._claim_process import (
+    DEFAULT_CLAIM_LEASE_SECONDS,
+    abandoned_on_restart,
+    claim_lease_seconds,
+    current_claim_owner,
+)
 from runtime.projectos._store_event_write import insert_sealed_event
 from runtime.projectos._store_helpers import (
     _milestone_from_doc,
@@ -104,11 +110,13 @@ def claim_task(
     task_id: str,
     *,
     assigned_role: str | None = None,
+    lease_seconds: float = DEFAULT_CLAIM_LEASE_SECONDS,
     scope: TenantScope | None = None,
 ) -> tuple[Task, str] | None:
     """Atomically move one runnable task to ``running`` and fence its worker."""
 
     safe_task_id = _require_id(task_id, label="task_id")
+    lease_seconds = claim_lease_seconds(lease_seconds)
     claim_id = f"TC-{uuid4().hex}"
     with store._lock, store._conn() as conn:
         conn.execute("BEGIN IMMEDIATE")
@@ -151,10 +159,12 @@ def claim_task(
             ),
         )
         conn.execute(
-            "INSERT INTO task_claims(task_id, claim_id, claimed_at) VALUES (?, ?, ?) "
+            "INSERT INTO task_claims(task_id, claim_id, claimed_at, process_owner, lease_seconds) "
+            "VALUES (?, ?, ?, ?, ?) "
             "ON CONFLICT(task_id) DO UPDATE SET "
-            "claim_id=excluded.claim_id, claimed_at=excluded.claimed_at",
-            (safe_task_id, claim_id, time.time()),
+            "claim_id=excluded.claim_id, claimed_at=excluded.claimed_at, "
+            "process_owner=excluded.process_owner, lease_seconds=excluded.lease_seconds",
+            (safe_task_id, claim_id, time.time(), current_claim_owner(), lease_seconds),
         )
     return task, claim_id
 
@@ -300,7 +310,8 @@ def orphan_stale_task_claims(
         if project is None:
             return []
         rows = conn.execute(
-            "SELECT t.doc, t.milestone_id, c.claim_id, c.claimed_at, m.doc "
+            "SELECT t.doc, t.milestone_id, c.claim_id, c.claimed_at, m.doc, "
+            "c.process_owner, c.lease_seconds "
             "FROM task_claims c "
             "INNER JOIN tasks t ON t.id=c.task_id "
             "INNER JOIN milestones m ON m.id=t.milestone_id "
@@ -308,7 +319,11 @@ def orphan_stale_task_claims(
             "ORDER BY c.claimed_at, c.task_id",
             (safe_project_id, cutoff),
         ).fetchall()
-        for task_doc, milestone_id, claim_id, claimed_at, milestone_doc in rows:
+        for task_doc, milestone_id, claim_id, claimed_at, milestone_doc, owner, lease in rows:
+            if cause == "process_restart" and not abandoned_on_restart(
+                owner, float(claimed_at), lease, cutoff
+            ):
+                continue
             task = _task_from_doc(str(task_doc))
             milestone = _milestone_from_doc(str(milestone_doc))
             if task is None or milestone is None:
@@ -372,11 +387,13 @@ def claim_milestone_decomposition(
     store: Any,
     milestone_id: str,
     *,
+    lease_seconds: float = DEFAULT_CLAIM_LEASE_SECONDS,
     scope: TenantScope | None = None,
 ) -> tuple[Milestone, str] | None:
     """Elect the only worker allowed to call the external decomposer."""
 
     safe_milestone_id = _require_id(milestone_id, label="milestone_id")
+    lease_seconds = claim_lease_seconds(lease_seconds)
     claim_id = f"MC-{uuid4().hex}"
     with store._lock, store._conn() as conn:
         conn.execute("BEGIN IMMEDIATE")
@@ -397,9 +414,9 @@ def claim_milestone_decomposition(
         ).fetchone():
             return None
         inserted = conn.execute(
-            "INSERT OR IGNORE INTO milestone_claims(milestone_id, claim_id, claimed_at) "
-            "VALUES (?, ?, ?)",
-            (safe_milestone_id, claim_id, time.time()),
+            "INSERT OR IGNORE INTO milestone_claims(milestone_id, claim_id, claimed_at, "
+            "process_owner, lease_seconds) VALUES (?, ?, ?, ?, ?)",
+            (safe_milestone_id, claim_id, time.time(), current_claim_owner(), lease_seconds),
         )
         if inserted.rowcount != 1:
             return None
@@ -425,14 +442,18 @@ def orphan_stale_milestone_claims(
         if project is None:
             return []
         rows = conn.execute(
-            "SELECT m.doc, c.claim_id, c.claimed_at "
+            "SELECT m.doc, c.claim_id, c.claimed_at, c.process_owner, c.lease_seconds "
             "FROM milestone_claims c "
             "INNER JOIN milestones m ON m.id=c.milestone_id "
             "WHERE m.project_id=? AND c.claimed_at<=? "
             "ORDER BY c.claimed_at, c.milestone_id",
             (safe_project_id, float(stale_before)),
         ).fetchall()
-        for milestone_doc, claim_id, claimed_at in rows:
+        for milestone_doc, claim_id, claimed_at, owner, lease in rows:
+            if cause == "process_restart" and not abandoned_on_restart(
+                owner, float(claimed_at), lease, float(stale_before)
+            ):
+                continue
             milestone = _milestone_from_doc(str(milestone_doc))
             if milestone is None:
                 continue
@@ -769,9 +790,12 @@ class ProjectClaimStoreMixin:
         task_id: str,
         *,
         assigned_role: str | None = None,
+        lease_seconds: float = DEFAULT_CLAIM_LEASE_SECONDS,
         scope: TenantScope | None = None,
     ) -> tuple[Task, str] | None:
-        return claim_task(self, task_id, assigned_role=assigned_role, scope=scope)
+        return claim_task(
+            self, task_id, assigned_role=assigned_role, lease_seconds=lease_seconds, scope=scope
+        )
 
     def assert_no_active_claims(
         self,
@@ -830,9 +854,12 @@ class ProjectClaimStoreMixin:
         self,
         milestone_id: str,
         *,
+        lease_seconds: float = DEFAULT_CLAIM_LEASE_SECONDS,
         scope: TenantScope | None = None,
     ) -> tuple[Milestone, str] | None:
-        return claim_milestone_decomposition(self, milestone_id, scope=scope)
+        return claim_milestone_decomposition(
+            self, milestone_id, lease_seconds=lease_seconds, scope=scope
+        )
 
     def orphan_stale_milestone_claims(
         self,

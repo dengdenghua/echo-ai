@@ -80,7 +80,14 @@ def _migrate_project_event_decision_index(conn: sqlite3.Connection) -> None:
     )
 
 
+def _migrate_claim_process_identity(conn: sqlite3.Connection) -> None:
+    for table in ("task_claims", "milestone_claims"):
+        add_column(conn, table, "process_owner", "TEXT NOT NULL DEFAULT ''")
+        add_column(conn, table, "lease_seconds", "REAL NOT NULL DEFAULT 3600")
+
+
 _MIGRATIONS = (
     Migration(1, _adopt_v1),
     Migration(2, _migrate_project_event_decision_index),
+    Migration(3, _migrate_claim_process_identity),
 )

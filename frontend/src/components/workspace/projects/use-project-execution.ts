@@ -54,12 +54,17 @@ export function useProjectExecution({
       });
       return payload.execution ?? null;
     },
-    refetchInterval: (query) => (active(query.state.data) ? 2000 : false),
+    refetchInterval: (query) =>
+      active(query.state.data) ||
+      (query.state.data?.status === "interrupted" &&
+        query.state.data.can_takeover === false)
+        ? 2000
+        : false,
   });
   const job = execution.data;
   useEffect(() => {
     if (!job) return;
-    const receipt = `${job.task_id}:${job.updated_at}`;
+    const receipt = `${job.task_id}:${job.updated_at}:${job.status}:${job.can_takeover}`;
     if (receipt !== lastReceipt.current) {
       lastReceipt.current = receipt;
       refreshRef.current();

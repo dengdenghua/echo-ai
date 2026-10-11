@@ -389,6 +389,7 @@ def test_delete_with_live_claim_explains_how_to_unblock(tmp_path: Path) -> None:
 
 def test_restart_sweep_releases_previous_process_claims_for_immediate_recover(
     tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     store = _store(tmp_path)
     project_id, milestone_id, task_id = _seed(store, "A")
@@ -409,6 +410,9 @@ def test_restart_sweep_releases_previous_process_claims_for_immediate_recover(
     )
     assert store.claim_milestone_decomposition("X-M") is not None
     # The previous process is gone: it can no longer renew its claims.
+    # Unit-test the confirmed-dead probe; real spawned-process death is covered
+    # separately in test_project_claim_process_recovery.py.
+    monkeypatch.setattr("runtime.projectos._claim_process.claim_owner_alive", lambda _owner: False)
     started_at = time.time() + 1
 
     # A restarted process must not wait out the claim TTL before recovering.
@@ -464,7 +468,10 @@ def test_restart_sweep_keeps_claims_renewed_after_service_start(tmp_path: Path) 
 
     marked = sweep_projects_interrupted_by_restart(store, started_at=started_at)
 
-    assert marked[0]["orphaned_task_ids"] == []
+    assert marked == []
+    assert not any(
+        event["kind"] == RESTART_INTERRUPTED_KIND for event in store.events_for_project(project_id)
+    )
     assert store.get_task(task_id).status == "running"
     assert store.get_project(project_id).status == "running"
     with pytest.raises(ProjectClaimActiveError):

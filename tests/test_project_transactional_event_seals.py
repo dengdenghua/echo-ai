@@ -32,6 +32,8 @@ def _operation(tmp_path, case):
         if case == "task_orphan":
             store.save_task(Task(id="T", milestone_id="M", type="code", goal="work"))
             assert store.claim_task("T")
+            with store._lock, store._conn() as conn:
+                conn.execute("UPDATE task_claims SET claimed_at=0")
             return (
                 store,
                 "P",
@@ -40,6 +42,8 @@ def _operation(tmp_path, case):
                 ),
             )
         assert store.claim_milestone_decomposition("M")
+        with store._lock, store._conn() as conn:
+            conn.execute("UPDATE milestone_claims SET claimed_at=0")
         return (
             store,
             "P",

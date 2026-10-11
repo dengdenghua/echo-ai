@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import threading
 import time
+from dataclasses import replace
 from pathlib import Path
 
 import pytest
@@ -22,14 +23,15 @@ from runtime.sensing.gateway.thread_workspace import managed_workspace_metadata
 from tests.project_governance_utils import owner_decides_via_api
 
 
-def _wait(check):
+def _wait(check, *, describe=None):
     deadline = time.monotonic() + 5
     while time.monotonic() < deadline:
         value = check()
         if value:
             return value
         time.sleep(0.02)
-    pytest.fail("standing worker did not reach the expected state")
+    detail = f"; last state: {describe()}" if describe is not None else ""
+    pytest.fail("standing worker did not reach the expected state" + detail)
 
 
 @pytest.mark.parametrize("stop", ["delivery", "revoke", "identity", "cancel", "roster"])
@@ -155,6 +157,19 @@ def test_confirmed_grant_runs_after_http_returns_and_rechecks_scope_between_call
         try:
             assert started.wait(3)
             assert services[1].sweep(second) == 0  # live lease fences the other worker
+            if stop == "delivery":
+
+                def unnecessary_full_state(*_args):
+                    pytest.fail("active leased work must not rebuild the full project state")
+
+                guarded = object.__new__(StandingProjectService)
+                original(
+                    guarded,
+                    replace(services[1].deps, full_state=unnecessary_full_state),
+                    services[1].dispatcher,
+                    identities,
+                )
+                assert guarded.sweep(second) == 0
             if stop == "revoke":
                 assert client.delete(path, headers=headers).status_code == 200
             elif stop == "identity":
@@ -178,7 +193,13 @@ def test_confirmed_grant_runs_after_http_returns_and_rechecks_scope_between_call
                     if (state := svc.dispatcher.state(project)) and state["status"] == expected
                 ),
                 None,
-            )
+            ),
+            describe=lambda: {
+                "jobs": [svc.dispatcher.state(project) for svc in services],
+                "task_status": store.get_task("T").status,
+                "qa_calls": len(qa_calls),
+                "executions": observed,
+            },
         )
         assert observed == [("alice", "a", "managed")]
         task = store.get_task("T")
