@@ -102,7 +102,8 @@ def create_team_rooms_router(
     room_delete_projection: Callable[[str], None] | None = None,
     room_message_projection: Callable[[str, dict[str, Any]], int | None] | None = None,
     room_receipt_projection: Callable[[str, dict[str, Any]], Any] | None = None,
-    room_message_provider: Callable[[str, int, int, str], list[dict[str, Any]]] | None = None,
+    room_message_provider: Callable[[str, int, int, str], list[dict[str, Any]] | None]
+    | None = None,
     invitation_store: TeamInvitationStore | None = None,
     project_store: Any = None,
     group_store: Any = None,
@@ -886,30 +887,14 @@ def create_team_rooms_router(
         receipt_projection=room_receipt_projection,
     )
 
-    @router.get("/api/teams/{team_id}/messages")
-    def get_room_messages(
-        request: Request,
-        team_id: str,
-        limit: int = 200,
-        after_seq: int = 0,
-        q: str = "",
-    ) -> dict[str, Any]:
-        """Durable room transcript — reconnect catch-up (``after_seq``) and
-        search (``q``). Closes the gap where room chat was live-only / a 20-line
-        in-memory ring."""
-        _require_member(request, team_id)
-        messages: list[dict[str, Any]] = []
-        if room_message_provider is not None:
-            try:
-                messages = room_message_provider(team_id, limit, after_seq, q)
-            except Exception:  # noqa: BLE001 - canonical transcript lookup is best-effort
-                messages = []
-        if not messages:
-            if q.strip():
-                messages = room_message_store.search(team_id, q, limit=limit)
-            else:
-                messages = room_message_store.history(team_id, limit=limit, after_seq=after_seq)
-        return {"team_id": team_id, "messages": messages}
+    from ._team_room_messages import register_room_message_reader
+
+    register_room_message_reader(
+        router,
+        require_member=_require_member,
+        provider=room_message_provider,
+        legacy_store=room_message_store,
+    )
 
     @router.websocket("/api/teams/{team_id}/ws")
     async def team_room_ws_route(ws: WebSocket, team_id: str) -> None:

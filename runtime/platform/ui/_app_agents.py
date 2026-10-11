@@ -15,15 +15,19 @@ from typing import Any
 from ._app_context import AppContext
 
 
-def _collaboration_room_messages(app, room_id, limit, after_seq, q) -> list[dict[str, Any]]:
+def _collaboration_room_messages(app, room_id, limit, after_seq, q) -> list[dict[str, Any]] | None:
     collab_store = getattr(app.state, "collaboration_store", None)
     if collab_store is None:
-        return []
+        return None
+    if not collab_store.session_id_for_room(room_id):
+        return None
+    # Legacy-only linked rooms have not cut over their transcript yet. Select
+    # that source before applying pagination/search, never from an empty page.
+    if not collab_store.messages_for_room(room_id, limit=1):
+        return None
     if str(q or "").strip():
-        search = getattr(collab_store, "search_messages_for_room", None)
-        return search(room_id, q, limit=limit) if callable(search) else []
-    history = getattr(collab_store, "messages_for_room", None)
-    return history(room_id, limit=limit, after_seq=after_seq) if callable(history) else []
+        return collab_store.search_messages_for_room(room_id, q, limit=limit)
+    return collab_store.messages_for_room(room_id, limit=limit, after_seq=after_seq)
 
 
 def mount_agents(

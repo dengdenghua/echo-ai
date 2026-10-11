@@ -18,7 +18,9 @@ class _SessionMessageSearch:
             query,
             limit=limit,
         )
-        if canonical:
+        if canonical or self._view.collaboration_store().messages_for_session(
+            self._thread_id, limit=1
+        ):
             return canonical
         return self._view.room_message_store().search(room_id, query, limit=limit)
 

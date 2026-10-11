@@ -282,41 +282,41 @@ def _remember_line(
         message_metadata.setdefault("source_message_id", f"ws:{message_id}")
 
     sequence = 0
-    projection_succeeded = False
     canonical_persisted = False
     projection = ctx.message_projection
     if projection is not None:
-        try:
-            projected_seq = projection(
-                team_id,
-                {
-                    "participant_id": participant_id,
-                    "display_name": display_name,
-                    "text": text,
-                    "metadata": message_metadata,
-                },
-            )
-            projection_succeeded = True
-            if projected_seq is not None:
-                sequence = int(projected_seq)
-                canonical_persisted = sequence > 0
-        except Exception:  # noqa: BLE001 — the legacy store is the fallback
-            canonical_persisted = False
+        projected_seq = projection(
+            team_id,
+            {
+                "participant_id": participant_id,
+                "display_name": display_name,
+                "text": text,
+                "metadata": message_metadata,
+            },
+        )
+        if projected_seq is not None:
+            sequence = int(projected_seq)
+            if sequence < 1:
+                raise RuntimeError(
+                    "canonical message persistence did not produce a durable sequence"
+                )
+            canonical_persisted = True
 
     store = ctx.message_store
     if store is not None:
         if canonical_persisted:
             # Keep the legacy log as a compatibility shadow without delaying
             # the canonical acknowledgement.
-            _persist_pool().submit(
-                store.append,
-                team_id,
-                text=text,
-                participant_id=participant_id,
-                display_name=display_name,
-                message_id=message_id,
-                client_message_id=client_message_id,
-            )
+            with contextlib.suppress(Exception):  # source commit already succeeded
+                _persist_pool().submit(
+                    store.append,
+                    team_id,
+                    text=text,
+                    participant_id=participant_id,
+                    display_name=display_name,
+                    message_id=message_id,
+                    client_message_id=client_message_id,
+                )
         else:
             sequence = int(
                 store.append(
@@ -328,7 +328,7 @@ def _remember_line(
                     client_message_id=client_message_id,
                 )
             )
-    elif projection is not None and not projection_succeeded:
+    elif not canonical_persisted:
         raise RuntimeError("room message persistence did not produce a durable sequence")
 
     with ctx.lock:

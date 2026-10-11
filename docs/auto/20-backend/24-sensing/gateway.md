@@ -146,6 +146,7 @@ tier: "standard"
 | `_team_room_creation.py` | Atomic Team Room creation primitives. |
 | `_team_room_delete.py` | Durable, fail-closed Team Room deletion. |
 | `_team_room_departure.py` | Scoped socket departure and floor maintenance, separate from WS framing. |
+| `_team_room_messages.py` | Read the chosen room transcript without switching sources on empty pages. |
 | `_team_room_persistence.py` | Cross-process optimistic persistence for Team Room state. |
 | `_team_room_presence.py` | Worker-local heartbeat timestamps, separate from durable room membership. |
 | `_team_room_store.py` | Versioned SQLite authority for rooms; JSON is a one-time import source. |
@@ -770,6 +771,12 @@ tier: "standard"
 | Kind | Symbol | Doc |
 | --- | --- | --- |
 | func | `def disconnect_room(ctx, ws, team_id, participant_id)` |  |
+
+### `_team_room_messages.py`
+
+| Kind | Symbol | Doc |
+| --- | --- | --- |
+| func | `def register_room_message_reader(router, require_member, provider, legacy_store)` |  |
 
 ### `_team_room_persistence.py`
 
