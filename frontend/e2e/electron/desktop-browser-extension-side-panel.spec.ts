@@ -1,3 +1,4 @@
+import type { WebContentsView } from "electron";
 import { test, expect, _electron as electron } from "@playwright/test";
 import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
@@ -100,10 +101,10 @@ test("extension side panel occupies browser layout inside the main window", asyn
         const view = main.contentView.children.find(
           (child) =>
             "webContents" in child &&
-            (child as any).webContents
+            (child as WebContentsView).webContents
               .getURL()
               .startsWith(`chrome-extension://${id}/`),
-        ) as any;
+        ) as WebContentsView | undefined;
         return view
           ? {
               bounds: view.getBounds(),

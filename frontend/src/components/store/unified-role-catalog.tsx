@@ -32,7 +32,7 @@ export function UnifiedRoleCatalog({ experts, searchQuery, loading, error, retry
   const entries = useMemo(() => mergeRoleCatalog(local.agents, [...experts, ...echoCatalog], mergeProfessions(local.agents)), [local.agents, experts, echoCatalog]);
   const filtered = entries.filter(entry => (filter !== 'installed' || !!entry.local) && (!['employee', 'team'].includes(filter) || entry.kind === filter) && `${entry.title} ${entry.description} ${entry.id}`.toLowerCase().includes(searchQuery.trim().toLowerCase()));
   return <section className="space-y-3" aria-label="统一角色目录">
-    <div className="flex flex-wrap gap-1" aria-label="角色分类">
+    <div className="flex flex-wrap gap-1" role="group" aria-label="角色分类">
       {[['all', '全部'], ['installed', `已添加 ${local.agents.length}`], ['employee', '数字员工'], ['team', '专家团']].map(([id, label]) => <Button key={id} size="sm" variant={filter === id ? 'secondary' : 'ghost'} aria-pressed={filter === id} onClick={() => { setFilter(id!); setLimit(48); }}>{label}</Button>)}
     </div>
     <p className="text-xs text-muted-foreground">已添加即本机已有角色。未添加的专家按需获取，数字员工按岗位配置添加。</p>

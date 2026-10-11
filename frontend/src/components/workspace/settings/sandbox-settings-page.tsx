@@ -96,7 +96,7 @@ export default function SandboxSettingsPage() {
         toast.error(copy.toastFailed(label));
       }
     },
-    [context, copy, setSettings, settings],
+    [context, copy, setSettings],
   );
 
   const applyPermission = useCallback(
@@ -125,7 +125,7 @@ export default function SandboxSettingsPage() {
         toast.error(copy.toastFailed(label));
       }
     },
-    [context, copy, setSettings, settings],
+    [context, copy, setSettings],
   );
 
   const applyNetwork = useCallback(
@@ -141,7 +141,7 @@ export default function SandboxSettingsPage() {
         toast.error(copy.toastFailed(label));
       }
     },
-    [context, copy, setSettings, settings],
+    [context, copy, setSettings],
   );
 
   return (

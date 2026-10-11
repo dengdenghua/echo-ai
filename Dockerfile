@@ -33,6 +33,8 @@ RUN corepack enable && pnpm install --frozen-lockfile
 
 # 源码变更不影响依赖缓存层
 COPY frontend/ ./
+# The frontend consumes this shared role catalog from its canonical location.
+COPY runtime/projectos/role_catalog.json /runtime/projectos/role_catalog.json
 # The Vite closeBundle guard proves the historical public pet assets are byte
 # identical to their canonical Godot sources before omitting them from dist.
 # Copy only those two authoring sources into this throw-away builder stage;

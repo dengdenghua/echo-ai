@@ -34,7 +34,6 @@ import type { Agent } from "@/core/agents";
 import type { ChannelName } from "@/core/channels/api";
 import type { ThreadCollaborationRosterEntry } from "@/core/collaboration/thread-collaboration";
 import type { CollaborationSession, CoworkRoomEntityRef } from "@/core/cowork";
-import type { StreamVitals } from "@/core/realtime";
 import { cn } from "@/lib/utils";
 
 import type { CollaborationProfile } from "./collaboration-roster-utils";

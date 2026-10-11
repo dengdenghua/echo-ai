@@ -1,5 +1,11 @@
 import { expect, test } from "@playwright/test";
 
+interface NativeTestWindow extends Window {
+  nativeReady: boolean;
+  renderUI: (complete: boolean, ack?: boolean, extra?: boolean) => void;
+  sent: Record<string, unknown>[];
+}
+
 // Browser integration uses the real renderer and conversation contexts. The
 // transport receipt is controlled here; backend validation has separate tests.
 test("native cards stream safely, submit once and adapt to a narrow screen", async ({
@@ -38,16 +44,20 @@ test("native cards stream safely, submit once and adapt to a narrow screen", asy
     }),
   );
   await page.goto("/native-ui-test");
-  await page.waitForFunction(() => (window as any).nativeReady);
+  await page.waitForFunction(() => (window as NativeTestWindow).nativeReady);
   await expect(
     page.getByRole("button", { name: "发送到当前对话" }),
   ).toBeDisabled();
-  await page.evaluate(() => (window as any).renderUI(true));
+  await page.evaluate(() => (window as NativeTestWindow).renderUI(true));
   await page.getByRole("button", { name: "发送到当前对话" }).click();
-  expect(await page.evaluate(() => (window as any).sent.length)).toBe(0);
+  expect(
+    await page.evaluate(() => (window as NativeTestWindow).sent.length),
+  ).toBe(0);
   await page.getByLabel(/项目名称/).fill("Echo 协作优化");
   await page.getByLabel(/工作位置/).selectOption("Echo OS 共享空间");
-  await page.evaluate(() => (window as any).renderUI(true, false, true));
+  await page.evaluate(() =>
+    (window as NativeTestWindow).renderUI(true, false, true),
+  );
   await expect(page.getByLabel(/项目名称/)).toHaveValue("Echo 协作优化");
   await page.getByRole("searchbox").fill("NAS");
   await expect(page.getByRole("cell", { name: "NAS 挂载" })).toBeVisible();
@@ -71,12 +81,14 @@ test("native cards stream safely, submit once and adapt to a narrow screen", asy
   });
   await page.getByRole("button", { name: "发送到当前对话" }).click();
   await expect(page.getByRole("button", { name: "等待回执" })).toBeDisabled();
-  expect(await page.evaluate(() => (window as any).sent)).toEqual([
+  expect(await page.evaluate(() => (window as NativeTestWindow).sent)).toEqual([
     expect.objectContaining({
       threadId: "thread",
       text: "表单回复：确认项目需求\n项目名称：Echo 协作优化\n工作位置：Echo OS 共享空间",
     }),
   ]);
-  await page.evaluate(() => (window as any).renderUI(true, true, true));
+  await page.evaluate(() =>
+    (window as NativeTestWindow).renderUI(true, true, true),
+  );
   await expect(page.getByRole("button", { name: "已收到" })).toBeDisabled();
 });
