@@ -25,7 +25,7 @@ runtime/execution/suckers/lsp_skills.py	1148
 runtime/execution/suckers/web_skills.py	1278
 runtime/execution/tool_engine/executor.py	1257
 runtime/memory/cowork/collaboration_collectors.py	1245
-runtime/memory/cowork/collaboration_store.py	1490
+runtime/memory/cowork/collaboration_store.py	1478
 runtime/memory/cowork/context_steward.py	1082
 runtime/memory/cowork/group_store.py	1102
 runtime/memory/diagnostics/_trace_store_storage.py	1012

@@ -2,6 +2,7 @@
 
 import sqlite3
 
+from runtime.memory.cowork._collaboration_team_schema import adopt_team_task_authority
 from runtime.memory.cowork.collaboration_collectors import (
     COLLABORATION_COLLECTOR_SCHEMA,
     ensure_collaboration_collector_schema,
@@ -219,4 +220,4 @@ def _adopt_v1(conn: sqlite3.Connection) -> None:
     )
 
 
-_MIGRATIONS = (Migration(1, _adopt_v1),)
+_MIGRATIONS = (Migration(1, _adopt_v1), Migration(2, adopt_team_task_authority))

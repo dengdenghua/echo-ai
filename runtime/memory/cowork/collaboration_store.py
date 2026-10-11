@@ -48,6 +48,7 @@ from runtime.memory.cowork._collaboration_schema import (
 from runtime.memory.cowork._collaboration_session_writes import (
     append_message as _append_message,
 )
+from runtime.memory.cowork._collaboration_session_writes import delete_task as _delete_task
 from runtime.memory.cowork._collaboration_session_writes import upsert_task as _upsert_task
 from runtime.memory.cowork.collaboration_collectors import (
     CollaborationCollectorStoreMixin,
@@ -843,15 +844,7 @@ class CollaborationStore(
         return project_projection_tombstone_token(self, project_id=project_id)
 
     def delete_task(self, task_id: str) -> bool:
-        if not task_id:
-            return False
-        task_id = require_cowork_id(task_id, label="task_id")
-        with self._lock, self._connect() as conn:
-            cur = conn.execute(
-                "DELETE FROM collaboration_tasks WHERE task_id = ?",
-                (task_id,),
-            )
-            return cur.rowcount > 0
+        return _delete_task(self, task_id)
 
     def delete_room_by_id(self, room_id: str) -> bool:
         if not room_id:

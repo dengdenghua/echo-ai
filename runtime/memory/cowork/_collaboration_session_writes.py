@@ -21,6 +21,25 @@ class _SessionStore(Protocol):
     def _connect(self) -> sqlite3.Connection: ...
 
 
+def delete_task(store: _SessionStore, task_id: str) -> bool:
+    """Delete a projection; authoritative team rows require their CAS API."""
+    if not task_id:
+        return False
+    task_id = require_cowork_id(task_id, label="task_id")
+    with store._lock, store._connect() as conn:
+        conn.execute("BEGIN IMMEDIATE")
+        row = conn.execute(
+            "SELECT task_authority FROM collaboration_tasks WHERE task_id=?", (task_id,)
+        ).fetchone()
+        if row is not None and row[0] == "team":
+            from runtime.memory.cowork._collaboration_team_records import TeamTaskConflict
+
+            raise TeamTaskConflict("team task deletion requires its versioned authority")
+        return (
+            conn.execute("DELETE FROM collaboration_tasks WHERE task_id=?", (task_id,)).rowcount > 0
+        )
+
+
 def _require_room_session(
     conn: sqlite3.Connection,
     *,
@@ -86,9 +105,13 @@ def upsert_task(
         conn.execute("BEGIN IMMEDIATE")
         _require_room_session(conn, session_id=session_id, room_id=room_id)
         existing_row = conn.execute(
-            "SELECT task_json FROM collaboration_tasks WHERE task_id=?",
+            "SELECT task_json,task_authority FROM collaboration_tasks WHERE task_id=?",
             (task_id,),
         ).fetchone()
+        if existing_row is not None and existing_row[1] == "team":
+            from runtime.memory.cowork._collaboration_team_records import TeamTaskConflict
+
+            raise TeamTaskConflict("team task projections cannot replace authoritative state")
         existing = _load(existing_row[0]) if existing_row else None
         existing_metadata = existing.get("metadata") if isinstance(existing, dict) else None
         if isinstance(existing_metadata, dict) and existing_metadata.get("source") == "projectos":

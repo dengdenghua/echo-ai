@@ -48,3 +48,30 @@ needed; these are separate from heartbeats. Timestamps disappear when all worker
 restart. For shared multiworker presence and socket delivery, configure the
 explicit Redis backend described in [shared collaboration delivery](collaboration-realtime.md).
 The default local backend serves one process.
+
+`TeamTaskAuthority` owns team tasks directly in the existing
+`collaboration_tasks` table. Collaboration schema version 2 adds a task revision
+and an exact room/session/project-generation binding. The separate claim table
+contains only execution tokens, native process identities, lease expiry and
+cancellation requests; it does not contain another task payload. Generic task
+projection writes and unversioned task deletes cannot replace these owned rows.
+
+The authority API reads fresh rows and commits deltas under `BEGIN IMMEDIATE`.
+Operator changes compare a revision. Worker changes require the current,
+unexpired execution token and merge with the latest task. Shared concurrency
+counts include cancelling workers until they acknowledge exit, die, or expire.
+Cancellation and deletion prevent late output writes; an old run cannot release
+a newer claim. Startup reconciliation preserves live and uninspectable owners,
+and marks only expired or confirmed dead executions failed without rerunning.
+
+Legacy task import validates the complete file and its room bindings, then
+commits all rows and the import marker together. Matching old projections can
+be adopted without truncating assignees or produced artifacts. Corrupt JSON,
+duplicate IDs/keys, unknown formats, and conflicting canonical rows fail the
+whole import. The source remains untouched and is never consulted again after
+a successful import, including after canonical task deletion. Legacy running
+records have no durable owner and become explicit failures requiring a retry.
+
+This authority API is available for the gateway cutover. The existing
+`/api/team-tasks` router still uses its legacy JSON/cache until that integration
+is completed; adding the schema alone does not migrate or activate those routes.

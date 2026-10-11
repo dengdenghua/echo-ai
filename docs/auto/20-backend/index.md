@@ -39,7 +39,7 @@ graph LR
   sensing -- 127 --> memory
   safety -- 102 --> platform
   execution -- 97 --> safety
-  memory -- 80 --> platform
+  memory -- 83 --> platform
   sensing -- 68 --> protocol
   core -- 60 --> platform
   platform -- 56 --> execution
@@ -56,7 +56,7 @@ graph LR
   execution -- 21 --> core
   platform -- 18 --> memory
   sensing -- 18 --> workspace
-  projectos -- 16 --> platform
+  projectos -- 17 --> platform
   safety -- 15 --> execution
   core -- 14 --> memory
   safety -- 14 --> adapters
