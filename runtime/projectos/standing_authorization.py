@@ -33,6 +33,7 @@ the grant, or an unreadable cost all deny admission.
 from __future__ import annotations
 
 import logging
+import math
 from dataclasses import dataclass
 from typing import Any
 
@@ -130,7 +131,7 @@ def _grant_from_payload(payload: dict) -> StandingGrant | None:
         limit_usd = float(payload.get("limit_usd"))
     except (TypeError, ValueError):
         return None
-    if not limit_usd > 0:
+    if not math.isfinite(limit_usd) or not limit_usd > 0:
         return None
     return StandingGrant(
         phase_fingerprints=fingerprints,
@@ -176,6 +177,8 @@ def admits_unattended_phase(store: Any, project_id: str, milestone: Any) -> Admi
     except Exception:  # noqa: BLE001 - unknown spend must never spend more
         _logger.debug("standing budget unreadable for %s", project_id, exc_info=True)
         return AdmissionDecision(False, "reported_cost_unavailable", phase_id)
+    if not math.isfinite(spent) or spent < 0:
+        return AdmissionDecision(False, "reported_cost_unavailable", phase_id)
     remaining = grant.limit_usd - spent
     if remaining <= 0:
         return AdmissionDecision(False, "standing_budget_exhausted", phase_id, 0.0)
@@ -208,8 +211,8 @@ def grant_standing_authorization(
         ceiling = float(limit_usd)
     except (TypeError, ValueError) as exc:
         raise ValueError("limit_usd must be a number") from exc
-    if not ceiling > 0:
-        raise ValueError("limit_usd must be positive")
+    if not math.isfinite(ceiling) or not ceiling > 0:
+        raise ValueError("limit_usd must be finite and positive")
     fingerprints = [phase_fingerprint(milestone) for milestone in milestones]
     if not fingerprints:
         raise ValueError("a standing authorization must name at least one phase")
