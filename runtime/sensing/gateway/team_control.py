@@ -9,8 +9,8 @@ from pathlib import Path
 import httpx
 from fastapi import Depends, HTTPException, Request
 
-from .codex_hotspot import owner_token
 from .hotspot_control import require_local_owner
+from .hotspot_local import owner_token
 from .team_gateway import ROOT
 
 BASE = "http://127.0.0.1:8333"

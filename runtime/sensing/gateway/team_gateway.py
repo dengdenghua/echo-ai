@@ -16,8 +16,8 @@ from fastapi import Depends, FastAPI, HTTPException, Request
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 
-from .codex_hotspot import bounded_body, owner_token
 from .hotspot_discovery import normalize_hotspot_url
+from .hotspot_local import bounded_body, owner_token
 from .team_store import TeamStore
 
 ROOT = Path.home() / ".echo" / "team-gateway"

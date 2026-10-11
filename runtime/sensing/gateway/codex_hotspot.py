@@ -10,7 +10,6 @@ import hmac
 import json
 import logging
 import os
-import secrets
 import uuid
 from pathlib import Path
 
@@ -23,45 +22,14 @@ from runtime.execution.codex_backend.hotspot import (
     SubscriptionAuth,
     stream_codex,
 )
+from runtime.sensing.gateway.hotspot_local import ROOT as ROOT
+from runtime.sensing.gateway.hotspot_local import bounded_body as bounded_body
+from runtime.sensing.gateway.hotspot_local import owner_token as owner_token
 from runtime.sensing.gateway.hotspot_store import HotspotStore
 from runtime.sensing.gateway.workbuddy_bridge import RoleBridgeConfig, WorkBuddyExecutor
 from runtime.sensing.gateway.workbuddy_bridge import create_app as role_app
 
-ROOT = Path.home() / ".echo" / "codex-hotspot"
 UPSTREAM = "https://chatgpt.com/backend-api/codex/responses"
-MAX_BODY = 2 * 1024 * 1024
-
-
-def owner_token(root: Path) -> str:
-    root.mkdir(parents=True, exist_ok=True)
-    path = root / "owner.token"
-    if not path.exists():
-        try:
-            fd = os.open(path, os.O_CREAT | os.O_EXCL | os.O_WRONLY, 0o600)
-        except (
-            FileExistsError
-        ):  # intentional: Another process created the token; read that file below.
-            pass
-        else:
-            with os.fdopen(fd, "w") as file:
-                file.write(secrets.token_urlsafe(48))
-    return path.read_text().strip()
-
-
-async def bounded_body(request: Request):
-    chunks = bytearray()
-    async for chunk in request.stream():
-        chunks.extend(chunk)
-        if len(chunks) > MAX_BODY:
-            raise HTTPException(413, "请求过大")
-    try:
-        request._body = bytes(chunks)
-        value = json.loads(chunks)
-    except (ValueError, UnicodeDecodeError):
-        raise HTTPException(400, "请求必须是 JSON") from None
-    if not isinstance(value, dict):
-        raise HTTPException(400, "请求必须是 JSON 对象")
-    return value
 
 
 def _has_file_reference(item: dict[str, object]) -> bool:
