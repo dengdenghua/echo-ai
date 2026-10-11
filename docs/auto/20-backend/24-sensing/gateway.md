@@ -172,7 +172,16 @@ tier: "standard"
 | `_thread_state_search_projection.py` | Search projection helpers for the thread-state HTTP router. |
 | `_tool_bridge_exec.py` | Tool execution + semantic error + XML recovery helpers. |
 | `_tool_bridge_loop.py` | The native agentic tool loop (``stream_agentic_fallback``). |
+| `_tool_bridge_loop_batch.py` | Execute native tool batches with original context and cancellation scope. |
+| `_tool_bridge_loop_completion.py` | Bounded final checkpoint when the native tool-round loop is exhausted. |
+| `_tool_bridge_loop_context.py` | Private shared cells of one native loop; phase-local values remain local. |
+| `_tool_bridge_loop_decisions.py` | Native call guards, public action handoff and terminal evidence acceptance. |
 | `_tool_bridge_loop_prompt.py` | Straight-line setup and nudge helpers of the native agentic tool loop. |
+| `_tool_bridge_loop_results.py` | Commit native tool results, result handoff and code convergence nudges. |
+| `_tool_bridge_loop_setup.py` | Native-loop prompt contracts, tracking setup and callback registration. |
+| `_tool_bridge_loop_steering.py` | Collect and deliver live steering at cooperative native-loop boundaries. |
+| `_tool_bridge_loop_stream.py` | Prepare, reserve, stream and recover one native model round. |
+| `_tool_bridge_loop_tracking.py` | Native-loop budget receipts, code evidence and frozen terminal trajectory writes. |
 | `_tool_bridge_native.py` | Native model stream + timeout + tool-call fingerprint/dedup helpers. |
 | `_tool_bridge_policy.py` | Goal / scope / budget / shell policy helpers for the native tool loop. |
 | `_tool_bridge_protocol.py` | Public checkpoint / protocol-tag cleaning + narration helpers. |

@@ -1,0 +1,143 @@
+"""Private shared cells of one native loop; phase-local values remain local."""
+
+from __future__ import annotations
+
+from collections.abc import Callable
+from concurrent.futures import ThreadPoolExecutor
+from dataclasses import dataclass, field
+from enum import Enum, auto
+from typing import Any
+
+from runtime.platform.models import ArmId, Budget, CostEntry, ParsedIntent, TaskId
+from runtime.sensing.model_router.models import Message, ToolCall
+
+
+class _NativeLoopDirective(Enum):
+    PROCEED = auto()
+    NEXT = auto()
+    TERMINAL = auto()
+    EXHAUSTED = auto()
+
+
+@dataclass(repr=False, eq=False)
+class _NativeLoopContext:
+    # Keep shared cells unbound until their original initialization point.
+    # Defaults would hide invalid phase ordering and change closure semantics.
+    stack: Any
+    intent: ParsedIntent
+    agent: Any
+    model: str | None
+    sub_event_queue: Any
+    steering_drain: Callable[[], list[str]] | None
+    _register_native_finalizer: Callable[[Callable[..., bool]], None] | None
+    _accumulate_native_model_cost: Callable[..., None] = field(init=False)
+    _action_narration_future: Any = field(init=False)
+    _action_narration_pool: ThreadPoolExecutor | None = field(init=False)
+    _active_tool_specs: Any = field(init=False)
+    _append_pending_steering: Callable[..., None] = field(init=False)
+    _attempted_models: Any = field(init=False)
+    _browser_guard_nudges: int = field(init=False)
+    _browser_observed_evidence: set[str] = field(init=False)
+    _browser_required_evidence: Any = field(init=False)
+    _capture_steering: Callable[..., bool] = field(init=False)
+    _clean_code_verifier_rounds: int = field(init=False)
+    _code_change_task: Any = field(init=False)
+    _code_completion_nudges: int = field(init=False)
+    _code_mutation_seen: bool = field(init=False)
+    _code_no_action_stops: int = field(init=False)
+    _code_semantic_guard_nudges: int = field(init=False)
+    _code_semantic_repair_message: str = field(init=False)
+    _code_semantic_repair_required: bool = field(init=False)
+    _code_semantic_steps: list[Any] = field(init=False)
+    _code_verification_state: bool | None = field(init=False)
+    _completed_tool_count: int = field(init=False)
+    _current_native_batch_fingerprint: str = field(init=False)
+    _current_session: Any = field(init=False)
+    _definitive_failed_native_targets: set[str] = field(init=False)
+    _evidence_no_action_stops: int = field(init=False)
+    _evidence_task: Any = field(init=False)
+    _external_cancellation_seen: bool = field(init=False)
+    _failed_native_batches: dict[str, tuple[int, bool]] = field(init=False)
+    _finalize_native_trajectory: Callable[..., bool] = field(init=False)
+    _force_convergence_next: bool = field(init=False)
+    _green_convergence_todo_only: bool = field(init=False)
+    _green_verification_convergence_active: bool = field(init=False)
+    _has_todo_write: Any = field(init=False)
+    _intent_user_context: Any = field(init=False)
+    _last_public_checkpoint_at: float = field(init=False)
+    _last_steering_probe_at: float = field(init=False)
+    _model_timeout_recoveries: int = field(init=False)
+    _native_model_cost: CostEntry = field(init=False)
+    _native_model_round_timeout_s: Callable[[], float] = field(init=False)
+    _native_next_step_id: int = field(init=False)
+    _native_persistence_state: dict[str, bool] = field(init=False)
+    _native_prepared_event_cache: dict[str, Any] = field(init=False)
+    _native_step_attempts: dict[int, ToolCall] = field(init=False)
+    _native_step_failures: dict[int, str] = field(init=False)
+    _native_step_ids: Any = field(init=False)
+    _native_terminal_completed_at: Any = field(init=False)
+    _native_terminal_model_cost: CostEntry | None = field(init=False)
+    _native_terminal_request: tuple[bool, str] | None = field(init=False)
+    _native_trajectory_arm_id: ArmId = field(init=False)
+    _native_trajectory_budget: Budget = field(init=False)
+    _native_trajectory_finalized: bool = field(init=False)
+    _native_trajectory_started_at: Any = field(init=False)
+    _native_trajectory_task_id: TaskId = field(init=False)
+    _observe_code_tool_result: Callable[..., None] = field(init=False)
+    _ordered_read_handoffs: Any = field(init=False)
+    _outputs: dict[int, tuple[str, bool]] = field(init=False)
+    _pending_code_semantic_nudge: str = field(init=False)
+    _pending_steering: list[str] = field(init=False)
+    _provider_failovers: int = field(init=False)
+    _public_narrative_interval: float = field(init=False)
+    _quality_failovers: int = field(init=False)
+    _realtime_public_narrative: Any = field(init=False)
+    _record_unexecuted_native_attempts: Callable[..., list[int]] = field(init=False)
+    _redirected_step_ids: set[int] = field(init=False)
+    _repeated_failure_guard_hits: int = field(init=False)
+    _reserve_native_model_budget: Callable[..., Any] = field(init=False)
+    _result_handoff_ready: bool = field(init=False)
+    _round_commentary_emitted: bool = field(init=False)
+    _round_convergence_mode: Any = field(init=False)
+    _round_model_budget_exceeded: bool = field(init=False)
+    _round_model_reservation: Any = field(init=False)
+    _round_model_reservation_settled: bool = field(init=False)
+    _round_prefix_decided: bool = field(init=False)
+    _round_redirected: bool = field(init=False)
+    _round_stream_event_seen: bool = field(init=False)
+    _round_text_stream_suppressed: bool = field(init=False)
+    _round_text_streamed: int = field(init=False)
+    _round_timed_out: bool = field(init=False)
+    _round_timeout_s: Any = field(init=False)
+    _session_obj: Any = field(init=False)
+    _settle_native_model_response: Callable[..., bool] = field(init=False)
+    _stall_failovers: int = field(init=False)
+    _started_at: float = field(init=False)
+    _structured_public_checkpoint: str = field(init=False)
+    _successful_native_read_calls: set[str] = field(init=False)
+    _take_action_narration: Callable[..., str] = field(init=False)
+    _todo_protocol_required: Any = field(init=False)
+    _todo_seen: bool = field(init=False)
+    _tool_batch_redirected: bool = field(init=False)
+    _tool_batch_source: Any = field(init=False)
+    _tool_error_count: int = field(init=False)
+    _tool_round_budget: int = field(init=False)
+    _total_in_tokens: int = field(init=False)
+    _total_out_tokens: int = field(init=False)
+    accumulated_reasoning: str = field(init=False)
+    accumulated_text: str = field(init=False)
+    checkpoint_model_reservation: Any = field(init=False)
+    effective_model: str = field(init=False)
+    evidence_tool_specs: Any = field(init=False)
+    max_tool_rounds: int = field(init=False)
+    messages: list[Message] = field(init=False)
+    req: Any = field(init=False)
+    round_i: int = field(init=False)
+    round_text: Any = field(init=False)
+    round_text_chunks: list[str] = field(init=False)
+    round_tool_calls: list[ToolCall] = field(init=False)
+    router: Any = field(init=False)
+    scoped_cancellation: Any = field(init=False)
+    tool_result_blocks: list[dict[str, Any]] = field(init=False)
+    tool_specs: Any = field(init=False)
+    _parallel_enabled: bool = field(init=False)
