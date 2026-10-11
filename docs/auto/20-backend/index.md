@@ -40,7 +40,7 @@ graph LR
   safety -- 102 --> platform
   execution -- 97 --> safety
   memory -- 80 --> platform
-  sensing -- 67 --> protocol
+  sensing -- 68 --> protocol
   core -- 60 --> platform
   platform -- 56 --> execution
   platform -- 56 --> safety

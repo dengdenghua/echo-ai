@@ -37,8 +37,8 @@ tier: "standard"
 
 ## `stop` · 2 处
 
-- `runtime/sensing/gateway/_realtime_turn_reporting.py:145`
-- `runtime/sensing/gateway/_realtime_turn_reporting.py:152`
+- `runtime/sensing/gateway/_realtime_turn_reporting.py:146`
+- `runtime/sensing/gateway/_realtime_turn_reporting.py:153`
 
 ## `user_prompt` · 2 处
 

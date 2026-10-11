@@ -6,6 +6,7 @@ import asyncio
 from typing import TYPE_CHECKING, Any
 
 from runtime.protocol import ServerMethod, Turn
+from runtime.sensing.gateway._realtime_turn_context import _TurnContext
 from runtime.sensing.gateway.realtime_gateway import EventEmitter
 
 if TYPE_CHECKING:
@@ -380,3 +381,188 @@ def _schedule_pending_subagent_reports(
 
     task.add_done_callback(_complete)
     return task
+
+
+async def _finish_turn_execution(ctx: _TurnContext) -> Turn:
+    from runtime.sensing.gateway import realtime_turn_lifecycle as lifecycle
+
+    if ctx.turn.status in {
+        lifecycle.TurnStatus.PAUSED,
+        lifecycle.TurnStatus.CANCELLED,
+        lifecycle.TurnStatus.INTERRUPTED,
+    }:
+        # Preserve the concrete terminal/waiting outcome.  In particular,
+        # a resumable checkpoint must never be flattened back to completed
+        # or to a generic transport interruption.
+        lifecycle._close_turn(ctx.log, ctx.thread_id, ctx.turn)
+        ctx.runtime._snapshot_to_thread_store(ctx.thread_id, ctx.log, ctx.intent)
+        return ctx.turn
+    if ctx.turn.status == lifecycle.TurnStatus.FAILED:
+        lifecycle._close_turn(ctx.log, ctx.thread_id, ctx.turn)
+        # A "blocked_on_user" disposition is a genuine hand-off, not a
+        # failure — do not feed it to the failure-sampling evolution
+        # ledger as a turn_failure sample.
+        _turn_error = ctx.turn.error if isinstance(ctx.turn.error, dict) else None
+        if not (_turn_error and _turn_error.get("disposition") == "blocked_on_user"):
+            ctx.runtime._record_failed_turn_proposal(
+                ctx.turn,
+                intent=ctx.intent,
+                failure_source="react_failed",
+            )
+        ctx.runtime._snapshot_to_thread_store(ctx.thread_id, ctx.log, ctx.intent)
+        return ctx.turn
+
+    terminal = await lifecycle._verify_turn_code_changes(
+        runtime=ctx.runtime,
+        turn=ctx.turn,
+        log=ctx.log,
+        emitter=ctx.emitter,
+        thread_id=ctx.thread_id,
+        intent=ctx.intent,
+        validated=ctx.validated,
+        execution=ctx.execution,
+        params=ctx.params,
+        turn_driver=ctx.turn_driver,
+    )
+    if terminal is not None:
+        return terminal
+
+    if not lifecycle._turn_has_observable_output(ctx.turn):
+        err = lifecycle.ErrorItem(
+            message=("模型执行结束但没有返回任何可见输出。请重试，或切换到其他可用模型后再试。"),
+            error_info={
+                "code": "empty_model_output",
+                "model": ctx.validated.model,
+            },
+        )
+        ctx.turn.items.append(err)
+        await ctx.runtime._emit_item_started(ctx.turn, ctx.log, ctx.emitter, err)
+        await ctx.runtime._emit_item_completed(ctx.turn, ctx.log, ctx.emitter, err)
+        ctx.turn.status = lifecycle.TurnStatus.FAILED
+        lifecycle._close_turn(ctx.log, ctx.thread_id, ctx.turn)
+        ctx.runtime._record_failed_turn_proposal(
+            ctx.turn,
+            intent=ctx.intent,
+            failure_source="empty_model_output",
+        )
+        ctx.runtime._snapshot_to_thread_store(ctx.thread_id, ctx.log, ctx.intent)
+        return ctx.turn
+
+    background_tasks = ctx.runtime._thread_background_tasks.get(ctx.thread_id, [])
+    if any(not task.done() for task in background_tasks):
+        ctx.turn.outcome_reason = "completed_with_background"
+        ctx.log.turn_updated(
+            ctx.thread_id,
+            ctx.turn.id,
+            objective_id=ctx.turn.objective_id,
+            task_id=ctx.turn.task_id,
+            outcome_reason=ctx.turn.outcome_reason,
+        )
+    ctx.turn.status = lifecycle.TurnStatus.COMPLETED
+    lifecycle._close_turn(ctx.log, ctx.thread_id, ctx.turn)
+    ctx.runtime._record_successful_turn_example(ctx.turn, intent=ctx.intent)
+    await ctx.runtime._maybe_compact(ctx.thread_id, ctx.log, ctx.emitter)
+    ctx.runtime._snapshot_to_thread_store(ctx.thread_id, ctx.log, ctx.intent)
+    return ctx.turn
+
+
+async def _handle_turn_cancellation(ctx: _TurnContext) -> None:
+    from runtime.sensing.gateway import realtime_turn_lifecycle as lifecycle
+
+    # Connection teardown cancels the turn task mid-flight
+    # (gateway ``_serve`` finally). CancelledError bypasses both
+    # the driver ``except Exception`` above and the gateway's
+    # error wrapping, so without this handler the journal keeps an
+    # IN_PROGRESS turn that only the next thread/resume can reap
+    # and the client never sees a terminal event. Finalize
+    # best-effort, then always re-raise — cancellation must
+    # propagate.
+    if ctx.turn.status == lifecycle.TurnStatus.IN_PROGRESS:
+        ctx.turn.status = lifecycle.TurnStatus.INTERRUPTED
+        with lifecycle.contextlib.suppress(Exception):
+            lifecycle._close_turn(ctx.log, ctx.thread_id, ctx.turn)
+    if ctx.turn.completed_at is None:
+        ctx.turn.completed_at = lifecycle.now_utc()
+    # Record the concrete interrupt reason so the frontend can
+    # tell the user *why* the turn stopped, not just *that* it did.
+    if not ctx.turn.interrupt_reason:
+        reason = "连接断开或后端重启"
+        with lifecycle.contextlib.suppress(Exception):
+            emitter_reason = ctx.emitter.get_interrupt_reason(ctx.turn.id)
+            if emitter_reason:
+                reason = emitter_reason
+        ctx.turn.interrupt_reason = reason
+    # The connection is usually already dead here; send failures
+    # must not mask the cancellation. Notify the current connection.
+    with lifecycle.contextlib.suppress(Exception):
+        await lifecycle._notify_terminal(
+            ctx.emitter,
+            lifecycle.ServerMethod.TURN_INTERRUPTED,
+            {
+                "threadId": ctx.thread_id,
+                "turnId": ctx.turn.id,
+                "reason": ctx.turn.interrupt_reason,
+            },
+        )
+    with lifecycle.contextlib.suppress(Exception):
+        await lifecycle._notify_terminal(
+            ctx.emitter,
+            lifecycle.ServerMethod.TURN_COMPLETED,
+            {
+                "threadId": ctx.thread_id,
+                "turn": ctx.turn.model_dump(by_alias=True, mode="json"),
+            },
+        )
+
+
+async def _handle_turn_failure(ctx: _TurnContext, exc: Exception) -> None:
+    from runtime.sensing.gateway import realtime_turn_lifecycle as lifecycle
+
+    # Failures between turn/started and the driver try (intent
+    # build, policy wrap, agent resolve) — or in finalization —
+    # escape to the gateway, which only sends a turnId-less error
+    # notification: the client would keep this turn inProgress for
+    # the rest of the session. Emit the terminal snapshot first,
+    # then re-raise so the gateway error path runs unchanged.
+    if ctx.turn.status == lifecycle.TurnStatus.IN_PROGRESS:
+        ctx.turn.status = lifecycle.TurnStatus.FAILED
+        with lifecycle.contextlib.suppress(Exception):
+            lifecycle._close_turn(
+                ctx.log,
+                ctx.thread_id,
+                ctx.turn,
+                error={"message": str(exc) or exc.__class__.__name__},
+            )
+        # Mirror the driver-crash handler's bypass records: the
+        # evolution store learns the failure and the failed turn
+        # stays visible in the sidebar's legacy thread store.
+        with lifecycle.contextlib.suppress(Exception):
+            ctx.runtime._record_failed_turn_proposal(
+                ctx.turn,
+                intent=ctx.intent,
+                failure_source="turn_lifecycle_exception",
+            )
+    if ctx.turn.completed_at is None:
+        ctx.turn.completed_at = lifecycle.now_utc()
+    with lifecycle.contextlib.suppress(Exception):
+        ctx.runtime._snapshot_to_thread_store(ctx.thread_id, ctx.log, ctx.intent)
+    with lifecycle.contextlib.suppress(Exception):
+        await lifecycle._notify_terminal(
+            ctx.emitter,
+            lifecycle.ServerMethod.TURN_COMPLETED,
+            {
+                "threadId": ctx.thread_id,
+                "turn": ctx.turn.model_dump(by_alias=True, mode="json"),
+            },
+        )
+
+
+def _unregister_turn(ctx: _TurnContext) -> None:
+    from runtime.sensing.gateway import realtime_turn_lifecycle as lifecycle
+
+    if ctx.turn.status != lifecycle.TurnStatus.IN_PROGRESS and ctx.turn.completed_at is None:
+        ctx.turn.completed_at = lifecycle.now_utc()
+    ctx.runtime._record_task_run_finished(ctx.turn)
+    ctx.runtime._active_turn_ids.discard(ctx.turn.id)
+    ctx.runtime._unregister_active_turn(ctx.turn.id)
+    ctx.emitter.unregister_turn(ctx.turn.id)

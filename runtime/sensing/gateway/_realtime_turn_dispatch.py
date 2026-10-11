@@ -5,6 +5,7 @@ from __future__ import annotations
 from typing import Any
 
 from runtime.protocol import Turn
+from runtime.sensing.gateway._realtime_turn_context import _TurnContext
 
 
 def _apply_composer_markers(*, validated: Any) -> tuple[bool, str, Any]:
@@ -261,3 +262,254 @@ async def _repair_coordinated_delivery(
             )
 
     return turn_driver
+
+
+async def _select_and_bind_turn_driver(ctx: _TurnContext) -> None:
+    from runtime.sensing.gateway import realtime_turn_lifecycle as lifecycle
+
+    ctx.topology_id = getattr(ctx.validated, "topology_id", None)
+    _cowork_context = ctx.intent.user_context or {}
+    _team_pattern = _cowork_context.get("team_pattern")
+    ctx._team_pattern_execution = (
+        str(_team_pattern.get("execution") or "").strip() if isinstance(_team_pattern, dict) else ""
+    )
+    # The declarative team pattern is authoritative. A focused reply
+    # must not inherit a stale cluster topology, an orchestrated task
+    # must not be forced back into the legacy bubble fan-out by
+    # serve_mesh/cowork_is_multi compatibility flags, and neither may be
+    # re-routed to the mesh by a client-supplied topology.
+    if ctx._team_pattern_execution in {"focused", "orchestrated"}:
+        # ``orchestrated`` is decided by the server together with the
+        # coordinator contract and any recoverable run snapshot. A
+        # client-supplied ``topology_id`` (the legacy 集群 field) would
+        # otherwise win route precedence and dispatch ``swarm_mesh``
+        # instead, while the deliverable-completeness gate below still
+        # audits this turn as coordinated execution.
+        if ctx.topology_id:
+            lifecycle._logger.info(
+                "ignoring topology_id %r under server-owned team pattern %r",
+                ctx.topology_id,
+                ctx._team_pattern_execution,
+            )
+            ctx.validated = ctx.validated.model_copy(update={"topology_id": None})
+        ctx.topology_id = None
+    # Mode-level guard: single-agent modes MUST NOT route
+    # through ``_drive_team_topology`` even if a leftover
+    # ``topology_id`` slipped through (e.g. settings
+    # persisted from a prior swarm turn, an old front-end
+    # build, or ``auto-dispatch`` on a stale runtime). The
+    # explicit user-facing mode is the source of truth:
+    #   chat / react / deep  → single-agent ReAct
+    #   swarm                → swarm topology
+    # Anything that lands in the first bucket here gets
+    # its topology cleared so the swarm path stays
+    # unreachable from the Agent / Inspiration modes.
+    _mode_str = (lifecycle._turn_mode(ctx.validated) or "").lower()
+    if ctx.topology_id and _mode_str in {"chat", "react", "deep"}:
+        lifecycle._logger.info(
+            "ignoring topology_id %r in single-agent mode %r",
+            ctx.topology_id,
+            _mode_str,
+        )
+        ctx.topology_id = None
+        ctx.validated = ctx.validated.model_copy(
+            update={"topology_id": None},
+        )
+
+    # 能力包 / Meta-Skill soft hand-off: if the user's text
+    # strongly matches one of the curated workflow packs,
+    # surface a hint so the user can switch to the catalog
+    # page. ReAct still runs — the hint is informational,
+    # not a redirect, until the graph runtime is wired
+    # through the realtime gateway.
+    await lifecycle._emit_turn_hints(
+        text=ctx.text,
+        emitter=ctx.emitter,
+        thread_id=ctx.thread_id,
+        turn=ctx.turn,
+        explicit_project_command=ctx.explicit_project_command,
+        _logger=lifecycle._logger,
+    )
+
+    reflection, route = await lifecycle._select_turn_route(
+        _cowork_context=_cowork_context,
+        _team_pattern_execution=ctx._team_pattern_execution,
+        text=ctx.text,
+        explicit_project_command=ctx.explicit_project_command,
+        topology_id=ctx.topology_id,
+        agent=ctx.agent,
+        validated=ctx.validated,
+        runtime=ctx.runtime,
+        conversation_messages=ctx.conversation_messages,
+        thread_id=ctx.thread_id,
+        turn=ctx.turn,
+        intent=ctx.intent,
+    )
+    if route.engine in {"opencode", "codex"}:
+        ctx.validated = ctx.validated.model_copy(
+            update={"model": ctx.requested_model_before_routing}
+        )
+        ctx.turn.params = ctx.validated
+        external_context = {
+            **(ctx.intent.user_context or {}),
+            "model_name": ctx.requested_model_before_routing,
+        }
+        # Preserve the host's existing no-tool classification for
+        # OpenCode.  Without this handoff, greetings and explicit
+        # discussion-only turns still built and connected the full
+        # per-turn MCP bridge before asking the model for text.
+        if route.engine == "opencode":
+            external_context["direct_conversation_reply"] = reflection
+        ctx.intent = ctx.intent.model_copy(update={"user_context": external_context})
+    # The explicit model still governs every member of an orchestrated
+    # topology. Engine selection does not change model ownership.
+    if route.driver == "swarm_mesh":
+        team_model = str(ctx.validated.model or "").strip()
+        if team_model and team_model.lower() not in {"auto", "default"}:
+            ctx.intent = ctx.intent.model_copy(
+                update={
+                    "user_context": {
+                        **(ctx.intent.user_context or {}),
+                        "model_name": team_model,
+                    }
+                }
+            )
+    ctx.turn_driver = route.driver
+    ctx.execution = lifecycle.bind_turn_execution(
+        ctx.runtime,
+        ctx.turn,
+        ctx.log,
+        ctx.emitter,
+        ctx.provider,
+        ctx.agent,
+        route,
+        topology_id=ctx.topology_id,
+    )
+
+
+async def _handle_turn_driver_error(ctx: _TurnContext, exc: Exception) -> bool:
+    from runtime.sensing.gateway import realtime_turn_lifecycle as lifecycle
+
+    if isinstance(exc, (lifecycle.EngineSelectionError, lifecycle.RolePreparationError)):
+        lifecycle._logger.info(
+            "CerebrumRuntime: preparation requires attention: %s", type(exc).__name__
+        )
+    else:
+        lifecycle._logger.exception("CerebrumRuntime: turn driver crashed: %s", ctx.turn_driver)
+    if isinstance(exc, lifecycle.RolePreparationError):
+        selection_error = True
+        ctx.turn.error = {**exc.info, "message": str(exc)}
+        ctx.turn_driver = "role_preparation"
+    elif isinstance(exc, lifecycle.EngineSelectionError):
+        selection_error = True
+        ctx.turn.error = {
+            "code": "execution_unavailable",
+            "engine": exc.engine.value,
+            "reason": exc.reason,
+            "message": str(exc),
+            "disposition": "blocked_on_user",
+        }
+        ctx.turn_driver = "engine_selection"
+    else:
+        selection_error = False
+        ctx.turn.execution_engine = (
+            ctx.turn.execution.engine
+            if ctx.turn.execution is not None
+            else {
+                "codex_app_server": "codex",
+                "opencode_server": "opencode",
+            }.get(ctx.turn_driver, "echo")
+        )
+    context = ctx.intent.user_context if isinstance(ctx.intent.user_context, dict) else {}
+    event_backpressure = isinstance(exc, lifecycle.BackpressureError)
+    public_error_message = (
+        "Codex event delivery was temporarily overloaded. Completed steps were "
+        "preserved; retry to continue."
+        if event_backpressure
+        else str(exc) or exc.__class__.__name__
+    )
+    err = lifecycle.ErrorItem(
+        message=public_error_message,
+        error_info={
+            "code": (
+                "execution_unavailable"
+                if selection_error
+                else "codex_event_backpressure"
+                if event_backpressure
+                else "turn_driver_exception"
+            ),
+            "driver": ctx.turn_driver,
+            "exception_type": exc.__class__.__name__,
+            "failure_kind": "backpressure" if event_backpressure else "",
+            "cowork_mode": context.get("cowork_mode"),
+            "topology_id": ctx.topology_id or "",
+            **(
+                {
+                    "engine": exc.engine.value,
+                    "reason": exc.reason,
+                    "disposition": "blocked_on_user",
+                }
+                if isinstance(exc, lifecycle.EngineSelectionError)
+                else {}
+            ),
+            **(exc.info if isinstance(exc, lifecycle.RolePreparationError) else {}),
+        },
+    )
+    ctx.turn.items.append(err)
+    await ctx.runtime._emit_item_started(ctx.turn, ctx.log, ctx.emitter, err)
+    await ctx.runtime._emit_item_completed(ctx.turn, ctx.log, ctx.emitter, err)
+    ctx.turn.status = lifecycle.TurnStatus.FAILED
+    lifecycle._close_turn(ctx.log, ctx.thread_id, ctx.turn)
+    if not selection_error:
+        ctx.runtime._record_failed_turn_proposal(
+            ctx.turn,
+            intent=ctx.intent,
+            failure_source=f"{ctx.turn_driver}_exception",
+        )
+    ctx.runtime._snapshot_to_thread_store(ctx.thread_id, ctx.log, ctx.intent)
+    return True
+
+
+async def _dispatch_turn(ctx: _TurnContext) -> bool:
+    from runtime.sensing.gateway import realtime_turn_lifecycle as lifecycle
+
+    try:
+        await _select_and_bind_turn_driver(ctx)
+        await ctx.execution.execute(
+            lifecycle.TurnExecutionRequest(ctx.intent, ctx.text, ctx.validated.model)
+        )
+    except Exception as exc:
+        return await _handle_turn_driver_error(ctx, exc)
+    return False
+
+
+async def _finish_turn_delivery(ctx: _TurnContext) -> None:
+    from runtime.sensing.gateway import realtime_turn_lifecycle as lifecycle
+
+    ctx.turn_driver = await lifecycle._drain_late_steering(
+        turn=ctx.turn,
+        runtime=ctx.runtime,
+        intent=ctx.intent,
+        execution=ctx.execution,
+        validated=ctx.validated,
+        turn_driver=ctx.turn_driver,
+    )
+
+    # A coordinated deliverable is not complete merely because the TL
+    # wrote a confident answer. Require server-observed delegation. Give
+    # the coordinator one bounded repair round so an omitted tool call can
+    # be corrected without making the user repeat the request.
+    ctx.turn_driver = await lifecycle._repair_coordinated_delivery(
+        runtime=ctx.runtime,
+        turn=ctx.turn,
+        log=ctx.log,
+        emitter=ctx.emitter,
+        thread_id=ctx.thread_id,
+        intent=ctx.intent,
+        validated=ctx.validated,
+        execution=ctx.execution,
+        text=ctx.text,
+        explicit_project_command=ctx.explicit_project_command,
+        _team_pattern_execution=ctx._team_pattern_execution,
+        turn_driver=ctx.turn_driver,
+    )
