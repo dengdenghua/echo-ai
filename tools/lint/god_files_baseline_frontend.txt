@@ -29,7 +29,6 @@ frontend/src/components/workspace/agent-operator/index.tsx	1103
 frontend/src/components/workspace/agent-workbench-pages.tsx	2085
 frontend/src/components/workspace/agent-workbench-panel.test.tsx	3406
 frontend/src/components/workspace/agent-workbench-panel.tsx	1182
-frontend/src/components/workspace/agent-workbench-panel/project-os-tab.tsx	2193
 frontend/src/components/workspace/agents/agent-role-profile-dialog.tsx	1944
 frontend/src/components/workspace/agents/agent-world-unified.tsx	2285
 frontend/src/components/workspace/agents/arms-editor.tsx	1028
