@@ -1,0 +1,4 @@
+interface:
+  display_name: "配置 REA 逆向"
+  short_description: "配置本地逆向分析工具，检查 APK 与原生程序分析依赖和连接"
+  default_prompt: "使用 $setup 配置 REA 逆向插件，检查本机分析工具是否可用。"

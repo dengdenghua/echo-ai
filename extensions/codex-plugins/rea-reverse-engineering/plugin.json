@@ -1,0 +1,43 @@
+{
+  "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
+  "name": "rea-reverse-engineering",
+  "version": "1.2.0",
+  "description": "REA 加强版：解包逆向、真实截图视觉走查、UX 路径记录及带证据的问题报告。",
+  "author": {
+    "name": "Echo"
+  },
+  "license": "MIT",
+  "keywords": [
+    "reverse-engineering",
+    "rea",
+    "android",
+    "ghidra",
+    "jadx",
+    "visual-review",
+    "ux-review"
+  ],
+  "extensions": {
+    "com.openai": {
+      "onboardingSkill": "./skills/setup/SKILL.md",
+      "interface": {
+        "displayName": "REA 逆向",
+        "shortDescription": "解包逆向、视觉与 UX 走查、证据报告",
+        "longDescription": "完整 Android 解包与持久代码追踪，结合真实截图、页面结构、操作前后记录、走查覆盖清单和带标注的问题报告。支持模拟器或真机，也支持导入截图。",
+        "developerName": "Echo",
+        "category": "Developer Tools",
+        "capabilities": [
+          "Read",
+          "Write"
+        ],
+        "defaultPrompt": [
+          "用 REA 逆向分析这个 APK 的页面和主要功能。",
+          "用 REA 追踪这个应用中指定功能的实现，并给出证据。",
+          "用 REA 对这个应用做视觉和 UX 走查，结合解包证据输出问题报告。"
+        ],
+        "brandColor": "#6D5EF5",
+        "composerIcon": "./assets/icon.svg",
+        "logo": "./assets/icon.svg"
+      }
+    }
+  }
+}

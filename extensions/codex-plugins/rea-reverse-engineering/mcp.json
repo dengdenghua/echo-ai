@@ -1,0 +1,17 @@
+{
+  "$schema": "https://agent-plugins.org/schemas/1.0.0/mcp.schema.json",
+  "mcpServers": {
+    "rea": {
+      "type": "stdio",
+      "command": "/bin/sh",
+      "args": ["-c", "exec \"${CODEX_MCP_NODE_PATH:-node}\" ./scripts/rea.mjs mcp"],
+      "cwd": "./"
+    },
+    "rea-deep": {
+      "type": "stdio",
+      "command": "/bin/sh",
+      "args": ["-c", "exec \"${CODEX_MCP_NODE_PATH:-node}\" ./scripts/rea.mjs deep-mcp"],
+      "cwd": "./"
+    }
+  }
+}
