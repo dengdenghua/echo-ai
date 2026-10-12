@@ -88,6 +88,7 @@ _GATE_CALLS = frozenset(
 _GATE_DELEGATES = {
     "runtime/sensing/gateway/realtime_gateway.py": "runtime/sensing/gateway/_realtime_gateway_session.py",
     "runtime/sensing/gateway/team_rooms_router.py": "runtime/sensing/gateway/team_rooms_ws.py",
+    "runtime/sensing/gateway/_team_room_transcript.py": "runtime/sensing/gateway/team_rooms_ws.py",
 }
 
 

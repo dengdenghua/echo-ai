@@ -52,7 +52,9 @@ def existing_room_message(
         display_name,
         text,
     ):
-        raise ValueError("source/client message ID belongs to different content")
+        raise ValueError(
+            "source_message_id/client_message_id/message_id belongs to different content"
+        )
     before = json.loads(row[5])
     for key in ("reply_to", "sender_kind", "sender_driver"):
         if metadata.get(key) not in (None, "", "unknown") and before.get(key) not in (

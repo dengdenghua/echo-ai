@@ -2271,9 +2271,8 @@ export const WebviewTab = forwardRef<WebviewTabHandle, Props>(
       return (
         <Suspense
           fallback={
-            // Matches the start page's graphite backdrop so the first paint
-            // already looks like home instead of an empty grey pane. Graphite
-            // tokens regardless of scheme: the start page is always dark.
+            // The graphite start page stays dark in either color scheme, so its
+            // first paint matches home instead of an empty grey pane.
             <div
               data-echo-theme="graphite"
               className="grid size-full place-items-center bg-[radial-gradient(ellipse_at_50%_38%,var(--echo-surface-raised)_0%,var(--echo-surface)_48%,var(--echo-ground)_100%)]"
