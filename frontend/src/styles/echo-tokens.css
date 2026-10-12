@@ -128,4 +128,10 @@
   --echo-breach: #c42638;
   --echo-breach-soft: rgba(196, 38, 56, 0.08);
   --echo-focus: var(--echo-core);
+  --echo-shadow-raised:
+    0 1px 2px rgba(17, 19, 23, 0.06), 0 8px 24px rgba(17, 19, 23, 0.08);
+  --echo-shadow-window:
+    0 0 0 1px rgba(17, 19, 23, 0.06), 0 28px 70px rgba(17, 19, 23, 0.18);
+  --echo-glow-core:
+    0 0 0 1px rgba(8, 120, 138, 0.35), 0 0 12px rgba(8, 120, 138, 0.25);
 }
