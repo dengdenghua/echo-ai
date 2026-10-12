@@ -19,6 +19,7 @@ from runtime.sensing.gateway._team_tasks_helpers import (
     _team_task_process_timeline,
 )
 from runtime.sensing.gateway._team_tasks_helpers import _fallback_topology as _fallback_topology
+from runtime.sensing.gateway._team_tasks_helpers import _mobile_artifacts as _mobile_artifacts
 from runtime.sensing.gateway._team_tasks_helpers import _task_input_text as _task_input_text
 from runtime.sensing.gateway._team_tasks_models import (
     CreateTeamTaskRequest,

@@ -103,11 +103,16 @@ def upsert_room(
         payload.setdefault("created_at", created_at)
         payload["updated_at"] = str(payload.get("updated_at") or now)
         if existing_room and str(existing_room[0]) != session_id:
-            conn.execute(
-                "UPDATE collaboration_tasks SET session_id=? WHERE room_id=?"
-                + (" AND task_authority!='team'" if expected_team_binding is not None else ""),
-                (session_id, room_id),
-            )
+            if expected_team_binding is None:
+                conn.execute(
+                    "UPDATE collaboration_tasks SET session_id=? WHERE room_id=?",
+                    (session_id, room_id),
+                )
+            else:
+                conn.execute(
+                    "UPDATE collaboration_tasks SET session_id=? WHERE room_id=? AND task_authority!='team'",
+                    (session_id, room_id),
+                )
             conn.execute(
                 "UPDATE collaboration_messages SET session_id=? WHERE room_id=?",
                 (session_id, room_id),

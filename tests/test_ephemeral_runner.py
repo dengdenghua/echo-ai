@@ -1195,23 +1195,141 @@ class TestSubToolEventDispatch:
 
 
 class TestToolBridgeParentIdTracking:
-    def test_session_meta_flips_around_tool_call(self):
-        """Parent agentic loop should stash/clear
-        ``_active_parent_tool_use_id`` so sub-agents can correlate."""
-        from runtime.sensing.gateway import _tool_bridge_loop
+    @pytest.mark.parametrize("outcome", ["success", "error", "cancelled"])
+    def test_session_meta_flips_around_tool_call(self, outcome):
+        """Dispatch a real registered handler and restore context on every exit."""
+        from types import SimpleNamespace
 
-        # We validate the source directly · the integration path
-        # requires a full stack, but the invariant we care about
-        # (set before handler, pop after) is structural. The loop
-        # body lives in the ``_tool_bridge_loop`` satellite module
-        # (``tool_bridge`` is now a re-export hub), so read that.
-        src = _tool_bridge_loop.__file__ if hasattr(_tool_bridge_loop, "__file__") else None
-        assert src is not None
-        with open(src, encoding="utf-8") as f:
-            text = f.read()
-        assert 'metadata["_active_parent_tool_use_id"] = call.id' in text
-        assert "metadata.pop(" in text
-        assert '"_active_parent_tool_use_id"' in text
+        from runtime.execution.suckers.registry import Skill, SkillRegistry
+        from runtime.platform.process.session import (
+            Session,
+            _current_session,
+            current_parent_tool_use_id,
+            current_session,
+            parent_tool_use_scope,
+            session_scope,
+        )
+        from runtime.safety.approval.cancellation import CancellationSource, scoped_cancellation
+        from runtime.sensing.gateway._tool_bridge_loop_batch import _execute_serial_call
+        from runtime.sensing.model_router.models import ToolCall
+
+        parent, outer = Session(), Session()
+        parent.metadata["unrelated"] = "preserve"
+        observed = []
+
+        def capture_parent():
+            assert current_session() is parent
+            assert parent.metadata["_active_parent_tool_use_id"] == "parent-tool"
+            assert current_parent_tool_use_id() == "parent-tool"
+            observed.append("called")
+            if outcome == "error":
+                raise RuntimeError("fixture handler failed")
+            return {"parent_id": current_parent_tool_use_id()}
+
+        registry = SkillRegistry()
+        registry.register(
+            Skill(
+                name="capture_parent",
+                description="Observe delegation context",
+                trusted_source="skill://public/capture_parent",
+                handler=capture_parent,
+            ),
+            verify_tests=False,
+        )
+        source = CancellationSource()
+        if outcome == "cancelled":
+            source.cancel(reason="fixture cancellation")
+        ctx = SimpleNamespace(
+            stack=SimpleNamespace(executor=SimpleNamespace(registry=registry)),
+            _session_obj=parent,
+            _current_session=_current_session,
+            scoped_cancellation=scoped_cancellation,
+            _native_trajectory_task_id=None,
+            _native_trajectory_arm_id=None,
+            _native_trajectory_budget=None,
+        )
+        with session_scope(outer), parent_tool_use_scope("outer-tool"):
+            output, is_error = _execute_serial_call(
+                ctx,
+                ToolCall(id="parent-tool", name="capture_parent", input={}),
+                1,
+                tool_batch_source=source,
+            )
+            assert current_session() is outer
+            assert current_parent_tool_use_id() == "outer-tool"
+        assert parent.metadata == {"unrelated": "preserve"}
+        assert observed == ([] if outcome == "cancelled" else ["called"])
+        assert is_error is (outcome != "success")
+        if outcome == "success":
+            assert json.loads(output) == {"parent_id": "parent-tool"}
+        elif outcome == "error":
+            assert "fixture handler failed" in output
+        else:
+            assert "fixture cancellation" in output
+
+    def test_parallel_calls_keep_distinct_causal_parents_and_clear_batch_metadata(self):
+        import threading
+        from types import SimpleNamespace
+
+        from runtime.execution.suckers.registry import Skill, SkillRegistry
+        from runtime.platform.process.session import (
+            Session,
+            current_parent_tool_use_id,
+            current_session,
+            parent_tool_use_scope,
+            session_scope,
+        )
+        from runtime.safety.approval.cancellation import CancellationSource, scoped_cancellation
+        from runtime.sensing.gateway._tool_bridge_loop_batch import _execute_parallel_batch
+        from runtime.sensing.model_router.models import ToolCall
+
+        parent, outer = Session(), Session()
+        parent.metadata["unrelated"] = "preserve"
+        both_running = threading.Barrier(2)
+
+        def capture_parent(marker):
+            both_running.wait(timeout=5)
+            assert current_session() is parent
+            assert current_parent_tool_use_id() == f"parent-{marker}"
+            return {"parent_id": current_parent_tool_use_id(), "marker": marker}
+
+        registry = SkillRegistry()
+        registry.register(
+            Skill(
+                name="capture_parent",
+                description="Observe concurrent delegation",
+                trusted_source="skill://public/capture_parent",
+                handler=capture_parent,
+            ),
+            verify_tests=False,
+        )
+        ctx = SimpleNamespace(
+            stack=SimpleNamespace(executor=SimpleNamespace(registry=registry)),
+            _session_obj=parent,
+            scoped_cancellation=scoped_cancellation,
+            _native_trajectory_task_id=None,
+            _native_trajectory_arm_id=None,
+            _native_trajectory_budget=None,
+            _tool_batch_source=CancellationSource(),
+            _tool_batch_redirected=False,
+            _native_step_ids=[1, 2],
+            round_tool_calls=[
+                ToolCall(id=f"parent-{marker}", name="capture_parent", input={"marker": marker})
+                for marker in ("a", "b")
+            ],
+            _capture_steering=lambda: False,
+            _take_action_narration=lambda **_kwargs: None,
+        )
+        with session_scope(outer), parent_tool_use_scope("outer-tool"):
+            list(_execute_parallel_batch(ctx))
+            assert current_session() is outer
+            assert current_parent_tool_use_id() == "outer-tool"
+        assert "_active_parent_tool_use_id" not in parent.metadata
+        assert parent.metadata["unrelated"] == "preserve"
+        for step, marker in [(1, "a"), (2, "b")]:
+            output, is_error = ctx._outputs[step]
+            assert not is_error
+            assert json.loads(output) == {"parent_id": f"parent-{marker}", "marker": marker}
 
 
 class TestEphemeralInjectionTaintGate:
