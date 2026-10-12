@@ -127,6 +127,7 @@ ROOT_ALLOWLIST: set[str] = {
     # ── CI / git ────────────────────────────────────────────
     ".github",
     ".gitignore",
+    ".gitleaksignore",
     ".gitattributes",
     ".git-blame-ignore-revs",
     ".editorconfig",

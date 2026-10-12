@@ -19,6 +19,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
+from runtime.memory.cowork._room_message_retirement import adopt_retirement
 from runtime.memory.cowork.ids import (
     normalize_actor_id,
     normalize_display_name,
@@ -91,7 +92,7 @@ def _adopt_v1(conn: sqlite3.Connection) -> None:
     execute_script(conn, _SCHEMA)
 
 
-_MIGRATIONS = (Migration(1, _adopt_v1),)
+_MIGRATIONS = (Migration(1, _adopt_v1), Migration(2, adopt_retirement))
 
 
 def _default_dir() -> Path:

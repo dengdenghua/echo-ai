@@ -35,6 +35,7 @@ from runtime.memory.cowork._collaboration_project_projection import (
 from runtime.memory.cowork._collaboration_project_projection import (
     upsert_project_task as _upsert_project_task,
 )
+from runtime.memory.cowork._collaboration_room_messages import append_message_for_room
 from runtime.memory.cowork._collaboration_room_write import (
     upsert_project_room as _upsert_project_room,
 )
@@ -50,6 +51,7 @@ from runtime.memory.cowork._collaboration_session_writes import (
 )
 from runtime.memory.cowork._collaboration_session_writes import delete_task as _delete_task
 from runtime.memory.cowork._collaboration_session_writes import upsert_task as _upsert_task
+from runtime.memory.cowork._collaboration_transcript_import import import_legacy_room
 from runtime.memory.cowork.collaboration_collectors import (
     CollaborationCollectorStoreMixin,
 )
@@ -399,6 +401,8 @@ class CollaborationStore(
     """Canonical room/task storage keyed by collaboration session id."""
 
     list_session_ids = list_session_ids
+    import_legacy_room = import_legacy_room
+    append_message_for_room = append_message_for_room
 
     def __init__(self, base_dir: Path | str | None = None) -> None:
         self._dir = Path(base_dir) if base_dir else _default_dir()
@@ -877,28 +881,6 @@ class CollaborationStore(
     ) -> int:
         return _append_message(
             self,
-            session_id,
-            room_id=room_id,
-            text=text,
-            participant_id=participant_id,
-            display_name=display_name,
-            metadata=metadata,
-        )
-
-    def append_message_for_room(
-        self,
-        room_id: str,
-        *,
-        text: str,
-        participant_id: str = "",
-        display_name: str = "",
-        metadata: dict[str, Any] | None = None,
-    ) -> int | None:
-        room_id = require_cowork_id(room_id, label="room_id")
-        session_id = self.session_id_for_room(room_id)
-        if not session_id:
-            return None
-        return self.append_message(
             session_id,
             room_id=room_id,
             text=text,

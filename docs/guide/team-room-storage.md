@@ -90,3 +90,30 @@ and their claims request cancellation; old results remain fenced and capacity
 remains occupied until acknowledgement, owner death or expiry. A retry does not
 restart work. Generic Room writes still cannot move an owned task or bypass the
 versioned project APIs, and a failed transfer rolls back the entire transaction.
+
+Collaboration schema version 4 adds a separate per-Room message cursor and a
+transcript import ledger. Session message sequences remain unchanged. Existing
+receipts associated with an unambiguous message ID acquire that Room cursor;
+reapplying the schema step preserves assigned cursors and database identity.
+
+The `CollaborationStore.import_legacy_room` migration entry point reads the
+entire legacy SQLite transcript rather than a bounded history page. It retains
+message IDs, client IDs, sender attribution, source timestamps and seal
+provenance. Exact matching canonical rows are adopted; original legacy ordering
+precedes canonical-only messages. Receipts keep their strongest delivery status
+and use the imported message's Room cursor. Invalid seals, ambiguous identities,
+conflicting content or receipts without a message reject the import.
+
+The source database first commits a per-Room write fence tied to the destination
+database identity. SQLite triggers block older processes from changing that
+Room's messages or receipts. The destination then commits all messages,
+receipts, cursor assignments and its success ledger in one transaction. These
+are two separate transactions: a destination failure leaves the source intact
+and fenced so the same destination can retry after the fault is repaired. A
+successful ledger prevents subsequent legacy reads or reimport. Other legacy
+Rooms remain writable until separately migrated.
+
+This entry point is a migration foundation. Production Room HTTP/WebSocket
+wiring still uses its existing source selection and compatibility writes;
+startup adoption, canonical-only receipts, reconnect cursor reset and removal
+of shadow writes remain necessary before the transcript cutover is complete.

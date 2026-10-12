@@ -112,7 +112,7 @@ def test_v2_upgrade_retains_payload_and_revision_and_rejects_generic_move(tmp_pa
     reopened = TeamTaskAuthority(CollaborationStore(tmp_path))
     assert reopened.get("task-1") == original
     with reopened.store._connect() as conn:
-        assert conn.execute("PRAGMA user_version").fetchone()[0] == 3
+        assert conn.execute("PRAGMA user_version").fetchone()[0] == 4
     with pytest.raises(sqlite3.IntegrityError):
         reopened.store.upsert_room("new", {"id": "room-1"})
     prepare_room_projection(reopened.store, "room-1")("new", {"id": "room-1"})

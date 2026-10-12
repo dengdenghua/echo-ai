@@ -1,0 +1,6 @@
+# False positive in a historical Google Chat JWT verification test: the
+# matched f-string calls a signer using a fresh, local RSA key and an invalid
+# audience. It is Python source, not an issued token or embedded credential.
+# Limit this exception to this exact commit, file, rule, and line; future
+# edits and every other generic-api-key match remain subject to scanning.
+53fdec9c50f412076ba837f33e44f408f4572068:tests/test_channel_webhook_auth.py:generic-api-key:205

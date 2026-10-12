@@ -6,6 +6,7 @@ from runtime.memory.cowork._collaboration_team_schema import (
     adopt_team_room_transfer,
     adopt_team_task_authority,
 )
+from runtime.memory.cowork._collaboration_transcript_schema import adopt_room_transcripts
 from runtime.memory.cowork.collaboration_collectors import (
     COLLABORATION_COLLECTOR_SCHEMA,
     ensure_collaboration_collector_schema,
@@ -227,4 +228,5 @@ _MIGRATIONS = (
     Migration(1, _adopt_v1),
     Migration(2, adopt_team_task_authority),
     Migration(3, adopt_team_room_transfer),
+    Migration(4, adopt_room_transcripts),
 )
