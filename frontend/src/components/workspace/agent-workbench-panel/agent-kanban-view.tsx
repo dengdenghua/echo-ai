@@ -252,11 +252,11 @@ function AgentKanbanViewImpl({
       {/* Explanatory capability traces stay in the event history. This surface
           appears only when the latest trace explicitly needs user attention. */}
       {lastVisibilityEvent && actionableVisibilitySteps.length > 0 ? (
-        <div className="relative shrink-0 border-t border-amber-200/70 bg-amber-50/55 py-1 dark:border-amber-900/50 dark:bg-amber-950/15">
+        <div className="relative shrink-0 border-t border-warning/30 bg-warning/10 py-1">
           <button
             type="button"
             onClick={() => setVisibilityOpen((open) => !open)}
-            className="relative z-10 flex w-full items-center gap-1.5 px-5 py-1.5 text-left transition-colors hover:bg-amber-100/55 dark:hover:bg-amber-900/20"
+            className="relative z-10 flex w-full items-center gap-1.5 px-5 py-1.5 text-left transition-colors hover:bg-warning/10"
             aria-expanded={visibilityOpen}
           >
             {visibilityOpen ? (
@@ -264,11 +264,11 @@ function AgentKanbanViewImpl({
             ) : (
               <ChevronRightIcon className="size-3 shrink-0 text-muted-foreground" />
             )}
-            <span className="text-[11px] font-medium text-amber-800 dark:text-amber-300">
+            <span className="text-[11px] font-medium text-warning">
               {t.agentWorkbenchPanel.visibilityPanelTitle} ·{" "}
               {t.agentWorkbenchPanel.visibilityPanelAttention}
             </span>
-            <span className="rounded-full bg-amber-100 px-1.5 text-[10px] tabular-nums text-amber-800 dark:bg-amber-900/40 dark:text-amber-300">
+            <span className="rounded-full bg-warning/10 px-1.5 text-[10px] tabular-nums text-warning">
               {actionableVisibilitySteps.length}
             </span>
           </button>

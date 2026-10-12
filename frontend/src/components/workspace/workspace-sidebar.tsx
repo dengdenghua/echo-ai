@@ -1038,7 +1038,7 @@ export function WorkspaceSidebar(props: React.ComponentProps<typeof Sidebar>) {
       >
         {/* Implementation note. */}
         <SidebarHeader
-          className="h-10 shrink-0 border-b border-white/40 bg-transparent p-0 pr-2 py-0 group-data-[collapsible=icon]:px-0 dark:border-white/10"
+          className="h-10 shrink-0 border-b border-border/50 bg-transparent p-0 pr-2 py-0 group-data-[collapsible=icon]:px-0"
           style={
             {
               paddingLeft: sidebarState === "collapsed" ? 0 : 10,

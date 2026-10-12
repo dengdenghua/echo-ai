@@ -244,16 +244,11 @@ export default function CommunityPage() {
               {/* 顶栏 */}
               <div className="flex flex-col items-start justify-between gap-3 lg:flex-row lg:items-center">
                 <div className="flex shrink-0 items-center gap-2">
-                  <div
-                    className={cn(
-                      "flex size-6 items-center justify-center rounded-md",
-                      isMarket ? "bg-rose-500/10" : "bg-chart-3/10",
-                    )}
-                  >
+                  <div className="flex size-6 items-center justify-center rounded-md bg-muted">
                     {isMarket ? (
-                      <StoreIcon className="size-4 text-rose-500" />
+                      <StoreIcon className="size-4 text-foreground" />
                     ) : (
-                      <CompassIcon className="size-4 text-chart-3" />
+                      <CompassIcon className="size-4 text-foreground" />
                     )}
                   </div>
                   <h1 className="hidden text-lg font-bold sm:block">发现</h1>
@@ -271,9 +266,7 @@ export default function CommunityPage() {
                         className={cn(
                           "flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded px-3 py-1 text-xs font-medium transition-colors",
                           viewMode === v.key
-                            ? v.key === "market"
-                              ? "bg-rose-500 text-white"
-                              : "bg-chart-3 text-white"
+                            ? "bg-primary text-primary-foreground"
                             : "text-muted-foreground hover:text-foreground",
                         )}
                       >

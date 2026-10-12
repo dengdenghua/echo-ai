@@ -102,17 +102,17 @@ export function ProjectCollaborationLandmark({
     return (
       <div
         data-testid="landmark-decision-card"
-        className="my-2 w-full max-w-2xl rounded-xl border border-amber-500/35 bg-gradient-to-br from-amber-500/10 via-amber-500/5 to-background p-3.5 shadow-xs"
+        className="my-2 w-full max-w-2xl rounded-xl border border-primary/30 bg-gradient-to-br from-primary/10 via-primary/5 to-background p-3.5 shadow-xs"
       >
-        <div className="flex flex-wrap items-center justify-between gap-2 border-b border-amber-500/20 pb-2">
-          <div className="flex items-center gap-1.5 font-semibold text-amber-700 dark:text-amber-400">
+        <div className="flex flex-wrap items-center justify-between gap-2 border-b border-primary/20 pb-2">
+          <div className="flex items-center gap-1.5 font-semibold text-primary">
             <BookmarkIcon className="size-4 shrink-0" aria-hidden="true" />
             <span className="text-xs">{match.title}</span>
-            <span className="inline-flex items-center gap-0.5 rounded bg-amber-500/15 px-1 py-0.2 text-micro font-medium text-amber-800 dark:text-amber-300">
+            <span className="inline-flex items-center gap-0.5 rounded bg-primary/10 px-1 py-0.2 text-micro font-medium text-primary">
               ⚡ 规则已纳管
             </span>
           </div>
-          <span className="rounded-full bg-amber-500/20 px-2 py-0.5 text-[10px] font-medium text-amber-800 dark:text-amber-300">
+          <span className="rounded-full bg-primary/15 px-2 py-0.5 text-[10px] font-medium text-primary">
             {match.badge}
           </span>
         </div>
@@ -121,11 +121,11 @@ export function ProjectCollaborationLandmark({
           {renderBody(match.body)}
         </div>
 
-        <div className="mt-2.5 flex items-center justify-end border-t border-amber-500/20 pt-2">
+        <div className="mt-2.5 flex items-center justify-end border-t border-primary/20 pt-2">
           <button
             type="button"
             onClick={handleCopy}
-            className="inline-flex items-center gap-1 rounded px-2 py-1 text-xs text-amber-700 transition-colors hover:bg-amber-500/15 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-amber-500 dark:text-amber-300"
+            className="inline-flex items-center gap-1 rounded px-2 py-1 text-xs text-primary transition-colors hover:bg-primary/15 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-primary"
           >
             {copied ? <CheckIcon className="size-3" /> : <CopyIcon className="size-3" />}
             <span>{copied ? "已复制" : "复制决策内容"}</span>
@@ -139,14 +139,14 @@ export function ProjectCollaborationLandmark({
     return (
       <div
         data-testid="landmark-sandbox-card"
-        className="my-2 w-full max-w-2xl rounded-xl border border-emerald-500/35 bg-gradient-to-br from-emerald-500/10 via-emerald-500/5 to-background p-3.5 shadow-xs"
+        className="my-2 w-full max-w-2xl rounded-xl border border-primary/30 bg-gradient-to-br from-primary/10 via-primary/5 to-background p-3.5 shadow-xs"
       >
-        <div className="flex flex-wrap items-center justify-between gap-2 border-b border-emerald-500/20 pb-2">
-          <div className="flex items-center gap-1.5 font-semibold text-emerald-700 dark:text-emerald-400">
+        <div className="flex flex-wrap items-center justify-between gap-2 border-b border-primary/20 pb-2">
+          <div className="flex items-center gap-1.5 font-semibold text-primary">
             <GitBranchIcon className="size-4 shrink-0" aria-hidden="true" />
             <span className="text-xs">{match.title}</span>
           </div>
-          <span className="rounded-full bg-emerald-500/20 px-2 py-0.5 text-[10px] font-medium text-emerald-800 dark:text-emerald-300">
+          <span className="rounded-full bg-primary/15 px-2 py-0.5 text-[10px] font-medium text-primary">
             {match.badge}
           </span>
         </div>
@@ -155,7 +155,7 @@ export function ProjectCollaborationLandmark({
           {renderBody(match.body)}
         </div>
 
-        <div className="mt-2.5 flex items-center justify-end gap-2 border-t border-emerald-500/20 pt-2">
+        <div className="mt-2.5 flex items-center justify-end gap-2 border-t border-primary/20 pt-2">
           <button
             type="button"
             onClick={handleCopy}
@@ -167,7 +167,7 @@ export function ProjectCollaborationLandmark({
           <button
             type="button"
             onClick={handleEnterSandbox}
-            className="inline-flex items-center gap-1 rounded-md bg-emerald-600 px-2.5 py-1 text-xs font-medium text-white shadow-xs transition-colors hover:bg-emerald-700 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-emerald-500"
+            className="inline-flex items-center gap-1 rounded-md bg-primary px-2.5 py-1 text-xs font-medium text-primary-foreground shadow-xs transition-colors hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
           >
             <ExternalLinkIcon className="size-3" />
             <span>进入推演沙盒</span>
@@ -181,17 +181,17 @@ export function ProjectCollaborationLandmark({
     return (
       <div
         data-testid="landmark-merge-card"
-        className="my-2 w-full max-w-2xl rounded-xl border border-indigo-500/35 bg-gradient-to-br from-indigo-500/10 via-indigo-500/5 to-background p-3.5 shadow-xs"
+        className="my-2 w-full max-w-2xl rounded-xl border border-primary/30 bg-gradient-to-br from-primary/10 via-primary/5 to-background p-3.5 shadow-xs"
       >
-        <div className="flex flex-wrap items-center justify-between gap-2 border-b border-indigo-500/20 pb-2">
-          <div className="flex items-center gap-1.5 font-semibold text-indigo-700 dark:text-indigo-400">
+        <div className="flex flex-wrap items-center justify-between gap-2 border-b border-primary/20 pb-2">
+          <div className="flex items-center gap-1.5 font-semibold text-primary">
             <GitMergeIcon className="size-4 shrink-0" aria-hidden="true" />
             <span className="text-xs">{match.title}</span>
-            <span className="inline-flex items-center gap-0.5 rounded bg-indigo-500/15 px-1 py-0.2 text-micro font-medium text-indigo-800 dark:text-indigo-300">
+            <span className="inline-flex items-center gap-0.5 rounded bg-primary/10 px-1 py-0.2 text-micro font-medium text-primary">
               🧬 进化证据已归档
             </span>
           </div>
-          <span className="rounded-full bg-indigo-500/20 px-2 py-0.5 text-[10px] font-medium text-indigo-800 dark:text-indigo-300">
+          <span className="rounded-full bg-primary/15 px-2 py-0.5 text-[10px] font-medium text-primary">
             {match.badge}
           </span>
         </div>
@@ -200,11 +200,11 @@ export function ProjectCollaborationLandmark({
           {renderBody(match.body)}
         </div>
 
-        <div className="mt-2.5 flex items-center justify-end border-t border-indigo-500/20 pt-2">
+        <div className="mt-2.5 flex items-center justify-end border-t border-primary/20 pt-2">
           <button
             type="button"
             onClick={handleCopy}
-            className="inline-flex items-center gap-1 rounded px-2 py-1 text-xs text-indigo-700 transition-colors hover:bg-indigo-500/15 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-indigo-500 dark:text-indigo-300"
+            className="inline-flex items-center gap-1 rounded px-2 py-1 text-xs text-primary transition-colors hover:bg-primary/15 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-primary"
           >
             {copied ? <CheckIcon className="size-3" /> : <CopyIcon className="size-3" />}
             <span>{copied ? "已复制" : "复制推演结论"}</span>

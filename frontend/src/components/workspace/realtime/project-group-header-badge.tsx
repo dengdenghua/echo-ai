@@ -22,10 +22,10 @@ import {
 } from "./project-decisions-modal";
 
 const PROJECT_STATUS_DOT: Record<string, string> = {
-  planning: "bg-amber-500",
-  running: "bg-emerald-500",
-  blocked: "bg-amber-500",
-  done: "bg-sky-500",
+  planning: "bg-signal",
+  running: "bg-core",
+  blocked: "bg-warning",
+  done: "bg-primary",
   failed: "bg-destructive",
 };
 
@@ -134,7 +134,7 @@ export function ProjectGroupHeaderBadge({
         <button
           type="button"
           onClick={() => setShowDecisionsModal(true)}
-          className="hidden sm:inline-flex h-7 shrink-0 items-center gap-0.5 border-l border-primary/15 px-2 text-[10px] text-muted-foreground hover:bg-amber-500/15 hover:text-amber-700 dark:hover:text-amber-300 transition-colors"
+          className="hidden sm:inline-flex h-7 shrink-0 items-center gap-0.5 border-l border-primary/15 px-2 text-[10px] text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
           title={`${decisionsCount} 条已沉淀项目决议（点击查看详情）`}
         >
           🏛️ {decisionsCount}

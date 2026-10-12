@@ -446,7 +446,7 @@ export function CreateProjectDialog({
               </div>
 
               <div className="flex items-start gap-2.5 rounded-xl border border-border-default px-3 py-2.5">
-                <span className="mt-0.5 grid size-7 shrink-0 place-items-center rounded-lg bg-amber-500/10 text-amber-600 dark:text-amber-400">
+                <span className="mt-0.5 grid size-7 shrink-0 place-items-center rounded-lg bg-muted text-foreground">
                   <CrownIcon className="size-4" />
                 </span>
                 <div className="min-w-0">

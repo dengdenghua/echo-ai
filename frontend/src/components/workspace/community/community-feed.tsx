@@ -690,8 +690,8 @@ export function CommunityPostCard({
               className={cn(
                 "shrink-0 rounded p-0.5 transition-colors",
                 isFavorite
-                  ? "text-amber-500"
-                  : "text-muted-foreground hover:text-amber-500",
+                  ? "text-core"
+                  : "text-muted-foreground hover:text-core",
               )}
             >
               <StarIcon

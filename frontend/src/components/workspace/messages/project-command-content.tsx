@@ -21,7 +21,7 @@ export function ProjectCommandContent({
     const body = content.slice(match[0].length).trimStart();
     return (
       <div className="flex max-w-full flex-wrap items-baseline gap-x-2 gap-y-1">
-        <span className="inline-flex shrink-0 items-center gap-1.5 rounded-md bg-amber-100/80 px-2 py-0.5 text-sm font-medium text-amber-900 ring-1 ring-amber-500/20 dark:bg-amber-500/15 dark:text-amber-200">
+        <span className="inline-flex shrink-0 items-center gap-1.5 rounded-md bg-core/10 px-2 py-0.5 text-sm font-medium text-core ring-1 ring-core/30">
           <FlagIcon className="size-3.5 shrink-0" aria-hidden="true" />
           {command}
         </span>

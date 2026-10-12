@@ -93,15 +93,15 @@ export function CreditsCenterDialog({
         className="sm:max-w-md overflow-hidden p-0 gap-0 border-0"
       >
         {/* Header */}
-        <div className="flex items-center justify-between bg-gradient-to-br from-pink-500 to-rose-500 px-5 py-4">
-          <DialogTitle className="text-base font-bold text-white">
+        <div className="flex items-center justify-between border-b border-border bg-card px-5 py-4">
+          <DialogTitle className="text-base font-bold text-foreground">
             {t.creditsCenter.title}
           </DialogTitle>
           <button
             type="button"
             onClick={() => onOpenChange(false)}
             aria-label={t.common.close}
-            className="flex size-7 items-center justify-center rounded-md bg-white/15 text-white transition hover:bg-white/25"
+            className="flex size-7 items-center justify-center rounded-md text-muted-foreground transition hover:bg-muted hover:text-foreground"
           >
             <X className="size-4" />
           </button>
@@ -165,19 +165,19 @@ export function CreditsCenterDialog({
 
           {/* 账本统计 */}
           <div className="flex gap-2 text-center">
-            <div className="flex-1 rounded-lg bg-emerald-500/10 px-3 py-2">
+            <div className="flex-1 rounded-lg bg-core/10 px-3 py-2">
               <p className="text-mini text-muted-foreground">
                 {t.creditsCenter.earned}
               </p>
-              <p className="text-base font-bold tabular-nums text-emerald-600">
+              <p className="text-base font-bold tabular-nums text-core">
                 +{formatN(earned)}
               </p>
             </div>
-            <div className="flex-1 rounded-lg bg-rose-500/10 px-3 py-2">
+            <div className="flex-1 rounded-lg bg-muted/50 px-3 py-2">
               <p className="text-mini text-muted-foreground">
                 {t.creditsCenter.spent}
               </p>
-              <p className="text-base font-bold tabular-nums text-rose-600">
+              <p className="text-base font-bold tabular-nums text-foreground">
                 -{formatN(spent)}
               </p>
             </div>
@@ -230,7 +230,7 @@ export function CreditsCenterDialog({
                       <span
                         className={cn(
                           "shrink-0 font-semibold tabular-nums",
-                          positive ? "text-emerald-600" : "text-rose-600",
+                          positive ? "text-core" : "text-foreground",
                         )}
                       >
                         {positive ? "+" : ""}

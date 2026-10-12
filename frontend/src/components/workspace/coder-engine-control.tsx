@@ -1016,7 +1016,7 @@ export function CoderEngineControl({
                   "truncate",
                   !nativeAccountSelected &&
                     isFreePickerModel(activeSystemModel) &&
-                    "text-emerald-600 dark:text-emerald-400",
+                    "text-core",
                 )}
               >
                 {compactLabel}
@@ -1131,8 +1131,7 @@ export function CoderEngineControl({
                           <span
                             className={cn(
                               "truncate",
-                              isFreePickerModel(model) &&
-                                "text-emerald-600 dark:text-emerald-400",
+                              isFreePickerModel(model) && "text-core",
                             )}
                           >
                             {model.display_name || model.name}

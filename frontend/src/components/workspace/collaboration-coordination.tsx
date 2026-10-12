@@ -188,7 +188,7 @@ function CoordinationPanel({
           {data?.resources.map((r) => (
             <p
               key={r.resource}
-              className="flex items-center gap-1 text-amber-600"
+              className="flex items-center gap-1 text-warning"
             >
               <LockKeyholeIcon className="size-3" />
               {resourceName(r.resource)} 正在使用 · <button className="underline" onClick={() => focusTask(r.task_id)}>{taskName(r.task_id)}</button>
@@ -217,7 +217,7 @@ function CoordinationPanel({
                 {memberName(task.member_id)} · 发起人 {task.actor_id}
               </p>
               {task.waiting_for.length > 0 && (
-                <p className="mt-1 text-amber-600">
+                <p className="mt-1 text-warning">
                   等待：{task.waiting_for.map(taskName).join("、")}
                 </p>
               )}
@@ -313,7 +313,7 @@ function CoordinationPanel({
             </p>
           )}
           {data && !data.runner_enabled && (
-            <p role="status" className="text-amber-600">
+            <p role="status" className="text-warning">
               后台执行器暂不可用，恢复后才能安排新任务。
             </p>
           )}

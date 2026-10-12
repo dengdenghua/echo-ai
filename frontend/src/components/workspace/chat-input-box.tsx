@@ -485,7 +485,7 @@ function ChatInputBoxImpl(props: ChatInputBoxProps) {
   return (
     <>
       {isSandbox && (
-        <div className="mb-2 overflow-hidden rounded-lg border border-emerald-500/30 shadow-xs">
+        <div className="mb-2 overflow-hidden rounded-lg border border-border shadow-xs">
           <SandboxMergeBanner
             parentThreadId={parentThreadId}
             agentName={agentParam}

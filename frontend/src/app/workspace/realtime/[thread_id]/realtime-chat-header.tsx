@@ -320,7 +320,7 @@ function RealtimeEchoAssistantHeader({
       <div className="flex min-w-0 flex-1 items-center gap-2">
         {connectedChannels.length > 0 && (
           <div className="flex shrink-0 items-center gap-1">
-            <span className="size-1.5 rounded-full bg-emerald-500" />
+            <span className="size-1.5 rounded-full bg-core" />
             <span className="text-mini text-muted-foreground">
               已连接:{" "}
               {connectedChannels

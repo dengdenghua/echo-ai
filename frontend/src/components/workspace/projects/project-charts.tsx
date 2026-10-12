@@ -193,7 +193,7 @@ export function ProjectProgressBars({
                   />
                   <span className="truncate font-medium">{row.name}</span>
                   {row.overdue > 0 && (
-                    <span className="shrink-0 rounded bg-orange-500/15 px-1 py-px text-[10px] tabular-nums text-orange-600">
+                    <span className="shrink-0 rounded bg-warning/15 px-1 py-px text-[10px] tabular-nums text-warning">
                       逾期 {row.overdue}
                     </span>
                   )}
@@ -264,12 +264,12 @@ export function EstimateStack({
             </div>
             <div className="flex h-2 w-full overflow-hidden rounded-full bg-muted">
               <div
-                className="h-full bg-emerald-500/80"
+                className="h-full bg-core/80"
                 style={{ width: scale(row.doneEstimate) }}
                 title={`已完成估时 ${row.doneEstimate}d`}
               />
               <div
-                className={`h-full ${flagged ? "bg-orange-500/70" : "bg-slate-400/70"}`}
+                className={`h-full ${flagged ? "bg-warning/70" : "bg-slate-400/70"}`}
                 style={{ width: scale(row.remainingEstimate) }}
                 title={`剩余估时 ${row.remainingEstimate}d`}
               />

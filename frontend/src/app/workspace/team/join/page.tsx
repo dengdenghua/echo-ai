@@ -254,8 +254,8 @@ export default function TeamJoinPage() {
                   </div>
                 ) : null}
                 {preview?.join_policy === "apply_then_join" ? (
-                  <div className="mt-3 flex items-start gap-2 rounded-md border border-amber-500/20 bg-amber-500/8 px-2.5 py-2 text-xs">
-                    <ShieldCheckIcon className="mt-0.5 size-3.5 shrink-0 text-amber-600 dark:text-amber-400" />
+                  <div className="mt-3 flex items-start gap-2 rounded-md border border-warning/30 bg-warning/8 px-2.5 py-2 text-xs">
+                    <ShieldCheckIcon className="mt-0.5 size-3.5 shrink-0 text-warning" />
                     <span>
                       <span className="block font-medium text-foreground">
                         {t.teamJoin.approvalRequired}

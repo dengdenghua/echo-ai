@@ -1907,7 +1907,7 @@ function VideoAssetTile({
           <FilmIcon className="size-7 text-muted-foreground" />
         )}
         <span className="absolute inset-0 grid place-items-center bg-black/0 transition-colors group-hover:bg-black/20">
-          <span className="grid size-8 place-items-center rounded-full bg-white/90 text-foreground opacity-0 shadow-[var(--shadow-xs)] transition-opacity group-hover:opacity-100">
+          <span className="grid size-8 place-items-center rounded-full bg-card/90 text-foreground opacity-0 shadow-[var(--shadow-xs)] transition-opacity group-hover:opacity-100">
             <PlayIcon className="size-4" />
           </span>
         </span>
@@ -2864,7 +2864,7 @@ function SourcesView({
         <div className="flex min-w-0 flex-wrap items-center gap-1.5">
           <Button
             size="sm"
-            className="h-8 rounded-md bg-black px-2.5 text-xs text-white hover:bg-black/85"
+            className="h-8 rounded-md bg-primary px-2.5 text-xs text-primary-foreground hover:bg-primary/90"
             onClick={onPickFolder}
             disabled={isPickingFolder}
           >
@@ -2957,7 +2957,7 @@ function SourcesView({
         </div>
         {sources.length === 0 ? (
           <div className="flex min-h-[360px] flex-col items-center justify-center px-8 text-center">
-            <div className="grid size-14 place-items-center rounded-lg bg-black text-white shadow-[var(--shadow-xs)]">
+            <div className="grid size-14 place-items-center rounded-lg bg-primary text-primary-foreground shadow-[var(--shadow-xs)]">
               <FolderPlusIcon className="size-7" />
             </div>
             <div className="mt-4 text-base font-semibold">
@@ -2972,7 +2972,7 @@ function SourcesView({
             </div>
             <div className="mt-5 flex flex-wrap items-center justify-center gap-2">
               <Button
-                className="rounded-md bg-black text-white hover:bg-black/85"
+                className="rounded-md bg-primary text-primary-foreground hover:bg-primary/90"
                 onClick={manifest ? onPickFolder : onReconnect}
                 disabled={manifest ? isPickingFolder : isReconnecting}
               >
@@ -3097,7 +3097,7 @@ function SearchResultsView({
           />
           <Button
             size="sm"
-            className="h-9 shrink-0 rounded-lg bg-black px-3 text-white hover:bg-black/85"
+            className="h-9 shrink-0 rounded-lg bg-primary px-3 text-primary-foreground hover:bg-primary/90"
             disabled={selectedPaths.size === 0}
             onClick={quoteSelected}
           >

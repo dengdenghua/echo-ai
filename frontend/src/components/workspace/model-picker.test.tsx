@@ -295,18 +295,12 @@ describe("<ModelPicker />", () => {
     expect(trigger).toHaveTextContent("big-pickle");
     expect(trigger).not.toHaveTextContent("免费");
     expect(trigger).toHaveAttribute("title", "big-pickle · 免费");
-    expect(within(trigger).getByText("big-pickle")).toHaveClass(
-      "text-emerald-600",
-    );
+    expect(within(trigger).getByText("big-pickle")).toHaveClass("text-core");
 
     await user.click(trigger);
     const menu = await screen.findByTestId("model-picker-menu");
-    expect(within(menu).getByText("big-pickle")).toHaveClass(
-      "text-emerald-600",
-    );
-    expect(within(menu).getByText("mimo-v2.5-free")).toHaveClass(
-      "text-emerald-600",
-    );
+    expect(within(menu).getByText("big-pickle")).toHaveClass("text-core");
+    expect(within(menu).getByText("mimo-v2.5-free")).toHaveClass("text-core");
     expect(within(menu).queryByText("FREE")).not.toBeInTheDocument();
   });
 
@@ -423,9 +417,7 @@ describe("<ModelPicker />", () => {
     ).toBeGreaterThan(
       labels.findIndex((label) => label?.startsWith("big-pickle")),
     );
-    expect(within(menu).getByText("Paid model")).not.toHaveClass(
-      "text-emerald-600",
-    );
+    expect(within(menu).getByText("Paid model")).not.toHaveClass("text-core");
   });
 
   it("lists every model in one flat list, no tabs", async () => {

@@ -51,7 +51,7 @@ export function ProjectResultContent({ content, isLoading, renderBody }: {
   return (
     <section aria-label="项目执行结果" className="my-3 w-full min-w-0 overflow-hidden rounded-xl border bg-card text-card-foreground">
       <div className="flex items-start gap-3 p-4">
-        <Icon aria-hidden="true" className={`mt-0.5 size-5 shrink-0 ${complete ? "text-emerald-600 dark:text-emerald-400" : blocked ? "text-amber-600 dark:text-amber-400" : "text-primary"}`} />
+        <Icon aria-hidden="true" className={`mt-0.5 size-5 shrink-0 ${complete ? "text-core" : blocked ? "text-warning" : "text-primary"}`} />
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-2">
             <h3 className="break-words text-sm font-semibold">{receipt.name}</h3>

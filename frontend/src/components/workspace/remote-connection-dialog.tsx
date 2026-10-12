@@ -434,9 +434,7 @@ export function AddConnectionDialog({
                 role="status"
                 className={
                   "flex min-w-0 items-start gap-1.5 text-xs " +
-                  (status.ok
-                    ? "text-emerald-600 dark:text-emerald-400"
-                    : "text-destructive")
+                  (status.ok ? "text-core" : "text-destructive")
                 }
               >
                 {status.ok ? (

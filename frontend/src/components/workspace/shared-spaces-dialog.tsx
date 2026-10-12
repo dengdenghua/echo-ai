@@ -182,7 +182,7 @@ export function SharedSpacesDialog({
                   </li>
                 ))}
                 {preview.plan.conflicts.map((path) => (
-                  <li key={path} className="text-amber-600">
+                  <li key={path} className="text-warning">
                     {zh ? "冲突，已保留" : "Conflict, preserved"}: {path}
                   </li>
                 ))}

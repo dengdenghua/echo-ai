@@ -38,14 +38,14 @@ interface GroupSpec {
 }
 
 const TONE_ROW: Record<GroupSpec["tone"], string> = {
-  danger: "border-orange-500/25 bg-orange-500/[0.06]",
-  warn: "border-amber-500/25 bg-amber-500/[0.05]",
+  danger: "border-warning/50 bg-warning/[0.06]",
+  warn: "border-warning/25 bg-warning/[0.05]",
   neutral: "border-border bg-card/50",
 };
 
 const TONE_TITLE: Record<GroupSpec["tone"], string> = {
-  danger: "text-orange-600",
-  warn: "text-amber-600",
+  danger: "text-warning",
+  warn: "text-warning",
   neutral: "text-muted-foreground",
 };
 
@@ -161,7 +161,7 @@ export function TodayQueuePanel({
     <Card
       className={
         queue.overdue.length > 0
-          ? "border-orange-500/30 bg-orange-500/[0.02]"
+          ? "border-warning/30 bg-warning/[0.02]"
           : undefined
       }
     >
@@ -171,7 +171,7 @@ export function TodayQueuePanel({
             <span
               className={`flex size-7 items-center justify-center rounded-lg ${
                 queue.overdue.length > 0
-                  ? "bg-orange-500/15 text-orange-600"
+                  ? "bg-warning/15 text-warning"
                   : "bg-muted/60 text-muted-foreground"
               }`}
             >

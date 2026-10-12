@@ -741,11 +741,7 @@ export function ModelPicker({
       <PickerRow
         key={selectKey}
         label={
-          <span
-            className={cn(
-              isFreePickerModel(m) && "text-emerald-600 dark:text-emerald-400",
-            )}
-          >
+          <span className={cn(isFreePickerModel(m) && "text-core")}>
             {m.display_name || m.name}
           </span>
         }
@@ -782,23 +778,15 @@ export function ModelPicker({
       }
     >
       {isAutoMode && <SparklesIcon className="size-3 shrink-0 text-primary" />}
-      <span
-        className={cn(
-          "max-w-28 truncate",
-          selectedIsFree && "text-emerald-600 dark:text-emerald-400",
-        )}
-      >
+      <span className={cn("max-w-28 truncate", selectedIsFree && "text-core")}>
         {selectedDisplayLabel}
       </span>
       {selected?.entry_id === "opencode-go" && (
         <span className="text-[10px] text-muted-foreground">Go</span>
       )}
       {selectedIsFree ? (
-        <span className="flex shrink-0 items-center gap-1 text-[10px] font-medium leading-none text-emerald-600 dark:text-emerald-400">
-          <span
-            className="size-1.5 rounded-full bg-emerald-500"
-            aria-hidden="true"
-          />
+        <span className="flex shrink-0 items-center gap-1 text-[10px] font-medium leading-none text-core">
+          <span className="size-1.5 rounded-full bg-core" aria-hidden="true" />
         </span>
       ) : null}
       <ChevronDownIcon className="size-3 opacity-60" />

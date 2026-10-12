@@ -111,10 +111,10 @@ export function ProjectGovernancePanel({
     <div
       role="region"
       aria-label="项目审批"
-      className="space-y-2 rounded-lg border border-amber-500/30 bg-amber-500/5 px-3 py-2.5 text-sm"
+      className="space-y-2 rounded-lg border border-warning/30 bg-warning/5 px-3 py-2.5 text-sm"
     >
       <div className="flex items-center gap-1.5 font-medium">
-        <ShieldCheckIcon className="size-4 text-amber-600" />
+        <ShieldCheckIcon className="size-4 text-warning" />
         {blocked_reason === "initiation"
           ? initiation.state === "legacy"
             ? "待补充立项批准（旧项目首次运行）"

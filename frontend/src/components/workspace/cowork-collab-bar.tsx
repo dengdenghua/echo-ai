@@ -145,7 +145,7 @@ export function CoworkSearchMenu({
   return (
     <div className={cn("flex shrink-0 items-center gap-1", className)}>
       {takeoverCount > 0 && (
-        <span data-testid="cowork-takeover-indicator" className="flex items-center gap-1 text-[11px] text-amber-600" title={`${takeoverCount} 位真人接管`}>
+        <span data-testid="cowork-takeover-indicator" className="flex items-center gap-1 text-[11px] text-warning" title={`${takeoverCount} 位真人接管`}>
           <RadioIcon className="size-3" />{takeoverCount}
         </span>
       )}

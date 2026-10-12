@@ -218,7 +218,7 @@ export function ReflexMonitorContent() {
       {/* Hero / actions */}
       <section className="workspace-panel px-4 py-4 sm:px-6 sm:py-5">
         <div className="flex flex-wrap items-center gap-4">
-          <div className="flex size-11 shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-success to-cyan-500 text-white shadow-[var(--shadow-md)] shadow-success/20">
+          <div className="flex size-11 shrink-0 items-center justify-center rounded-lg bg-primary text-primary-foreground shadow-[var(--shadow-md)]">
             <ZapIcon className="size-5" />
           </div>
           <div className="min-w-0 flex-1">
@@ -330,7 +330,7 @@ export function ReflexMonitorContent() {
       </div>
 
       {/* Sparkline */}
-      <Card className="workspace-panel border-white/40 shadow-none dark:border-white/10">
+      <Card className="workspace-panel border-border/50 shadow-none">
         <CardHeader className="pb-2">
           <CardTitle className="text-base">
             {t.reflexPage.sparklineTitle}
@@ -361,7 +361,7 @@ export function ReflexMonitorContent() {
 
       {/* Tiers (fuzzy_cache + slm) */}
       {tiers.length > 0 && (
-        <Card className="workspace-panel border-white/40 shadow-none dark:border-white/10">
+        <Card className="workspace-panel border-border/50 shadow-none">
           <CardHeader className="pb-2">
             <CardTitle className="text-base">
               {t.reflexPage.responseTiersTitle}
@@ -378,7 +378,7 @@ export function ReflexMonitorContent() {
       )}
 
       {/* Rules table */}
-      <Card className="workspace-panel border-white/40 shadow-none dark:border-white/10">
+      <Card className="workspace-panel border-border/50 shadow-none">
         <CardHeader className="pb-2">
           <CardTitle className="text-base">
             {t.reflexPage.rulesTableTitle}

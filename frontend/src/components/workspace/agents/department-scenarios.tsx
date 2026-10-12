@@ -78,7 +78,7 @@ export function DepartmentScenarios({ additional = [] }: { additional?: Addition
       const status = loading ? "加载中" : `${scenario.roles.length} 个建议岗位`;
       const details = `${scenario.title}\n${scenario.flow}\n岗位：${scenario.roles.map(([,name]) => name).join("、")}${scenario.output ? `\n交付：${scenario.output}` : ""}${missing.length ? `\n待补：${missing.join("、")}` : ""}`;
       return <button key={scenario.id} title={details} aria-label={`启动部门场景：${scenario.title}`} disabled={loading || error} onClick={() => launch(scenario)} className="group flex h-10 min-w-0 items-center gap-2 rounded-md px-2 text-left transition-colors hover:bg-muted/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-60">
-        <Users className="size-4 shrink-0 text-violet-500" /><span className="min-w-0 flex-1 truncate text-xs font-medium">{scenario.title}</span><span className="shrink-0 text-xs text-muted-foreground">{status}</span><ArrowRight className="size-3 shrink-0 text-muted-foreground" />
+        <Users className="size-4 shrink-0 text-muted-foreground" /><span className="min-w-0 flex-1 truncate text-xs font-medium">{scenario.title}</span><span className="shrink-0 text-xs text-muted-foreground">{status}</span><ArrowRight className="size-3 shrink-0 text-muted-foreground" />
       </button>;
     })}</div>
     {scenarios.length > 6 && <button className="rounded px-2 py-1 text-xs text-muted-foreground hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring" aria-expanded={expanded} aria-controls="featured-scenario-list" onClick={() => setExpanded(value => !value)}>{expanded ? "收起场景" : `展开全部 ${scenarios.length} 个场景`}</button>}

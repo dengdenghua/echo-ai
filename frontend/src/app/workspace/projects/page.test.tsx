@@ -470,10 +470,13 @@ describe("ProjectsPage cross-project cockpit", () => {
     expect(screen.getByText(/已逾期 1 天/)).toBeInTheDocument();
     // 「今天到期」同时是分组标题和 duePhrase(0) 的行内文案，用分组副标题断言。
     expect(screen.getByText("今天内完成")).toBeInTheDocument();
-    // 逾期项用暖色容器，而不是普通卡片。
+    // 逾期项用加重的 warning 容器（今天到期只用 /25），而不是普通卡片。
     expect(
-      screen.getByText("修复登录回归").closest(".border-orange-500\\/25"),
+      screen.getByText("修复登录回归").closest(".border-warning\\/50"),
     ).not.toBeNull();
+    expect(
+      screen.getByText("写完结论文档").closest(".border-warning\\/50"),
+    ).toBeNull();
   });
 
   it("点「去处理」切到对应项目", async () => {

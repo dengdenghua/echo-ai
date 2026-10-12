@@ -377,6 +377,15 @@
   --color-success: var(--success);
   --color-warning: var(--warning);
   --color-info: var(--info);
+  /* Echo Core light language (BRAND.md): core = focus/selection/success,
+     signal = info/telemetry, resonance = agent persona/memory, nano =
+     anomalous agent activity, breach = errors/destructive. State only,
+     never decoration. ``warning`` above already resolves to echo-warning. */
+  --color-core: var(--echo-core);
+  --color-signal: var(--echo-signal);
+  --color-resonance: var(--echo-resonance);
+  --color-nano: var(--echo-nano);
+  --color-breach: var(--echo-breach);
   --color-sidebar: var(--sidebar);
   --color-sidebar-foreground: var(--sidebar-foreground);
   --color-sidebar-primary: var(--sidebar-primary);

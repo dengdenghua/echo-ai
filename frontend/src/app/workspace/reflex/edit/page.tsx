@@ -322,7 +322,7 @@ export default function ReflexEditorPage() {
           </section>
 
           {test && (
-            <Card className="workspace-panel border-white/40 shadow-none dark:border-white/10">
+            <Card className="workspace-panel border-border/50 shadow-none">
               <CardHeader className="pb-2">
                 <CardTitle className="flex items-center gap-2 text-base">
                   <FileWarningIcon className="size-4" />
@@ -371,7 +371,7 @@ export default function ReflexEditorPage() {
           )}
 
           {initialLoadFailed ? (
-            <Card className="workspace-panel border-white/40 shadow-none dark:border-white/10">
+            <Card className="workspace-panel border-border/50 shadow-none">
               <CardContent className="flex flex-col items-center gap-3 px-4 py-12 text-center">
                 <FileWarningIcon className="size-8 text-destructive" />
                 <p className="max-w-md text-sm text-muted-foreground">
@@ -385,7 +385,7 @@ export default function ReflexEditorPage() {
               </CardContent>
             </Card>
           ) : mode === "yaml" ? (
-            <Card className="workspace-panel border-white/40 shadow-none dark:border-white/10">
+            <Card className="workspace-panel border-border/50 shadow-none">
               <CardContent className="p-2">
                 <Suspense
                   fallback={

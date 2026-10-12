@@ -259,7 +259,7 @@ export function TaskDeliveryReview({
         <div className="flex min-w-0 items-center gap-3 border-b border-border-default bg-muted/25 px-3 py-2.5">
           <span className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-background text-muted-foreground shadow-[var(--shadow-xs)]">
             {isDocOnly ? (
-              <FileTextIcon className="size-4 text-sky-500" aria-hidden="true" />
+              <FileTextIcon className="size-4 text-muted-foreground" aria-hidden="true" />
             ) : (
               <FileDiffIcon className="size-4" aria-hidden="true" />
             )}

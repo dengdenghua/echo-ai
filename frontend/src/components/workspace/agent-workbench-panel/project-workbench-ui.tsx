@@ -73,7 +73,7 @@ export function MetricCard({
       {...(onClick ? { type: "button" as const, onClick } : {})}
       className={cn(
         "flex min-w-0 items-center gap-2 rounded-xl border bg-card/60 p-2.5 text-left shadow-[var(--shadow-xs)]",
-        tone === "warning" && "border-amber-500/20 bg-amber-500/[0.05]",
+        tone === "warning" && "border-warning/30 bg-warning/[0.05]",
         onClick &&
           "transition-colors hover:bg-muted/45 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
       )}
@@ -81,7 +81,7 @@ export function MetricCard({
       <span
         className={cn(
           "flex size-7 shrink-0 items-center justify-center rounded-lg bg-muted/70 text-muted-foreground",
-          tone === "warning" && "bg-amber-500/10 text-amber-700",
+          tone === "warning" && "bg-warning/10 text-warning",
         )}
       >
         {icon}

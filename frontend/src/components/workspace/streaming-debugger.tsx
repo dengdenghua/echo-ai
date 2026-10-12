@@ -262,14 +262,11 @@ function EnabledStreamingDebugger({
                     <span
                       className={cn(
                         "shrink-0 rounded-full px-2 py-0.5 text-[10px] font-medium",
-                        event.status === "running" &&
-                          "bg-blue-500/10 text-blue-500",
-                        event.status === "done" &&
-                          "bg-green-500/10 text-green-500",
-                        event.status === "error" &&
-                          "bg-red-500/10 text-red-500",
+                        event.status === "running" && "bg-core/10 text-core",
+                        event.status === "done" && "bg-core/10 text-core",
+                        event.status === "error" && "bg-breach/10 text-breach",
                         event.status === "waiting_approval" &&
-                          "bg-yellow-500/10 text-yellow-500",
+                          "bg-warning/10 text-warning",
                       )}
                     >
                       {event.status}

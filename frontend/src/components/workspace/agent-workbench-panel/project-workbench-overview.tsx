@@ -235,7 +235,7 @@ export function OverviewTab({
               return (
                 <article
                   key={decision.id}
-                  className="rounded-lg border border-sky-500/15 bg-sky-500/[0.045] px-2.5 py-2"
+                  className="rounded-lg border border-core/30 bg-core/[0.045] px-2.5 py-2"
                 >
                   <h5 className="text-[11px] font-medium leading-relaxed text-foreground">
                     {decision.title}
@@ -370,7 +370,7 @@ export function OverviewTab({
             {blockers.map((blocker, index) => (
               <div
                 key={`blocker:${index}`}
-                className="flex items-start gap-2 rounded-lg border border-rose-500/15 bg-rose-500/[0.06] px-2.5 py-2 text-[11px] text-rose-700 dark:text-rose-300"
+                className="flex items-start gap-2 rounded-lg border border-breach/30 bg-breach/[0.06] px-2.5 py-2 text-[11px] text-breach"
               >
                 <XCircleIcon className="mt-px size-3.5 shrink-0" />
                 <span className="min-w-0 flex-1">{blocker}</span>
@@ -379,7 +379,7 @@ export function OverviewTab({
             {risks.slice(0, 4).map((risk, index) => (
               <div
                 key={`risk:${risk.task_id ?? risk.milestone ?? index}`}
-                className="flex items-start gap-2 rounded-lg border border-amber-500/15 bg-amber-500/[0.06] px-2.5 py-2 text-[11px] text-amber-800 dark:text-amber-300"
+                className="flex items-start gap-2 rounded-lg border border-warning/30 bg-warning/[0.06] px-2.5 py-2 text-[11px] text-warning"
               >
                 <AlertTriangleIcon className="mt-px size-3.5 shrink-0" />
                 <span className="min-w-0 flex-1">{safeRiskDetail(risk)}</span>
@@ -390,9 +390,9 @@ export function OverviewTab({
       ) : null}
 
       {retro ? (
-        <section className="space-y-2 rounded-xl border border-sky-500/20 bg-sky-500/[0.05] p-3">
+        <section className="space-y-2 rounded-xl border border-core/30 bg-core/[0.05] p-3">
           <SectionTitle
-            icon={<ClipboardListIcon className="size-3.5 text-sky-600" />}
+            icon={<ClipboardListIcon className="size-3.5 text-core" />}
             title="项目复盘"
             meta={
               retro.duration_days == null
@@ -415,7 +415,7 @@ export function OverviewTab({
                   key={`${recommendation}:${index}`}
                   className="flex items-start gap-1.5 text-[11px] leading-relaxed text-muted-foreground"
                 >
-                  <ArrowRightIcon className="mt-0.5 size-3 shrink-0 text-sky-600" />
+                  <ArrowRightIcon className="mt-0.5 size-3 shrink-0 text-core" />
                   <span>{recommendation}</span>
                 </li>
               ))}

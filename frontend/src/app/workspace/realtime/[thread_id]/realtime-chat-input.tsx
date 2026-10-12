@@ -334,7 +334,7 @@ function DesignCanvasContextStatus({
   return (
     <span
       data-testid="design-canvas-context-status"
-      className="whitespace-nowrap text-[11px] text-violet-600"
+      className="whitespace-nowrap text-[11px] text-core"
     >
       {embeddedDesignContext
         ? embeddedDesignContext.selected_node_ids

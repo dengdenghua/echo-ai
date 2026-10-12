@@ -90,7 +90,7 @@ function SkillNode({
 
       {/* Max Level Badge */}
       {isMaxLevel && (
-        <div className="absolute -right-1 -top-1 flex size-5 items-center justify-center rounded-full bg-success text-white">
+        <div className="absolute -right-1 -top-1 flex size-5 items-center justify-center rounded-full bg-success text-primary-foreground">
           <CheckCircleIcon className="size-3" />
         </div>
       )}

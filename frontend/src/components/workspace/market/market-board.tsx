@@ -136,7 +136,7 @@ export function MarketBoard() {
                 className={cn(
                   "flex shrink-0 items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-medium transition-colors",
                   isActive
-                    ? "border-rose-300/60 bg-rose-500/10 text-rose-600 dark:border-rose-400/30 dark:text-rose-300"
+                    ? "border-core/30 bg-core/10 text-core"
                     : "border-transparent bg-muted/35 text-muted-foreground hover:bg-muted/65 hover:text-foreground",
                 )}
               >
@@ -184,9 +184,9 @@ export function MarketBoard() {
           <button
             type="button"
             onClick={() => setListOpen(true)}
-            className="flex min-h-9 shrink-0 items-center gap-1 rounded-md border border-border-default bg-background px-3 py-2 text-sm font-semibold text-foreground shadow-sm transition-colors hover:border-rose-300 hover:bg-rose-500/5 hover:text-rose-600"
+            className="flex min-h-9 shrink-0 items-center gap-1 rounded-md border border-border-default bg-background px-3 py-2 text-sm font-semibold text-foreground shadow-sm transition-colors hover:bg-muted"
           >
-            <PlusIcon className="size-4 text-rose-500" />
+            <PlusIcon className="size-4" />
             上架
           </button>
         </div>
@@ -347,7 +347,7 @@ export function ListModal({
                   className={cn(
                     "aspect-[4/3] overflow-hidden rounded-md ring-2 transition",
                     cover === c
-                      ? "ring-rose-500"
+                      ? "ring-core"
                       : "ring-transparent hover:ring-border-default",
                   )}
                 >
@@ -372,7 +372,7 @@ export function ListModal({
             className={cn(
               "rounded-md px-4 py-1.5 text-sm font-semibold transition-colors",
               canSubmit
-                ? "bg-rose-500 text-white hover:bg-rose-600"
+                ? "bg-primary text-primary-foreground hover:bg-primary/90"
                 : "cursor-not-allowed bg-muted text-muted-foreground",
             )}
           >

@@ -293,7 +293,7 @@ describe("CoderEngineControl", () => {
     );
     expect(
       within(screen.getByTestId("coder-engine-trigger")).getByText("DeepSeek"),
-    ).toHaveClass("text-emerald-600");
+    ).toHaveClass("text-core");
     fireEvent.pointerDown(screen.getByTestId("coder-engine-trigger"), {
       button: 0,
       ctrlKey: false,
@@ -307,7 +307,7 @@ describe("CoderEngineControl", () => {
       within(screen.getByRole("button", { name: "DeepSeek" })).getByText(
         "DeepSeek",
       ),
-    ).toHaveClass("text-emerald-600");
+    ).toHaveClass("text-core");
     expect(
       screen.queryByRole("button", { name: /自动.*按任务智能选择/ }),
     ).not.toBeInTheDocument();

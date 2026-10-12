@@ -126,7 +126,7 @@ export function SmartTeamDialog({
       <DialogContent className="max-w-2xl">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
-            <SparklesIcon className="size-5 text-violet-500" />
+            <SparklesIcon className="size-5 text-core" />
             智能组队
           </DialogTitle>
           <DialogDescription>
@@ -162,7 +162,7 @@ export function SmartTeamDialog({
                           {index === 0 ? "任务协调候选" : agent.tags.includes("专家团") ? "专家团" : agent.category}
                         </span>
                       </span>
-                      {!agent.is_installed ? <span className="text-[10px] text-amber-600">需安装</span> : null}
+                      {!agent.is_installed ? <span className="text-[10px] text-warning">需安装</span> : null}
                     </div>
                   ))}
                   {catalogLoading ? <div className="flex items-center gap-2 px-2 py-1 text-[11px] text-muted-foreground"><Loader2Icon className="size-3 animate-spin" />正在扫描云端专家目录…</div> : null}

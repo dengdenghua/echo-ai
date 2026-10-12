@@ -169,7 +169,7 @@ export function InlineSubagentCardExpansion({
             className={cn(
               "inline-flex items-center gap-1 rounded border px-2 py-1 text-xs font-medium transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring",
               published
-                ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400"
+                ? "border-core/30 bg-core/10 text-core"
                 : "border-primary/30 bg-primary/10 text-primary hover:bg-primary/20",
             )}
             title="将该并列协作者产出的阶段性结果，一键发布到全群公共主对话中"
@@ -189,7 +189,7 @@ export function InlineSubagentCardExpansion({
             className={cn(
               "inline-flex items-center gap-1 rounded border px-2 py-1 text-xs font-medium transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring",
               decisionRecorded
-                ? "border-amber-500/30 bg-amber-500/10 text-amber-600 dark:text-amber-400"
+                ? "border-core/30 bg-core/10 text-core"
                 : "border-border/60 bg-background/80 text-foreground/80 hover:bg-muted hover:text-foreground",
             )}
             title="将该并列协作者的交付成果作为长项目的核心决策固化沉淀到 Project OS 事实库"

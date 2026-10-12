@@ -360,7 +360,7 @@ export default function ProjectsPage() {
                       <CardHeader className="pb-2">
                         <CardTitle className="flex flex-wrap items-center gap-2 text-sm">
                           <span className="flex items-center gap-1.5">
-                            <LayersIcon className="size-4 text-indigo-500" />
+                            <LayersIcon className="size-4 text-muted-foreground" />
                             项目总览
                           </span>
                           <span className="flex flex-wrap items-center gap-1.5 text-[11px] font-normal text-muted-foreground">
@@ -374,7 +374,7 @@ export default function ProjectsPage() {
                               variant="outline"
                               className={`text-[10px] ${
                                 totals.overdue > 0
-                                  ? "border-orange-500/30 bg-orange-500/15 text-orange-600"
+                                  ? "border-warning/30 bg-warning/15 text-warning"
                                   : ""
                               }`}
                             >
@@ -384,7 +384,7 @@ export default function ProjectsPage() {
                               variant="outline"
                               className={`text-[10px] ${
                                 totals.atRisk > 0
-                                  ? "border-amber-500/30 bg-amber-500/15 text-amber-600"
+                                  ? "border-warning/30 bg-warning/15 text-warning"
                                   : ""
                               }`}
                             >
@@ -396,7 +396,7 @@ export default function ProjectsPage() {
                             {totals.unreadable > 0 && (
                               <Badge
                                 variant="outline"
-                                className="border-rose-500/30 bg-rose-500/15 text-[10px] text-rose-600"
+                                className="border-breach/30 bg-breach/15 text-[10px] text-breach"
                               >
                                 {totals.unreadable} 个读取失败
                               </Badge>
@@ -585,7 +585,7 @@ export default function ProjectsPage() {
                           <Card>
                             <CardHeader className="pb-2">
                               <CardTitle className="flex items-center gap-1.5 text-sm">
-                                <CalendarRangeIcon className="size-4 text-indigo-500" />
+                                <CalendarRangeIcon className="size-4 text-muted-foreground" />
                                 里程碑时间轴
                               </CardTitle>
                             </CardHeader>
@@ -690,8 +690,8 @@ export default function ProjectsPage() {
                                           </span>
                                         </div>
                                         {m.overdue_tasks.length > 0 && (
-                                          <div className="mt-3 space-y-2 border-t border-orange-500/15 pt-2.5">
-                                            <div className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wide text-orange-600/90">
+                                          <div className="mt-3 space-y-2 border-t border-warning/30 pt-2.5">
+                                            <div className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wide text-warning">
                                               <TimerIcon className="size-3" />
                                               逾期任务 ·{" "}
                                               {m.overdue_tasks.length}
@@ -699,12 +699,12 @@ export default function ProjectsPage() {
                                             {m.overdue_tasks.map((o) => (
                                               <div
                                                 key={o.id}
-                                                className="rounded-lg bg-orange-500/[0.07] px-3 py-2"
+                                                className="rounded-lg bg-warning/[0.07] px-3 py-2"
                                               >
-                                                <div className="text-xs leading-relaxed text-orange-800">
+                                                <div className="text-xs leading-relaxed text-warning">
                                                   {o.goal}
                                                 </div>
-                                                <div className="mt-1 flex items-center gap-1 text-[11px] text-orange-600/80">
+                                                <div className="mt-1 flex items-center gap-1 text-[11px] text-warning">
                                                   <CalendarRangeIcon className="size-3" />
                                                   截止 {fmtDate(o.due_at)} ·
                                                   已逾期
@@ -726,7 +726,7 @@ export default function ProjectsPage() {
                             <Card>
                               <CardHeader className="pb-2">
                                 <CardTitle className="flex items-center gap-1.5 text-sm">
-                                  <AlertTriangleIcon className="size-4 text-rose-500" />
+                                  <AlertTriangleIcon className="size-4 text-breach" />
                                   风险与阻塞
                                 </CardTitle>
                               </CardHeader>
@@ -741,7 +741,7 @@ export default function ProjectsPage() {
                                       key={`${r.type}-${i}`}
                                       className="flex items-start gap-2 rounded-md border bg-card/50 px-2.5 py-2 text-xs"
                                     >
-                                      <AlertTriangleIcon className="mt-0.5 size-3.5 shrink-0 text-amber-500" />
+                                      <AlertTriangleIcon className="mt-0.5 size-3.5 shrink-0 text-warning" />
                                       <div className="min-w-0">
                                         <div className="font-medium">
                                           {r.type === "milestone"
@@ -766,7 +766,7 @@ export default function ProjectsPage() {
                             <Card>
                               <CardHeader className="pb-2">
                                 <CardTitle className="flex items-center gap-1.5 text-sm">
-                                  <ListChecksIcon className="size-4 text-emerald-500" />
+                                  <ListChecksIcon className="size-4 text-muted-foreground" />
                                   下一步动作
                                 </CardTitle>
                               </CardHeader>
@@ -808,7 +808,7 @@ export default function ProjectsPage() {
                             <Card>
                               <CardHeader className="pb-2">
                                 <CardTitle className="flex items-center gap-1.5 text-sm">
-                                  <UsersIcon className="size-4 text-sky-500" />
+                                  <UsersIcon className="size-4 text-muted-foreground" />
                                   人员指派
                                 </CardTitle>
                               </CardHeader>
@@ -856,10 +856,10 @@ export default function ProjectsPage() {
 
                       {/* Retro */}
                       {retro && (
-                        <Card className="border-sky-500/30 bg-sky-500/[0.03]">
+                        <Card className="border-core/30 bg-core/[0.03]">
                           <CardHeader className="pb-2">
                             <CardTitle className="flex items-center gap-1.5 text-sm">
-                              <ClipboardListIcon className="size-4 text-sky-500" />
+                              <ClipboardListIcon className="size-4 text-core" />
                               项目复盘
                             </CardTitle>
                           </CardHeader>
@@ -912,7 +912,7 @@ export default function ProjectsPage() {
                                     key={i}
                                     className="flex items-start gap-1.5 text-xs"
                                   >
-                                    <ArrowRightIcon className="mt-0.5 size-3 shrink-0 text-sky-500" />
+                                    <ArrowRightIcon className="mt-0.5 size-3 shrink-0 text-core" />
                                     <span>{r}</span>
                                   </li>
                                 ))}

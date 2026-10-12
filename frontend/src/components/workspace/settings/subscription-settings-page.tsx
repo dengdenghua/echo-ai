@@ -102,7 +102,7 @@ export default function SubscriptionSettingsPage() {
                   "flex size-10 items-center justify-center rounded-lg",
                   subscription?.tier &&
                     ["pro", "max"].includes(subscription.tier)
-                    ? "bg-gradient-to-br from-violet-500 to-blue-500 text-white"
+                    ? "bg-primary text-primary-foreground"
                     : "bg-muted text-muted-foreground",
                 )}
               >
@@ -401,12 +401,12 @@ function OfficialPricingSection() {
               className={cn(
                 "relative flex flex-col rounded-lg border p-5 transition-all",
                 isRecommended
-                  ? "border-chart-1/60 bg-gradient-to-b from-violet-50/50 to-white shadow-[var(--shadow-sm)] dark:from-violet-950/20 dark:to-transparent dark:border-chart-1/40"
+                  ? "border-chart-1/60 bg-card shadow-[var(--shadow-sm)] dark:border-chart-1/40"
                   : "bg-card border-border-default hover:border-border hover:shadow-[var(--shadow-xs)]",
               )}
             >
               {isRecommended && (
-                <span className="absolute -top-2.5 left-1/2 -translate-x-1/2 inline-flex items-center gap-1 rounded-full bg-gradient-to-r from-violet-500 to-violet-600 px-2.5 py-0.5 text-xs font-medium text-white shadow-[var(--shadow-xs)]">
+                <span className="absolute -top-2.5 left-1/2 -translate-x-1/2 inline-flex items-center gap-1 rounded-full bg-primary px-2.5 py-0.5 text-xs font-medium text-primary-foreground shadow-[var(--shadow-xs)]">
                   <span aria-hidden="true">🔥</span> {t.payOrder.recommended}
                 </span>
               )}
@@ -442,7 +442,7 @@ function OfficialPricingSection() {
                 className={cn(
                   "mt-4 h-9 w-full rounded-lg text-xs font-medium",
                   isRecommended
-                    ? "bg-chart-1 text-white hover:bg-chart-1/90"
+                    ? "bg-primary text-primary-foreground hover:bg-primary/90"
                     : "bg-foreground text-background hover:bg-foreground/85",
                 )}
                 disabled={pendingId !== null}

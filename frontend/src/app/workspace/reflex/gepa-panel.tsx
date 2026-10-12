@@ -585,7 +585,7 @@ export function GepaPanel() {
   }, [applied, t]);
 
   return (
-    <Card className="workspace-panel border-white/40 shadow-none dark:border-white/10">
+    <Card className="workspace-panel border-border/50 shadow-none">
       <CardHeader className="pb-2">
         <CardTitle className="flex items-center gap-2 text-base">
           <Sparkles className="size-4" />

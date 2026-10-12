@@ -98,9 +98,11 @@ export function MarketDetail({
         <div className="flex shrink-0 items-center justify-between gap-3 border-t border-border-subtle bg-background px-5 py-3">
           <div>
             <p className="text-mini text-muted-foreground">售价</p>
-            <p className="flex items-baseline gap-0.5 text-lg font-bold text-rose-500">
+            <p className="flex items-baseline gap-0.5 text-lg font-bold text-foreground">
               {item.price}
-              <span className="text-xs font-medium text-rose-400">积分</span>
+              <span className="text-xs font-medium text-muted-foreground">
+                积分
+              </span>
             </p>
           </div>
           <button
@@ -111,7 +113,7 @@ export function MarketDetail({
               "flex items-center gap-1.5 rounded-lg px-5 py-2 text-sm font-semibold transition-colors",
               item.sold || item.mine
                 ? "cursor-default bg-muted text-muted-foreground"
-                : "bg-rose-500 text-white hover:bg-rose-600",
+                : "bg-primary text-primary-foreground hover:bg-primary/90",
             )}
           >
             <BadgeCheckIcon className="size-4" />

@@ -86,7 +86,7 @@ export function ProjectDecisionsModal({
     <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
       <DialogContent className="max-w-2xl sm:max-w-2xl max-h-[85vh] flex flex-col gap-0 p-0 overflow-hidden">
         <DialogHeader className="p-4 pb-3 border-b border-border/50 bg-muted/20">
-          <div className="flex items-center gap-2 text-amber-600 dark:text-amber-400 font-semibold">
+          <div className="flex items-center gap-2 text-core font-semibold">
             <BookmarkIcon className="size-4" />
             <DialogTitle className="text-base font-semibold text-foreground">
               {projectName} · 核心事实库与历史决议
@@ -97,9 +97,9 @@ export function ProjectDecisionsModal({
           </DialogDescription>
 
           {decisions.length > 0 && (
-            <div className="mt-2 flex items-center justify-between rounded-md bg-amber-500/10 border border-amber-500/20 px-2.5 py-1.5 text-[11px] text-amber-800 dark:text-amber-300">
+            <div className="mt-2 flex items-center justify-between rounded-md bg-muted/60 border border-border px-2.5 py-1.5 text-[11px] text-muted-foreground">
               <div className="flex items-center gap-1.5 min-w-0">
-                <ZapIcon className="size-3.5 shrink-0 text-amber-600 dark:text-amber-400" />
+                <ZapIcon className="size-3.5 shrink-0 text-core" />
                 <span className="truncate">
                   <strong>自进化规则联动：</strong>
                   已将 {decisions.length} 条项目决议编译为动态约束，全员协作者自动遵守
@@ -107,7 +107,7 @@ export function ProjectDecisionsModal({
               </div>
               <a
                 href="#/workspace/evolution"
-                className="inline-flex items-center gap-1 font-medium hover:underline shrink-0 text-amber-900 dark:text-amber-200 ml-2"
+                className="inline-flex items-center gap-1 font-medium hover:underline shrink-0 text-core ml-2"
               >
                 <span>自进化面板</span>
                 <ExternalLinkIcon className="size-3" />
@@ -145,11 +145,11 @@ export function ProjectDecisionsModal({
                 <div
                   key={key}
                   data-testid={`decision-item-${index}`}
-                  className="rounded-lg border border-border/60 bg-background p-3 text-xs space-y-1.5 shadow-2xs hover:border-amber-500/40 transition-colors"
+                  className="rounded-lg border border-border/60 bg-background p-3 text-xs space-y-1.5 shadow-2xs hover:border-core/30 transition-colors"
                 >
                   <div className="flex items-center justify-between gap-2">
                     <div className="flex items-center gap-1.5 font-medium text-foreground">
-                      <span className="shrink-0 rounded bg-amber-500/10 px-1.5 py-0.5 text-[10px] font-semibold text-amber-700 dark:text-amber-400">
+                      <span className="shrink-0 rounded bg-muted px-1.5 py-0.5 text-[10px] font-semibold text-muted-foreground">
                         #{index + 1}
                       </span>
                       <span className="font-semibold">{item.title || "技术决策"}</span>
@@ -170,7 +170,7 @@ export function ProjectDecisionsModal({
                       title="复制单条决议"
                     >
                       {isCopied ? (
-                        <CheckIcon className="size-3 text-emerald-500" />
+                        <CheckIcon className="size-3 text-core" />
                       ) : (
                         <CopyIcon className="size-3" />
                       )}
@@ -179,7 +179,7 @@ export function ProjectDecisionsModal({
                   </div>
 
                   {content && (
-                    <div className="text-muted-foreground whitespace-pre-wrap leading-relaxed pl-2 border-l-2 border-amber-500/30">
+                    <div className="text-muted-foreground whitespace-pre-wrap leading-relaxed pl-2 border-l-2 border-border">
                       {content}
                     </div>
                   )}

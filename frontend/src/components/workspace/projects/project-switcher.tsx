@@ -53,7 +53,7 @@ function StatusChip({ row }: { row: ProjectRow }) {
     return (
       <Badge
         variant="outline"
-        className="shrink-0 gap-0.5 border-orange-500/30 bg-orange-500/15 text-[10px] text-orange-600"
+        className="shrink-0 gap-0.5 border-warning/30 bg-warning/15 text-[10px] text-warning"
       >
         <TimerIcon className="size-2.5" />
         {row.overdue}
@@ -64,7 +64,7 @@ function StatusChip({ row }: { row: ProjectRow }) {
     return (
       <Badge
         variant="outline"
-        className="shrink-0 gap-0.5 border-amber-500/30 bg-amber-500/15 text-[10px] text-amber-600"
+        className="shrink-0 gap-0.5 border-warning/30 bg-warning/15 text-[10px] text-warning"
       >
         <AlertTriangleIcon className="size-2.5" />
         {row.risks}

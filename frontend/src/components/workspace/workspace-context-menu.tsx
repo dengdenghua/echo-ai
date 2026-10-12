@@ -156,10 +156,10 @@ export function WorkspaceContextMenu({
                 <span className="ml-auto flex gap-1 font-mono text-[11px] tabular-nums">
                   {summary.changedFiles ? (
                     <>
-                      <span className="text-emerald-600 dark:text-emerald-400">
+                      <span className="text-core">
                         +{format(summary.added)}
                       </span>
-                      <span className="text-red-500">
+                      <span className="text-breach">
                         -{format(summary.removed)}
                       </span>
                     </>

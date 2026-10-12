@@ -75,16 +75,16 @@ export function SandboxMergeBanner({
     <>
       <div
         data-testid="sandbox-merge-banner"
-        className="flex items-center justify-between gap-3 border-b border-emerald-500/30 bg-emerald-500/10 px-4 py-2 text-xs text-emerald-900 dark:text-emerald-200"
+        className="flex items-center justify-between gap-3 border-b border-border bg-muted/50 px-4 py-2 text-xs text-foreground"
       >
         <div className="flex items-center gap-2 min-w-0">
-          <span className="flex size-6 shrink-0 items-center justify-center rounded-md bg-emerald-500/20 text-emerald-700 dark:text-emerald-300">
+          <span className="flex size-6 shrink-0 items-center justify-center rounded-md bg-core/10 text-core">
             <GitBranchIcon className="size-3.5" />
           </span>
           <div className="min-w-0">
             <div className="flex items-center gap-1.5 font-medium">
               <span className="font-semibold">方案推演沙盒模式</span>
-              <span className="text-[10px] rounded bg-emerald-500/20 px-1 py-0.2 text-emerald-800 dark:text-emerald-300">
+              <span className="text-[10px] rounded bg-background px-1 py-0.2 text-muted-foreground">
                 协作者：{agentName}
               </span>
               <span className="text-[10px] rounded bg-primary/15 px-1 py-0.2 font-medium text-primary flex items-center gap-0.5">
@@ -92,7 +92,7 @@ export function SandboxMergeBanner({
                 双螺旋复核中
               </span>
             </div>
-            <p className="truncate text-[11px] text-emerald-700/85 dark:text-emerald-300/80">
+            <p className="truncate text-[11px] text-muted-foreground">
               当前在隔离分支展开 POC 概念验证，过程产出不污染项目主干；合并时自动归档自进化记忆。
             </p>
           </div>
@@ -103,7 +103,7 @@ export function SandboxMergeBanner({
             type="button"
             size="sm"
             onClick={() => setShowMergeDialog(true)}
-            className="h-7 gap-1 bg-emerald-600 px-2.5 text-xs text-white hover:bg-emerald-700 dark:bg-emerald-600 dark:hover:bg-emerald-500"
+            className="h-7 gap-1 px-2.5 text-xs"
           >
             <GitMergeIcon className="size-3" />
             <span>合并结论至主项目</span>
@@ -112,7 +112,7 @@ export function SandboxMergeBanner({
             type="button"
             onClick={() => setDismissed(true)}
             aria-label="收起推演沙盒横幅"
-            className="rounded p-1 text-emerald-700/70 hover:bg-emerald-500/20 hover:text-emerald-900 dark:text-emerald-300/70 dark:hover:text-emerald-100"
+            className="rounded p-1 text-muted-foreground hover:bg-muted hover:text-foreground"
           >
             <XIcon className="size-3.5" />
           </button>
@@ -122,7 +122,7 @@ export function SandboxMergeBanner({
       <Dialog open={showMergeDialog} onOpenChange={setShowMergeDialog}>
         <DialogContent className="max-w-lg">
           <DialogHeader>
-            <div className="flex items-center gap-1.5 text-emerald-600 dark:text-emerald-400 font-semibold">
+            <div className="flex items-center gap-1.5 text-core font-semibold">
               <GitMergeIcon className="size-4" />
               <DialogTitle>合并推演结论至长项目主干</DialogTitle>
             </div>
@@ -158,7 +158,7 @@ export function SandboxMergeBanner({
               type="button"
               size="sm"
               onClick={handleConfirmMerge}
-              className="h-8 text-xs gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white"
+              className="h-8 text-xs gap-1.5"
             >
               <CheckIcon className="size-3.5" />
               <span>确认合并回主项目</span>

@@ -76,7 +76,7 @@ export function MilestonesTab({ milestones }: { milestones: MilestoneView[] }) {
           <div className="flex min-w-0 items-start gap-2.5">
             <div className="relative mt-0.5 flex size-6 shrink-0 items-center justify-center rounded-full border border-border-default bg-background text-[10px] font-semibold text-muted-foreground">
               {milestone.health === "completed" ? (
-                <CheckCircle2Icon className="size-3.5 text-sky-600" />
+                <CheckCircle2Icon className="size-3.5 text-core" />
               ) : (
                 index + 1
               )}
@@ -126,7 +126,7 @@ export function MilestonesTab({ milestones }: { milestones: MilestoneView[] }) {
                 : "事项待拆解"}
             </span>
             {milestone.failed > 0 ? (
-              <span className="text-rose-600">{milestone.failed} 个异常</span>
+              <span className="text-breach">{milestone.failed} 个异常</span>
             ) : null}
             {milestone.due_at ? (
               <span className="inline-flex items-center gap-1">
@@ -151,7 +151,7 @@ export function MilestonesTab({ milestones }: { milestones: MilestoneView[] }) {
                       key={`${criterion}:${criterionIndex}`}
                       className="flex items-start gap-1.5 text-[10px] leading-relaxed text-muted-foreground"
                     >
-                      <CheckCircle2Icon className="mt-0.5 size-3 shrink-0 text-emerald-600/70" />
+                      <CheckCircle2Icon className="mt-0.5 size-3 shrink-0 text-core" />
                       <span>{criterion}</span>
                     </li>
                   ))}
@@ -248,11 +248,11 @@ export function TasksTab({
                     className={cn(
                       "mt-1 size-2 shrink-0 rounded-full",
                       task.status === "done"
-                        ? "bg-sky-500"
+                        ? "bg-primary"
                         : task.status === "running"
-                          ? "animate-pulse bg-emerald-500"
+                          ? "animate-pulse bg-core"
                           : ATTENTION_TASK_STATUSES.has(task.status)
-                            ? "bg-rose-500"
+                            ? "bg-breach"
                             : "bg-muted-foreground/45",
                     )}
                   />
@@ -316,9 +316,9 @@ export function TasksTab({
                           className={cn(
                             "rounded px-1 py-px text-micro",
                             task.review_mode === "operator"
-                              ? "bg-emerald-500/15 text-emerald-700"
+                              ? "bg-core/15 text-core"
                               : task.review_mode === "human_run"
-                                ? "bg-amber-500/15 text-amber-700"
+                                ? "bg-warning/15 text-warning"
                                 : "bg-muted text-muted-foreground",
                           )}
                         >

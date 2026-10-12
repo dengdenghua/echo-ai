@@ -81,7 +81,7 @@ export function ProjectTimeline({
           </span>
         ))}
         <span className="inline-flex items-center gap-1">
-          <span className="h-3 w-px bg-rose-500" />
+          <span className="h-3 w-px bg-core" />
           今日
         </span>
       </div>
@@ -105,7 +105,7 @@ export function ProjectTimeline({
               ))}
               {layout.todayPct !== null && (
                 <span
-                  className="absolute top-0 h-full w-px bg-rose-500/70"
+                  className="absolute top-0 h-full w-px bg-core/70"
                   style={trackStyle(layout.todayPct)}
                 />
               )}
@@ -144,7 +144,7 @@ export function ProjectTimeline({
                   ))}
                   {layout.todayPct !== null && (
                     <span
-                      className="absolute top-0 h-full w-px bg-rose-500/60"
+                      className="absolute top-0 h-full w-px bg-core/60"
                       style={trackStyle(layout.todayPct)}
                     />
                   )}
@@ -165,7 +165,7 @@ export function ProjectTimeline({
                   </button>
                   {bar.overdueCount > 0 && (
                     <span
-                      className="absolute top-1/2 flex -translate-y-1/2 items-center gap-0.5 rounded bg-orange-500/15 px-1 py-px text-[10px] tabular-nums text-orange-600"
+                      className="absolute top-1/2 flex -translate-y-1/2 items-center gap-0.5 rounded bg-warning/15 px-1 py-px text-[10px] tabular-nums text-warning"
                       style={{ left: `calc(${bar.leftPct + bar.widthPct}% + 4px)` }}
                     >
                       <TimerIcon className="size-2.5" />

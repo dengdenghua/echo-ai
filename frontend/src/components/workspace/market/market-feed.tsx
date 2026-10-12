@@ -91,7 +91,7 @@ export function MarketCard({
               "flex min-h-9 min-w-0 items-center justify-center rounded-lg px-2.5 py-1.5 text-xs font-semibold transition-[background-color,transform,box-shadow] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/45 focus-visible:ring-offset-2 active:scale-[0.97] sm:min-h-8 sm:min-w-[5.25rem] sm:px-3",
               item.sold || item.mine
                 ? "cursor-default bg-muted text-muted-foreground"
-                : "bg-rose-500 text-white shadow-sm hover:bg-rose-600 hover:shadow-md",
+                : "bg-primary text-primary-foreground shadow-sm hover:bg-primary/90 hover:shadow-md",
             )}
           >
             {item.mine ? (

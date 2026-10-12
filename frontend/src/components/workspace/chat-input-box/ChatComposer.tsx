@@ -1367,7 +1367,7 @@ export function ChatComposer({
           className="flex items-center gap-2 px-1 pb-1 text-xs text-muted-foreground"
         >
           <FlagIcon
-            className="size-3.5 shrink-0 text-rose-600 dark:text-rose-400"
+            className="size-3.5 shrink-0 text-core"
             aria-hidden="true"
           />
           <span className="truncate">
@@ -1488,14 +1488,7 @@ export function ChatComposer({
               <span
                 key={key}
                 data-testid={`composer-capability-${ref.type}-${ref.id}`}
-                className={cn(
-                  "inline-flex h-6 max-w-48 shrink-0 items-center gap-1 rounded-md px-1.5 text-xs font-semibold",
-                  isPlugin &&
-                    "bg-violet-500/10 text-violet-700 dark:text-violet-300",
-                  isSkill && "bg-blue-500/10 text-blue-700 dark:text-blue-300",
-                  ref.type === "surface" &&
-                    "bg-cyan-500/10 text-cyan-700 dark:text-cyan-300",
-                )}
+                className="inline-flex h-6 max-w-48 shrink-0 items-center gap-1 rounded-md bg-core/10 px-1.5 text-xs font-semibold text-core"
               >
                 {isPlugin ? (
                   <PuzzleIcon className="size-3.5" />
@@ -1522,16 +1515,7 @@ export function ChatComposer({
         {activeComposerMode ? (
           <span
             data-testid="composer-command-prefix"
-            className={cn(
-              "pointer-events-none absolute left-3 top-2.5 z-10 inline-flex items-center gap-1 text-sm font-bold leading-snug",
-              activeComposerMode === "goal" &&
-                "text-violet-600 dark:text-violet-400",
-              activeComposerMode === "plan" && "text-sky-600 dark:text-sky-400",
-              activeComposerMode === "spec" &&
-                "text-amber-600 dark:text-amber-400",
-              activeComposerMode === "project" &&
-                "text-rose-600 dark:text-rose-400",
-            )}
+            className="pointer-events-none absolute left-3 top-2.5 z-10 inline-flex items-center gap-1 text-sm font-bold leading-snug text-core"
           >
             {activeComposerMode === "project" ? (
               <FlagIcon className="size-4" />
@@ -1880,7 +1864,7 @@ export function ChatComposer({
                         }
                         className="items-start gap-2 rounded-lg py-2 text-sm"
                       >
-                        <PuzzleIcon className="mt-0.5 size-4 text-violet-600" />
+                        <PuzzleIcon className="mt-0.5 size-4 text-muted-foreground" />
                         <span className="min-w-0">
                           <span className="block truncate font-medium">
                             {plugin.name}
@@ -1962,7 +1946,7 @@ export function ChatComposer({
                         }
                         className="items-start gap-2 rounded-lg py-2 text-sm"
                       >
-                        <BookOpenIcon className="mt-0.5 size-4 text-blue-600" />
+                        <BookOpenIcon className="mt-0.5 size-4 text-muted-foreground" />
                         <span className="min-w-0">
                           <span className="block truncate font-medium">
                             {skill.name}

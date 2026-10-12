@@ -135,7 +135,7 @@ export function ProjectOsTabError({ onRetry }: { onRetry?: () => void }) {
   return (
     <div className="flex min-h-0 flex-1 items-center justify-center bg-background/70 p-5">
       <div role="alert" className="max-w-64 text-center">
-        <div className="mx-auto flex size-10 items-center justify-center rounded-xl bg-rose-500/10 text-rose-600">
+        <div className="mx-auto flex size-10 items-center justify-center rounded-xl bg-breach/10 text-breach">
           <AlertTriangleIcon className="size-5" />
         </div>
         <div className="mt-3 text-sm font-medium">项目工作台加载失败</div>

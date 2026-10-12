@@ -32,11 +32,11 @@ export function MetricCard({
 }) {
   const toneClass =
     tone === "danger"
-      ? "text-orange-600"
+      ? "text-warning"
       : tone === "warn"
-        ? "text-amber-600"
+        ? "text-warning"
         : tone === "ok"
-          ? "text-emerald-600"
+          ? "text-core"
           : "";
   return (
     <Card className="bg-card/60">

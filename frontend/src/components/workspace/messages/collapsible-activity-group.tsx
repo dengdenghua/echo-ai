@@ -126,9 +126,9 @@ function DiffLines({ diffs }: { diffs: unknown }) {
           className={cn(
             "flex break-all px-2 whitespace-pre-wrap",
             row.type === "add"
-              ? "bg-green-500/10 text-green-700 dark:text-green-400"
+              ? "bg-core/10 text-core"
               : row.type === "del"
-                ? "bg-red-500/10 text-red-600 dark:text-red-400"
+                ? "bg-breach/10 text-breach"
                 : "text-muted-foreground",
           )}
         >
