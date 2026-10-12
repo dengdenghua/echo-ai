@@ -10,10 +10,12 @@ const ECHO_PARTICLES = Array.from({ length: 148 }, (_, index) => {
     cy: 416 + Math.sin(angle) * (radius - wobble) * 0.72,
     radius: 0.65 + (index % 5) * 0.28,
     opacity: 0.2 + (index % 7) * 0.1,
-    delay: `${-((index * 0.17) % 6).toFixed(2)}s`,
   };
 });
 
+/* A still field of signal lines, orbits and particles around one breathing
+   Echo Core. The breathe is the only loop (BRAND.md); it pauses while the tab
+   is hidden and stops under prefers-reduced-motion (login.css). */
 export function EchoAgeField() {
   const [isVisible, setIsVisible] = useState(true);
 
@@ -136,7 +138,6 @@ export function EchoAgeField() {
             cy={particle.cy}
             r={particle.radius}
             opacity={particle.opacity}
-            style={{ animationDelay: particle.delay }}
           />
         ))}
       </g>

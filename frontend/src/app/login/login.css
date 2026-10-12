@@ -119,12 +119,12 @@ html:has(.echo-login-shell) {
   );
 }
 
-/* Neutral haze only: ECHO has no colored aurora. */
+/* Neutral haze only: ECHO has no colored aurora. The backdrop is a still
+   composition; the Echo Core breathe (.echo-age-core-dot) is its only loop. */
 .echo-login-aurora {
   border-radius: 999px;
   filter: blur(90px);
-  opacity: 0.22;
-  animation: echo-login-breathe 11s ease-in-out infinite;
+  opacity: 0.2;
 }
 
 .echo-login-aurora-blue {
@@ -141,7 +141,6 @@ html:has(.echo-login-shell) {
   width: min(42vw, 560px);
   height: min(42vw, 560px);
   background: rgba(154, 163, 174, 0.12);
-  animation-delay: -5s;
 }
 
 .echo-age-field {
@@ -163,41 +162,33 @@ html:has(.echo-login-shell) {
   stroke-width: 1.1;
   stroke-linecap: round;
   stroke-dasharray: 3 8 1 13;
-  animation: echo-field-flow 13s linear infinite;
 }
 
 .echo-age-wave-2 {
   stroke-width: 0.65;
   stroke-dasharray: 1 6 2 17;
-  animation-duration: 17s;
-  animation-direction: reverse;
+  stroke-dashoffset: -60;
   opacity: 0.68;
 }
 
 .echo-age-wave-3 {
   stroke-width: 0.8;
-  animation-delay: -8s;
-  animation-duration: 19s;
+  stroke-dashoffset: -110;
   opacity: 0.45;
 }
 
 .echo-age-wave-4 {
   stroke-width: 0.55;
-  animation-delay: -4s;
-  animation-duration: 15s;
-  animation-direction: reverse;
+  stroke-dashoffset: -45;
   opacity: 0.52;
 }
 
 .echo-age-vortex {
-  transform-box: fill-box;
-  transform-origin: center;
   stroke: url("#echo-wave-gradient");
   stroke-width: 0.75;
   stroke-dasharray: 2 7 18 14;
   opacity: 0.4;
   filter: url("#echo-field-glow");
-  animation: echo-field-spin 54s linear infinite;
 }
 
 .echo-age-vortex ellipse:nth-child(2) {
@@ -217,9 +208,6 @@ html:has(.echo-login-shell) {
 
 .echo-age-particle {
   fill: var(--echo-ink);
-  transform-box: fill-box;
-  transform-origin: center;
-  animation: echo-field-twinkle 5.8s ease-in-out infinite;
 }
 
 .echo-age-particle:nth-child(3n) {
@@ -606,46 +594,6 @@ html:has(.echo-login-shell) {
   text-align: center;
 }
 
-@keyframes echo-field-flow {
-  to {
-    stroke-dashoffset: -180;
-  }
-}
-
-@keyframes echo-field-spin {
-  to {
-    transform: rotate(360deg);
-  }
-}
-
-@keyframes echo-field-twinkle {
-  0%,
-  100% {
-    opacity: 0.22;
-    transform: scale(0.7);
-  }
-  42% {
-    opacity: 0.96;
-    transform: scale(1.5);
-  }
-  67% {
-    opacity: 0.48;
-    transform: scale(0.95);
-  }
-}
-
-@keyframes echo-login-breathe {
-  0%,
-  100% {
-    opacity: 0.16;
-    scale: 0.98;
-  }
-  50% {
-    opacity: 0.25;
-    scale: 1.03;
-  }
-}
-
 @media (max-width: 1024px) {
   .echo-login-layout {
     grid-template-columns: minmax(0, 1fr) minmax(370px, 430px);
@@ -753,18 +701,12 @@ html:has(.echo-login-shell) {
   }
 }
 
-.echo-age-field-paused .echo-age-wave,
-.echo-age-field-paused .echo-age-vortex,
-.echo-age-field-paused .echo-age-particle,
 .echo-age-field-paused .echo-age-core-dot {
   animation-play-state: paused !important;
 }
 
+/* Reduced motion stops the breathe too; everything else is already still. */
 @media (prefers-reduced-motion: reduce) {
-  .echo-login-aurora,
-  .echo-age-wave,
-  .echo-age-vortex,
-  .echo-age-particle,
   .echo-age-core-dot,
   .echo-login-card-kicker span {
     animation: none;

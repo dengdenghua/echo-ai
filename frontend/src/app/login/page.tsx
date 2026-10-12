@@ -760,7 +760,7 @@ export default function LoginPage() {
         data-echo-theme="graphite"
         className="flex min-h-screen items-center justify-center bg-background"
       >
-        <div className="animate-pulse text-sm text-muted-foreground">
+        <div className="text-sm text-muted-foreground">
           {t.common.loading}
         </div>
       </div>
