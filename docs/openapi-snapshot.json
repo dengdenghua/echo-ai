@@ -56309,6 +56309,16 @@
               "title": "Q",
               "type": "string"
             }
+          },
+          {
+            "in": "query",
+            "name": "cursor_epoch",
+            "required": false,
+            "schema": {
+              "default": "",
+              "title": "Cursor Epoch",
+              "type": "string"
+            }
           }
         ],
         "responses": {

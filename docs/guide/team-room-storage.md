@@ -113,7 +113,26 @@ and fenced so the same destination can retry after the fault is repaired. A
 successful ledger prevents subsequent legacy reads or reimport. Other legacy
 Rooms remain writable until separately migrated.
 
-This entry point is a migration foundation. Production Room HTTP/WebSocket
-wiring still uses its existing source selection and compatibility writes;
-startup adoption, canonical-only receipts, reconnect cursor reset and removal
-of shadow writes remain necessary before the transcript cutover is complete.
+Production Room startup and linked-session access now adopt each actual Room
+before exposing its transcript. HTTP reads, WebSocket appends, linked-session
+messages and receipts use the canonical database after adoption. A failed import
+or canonical write produces a retryable error rather than an empty success or
+a legacy acknowledgement. Explicit standalone hosts may still select a single
+legacy store. Session and Room composition share the same legacy source.
+
+Room responses retain `session_seq` for session actions and expose `seq` as the
+Room cursor. `cursor_epoch` includes the database identity, Room binding and
+import provenance. A missing or foreign epoch resets a positive reconnect
+cursor to the recent history window; a matching cursor pages forward without
+skipping intervening messages. The frontend loads that window on admission,
+catches up on reconnect and ignores obsolete responses after Room/account
+changes. Epoch changes preserve the local outbox while clearing old server
+messages and receipts. Client retry IDs are scoped to the participant.
+
+Cursor allocation retains a durable high-water mark, including after message
+deletion and restart. Moving a Room allocates fresh destination Session
+sequences while preserving Room cursors, message IDs, comments, reactions and
+pins; the changed binding changes its epoch. Receipts derive their cursor from
+the actual message, never the client's claimed sequence. Database guards also
+reject older canonical writers that replace an adopted message ID, duplicate
+it, move a message to another Room or write a receipt for the wrong cursor.

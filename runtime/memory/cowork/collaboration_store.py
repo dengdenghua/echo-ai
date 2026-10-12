@@ -35,7 +35,11 @@ from runtime.memory.cowork._collaboration_project_projection import (
 from runtime.memory.cowork._collaboration_project_projection import (
     upsert_project_task as _upsert_project_task,
 )
-from runtime.memory.cowork._collaboration_room_messages import append_message_for_room
+from runtime.memory.cowork._collaboration_room_messages import (
+    append_message_for_room,
+    messages_for_room,
+    search_messages_for_room,
+)
 from runtime.memory.cowork._collaboration_room_write import (
     upsert_project_room as _upsert_project_room,
 )
@@ -403,6 +407,8 @@ class CollaborationStore(
     list_session_ids = list_session_ids
     import_legacy_room = import_legacy_room
     append_message_for_room = append_message_for_room
+    messages_for_room = messages_for_room
+    search_messages_for_room = search_messages_for_room
 
     def __init__(self, base_dir: Path | str | None = None) -> None:
         self._dir = Path(base_dir) if base_dir else _default_dir()
@@ -981,48 +987,6 @@ class CollaborationStore(
             ).fetchall()
         return [_message_from_row(row) for row in reversed(rows)]
 
-    def messages_for_room(
-        self,
-        room_id: str,
-        *,
-        limit: int = 200,
-        after_seq: int = 0,
-    ) -> list[dict[str, Any]]:
-        if not room_id:
-            return []
-        room_id = require_cowork_id(room_id, label="room_id")
-        limit = max(1, min(2000, limit))
-        with self._lock, self._connect() as conn:
-            rows = conn.execute(
-                "SELECT session_id, seq, room_id, participant_id, display_name, text, ts, "
-                "metadata_json "
-                "FROM collaboration_messages "
-                "WHERE room_id = ? AND seq > ? ORDER BY seq DESC LIMIT ?",
-                (room_id, int(after_seq), limit),
-            ).fetchall()
-            receipt_rows = conn.execute(
-                "SELECT message_id, participant_id, status, seq, updated_at "
-                "FROM collaboration_message_receipts WHERE room_id = ?",
-                (room_id,),
-            ).fetchall()
-        receipts: dict[str, list[dict[str, Any]]] = {}
-        for receipt in receipt_rows:
-            receipts.setdefault(str(receipt[0]), []).append(
-                {
-                    "message_id": str(receipt[0]),
-                    "participant_id": str(receipt[1]),
-                    "status": str(receipt[2]),
-                    "seq": int(receipt[3]) if receipt[3] is not None else None,
-                    "updated_at": str(receipt[4]),
-                }
-            )
-        messages = [_message_from_row(row) for row in reversed(rows)]
-        for message in messages:
-            message["receipts"] = receipts.get(
-                str((message.get("metadata") or {}).get("message_id") or ""), []
-            )
-        return messages
-
     def search_messages(
         self,
         session_id: str,
@@ -1042,28 +1006,6 @@ class CollaborationStore(
                 "WHERE session_id = ? AND (lower(text) LIKE ? OR lower(metadata_json) LIKE ?) "
                 "ORDER BY seq DESC LIMIT ?",
                 (session_id, f"%{q}%", f"%{q}%", max(1, min(200, limit))),
-            ).fetchall()
-        return [_message_from_row(row) for row in rows]
-
-    def search_messages_for_room(
-        self,
-        room_id: str,
-        query: str,
-        *,
-        limit: int = 50,
-    ) -> list[dict[str, Any]]:
-        q = normalize_search_query(query)
-        if not room_id or not q:
-            return []
-        room_id = require_cowork_id(room_id, label="room_id")
-        with self._lock, self._connect() as conn:
-            rows = conn.execute(
-                "SELECT session_id, seq, room_id, participant_id, display_name, text, ts, "
-                "metadata_json "
-                "FROM collaboration_messages "
-                "WHERE room_id = ? AND (lower(text) LIKE ? OR lower(metadata_json) LIKE ?) "
-                "ORDER BY seq DESC LIMIT ?",
-                (room_id, f"%{q}%", f"%{q}%", max(1, min(200, limit))),
             ).fetchall()
         return [_message_from_row(row) for row in rows]
 

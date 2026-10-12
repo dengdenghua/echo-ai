@@ -53165,6 +53165,7 @@ export interface operations {
                 limit?: number;
                 after_seq?: number;
                 q?: string;
+                cursor_epoch?: string;
             };
             header?: never;
             path: {

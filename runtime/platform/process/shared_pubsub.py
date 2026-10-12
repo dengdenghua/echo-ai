@@ -32,6 +32,8 @@ class RedisPubSub:
 
     def __init__(self, url: str, namespace: str, *, timeout: float = 2.0) -> None:
         from redis import Redis
+        from redis.backoff import NoBackoff
+        from redis.retry import Retry
 
         if not isinstance(namespace, str) or not re.fullmatch(r"[A-Za-z0-9_-]{1,64}", namespace):
             raise ValueError("shared transport requires a distinct environment namespace")
@@ -45,6 +47,8 @@ class RedisPubSub:
             socket_timeout=timeout,
             decode_responses=False,
             max_connections=8,
+            # The reader owns reconnects; hidden client backoff must not outlive shutdown.
+            retry=Retry(NoBackoff(), 0),
         )
         self._timeout = timeout
         self._stop = threading.Event()
@@ -208,9 +212,10 @@ class RedisPubSub:
             self._closed = True
             self._stop.set()
             workers = (self._reader, self._dispatcher)
+        # Interrupt an in-flight socket read before waiting for its owner thread.
+        self._client.close()
         for worker in workers:
             if worker is not None and worker is not threading.current_thread():
                 worker.join(timeout=self._timeout + 1)
-        self._client.close()
         if any(worker is not None and worker.is_alive() for worker in workers):
             raise SharedPubSubUnavailable("shared transport did not stop within its shutdown bound")

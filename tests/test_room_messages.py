@@ -277,14 +277,23 @@ def test_room_message_projection_receives_ws_persist_lines(tmp_path) -> None:
     ]
 
 
-def test_persist_pool_append_persists(tmp_path) -> None:
-    """The WS path offloads store.append to a background worker — verify that
-    pooled append actually persists (no deadlock off the event loop)."""
-    from runtime.sensing.gateway.team_rooms_ws import _persist_pool
+def test_selected_store_failure_does_not_enter_responder_buffer(tmp_path, monkeypatch) -> None:
+    from types import SimpleNamespace
+
+    from runtime.sensing.gateway.team_rooms_ws import _remember_line
 
     store = RoomMessageStore(base_dir=tmp_path)
-    _persist_pool().submit(store.append, "r1", text="via pool").result(timeout=5)
-    assert [m["text"] for m in store.history("r1")] == ["via pool"]
+    context = SimpleNamespace(
+        message_store=store, transcript=None, message_projection=None, recent_messages={}
+    )
+
+    def failed(*args, **kwargs):
+        raise OSError("storage unavailable")
+
+    monkeypatch.setattr(store, "append", failed)
+    with pytest.raises(OSError):
+        _remember_line(context, "r1", "reader", "Reader", "uncommitted")
+    assert context.recent_messages == {} and store.history("r1") == []
 
 
 def test_plain_ws_message_persists_to_canonical_transcript_without_twin(tmp_path) -> None:
@@ -300,10 +309,10 @@ def test_plain_ws_message_persists_to_canonical_transcript_without_twin(tmp_path
             metadata=message.get("metadata"),
         )
 
-    def project_receipt(room_id: str, receipt: dict) -> None:
+    def project_receipt(room_id: str, receipt: dict) -> dict:
         payload = dict(receipt)
         payload.pop("room_id", None)
-        canonical.record_receipt_for_room(room_id, **payload)
+        return canonical.record_receipt_for_room(room_id, **payload)
 
     app = FastAPI()
     app.include_router(
@@ -362,10 +371,10 @@ def test_ws_receipt_is_projected_to_canonical_store(tmp_path) -> None:
             metadata=message.get("metadata"),
         )
 
-    def project_receipt(room_id: str, receipt: dict) -> None:
+    def project_receipt(room_id: str, receipt: dict) -> dict:
         payload = dict(receipt)
         payload.pop("room_id", None)
-        canonical.record_receipt_for_room(room_id, **payload)
+        return canonical.record_receipt_for_room(room_id, **payload)
 
     app = FastAPI()
     app.include_router(

@@ -317,7 +317,7 @@ def test_v3_upgrade_backfills_room_cursors_without_changing_session_sequences(tm
     rows = _rows(canonical)
     assert [(row[0], row[1], row[2]) for row in rows] == [(1, 1, "first"), (7, 2, "last")]
     with canonical._connect() as conn:
-        assert conn.execute("PRAGMA user_version").fetchone()[0] == 4
+        assert conn.execute("PRAGMA user_version").fetchone()[0] == 5
         assert conn.execute("SELECT seq FROM collaboration_message_receipts").fetchone()[0] == 2
         identity = conn.execute(
             "SELECT identity FROM collaboration_transcript_identity"

@@ -201,7 +201,9 @@ def _search_room_messages(
                 s = m.get("seq")
                 if s is not None and s not in seen:
                     seen[s] = m
-        except Exception:  # noqa: BLE001 — linked-room search degrades to other surfaces
+        except Exception:  # noqa: BLE001 — only optional legacy search may degrade
+            if getattr(room_message_store, "authoritative", False):
+                raise
             return []
     out: list[SearchHit] = []
     for m in seen.values():

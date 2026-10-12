@@ -9,7 +9,6 @@ rooms / team tasks routers with collaboration projections.
 from __future__ import annotations
 
 import logging
-from functools import partial
 from typing import Any
 
 from ._app_context import AppContext
@@ -26,21 +25,6 @@ def _collaboration_store_for_app(ctx: Any) -> Any:
         store = CollaborationStore()
     ctx.app.state.collaboration_store = store
     return store
-
-
-def _collaboration_room_messages(app, room_id, limit, after_seq, q) -> list[dict[str, Any]] | None:
-    collab_store = getattr(app.state, "collaboration_store", None)
-    if collab_store is None:
-        return None
-    if not collab_store.session_id_for_room(room_id):
-        return None
-    # Legacy-only linked rooms have not cut over their transcript yet. Select
-    # that source before applying pagination/search, never from an empty page.
-    if not collab_store.messages_for_room(room_id, limit=1):
-        return None
-    if str(q or "").strip():
-        return collab_store.search_messages_for_room(room_id, q, limit=limit)
-    return collab_store.messages_for_room(room_id, limit=limit, after_seq=after_seq)
 
 
 def mount_agents(
@@ -167,37 +151,6 @@ def mount_agents(
         if callable(delete_room):
             delete_room(room_id)
 
-    def _project_room_message_to_collaboration(
-        room_id: str,
-        message: dict[str, Any],
-    ) -> int | None:
-        collab_store = getattr(app.state, "collaboration_store", None)
-        append_message = getattr(collab_store, "append_message_for_room", None)
-        if not callable(append_message):
-            return None
-        return append_message(
-            room_id,
-            text=str(message.get("text") or ""),
-            participant_id=str(message.get("participant_id") or ""),
-            display_name=str(message.get("display_name") or ""),
-            metadata=(
-                dict(message.get("metadata") or {})
-                if isinstance(message.get("metadata"), dict)
-                else None
-            ),
-        )
-
-    def _project_room_receipt_to_collaboration(
-        room_id: str,
-        receipt: dict[str, Any],
-    ) -> None:
-        collab_store = getattr(app.state, "collaboration_store", None)
-        record = getattr(collab_store, "record_receipt_for_room", None)
-        if callable(record):
-            payload = dict(receipt)
-            payload.pop("room_id", None)
-            record(room_id, **payload)
-
     from ._app_realtime import configure_collaboration_realtime
 
     configure_collaboration_realtime(ctx)
@@ -215,9 +168,7 @@ def mount_agents(
         # router (e.g. no planner) → twins stay silent, human paths unchanged.
         room_projection=_project_room_to_collaboration,
         room_delete_projection=_delete_room_from_collaboration,
-        room_message_projection=_project_room_message_to_collaboration,
-        room_receipt_projection=_project_room_receipt_to_collaboration,
-        room_message_provider=partial(_collaboration_room_messages, app),
+        collaboration_store=app.state.collaboration_store,
         group_store=(
             getattr(ctx.cowork_runtime, "group_store", None)
             if ctx.cowork_runtime is not None
@@ -228,16 +179,6 @@ def mount_agents(
     app.state.team_rooms_router = team_rooms_router
     app.include_router(team_rooms_router)
     ctx.team_rooms_router = team_rooms_router
-
-    # Adopt only real durable rooms, using their public, server-owned snapshot.
-    # This runs before task import so an upgrade never invents roomless sessions.
-    from runtime.platform.process.paths import app_paths
-    from runtime.sensing.gateway._team_rooms_state import _load_state
-
-    for room_id in _load_state(app_paths().data_dir / "team_rooms.json", strict=True):
-        room = team_rooms_router.team_snapshot(room_id)
-        if room is not None:
-            _project_room_to_collaboration(room)
 
     # Team tasks: persistent task units inside team rooms (HACO M0).
     # Same auth knobs as team_rooms_router so a single actor flows through.

@@ -8,21 +8,22 @@ from typing import Any
 
 
 class _SessionMessageSearch:
+    authoritative = True
+
     def __init__(self, view: CoworkGroupSessionView, thread_id: str) -> None:
         self._view = view
         self._thread_id = thread_id
 
     def search(self, room_id: str, query: str, *, limit: int = 50) -> list[dict[str, Any]]:
-        canonical = self._view.collaboration_store().search_messages(
-            self._thread_id,
-            query,
-            limit=limit,
-        )
-        if canonical or self._view.collaboration_store().messages_for_session(
-            self._thread_id, limit=1
-        ):
-            return canonical
-        return self._view.room_message_store().search(room_id, query, limit=limit)
+        from fastapi import HTTPException
+
+        try:
+            self._view.ensure_transcript(self._thread_id, room_id)
+            return self._view.collaboration_store().search_messages_for_room(
+                room_id, query, limit=limit
+            )
+        except Exception as exc:  # noqa: BLE001 - sanitize canonical failure without changing sources
+            raise HTTPException(503, "Room messages are temporarily unavailable") from exc
 
 
 class CoworkGroupSessionView:
@@ -72,13 +73,22 @@ class CoworkGroupSessionView:
         *,
         limit: int = 50,
     ) -> list[dict[str, Any]]:
-        canonical = self.collaboration_store().messages_for_session(thread_id, limit=limit)
-        if canonical:
-            return canonical
+        from fastapi import HTTPException
+
         try:
-            return self.room_message_store().history(room_id, limit=limit)
-        except Exception:  # noqa: BLE001 — linked-room transcript is best-effort
-            return []
+            self.ensure_transcript(thread_id, room_id)
+            return self.collaboration_store().messages_for_room(room_id, limit=limit)
+        except Exception as exc:  # noqa: BLE001 - never return an empty success on failure
+            raise HTTPException(503, "Room messages are temporarily unavailable") from exc
+
+    def ensure_transcript(self, thread_id: str, room_id: str) -> None:
+        from runtime.memory.cowork._collaboration_transcript_import import RoomTranscriptConflict
+        from runtime.memory.cowork.room_transcript import RoomTranscript
+
+        store = self.collaboration_store()
+        if store.session_id_for_room(room_id) != thread_id:
+            raise RoomTranscriptConflict("Room is not linked to this session")
+        RoomTranscript(store, self.room_message_store).ensure(room_id)
 
     def message_search(self, thread_id: str) -> _SessionMessageSearch:
         return _SessionMessageSearch(self, thread_id)

@@ -145,7 +145,12 @@ def _make_ensure_project_for_thread(
 
 
 def _make_lazy_room_stores(
-    *, group_store: GroupStore, room_message_store: Any, live_presence: Any = None
+    *,
+    group_store: GroupStore,
+    room_message_store: Any,
+    live_presence: Any = None,
+    team_rooms_router: Any = None,
+    team_rooms_state_path: Any = None,
 ) -> tuple[Callable[[], Any], Callable[[], Any]]:
     """Presence and room-transcript stores, built on first use, once per router."""
     _presence_holder: dict[str, Any] = {}
@@ -164,13 +169,22 @@ def _make_lazy_room_stores(
     def _room_message_store():
         if room_message_store is not None:
             return room_message_store
+        source = getattr(team_rooms_router, "legacy_room_messages", None)
+        if callable(source):
+            return source()
         store = _room_msg_holder.get("v")
         if store is None:
+            from pathlib import Path
+
             from runtime.memory.cowork.room_messages import RoomMessageStore
 
-            # Default teamroom dir — shared with the team_rooms router's store,
-            # so a linked room's transcript is the same one it persists.
-            store = RoomMessageStore()
+            # Independent custom stores must not adopt/fence the global app log.
+            base = (
+                Path(team_rooms_state_path).parent
+                if team_rooms_state_path
+                else group_store.base_dir
+            )
+            store = RoomMessageStore(base_dir=base / "teamroom")
             _room_msg_holder["v"] = store
         return store
 
@@ -293,6 +307,8 @@ def build_cowork_group_deps(
         group_store=group_store,
         room_message_store=room_message_store,
         live_presence=getattr(team_rooms_router, "live_presence", None),
+        team_rooms_router=team_rooms_router,
+        team_rooms_state_path=team_rooms_state_path,
     )
 
     session_view = CoworkGroupSessionView(

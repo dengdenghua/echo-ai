@@ -92,10 +92,7 @@ def resolve_session(
     room_tasks: list[dict[str, Any]] = []
     if state.room_id:
         if room_messages_provider is not None:
-            try:
-                room_messages = room_messages_provider(state.room_id) or []
-            except Exception:  # noqa: BLE001 — linked-room transcript is best-effort
-                room_messages = []
+            room_messages = room_messages_provider(state.room_id) or []
         elif room_message_store is not None:
             try:
                 room_messages = room_message_store.history(state.room_id, limit=50)

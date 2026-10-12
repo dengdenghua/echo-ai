@@ -33,6 +33,53 @@ def _port() -> int:
         return sock.getsockname()[1]
 
 
+def test_shutdown_interrupts_blocked_read_before_joining_its_owner(monkeypatch):
+    import threading
+
+    blocked, interrupted = threading.Event(), threading.Event()
+    owners = []
+
+    class Subscription:
+        def __enter__(self):
+            owners.append(threading.current_thread().name)
+            return self
+
+        def __exit__(self, *_args):
+            owners.append(threading.current_thread().name)
+
+        def subscribe(self, _channel):
+            self.acknowledged = False
+
+        def get_message(self, **_kwargs):
+            if not self.acknowledged:
+                self.acknowledged = True
+                return {"type": "subscribe"}
+            blocked.set()
+            interrupted.wait(timeout=5)
+            return None
+
+    class Client:
+        def pubsub(self, **_kwargs):
+            return Subscription()
+
+        def close(self):
+            interrupted.set()
+
+    monkeypatch.setattr(redis.Redis, "from_url", lambda *_args, **_kwargs: Client())
+    bus = RedisPubSub("redis://unused", "shutdown", timeout=0.1)
+    try:
+        bus.start()
+        assert blocked.wait(timeout=2)
+        started = time.monotonic()
+        bus.close()
+        assert time.monotonic() - started < 0.7
+        assert not bus._reader.is_alive() and not bus._dispatcher.is_alive()
+        assert owners == ["shared-subscribe", "shared-subscribe"]
+    finally:
+        interrupted.set()
+        bus.close()
+
+
 @pytest.fixture(scope="module")
 def real_redis(tmp_path_factory):
     home = tmp_path_factory.mktemp("redis-service")
@@ -179,10 +226,11 @@ def test_old_persisted_heartbeat_is_ignored_but_read_cursors_survive(tmp_path):
     }
 
 
-def _api_worker(home, url, namespace, port, ready):
+def _api_worker(home, url, namespace, port, ready, canonical=False):
     import uvicorn
     from fastapi import FastAPI
 
+    from runtime.memory.cowork.collaboration_store import CollaborationStore
     from runtime.safety.auth import Identity, IdentityStore
     from runtime.sensing.gateway.team_rooms_router import create_team_rooms_router
 
@@ -194,12 +242,15 @@ def _api_worker(home, url, namespace, port, ready):
         )
     bus = RedisPubSub(url, namespace)
     app = FastAPI()
+    transcript_store = CollaborationStore(Path(home) / "canonical") if canonical else None
     app.include_router(
         create_team_rooms_router(
             state_path=Path(home) / "rooms.json",
             identity_store=identities,
             require_auth=True,
             shared_bus=bus,
+            collaboration_store=transcript_store,
+            room_projection=transcript_store.upsert_room_by_id if transcript_store else None,
         )
     )
 
@@ -216,13 +267,15 @@ def _api_worker(home, url, namespace, port, ready):
 
 
 @contextmanager
-def _workers(home, url, namespace):
+def _workers(home, url, namespace, *, canonical=False):
     ctx = multiprocessing.get_context("spawn")
     ports, workers = [_port(), _port()], []
     try:
         for port in ports:
             ready = ctx.Event()
-            worker = ctx.Process(target=_api_worker, args=(str(home), url, namespace, port, ready))
+            worker = ctx.Process(
+                target=_api_worker, args=(str(home), url, namespace, port, ready, canonical)
+            )
             worker.start()
             workers.append(worker)
             assert ready.wait(timeout=20), "worker startup failed"

@@ -156,6 +156,7 @@ tier: "standard"
 | `_team_room_persistence.py` | Cross-process optimistic persistence for Team Room state. |
 | `_team_room_presence.py` | Worker-local heartbeat timestamps, separate from durable room membership. |
 | `_team_room_store.py` | Versioned SQLite authority for rooms; JSON is a one-time import source. |
+| `_team_room_transcript.py` | Compose the Room transcript authority and its HTTP/WebSocket consumers. |
 | `_team_rooms_access.py` | Room membership and administration checks for the Team Rooms router. |
 | `_team_rooms_state.py` | Persistence and wire-serialization helpers for Team Rooms. |
 | `_team_stream_group_fanout.py` | Group fan-out stream driver — 蜂群 / 冒泡 cowork dispatch. |
@@ -802,7 +803,7 @@ tier: "standard"
 
 | Kind | Symbol | Doc |
 | --- | --- | --- |
-| func | `def register_room_message_reader(router, require_member, provider, legacy_store)` |  |
+| func | `def register_room_message_reader(router, require_member, provider, legacy_store, transcript)` |  |
 
 ### `_team_room_persistence.py`
 
@@ -828,6 +829,12 @@ tier: "standard"
 | func | `def write_room_delta(conn, upserts, deleted)` | Write only the caller's changed rows inside its existing transaction. |
 | func | `def commit_room_delta(conn, upserts, deleted)` | Commit the CAS check and delta together; exceptions roll back before commit. |
 | func | `def room_connection(path, resolver, strict)` |  |
+
+### `_team_room_transcript.py`
+
+| Kind | Symbol | Doc |
+| --- | --- | --- |
+| func | `def register_team_transcript(router, ctx, state_path, canonical_store, legacy_store, provider, message_projection, receipt_projection, require_member)` |  |
 
 ### `_team_rooms_access.py`
 
@@ -1943,7 +1950,7 @@ tier: "standard"
 
 | Kind | Symbol | Doc |
 | --- | --- | --- |
-| func | `def create_team_rooms_router(state_path, shared_bus, live_presence, identity_store, require_auth, jwt_secret, jwt_issuer, jwt_audience, reset_callback, room_message_store, room_projection, room_delete_projection, room_message_projection, room_receipt_projection, room_message_provider, invitation_store, project_store, group_store, twin_responder)` | Create `/api/teams/*` routes. |
+| func | `def create_team_rooms_router(state_path, shared_bus, live_presence, identity_store, require_auth, jwt_secret, jwt_issuer, jwt_audience, reset_callback, room_message_store, collaboration_store, room_projection, room_delete_projection, room_message_projection, room_receipt_projection, room_message_provider, invitation_store, project_store, group_store, twin_responder)` | Create `/api/teams/*` routes. |
 
 ### `team_rooms_ws.py`
 

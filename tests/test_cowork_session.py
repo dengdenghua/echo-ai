@@ -549,7 +549,10 @@ def test_collab_session_prefers_unified_message_store(tmp_path) -> None:
     c.post("/api/collab/t1/link-room", json={"room_id": "room-1"})
 
     sess = c.get("/api/collab/t1").json()
-    assert [m["text"] for m in sess["room_messages"]] == ["canonical transcript line"]
+    assert [m["text"] for m in sess["room_messages"]] == [
+        "legacy transcript line",
+        "canonical transcript line",
+    ]
     hits = c.get("/api/cowork/t1/search", params={"q": "canonical"}).json()["hits"]
     assert any(h["kind"] == "room_message" for h in hits)
 

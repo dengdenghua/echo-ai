@@ -19,6 +19,10 @@ import {
   getCollabPinnedMessages,
 } from "@/core/cowork/api";
 import { useCollab, type Annotation } from "./collab-provider";
+import { apiGet } from "@/core/api/request";
+import { readRoomOutbox } from "./room-message-state";
+
+vi.mock("@/core/api/request", () => ({ apiGet: vi.fn() }));
 
 vi.mock("@/core/cowork/api", () => ({
   getCollabAnnotations: vi.fn(async () => []),
@@ -75,6 +79,7 @@ beforeEach(() => {
   vi.clearAllMocks();
   FakeWebSocket.instances = [];
   vi.stubGlobal("WebSocket", FakeWebSocket);
+  window.localStorage.clear();
 });
 
 afterEach(() => {
@@ -82,6 +87,81 @@ afterEach(() => {
 });
 
 describe("countOnlineRoomParticipants", () => {
+  it("uses the admitted participant identity and keeps another participant's matching client id distinct", async () => {
+    vi.mocked(apiGet).mockResolvedValueOnce({
+      messages: [],
+      cursor_epoch: "epoch-1",
+      next_after_seq: 0,
+      has_more: false,
+    } as never);
+    function Chat() {
+      const collab = useCollab();
+      return (
+        <>
+          <button onClick={() => collab.sendRoomMessage("mine")}>Send</button>
+          <output data-testid="transcript">
+            {JSON.stringify(collab.roomMessages)}
+          </output>
+        </>
+      );
+    }
+    const view = render(
+      <QueryClientProvider client={new QueryClient()}>
+        <CollaborationRealtimeBridge
+          roomId="room"
+          threadId="thread"
+          participantId="old-browser-id"
+        >
+          <Chat />
+        </CollaborationRealtimeBridge>
+      </QueryClientProvider>,
+    );
+    await waitFor(() => expect(FakeWebSocket.instances).toHaveLength(1));
+    const socket = FakeWebSocket.instances[0]!;
+    act(() => {
+      socket.open();
+      socket.receive({
+        type: "ready",
+        participant: { id: "actual-owner", display_name: "Owner" },
+        cursor_epoch: "epoch-1",
+      });
+    });
+    await waitFor(() => expect(apiGet).toHaveBeenCalled());
+    fireEvent.click(screen.getByText("Send", { exact: true }));
+    const sent = JSON.parse(socket.send.mock.calls.at(-1)![0]);
+    act(() =>
+      socket.receive({
+        type: "message",
+        thread_id: "thread",
+        text: "other",
+        participant_id: "another",
+        message_id: "another-message",
+        seq: 1,
+        client_message_id: sent.client_message_id,
+        cursor_epoch: "epoch-1",
+      }),
+    );
+    expect(readRoomOutbox("room", "old-browser-id")).toHaveLength(1);
+    act(() =>
+      socket.receive({
+        type: "message",
+        thread_id: "thread",
+        text: "mine",
+        participant_id: "actual-owner",
+        message_id: "my-message",
+        seq: 2,
+        client_message_id: sent.client_message_id,
+        cursor_epoch: "epoch-1",
+      }),
+    );
+    expect(readRoomOutbox("room", "old-browser-id")).toEqual([]);
+    const messages = JSON.parse(screen.getByTestId("transcript").textContent!);
+    expect(messages.map((m: { message_id: string }) => m.message_id)).toEqual([
+      "another-message",
+      "my-message",
+    ]);
+    view.unmount();
+  });
   it("deduplicates a comment when its broadcast arrives before the HTTP response", async () => {
     const annotation: Annotation = {
       annotation_id: "a1",

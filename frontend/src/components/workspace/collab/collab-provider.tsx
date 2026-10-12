@@ -41,6 +41,25 @@ import {
   toggleCollabPinnedMessage,
 } from "@/core/cowork/api";
 
+import {
+  createClientMessageId,
+  readRoomOutbox,
+  enqueueRoomOutbox,
+  removeRoomOutboxMessage,
+  upsertRoomMessage,
+  upsertRoomMessageReceipt,
+  markRoomMessageFailed,
+  type RoomMessage,
+  type RoomMessageReceipt,
+} from "./room-message-state";
+export {
+  upsertRoomMessage,
+  upsertRoomMessageReceipt,
+} from "./room-message-state";
+export type { RoomMessage, RoomMessageReceipt } from "./room-message-state";
+
+import { useRoomTranscript } from "./use-room-transcript";
+
 export interface User {
   id: string;
   name: string;
@@ -68,30 +87,6 @@ export interface Annotation {
   created_at: number;
   resolved: boolean;
   replies: AnnotationReply[];
-}
-
-export interface RoomMessage {
-  message_id: string;
-  client_message_id?: string;
-  seq?: number;
-  thread_id?: string;
-  participant_id: string;
-  display_name: string;
-  on_behalf_of?: string;
-  text: string;
-  reply_to?: CoworkRoomReplyReference | null;
-  created_at: string;
-  delivery_status?: "sending" | "sent" | "delivered" | "read" | "failed";
-  error?: string;
-}
-
-export interface RoomMessageReceipt {
-  room_id: string;
-  message_id: string;
-  participant_id: string;
-  status: "delivered" | "read";
-  seq?: number | null;
-  updated_at?: string;
 }
 
 export interface TeamTaskProgressEvent {
@@ -193,6 +188,8 @@ export function CollabProvider({
     return value && value !== "new" ? value : "";
   }, [threadId]);
   const wsRef = useRef<WebSocket | null>(null);
+  const serverParticipantId = useRef(resolvedParticipantId);
+  const getParticipantId = useCallback(() => serverParticipantId.current, []);
   const reconnectTimerRef = useRef<number | null>(null);
   const shouldReconnectRef = useRef(true);
   const queryClient = useQueryClient();
@@ -224,11 +221,12 @@ export function CollabProvider({
   );
 
   useEffect(() => {
+    serverParticipantId.current = resolvedParticipantId;
     setTaskEvents([]);
     setRoomMessages([]);
     setMessageReceipts([]);
     setFloor(DEFAULT_FLOOR);
-  }, [teamId]);
+  }, [teamId, resolvedParticipantId]);
 
   useEffect(() => {
     if (!teamId || !normalizedThreadId) {
@@ -264,29 +262,15 @@ export function CollabProvider({
     };
   }, [normalizedThreadId, teamId, isConnected]);
 
-  useEffect(() => {
-    if (!teamId || typeof window === "undefined") return;
-    const queued = readRoomOutbox(teamId, resolvedParticipantId);
-    if (queued.length === 0) return;
-    setRoomMessages((prev) => {
-      let next = prev;
-      for (const item of queued) {
-        next = upsertRoomMessage(next, {
-          message_id: `local:${item.client_message_id}`,
-          client_message_id: item.client_message_id,
-          thread_id: item.thread_id,
-          participant_id: item.on_behalf_of || resolvedParticipantId,
-          display_name: item.on_behalf_of ? "Pending" : localUser.name,
-          on_behalf_of: item.on_behalf_of,
-          reply_to: item.reply_to,
-          text: item.text,
-          created_at: item.created_at,
-          delivery_status: "sending",
-        });
-      }
-      return next;
-    });
-  }, [localUser.name, resolvedParticipantId, teamId]);
+  const recoverTranscript = useRoomTranscript({
+    teamId,
+    participantId: resolvedParticipantId,
+    threadId: normalizedThreadId,
+    displayName: localUser.name,
+    setMessages: setRoomMessages,
+    setReceipts: setMessageReceipts,
+    getParticipantId,
+  });
 
   const notifyRemoved = useCallback(
     (_reason = "removed") => {
@@ -360,6 +344,21 @@ export function CollabProvider({
         if (disposed) return;
         const msg = parseMessage(event.data);
         if (!msg) return;
+        if (
+          msg.type === "ready" &&
+          isRecord(msg.participant) &&
+          typeof msg.participant.id === "string"
+        ) {
+          serverParticipantId.current = msg.participant.id;
+          setRoomMessages((messages) =>
+            messages.map((message) =>
+              !message.seq && !message.on_behalf_of
+                ? { ...message, participant_id: getParticipantId() }
+                : message,
+            ),
+          );
+        }
+        recoverTranscript(msg);
         if (msg.type === "error") {
           const message = String(msg.message ?? "");
           const clientMessageId = String(msg.client_message_id ?? "");
@@ -446,7 +445,15 @@ export function CollabProvider({
           }
           const text = msg.text;
           const clientMessageId = String(msg.client_message_id ?? "");
-          if (clientMessageId) {
+          if (
+            clientMessageId &&
+            readRoomOutbox(teamId, resolvedParticipantId).some(
+              (item) =>
+                item.client_message_id === clientMessageId &&
+                (item.on_behalf_of || getParticipantId()) ===
+                  String(msg.participant_id ?? ""),
+            )
+          ) {
             removeRoomOutboxMessage(
               teamId,
               resolvedParticipantId,
@@ -460,6 +467,13 @@ export function CollabProvider({
               seq: Number.isFinite(Number(msg.seq))
                 ? Number(msg.seq)
                 : undefined,
+              session_seq: Number.isSafeInteger(msg.session_seq)
+                ? Number(msg.session_seq)
+                : undefined,
+              cursor_epoch:
+                typeof msg.cursor_epoch === "string"
+                  ? msg.cursor_epoch
+                  : undefined,
               thread_id: incomingThreadId || undefined,
               participant_id: String(msg.participant_id ?? ""),
               display_name: String(msg.display_name ?? "Guest"),
@@ -618,6 +632,8 @@ export function CollabProvider({
     resolvedDisplayName,
     resolvedParticipantId,
     teamId,
+    recoverTranscript,
+    getParticipantId,
   ]);
 
   useEffect(() => {
@@ -676,7 +692,7 @@ export function CollabProvider({
         message_id: `local:${clientMessageId}`,
         client_message_id: clientMessageId,
         thread_id: normalizedThreadId || undefined,
-        participant_id: onBehalfOf || localUser.id,
+        participant_id: onBehalfOf || getParticipantId(),
         display_name: onBehalfOf ? "Pending" : localUser.name,
         on_behalf_of: onBehalfOf,
         reply_to: replyTo ?? undefined,
@@ -707,7 +723,14 @@ export function CollabProvider({
       }
       return clientMessageId;
     },
-    [localUser, normalizedThreadId, resolvedParticipantId, sendJson, teamId],
+    [
+      localUser,
+      normalizedThreadId,
+      resolvedParticipantId,
+      sendJson,
+      teamId,
+      getParticipantId,
+    ],
   );
 
   const retryRoomMessage = useCallback(
@@ -1014,153 +1037,6 @@ export function useCollab() {
 
 export function useOptionalCollab() {
   return useContext(CollabContext);
-}
-
-function createClientMessageId(): string {
-  if (
-    typeof crypto !== "undefined" &&
-    typeof crypto.randomUUID === "function"
-  ) {
-    return crypto.randomUUID();
-  }
-  return `client-${Date.now()}-${Math.random().toString(16).slice(2)}`;
-}
-
-interface QueuedRoomMessage {
-  client_message_id: string;
-  text: string;
-  thread_id?: string;
-  on_behalf_of?: string;
-  created_at: string;
-  reply_to?: CoworkRoomReplyReference | null;
-}
-
-const ROOM_OUTBOX_PREFIX = "echo:room-outbox:";
-
-function roomOutboxKey(teamId: string, participantId: string): string {
-  return `${ROOM_OUTBOX_PREFIX}${teamId}:${participantId}`;
-}
-
-function readRoomOutbox(
-  teamId?: string | null,
-  participantId?: string | null,
-): QueuedRoomMessage[] {
-  if (!teamId || !participantId || typeof window === "undefined") return [];
-  try {
-    const parsed = JSON.parse(
-      window.localStorage.getItem(roomOutboxKey(teamId, participantId)) ?? "[]",
-    );
-    if (!Array.isArray(parsed)) return [];
-    return parsed.filter(
-      (item): item is QueuedRoomMessage =>
-        item &&
-        typeof item === "object" &&
-        typeof item.client_message_id === "string" &&
-        typeof item.text === "string" &&
-        typeof item.created_at === "string",
-    );
-  } catch {
-    return [];
-  }
-}
-
-function writeRoomOutbox(
-  teamId: string,
-  participantId: string,
-  messages: QueuedRoomMessage[],
-) {
-  if (typeof window === "undefined") return;
-  try {
-    window.localStorage.setItem(
-      roomOutboxKey(teamId, participantId),
-      JSON.stringify(messages.slice(-100)),
-    );
-  } catch {
-    // Storage may be disabled or full; in-memory delivery still works.
-  }
-}
-
-function enqueueRoomOutbox(
-  teamId: string | null | undefined,
-  participantId: string,
-  message: Omit<QueuedRoomMessage, "created_at"> & { created_at?: string },
-) {
-  if (!teamId) return;
-  const queued = readRoomOutbox(teamId, participantId).filter(
-    (item) => item.client_message_id !== message.client_message_id,
-  );
-  queued.push({
-    ...message,
-    created_at: message.created_at ?? new Date().toISOString(),
-  });
-  writeRoomOutbox(teamId, participantId, queued);
-}
-
-function removeRoomOutboxMessage(
-  teamId: string | null | undefined,
-  participantId: string,
-  clientMessageId: string,
-) {
-  if (!teamId) return;
-  const queued = readRoomOutbox(teamId, participantId).filter(
-    (item) => item.client_message_id !== clientMessageId,
-  );
-  writeRoomOutbox(teamId, participantId, queued);
-}
-
-export function upsertRoomMessage(
-  messages: RoomMessage[],
-  incoming: RoomMessage,
-): RoomMessage[] {
-  const index = messages.findIndex(
-    (message) =>
-      message.message_id === incoming.message_id ||
-      Boolean(
-        incoming.client_message_id &&
-        message.client_message_id === incoming.client_message_id,
-      ),
-  );
-  if (index < 0) return [...messages, incoming].slice(-50);
-  const next = [...messages];
-  next[index] = incoming;
-  return next.slice(-50);
-}
-
-export function upsertRoomMessageReceipt(
-  receipts: RoomMessageReceipt[],
-  incoming: RoomMessageReceipt,
-): RoomMessageReceipt[] {
-  const index = receipts.findIndex(
-    (receipt) =>
-      receipt.message_id === incoming.message_id &&
-      receipt.participant_id === incoming.participant_id,
-  );
-  if (index < 0) return [...receipts, incoming].slice(-500);
-  const current = receipts[index]!;
-  const status =
-    current.status === "read" || incoming.status === "read"
-      ? "read"
-      : "delivered";
-  const next = [...receipts];
-  next[index] = {
-    ...current,
-    ...incoming,
-    status,
-    seq: incoming.seq ?? current.seq ?? null,
-  };
-  return next.slice(-500);
-}
-
-function markRoomMessageFailed(
-  messages: RoomMessage[],
-  clientMessageId: string,
-  error: string,
-): RoomMessage[] {
-  return messages.map((message) =>
-    message.client_message_id === clientMessageId
-      ? { ...message, delivery_status: "failed", error }
-      : message,
-  );
 }
 
 function parseMessage(data: unknown): Record<string, unknown> | null {

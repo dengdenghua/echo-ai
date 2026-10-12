@@ -7,6 +7,7 @@ import json
 import sqlite3
 from datetime import UTC, datetime
 from typing import Any
+from uuid import uuid4
 
 from runtime.memory.cowork._collaboration_team_records import TeamTaskConflict, room_binding
 from runtime.memory.cowork._room_message_retirement import LegacyRoomTranscript, freeze_legacy_room
@@ -146,6 +147,13 @@ def _import_messages(
         ordered.append(matched)
     used = {row["rowid"] for row in ordered}
     ordered.extend(row for row in original if row["rowid"] not in used)
+    for row in ordered:
+        if not row["metadata"].get("message_id"):
+            row["metadata"] = {**row["metadata"], "message_id": "room-msg-" + uuid4().hex}
+            conn.execute(
+                "UPDATE collaboration_messages SET metadata_json=? WHERE rowid=?",
+                (_blob(row["metadata"]), row["rowid"]),
+            )
     conn.execute("UPDATE collaboration_messages SET room_seq=0 WHERE room_id=?", (source.room_id,))
     cursor_by_id = {}
     existing_receipts = conn.execute(

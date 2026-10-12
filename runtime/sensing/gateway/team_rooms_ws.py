@@ -16,7 +16,6 @@ import contextlib
 import hashlib
 import json
 from collections.abc import Awaitable, Callable
-from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass, field
 from threading import Lock
 from typing import TYPE_CHECKING, Any
@@ -73,23 +72,9 @@ _RING_SIZE = 20
 _TEAM_WS_MAX_MSG_BYTES = 64 * 1024
 _TEAM_WS_MSG_PER_SEC = 30
 
-# Single background worker for durable message writes — keeps synchronous
-# sqlite I/O off the WS event loop and serializes appends (no write contention).
-_PERSIST_POOL: ThreadPoolExecutor | None = None
-
 
 def _noop_refresh() -> None:
     return
-
-
-def _persist_pool() -> ThreadPoolExecutor:
-    global _PERSIST_POOL
-    if _PERSIST_POOL is None:
-        _PERSIST_POOL = ThreadPoolExecutor(
-            max_workers=1,
-            thread_name_prefix="room-persist",
-        )
-    return _PERSIST_POOL
 
 
 async def broadcast_authorized_team_sockets(
@@ -229,6 +214,7 @@ class TeamRoomWsContext:
     message_store: Any = None
     message_projection: Callable[[str, dict[str, Any]], int | None] | None = None
     receipt_projection: Callable[[str, dict[str, Any]], Any] | None = None
+    transcript: Any = None
 
 
 def _client_message_identity(
@@ -268,10 +254,9 @@ def _remember_line(
 ) -> dict[str, Any]:
     """Durably append a line before making it visible to the room.
 
-    CollaborationStore is the canonical path when the room is linked. The
-    legacy store remains the durable fallback and asynchronous shadow. A
-    message is appended to the in-memory responder transcript only after at
-    least one configured durable path has accepted it.
+    Production uses the canonical transcript. Explicit standalone hosts may
+    supply a legacy authority. A line reaches the responder buffer only after
+    the selected durable source commits it.
     """
 
     message_id = message_id or f"room-msg-{uuid4().hex}"
@@ -284,7 +269,21 @@ def _remember_line(
     sequence = 0
     canonical_persisted = False
     projection = ctx.message_projection
-    if projection is not None:
+    persisted: dict[str, Any] = {}
+    if ctx.transcript is not None:
+        persisted = ctx.transcript.append(
+            team_id,
+            dict(
+                participant_id=participant_id,
+                display_name=display_name,
+                text=text,
+                metadata=message_metadata,
+            ),
+        )
+        sequence = int(persisted["seq"])
+        message_id = str(persisted["message_id"])
+        canonical_persisted = True
+    elif projection is not None:
         projected_seq = projection(
             team_id,
             {
@@ -303,31 +302,17 @@ def _remember_line(
             canonical_persisted = True
 
     store = ctx.message_store
-    if store is not None:
-        if canonical_persisted:
-            # Keep the legacy log as a compatibility shadow without delaying
-            # the canonical acknowledgement.
-            with contextlib.suppress(Exception):  # source commit already succeeded
-                _persist_pool().submit(
-                    store.append,
-                    team_id,
-                    text=text,
-                    participant_id=participant_id,
-                    display_name=display_name,
-                    message_id=message_id,
-                    client_message_id=client_message_id,
-                )
-        else:
-            sequence = int(
-                store.append(
-                    team_id,
-                    text=text,
-                    participant_id=participant_id,
-                    display_name=display_name,
-                    message_id=message_id,
-                    client_message_id=client_message_id,
-                )
+    if store is not None and not canonical_persisted:
+        sequence = int(
+            store.append(
+                team_id,
+                text=text,
+                participant_id=participant_id,
+                display_name=display_name,
+                message_id=message_id,
+                client_message_id=client_message_id,
             )
+        )
     elif not canonical_persisted:
         raise RuntimeError("room message persistence did not produce a durable sequence")
 
@@ -349,7 +334,25 @@ def _remember_line(
         "message_id": message_id,
         "client_message_id": client_message_id,
         "seq": sequence,
+        **({"cursor_epoch": persisted["cursor_epoch"]} if "cursor_epoch" in persisted else {}),
+        **({"session_seq": persisted["session_seq"]} if "session_seq" in persisted else {}),
+        **({"created_at": persisted["created_at"]} if "created_at" in persisted else {}),
     }
+
+
+def _record_room_receipt(
+    ctx: TeamRoomWsContext, team_id: str, payload: dict[str, Any]
+) -> dict[str, Any]:
+    if ctx.transcript is not None:
+        return ctx.transcript.record_receipt(team_id, **payload)
+    if ctx.receipt_projection is not None:
+        receipt = ctx.receipt_projection(team_id, payload)
+        if not isinstance(receipt, dict):
+            raise RuntimeError("canonical receipt persistence did not return a committed receipt")
+        return receipt
+    if ctx.message_store is None:
+        raise RuntimeError("Room receipt persistence is unavailable")
+    return ctx.message_store.record_receipt(team_id, **payload)
 
 
 async def _twin_speak(
@@ -410,16 +413,14 @@ async def _twin_speak(
             "type": "message",
             "team_id": team_id,
             "thread_id": None,
-            "message_id": persisted["message_id"],
-            "client_message_id": persisted["client_message_id"],
-            "seq": persisted["seq"],
+            **persisted,
             "delivery_status": "sent",
             "participant_id": participant.id,
             "display_name": participant.display_name,
             "spoken_by": twin_agent_id,
             "via": "twin",
             "text": text,
-            "created_at": _now(),
+            "created_at": persisted.get("created_at") or _now(),
         },
     )
     return True
@@ -456,6 +457,56 @@ async def _drive_round_robin_twins(ctx: TeamRoomWsContext, team_id: str) -> None
             ctx.teams[team_id] = advanced
             ctx.save()
         await ctx.broadcast_floor(team_id, advanced)
+
+
+async def _dispatch_room_receipt(
+    ctx: TeamRoomWsContext, team_id: str, participant_id: str, msg: dict[str, Any]
+) -> None:
+    """Persist the selected authority's receipt before broadcasting its result."""
+    msg_type = msg.get("type")
+    message_id = str(msg.get("message_id") or "").strip()
+    if not message_id:
+        return
+    status = "read" if msg_type == "message:read" else "delivered"
+    raw_seq = msg.get("seq")
+    try:
+        seq = int(raw_seq) if raw_seq is not None else None
+    except (TypeError, ValueError):
+        seq = None
+    try:
+        receipt = await asyncio.to_thread(
+            _record_room_receipt,
+            ctx,
+            team_id,
+            dict(
+                message_id=message_id,
+                participant_id=participant_id,
+                status=status,
+                seq=seq,
+            ),
+        )
+    except (TypeError, ValueError):
+        return
+    except Exception:  # noqa: BLE001 - do not broadcast an uncommitted receipt
+        await ctx.broadcast(
+            team_id,
+            {
+                "type": "message:receipt:error",
+                "message_id": message_id,
+                "code": "receipt_persistence_failed",
+                "retryable": True,
+            },
+            include=participant_id,
+        )
+        return
+    await ctx.broadcast(
+        team_id,
+        {
+            "type": "message:receipt",
+            "team_id": team_id,
+            **receipt,
+        },
+    )
 
 
 async def team_room_ws(ctx: TeamRoomWsContext, ws: WebSocket, team_id: str) -> None:
@@ -595,6 +646,23 @@ async def team_room_ws(ctx: TeamRoomWsContext, ws: WebSocket, team_id: str) -> N
         await ws.close(code=4403 if reject_reason else 4404)
         return
 
+    if ctx.transcript is not None:
+        try:
+            ready_payload["cursor_epoch"] = await asyncio.to_thread(ctx.transcript.epoch, team_id)
+        except Exception:  # noqa: BLE001 - no ready acknowledgement for an unavailable transcript
+            from ._team_room_departure import disconnect_room
+
+            disconnect_room(ctx, ws, team_id, participant_id)
+            await ws.send_json(
+                {
+                    "type": "error",
+                    "code": "room_transcript_unavailable",
+                    "message": "Room messages are temporarily unavailable",
+                    "retryable": True,
+                }
+            )
+            await ws.close(code=1013)
+            return
     await _broadcast(team_id, ready_payload, include=participant_id)
     await _broadcast_presence(team_id)
 
@@ -651,41 +719,7 @@ async def team_room_ws(ctx: TeamRoomWsContext, ws: WebSocket, team_id: str) -> N
                 )
                 await _broadcast_presence(team_id)
             elif msg_type in {"message:delivered", "message:read"}:
-                message_id = str(msg.get("message_id") or "").strip()
-                if not message_id:
-                    continue
-                receipt_store = ctx.message_store
-                record_receipt = getattr(receipt_store, "record_receipt", None)
-                if not callable(record_receipt):
-                    continue
-                status = "read" if msg_type == "message:read" else "delivered"
-                raw_seq = msg.get("seq")
-                try:
-                    seq = int(raw_seq) if raw_seq is not None else None
-                except (TypeError, ValueError):
-                    seq = None
-                try:
-                    receipt = await asyncio.to_thread(
-                        record_receipt,
-                        team_id,
-                        message_id=message_id,
-                        participant_id=participant_id,
-                        status=status,
-                        seq=seq,
-                    )
-                except (TypeError, ValueError):
-                    continue
-                if ctx.receipt_projection is not None:
-                    with contextlib.suppress(Exception):
-                        ctx.receipt_projection(team_id, receipt)
-                await _broadcast(
-                    team_id,
-                    {
-                        "type": "message:receipt",
-                        "team_id": team_id,
-                        **receipt,
-                    },
-                )
+                await _dispatch_room_receipt(ctx, team_id, participant_id, msg)
             elif msg_type == "cursor":
                 msg_thread_id = str(msg.get("thread_id") or thread_id or "").strip() or None
                 await _broadcast(
@@ -806,9 +840,7 @@ async def team_room_ws(ctx: TeamRoomWsContext, ws: WebSocket, team_id: str) -> N
                     "type": "message",
                     "team_id": team_id,
                     "thread_id": msg_thread_id,
-                    "message_id": persisted["message_id"],
-                    "client_message_id": persisted["client_message_id"],
-                    "seq": persisted["seq"],
+                    **persisted,
                     "delivery_status": "sent",
                     "participant_id": speaker.id,
                     "display_name": speaker.display_name,
@@ -820,7 +852,7 @@ async def team_room_ws(ctx: TeamRoomWsContext, ws: WebSocket, team_id: str) -> N
                         else {}
                     ),
                     "text": clean_text,
-                    "created_at": _now(),
+                    "created_at": persisted.get("created_at") or _now(),
                 }
                 # The server echo is the sender's delivery acknowledgement;
                 # peers receive the exact same canonical message envelope.

@@ -445,12 +445,9 @@ def _register_room_messages(router: APIRouter, d: CoworkGroupDeps) -> None:
         metadata["sender_driver"] = sender_driver
         try:
             canonical_store = _collaboration_store()
-            source_message_id = str(metadata.get("source_message_id") or "")
-            existing_source = (
-                canonical_store.message_by_source_id(thread_id, source_message_id)
-                if source_message_id
-                else None
-            )
+            from runtime.memory.cowork.room_transcript import RoomTranscript
+
+            RoomTranscript(canonical_store, _room_message_store).ensure(room_id)
             seq = canonical_store.append_message(
                 thread_id,
                 room_id=room_id,
@@ -462,16 +459,8 @@ def _register_room_messages(router: APIRouter, d: CoworkGroupDeps) -> None:
             message = canonical_store.message_for_session(thread_id, seq)
         except ValueError as exc:
             raise HTTPException(400, str(exc)) from exc
-        if existing_source is None:
-            with suppress(Exception):  # legacy transcript projection is best-effort
-                _room_message_store().append(
-                    room_id,
-                    text=body.text,
-                    participant_id=participant_id,
-                    display_name=display_name,
-                    sender_kind=sender_kind,
-                    sender_driver=sender_driver,
-                )
+        except Exception as exc:  # noqa: BLE001 - no ACK or legacy fallback on storage failure
+            raise HTTPException(503, "Room messages are temporarily unavailable") from exc
         background_tasks.add_task(_broadcast_social_change, room_id, thread_id, "message")
         return {"ok": True, "room_id": room_id, "seq": seq, "message": message}
 

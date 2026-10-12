@@ -6,6 +6,7 @@ import sqlite3
 import threading
 from typing import Any, Protocol
 
+from runtime.memory.cowork._collaboration_room_messages import move_room_messages
 from runtime.memory.cowork.ids import require_cowork_id
 
 
@@ -113,10 +114,7 @@ def upsert_room(
                     "UPDATE collaboration_tasks SET session_id=? WHERE room_id=? AND task_authority!='team'",
                     (session_id, room_id),
                 )
-            conn.execute(
-                "UPDATE collaboration_messages SET session_id=? WHERE room_id=?",
-                (session_id, room_id),
-            )
+            move_room_messages(conn, room_id, session_id)
             conn.execute("DELETE FROM collaboration_rooms WHERE room_id=?", (room_id,))
         if row is not None and str(row[0]) != room_id:
             conn.execute(
@@ -273,10 +271,7 @@ def upsert_project_room(
                 "UPDATE collaboration_tasks SET session_id=? WHERE room_id=?",
                 (session_id, room_id),
             )
-            conn.execute(
-                "UPDATE collaboration_messages SET session_id=? WHERE room_id=?",
-                (session_id, room_id),
-            )
+            move_room_messages(conn, room_id, session_id)
             conn.execute("DELETE FROM collaboration_rooms WHERE room_id=?", (room_id,))
         conn.execute(
             "INSERT INTO collaboration_rooms(session_id, room_id, room_json, created_at, updated_at) "

@@ -12,6 +12,7 @@ def register_room_message_reader(
     require_member: Callable[[Request, str], Any],
     provider: Callable[[str, int, int, str], list[dict[str, Any]] | None] | None,
     legacy_store: Any,
+    transcript: Any = None,
 ) -> None:
     @router.get("/api/teams/{team_id}/messages")
     def get_room_messages(
@@ -20,11 +21,19 @@ def register_room_message_reader(
         limit: int = 200,
         after_seq: int = 0,
         q: str = "",
+        cursor_epoch: str = "",
     ) -> dict[str, Any]:
         """Durable room transcript — reconnect catch-up (``after_seq``) and
         search (``q``). Closes the gap where room chat was live-only / a 20-line
         in-memory ring."""
         require_member(request, team_id)
+        if transcript is not None:
+            try:
+                return transcript.page(
+                    team_id, limit=limit, after_seq=after_seq, query=q, cursor_epoch=cursor_epoch
+                )
+            except Exception as exc:  # noqa: BLE001 - no alternate source on migration/read failure
+                raise HTTPException(503, "Room messages are temporarily unavailable") from exc
         messages: list[dict[str, Any]] | None = None
         if provider is not None:
             try:

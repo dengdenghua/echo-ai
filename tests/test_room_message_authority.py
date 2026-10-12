@@ -1,6 +1,5 @@
 """An empty/failed canonical source never becomes a different room log."""
 
-from functools import partial
 from types import SimpleNamespace
 
 import pytest
@@ -9,7 +8,7 @@ from fastapi.testclient import TestClient
 
 from runtime.memory.cowork.collaboration_store import CollaborationStore
 from runtime.memory.cowork.room_messages import RoomMessageStore
-from runtime.platform.ui._app_agents import _collaboration_room_messages
+from runtime.memory.cowork.room_transcript import RoomTranscript
 from runtime.sensing.gateway._cowork_group_session import CoworkGroupSessionView
 from runtime.sensing.gateway.team_rooms_router import create_team_rooms_router
 
@@ -21,16 +20,12 @@ def linked_room(tmp_path):
     app = FastAPI()
     app.state.collaboration_store = canonical
 
-    def write(room_id, message):
-        return canonical.append_message_for_room(room_id, **message)
-
     app.include_router(
         create_team_rooms_router(
             state_path=tmp_path / "rooms.json",
             room_message_store=legacy,
             room_projection=canonical.upsert_room_by_id,
-            room_message_projection=write,
-            room_message_provider=partial(_collaboration_room_messages, app),
+            collaboration_store=canonical,
         )
     )
     with TestClient(app) as client:
@@ -44,28 +39,35 @@ def linked_room(tmp_path):
             },
         )
         assert response.status_code == 200, response.text
-        yield client, canonical, legacy, response.json()["id"]
+        room_id = response.json()["id"]
+        RoomTranscript(canonical, lambda: legacy).ensure(room_id)
+        yield client, canonical, legacy, room_id
 
 
 @pytest.mark.parametrize("params", [{"after_seq": 1}, {"q": "obsolete"}])
-def test_empty_canonical_http_result_does_not_resurrect_shadow(linked_room, params):
+def test_empty_canonical_http_result_does_not_resurrect_shadow(linked_room, params, monkeypatch):
     client, canonical, legacy, room_id = linked_room
     canonical.append_message_for_room(room_id, text="current", participant_id="owner-local")
-    legacy.append(room_id, text="obsolete shadow", participant_id="old")
+
+    def retired_source():
+        raise AssertionError("retired source must never be consulted")
+
+    monkeypatch.setattr(legacy, "history", lambda *_args, **_kwargs: retired_source())
+    params = dict(params)
+    if "after_seq" in params:
+        params["cursor_epoch"] = RoomTranscript(canonical, retired_source).epoch(room_id)
     response = client.get(f"/api/teams/{room_id}/messages", params=params)
     assert response.status_code == 200
     assert response.json()["messages"] == []
-    assert legacy.history(room_id)[0]["text"] == "obsolete shadow"
 
 
 def test_canonical_read_error_is_retryable_without_shadow_or_error_leak(linked_room, monkeypatch):
     client, canonical, legacy, room_id = linked_room
-    legacy.append(room_id, text="obsolete shadow")
 
     def failed(*args, **kwargs):
         raise RuntimeError("private-storage-path")
 
-    monkeypatch.setattr(canonical, "messages_for_room", failed)
+    monkeypatch.setattr(canonical, "_connect", failed)
     response = client.get(f"/api/teams/{room_id}/messages")
     assert response.status_code == 503
     assert response.json() == {"detail": "Room messages are temporarily unavailable"}
@@ -126,12 +128,40 @@ def test_explicit_no_canonical_source_retains_standalone_history(tmp_path):
         assert response.json()["messages"][0]["text"] == "original line"
 
 
-def test_empty_linked_session_search_keeps_canonical_source(tmp_path):
+def test_ws_receipt_failure_is_retryable_and_never_writes_legacy(linked_room, monkeypatch):
+    client, canonical, legacy, room_id = linked_room
+    connect = canonical._connect
+    with client.websocket_connect(
+        f"/api/teams/{room_id}/ws?participant_id=owner-local&display_name=Owner"
+    ) as socket:
+        assert socket.receive_json()["type"] == "ready"
+        assert socket.receive_json()["type"] == "presence"
+        socket.send_json({"type": "message", "text": "actual message"})
+        message = socket.receive_json()
+
+        def unavailable():
+            raise OSError("private-storage-path")
+
+        monkeypatch.setattr(canonical, "_connect", unavailable)
+        socket.send_json({"type": "message:read", "message_id": message["message_id"], "seq": 999})
+        error = socket.receive_json()
+        assert error["type"] == "message:receipt:error" and error["retryable"]
+        assert "private-storage-path" not in str(error)
+        monkeypatch.setattr(canonical, "_connect", connect)
+        assert legacy.receipts(room_id) == []
+        assert canonical.messages_for_room(room_id)[0]["receipts"] == []
+        socket.send_json({"type": "message:read", "message_id": message["message_id"], "seq": 999})
+        receipt = socket.receive_json()
+        assert receipt["type"] == "message:receipt" and receipt["seq"] == 1
+        assert canonical.messages_for_room(room_id)[0]["receipts"][0]["status"] == "read"
+
+
+def test_linked_session_imports_history_then_never_reads_retired_source(tmp_path, monkeypatch):
     canonical = CollaborationStore(tmp_path / "canonical")
     canonical.upsert_room("thread-source", {"id": "room-source", "name": "Source"})
     canonical.append_message_for_room("room-source", text="current")
     legacy = RoomMessageStore(tmp_path / "legacy")
-    legacy.append("room-source", text="obsolete shadow")
+    legacy.append("room-source", text="original history")
     view = CoworkGroupSessionView(
         group_store=SimpleNamespace(),
         collaboration_store=lambda: canonical,
@@ -141,8 +171,17 @@ def test_empty_linked_session_search_keeps_canonical_source(tmp_path):
         team_rooms_state_path=tmp_path / "missing-rooms.json",
         team_tasks_state_path=tmp_path / "tasks.json",
     )
-    assert view.room_messages("thread-source", "room-source")[0]["text"] == "current"
-    assert view.message_search("thread-source").search("room-source", "obsolete") == []
+    assert [m["text"] for m in view.room_messages("thread-source", "room-source")] == [
+        "original history",
+        "current",
+    ]
+    assert view.message_search("thread-source").search("room-source", "original")
+
+    def retired_source(*args, **kwargs):
+        raise AssertionError("retired source must never be consulted")
+
+    monkeypatch.setattr(legacy, "history", retired_source)
+    assert view.message_search("thread-source").search("room-source", "absent") == []
 
 
 def test_provider_explicit_empty_source_never_reads_legacy(tmp_path):

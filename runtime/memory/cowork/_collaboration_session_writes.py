@@ -165,27 +165,19 @@ def append_message(
     with store._lock, store._connect() as conn:
         conn.execute("BEGIN IMMEDIATE")
         _require_room_session(conn, session_id=session_id, room_id=room_id)
-        source_message_id = str(message_metadata.get("source_message_id") or "")
-        if source_message_id:
-            existing = conn.execute(
-                "SELECT seq, room_id, participant_id, display_name, text "
-                "FROM collaboration_messages "
-                "WHERE session_id = ? "
-                "AND CASE WHEN json_valid(metadata_json) "
-                "THEN json_extract(metadata_json, '$.source_message_id') END = ?",
-                (session_id, source_message_id),
-            ).fetchone()
-            if existing:
-                if (
-                    str(existing[1] or "") != room_id
-                    or str(existing[2] or "") != participant_id
-                    or str(existing[3] or "") != display_name
-                    or str(existing[4] or "") != text
-                ):
-                    raise ValueError(
-                        "source_message_id already belongs to a different room message"
-                    )
-                return int(existing[0])
+        from runtime.memory.cowork._collaboration_message_identity import existing_room_message
+
+        existing = existing_room_message(
+            conn,
+            session_id=session_id,
+            room_id=room_id,
+            participant_id=participant_id,
+            display_name=display_name,
+            text=text,
+            metadata=message_metadata,
+        )
+        if existing is not None:
+            return existing
         cur = conn.execute(
             "INSERT INTO collaboration_messages("
             "session_id, seq, room_id, participant_id, display_name, text, ts, metadata_json"

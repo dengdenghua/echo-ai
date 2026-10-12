@@ -55,7 +55,6 @@ from .team_rooms_models import (
 )
 from .team_rooms_ws import (
     TeamRoomWsContext,
-    team_room_ws,
 )
 from .team_speaker_policy import (
     _authorized_to_speak_for,
@@ -98,6 +97,7 @@ def create_team_rooms_router(
     jwt_audience: str | None = None,
     reset_callback: Any = None,
     room_message_store: Any = None,
+    collaboration_store: Any = None,
     room_projection: Callable[[dict[str, Any]], None] | None = None,
     room_delete_projection: Callable[[str], None] | None = None,
     room_message_projection: Callable[[str, dict[str, Any]], int | None] | None = None,
@@ -859,13 +859,6 @@ def create_team_rooms_router(
         project_id_for=_project_id_for_room,
         refresh_rooms=_refresh_state,
     )
-    if room_message_store is None:
-        from runtime.memory.cowork.room_messages import RoomMessageStore
-
-        room_message_store = RoomMessageStore(
-            base_dir=(state_path.parent / "teamroom") if state_path else None,
-        )
-
     _ws_ctx = TeamRoomWsContext(
         teams=teams,
         lock=lock,
@@ -882,25 +875,21 @@ def create_team_rooms_router(
         refresh=_refresh_state,
         require_auth=require_auth,
         twin_responder=twin_responder,
-        message_store=room_message_store,
+    )
+
+    from ._team_room_transcript import register_team_transcript
+
+    register_team_transcript(
+        router,
+        _ws_ctx,
+        state_path=state_path,
+        canonical_store=collaboration_store,
+        legacy_store=room_message_store,
+        provider=room_message_provider,
         message_projection=room_message_projection,
         receipt_projection=room_receipt_projection,
-    )
-
-    from ._team_room_messages import register_room_message_reader
-
-    register_room_message_reader(
-        router,
         require_member=_require_member,
-        provider=room_message_provider,
-        legacy_store=room_message_store,
     )
-
-    @router.websocket("/api/teams/{team_id}/ws")
-    async def team_room_ws_route(ws: WebSocket, team_id: str) -> None:
-        """Realtime Team Room presence + event broadcast — see
-        team_rooms_ws.team_room_ws (split out to keep this module small)."""
-        await team_room_ws(_ws_ctx, ws, team_id)
 
     return router
 

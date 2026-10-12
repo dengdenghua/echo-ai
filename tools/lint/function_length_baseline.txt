@@ -11,7 +11,7 @@ runtime/sensing/gateway/agent_world_router.py::create_agent_world_router	961
 runtime/core/cerebrum/react_model_stream.py::_phase_6b_model_stream	946
 runtime/sensing/gateway/computer_router.py::create_computer_router	269
 runtime/core/cerebrum/react_loop.py::_stream_react_loop_impl	899
-runtime/sensing/gateway/team_rooms_router.py::create_team_rooms_router	817
+runtime/sensing/gateway/team_rooms_router.py::create_team_rooms_router	807
 runtime/platform/ui/_app_routers.py::mount_routers_a	753
 runtime/platform/ui/_app_routers_extra.py::mount_routers_b	762
 runtime/sensing/gateway/_fs_router_endpoints.py::register_endpoints	663
@@ -35,7 +35,7 @@ runtime/sensing/gateway/loop_router.py::create_loop_router	579
 runtime/sensing/gateway/stub_router.py::create_stub_router	552
 runtime/sensing/gateway/plugins_router.py::create_plugins_router	546
 runtime/sensing/gateway/subagents_router.py::create_subagents_router	543
-runtime/sensing/gateway/team_rooms_ws.py::team_room_ws	476
+runtime/sensing/gateway/team_rooms_ws.py::team_room_ws	457
 runtime/sensing/gateway/task_runs_router.py::create_task_runs_router	508
 runtime/platform/ui/_reflex_admin_editor.py::register_reflex_editor_endpoints	517
 runtime/cloud_edge/router.py::create_cloud_edge_router	495
@@ -101,7 +101,6 @@ runtime/adapters/integrations/local_auth/router.py::create_local_auth_router	271
 runtime/sensing/gateway/openai_gateway_router.py::create_openai_router._chat_completions_impl	281
 runtime/safety/recovery/gepa_bridge.py::record_winner_proposal_and_canary	280
 runtime/platform/ui/_reflex_admin_gepa_apply.py::register_gepa_apply	279
-runtime/platform/ui/_app_agents.py::mount_agents	241
 runtime/platform/plugins/cloud_catalog.py::CloudCatalog.plugin_statuses	277
 runtime/sensing/gateway/_config_endpoints_local_models.py::_register_local_models	277
 runtime/sensing/gateway/_agent_trace_router_promotion.py::register_promotion_endpoints	276

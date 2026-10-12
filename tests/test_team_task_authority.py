@@ -277,11 +277,11 @@ def test_unsupported_newer_schema_is_never_downgraded(tmp_path):
     authority = _authority(tmp_path)
     authority.create("session-1", _task())
     with authority.store._connect() as conn:
-        conn.execute("PRAGMA user_version=5")
+        conn.execute("PRAGMA user_version=6")
     with pytest.raises(SchemaTooNewError):
         CollaborationStore(tmp_path)
     with connect_closing(str(tmp_path / "collaboration.db")) as conn:
-        assert conn.execute("PRAGMA user_version").fetchone()[0] == 5
+        assert conn.execute("PRAGMA user_version").fetchone()[0] == 6
         assert conn.execute("SELECT COUNT(*) FROM collaboration_tasks").fetchone()[0] == 1
 
 
@@ -382,7 +382,7 @@ def test_migration_adopts_v1_database_without_replacing_projection(tmp_path):
         assert conn.execute("PRAGMA user_version").fetchone()[0] == 1
     authority = _authority(tmp_path)
     with authority.store._connect() as conn:
-        assert conn.execute("PRAGMA user_version").fetchone()[0] == 4
+        assert conn.execute("PRAGMA user_version").fetchone()[0] == 5
     authority.store.upsert_task("session-1", _task())
     assert authority.get("task-1") is None
     assert authority.store.tasks_for_session("session-1")[0]["id"] == "task-1"
