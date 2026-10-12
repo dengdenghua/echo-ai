@@ -60,3 +60,4 @@ fb9a584c3bd6b1889ddd65c49fc9fe4c730d0484:tests/test_redactor_budget_structlog.py
 fb9a584c3bd6b1889ddd65c49fc9fe4c730d0484:tests/test_redactor_budget_structlog.py:aws-access-token:44
 fb9a584c3bd6b1889ddd65c49fc9fe4c730d0484:tests/test_redactor_budget_structlog.py:generic-api-key:36
 fb9a584c3bd6b1889ddd65c49fc9fe4c730d0484:tests/test_redactor_budget_structlog.py:private-key:93
+cb6191270d3b141d2c57908582a589cc39817539:tests/test_channel_webhook_auth.py:generic-api-key:205

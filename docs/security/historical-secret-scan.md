@@ -31,6 +31,17 @@ new commits or generalize them into secret-value regex allowlists.
 
 ## Verification boundary
 
+A later scan of the current checkout includes the local remote-tracking
+wip/d-drive-native-ui-20261008 branch, which was absent from the earlier
+isolated ref inventory. Its cb6191270d3b141d2c57908582a589cc39817539 commit adds
+one exact fingerprint at tests/test_channel_webhook_auth.py:205. The matched
+call passes a synthetic service-account fixture, the ordered mock project
+number 1234567890, and a certificate provider generated inside the test. The
+test creates a fresh RSA signer and self-signed certificate at runtime; it
+does not contain an issued Google credential. This exception remains bound
+to that original commit, path, rule and line. The same path and line in a
+fresh commit must still be detected.
+
 The full historical scan must finish without scanner errors and report zero
 remaining findings using these exact fingerprints. A fresh commit at the
 same path and line as a reviewed fixture must still be rejected by the
