@@ -1,14 +1,24 @@
-# Echo
+# Echo AI
 
 > v0.1.0 · Apache-2.0
 
-Echo 是一个自托管的 **Agent OS** —— 以 `runtime/` 里的 Python 运行时为核心，跑通「规划 → 执行 → 观察 → 记忆 → 改进」的完整闭环：支持工具调用、记忆反思、安全治理、浏览器/桌面控制与自改进循环。
+Echo AI 是 Echo 家族的**桌面 AI 工作端**。本仓库同时包含共享的 Agent 运行时 —— 以 `runtime/` 里的 Python 运行时为核心，跑通「规划 → 执行 → 观察 → 记忆 → 改进」的完整闭环：支持工具调用、记忆反思、安全治理、浏览器/桌面控制与自改进循环。
 
 > 命名口径：品牌名 **Echo**；PyPI 发行名 `echo-ai-runtime`（`pip install echo-ai-runtime`）；运行时入口为 `python -m runtime`，导入包名始终是 `runtime`。
 
 IDE、浏览器、桌面应用与扩展只是产品表层；核心产品是 `runtime/`。
 
 English readers: [README.en.md](README.en.md)
+
+## Echo 三端定位
+
+| 产品 | 定位 | 使用与运行场景 |
+| --- | --- | --- |
+| [Echo AI](https://github.com/dengdenghua/echo-ai) | 桌面 AI 工作端 | 面向本机文件、代码、应用和工具的深入工作；交互体验参考 Codex 桌面端。 |
+| [Echo Mobile](https://github.com/dengdenghua/echo-mobile) | 手机 AI 入口 | 面向随身对话、语音沟通、任务发起和结果查看；交互体验参考手机上的 GPT 对话。 |
+| [Echo OS](https://github.com/dengdenghua/echo-os) | 私人云常驻执行环境 | 部署在用户自己的服务器、NAS 或私有虚拟机上，承载后台任务、浏览器与计算环境；运行形态参考 Dot 的云端电脑。 |
+
+这是三端的产品定位与协作方向，不代表所有跨端功能已经实现。桌面端可以本机执行；手机端和桌面端也可以连接私人云执行任务。助手和白幽灵小队属于执行成员，执行节点属于运行环境，两者不绑定为一对一关系。三端协作围绕统一身份、项目、任务与执行节点展开，具体实现状态以各仓库文档为准。
 
 ## 快速开始
 
