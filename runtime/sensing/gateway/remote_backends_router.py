@@ -33,6 +33,7 @@ from runtime.safety.auth.websocket_auth import (
     WebSocketAuthConfig,
     authenticate_websocket,
 )
+from runtime.sensing.gateway._remote_backend_lifetime import realtime_backend_lifetime
 from runtime.sensing.gateway.remote_transport import (
     BackendRegistry,
     SshTunnel,
@@ -391,43 +392,21 @@ def create_remote_backends_router(
             await ws.close(code=1008)
             return
 
-        forwarder: SshTunnelForwarder | None = None
-        connected = backend
-        if backend.wsl is not None:
-            with connect_remote_backend(backend) as local:
-                connected = local
-        elif backend.ssh is not None:
-            import asyncio
-
-            forwarder = SshTunnelForwarder(backend)
-            try:
-                connected = await asyncio.to_thread(forwarder.start)
-            except SshTunnelError as exc:
-                from runtime.sensing.gateway.remote_transport import (
-                    _ws_error_envelope,
-                )
-
-                registry.update_health(
-                    backend_id,
-                    status="error",
-                    detail=f"ssh_tunnel_failed: {exc}",
-                )
-                await ws.send_text(
-                    _ws_error_envelope(f"ssh_tunnel_failed: {exc}"),
-                )
-                await ws.close(code=1011)
-                return
         try:
-            await proxy_websocket(
-                connected,
-                ws,
-                auth_token=registry.auth_token(backend_id),
-            )
-        finally:
-            if forwarder is not None:
-                import asyncio
+            async with realtime_backend_lifetime(
+                backend, forwarder_factory=SshTunnelForwarder
+            ) as connected:
+                await proxy_websocket(
+                    connected,
+                    ws,
+                    auth_token=registry.auth_token(backend_id),
+                )
+        except SshTunnelError as exc:
+            from runtime.sensing.gateway.remote_transport import _ws_error_envelope
 
-                await asyncio.to_thread(forwarder.close)
+            registry.update_health(backend_id, status="error", detail=f"ssh_tunnel_failed: {exc}")
+            await ws.send_text(_ws_error_envelope(f"ssh_tunnel_failed: {exc}"))
+            await ws.close(code=1011)
 
     return router
 

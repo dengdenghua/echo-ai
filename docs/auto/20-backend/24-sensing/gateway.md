@@ -146,6 +146,7 @@ tier: "standard"
 | `_realtime_turn_reporting.py` | Terminal notifications, item closure and parked subagent report scheduling. |
 | `_realtime_turn_start_phases.py` | Straight-line startup phases of ``realtime_turn_lifecycle._start_turn``. |
 | `_realtime_turn_verification.py` | Verification evidence, bounded repair and terminal outcomes for one turn. |
+| `_remote_backend_lifetime.py` | Own a realtime tunnel until bounded startup and cleanup have both finished. |
 | `_task_approval_router.py` | One task approval route, with optional consent binding for upgraded clients. |
 | `_team_room_binding.py` | Canonical Team Room thread binding helpers. |
 | `_team_room_broadcast.py` | Local socket delivery plus tenant-fenced cross-worker room wake-ups. |
@@ -761,6 +762,12 @@ tier: "standard"
 | func | `def turn_for_user_item_id(logs_root, thread_id, user_item_id)` | Return the durable turn that already owns one client item id. |
 | func | `def turn_input_text(params)` |  |
 | func | `def existing_user_item_text(turn)` |  |
+
+### `_remote_backend_lifetime.py`
+
+| Kind | Symbol | Doc |
+| --- | --- | --- |
+| func | `async def realtime_backend_lifetime(backend, forwarder_factory)` |  |
 
 ### `_task_approval_router.py`
 

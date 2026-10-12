@@ -383,18 +383,21 @@ class SshTunnelForwarder:
         process = self._process
         self._process = None
         self._local_port = None
-        if process is None or process.poll() is not None:
+        if process is None:
             return
-        process.terminate()
         try:
-            process.wait(timeout=2.0)
-        except subprocess.TimeoutExpired:
-            process.kill()
-            with contextlib.suppress(subprocess.TimeoutExpired):
-                process.wait(timeout=1.0)
-        if process.stderr is not None:
-            with contextlib.suppress(OSError):
-                process.stderr.close()
+            if process.poll() is None:
+                process.terminate()
+                try:
+                    process.wait(timeout=2.0)
+                except subprocess.TimeoutExpired:
+                    process.kill()
+                    with contextlib.suppress(subprocess.TimeoutExpired):
+                        process.wait(timeout=1.0)
+        finally:
+            if process.stderr is not None:
+                with contextlib.suppress(OSError):
+                    process.stderr.close()
 
 
 @contextlib.contextmanager
