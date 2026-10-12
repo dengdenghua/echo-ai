@@ -38,6 +38,10 @@ def test_renewable_lease_keeps_identity_and_extends_expiry() -> None:
 def test_approval_envelope_enforces_narrower_range() -> None:
     class Heater(MobileDevice):
         @property
+        def capabilities(self) -> list[str]:
+            return ["set_temperature"]
+
+        @property
         def manifest(self) -> DeviceManifest:
             return DeviceManifest(
                 device_id=self.tentacle_id,
@@ -57,7 +61,6 @@ def test_approval_envelope_enforces_narrower_range() -> None:
     async def scenario() -> None:
         pool = TentaclePool()
         device = Heater("heater-1")
-        device._capabilities = ["set_temperature"]
         await device.connect()
         await pool.register(device)
         executor = DeviceActionExecutor(pool)

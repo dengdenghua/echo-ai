@@ -50,6 +50,7 @@ import {
   type VitalsMarks,
 } from "./stream-vitals";
 import { useStreamVitals } from "./use-stream-vitals";
+import { useThreadSessionScope } from "./session-scope";
 import {
   appendStreamTelemetry,
   createStreamTurnTelemetry,
@@ -84,6 +85,7 @@ interface PreparedLiveNotification {
 
 interface ThreadEpoch {
   threadId: string;
+  scope: string;
   generation: number;
 }
 
@@ -99,9 +101,7 @@ interface ManualResumeBridge {
 }
 
 function isSameThreadEpoch(left: ThreadEpoch, right: ThreadEpoch): boolean {
-  return (
-    left.threadId === right.threadId && left.generation === right.generation
-  );
+  return left.scope === right.scope && left.generation === right.generation;
 }
 
 const LIVE_DELTA_METHODS = new Set([
@@ -276,7 +276,11 @@ export interface UseRealtimeThreadValue {
    * consumes it at the next safe model boundary (never halfway through a
    * tool side effect). */
   steer: (params: { input: string; itemId?: string }) => Promise<void>;
-  resolveApproval: (requestId: string | number, accept: boolean, preparedRoles?: Record<string, string>) => void;
+  resolveApproval: (
+    requestId: string | number,
+    accept: boolean,
+    preparedRoles?: Record<string, string>,
+  ) => void;
   /** Live streaming vitals for the active turn (TTFT, delta cadence, stall
    * detection). Lets the status strip tell "model still working" apart
    * from "connection stuck". ``phase: "idle"`` between turns. */
@@ -428,16 +432,19 @@ function mergeTurnSnapshots(
 export function useRealtimeThread(
   args: UseRealtimeThreadArgs,
 ): UseRealtimeThreadValue {
+  const sessionScope = useThreadSessionScope(args.threadId);
   // React keeps this hook instance alive while the route swaps threads. A
   // synchronous generation invalidates public async operations on the first
   // render of B (and distinguishes A -> B -> A), before effect cleanup runs.
   const threadEpochRef = useRef<ThreadEpoch>({
     threadId: args.threadId,
+    scope: sessionScope,
     generation: 0,
   });
-  if (threadEpochRef.current.threadId !== args.threadId) {
+  if (threadEpochRef.current.scope !== sessionScope) {
     threadEpochRef.current = {
       threadId: args.threadId,
+      scope: sessionScope,
       generation: threadEpochRef.current.generation + 1,
     };
   }
@@ -446,10 +453,9 @@ export function useRealtimeThread(
     emptyConversation(args.threadId),
   );
   const [connected, setConnected] = useState(false);
-  const [connectionStatus, setConnectionStatus] = useState<{
-    threadId: string;
-    phase: ThreadConnectionPhase;
-  }>(() => ({ threadId: args.threadId, phase: "connecting" }));
+  const [connectionStatus, setConnectionStatus] = useState<
+    ThreadEpoch & { phase: ThreadConnectionPhase }
+  >(() => ({ ...threadEpoch, phase: "connecting" }));
 
   // Pending approvals are surfaced through state, but the resolution
   // map (requestId → resolver) lives here so we can reply on the
@@ -457,7 +463,11 @@ export function useRealtimeThread(
   const approvalResolvers = useRef<
     Map<
       string | number,
-      (decision: { action: string; reason?: string; preparedRoles?: Record<string, string> }) => void
+      (decision: {
+        action: string;
+        reason?: string;
+        preparedRoles?: Record<string, string>;
+      }) => void
     >
   >(new Map());
   // Client-side expiry timers, keyed like the resolvers. The server
@@ -513,7 +523,18 @@ export function useRealtimeThread(
   if (!defaultReplayCacheRef.current) {
     defaultReplayCacheRef.current = createDefaultReplayCache();
   }
-  const replayCache = args.replayCache ?? defaultReplayCacheRef.current;
+  // Injected stores own their namespace. The shared browser cache must never
+  // hydrate another host/account's turns just because its thread id matches.
+  const replayCache = useMemo<ReplayCacheStore>(() => {
+    if (args.replayCache) return args.replayCache;
+    const store = defaultReplayCacheRef.current!;
+    return {
+      load: () => store.load(sessionScope),
+      append: (_threadId, events, meta) =>
+        store.append(sessionScope, events, meta),
+      clear: () => store.clear(sessionScope),
+    };
+  }, [args.replayCache, sessionScope]);
   // Delivery watches for in-flight turn/start requests. The server holds
   // the turn/start RPC response until the whole turn has run to
   // completion, so ANY mid-turn socket drop rejects the pending request
@@ -644,7 +665,8 @@ export function useRealtimeThread(
   useEffect(() => {
     setState(emptyConversation(args.threadId));
     stateRef.current = emptyConversation(args.threadId);
-    setConnectionStatus({ threadId: args.threadId, phase: "connecting" });
+    setConnectionStatus({ ...threadEpoch, phase: "connecting" });
+    turnDeliveryWatchesRef.current.clear();
     resumeCursorRef.current = null;
     resumeStreamIdRef.current = null;
     vitalsMarksRef.current = emptyVitalsMarks();
@@ -652,6 +674,10 @@ export function useRealtimeThread(
     const timers = approvalTimers.current;
     const onIncomingRequest = async (req: JsonRpcRequest): Promise<unknown> =>
       new Promise((resolve) => {
+        if (!isSameThreadEpoch(threadEpoch, threadEpochRef.current)) {
+          resolve({ action: "decline", reason: "client disconnected" });
+          return;
+        }
         const pending: PendingApproval = {
           requestId: req.id,
           method: req.method,
@@ -659,6 +685,8 @@ export function useRealtimeThread(
           createdAt: new Date().toISOString(),
         };
         setState((prev) => {
+          if (!isSameThreadEpoch(threadEpoch, threadEpochRef.current))
+            return prev;
           const next: Conversation = {
             ...prev,
             pendingApprovals: [...prev.pendingApprovals, pending],
@@ -669,6 +697,8 @@ export function useRealtimeThread(
         approvalResolvers.current.set(req.id, (decision) => {
           // Strip from pendingApprovals once resolved.
           setState((prev) => {
+            if (!isSameThreadEpoch(threadEpoch, threadEpochRef.current))
+              return prev;
             const next: Conversation = {
               ...prev,
               pendingApprovals: prev.pendingApprovals.filter(
@@ -716,10 +746,11 @@ export function useRealtimeThread(
     let resumePermanentlyFailed = false;
 
     const setConnectionPhase = (phase: ThreadConnectionPhase): void => {
+      if (!isSameThreadEpoch(threadEpoch, threadEpochRef.current)) return;
       setConnectionStatus((current) =>
-        current.threadId === args.threadId && current.phase === phase
+        isSameThreadEpoch(current, threadEpoch) && current.phase === phase
           ? current
-          : { threadId: args.threadId, phase },
+          : { ...threadEpoch, phase },
       );
     };
 
@@ -1665,7 +1696,8 @@ export function useRealtimeThread(
     // Cache failures must never block or break the thread flow.
     let started = false;
     const start = (): void => {
-      if (started || cancelled) return;
+      if (started || cancelled || !isCurrentThreadClient(threadEpoch, client))
+        return;
       started = true;
       requestResume(client, "preserve-live");
       client.connect();
@@ -1673,7 +1705,13 @@ export function useRealtimeThread(
     void replayCache
       .load(args.threadId)
       .then((cached) => {
-        if (cancelled || !cached || cached.events.length === 0) return;
+        if (
+          cancelled ||
+          !isCurrentThreadClient(threadEpoch, client) ||
+          !cached ||
+          cached.events.length === 0
+        )
+          return;
         const replayed = replayEvents(cached.events, {
           threadId: args.threadId,
         }).conversation;
@@ -1734,6 +1772,7 @@ export function useRealtimeThread(
   }, [
     args.threadId,
     args.clientFactory,
+    isCurrentThreadClient,
     replayCache,
     applyNotificationEvents,
     persistTurnTelemetry,
@@ -1743,7 +1782,8 @@ export function useRealtimeThread(
   const startTurn = useCallback<UseRealtimeThreadValue["startTurn"]>(
     async (input) => {
       const client = clientRef.current;
-      if (!client) throw new Error("realtime client not ready");
+      if (!client || !isCurrentThreadClient(threadEpoch, client))
+        throw new Error("realtime client not ready for this session");
       const watch = {
         delivered: false,
         ...(input.clientItemId ? { clientItemId: input.clientItemId } : {}),
@@ -1793,13 +1833,14 @@ export function useRealtimeThread(
         turnDeliveryWatchesRef.current.delete(watch);
       }
     },
-    [args.threadId],
+    [args.threadId, isCurrentThreadClient, threadEpoch],
   );
 
   const steer = useCallback<UseRealtimeThreadValue["steer"]>(
     async ({ input, itemId }) => {
       const client = clientRef.current;
-      if (!client) throw new Error("realtime client not ready");
+      if (!client || !isCurrentThreadClient(threadEpoch, client))
+        throw new Error("realtime client not ready for this session");
       const turns = stateRef.current.turns;
       const active = turns.length > 0 ? turns[turns.length - 1] : null;
       if (!active || active.status !== "inProgress") {
@@ -1821,16 +1862,23 @@ export function useRealtimeThread(
         text,
       });
     },
-    [args.threadId],
+    [args.threadId, isCurrentThreadClient, threadEpoch],
   );
 
   const resolveApproval = useCallback<
     UseRealtimeThreadValue["resolveApproval"]
-  >((requestId, accept, preparedRoles) => {
-    const resolver = approvalResolvers.current.get(requestId);
-    if (!resolver) return;
-    resolver({ action: accept ? "accept" : "decline", ...(preparedRoles ? { preparedRoles } : {}) });
-  }, []);
+  >(
+    (requestId, accept, preparedRoles) => {
+      if (!isSameThreadEpoch(threadEpoch, threadEpochRef.current)) return;
+      const resolver = approvalResolvers.current.get(requestId);
+      if (!resolver) return;
+      resolver({
+        action: accept ? "accept" : "decline",
+        ...(preparedRoles ? { preparedRoles } : {}),
+      });
+    },
+    [threadEpoch],
+  );
 
   const resume = useCallback(async () => {
     const client = clientRef.current;
@@ -2015,7 +2063,7 @@ export function useRealtimeThread(
     UseRealtimeThreadValue["interrupt"]
   >(async () => {
     const client = clientRef.current;
-    if (!client) return;
+    if (!client || !isCurrentThreadClient(threadEpoch, client)) return;
     // Pull the active turn id off the latest state. If there is no
     // active turn we silently skip — clicking "stop" on a finished
     // conversation should not throw.
@@ -2029,6 +2077,7 @@ export function useRealtimeThread(
         turnId: active.id,
       },
     );
+    if (!isCurrentThreadClient(threadEpoch, client)) return;
     if (result.interrupted !== true) {
       // A false acknowledgement means this worker did not accept the stop.
       // Reconcile from durable server state, but never manufacture a terminal
@@ -2047,11 +2096,12 @@ export function useRealtimeThread(
         reason: "turn interrupted",
       });
     }
-  }, [args.threadId, resume]);
+  }, [args.threadId, isCurrentThreadClient, resume, threadEpoch]);
 
   const compact = useCallback<UseRealtimeThreadValue["compact"]>(async () => {
     const client = clientRef.current;
-    if (!client) throw new Error("realtime client not ready");
+    if (!client || !isCurrentThreadClient(threadEpoch, client))
+      throw new Error("realtime client not ready for this session");
     const result = await client.request<{
       compacted: boolean;
       reason?: string;
@@ -2062,12 +2112,13 @@ export function useRealtimeThread(
     });
     await resume();
     return result;
-  }, [args.threadId, resume]);
+  }, [args.threadId, isCurrentThreadClient, resume, threadEpoch]);
 
   const decideHunk = useCallback<UseRealtimeThreadValue["decideHunk"]>(
     async ({ turnId, itemId, hunkId, path, decision, diff }) => {
       const client = clientRef.current;
-      if (!client) throw new Error("realtime client not ready");
+      if (!client || !isCurrentThreadClient(threadEpoch, client))
+        throw new Error("realtime client not ready for this session");
       await client.request("item/fileChange/hunkDecide", {
         threadId: args.threadId,
         turnId,
@@ -2078,7 +2129,7 @@ export function useRealtimeThread(
         diff,
       });
     },
-    [args.threadId],
+    [args.threadId, isCurrentThreadClient, threadEpoch],
   );
 
   // React renders once with the previous hook state before the thread-change
@@ -2086,15 +2137,22 @@ export function useRealtimeThread(
   // otherwise promote `/new` to a fake existing thread and leak old messages,
   // approvals, or activity into the fresh workspace.
   const visibleState = useMemo(
-    () => visibleConversationForThread(state, args.threadId),
-    [args.threadId, state],
+    () =>
+      isSameThreadEpoch(connectionStatus, threadEpoch)
+        ? visibleConversationForThread(state, args.threadId)
+        : emptyConversation(args.threadId),
+    [args.threadId, connectionStatus, state, threadEpoch],
   );
-  const connectionPhase: ThreadConnectionPhase =
-    connectionStatus.threadId === args.threadId
-      ? connectionStatus.phase
-      : "connecting";
+  const visibleConnected =
+    isSameThreadEpoch(connectionStatus, threadEpoch) && connected;
+  const connectionPhase: ThreadConnectionPhase = isSameThreadEpoch(
+    connectionStatus,
+    threadEpoch,
+  )
+    ? connectionStatus.phase
+    : "connecting";
   const readyForMutations =
-    connected &&
+    visibleConnected &&
     connectionPhase === "ready" &&
     visibleState.resumeState === "resumed";
 
@@ -2121,7 +2179,7 @@ export function useRealtimeThread(
   return useMemo(
     () => ({
       state: visibleState,
-      connected,
+      connected: visibleConnected,
       connectionPhase,
       readyForMutations,
       vitals,
@@ -2136,7 +2194,7 @@ export function useRealtimeThread(
     }),
     [
       visibleState,
-      connected,
+      visibleConnected,
       connectionPhase,
       readyForMutations,
       vitals,

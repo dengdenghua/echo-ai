@@ -73,9 +73,10 @@ export function dedupeRunReviewEvents(
       (typeof event.id === "string" || typeof event.id === "number"
         ? event.id
         : undefined);
-    const key = explicitId != null
-      ? `id:${String(explicitId)}`
-      : `payload:${stableEventPayload(event)}`;
+    const key =
+      explicitId != null
+        ? `id:${String(explicitId)}`
+        : `payload:${stableEventPayload(event)}`;
     if (seen.has(key)) continue;
     seen.add(key);
     unique.push(event);
@@ -332,8 +333,9 @@ function SummaryTile({
   label: string;
   value: string;
 }) {
+  // Plain tile (no border): it already sits inside the panel's card.
   return (
-    <div className="rounded-lg border border-border-default bg-muted/20 p-3">
+    <div className="rounded-md bg-muted/40 px-3 py-2.5">
       <div className="flex items-center gap-2 text-xs uppercase tracking-wide text-muted-foreground">
         <Icon className="size-3.5" />
         {label}
@@ -400,102 +402,94 @@ export function RunReviewPanel() {
     [reviews],
   );
 
+  // One card for the whole section: header, stat tiles, then either the
+  // empty state or the run rows. No nested cards.
   return (
-    <div className="space-y-3">
-      <Card>
-        <CardHeader className="pb-3">
-          <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
-            <div>
-              <CardTitle className="flex items-center gap-2 text-sm font-semibold">
-                <ActivityIcon className="size-4 text-primary" />
-                {t.observabilityPage.runReviewTitle}
-              </CardTitle>
-              <p className="mt-1 text-xs leading-5 text-muted-foreground">
-                {t.observabilityPage.runReviewHint}
-              </p>
-            </div>
-            <div className="flex items-center gap-2">
-              <span className="flex items-center gap-1.5 text-xs uppercase tracking-wide text-muted-foreground">
-                <span
-                  className={cn(
-                    "size-2 rounded-full",
-                    connected ? "bg-success" : "bg-muted",
-                  )}
-                />
-                {connected
-                  ? t.observabilityPage.connected
-                  : t.observabilityPage.idle}
-              </span>
-              <Button
-                size="sm"
-                variant="ghost"
-                onClick={() => setPaused((value) => !value)}
-              >
-                {paused ? (
-                  <PlayIcon className="mr-1.5 size-3" />
-                ) : (
-                  <PauseIcon className="mr-1.5 size-3" />
+    <Card data-testid="run-review-panel">
+      <CardHeader className="pb-3">
+        <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+          <div>
+            <CardTitle className="flex items-center gap-2 text-sm font-semibold">
+              <ActivityIcon className="size-4 text-primary" />
+              {t.observabilityPage.runReviewTitle}
+            </CardTitle>
+            <p className="mt-1 text-xs leading-5 text-muted-foreground">
+              {t.observabilityPage.runReviewHint}
+            </p>
+          </div>
+          <div className="flex items-center gap-2">
+            <span className="flex items-center gap-1.5 text-xs uppercase tracking-wide text-muted-foreground">
+              <span
+                className={cn(
+                  "size-2 rounded-full",
+                  connected ? "bg-success" : "bg-muted",
                 )}
-                {paused
-                  ? t.observabilityPage.resume
-                  : t.observabilityPage.pause}
-              </Button>
-              <Button size="sm" variant="ghost" onClick={() => setEvents([])}>
-                {t.observabilityPage.clear}
-              </Button>
-            </div>
+              />
+              {connected
+                ? t.observabilityPage.connected
+                : t.observabilityPage.idle}
+            </span>
+            <Button
+              size="sm"
+              variant="ghost"
+              onClick={() => setPaused((value) => !value)}
+            >
+              {paused ? (
+                <PlayIcon className="mr-1.5 size-3" />
+              ) : (
+                <PauseIcon className="mr-1.5 size-3" />
+              )}
+              {paused ? t.observabilityPage.resume : t.observabilityPage.pause}
+            </Button>
+            <Button size="sm" variant="ghost" onClick={() => setEvents([])}>
+              {t.observabilityPage.clear}
+            </Button>
           </div>
-        </CardHeader>
-        <CardContent>
-          <div className="grid grid-cols-2 gap-3 md:grid-cols-5">
-            <SummaryTile
-              icon={ActivityIcon}
-              label={t.observabilityPage.runReviewRuns}
-              value={String(summary.runs)}
-            />
-            <SummaryTile
-              icon={RefreshCwIcon}
-              label={t.observabilityPage.runReviewRunning}
-              value={String(summary.running)}
-            />
-            <SummaryTile
-              icon={AlertTriangleIcon}
-              label={t.observabilityPage.runReviewErrors}
-              value={String(summary.errors)}
-            />
-            <SummaryTile
-              icon={CoinsIcon}
-              label={t.observabilityPage.runReviewTokens}
-              value={summary.tokens.toLocaleString()}
-            />
-            <SummaryTile
-              icon={CoinsIcon}
-              label={t.observabilityPage.runReviewCost}
-              value={formatUsd(summary.usd)}
-            />
-          </div>
-        </CardContent>
-      </Card>
+        </div>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        <div className="grid grid-cols-2 gap-2 md:grid-cols-5">
+          <SummaryTile
+            icon={ActivityIcon}
+            label={t.observabilityPage.runReviewRuns}
+            value={String(summary.runs)}
+          />
+          <SummaryTile
+            icon={RefreshCwIcon}
+            label={t.observabilityPage.runReviewRunning}
+            value={String(summary.running)}
+          />
+          <SummaryTile
+            icon={AlertTriangleIcon}
+            label={t.observabilityPage.runReviewErrors}
+            value={String(summary.errors)}
+          />
+          <SummaryTile
+            icon={CoinsIcon}
+            label={t.observabilityPage.runReviewTokens}
+            value={summary.tokens.toLocaleString()}
+          />
+          <SummaryTile
+            icon={CoinsIcon}
+            label={t.observabilityPage.runReviewCost}
+            value={formatUsd(summary.usd)}
+          />
+        </div>
 
-      {reviews.length === 0 ? (
-        <Card>
-          <CardContent className="py-12">
-            <div className="flex flex-col items-center justify-center gap-2 text-center">
-              <ActivityIcon className="size-7 text-muted-foreground" />
-              <div className="text-sm font-medium">
-                {t.observabilityPage.runReviewEmpty}
-              </div>
-              <div className="max-w-md text-xs leading-5 text-muted-foreground">
-                {t.observabilityPage.runReviewEmptyHint}
-              </div>
+        {reviews.length === 0 ? (
+          <div className="flex flex-col items-center justify-center gap-2 py-10 text-center">
+            <ActivityIcon className="size-7 text-muted-foreground" />
+            <div className="text-sm font-medium">
+              {t.observabilityPage.runReviewEmpty}
             </div>
-          </CardContent>
-        </Card>
-      ) : (
-        <div className="grid gap-3">
-          {reviews.map((run) => (
-            <Card key={run.id} className="py-4">
-              <CardHeader className="px-4 pb-2">
+            <div className="max-w-md text-xs leading-5 text-muted-foreground">
+              {t.observabilityPage.runReviewEmptyHint}
+            </div>
+          </div>
+        ) : (
+          <div className="divide-y divide-border-subtle border-t border-border-subtle">
+            {reviews.map((run) => (
+              <div key={run.id} className="space-y-3 py-4">
                 <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
                   <div className="min-w-0">
                     <div className="flex items-center gap-2">
@@ -536,8 +530,6 @@ export function RunReviewPanel() {
                     </Badge>
                   </div>
                 </div>
-              </CardHeader>
-              <CardContent className="space-y-3 px-4">
                 {run.tools.length > 0 && (
                   <div>
                     <div className="mb-1 text-xs font-medium uppercase tracking-wide text-muted-foreground">
@@ -577,7 +569,7 @@ export function RunReviewPanel() {
                 )}
 
                 {run.risks.length > 0 && (
-                  <div className="rounded-lg border border-warning/25 bg-warning/5 px-3 py-2">
+                  <div className="rounded-md bg-warning/5 px-3 py-2">
                     <div className="mb-1 flex items-center gap-1.5 text-xs font-medium uppercase tracking-wide text-warning">
                       <AlertTriangleIcon className="size-3" />
                       {t.observabilityPage.runReviewLearningSignals}
@@ -595,11 +587,11 @@ export function RunReviewPanel() {
                     </div>
                   </div>
                 )}
-              </CardContent>
-            </Card>
-          ))}
-        </div>
-      )}
-    </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </CardContent>
+    </Card>
   );
 }

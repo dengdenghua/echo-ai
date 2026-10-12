@@ -4,14 +4,14 @@ import {
   ArrowRightIcon,
   KeyRoundIcon,
   MailIcon,
-  SparklesIcon,
-  ZapIcon,
-  GitBranchIcon,
-  BoxesIcon,
   UserCircle2Icon,
 } from "lucide-react";
 
-import { EchoBrandMark } from "@/components/brand/echo-brand-mark";
+import {
+  EchoAgeFooter,
+  EchoAgeHeader,
+  EchoAgeShell,
+} from "@/components/brand/echo-age";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -27,33 +27,14 @@ import {
   loginPathWithReturnTo,
 } from "@/core/auth/return-to";
 import { useI18n } from "@/core/i18n/hooks";
+import { isEmbeddedWindow } from "@/components/workspace/embedded-window-bridge";
 import { useAuth } from "@/providers/AuthProvider";
 import { toast } from "sonner";
 
-function FloatingOrb({
-  className,
-  color,
-  size,
-  blur,
-}: {
-  className?: string;
-  color: string;
-  size: number;
-  blur: number;
-}) {
-  return (
-    <div
-      className={`pointer-events-none absolute rounded-full ${className}`}
-      style={{
-        width: size,
-        height: size,
-        background: color,
-        filter: `blur(${blur}px)`,
-        opacity: 0.6,
-      }}
-    />
-  );
-}
+const INPUT_CLASS =
+  "echo-age-input h-12 rounded-xl border-border/60 bg-card/50 pl-11 text-base transition-colors focus:border-primary/40 focus:bg-card";
+const INPUT_ICON_CLASS =
+  "pointer-events-none absolute left-4 top-1/2 size-[18px] -translate-y-1/2 text-muted-foreground/50";
 
 export default function RegisterPage() {
   const navigate = useNavigate();
@@ -124,125 +105,91 @@ export default function RegisterPage() {
 
   const features = [
     {
-      icon: ZapIcon,
       title: "极速响应",
       desc: "多智能体并行协作，任务秒级启动",
     },
     {
-      icon: GitBranchIcon,
       title: "灵活编排",
       desc: "可视化工作流，自由组合 Agent 能力",
     },
     {
-      icon: BoxesIcon,
       title: "万物连接",
       desc: "打通微信、钉钉、飞书，消息无缝流转",
     },
   ];
+  const embeddedWindow = isEmbeddedWindow();
 
   return (
-    <div className="relative flex min-h-screen items-center justify-center overflow-hidden bg-background">
-      {/* 背景渐变装饰 */}
-      <div className="pointer-events-none absolute inset-0">
-        <FloatingOrb
-          className="-top-32 -left-32"
-          color="linear-gradient(135deg, oklch(0.85 0.15 15), oklch(0.75 0.18 350))"
-          size={500}
-          blur={100}
-        />
-        <FloatingOrb
-          className="top-1/3 -right-40"
-          color="linear-gradient(135deg, oklch(0.8 0.12 260), oklch(0.75 0.15 220))"
-          size={450}
-          blur={120}
-        />
-        <FloatingOrb
-          className="-bottom-40 left-1/4"
-          color="linear-gradient(135deg, oklch(0.88 0.1 140), oklch(0.8 0.12 180))"
-          size={400}
-          blur={100}
-        />
-        <div
-          className="absolute inset-0 opacity-[0.03]"
-          style={{
-            backgroundImage: `radial-gradient(circle at 1px 1px, var(--foreground) 1px, transparent 0)`,
-            backgroundSize: "32px 32px",
-          }}
-        />
-      </div>
+    <EchoAgeShell embedded={embeddedWindow}>
+      <EchoAgeHeader status="JOIN ECHO" />
 
-      <div className="relative z-10 grid w-full max-w-6xl items-center gap-16 px-8 py-12 lg:grid-cols-[1.2fr_1fr] lg:gap-20">
-        {/* 左侧品牌区 */}
-        <div className="hidden flex-col justify-center space-y-10 lg:flex">
-          <div className="inline-flex items-center gap-3">
-            <EchoBrandMark size="lg" />
-            <span className="text-xl font-semibold tracking-tight">Echo</span>
+      <main className="echo-age-auth-layout">
+        <section
+          className="echo-age-auth-hero"
+          aria-labelledby="echo-register-title"
+        >
+          <div className="echo-age-eyebrow">THE ECHO ECOSYSTEM</div>
+          <h1 id="echo-register-title" className="echo-age-title">
+            <span>JOIN THE</span>
+            <strong>ECHO</strong>
+          </h1>
+          <div className="echo-age-subtitle">
+            <span />
+            <strong>回响纪元</strong>
+            <span />
           </div>
+          <p className="echo-age-lead">
+            <span>加入你的智能角色宇宙</span>
+            <small>注册一个账户，让不同角色在 ECHO 上协作、学习与进化。</small>
+          </p>
 
-          <div className="space-y-5">
-            <div className="inline-flex items-center gap-2 rounded-full border border-primary/15 bg-primary/5 px-3 py-1.5 text-xs font-medium text-primary">
-              <SparklesIcon className="size-3.5" />
-              加入你的智能角色宇宙
-            </div>
-            <h1 className="text-5xl font-bold leading-[1.1] tracking-tight lg:text-[3.5rem]">
-              创建账户
-              <br />
-              <span className="bg-gradient-to-r from-primary via-[oklch(0.65_0.18_20)] to-[oklch(0.6_0.16_320)] bg-clip-text text-transparent">
-                即刻开启
-              </span>
-            </h1>
-            <p className="max-w-md text-lg leading-relaxed text-muted-foreground">
-              注册一个账户，让不同角色在 EchoOS 上协作、学习与进化。
-            </p>
-          </div>
+          <ol className="mx-auto mt-11 grid max-w-[620px] grid-cols-3 gap-4 max-[820px]:hidden">
+            {features.map((feature, index) => (
+              <li
+                key={feature.title}
+                className="flex flex-col items-center gap-2.5 px-2 text-center"
+              >
+                <span className="echo-age-index">
+                  {String(index + 1).padStart(2, "0")}
+                </span>
+                <span className="text-xs font-medium tracking-[0.08em] text-[#c8cfdf]">
+                  {feature.title}
+                </span>
+                <span className="text-[11px] leading-relaxed text-[#747f98]">
+                  {feature.desc}
+                </span>
+              </li>
+            ))}
+          </ol>
+        </section>
 
-          <ul className="space-y-5">
-            {features.map((feature) => {
-              const Icon = feature.icon;
-              return (
-                <li key={feature.title} className="flex items-start gap-4">
-                  <div className="mt-0.5 flex size-10 shrink-0 items-center justify-center rounded-xl border border-border/60 bg-card/60 backdrop-blur-sm">
-                    <Icon
-                      className="size-5 text-primary/80"
-                      strokeWidth={1.8}
-                    />
-                  </div>
-                  <div className="space-y-1">
-                    <p className="text-[15px] font-semibold">{feature.title}</p>
-                    <p className="text-sm text-muted-foreground/80">
-                      {feature.desc}
-                    </p>
-                  </div>
-                </li>
-              );
-            })}
-          </ul>
-        </div>
-
-        {/* 右侧注册表单 */}
-        <div className="mx-auto w-full max-w-md">
-          <div className="mb-8 flex items-center justify-center gap-2.5 lg:hidden">
-            <EchoBrandMark size="md" />
-            <span className="text-lg font-semibold tracking-tight">Echo</span>
-          </div>
-
-          <Card className="overflow-hidden rounded-2xl border-border/50 bg-card/80 shadow-2xl shadow-black/[0.03] backdrop-blur-xl">
-            <CardHeader className="space-y-2.5 pb-6 pt-8 text-center">
-              <CardTitle className="text-2xl font-semibold tracking-tight">
+        <section
+          className="echo-age-auth-column"
+          aria-labelledby="echo-register-card-title"
+        >
+          <Card className="echo-age-card overflow-hidden rounded-[22px] border-border/50 bg-card/80 backdrop-blur-xl">
+            <CardHeader className="space-y-2.5 px-8 pb-6 pt-8 text-center">
+              <div className="echo-age-card-kicker">
+                <span /> JOIN THE ECHO
+              </div>
+              <CardTitle
+                id="echo-register-card-title"
+                className="text-2xl font-medium tracking-tight"
+              >
                 创建新账户
               </CardTitle>
               <CardDescription className="text-[15px] text-muted-foreground/80">
                 填写以下信息，只需一分钟
               </CardDescription>
             </CardHeader>
-            <CardContent className="px-8 pb-8 pt-0">
-              <form onSubmit={handleSubmit} className="space-y-4">
+            <CardContent className="px-8 pb-7 pt-0">
+              <form onSubmit={handleSubmit} className="echo-age-form space-y-4">
                 <div className="space-y-2.5">
                   <Label htmlFor="username" className="text-sm font-medium">
                     {t.registerPage.usernameLabel}
                   </Label>
                   <div className="relative">
-                    <UserCircle2Icon className="pointer-events-none absolute left-4 top-1/2 size-[18px] -translate-y-1/2 text-muted-foreground/50" />
+                    <UserCircle2Icon className={INPUT_ICON_CLASS} />
                     <Input
                       id="username"
                       type="text"
@@ -251,7 +198,7 @@ export default function RegisterPage() {
                       onChange={(e) => setUsername(e.target.value)}
                       autoComplete="username"
                       autoFocus
-                      className="h-12 rounded-xl border-border/60 bg-card/50 pl-11 text-base transition-colors focus:border-primary/40 focus:bg-card"
+                      className={INPUT_CLASS}
                     />
                   </div>
                 </div>
@@ -260,7 +207,7 @@ export default function RegisterPage() {
                     {t.registerPage.emailLabel}
                   </Label>
                   <div className="relative">
-                    <MailIcon className="pointer-events-none absolute left-4 top-1/2 size-[18px] -translate-y-1/2 text-muted-foreground/50" />
+                    <MailIcon className={INPUT_ICON_CLASS} />
                     <Input
                       id="email"
                       type="email"
@@ -268,7 +215,7 @@ export default function RegisterPage() {
                       value={email}
                       onChange={(e) => setEmail(e.target.value)}
                       autoComplete="email"
-                      className="h-12 rounded-xl border-border/60 bg-card/50 pl-11 text-base transition-colors focus:border-primary/40 focus:bg-card"
+                      className={INPUT_CLASS}
                     />
                   </div>
                 </div>
@@ -277,7 +224,7 @@ export default function RegisterPage() {
                     {t.registerPage.passwordLabel}
                   </Label>
                   <div className="relative">
-                    <KeyRoundIcon className="pointer-events-none absolute left-4 top-1/2 size-[18px] -translate-y-1/2 text-muted-foreground/50" />
+                    <KeyRoundIcon className={INPUT_ICON_CLASS} />
                     <Input
                       id="password"
                       type="password"
@@ -285,7 +232,7 @@ export default function RegisterPage() {
                       value={password}
                       onChange={(e) => setPassword(e.target.value)}
                       autoComplete="new-password"
-                      className="h-12 rounded-xl border-border/60 bg-card/50 pl-11 text-base transition-colors focus:border-primary/40 focus:bg-card"
+                      className={INPUT_CLASS}
                     />
                   </div>
                 </div>
@@ -297,7 +244,7 @@ export default function RegisterPage() {
                     {t.registerPage.confirmPasswordLabel}
                   </Label>
                   <div className="relative">
-                    <KeyRoundIcon className="pointer-events-none absolute left-4 top-1/2 size-[18px] -translate-y-1/2 text-muted-foreground/50" />
+                    <KeyRoundIcon className={INPUT_ICON_CLASS} />
                     <Input
                       id="confirmPassword"
                       type="password"
@@ -305,13 +252,13 @@ export default function RegisterPage() {
                       value={confirmPassword}
                       onChange={(e) => setConfirmPassword(e.target.value)}
                       autoComplete="new-password"
-                      className="h-12 rounded-xl border-border/60 bg-card/50 pl-11 text-base transition-colors focus:border-primary/40 focus:bg-card"
+                      className={INPUT_CLASS}
                     />
                   </div>
                 </div>
                 <Button
                   type="submit"
-                  className="h-12 w-full rounded-xl text-base font-medium shadow-lg shadow-primary/10 transition-all hover:shadow-xl hover:shadow-primary/15"
+                  className="echo-age-primary-button h-12 w-full rounded-xl text-base font-medium transition-all"
                   disabled={isSubmitting}
                 >
                   {isSubmitting
@@ -332,11 +279,9 @@ export default function RegisterPage() {
             </CardContent>
           </Card>
 
-          <p className="mt-6 text-center text-xs text-muted-foreground/50">
-            © {new Date().getFullYear()} Echo · Powered by EchoOS
-          </p>
-        </div>
-      </div>
-    </div>
+          <EchoAgeFooter />
+        </section>
+      </main>
+    </EchoAgeShell>
   );
 }

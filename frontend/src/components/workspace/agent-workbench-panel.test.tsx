@@ -17,6 +17,7 @@ import {
 import {
   AgentWorkbenchPanel,
   hasAgentWorkbenchContent,
+  type WorkbenchRosterSeat,
 } from "./agent-workbench-panel";
 import { AGENT_WORKBENCH_FOCUS_EVENT } from "./agent-workbench-events";
 import type { LiveToolEvent } from "./live-tool-timeline";
@@ -93,8 +94,30 @@ function listAfterSummaryLabel(label: string): HTMLElement {
 
 describe("<AgentWorkbenchPanel />", () => {
   test("keeps conversation diff history accessible when the current turn has no tool events", () => {
-    renderWorkbench(<AgentWorkbenchPanel activeTab="diff" events={[]} historyEvents={[event({ id: "old-change", name: "file_change", input: { changes: [{ path: "src/history.ts", op: "update", diff: "@@ -1 +1 @@\n-old\n+new" }] } })]} />);
-    fireEvent.click(screen.getByRole("button", { name: "会话记录", exact: true }));
+    renderWorkbench(
+      <AgentWorkbenchPanel
+        activeTab="diff"
+        events={[]}
+        historyEvents={[
+          event({
+            id: "old-change",
+            name: "file_change",
+            input: {
+              changes: [
+                {
+                  path: "src/history.ts",
+                  op: "update",
+                  diff: "@@ -1 +1 @@\n-old\n+new",
+                },
+              ],
+            },
+          }),
+        ]}
+      />,
+    );
+    fireEvent.click(
+      screen.getByRole("button", { name: "会话记录", exact: true }),
+    );
     expect(screen.getByTitle("src/history.ts")).toBeInTheDocument();
   });
   test("reports no workbench content for low-level transport events only", () => {
@@ -619,13 +642,14 @@ describe("<AgentWorkbenchPanel />", () => {
     expect(screen.queryByText("协作")).not.toBeInTheDocument();
 
     fireEvent.click(codexSeat);
-    expect(screen.getByRole("button", { name: "概要" })).toHaveClass(
+    expect(screen.getByRole("button", { name: "执行画面" })).toHaveClass(
       "border-foreground/70",
     );
-    expect(screen.queryByText("暂无独立进程活动")).not.toBeInTheDocument();
+    expect(screen.getByText("暂无独立进程活动")).toBeInTheDocument();
     expect(
-      screen.queryByRole("button", { name: "执行画面" }),
-    ).not.toBeInTheDocument();
+      screen.getByText("当该成员启动独立进程后，过程记录会显示在这里。"),
+    ).toBeInTheDocument();
+    expect(screen.getAllByText("Codex CLI").length).toBeGreaterThan(0);
 
     const mainComputerButton = screen.getByRole("button", {
       name: "当前对话 · 等待中",
@@ -661,6 +685,219 @@ describe("<AgentWorkbenchPanel />", () => {
       }),
     ).toBeInTheDocument();
     expect(within(bottomRail).queryByText("Local user")).toBeNull();
+  });
+
+  test.each(["member", "tl"])(
+    "opens a focused unstarted %s's own execution screen",
+    (role) => {
+      renderWorkbench(
+        <AgentWorkbenchPanel
+          focusedAgentId="zero"
+          focusedAgentNonce={1}
+          mainAgentName="Luna"
+          events={[]}
+          showMachineRosterRail={false}
+          rosterSeats={[{ id: "zero", name: "Zero", kind: "agent", role }]}
+        />,
+      );
+
+      expect(screen.getByRole("button", { name: "执行画面" })).toHaveClass(
+        "border-foreground/70",
+      );
+      expect(screen.getAllByText("Zero").length).toBeGreaterThan(0);
+      expect(screen.getByText("暂无独立进程活动")).toBeInTheDocument();
+      expect(screen.queryByText("Luna")).not.toBeInTheDocument();
+      expect(screen.queryByTestId("subagent-main-conversation")).toBeNull();
+    },
+  );
+
+  test("keeps an unresolved roster focus pending until the member arrives", () => {
+    const { rerender } = renderWorkbench(
+      <AgentWorkbenchPanel
+        events={[]}
+        focusedAgentId="zero"
+        focusedAgentNonce={1}
+      />,
+    );
+    expect(screen.queryByText("暂无独立进程活动")).toBeNull();
+
+    rerender(
+      <AgentWorkbenchPanel
+        events={[]}
+        focusedAgentId="zero"
+        focusedAgentNonce={1}
+        rosterSeats={[{ id: "zero", name: "Zero", kind: "agent" }]}
+      />,
+    );
+    expect(screen.getByText("暂无独立进程活动")).toBeInTheDocument();
+    expect(screen.getAllByText("Zero").length).toBeGreaterThan(0);
+  });
+
+  test("prefers an existing runtime process over a matching roster seat", () => {
+    renderWorkbench(
+      <AgentWorkbenchPanel
+        focusedAgentId="zero"
+        focusedAgentNonce={1}
+        rosterSeats={[{ id: "zero", name: "Zero", kind: "agent" }]}
+        events={[
+          event({
+            id: "zero-spawn",
+            name: "subagent_spawned",
+            agentId: "zero-runtime",
+            subAgentRole: "zero",
+            subagentCodename: "Zero",
+            status: "running",
+          }),
+        ]}
+      />,
+    );
+
+    expect(
+      screen.getByTestId("subagent-main-conversation"),
+    ).toBeInTheDocument();
+    expect(screen.queryByText("暂无独立进程活动")).toBeNull();
+  });
+
+  test.each([true, false])(
+    "connects a late runtime by member alias only while its seat remains selected (%s)",
+    (staySelected) => {
+      const seats: WorkbenchRosterSeat[] = [
+        { id: "roster-zero", name: "Zero", kind: "agent" },
+      ];
+      const { rerender } = renderWorkbench(
+        <AgentWorkbenchPanel
+          events={[]}
+          mainAgentName="Luna"
+          focusedAgentId="roster-zero"
+          focusedAgentNonce={1}
+          rosterSeats={seats}
+        />,
+      );
+      expect(screen.getByText("暂无独立进程活动")).toBeInTheDocument();
+      if (!staySelected) {
+        fireEvent.click(screen.getByRole("button", { name: "切回主电脑" }));
+      }
+
+      rerender(
+        <AgentWorkbenchPanel
+          mainAgentName="Luna"
+          focusedAgentId="roster-zero"
+          focusedAgentNonce={1}
+          rosterSeats={seats.map((seat) => ({ ...seat }))}
+          events={[
+            event({
+              id: "zero-late-spawn",
+              name: "subagent_spawned",
+              agentId: "zero-runtime",
+              subagentCodename: "Zero",
+              status: "running",
+            }),
+            event({
+              id: "zero-late-read",
+              name: "read_file",
+              agentId: "zero-runtime",
+              input: { path: "zero-only.md" },
+              startedAt: 2000,
+            }),
+          ]}
+        />,
+      );
+
+      expect(screen.queryByText("暂无独立进程活动")).toBeNull();
+      if (staySelected) {
+        expect(
+          screen.getByTestId("subagent-main-conversation"),
+        ).toBeInTheDocument();
+        expect(screen.queryByText("Luna")).toBeNull();
+      } else {
+        expect(screen.queryByTestId("subagent-main-conversation")).toBeNull();
+        expect(screen.getByText("Luna")).toBeInTheDocument();
+      }
+    },
+  );
+
+  test("consumes roster focus once but accepts a new nonce or a cleared intent", () => {
+    const seats: WorkbenchRosterSeat[] = [
+      { id: "zero", name: "Zero", kind: "agent" },
+    ];
+    const renderFocus = (nonce: number, focusId: string | null = "zero") => (
+      <AgentWorkbenchPanel
+        mainAgentName="Luna"
+        events={[]}
+        rosterSeats={seats.map((seat) => ({ ...seat }))}
+        focusedAgentId={focusId}
+        focusedAgentNonce={nonce}
+      />
+    );
+    const { rerender } = renderWorkbench(renderFocus(1));
+    fireEvent.click(screen.getByRole("button", { name: "切回主电脑" }));
+
+    rerender(renderFocus(1));
+    expect(screen.queryByText("暂无独立进程活动")).toBeNull();
+    expect(screen.getByText("Luna")).toBeInTheDocument();
+
+    rerender(renderFocus(2));
+    expect(screen.getByText("暂无独立进程活动")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "切回主电脑" }));
+    rerender(renderFocus(2, null));
+    expect(screen.getByText("Luna")).toBeInTheDocument();
+    rerender(renderFocus(2));
+    expect(screen.getByText("暂无独立进程活动")).toBeInTheDocument();
+  });
+
+  test("keeps an explicit roster summary intent and excludes human machine focus", () => {
+    const seats: WorkbenchRosterSeat[] = [
+      { id: "zero", name: "Zero", kind: "agent" },
+      { id: "human-user", name: "真人同事", kind: "human" },
+    ];
+    const { rerender } = renderWorkbench(
+      <AgentWorkbenchPanel
+        events={[]}
+        rosterSeats={seats}
+        focusedAgentId="zero"
+        focusedAgentView="summary"
+        focusedAgentNonce={1}
+      />,
+    );
+    expect(screen.getByRole("button", { name: "概要" })).toHaveClass(
+      "border-foreground/70",
+    );
+    expect(screen.queryByText("暂无独立进程活动")).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "执行画面" }));
+    expect(screen.getByText("暂无独立进程活动")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "切回主电脑" }));
+
+    rerender(
+      <AgentWorkbenchPanel
+        events={[]}
+        rosterSeats={seats}
+        focusedAgentId="human-user"
+        focusedAgentNonce={2}
+      />,
+    );
+    expect(screen.queryByText("暂无独立进程活动")).toBeNull();
+    expect(screen.queryByText("真人同事")).toBeNull();
+  });
+
+  test("resolves an avatar focus event to an unstarted roster member", () => {
+    const onSelectTab = vi.fn();
+    renderWorkbench(
+      <AgentWorkbenchPanel
+        events={[]}
+        onSelectTab={onSelectTab}
+        rosterSeats={[{ id: "zero", name: "Zero", kind: "agent" }]}
+      />,
+    );
+    act(() => {
+      window.dispatchEvent(
+        new CustomEvent(AGENT_WORKBENCH_FOCUS_EVENT, {
+          detail: { agentId: "zero", tab: "agent", view: "screen" },
+        }),
+      );
+    });
+    expect(screen.getByText("暂无独立进程活动")).toBeInTheDocument();
+    expect(screen.getAllByText("Zero").length).toBeGreaterThan(0);
+    expect(onSelectTab).toHaveBeenCalledWith("agent");
   });
 
   test("can move team roster avatars out while retaining runtime machine seats", () => {

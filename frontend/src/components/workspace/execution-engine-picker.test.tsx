@@ -82,7 +82,9 @@ it("offers two engines and Auto, without creating new native selections", async 
     "title",
     "Execution engine: Auto · OpenCode",
   );
-  expect(screen.getByTestId("execution-engine-trigger")).toHaveTextContent("");
+  expect(screen.getByTestId("execution-engine-trigger")).toHaveTextContent(
+    "Auto · OpenCode",
+  );
   expect(
     screen.getByRole("menuitem", { name: /Codex.*Connect a Codex account/ }),
   ).toHaveAttribute("aria-disabled", "true");

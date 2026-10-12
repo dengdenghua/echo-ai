@@ -24,6 +24,7 @@ import { ChatHeaderRecButton } from "@/components/workspace/realtime/chat-header
 
 import { ChatHeaderAgentBadge } from "@/components/workspace/realtime/chat-header-agent-badge";
 import { ConversationEmptyState } from "@/components/workspace/realtime/conversation-empty-state";
+import { ConversationRosterStrip } from "@/components/workspace/conversation-roster-strip";
 import { ProjectGroupHeaderBadge } from "@/components/workspace/realtime/project-group-header-badge";
 import { RealtimeGroupHeaderLayout } from "@/components/workspace/realtime/realtime-group-header-layout";
 import {
@@ -334,7 +335,9 @@ const CHAT_WORKDIR_KEY = executionStorageKey("chat:workdir:lastUsed");
 const CODE_WORKDIR_KEY = executionStorageKey("code:workdir:lastUsed");
 const RECENT_WORKDIRS_KEY = executionStorageKey("echo:recentWorkdirs");
 const AGENT_WORKBENCH_OPEN_KEY = "echo:agent-workbench-open";
-const GROUP_PERSPECTIVE_KEY_PREFIX = executionStorageKey("echo:group-perspective:");
+const GROUP_PERSPECTIVE_KEY_PREFIX = executionStorageKey(
+  "echo:group-perspective:",
+);
 const MAX_RECENT_WORKDIRS = 6;
 
 type ThreadRouteState = {
@@ -672,8 +675,12 @@ function RealtimePageContent({
   const [agentWorkbenchTabTouched, setAgentWorkbenchTabTouched] =
     useState(false);
   const [agentWorkbenchDismissed, setAgentWorkbenchDismissed] = useState(false);
+  // The remembered "open" preference is a desktop layout choice; restoring it
+  // on mobile would cover the composer with the bottom sheet on first paint.
   const [agentWorkbenchManuallyOpened, setAgentWorkbenchManuallyOpened] =
-    useState(() => (isNewThread ? false : readAgentWorkbenchOpenPreference()));
+    useState(() =>
+      isNewThread || isMobile ? false : readAgentWorkbenchOpenPreference(),
+    );
   const [focusedWorkbenchAgentId, setFocusedWorkbenchAgentId] = useState<
     string | null
   >(null);
@@ -901,11 +908,17 @@ function RealtimePageContent({
   const { mobileAgents } = useMobileDevices({
     enabled: collaboratorPickerOpen || hasPersistedCollaboration,
   });
-  const remoteAgents = useRemoteGroupAgents(collaboratorPickerOpen || hasPersistedCollaboration);
+  const remoteAgents = useRemoteGroupAgents(
+    collaboratorPickerOpen || hasPersistedCollaboration,
+  );
   const allTaskCollaboratorAgents = useMemo(
     () =>
       dedupePersonaAgentsByDisplayName(
-        dedupeAgentsByName([...remoteAgents, ...mobileAgents, ...builtinAgents]),
+        dedupeAgentsByName([
+          ...remoteAgents,
+          ...mobileAgents,
+          ...builtinAgents,
+        ]),
       ),
     [builtinAgents, mobileAgents, remoteAgents],
   );
@@ -942,6 +955,9 @@ function RealtimePageContent({
   }, []);
 
   useEffect(() => {
+    // Mobile never restores the preference, so it must not overwrite the
+    // desktop value either.
+    if (isMobile) return;
     try {
       window.localStorage.setItem(
         AGENT_WORKBENCH_OPEN_KEY,
@@ -950,7 +966,7 @@ function RealtimePageContent({
     } catch (e) {
       swallow(e, "storage");
     }
-  }, [agentWorkbenchManuallyOpened]);
+  }, [agentWorkbenchManuallyOpened, isMobile]);
 
   useEffect(() => {
     collaboratorSelectionTouchedRef.current = false;
@@ -987,12 +1003,15 @@ function RealtimePageContent({
   const location = useLocation();
   useEffect(() => {
     try {
-      if (!sessionStorage.getItem(`echo:browser-return:${location.pathname}`)) return;
+      if (!sessionStorage.getItem(`echo:browser-return:${location.pathname}`))
+        return;
       setAgentWorkbenchTab("browser");
       setAgentWorkbenchTabTouched(true);
       setAgentWorkbenchDismissed(false);
       setAgentWorkbenchManuallyOpened(true);
-    } catch { /* Returning to the conversation still works without storage. */ }
+    } catch {
+      /* Returning to the conversation still works without storage. */
+    }
   }, [location.pathname]);
   const routeState = (location.state as ThreadRouteState | null) ?? null;
   const projectWorkbenchRouteOpenedRef = useRef<string | null>(null);
@@ -1152,9 +1171,8 @@ function RealtimePageContent({
   // 同源修正存量数据。
   const effectiveAgentId = isNewThread
     ? activeAgentId
-    : (threadId === "echo-assistant"
-        ? "echo"
-        : resolvedThreadOwnerAgentId) || activeAgentId;
+    : (threadId === "echo-assistant" ? "echo" : resolvedThreadOwnerAgentId) ||
+      activeAgentId;
 
   // A bound project owns the right-hand surface. Otherwise the persona's
   // preset is the default, with the user's last manual tab remembered per
@@ -1691,7 +1709,9 @@ function RealtimePageContent({
         role,
         kind: participant.kind ?? "human",
         driver:
-          participant.kind === "human" ? "human" : (participant.driver ?? undefined),
+          participant.kind === "human"
+            ? "human"
+            : (participant.driver ?? undefined),
         accountableOwner: participant.accountable_owner ?? null,
         trust: trustByMemberId.get(id) ?? null,
       });
@@ -2162,8 +2182,7 @@ function RealtimePageContent({
       }
     };
     window.addEventListener("echo:workdir-selected", handler);
-    return () =>
-      window.removeEventListener("echo:workdir-selected", handler);
+    return () => window.removeEventListener("echo:workdir-selected", handler);
   }, [
     effectiveWorkDir,
     handleWorkDirChange,
@@ -3453,7 +3472,10 @@ function RealtimePageContent({
   const showAgentWorkbench =
     canOpenAgentWorkbench &&
     (agentWorkbenchManuallyOpened ||
-      (durableCollaborationEnabled &&
+      // On mobile the workbench is a modal bottom sheet over the composer, so
+      // collaboration never opens it on its own there; the user opens it.
+      (!isMobile &&
+        durableCollaborationEnabled &&
         !agentWorkbenchDismissed &&
         (!isNewThread || thread.isLoading || hasRenderableAgentWorkbench)) ||
       (!agentWorkbenchDismissed &&
@@ -3706,7 +3728,8 @@ function RealtimePageContent({
   // A restored Design preference uses the same home as an explicit mode switch.
   // Embedded chats must stay here so the Design host can render its conversation.
   useEffect(() => {
-    if (!isNewThread || embeddedDesignChat || projectAgentMode !== "uxui") return;
+    if (!isNewThread || embeddedDesignChat || projectAgentMode !== "uxui")
+      return;
     navigate(
       designWorkspaceRoute({
         newTask: true,
@@ -3715,8 +3738,14 @@ function RealtimePageContent({
       }),
       { replace: true },
     );
-  }, [isNewThread, embeddedDesignChat, projectAgentMode, navigate,
-    boundProjectState?.project.id, boundProjectState?.project.name]);
+  }, [
+    isNewThread,
+    embeddedDesignChat,
+    projectAgentMode,
+    navigate,
+    boundProjectState?.project.id,
+    boundProjectState?.project.name,
+  ]);
 
   const handleAcceptModeIntent = useCallback(
     async (mode: AgentModeName) => {
@@ -3853,11 +3882,7 @@ function RealtimePageContent({
       // when the user has hand-picked a mode we only suggest, never silently
       // switch. High-confidence verdicts auto-switch + toast; medium ones
       // surface the lightweight suggestion bar above the composer.
-      if (
-        isCodingWorkspaceMode &&
-        !isEchoAssistant &&
-        !isGroupConversation
-      ) {
+      if (isCodingWorkspaceMode && !isEchoAssistant && !isGroupConversation) {
         const verdict = classifyModeIntent(
           recentHumanMessageTexts(thread.messages),
         );
@@ -4879,7 +4904,11 @@ function RealtimePageContent({
                     timelineEntries={conversationTimelineEntries}
                     footer={
                       <>
-                        <ProjectProposalNotice threadId={threadId} busy={thread.isLoading || !thread.readyForMutations} onReview={handleSendFollowUp} />
+                        <ProjectProposalNotice
+                          threadId={threadId}
+                          busy={thread.isLoading || !thread.readyForMutations}
+                          onReview={handleSendFollowUp}
+                        />
                         {hasCompletedAgentOutput &&
                         hasFinalArtifact &&
                         !hasReportArtifact ? (
@@ -4905,7 +4934,12 @@ function RealtimePageContent({
                     )}
                   >
                     {mounted ? (
-                      <div className={cn("flex flex-col", isNewThread ? "gap-0" : "gap-2")}>
+                      <div
+                        className={cn(
+                          "flex flex-col",
+                          isNewThread ? "gap-0" : "gap-2",
+                        )}
+                      >
                         {isNewThread ? (
                           <div data-composer-welcome="true">
                             <Welcome
@@ -4986,8 +5020,12 @@ function RealtimePageContent({
                                 <ExecutionEnginePicker
                                   value={executionSelection.preference}
                                   resolvedEngine={selectedExecutionEngine}
-                                  codexCapabilityChecks={executionSelection.codexCapabilityChecks}
-                                  opencodeCapabilityChecks={executionSelection.opencodeCapabilityChecks}
+                                  codexCapabilityChecks={
+                                    executionSelection.codexCapabilityChecks
+                                  }
+                                  opencodeCapabilityChecks={
+                                    executionSelection.opencodeCapabilityChecks
+                                  }
                                   onChange={executionSelection.setPreference}
                                   codexAvailable={
                                     executionSelection.codexAvailable
@@ -5031,6 +5069,14 @@ function RealtimePageContent({
                                     }
                                   }
                                 : undefined
+                            }
+                            memberControls={
+                              !embeddedDesignChat && isGroupConversation ? (
+                                <ConversationRosterStrip
+                                  seats={collaborationRosterSeats}
+                                  onOpenMemberProcess={openAgentPanel}
+                                />
+                              ) : undefined
                             }
                             responseModeControl={
                               !embeddedDesignChat && isGroupConversation ? (
@@ -5123,7 +5169,9 @@ function RealtimePageContent({
                             onPermissionModeChange={handlePermissionModeChange}
                             onSubmit={handleSubmit}
                             onQueue={
-                              !embeddedDesignChat && !isGroupConversation && !legacyOnDemandThreadOwnerId
+                              !embeddedDesignChat &&
+                              !isGroupConversation &&
+                              !legacyOnDemandThreadOwnerId
                                 ? thread.messageQueue.enqueue
                                 : undefined
                             }

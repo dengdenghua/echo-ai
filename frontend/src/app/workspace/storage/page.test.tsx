@@ -1,4 +1,4 @@
-import { act, fireEvent, screen } from "@testing-library/react";
+import { act, fireEvent, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { useEffect } from "react";
 import { useLocation } from "react-router-dom";
@@ -53,6 +53,10 @@ vi.mock("@/core/storage/api", async (importOriginal) => ({
   getNASPolicy: vi.fn().mockResolvedValue({ mode: "privacy" }),
   listNASSources: vi.fn().mockResolvedValue([]),
   listNASDirectory: vi.fn().mockRejectedValue(new Error("HTTP 503")),
+  // Optional media lanes; settled individually once the manifest loads.
+  listNASApps: vi.fn().mockRejectedValue(new Error("HTTP 503")),
+  listNASFiles: vi.fn().mockRejectedValue(new Error("HTTP 503")),
+  listNASAlbums: vi.fn().mockRejectedValue(new Error("HTTP 503")),
   startNASService: vi.fn(),
 }));
 
@@ -70,21 +74,87 @@ beforeEach(() => {
 });
 
 it("explains a missing storage service without polling an uninstalled process", async () => {
+  const user = userEvent.setup();
   renderWithProviders(<StoragePage />, {
     locale: "zh-CN",
     initialRoute: "/workspace/storage?library=computer",
   });
-  expect(await screen.findByRole("alert")).toHaveTextContent(
-    /未找到 echo-storage/,
-  );
+  const alert = await screen.findByRole("alert");
+  expect(alert).toHaveTextContent("本地知识库未连接");
+  expect(alert).toHaveTextContent(/还没有本地知识库服务/);
   expect(startNASService).toHaveBeenCalledOnce();
   expect(getNASManifest).toHaveBeenCalledOnce();
-  expect(
-    screen.getByRole("button", { name: "扫描", exact: true }),
-  ).toBeDisabled();
-  expect(
-    screen.getByRole("button", { name: "效率", exact: true }),
-  ).toBeDisabled();
+
+  // The failure is shown once, with one action, not as banner + table + footer.
+  expect(screen.getAllByRole("alert")).toHaveLength(1);
+  expect(screen.getAllByRole("button", { name: /重新连接/ })).toHaveLength(1);
+  expect(screen.queryByText("无法读取当前目录")).not.toBeInTheDocument();
+  expect(screen.queryByText("重试读取")).not.toBeInTheDocument();
+  expect(screen.queryByText(/服务暂时无法连接/)).not.toBeInTheDocument();
+
+  // The env-var install hint is secondary detail, collapsed by default.
+  const details = within(alert).getByRole("button", { name: "技术细节" });
+  expect(details).toHaveAttribute("aria-expanded", "false");
+  expect(alert).not.toHaveTextContent("ECHO_STORAGE_CMD");
+  await user.click(details);
+  expect(alert).toHaveTextContent(/未找到 echo-storage.*ECHO_STORAGE_CMD/);
+
+  for (const name of ["授权", "扫描", "效率"]) {
+    expect(screen.getByRole("button", { name, exact: true })).toBeDisabled();
+  }
+});
+
+it("keeps the single offline state while a reconnect is in flight", async () => {
+  const user = userEvent.setup();
+  renderWithProviders(<StoragePage />, {
+    locale: "zh-CN",
+    initialRoute: "/workspace/storage?library=computer",
+  });
+  await screen.findByRole("alert");
+  let finishStart!: () => void;
+  vi.mocked(startNASService).mockImplementationOnce(
+    () =>
+      new Promise((resolve) => {
+        finishStart = () =>
+          resolve({
+            ok: false,
+            status: "not_found",
+            base_url: "/api/storage",
+            auth_token: null,
+          });
+      }),
+  );
+  await user.click(screen.getByRole("button", { name: /重新连接/ }));
+  const connecting = await screen.findByRole("button", { name: /连接中/ });
+  expect(connecting).toBeDisabled();
+  expect(screen.getAllByRole("alert")).toHaveLength(1);
+  expect(screen.getByRole("alert")).toHaveTextContent("本地知识库未连接");
+  await act(async () => finishStart());
+  expect(await screen.findByRole("button", { name: /重新连接/ })).toBeEnabled();
+  expect(startNASService).toHaveBeenCalledTimes(2);
+});
+
+it("shows a directory read failure once with a single retry action", async () => {
+  vi.mocked(getNASManifest)
+    .mockReset()
+    .mockResolvedValue({
+      service: "echo-storage",
+    } as unknown as Awaited<ReturnType<typeof getNASManifest>>);
+  renderWithProviders(<StoragePage />, {
+    locale: "zh-CN",
+    initialRoute: "/workspace/storage?library=computer",
+  });
+  const alert = await screen.findByRole("alert");
+  expect(alert).toHaveTextContent("无法读取当前目录");
+  expect(screen.getAllByRole("alert")).toHaveLength(1);
+  expect(screen.getAllByRole("button", { name: "重试读取" })).toHaveLength(1);
+  expect(screen.getAllByText(/服务暂时无法连接/)).toHaveLength(1);
+  expect(startNASService).not.toHaveBeenCalled();
+  expect(listNASDirectory).toHaveBeenCalledOnce();
+  await userEvent
+    .setup()
+    .click(screen.getByRole("button", { name: "重试读取" }));
+  expect(listNASDirectory).toHaveBeenCalledTimes(2);
 });
 
 it("mounts only the selected computer surface and preserves existing query parameters", async () => {
@@ -121,7 +191,7 @@ it("mounts only the selected computer surface and preserves existing query param
 
   await user.click(screen.getByRole("tab", { name: "文件", exact: true }));
   expect(await screen.findByRole("alert")).toHaveTextContent(
-    "未找到 echo-storage",
+    "本地知识库未连接",
   );
   expect(surfaces.organizerUnmounted).toHaveBeenCalledOnce();
   expect(

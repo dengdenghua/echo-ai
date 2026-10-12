@@ -29,6 +29,7 @@ export interface ContextCompressorProps {
   onCompress?: () => void | Promise<void>;
   disabled?: boolean;
   className?: string;
+  showPercentage?: boolean;
 }
 
 export function ContextCompressor(props: ContextCompressorProps) {
@@ -43,6 +44,7 @@ export function ContextCompressorControl({
   onCompress,
   disabled = false,
   className,
+  showPercentage = false,
   state,
 }: ContextCompressorProps & { state: ContextCompressionState }) {
   const { t, locale } = useI18n();
@@ -170,7 +172,8 @@ export function ContextCompressorControl({
               type="button"
               data-testid="context-usage-trigger"
               className={cn(
-                "flex size-8 shrink-0 items-center justify-center rounded-lg text-xs transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+                "flex shrink-0 items-center justify-center rounded-lg text-xs transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+                showPercentage ? "h-8 gap-1.5 px-1.5" : "size-8",
                 color,
                 className,
               )}
@@ -206,6 +209,11 @@ export function ContextCompressorControl({
                   />
                 ) : null}
               </svg>
+              {showPercentage ? (
+                <span className="tabular-nums" aria-hidden="true">
+                  {known ? `${percentage}%` : "—"}
+                </span>
+              ) : null}
             </button>
           </DropdownMenuTrigger>
         </TooltipTrigger>

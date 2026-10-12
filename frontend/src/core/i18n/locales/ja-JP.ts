@@ -76,8 +76,7 @@ export const jaJP: Translations = {
 
   // Home
   home: {
-    docs: "ドキュメント",
-    blog: "ブログ",
+    openWorkspace: "ワークスペースを開く",
   },
 
   // Welcome
@@ -432,6 +431,10 @@ export const jaJP: Translations = {
     deepResearchConfig: "リサーチ設定",
     conversationOptions: "会話オプション",
     executionMethod: "実行方式",
+    runSettings: "実行設定",
+    runSettingsWorkspace: "ワークスペース",
+    runSettingsWorkMode: "作業モード",
+    runSettingsLocation: "実行場所",
     roles: "サブエージェント",
     materials: "資料",
     collapse: "折りたたむ",
@@ -726,15 +729,12 @@ export const jaJP: Translations = {
 
   // Landing footer
   landingFooter: {
-    tagline: "オープンソース Agent OS",
-    productTitle: "Product",
-    workspaceLink: "Workspace",
-    aboutLink: "About",
-    workflowLink: "Workflows",
-    resourcesTitle: "Resources",
-    skillMarketLink: "スキルマーケット",
-    communityTitle: "Community",
-    wechat: "WeChat",
+    tagline: "セルフホスト型 Agent OS",
+    productTitle: "プロダクト",
+    workspaceLink: "ワークスペース",
+    aboutLink: "概要",
+    resourcesTitle: "リソース",
+    skillMarketLink: "スキル",
   },
 
   // Message grouping labels
@@ -2993,7 +2993,9 @@ export const jaJP: Translations = {
         generateConfig: "設定の説明を生成",
       },
       labels: {
-        permissions: "権限",
+        permissions: "権限と制限",
+        capabilitySummary: "作成後にできること",
+        technicalDetails: "技術詳細",
       },
       roles: [
         {
@@ -3443,7 +3445,8 @@ export const jaJP: Translations = {
       "タスク結果を確実に保存できませんでした。再試行するかバックエンドを再起動してください。",
     eventStreamOverloaded:
       "イベント処理が一時的に混雑しました。完了済みの手順は保持されています。再試行して続行してください。",
-    sidecarCleanupBlocked: "一時実行ディレクトリの削除が安全性チェックで停止されました。パスまたはマーカーが想定と一致しません。",
+    sidecarCleanupBlocked:
+      "一時実行ディレクトリの削除が安全性チェックで停止されました。パスまたはマーカーが想定と一致しません。",
     workspaceWriteRequired:
       "このタスクはプロジェクトファイルの変更が必要ですが、有効なファイル変更が記録されませんでした。",
     verificationRequired:
@@ -7379,7 +7382,8 @@ export const jaJP: Translations = {
       "echo はまだプルリクエストの取得元を接続していません。gh かホスト側 API を接続すると表示できます。",
     trackedOnly: "行数は追跡済みファイルのみを集計します。",
     diffUnavailable: "差分の取得に失敗し、行数を集計できません。",
-    unavailable: "ワークスペースの状態を取得できません。前回の内容を表示しています。",
+    unavailable:
+      "ワークスペースの状態を取得できません。前回の内容を表示しています。",
     processSection: "進捗",
     processProgress: (current, total) => `${current}/${total}`,
     processEmpty: "この実行のステップ一覧はまだありません。",
@@ -7728,41 +7732,13 @@ export const jaJP: Translations = {
     defaultStrategy: "デフォルト戦略",
     journalRow: (task: string, arm: string) => `タスク=${task} 戦略=${arm}`,
     subtitle:
-      "ランタイム内省パネル · 並列コラボ / ブラックボード / ジャーナルストリーム / 自己進化 / コンテキスト予算 / コスト",
+      "タスクの実行状況、コラボレーションイベント、リソース使用量、システム状態を確認できます。",
     shell: {
       startTask: "タスクを開始",
-      runReviewTitle: "実行レビュー",
-      runReviewDescription:
-        "順調だった箇所、失敗した箇所、詳しく確認すべき箇所を確認します。",
-      liveEventsTitle: "ライブイベント",
-      liveEventsDescription:
-        "コラボレーション、ブラックボード、ログを一つのイベントビューにまとめます。",
-      resourcesTitle: "リソースとコスト",
-      resourcesDescription:
-        "コンテキスト予算、トークン使用量、コスト集計を一か所で確認します。",
-      systemTitle: "システム状態",
-      systemDescription:
-        "自己進化、診断、バックエンド状態をまとめて確認します。",
       overviewTab: "概要",
       eventsTab: "イベント",
       resourcesTab: "リソースとコスト",
       systemTab: "システム",
-      overviewTitle: "まず概要を確認",
-      overviewDescription:
-        "健全性、イベント、リソース、システム状態を四つのビューに整理しています。",
-      openNewTask: "新しいタスクを開く",
-      eventsEyebrow: "イベント",
-      eventsTitle: "実行、コラボレーション、ログをまとめて表示",
-      eventsDescription:
-        "長いタブ列を移動せずに、実行レビュー、コラボレーション、ブラックボード、ログを確認できます。",
-      resourcesEyebrow: "リソースとコスト",
-      resourcesGroupTitle: "予算を先に、請求を次に",
-      resourcesGroupDescription:
-        "コンテキスト予算と支出を同じ階層で比較できます。",
-      systemEyebrow: "システム",
-      systemGroupTitle: "バックエンド状態と自己進化を統合",
-      systemGroupDescription:
-        "診断と自己進化を一つのシステムビューにまとめます。",
     },
     toolEffects: {
       title: "外部アクションの受領記録",
@@ -7808,8 +7784,6 @@ export const jaJP: Translations = {
     noConcurrentTasks: "同時実行タスクなし",
     noConcurrentTasksHint:
       "並列コラボを必要とするタスクを開始すると、サブ Agent のスキル呼び出しがここにリアルタイム表示されます。",
-    nestedSseNote:
-      "注: ネストされた sub_tool_start イベントはチャット SSE 内（単一ターン内）に存在します。ここに表示されるのはグローバルジャーナルの Step イベントストリームです。",
     journalEventStream: "ジャーナルイベントストリーム",
     // Tab names
     tabRuns: "実行",
@@ -7907,7 +7881,7 @@ export const jaJP: Translations = {
     latestCompose: "直近のコンテキスト構成",
     noComposeRecords: "まだコンテキスト構成記録がありません",
     noComposeRecordsHint:
-      "planner が ContextComposer.compose() を呼ぶとデータが表示されます。",
+      "タスクを実行すると、コンテキスト予算の使用状況がここに表示されます。",
     total: "合計",
     historyPrefix: "履歴 · 直近",
     hemolymphTable: {
@@ -8509,10 +8483,13 @@ export const jaJP: Translations = {
     manageExpert: "ロールのその他の操作",
     removeExpert: "ロールを削除",
     removeExpertTitle: (name: string) => `${name} を削除しますか？`,
-    removeExpertDescription: "このエキスパートとローカル設定をロール一覧から削除します。カタログから再度追加できます。",
+    removeExpertDescription:
+      "このエキスパートとローカル設定をロール一覧から削除します。カタログから再度追加できます。",
     removeExpertSuccess: (name: string) => `${name} を削除しました`,
-    removeExpertFailed: "ロールを削除できませんでした。もう一度お試しください。",
-    localExpertNotFound: "ローカルのロールを一意に特定できませんでした。更新してもう一度お試しください。",
+    removeExpertFailed:
+      "ロールを削除できませんでした。もう一度お試しください。",
+    localExpertNotFound:
+      "ローカルのロールを一意に特定できませんでした。更新してもう一度お試しください。",
     detailProfession: "分野",
     detailQuickPrompts: "クイックプロンプト",
     detailTags: "タグ",
@@ -8566,10 +8543,28 @@ export const jaJP: Translations = {
   },
 
   hero: {
-    releaseBadge: "Echo 2.0 リリース",
-    withEcho: "Echo と一緒に",
     heroDescription:
-      "オープンソースの SuperAgent フレームワーク。研究、コーディング、創作ができます。サンドボックス、メモリ、ツール、スキル、サブ Agent の助けを借りて、数分から数時間の様々なレベルのタスクを処理します。",
+      "Echo はセルフホスト型の Agent OS です。目標を計画に分解し、ガバナンスの効いたランタイムでツールを実行し、次の実行に役立つ記憶を残します。",
+    pillarsTitle: "覚え、理解し、行動し、あなたと共に成長する",
+    pillars: {
+      memory: {
+        title: "覚える",
+        description: "実行ごとに残る有用な記憶を、次の実行へ引き継ぎます。",
+      },
+      understand: {
+        title: "理解する",
+        description: "まず目標を把握し、それを明確な計画に落とし込みます。",
+      },
+      act: {
+        title: "行動する",
+        description:
+          "ガバナンスの効いたランタイムで、ツール・ブラウザ・ワークスペースを使って計画を実行します。",
+      },
+      grow: {
+        title: "あなたと共に成長する",
+        description: "実行のたびに振り返り、改善していきます。",
+      },
+    },
   },
 
   channelPairings: {
@@ -9701,6 +9696,12 @@ export const jaJP: Translations = {
       notConnected: "ローカル知識ベースサービスにまだ接続できません：{url}",
       networkError:
         "ローカル知識ベースサービスに接続できません。サービスが起動していることを確認して再試行してください。",
+      offlineTitle: "ローカル知識ベースに接続されていません",
+      offlineDescription:
+        "ローカルのファイルとインデックスを読み込めません。ローカル知識ベースサービスが起動していることを確認してから再接続してください。",
+      notInstalledDescription:
+        "このコンピューターにはまだローカル知識ベースサービスがありません。インストール後に再接続すると、ローカルファイルを閲覧・検索できます。",
+      technicalDetails: "技術詳細",
     },
     toolbar: {
       authorize: "許可",

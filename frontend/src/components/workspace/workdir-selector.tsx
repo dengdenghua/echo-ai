@@ -17,7 +17,6 @@ import {
   type FormEvent,
   useCallback,
   useEffect,
-  useMemo,
   useRef,
   useState,
 } from "react";
@@ -39,8 +38,7 @@ import { cn } from "@/lib/utils";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useAuth } from "@/providers/AuthProvider";
 import { useFeatureFlags } from "@/hooks/use-feature-flags";
-import { useProjects } from "@/core/projects/hooks";
-import { managedWorkdirThreadId, workdirDisplayName } from "./workdir-label";
+import { useWorkDirLabels } from "./workdir-label";
 import { WorktreeDialog } from "./worktree-dialog";
 
 interface WorkDirSelectorProps {
@@ -236,11 +234,10 @@ export function WorkDirSelector({
 }: WorkDirSelectorProps) {
   const isMutedVariant = variant === "muted";
   const { t, locale } = useI18n();
-  const personalSpaceLabel = designSpace
-    ? locale.toLowerCase().startsWith("zh")
-      ? "创作空间"
-      : "Creative space"
-    : t.codeMode.personalSpace;
+  const { personalSpaceLabel, folderName } = useWorkDirLabels(
+    workDir,
+    designSpace,
+  );
   const { authStatus, isAuthenticated, isLoading: authLoading } = useAuth();
   const featureFlags = useFeatureFlags();
   const remoteWorkspaceEnabled =
@@ -304,12 +301,6 @@ export function WorkDirSelector({
   const menuRef = useRef<HTMLDivElement>(null);
   const manualInputRef = useRef<HTMLInputElement>(null);
   const pendingBrowserPickedNameRef = useRef("");
-  const { data: projects = [] } = useProjects(Boolean(managedWorkdirThreadId(workDir)) && !authLoading && (isAuthenticated || authStatus?.enabled === false));
-  const managedLabel = locale.startsWith("zh") ? "任务工作区" : locale.startsWith("ja") ? "タスクのワークスペース" : locale.startsWith("ko") ? "작업 공간" : "Task workspace";
-  const folderName = useMemo(
-    () => workdirDisplayName(workDir, projects, managedLabel),
-    [workDir, projects, managedLabel],
-  );
   const lockedCopy = lockedWorkdirText(locale);
   const isEmpty = !workDir;
   const isWorkDirLocked = lockToCurrentThread;
@@ -737,16 +728,23 @@ export function WorkDirSelector({
         )}
 
         {folderPickerCta}
-        {workDir && !designSpace && (onWorkDirChange || onOpenWorkDirInNewTask) && (
-          <button
-            type="button"
-            onClick={() => { setShowMenu(false); setWorktreeOpen(true); }}
-            className="mt-1 flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-xs font-medium text-muted-foreground hover:bg-muted/60 hover:text-foreground"
-          >
-            <GitBranchIcon className="size-3.5 shrink-0" />
-            {locale.startsWith("zh") ? "隔离任务 · Worktrees" : "Isolated tasks · Worktrees"}
-          </button>
-        )}
+        {workDir &&
+          !designSpace &&
+          (onWorkDirChange || onOpenWorkDirInNewTask) && (
+            <button
+              type="button"
+              onClick={() => {
+                setShowMenu(false);
+                setWorktreeOpen(true);
+              }}
+              className="mt-1 flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-xs font-medium text-muted-foreground hover:bg-muted/60 hover:text-foreground"
+            >
+              <GitBranchIcon className="size-3.5 shrink-0" />
+              {locale.startsWith("zh")
+                ? "隔离任务 · Worktrees"
+                : "Isolated tasks · Worktrees"}
+            </button>
+          )}
 
         {noBridgeHint && (
           <div className="mt-2 rounded-md border border-border-default bg-muted/40 px-2 py-1.5 text-xs leading-snug text-muted-foreground">

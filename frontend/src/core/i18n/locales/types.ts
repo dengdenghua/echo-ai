@@ -61,8 +61,7 @@ export interface Translations {
   };
 
   home: {
-    docs: string;
-    blog: string;
+    openWorkspace: string;
   };
 
   // Welcome
@@ -359,6 +358,10 @@ export interface Translations {
     deepResearchConfig: string;
     conversationOptions: string;
     executionMethod: string;
+    runSettings: string;
+    runSettingsWorkspace: string;
+    runSettingsWorkMode: string;
+    runSettingsLocation: string;
     roles: string;
     materials: string;
     collapse: string;
@@ -632,11 +635,8 @@ export interface Translations {
     productTitle: string;
     workspaceLink: string;
     aboutLink: string;
-    workflowLink: string;
     resourcesTitle: string;
     skillMarketLink: string;
-    communityTitle: string;
-    wechat: string;
   };
 
   // Message grouping (activity label bag passed to pure module)
@@ -2531,6 +2531,8 @@ export interface Translations {
       };
       labels: {
         permissions: string;
+        capabilitySummary: string;
+        technicalDetails: string;
       };
       roles: {
         id: string;
@@ -6773,30 +6775,10 @@ export interface Translations {
     subtitle: string;
     shell: {
       startTask: string;
-      runReviewTitle: string;
-      runReviewDescription: string;
-      liveEventsTitle: string;
-      liveEventsDescription: string;
-      resourcesTitle: string;
-      resourcesDescription: string;
-      systemTitle: string;
-      systemDescription: string;
       overviewTab: string;
       eventsTab: string;
       resourcesTab: string;
       systemTab: string;
-      overviewTitle: string;
-      overviewDescription: string;
-      openNewTask: string;
-      eventsEyebrow: string;
-      eventsTitle: string;
-      eventsDescription: string;
-      resourcesEyebrow: string;
-      resourcesGroupTitle: string;
-      resourcesGroupDescription: string;
-      systemEyebrow: string;
-      systemGroupTitle: string;
-      systemGroupDescription: string;
     };
     toolEffects: {
       title: string;
@@ -6834,7 +6816,6 @@ export interface Translations {
     swarmCardTitle: string;
     noConcurrentTasks: string;
     noConcurrentTasksHint: string;
-    nestedSseNote: string;
     journalEventStream: string;
     // Tab names
     tabRuns: string;
@@ -7358,9 +7339,12 @@ export interface Translations {
 
   // Hero (landing)
   hero: {
-    releaseBadge: string;
-    withEcho: string;
     heroDescription: string;
+    pillarsTitle: string;
+    pillars: Record<
+      "memory" | "understand" | "act" | "grow",
+      { title: string; description: string }
+    >;
   };
 
   // Channel Pairings
@@ -8396,6 +8380,10 @@ export interface Translations {
       startFailed: string;
       notConnected: string;
       networkError: string;
+      offlineTitle: string;
+      offlineDescription: string;
+      notInstalledDescription: string;
+      technicalDetails: string;
     };
     toolbar: {
       authorize: string;

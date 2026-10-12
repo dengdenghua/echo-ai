@@ -18,6 +18,7 @@ export interface QueuedMessage {
 export interface MessageQueueControl {
   items: QueuedMessage[];
   paused: boolean;
+  recovering: boolean;
   storageUnavailable: boolean;
   canSteer: boolean;
   enqueue: (text: string) => boolean;
@@ -32,6 +33,7 @@ interface Snapshot {
   scope: string;
   items: QueuedMessage[];
   paused: boolean;
+  resumeAfterRecovery: boolean;
 }
 const LIMIT = 20;
 function newId() {
@@ -42,7 +44,7 @@ function storageKey(scope: string) {
 }
 
 export function restoreMessageQueue(scope: string): Snapshot {
-  const empty = { scope, items: [], paused: false };
+  const empty = { scope, items: [], paused: false, resumeAfterRecovery: false };
   try {
     const saved = JSON.parse(
       sessionStorage.getItem(storageKey(scope)) ?? "null",
@@ -71,7 +73,12 @@ export function restoreMessageQueue(scope: string): Snapshot {
       }));
     // A restored window never starts work by itself. Reconcile receipts before
     // the user resumes; an in-flight send must not be blindly replayed.
-    return { scope, items, paused: items.length > 0 };
+    return {
+      scope,
+      items,
+      paused: items.length > 0,
+      resumeAfterRecovery: false,
+    };
   } catch {
     return empty;
   }
@@ -102,7 +109,9 @@ export function useMessageQueue({
   const [storageUnavailable, setStorageUnavailable] = useState(false);
   const current = useRef(snapshot);
   const visible =
-    snapshot.scope === scope ? snapshot : { scope, items: [], paused: false };
+    snapshot.scope === scope
+      ? snapshot
+      : { scope, items: [], paused: false, resumeAfterRecovery: false };
   useLayoutEffect(() => {
     if (current.current.scope === scope) return;
     current.current = restoreMessageQueue(scope);
@@ -131,11 +140,17 @@ export function useMessageQueue({
     [scope],
   );
   const pause = useCallback(
-    () => commit((old) => (old.paused ? old : { ...old, paused: true })),
+    () =>
+      commit((old) =>
+        old.paused && !old.resumeAfterRecovery
+          ? old
+          : { ...old, paused: true, resumeAfterRecovery: false },
+      ),
     [commit],
   );
   const resume = useCallback(
-    () => commit((old) => ({ ...old, paused: false })),
+    () =>
+      commit((old) => ({ ...old, paused: false, resumeAfterRecovery: false })),
     [commit],
   );
   const enqueue = useCallback(
@@ -167,6 +182,11 @@ export function useMessageQueue({
       commit((old) => ({
         ...old,
         items: old.items.filter((item) => item.id !== id),
+        // Removing an unknown delivery is a manual choice, not a receipt.
+        // Keep the remaining queue paused and make Resume available again.
+        ...(item.state === "uncertain"
+          ? { paused: true, resumeAfterRecovery: false }
+          : {}),
       }));
     },
     [commit, discard, scope],
@@ -204,6 +224,7 @@ export function useMessageQueue({
       commit((old) => ({
         ...old,
         paused: false,
+        resumeAfterRecovery: false,
         items: old.items.map((item) =>
           item.id === id && ["failed", "uncertain"].includes(item.state)
             ? { ...item, state: "waiting", error: undefined }
@@ -215,7 +236,14 @@ export function useMessageQueue({
   );
   const submit = useCallback(
     (item: QueuedMessage, intent: "start" | "steer") => {
-      if (current.current.scope !== scope || !ready) return;
+      if (
+        current.current.scope !== scope ||
+        !ready ||
+        current.current.items.some(
+          (candidate) => candidate.state === "uncertain",
+        )
+      )
+        return;
       const fresh = current.current.items.find(
         (candidate) => candidate.id === item.id,
       );
@@ -234,6 +262,7 @@ export function useMessageQueue({
         commit((old) => ({
           ...old,
           paused: true,
+          resumeAfterRecovery: false,
           items: old.items.map((candidate) =>
             candidate.id === item.id
               ? { ...candidate, state: "failed", error: String(error) }
@@ -255,7 +284,8 @@ export function useMessageQueue({
   useEffect(() => {
     commit((old) => {
       let changed = false,
-        pauseQueue = old.paused;
+        pauseQueue = old.paused,
+        resumeAfterRecovery = old.resumeAfterRecovery;
       const items = old.items
         .filter((item) => {
           if (receipts.has(item.id)) {
@@ -265,22 +295,49 @@ export function useMessageQueue({
           return true;
         })
         .map((item) => {
-          if (item.state !== "sending") return item;
+          if (item.state !== "sending" && item.state !== "uncertain")
+            return item;
           const error = failures.get(item.id);
-          if (error || !ready) {
+          if (error) {
             changed = true;
             pauseQueue = true;
+            resumeAfterRecovery = false;
             return {
               ...item,
-              state: error ? ("failed" as const) : ("uncertain" as const),
+              state: "failed" as const,
               error,
             };
           }
+          if (!ready && item.state === "sending") {
+            changed = true;
+            // Only a transport pause can recover automatically. A manual
+            // pause, restored window, interruption, or failure still requires
+            // the user's explicit resume.
+            if (!pauseQueue) resumeAfterRecovery = true;
+            pauseQueue = true;
+            return { ...item, state: "uncertain" as const, error: undefined };
+          }
           return item;
         });
-      return changed ? { ...old, items, paused: pauseQueue } : old;
+      if (resumeAfterRecovery && interrupted) {
+        changed = true;
+        pauseQueue = true;
+        resumeAfterRecovery = false;
+      }
+      if (
+        ready &&
+        resumeAfterRecovery &&
+        !items.some((item) => item.state !== "waiting")
+      ) {
+        changed = true;
+        pauseQueue = false;
+        resumeAfterRecovery = false;
+      }
+      return changed
+        ? { ...old, items, paused: pauseQueue, resumeAfterRecovery }
+        : old;
     });
-  }, [commit, failures, ready, receipts]);
+  }, [commit, failures, interrupted, ready, receipts]);
   useEffect(() => {
     if (interrupted && current.current.items.length) pause();
   }, [interrupted, pause, scope]);
@@ -291,6 +348,7 @@ export function useMessageQueue({
       ready &&
       !blocked &&
       !current.current.paused &&
+      !current.current.items.some((item) => item.state === "uncertain") &&
       next?.state === "waiting"
     )
       submit(next, "start");
@@ -299,8 +357,13 @@ export function useMessageQueue({
     () => ({
       items: visible.items,
       paused: visible.paused,
+      recovering: visible.resumeAfterRecovery,
       storageUnavailable,
-      canSteer: running && ready && !blocked,
+      canSteer:
+        running &&
+        ready &&
+        !blocked &&
+        !visible.items.some((item) => item.state === "uncertain"),
       enqueue,
       remove,
       edit,
@@ -312,6 +375,7 @@ export function useMessageQueue({
     [
       visible.items,
       visible.paused,
+      visible.resumeAfterRecovery,
       storageUnavailable,
       running,
       ready,

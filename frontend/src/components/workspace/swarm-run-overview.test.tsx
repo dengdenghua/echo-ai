@@ -2,6 +2,7 @@ import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { describe, expect, test, vi } from "vitest";
 
 import { AllProviders } from "@/test/harness";
+import { busEventToLiveEvent } from "@/core/threads/subagent-bus-events";
 
 import { AGENT_WORKBENCH_FOCUS_EVENT } from "./agent-workbench-events";
 import type { LiveToolEvent } from "./live-tool-timeline";
@@ -23,7 +24,7 @@ function event(partial: Partial<LiveToolEvent>): LiveToolEvent {
 }
 
 describe("SwarmRunOverview", () => {
-  test("derives running lanes from parallel dispatch specs", () => {
+  test("keeps planned lanes pending until an actual child starts", () => {
     const overview = buildSwarmRunOverview([
       event({
         input: {
@@ -39,26 +40,140 @@ describe("SwarmRunOverview", () => {
     expect(overview).not.toBeNull();
     expect(overview?.counts).toMatchObject({
       total: 3,
-      running: 3,
+      running: 0,
+      pending: 3,
       done: 0,
       error: 0,
     });
-    expect(overview?.status).toBe("running");
+    expect(overview?.status).toBe("pending");
     expect(overview?.phases.map((phase) => [phase.id, phase.status])).toEqual([
-      ["dispatch", "done"],
-      ["execute", "running"],
+      ["dispatch", "pending"],
+      ["execute", "pending"],
       ["aggregate", "pending"],
       ["synthesize", "pending"],
     ]);
     expect(overview?.activePhase).toMatchObject({
-      id: "execute",
-      status: "running",
+      id: "dispatch",
+      status: "pending",
     });
     expect(overview?.agents.map((agent) => agent.role)).toEqual([
       "researcher",
       "critic",
       "synthesizer",
     ]);
+  });
+
+  test.each(["error", "done"] as const)(
+    "settles unstarted lanes on a %s parent refusal without overwriting real children",
+    (status) => {
+      const dispatch = event({
+        id: "parent",
+        input: {
+          specs: [
+            { agent_id: "complete" },
+            { agent_id: "active" },
+            { agent_id: "blocked" },
+          ],
+        },
+      });
+      const overview = buildSwarmRunOverview([
+        dispatch,
+        event({
+          id: "complete-end",
+          name: "subagent",
+          lifecycle: "finished",
+          status: "done",
+          agentId: "complete",
+          parentToolUseId: "parent",
+          startedAt: 1100,
+        }),
+        event({
+          id: "active-start",
+          name: "subagent",
+          lifecycle: "spawned",
+          agentId: "active",
+          parentToolUseId: "parent",
+          startedAt: 1200,
+        }),
+        {
+          ...dispatch,
+          status,
+          error:
+            status === "error" ? "startup capacity unavailable" : undefined,
+          output:
+            status === "done"
+              ? { ok: false, total: 0, error: "startup capacity unavailable" }
+              : undefined,
+          finishedAt: 2000,
+        },
+      ]);
+      expect(overview?.counts).toMatchObject({
+        done: 1,
+        running: 1,
+        error: 1,
+        pending: 0,
+      });
+      expect(
+        overview?.agents.find((agent) => agent.id === "complete")?.status,
+      ).toBe("done");
+      expect(
+        overview?.agents.find((agent) => agent.id === "active")?.status,
+      ).toBe("running");
+      expect(
+        overview?.agents.find((agent) => agent.id === "blocked")?.error,
+      ).toBe("startup capacity unavailable");
+    },
+  );
+
+  test("preserves successful child outcomes in a failed parallel parent result", () => {
+    const overview = buildSwarmRunOverview([
+      event({
+        status: "error",
+        input: { specs: [{ agent_id: "reader" }, { agent_id: "writer" }] },
+        output: {
+          successes: [{ agent_id: "reader", output: "evidence complete" }],
+          failures: [
+            { agent_id: "writer", error: "workspace preparation failed" },
+          ],
+        },
+      }),
+    ]);
+    expect(overview?.counts).toMatchObject({ done: 1, error: 1, running: 0 });
+    expect(
+      overview?.agents.find((agent) => agent.id === "reader")?.resultSummary,
+    ).toBe("evidence complete");
+    expect(overview?.agents.find((agent) => agent.id === "writer")?.error).toBe(
+      "workspace preparation failed",
+    );
+  });
+
+  test("shows the original typed startup failure reason in the compact lane", () => {
+    const failed = busEventToLiveEvent(
+      {
+        type: "sub_failed",
+        seq: 1,
+        ts: 1,
+        root_thread_id: "root",
+        payload: {
+          agent_id: "blocked",
+          role: "researcher",
+          error: "workspace preparation failed",
+        },
+      },
+      0,
+    )!;
+    const dispatch = event({
+      input: { specs: [{ agent_id: "blocked" }] },
+      startedAt: 500,
+    });
+    const overview = buildSwarmRunOverview([dispatch, failed]);
+    expect(overview?.agents[0]?.error).toBe("workspace preparation failed");
+    render(
+      <AllProviders locale="en-US">
+        <SwarmRunOverview events={[dispatch, failed]} />
+      </AllProviders>,
+    );
+    expect(screen.getByText("workspace preparation failed")).toBeVisible();
   });
 
   test("promotes cowork team swarm results into synthesis stages", () => {
@@ -271,7 +386,7 @@ describe("SwarmRunOverview", () => {
 
     expect(overview).not.toBeNull();
     expect(overview?.counts.total).toBe(32);
-    expect(overview?.counts.pending).toBe(20);
+    expect(overview?.counts.pending).toBe(32);
     expect(overview?.capacity).toMatchObject({
       requestedMembers: 300,
       dispatchedMembers: 32,
@@ -325,11 +440,12 @@ describe("SwarmRunOverview", () => {
       );
 
       expect(screen.getByLabelText("Agent Collaboration")).toBeInTheDocument();
-      expect(screen.getByText("Dispatch")).toBeInTheDocument();
+      expect(screen.getAllByText("Dispatch").length).toBeGreaterThan(0);
       expect(screen.getAllByText("Execute").length).toBeGreaterThan(0);
       expect(screen.getByText("Aggregate")).toBeInTheDocument();
       expect(screen.getByText("Synthesize")).toBeInTheDocument();
-      expect(screen.getByText(/researcher is working/)).toBeInTheDocument();
+      expect(screen.getAllByText("Pending").length).toBeGreaterThan(0);
+      expect(screen.queryByText(/Collaboration delivered/)).toBeNull();
       expect(screen.getByText(/0\/2 done/)).toBeInTheDocument();
       expect(screen.getAllByText("researcher").length).toBeGreaterThan(0);
       expect(screen.getAllByText("critic").length).toBeGreaterThan(0);

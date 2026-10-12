@@ -289,10 +289,15 @@
      No line-height is paired on purpose: the arbitrary values they
      replace didn't set one either, so leading keeps inheriting. */
   --text-micro: 0.625rem;
-  --text-mini: 0.6875rem;
+  /* Secondary text keeps a readable floor like the --text-ui-* tokens: at the
+     default 15px root, 0.75rem/0.6875rem/0.78125rem rendered CJK metadata at
+     11.25px/10.3px/11.7px. micro stays unfloored — it sizes numeric badges
+     and counters inside fixed 16px chips. */
+  --text-mini: max(11px, 0.6875rem);
+  --text-xs: max(12px, 0.75rem);
   /* 12.5px — dialog descriptions / compact buttons; replaces text-[12.5px].
      No line-height paired, same rationale as micro/mini above. */
-  --text-caption: 0.78125rem;
+  --text-caption: max(12px, 0.78125rem);
   --text-2xs: 0.5625rem;
   --text-3xs: 0.5rem;
 
@@ -1152,6 +1157,21 @@
      that use tabIndex or are natively focusable (a, button, etc.). */
   :focus-visible {
     @apply outline-2 outline-offset-2 outline-ring;
+  }
+
+  /* Many controls opt out of the outline above with ``outline-none`` for a
+     lighter look but never add a ring, which left keyboard focus invisible
+     (composer plus / model / participation triggers). Give exactly those a
+     soft ring. Base layer + :where() keep it below every utility, so any
+     explicit focus-visible:ring-* or shadow on the element still wins. */
+  :where(
+      button,
+      a[href],
+      [role="button"],
+      [role="tab"],
+      [role="combobox"]
+    ):where([class*="outline-none"], [class*="outline-hidden"]):focus-visible {
+    box-shadow: 0 0 0 2px color-mix(in oklch, var(--ring) 55%, transparent);
   }
 
   #root {
@@ -2233,8 +2253,12 @@
     justify-content: center;
     padding: 0;
   }
-  [data-composer-placement="floating"] [data-testid="permission-mode-trigger"] > span,
-  [data-composer-placement="floating"] [data-testid="permission-mode-trigger"] > svg:last-child {
+  [data-composer-placement="floating"]
+    [data-testid="permission-mode-trigger"]
+    > span,
+  [data-composer-placement="floating"]
+    [data-testid="permission-mode-trigger"]
+    > svg:last-child {
     display: none;
   }
   [data-composer-placement="floating"] [data-testid="chat-tools-trigger"] {
@@ -2350,35 +2374,35 @@
   }
 }
 
-  /* Shared starting position in the content area below either 44px header. */
-  .workspace-start-position,
-  [data-workspace-start="true"] {
-    position: absolute;
-    inset-inline: 0;
-    top: clamp(48px, 40%, 360px);
-    bottom: auto;
-    padding-top: 0;
-    background: none;
-  }
-  .workspace-start-composer {
-    width: 100%;
-    max-width: 720px;
-    translate: none;
-    transform: none;
-  }
-  .workspace-start-heading {
-    height: 80px;
-    max-width: 720px;
-    padding: 0;
-    justify-content: flex-start;
-  }
-  .composer-workspace-control {
-    display: flex;
-    width: 104px;
-    min-width: 0;
-    flex-shrink: 0;
-  }
-  .composer-workspace-control > * {
-    width: 100%;
-    min-width: 0;
-  }
+/* Shared starting position in the content area below either 44px header. */
+.workspace-start-position,
+[data-workspace-start="true"] {
+  position: absolute;
+  inset-inline: 0;
+  top: clamp(48px, 40%, 360px);
+  bottom: auto;
+  padding-top: 0;
+  background: none;
+}
+.workspace-start-composer {
+  width: 100%;
+  max-width: 720px;
+  translate: none;
+  transform: none;
+}
+.workspace-start-heading {
+  height: 80px;
+  max-width: 720px;
+  padding: 0;
+  justify-content: flex-start;
+}
+.composer-workspace-control {
+  display: flex;
+  width: 104px;
+  min-width: 0;
+  flex-shrink: 0;
+}
+.composer-workspace-control > * {
+  width: 100%;
+  min-width: 0;
+}

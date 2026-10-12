@@ -12,6 +12,44 @@ import {
   useRealtimeThread,
   visibleConversationForThread,
 } from "./use-realtime-thread";
+import type { ReplayCacheStore } from "./replay-cache";
+import type * as ReplayCacheModule from "./replay-cache";
+import type * as ConfigModule from "@/core/config";
+
+const session = vi.hoisted(() => ({
+  account: "alice",
+  backend: "",
+  cache: undefined as ReplayCacheStore | undefined,
+}));
+vi.mock("@/providers/AuthProvider", () => ({
+  useOptionalAuth: () => ({
+    isLoading: false,
+    authStatus: { enabled: true },
+    isAuthenticated: true,
+    user: {
+      actor_id: session.account,
+      user_id: session.account,
+      provider: "test",
+    },
+  }),
+}));
+vi.mock("@/core/config", async (importOriginal) => ({
+  ...(await importOriginal<typeof ConfigModule>()),
+  getBackendBaseURL: () => session.backend,
+}));
+vi.mock("./replay-cache", async (importOriginal) => {
+  const original = await importOriginal<typeof ReplayCacheModule>();
+  return {
+    ...original,
+    createDefaultReplayCache: () =>
+      session.cache ?? original.createDefaultReplayCache(),
+  };
+});
+beforeEach(() => {
+  session.account = "alice";
+  session.backend = "";
+  session.cache = undefined;
+});
 
 describe("visibleConversationForThread", () => {
   it("hides the previous task during a thread route transition", () => {
@@ -24,6 +62,149 @@ describe("visibleConversationForThread", () => {
       previous,
     );
   });
+});
+
+describe("realtime host and account isolation", () => {
+  it.each(["account", "backend"] as const)(
+    "hides old receipts immediately and recreates a same-id thread after a %s switch",
+    async (boundary) => {
+      const cache = {
+        load: vi.fn().mockResolvedValue(null),
+        append: vi.fn().mockResolvedValue(undefined),
+        clear: vi.fn().mockResolvedValue(undefined),
+      };
+      session.cache = cache;
+      const clients: Array<{
+        request: ReturnType<typeof vi.fn>;
+        close: ReturnType<typeof vi.fn>;
+        notify: (method: string, params: Record<string, unknown>) => void;
+      }> = [];
+      const factory = (deps: {
+        onOpen?: () => void;
+        onNotification: (note: {
+          method: string;
+          params: Record<string, unknown>;
+        }) => void;
+      }) => {
+        const first = clients.length === 0;
+        const request = vi.fn().mockImplementation(async (method) => {
+          if (method === "thread/resume")
+            return {
+              thread: { id: "same-thread" },
+              turns: first
+                ? [
+                    {
+                      id: "turn-a",
+                      threadId: "same-thread",
+                      status: "completed",
+                      startedAt: "2026-10-07T00:00:00Z",
+                      completedAt: "2026-10-07T00:00:01Z",
+                      error: null,
+                      items: [
+                        {
+                          id: "private-receipt-a",
+                          type: "userMessage",
+                          text: "private A",
+                          status: "completed",
+                          createdAt: "2026-10-07T00:00:00Z",
+                        },
+                      ],
+                    },
+                  ]
+                : [],
+            };
+          return {};
+        });
+        const client = {
+          request,
+          close: vi.fn(),
+          notify: (method: string, params: Record<string, unknown>) =>
+            deps.onNotification({ method, params }),
+        };
+        clients.push(client);
+        return { ...client, connect: () => deps.onOpen?.() };
+      };
+      const frames: Array<{
+        scope: string;
+        turns: number;
+        approvals: number;
+        ready: boolean;
+        connected: boolean;
+      }> = [];
+      const view = renderHook(() => {
+        const value = useRealtimeThread({
+          threadId: "same-thread",
+          clientFactory: factory as never,
+        });
+        frames.push({
+          scope: session[boundary],
+          turns: value.state.turns.length,
+          approvals: value.state.pendingApprovals.length,
+          ready: value.readyForMutations,
+          connected: value.connected,
+        });
+        return value;
+      });
+      await waitFor(() =>
+        expect(view.result.current.readyForMutations).toBe(true),
+      );
+      expect(view.result.current.state.turns[0]?.items[0]?.id).toBe(
+        "private-receipt-a",
+      );
+      const oldStart = view.result.current.startTurn;
+      const oldSteer = view.result.current.steer;
+      const firstCacheKey = cache.load.mock.calls[0]![0];
+      const target = boundary === "account" ? "bob" : "/host-b";
+      session[boundary] = target;
+      view.rerender();
+      expect(frames.find((frame) => frame.scope === target)).toEqual({
+        scope: target,
+        turns: 0,
+        approvals: 0,
+        ready: false,
+        connected: false,
+      });
+      await waitFor(() =>
+        expect(view.result.current.readyForMutations).toBe(true),
+      );
+      expect(clients).toHaveLength(2);
+      expect(clients[0]!.close).toHaveBeenCalledOnce();
+      const currentCacheKey = JSON.stringify([
+        session.backend,
+        "",
+        "test",
+        session.account,
+        "same-thread",
+      ]);
+      expect(currentCacheKey).not.toBe(firstCacheKey);
+      expect(cache.load).toHaveBeenCalledWith(currentCacheKey);
+      expect(view.result.current.state.turns).toEqual([]);
+      await expect(oldStart({ input: "stale A" })).rejects.toThrow(
+        "this session",
+      );
+      await expect(oldSteer({ input: "stale steering A" })).rejects.toThrow(
+        "this session",
+      );
+      expect(
+        clients[1]!.request.mock.calls.some(
+          ([method]) => method === "turn/start" || method === "turn/steer",
+        ),
+      ).toBe(false);
+      act(() =>
+        clients[0]!.notify("turn/started", {
+          threadId: "same-thread",
+          turn: {
+            id: "stale-turn-a",
+            threadId: "same-thread",
+            status: "inProgress",
+            items: [],
+          },
+        }),
+      );
+      expect(view.result.current.state.turns).toEqual([]);
+      view.unmount();
+    },
+  );
 });
 
 type IncomingRequestFn = (req: JsonRpcRequest) => Promise<unknown>;
@@ -129,12 +310,17 @@ describe("useRealtimeThread approval lifecycle", () => {
     });
 
     act(() => {
-      rendered.result.current.resolveApproval(8, true, { "hub:test": "loaded_role" });
+      rendered.result.current.resolveApproval(8, true, {
+        "hub:test": "loaded_role",
+      });
     });
     await act(async () => {
       await vi.advanceTimersByTimeAsync(0);
     });
-    expect(reply).toMatchObject({ action: "accept", preparedRoles: { "hub:test": "loaded_role" } });
+    expect(reply).toMatchObject({
+      action: "accept",
+      preparedRoles: { "hub:test": "loaded_role" },
+    });
     expect(rendered.result.current.state.pendingApprovals).toHaveLength(0);
 
     // The timer must not fire a second resolution later.

@@ -415,6 +415,7 @@ export function filesFromAgentEvent(event: LiveToolEvent): string[] {
 
 export function errorFromAgentEvent(event: LiveToolEvent): string | undefined {
   if (event.status !== "error") return undefined;
+  if (event.error?.trim()) return event.error.trim();
   const output = event.output;
   if (isRecord(output)) {
     const error = stringFromKeys(output, [

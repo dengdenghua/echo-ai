@@ -412,12 +412,12 @@ class TentacleCoordinator:
             return
 
         if self._decision_engine is None:
-            # 无决策引擎，返回简单确认
+            # 未执行任务时不能回传成功，避免手机端展示虚假的完成状态。
             await self.ws_server.send_task_result(
                 request.tentacle_id,
                 request.task_id,
-                success=True,
-                response=f"Task received: {request.task}. No decision engine configured.",
+                success=False,
+                response="No decision engine configured; task was not executed.",
                 steps=0,
             )
             return

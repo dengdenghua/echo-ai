@@ -12,6 +12,7 @@ import importlib
 import json
 import sys
 import warnings
+from pathlib import Path
 
 import pytest
 import pytest_asyncio
@@ -23,6 +24,15 @@ from runtime.tentacle.mobile.device import MobileDevice
 pytestmark = pytest.mark.integration
 
 # ── fixtures ──────────────────────────────────────────────
+
+
+@pytest.fixture(autouse=True)
+def mobile_manifests(monkeypatch):
+    """Simulated phones have tools regardless of the host's plugin activation."""
+    from runtime.tentacle.mobile import capabilities
+
+    skills = Path(__file__).resolve().parents[1] / "runtime/tentacle/mobile/skills"
+    monkeypatch.setattr(capabilities, "mobile_skills_root", lambda: skills)
 
 
 @pytest_asyncio.fixture
@@ -183,11 +193,74 @@ async def test_tool_execute_roundtrip(coordinator, mock_mobile_client):
     )
     result = await device.execute(call)
 
-    await handler_task
+    await asyncio.wait_for(handler_task, timeout=2.0)
 
     assert result.success is True
     assert result.data == "Tapped at (100, 200)"
     assert result.duration_ms == 150
+
+
+@pytest.mark.asyncio
+async def test_tool_timeout_sends_cancel_for_original_call(coordinator, mock_mobile_client):
+    call = ToolCall(
+        call_id="timeout-call",
+        tentacle_id="android-test-001",
+        tool="android.tap",
+        args={"x": 100, "y": 200},
+    )
+    pending = asyncio.create_task(
+        coordinator.ws_server.send_tool_execute(call.tentacle_id, call, timeout_ms=50)
+    )
+    execute = json.loads(await asyncio.wait_for(mock_mobile_client.recv(), timeout=2))
+    assert execute["method"] == "tool/execute"
+    cancel = json.loads(await asyncio.wait_for(mock_mobile_client.recv(), timeout=2))
+    assert cancel["method"] == "tool/cancel"
+    assert cancel["params"] == {"call_id": call.call_id, "tentacle_id": call.tentacle_id}
+    result = await pending
+    assert result.error_code == -32012
+    assert call.call_id not in coordinator.ws_server._pending_calls
+
+
+@pytest.mark.asyncio
+async def test_caller_cancel_reaches_mobile_and_preserves_cancellation(
+    coordinator, mock_mobile_client
+):
+    call = ToolCall(
+        call_id="cancelled-call", tentacle_id="android-test-001", tool="android.tap", args={}
+    )
+    pending = asyncio.create_task(coordinator.ws_server.send_tool_execute(call.tentacle_id, call))
+    await asyncio.wait_for(mock_mobile_client.recv(), timeout=2)
+    pending.cancel()
+    with pytest.raises(asyncio.CancelledError):
+        await pending
+    cancel = json.loads(await asyncio.wait_for(mock_mobile_client.recv(), timeout=2))
+    assert cancel["method"] == "tool/cancel"
+    assert cancel["params"]["call_id"] == call.call_id
+    assert call.call_id not in coordinator.ws_server._pending_calls
+
+
+@pytest.mark.asyncio
+async def test_duplicate_pending_call_does_not_replace_original_waiter(
+    coordinator, mock_mobile_client
+):
+    call = ToolCall(
+        call_id="same-call", tentacle_id="android-test-001", tool="android.tap", args={}
+    )
+    pending = asyncio.create_task(coordinator.ws_server.send_tool_execute(call.tentacle_id, call))
+    await asyncio.wait_for(mock_mobile_client.recv(), timeout=2)
+    duplicate = await coordinator.ws_server.send_tool_execute(call.tentacle_id, call)
+    assert duplicate.error_code == -32600
+    await mock_mobile_client.send(
+        json.dumps(
+            {
+                "method": "tool/result",
+                "params": {"call_id": call.call_id, "success": True, "data": "once"},
+            }
+        )
+    )
+    result = await asyncio.wait_for(pending, timeout=2)
+    assert result.success
+    assert result.data == "once"
 
 
 @pytest.mark.asyncio
@@ -254,7 +327,7 @@ async def test_task_execute_no_decision_engine(coordinator, mock_mobile_client):
     data = json.loads(response)
 
     assert data["method"] == "task/result"
-    assert data["params"]["success"] is True
+    assert data["params"]["success"] is False
     assert "No decision engine" in data["params"]["response"]
 
 

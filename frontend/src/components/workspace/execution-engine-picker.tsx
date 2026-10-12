@@ -1,4 +1,4 @@
-import { CheckIcon, SparklesIcon } from "lucide-react";
+import { CheckIcon, ChevronDownIcon, SparklesIcon } from "lucide-react";
 
 import {
   DropdownMenu,
@@ -7,7 +7,10 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { useI18n } from "@/core/i18n/hooks";
-import { engineVerificationLabel, type EngineCapabilityChecks } from "@/core/agents/engine-capability-checks";
+import {
+  engineVerificationLabel,
+  type EngineCapabilityChecks,
+} from "@/core/agents/engine-capability-checks";
 import type { ExecutionEnginePreference } from "@/core/realtime/execution-policy";
 
 const REASONS: Record<string, [string, string]> = {
@@ -129,6 +132,12 @@ export function ExecutionEnginePicker({
             : "Check the OpenCode installation and model configuration")
         : null;
   const visibleEngine = value === "auto" ? resolvedEngine : value;
+  const visibleLabel =
+    value === "auto" && resolvedEngine
+      ? `${labels.auto} · ${resolvedEngine === "echo" ? "Echo" : labels[resolvedEngine]}`
+      : value === "echo"
+        ? "Echo"
+        : labels[value];
   const triggerTitle =
     selectedUnavailable ||
     `${title}: ${labels[value]}${value === "auto" && resolvedEngine ? ` · ${labels[resolvedEngine]}` : ""}`;
@@ -141,7 +150,7 @@ export function ExecutionEnginePicker({
           aria-label={`${title}: ${labels[value]}`}
           title={triggerTitle}
           data-testid="execution-engine-trigger"
-          className="relative flex size-8 shrink-0 items-center justify-center rounded-lg text-muted-foreground outline-none transition hover:bg-muted/60 hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring/30 disabled:opacity-50"
+          className="relative inline-flex h-8 shrink-0 items-center justify-center gap-1.5 whitespace-nowrap rounded-lg px-2 text-xs text-muted-foreground outline-none transition hover:bg-muted/60 hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring/30 disabled:opacity-50"
         >
           {visibleEngine === "opencode" ? (
             <OpenCodeIcon className="size-3.5 shrink-0" />
@@ -150,6 +159,11 @@ export function ExecutionEnginePicker({
           ) : (
             <SparklesIcon className="size-3.5 shrink-0" />
           )}
+          <span>{visibleLabel}</span>
+          <ChevronDownIcon
+            className="size-3 shrink-0 opacity-55"
+            aria-hidden="true"
+          />
           {selectedUnavailable ? (
             <span
               className="absolute right-1 top-1 size-1.5 rounded-full bg-destructive"
@@ -207,9 +221,15 @@ export function ExecutionEnginePicker({
                         ? "使用 Codex 身份执行当前任务"
                         : "Run this task with the Codex identity"))}
               </span>
-              {(engine === "codex" && codexAvailable) || (engine === "opencode" && opencodeAvailable) ? (
+              {(engine === "codex" && codexAvailable) ||
+              (engine === "opencode" && opencodeAvailable) ? (
                 <span className="mt-0.5 block text-ui leading-relaxed text-muted-foreground">
-                  {engineVerificationLabel(engine === "codex" ? codexCapabilityChecks : opencodeCapabilityChecks, zh)}
+                  {engineVerificationLabel(
+                    engine === "codex"
+                      ? codexCapabilityChecks
+                      : opencodeCapabilityChecks,
+                    zh,
+                  )}
                 </span>
               ) : null}
             </span>

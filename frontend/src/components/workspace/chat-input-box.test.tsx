@@ -16,6 +16,7 @@ import type * as UploadsApiModule from "@/core/uploads/api";
 import type * as ComputerApiModule from "@/core/computer/api";
 
 import { ChatInputBox } from "./chat-input-box";
+import { ConversationRosterStrip } from "./conversation-roster-strip";
 import type { GroupTaskStrategy } from "./group-task-strategy";
 import type { AgentModeName } from "./mode-selector";
 
@@ -158,6 +159,14 @@ async function openToolsMenu() {
   fireEvent.pointerDown(trigger, { button: 0, ctrlKey: false });
   fireEvent.click(trigger);
   return screen.findByRole("menu");
+}
+
+/** Workspace, mode, participation, engine and location live in this panel. */
+function openRunSettings() {
+  const trigger = screen.getByTestId("composer-run-settings-trigger");
+  if (trigger.getAttribute("aria-expanded") !== "true")
+    fireEvent.click(trigger);
+  return screen.getByTestId("composer-run-settings-panel");
 }
 
 it("keeps the plus entry visually lightweight when focused", () => {
@@ -328,7 +337,7 @@ describe("<ChatInputBox /> cowork materials", () => {
     expect(onSubmit).not.toHaveBeenCalled();
   });
 
-  it("keeps collaboration controls in conversation options", () => {
+  it("shows collaboration controls directly in the status row", () => {
     renderWithProviders(
       <ChatInputBox
         mode="react"
@@ -340,14 +349,12 @@ describe("<ChatInputBox /> cowork materials", () => {
       />,
     );
 
-    expect(screen.queryByTestId("response-mode-control")).toBeNull();
     expect(screen.getByTestId("model-picker-trigger")).toBeVisible();
-    fireEvent.click(screen.getByTestId("composer-options-trigger"));
     const control = screen.getByTestId("response-mode-control");
     expect(
-      control.closest('[data-testid="composer-options-panel"]'),
+      control.closest('[data-testid="chat-status-strip"]'),
     ).toBeInTheDocument();
-    expect(control.closest(".composer-footer__response")).toBeInTheDocument();
+    expect(control.closest(".composer-status__response")).toBeInTheDocument();
     expect(
       screen
         .getByTestId("model-picker-trigger")
@@ -384,6 +391,7 @@ describe("<ChatInputBox /> cowork materials", () => {
     expect(
       screen.getByRole("button", { name: "Add content" }),
     ).toBeInTheDocument();
+    openRunSettings();
     fireEvent.click(screen.getByRole("button", { name: /^General/ }));
     expect(screen.getAllByRole("option")).toHaveLength(2);
     fireEvent.click(screen.getByRole("option", { name: /Design/ }));
@@ -411,6 +419,7 @@ describe("<ChatInputBox /> cowork materials", () => {
       />,
     );
 
+    openRunSettings();
     fireEvent.click(screen.getByRole("button", { name: /^General/ }));
     expect(screen.getByRole("option", { name: /General/ })).toBeInTheDocument();
     expect(screen.getByRole("option", { name: /Design/ })).toBeInTheDocument();
@@ -429,6 +438,7 @@ describe("<ChatInputBox /> cowork materials", () => {
       />,
     );
 
+    openRunSettings();
     fireEvent.click(screen.getByRole("button", { name: /^General/ }));
     expect(screen.getByRole("option", { name: /General/ })).toBeInTheDocument();
     expect(screen.getByRole("option", { name: /Design/ })).toBeInTheDocument();
@@ -448,6 +458,11 @@ describe("<ChatInputBox /> cowork materials", () => {
     );
 
     expect(screen.getByTestId("chat-status-strip")).toBeInTheDocument();
+    // The closed trigger already says which mode will run.
+    expect(
+      screen.getByTestId("composer-run-settings-trigger"),
+    ).toHaveTextContent(/Design/);
+    openRunSettings();
     expect(screen.getByRole("button", { name: /^Design/ })).toBeInTheDocument();
     expect(screen.queryByTestId("workdir-selector")).toBeNull();
   });
@@ -493,6 +508,7 @@ describe("<ChatInputBox /> cowork materials", () => {
         }
       />,
     );
+    openRunSettings();
     fireEvent.click(screen.getByRole("button", { name: /^General/ }));
     fireEvent.click(screen.getByRole("option", { name: /Design/ }));
     menu = await openToolsMenu();
@@ -504,7 +520,6 @@ describe("<ChatInputBox /> cowork materials", () => {
     expect(onBoundStrategyChange).toHaveBeenCalledWith("uxui");
     expect(onProjectCapabilityAction).toHaveBeenCalledTimes(1);
     fireEvent.keyDown(menu, { key: "Escape" });
-    fireEvent.click(screen.getByTestId("composer-options-trigger"));
     expect(
       screen.getByTestId("bound-project-response-mode"),
     ).toBeInTheDocument();
@@ -512,6 +527,7 @@ describe("<ChatInputBox /> cowork materials", () => {
 
   it("keeps personal/project status visible in groups and hides only default permission chrome", async () => {
     const onGroupTaskStrategyChange = vi.fn();
+    const onOpenMemberProcess = vi.fn();
     const group = renderWithProviders(
       <ChatInputBox
         mode="react"
@@ -520,7 +536,17 @@ describe("<ChatInputBox /> cowork materials", () => {
         groupTaskStrategy="auto"
         onGroupTaskStrategyChange={onGroupTaskStrategyChange}
         showWorkDirSelector
-        statusTrailing={<span data-testid="group-roster-inline">avatars</span>}
+        memberControls={
+          <ConversationRosterStrip
+            seats={[
+              { id: "kane", name: "Kane", role: "tl", kind: "agent" },
+              { id: "zero", name: "Zero", role: "member", kind: "agent" },
+            ]}
+            onOpenMemberProcess={onOpenMemberProcess}
+          />
+        }
+        responseModeControl={<button type="button">AI participation</button>}
+        executionEngineControl={<button type="button">Codex engine</button>}
         permissionMode="default"
       />,
     );
@@ -529,8 +555,33 @@ describe("<ChatInputBox /> cowork materials", () => {
     expect(
       screen
         .getByTestId("chat-status-strip")
-        .contains(screen.getByTestId("group-roster-inline")),
+        .contains(screen.getByTestId("conversation-roster-strip")),
     ).toBe(true);
+    // Members stay visible under the input; per-run choices (participation,
+    // engine) sit together in the run settings panel.
+    const memberGroup = screen
+      .getByTestId("conversation-roster-strip")
+      .closest('[data-slot="composer-members"]');
+    expect(memberGroup).toBeInTheDocument();
+    expect(
+      screen.getByTestId("composer-run-settings-trigger"),
+    ).toHaveTextContent("Personal space · General");
+    fireEvent.click(
+      screen.getByRole("button", { name: /^Zero.*查看执行过程/ }),
+    );
+    expect(onOpenMemberProcess).toHaveBeenCalledWith(
+      expect.objectContaining({ id: "zero" }),
+    );
+    const panel = openRunSettings();
+    expect(panel).toContainElement(
+      screen.getByRole("button", { name: "AI participation" }),
+    );
+    expect(panel).toContainElement(
+      screen.getByRole("button", { name: "Codex engine" }),
+    );
+    expect(memberGroup).not.toContainElement(
+      screen.getByRole("button", { name: "AI participation" }),
+    );
     expect(screen.getByTitle("Personal space")).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: /^General/ }));
     fireEvent.click(screen.getByRole("option", { name: /Design/ }));
@@ -1217,7 +1268,7 @@ describe("<ChatInputBox /> cowork materials", () => {
     expect(onReasoningEffortChange).toHaveBeenCalledWith("xhigh");
   });
 
-  it("shows current context usage inside conversation options", () => {
+  it("shows context usage directly even without workspace or host controls", () => {
     const { rerender } = renderWithProviders(
       <ChatInputBox
         mode="react"
@@ -1227,8 +1278,13 @@ describe("<ChatInputBox /> cowork materials", () => {
       />,
     );
 
-    expect(screen.queryByTestId("context-usage-trigger")).toBeNull();
-    fireEvent.click(screen.getByTestId("composer-options-trigger"));
+    expect(screen.queryByTestId("composer-options-trigger")).toBeNull();
+    expect(screen.getByTestId("context-usage-trigger")).toHaveTextContent("0%");
+    expect(
+      screen
+        .getByTestId("context-usage-trigger")
+        .closest('[data-testid="chat-status-strip"]'),
+    ).toBeInTheDocument();
     expect(screen.getByLabelText(/Context Usage: 0%/)).toBeInTheDocument();
 
     rerender(
@@ -1243,7 +1299,7 @@ describe("<ChatInputBox /> cowork materials", () => {
     expect(screen.getByLabelText(/Context Usage: 10%/)).toBeInTheDocument();
   });
 
-  it("still compresses automatically while conversation options are closed", async () => {
+  it("still compresses automatically with context visible in the status row", async () => {
     const onCompressContext = vi.fn().mockResolvedValue(undefined);
     renderWithProviders(
       <ChatInputBox
@@ -1256,12 +1312,11 @@ describe("<ChatInputBox /> cowork materials", () => {
     );
     expect(screen.queryByTestId("composer-options-panel")).toBeNull();
     await waitFor(() => expect(onCompressContext).toHaveBeenCalledTimes(1));
-    fireEvent.click(screen.getByTestId("composer-options-trigger"));
     expect(screen.getByLabelText(/Context Usage: 95%/)).toBeVisible();
     expect(onCompressContext).toHaveBeenCalledTimes(1);
   });
 
-  it("keeps execution settings available and returns focus after closing options", async () => {
+  it("keeps execution settings one click away and opens context details", async () => {
     const user = userEvent.setup();
     const selectEngine = vi.fn();
     renderWithProviders(
@@ -1271,14 +1326,29 @@ describe("<ChatInputBox /> cowork materials", () => {
         executionEngineControl={<button onClick={selectEngine}>Codex</button>}
       />,
     );
+    const trigger = screen.getByTestId("composer-run-settings-trigger");
+    expect(trigger).toHaveAttribute("aria-expanded", "false");
     expect(screen.queryByRole("button", { name: "Codex" })).toBeNull();
-    const options = screen.getByTestId("composer-options-trigger");
-    await user.click(options);
+    await user.click(trigger);
+    expect(trigger).toHaveAttribute("aria-expanded", "true");
+    expect(screen.getByRole("button", { name: "Codex" })).toBeVisible();
+    expect(
+      screen
+        .getByRole("button", { name: "Codex" })
+        .closest('[data-testid="chat-status-strip"]'),
+    ).toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: "Codex" }));
     expect(selectEngine).toHaveBeenCalledTimes(1);
+    // Escape closes the panel and hands focus back to its trigger.
     await user.keyboard("{Escape}");
-    expect(screen.queryByTestId("composer-options-panel")).toBeNull();
-    expect(options).toHaveFocus();
+    expect(trigger).toHaveAttribute("aria-expanded", "false");
+    expect(trigger).toHaveFocus();
+    const context = screen.getByTestId("context-usage-trigger");
+    await user.click(context);
+    expect(screen.getByRole("menu")).toBeVisible();
+    await user.keyboard("{Escape}");
+    expect(screen.queryByRole("menu")).toBeNull();
+    expect(context).toHaveFocus();
   });
 
   it("submits only enabled URL/text materials", async () => {
@@ -2400,6 +2470,7 @@ describe("<ChatInputBox /> upload on attach", () => {
         executionLocationControl={locationControl}
       />,
     );
+    openRunSettings();
     expect(
       screen.getByRole("button", { name: "Execution location" }),
     ).toBeEnabled();
@@ -2445,6 +2516,7 @@ describe("<ChatInputBox /> upload on attach", () => {
         )}
       />,
     );
+    openRunSettings();
     pasteImage("stay-on-this-host.png");
     await waitFor(() =>
       expect(

@@ -76,8 +76,7 @@ export const enUS: Translations = {
 
   // Home
   home: {
-    docs: "Docs",
-    blog: "Blog",
+    openWorkspace: "Open workspace",
   },
 
   // Welcome
@@ -441,6 +440,10 @@ export const enUS: Translations = {
     deepResearchConfig: "Research settings",
     conversationOptions: "Conversation options",
     executionMethod: "Execution method",
+    runSettings: "Run settings",
+    runSettingsWorkspace: "Workspace",
+    runSettingsWorkMode: "Work mode",
+    runSettingsLocation: "Run on",
     roles: "Subagents",
     materials: "Materials",
     collapse: "Collapse",
@@ -736,15 +739,12 @@ export const enUS: Translations = {
 
   // Landing footer
   landingFooter: {
-    tagline: "Open-source Agent OS",
+    tagline: "Self-hosted Agent OS",
     productTitle: "Product",
     workspaceLink: "Workspace",
     aboutLink: "About",
-    workflowLink: "Workflows",
     resourcesTitle: "Resources",
-    skillMarketLink: "Skill market",
-    communityTitle: "Community",
-    wechat: "WeChat",
+    skillMarketLink: "Skills",
   },
 
   // Message grouping labels
@@ -3014,7 +3014,9 @@ export const enUS: Translations = {
         generateConfig: "Generate Config Description",
       },
       labels: {
-        permissions: "Permissions",
+        permissions: "Permissions and limits",
+        capabilitySummary: "Once created, it can",
+        technicalDetails: "Technical details",
       },
       roles: [
         {
@@ -3464,7 +3466,8 @@ export const enUS: Translations = {
       "The task outcome could not be persisted reliably. Retry or restart the backend.",
     eventStreamOverloaded:
       "Event processing was temporarily overloaded. Completed steps were preserved; retry to continue.",
-    sidecarCleanupBlocked: "Temporary runtime directory cleanup was blocked by a safety check: the path or marker did not match the expected location.",
+    sidecarCleanupBlocked:
+      "Temporary runtime directory cleanup was blocked by a safety check: the path or marker did not match the expected location.",
     workspaceWriteRequired:
       "This task requires a project file change, but no successful file change was recorded.",
     verificationRequired:
@@ -7759,41 +7762,13 @@ Strategy:
     defaultStrategy: "default strategy",
     journalRow: (task: string, arm: string) => `task=${task} arm=${arm}`,
     subtitle:
-      "Runtime introspection · parallel collaboration / blackboard / journal stream / self-evolution / context budget / cost",
+      "See how tasks are running, collaboration events, resource usage, and system status.",
     shell: {
       startTask: "Start a task",
-      runReviewTitle: "Run review",
-      runReviewDescription:
-        "See what ran smoothly, what failed, and what deserves a closer look.",
-      liveEventsTitle: "Live events",
-      liveEventsDescription:
-        "Collaboration, blackboard activity, and logs in one event view.",
-      resourcesTitle: "Resources and cost",
-      resourcesDescription:
-        "Context budget, token usage, and cost totals in one place.",
-      systemTitle: "System status",
-      systemDescription:
-        "Self-evolution, diagnostics, and backend state together.",
       overviewTab: "Overview",
       eventsTab: "Events",
       resourcesTab: "Resources and cost",
       systemTab: "System",
-      overviewTitle: "Start with the overview",
-      overviewDescription:
-        "Health, events, resources, and system state are grouped into four clear views.",
-      openNewTask: "Open a new task",
-      eventsEyebrow: "Events",
-      eventsTitle: "Runs, collaboration, and logs together",
-      eventsDescription:
-        "Review runs, collaboration, blackboard activity, and logs without navigating a long row of tabs.",
-      resourcesEyebrow: "Resources and cost",
-      resourcesGroupTitle: "Budget first, bill second",
-      resourcesGroupDescription:
-        "Context budget and spend share one level, so you can compare them without switching views.",
-      systemEyebrow: "System",
-      systemGroupTitle: "Backend state and self-evolution together",
-      systemGroupDescription:
-        "Diagnostics and self-evolution now share a single system view.",
     },
     toolEffects: {
       title: "External action receipts",
@@ -7839,8 +7814,6 @@ Strategy:
     noConcurrentTasks: "No concurrent tasks",
     noConcurrentTasksHint:
       "After starting a task that needs parallel collaboration, sub-agent skill calls will appear here in real time.",
-    nestedSseNote:
-      "Note: nested sub_tool_start events live inside the chat SSE (within a single turn). What's shown here is the global journal Step event stream.",
     journalEventStream: "Journal event stream",
     // Tab names
     tabRuns: "Runs",
@@ -7938,7 +7911,7 @@ Strategy:
     latestCompose: "Latest compose",
     noComposeRecords: "No compose records yet",
     noComposeRecordsHint:
-      "Data will appear after planner calls ContextComposer.compose().",
+      "Run a task and its context budget usage will appear here.",
     total: "Total",
     historyPrefix: "History · Last",
     hemolymphTable: {
@@ -8537,10 +8510,12 @@ Strategy:
     manageExpert: "More role actions",
     removeExpert: "Remove role",
     removeExpertTitle: (name: string) => `Remove ${name}?`,
-    removeExpertDescription: "Remove this expert and its local configuration from your roles. You can add it again from the catalog.",
+    removeExpertDescription:
+      "Remove this expert and its local configuration from your roles. You can add it again from the catalog.",
     removeExpertSuccess: (name: string) => `Removed ${name}`,
     removeExpertFailed: "Could not remove role. Try again.",
-    localExpertNotFound: "Could not uniquely identify the local role. Refresh and try again.",
+    localExpertNotFound:
+      "Could not uniquely identify the local role. Refresh and try again.",
     detailProfession: "Field",
     detailQuickPrompts: "Quick prompts",
     detailTags: "Tags",
@@ -8594,10 +8569,29 @@ Strategy:
   },
 
   hero: {
-    releaseBadge: "Echo 2.0 released",
-    withEcho: "with Echo",
     heroDescription:
-      "An open-source SuperAgent harness that researches, codes, and creates. With the help of sandboxes, memories, tools, skills and subagents, it handles different levels of tasks that could take minutes to hours.",
+      "Echo is a self-hosted Agent OS. It turns goals into plans, runs tools inside a governed runtime, and keeps useful memory for the next run.",
+    pillarsTitle: "It remembers, understands, acts, and grows with you",
+    pillars: {
+      memory: {
+        title: "It remembers",
+        description: "Useful memory from each run carries into the next one.",
+      },
+      understand: {
+        title: "It understands",
+        description:
+          "It works out your goal first, then turns it into a clear plan.",
+      },
+      act: {
+        title: "It acts",
+        description:
+          "It carries the plan through with tools, the browser and your workspace, inside a governed runtime.",
+      },
+      grow: {
+        title: "It grows with you",
+        description: "It reflects and improves after every run.",
+      },
+    },
   },
 
   channelPairings: {
@@ -9728,6 +9722,12 @@ Strategy:
       notConnected: "Local knowledge base service is still unreachable: {url}",
       networkError:
         "Unable to connect to the local knowledge base service. Please make sure it is running and try again.",
+      offlineTitle: "Local knowledge base is not connected",
+      offlineDescription:
+        "Local files and the index can't be read right now. Make sure the local knowledge base service is running, then reconnect.",
+      notInstalledDescription:
+        "The local knowledge base service isn't installed on this computer yet. Install it, then reconnect to browse and search local files.",
+      technicalDetails: "Technical details",
     },
     toolbar: {
       authorize: "Authorize",

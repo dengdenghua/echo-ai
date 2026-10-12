@@ -55,7 +55,7 @@ import { CoderEngineControl } from "../coder-engine-control";
 import { tryLocalSlash } from "../local-slash-dispatch";
 import { useSlashTypeahead } from "../use-slash-typeahead";
 import { useContextCompression } from "../use-context-compression";
-import { ComposerOptions } from "./ComposerOptions";
+import { ComposerContextStatus } from "./ComposerContextStatus";
 import { PermissionIndicator } from "../permission-indicator";
 import {
   DropdownMenu,
@@ -110,6 +110,12 @@ import { FileTree } from "../file-tree";
  * draft / image / file / research state. The parent supplies the status strip
  * and receives the live guard for switching execution locations.
  */
+export interface ComposerStatusControls {
+  responseMode?: ReactNode;
+  executionEngine?: ReactNode;
+  context: ReactNode;
+}
+
 export function ChatComposer({
   status,
   disabled,
@@ -159,7 +165,10 @@ export function ChatComposer({
   isUploading = false,
   className,
 }: ChatInputBoxProps & {
-  renderStatusStrip?: (executionLocationLocked: boolean) => ReactNode;
+  renderStatusStrip?: (
+    executionLocationLocked: boolean,
+    controls: ComposerStatusControls,
+  ) => ReactNode;
 }) {
   const { t, locale } = useI18n();
   const { models } = useModels();
@@ -2072,12 +2081,6 @@ export function ChatComposer({
           ) : null}
         </div>
         <div className="ml-auto flex min-w-0 items-center justify-end gap-1">
-          <ComposerOptions
-            responseModeControl={responseModeControl}
-            executionEngineControl={executionEngineControl}
-            contextProps={contextProps}
-            contextState={contextState}
-          />
           <div
             data-testid="composer-runtime-controls"
             className="flex min-w-0 max-w-[min(58vw,20rem)] items-center"
@@ -2281,7 +2284,16 @@ export function ChatComposer({
   return (
     <>
       {composer}
-      {renderStatusStrip?.(executionLocationLocked)}
+      {renderStatusStrip?.(executionLocationLocked, {
+        responseMode: responseModeControl,
+        executionEngine: executionEngineControl,
+        context: (
+          <ComposerContextStatus
+            contextProps={contextProps}
+            contextState={contextState}
+          />
+        ),
+      })}
     </>
   );
 }

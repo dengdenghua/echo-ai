@@ -37,9 +37,10 @@ export function ConversationRosterStrip({
 
   return (
     <div
-      className="flex min-w-0 shrink-0 items-center gap-1.5"
+      className="flex min-w-0 max-w-full items-center gap-1.5 overflow-x-auto px-1 py-1 [scrollbar-width:thin]"
       data-testid="conversation-roster-strip"
-      aria-label={t.chatInputBox.responseMode}
+      role="group"
+      aria-label={t.chatInputBox.collaborators}
     >
       {orderedSeats.map((seat) => (
         <ConversationMemberWorkstation

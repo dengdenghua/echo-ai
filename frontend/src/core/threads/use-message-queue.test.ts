@@ -90,6 +90,163 @@ describe("message queue", () => {
     expect(view.result.current.items).toEqual([]);
   });
 
+  it("continues unsent messages only after reconnect and the uncertain receipt settle", () => {
+    const view = setup({ running: false });
+    act(() => {
+      view.result.current.enqueue("already submitted");
+      view.result.current.enqueue("next message");
+    });
+    const id = view.result.current.items[0]!.id;
+    view.update({ ready: false });
+    expect(view.result.current.recovering).toBe(true);
+    view.update({ ready: true });
+    expect(view.props.send).toHaveBeenCalledTimes(1);
+    expect(view.result.current.items[0]?.state).toBe("uncertain");
+    view.update({ running: true, receipts: new Set([id]) });
+    expect(view.result.current.paused).toBe(false);
+    expect(view.result.current.recovering).toBe(false);
+    expect(view.props.send).toHaveBeenCalledTimes(1);
+    view.update({ running: false });
+    expect(view.props.send).toHaveBeenCalledTimes(2);
+    expect(view.props.send.mock.calls[1]?.[0].text).toBe("next message");
+  });
+
+  it("waits for readiness even when a receipt arrives during disconnection", () => {
+    const view = setup({ running: false });
+    act(() => {
+      view.result.current.enqueue("submitted");
+      view.result.current.enqueue("next");
+    });
+    const id = view.result.current.items[0]!.id;
+    view.update({ ready: false });
+    view.update({ receipts: new Set([id]) });
+    expect(view.props.send).toHaveBeenCalledTimes(1);
+    expect(view.result.current.recovering).toBe(true);
+    view.update({ ready: true });
+    expect(view.props.send).toHaveBeenCalledTimes(2);
+  });
+
+  it.each(["before", "during"])(
+    "preserves a manual pause %s transport recovery",
+    (when) => {
+      const view = setup({ running: false });
+      act(() => {
+        view.result.current.enqueue("submitted");
+        view.result.current.enqueue("waiting");
+      });
+      const id = view.result.current.items[0]!.id;
+      if (when === "before") act(() => view.result.current.pause());
+      view.update({ ready: false });
+      if (when === "during") act(() => view.result.current.pause());
+      expect(view.result.current.recovering).toBe(false);
+      view.update({ ready: true, receipts: new Set([id]) });
+      expect(view.result.current.paused).toBe(true);
+      expect(view.props.send).toHaveBeenCalledTimes(1);
+      act(() => view.result.current.resume());
+      expect(view.props.send).toHaveBeenCalledTimes(2);
+    },
+  );
+
+  it("preserves an interruption while reconciling delivery", () => {
+    const view = setup({ running: false });
+    act(() => {
+      view.result.current.enqueue("submitted");
+      view.result.current.enqueue("waiting");
+    });
+    const id = view.result.current.items[0]!.id;
+    view.update({ ready: false, interrupted: true });
+    view.update({ ready: true, receipts: new Set([id]) });
+    expect(view.result.current.paused).toBe(true);
+    expect(view.result.current.recovering).toBe(false);
+    expect(view.props.send).toHaveBeenCalledTimes(1);
+  });
+
+  it("does not auto-resume when the interrupted flag stays true across recovery", () => {
+    const view = setup({ running: false, interrupted: true });
+    act(() => {
+      view.result.current.enqueue("explicit new attempt");
+      view.result.current.enqueue("waiting");
+      view.result.current.resume();
+    });
+    const id = view.result.current.items[0]!.id;
+    expect(view.props.send).toHaveBeenCalledTimes(1);
+    view.update({ ready: false });
+    view.update({ ready: true, receipts: new Set([id]) });
+    expect(view.result.current.paused).toBe(true);
+    expect(view.result.current.recovering).toBe(false);
+    expect(view.props.send).toHaveBeenCalledTimes(1);
+  });
+
+  it("turns a late rejection into an actionable failure instead of waiting forever", () => {
+    const view = setup({ running: false });
+    act(() => {
+      view.result.current.enqueue("submitted");
+      view.result.current.enqueue("waiting");
+    });
+    const id = view.result.current.items[0]!.id;
+    view.update({ ready: false });
+    view.update({ ready: true, failures: new Map([[id, "Rejected"]]) });
+    expect(view.result.current.items[0]).toMatchObject({
+      state: "failed",
+      error: "Rejected",
+    });
+    expect(view.result.current.recovering).toBe(false);
+    expect(view.result.current.paused).toBe(true);
+    expect(view.props.send).toHaveBeenCalledTimes(1);
+  });
+
+  it("cannot steer past an unresolved message even after manually resuming", () => {
+    const view = setup({ running: false });
+    act(() => {
+      view.result.current.enqueue("submitted");
+      view.result.current.enqueue("waiting");
+    });
+    const nextId = view.result.current.items[1]!.id;
+    view.update({ ready: false });
+    view.update({ ready: true, running: true });
+    act(() => {
+      view.result.current.resume();
+      view.result.current.steer(nextId);
+    });
+    expect(view.result.current.canSteer).toBe(false);
+    expect(view.props.send).toHaveBeenCalledTimes(1);
+  });
+
+  it("keeps a restored queue paused after its uncertain receipt is recovered", () => {
+    const view = setup({ running: false });
+    act(() => {
+      view.result.current.enqueue("submitted");
+      view.result.current.enqueue("waiting");
+    });
+    const id = view.result.current.items[0]!.id;
+    view.unmount();
+    const restored = setup({ running: false });
+    restored.update({ receipts: new Set([id]) });
+    expect(restored.result.current.items[0]?.text).toBe("waiting");
+    expect(restored.result.current.paused).toBe(true);
+    expect(restored.result.current.recovering).toBe(false);
+    expect(restored.props.send).not.toHaveBeenCalled();
+  });
+
+  it("makes manual resume available after removing the last unknown delivery", () => {
+    const view = setup({ running: false });
+    act(() => {
+      view.result.current.enqueue("submitted");
+      view.result.current.enqueue("waiting");
+    });
+    const id = view.result.current.items[0]!.id;
+    view.update({ ready: false });
+    view.update({ ready: true });
+    act(() => view.result.current.remove(id));
+    expect(view.result.current.recovering).toBe(false);
+    expect(view.result.current.paused).toBe(true);
+    expect(view.props.send).toHaveBeenCalledTimes(1);
+    expect(view.props.discard).toHaveBeenCalledWith(id);
+    act(() => view.result.current.resume());
+    expect(view.props.send).toHaveBeenCalledTimes(2);
+    expect(view.props.send.mock.calls[1]?.[0].text).toBe("waiting");
+  });
+
   it("keeps failures in place and discards the failed outbound row before explicit retry", () => {
     const view = setup({ running: false });
     act(() => {

@@ -49,8 +49,8 @@
     },
     "secret": "Some Ghost Union members believe she was not a traitor but a seed planted inside White Ghost Team.\n",
     "future": "Former Ghost Leader",
-    "visual_design": "Silver hair with soft pink accents, pink visor, elegant white tactical coat, composed negotiator posture.\n",
-    "illustration_prompt": "Anime character design, young female emotion hacker, white tactical suit, pink visor, biotech implants, cyberpunk techwear, full body front view, character sheet, high detail concept art, dark industrial background.\n",
+    "visual_design": "Asymmetrical pearl-silver bob with dusty-rose underlayer, gray-green eyes, rose-gold crescent neural ear cuff, ivory asymmetrical tactical jacket, charcoal undersuit and tapered trousers, composed coordinator posture.",
+    "illustration_prompt": "Original Eve v2 design; retain the generated reference identity and asymmetric ivory/charcoal/rose-gold costume. High-detail cel-shaded character art; no goggles, no visor; transparent full-body front, side and back views.",
     "visual_assets": {
       "avatar_image": "visuals/avatar.png",
       "front_image": "visuals/front.png",
@@ -62,9 +62,17 @@
       "source_turnaround": "visuals/source_turnaround.png"
     },
     "source_assets": {
-      "echo_asset_dir": "assets/characters/003_eve/echo_refs",
-      "echo_source_agent": "general"
-    }
+      "echo_asset_dir": "agents/general/visuals/eve-v2",
+      "echo_source_agent": "general",
+      "generation_mode": "chatgpt-web",
+      "version": "eve-v2"
+    },
+    "appearance": [
+      "不对称银白短发，左侧内层带灰玫瑰粉，灰绿色眼睛，左耳有玫瑰金月牙通讯接口。",
+      "象牙白修身机能外套以玫瑰金细线收边，左侧长下摆与右侧短腰线形成不对称轮廓。",
+      "炭灰高领内搭与修身长裤，胸前圆形通讯节点，陶瓷肩部模块与白色玫瑰金踝靴。",
+      "整体是冷静、利落的白幽灵协调员形象，表情从容，带一点会读懂你的轻微笑意。"
+    ]
   },
   "capabilities": {
     "canon_review_required": true

@@ -1,0 +1,82 @@
+{
+  "character": "Eve / Siren — White Ghost Squad",
+  "mode": "Web fallback: ChatGPT in the existing signed-in Chrome session; built-in imagegen returned 404 before generating.",
+  "design": "New Eve v2: asymmetrical pearl-silver bob, dusty-rose underlayer, rose-gold neural ear cuff, ivory asymmetric tactical jacket and charcoal undersuit. Keep established identity and personality.",
+  "assets": [
+    {
+      "name": "front",
+      "transparent_background": true,
+      "prompt": "Use case: stylized-concept. Asset type: production full-body FRONT character sprite for Echo desktop and Android, transparent PNG. Create a NEW original character design for Eve (伊芙), codename Siren, the adult 24-year-old female communications coordinator of Echo's White Ghost Squad, a calm perceptive AI chief of staff and emotion hacker. Do not copy any existing franchise character. Sophisticated Japanese game concept illustration with elegant clean linework, precise cel shading, restrained painterly highlights, high production quality. NEW design identity: asymmetrical chin-length pearl-silver bob, longer sharp swept fringe on her right, subtle dusty-rose underside on the left, gray-green eyes, mature calm face, warm slight knowing smile; a small rose-gold crescent neural ear cuff on her left with one tiny rose illuminated node, no goggles and no visor. Fitted high-collar charcoal undersuit fully covering torso; ivory white asymmetric tailored tactical jacket, hip length on her right and a long curved knee-length panel on her left; clean rose piping, small circular communication module at sternum, small refined ceramic shoulder panels; high-waisted charcoal tapered trousers, ivory low-profile ankle boots with rose details; practical elegant clothing, very few straps, no weapons, no props, no sexualized posing. Neutral relaxed standing FRONT view facing camera, arms slightly apart and hands fully visible, feet parallel. Single character only, entire head and shoes visible, vertically centered, fills 88 percent of canvas height, balanced margins. Orthographic character asset framing. Clear face even at thumbnail size. Lighting soft neutral white, subtle rose light on jacket details. Truly transparent background, no ground plane, no shadow blobs, no scenery, no letters, no labels, no watermark, no logo. Preserve a memorable silhouette distinct from the earlier long-haired goggle-wearing streetwear character."
+    },
+    {
+      "name": "side",
+      "transparent_background": true,
+      "prompt": "Use case: identity-preserve. Asset type: production full-body SIDE character sprite. Input image: the newly generated Eve front sprite, identity and costume reference. Keep precisely the new Eve identity from the supplied generated front view: adult woman, asymmetric pearl-silver chin-length bob with dusty-rose underlayer, gray-green eyes, left rose-gold crescent neural ear cuff, ivory asymmetric tailored tactical coat with a long left panel, charcoal fully covered undersuit and tapered trousers, ivory ankle boots. Maintain the same face, hairstyle, costume construction, proportions, palette and polished cel-shaded game illustration style. Show a true left-side orthographic view, facing to the right of the frame, neutral stance with arms relaxed, entire head and shoes visible. Single character fills 88 percent of canvas height. Transparent background, no labels, no scenery, no weapons, no watermark."
+    },
+    {
+      "name": "back",
+      "transparent_background": true,
+      "prompt": "Use case: identity-preserve. Asset type: production full-body BACK character sprite. Input image: the newly generated Eve front sprite, identity and costume reference. Keep precisely the new Eve identity from the supplied generated front view: adult woman, asymmetric pearl-silver chin-length bob with dusty-rose underlayer, gray-green eyes, left rose-gold crescent neural ear cuff, ivory asymmetric tailored tactical coat with a long left panel, charcoal fully covered undersuit and tapered trousers, ivory ankle boots. Maintain the same face, hairstyle, costume construction, proportions, palette and polished cel-shaded game illustration style. Show an orthographic rear view, back fully toward camera, arms relaxed with hands visible. Correct rear seams and asymmetrical coat silhouette, subtle crescent communication insignia formed from shape only. Entire head and shoes visible, character fills 88 percent of canvas height. Transparent background, no labels, no scenery, no weapons, no watermark."
+    },
+    {
+      "name": "portrait",
+      "transparent_background": false,
+      "prompt": "Use case: identity-preserve. Asset type: square UI avatar and dialogue portrait. Input image: the newly generated Eve front sprite, identity and costume reference. Keep precisely the new Eve identity from the supplied generated front view: adult woman, asymmetric pearl-silver chin-length bob with dusty-rose underlayer, gray-green eyes, left rose-gold crescent neural ear cuff, ivory asymmetric tailored tactical coat with a long left panel, charcoal fully covered undersuit and tapered trousers, ivory ankle boots. Maintain the same face, hairstyle, costume construction, proportions, palette and polished cel-shaded game illustration style. Head and upper shoulders portrait, centered face directed at viewer, warm knowing slight smile. Large face legible at 30 pixels, full hairstyle visible with 12 percent margin, the ear cuff visible. Premium dark blue-gray plain background with subtle rose glow and soft neutral facial light. Elegant adult character, no props, no letters, no logos, no watermark."
+    },
+    {
+      "name": "turnaround",
+      "transparent_background": true,
+      "prompt": "Use case: identity-preserve. Asset type: three-view character model reference. Input images: newly generated Eve front, side and back sprites, exact identity and costume references. Keep precisely the new Eve identity from the supplied generated front view: adult woman, asymmetric pearl-silver chin-length bob with dusty-rose underlayer, gray-green eyes, left rose-gold crescent neural ear cuff, ivory asymmetric tailored tactical coat with a long left panel, charcoal fully covered undersuit and tapered trousers, ivory ankle boots. Maintain the same face, hairstyle, costume construction, proportions, palette and polished cel-shaded game illustration style. Three equally spaced full-body orthographic FRONT, LEFT SIDE and BACK views of this same character in one wide canvas. Match heights, neutral stance, all shoes visible, keep views separated, no extra character. Truly transparent background, no labels, no letters, no watermark."
+    },
+    {
+      "name": "avatar",
+      "transparent_background": false,
+      "prompt": "请直接生成一张新的 Eve 头像图片，严格沿用本对话刚生成的 Eve 的脸、发型和耳饰。用户要求「头像要大，只带头」。Square 1:1 game avatar, extreme close-up of the HEAD ONLY, face and hair occupying 92% of the canvas. Preserve the same adult 24-year-old Eve: pearl-silver asymmetrical chin-length bob with dusty-rose inner hair, gray-green eyes, rose-gold crescent neural ear cuff on her left ear, calm mature face, small warm knowing smile. Front facing, direct eye contact. Frame from just above the hair crown to immediately below the chin; NO shoulders, NO torso, NO jacket, NO clothing, NO chest node, NO visible long neck. Keep the complete hairstyle with a very narrow outer margin suitable for circular avatar clipping. Dark blue-gray clean background, soft lighting, polished cel-shaded Japanese game illustration matching the previous Eve assets. No text, no logo, no watermark. The head should be very large and readable even in a 30px avatar. Generate the image now, do not return only a written prompt."
+    }
+  ],
+  "destinations": {
+    "desktop": [
+      "agents/general/avatar.png",
+      "agents/general/visuals/{front,side,back,head,chat,source-portrait,source-turnaround}.png"
+    ],
+    "universe": [
+      "agents/echo_eve/avatar.png",
+      "agents/echo_eve/visuals/{avatar,front,side,back,head,chat,source_portrait,source_turnaround}.png"
+    ],
+    "android": [
+      "app/src/main/res/drawable-nodpi/dot_eve.png",
+      "app/src/main/res/drawable-nodpi/eve_{avatar,front,side,back}.png"
+    ]
+  },
+  "generation_conversation": "https://chatgpt.com/c/6acbe8f8-8c58-83ee-9e4e-47d6db416b8d",
+  "status": "completed and installed into desktop and Android assets",
+  "postprocessing": "Side-view background removal requested via the web image editor.",
+  "outputs": {
+    "front": {
+      "path": "eve-v2/front.png",
+      "sha256": "40e11f12498630f17fcc4367791a0c891a21f10710585600f776571a8474a0a2"
+    },
+    "side": {
+      "path": "eve-v2/side.png",
+      "sha256": "64e47229929f455a302750a0dbad0d4c7a54fa23d7686b7ed49c27e1b292767c"
+    },
+    "back": {
+      "path": "eve-v2/back.png",
+      "sha256": "40979bdcd9c9a6723faef2dffd6898823523a0b6c674c82427b0c889a1038df0"
+    },
+    "portrait": {
+      "path": "eve-v2/portrait.png",
+      "sha256": "71b04e74be3c6e5cadbdb891d6d95989a645e9ec5ee4f479b5cf9dd288298b7d"
+    },
+    "turnaround": {
+      "path": "eve-v2/turnaround.png",
+      "sha256": "754a6ff64f6988efcca75611a2f1a02ff2ec281df7a82285dad14613a71b372b"
+    },
+    "avatar": {
+      "path": "eve-v2/avatar.png",
+      "sha256": "b894dbee0470340682663fc9ee179ad3494012ddf0f8a6120291b4d37cb93be0",
+      "framing": "Head only; tight close-up without shoulders or clothing."
+    }
+  },
+  "avatar_revision": "2026-10-12: enlarged head-only avatar installed in desktop and Android avatar consumers; bust portrait remains available for dialogue artwork."
+}

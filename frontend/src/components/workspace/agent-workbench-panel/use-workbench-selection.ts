@@ -52,6 +52,17 @@ type WorkbenchSelectionInput = {
   onSelectTab?: (tab: AgentWorkbenchTabId) => void;
 };
 
+function findRosterSeatByFocusId(
+  focusId: string,
+  seats: WorkbenchRosterSeat[],
+) {
+  const aiSeats = seats.filter((seat) => seat.kind !== "human");
+  return (
+    aiSeats.find((seat) => seat.id === focusId) ??
+    aiSeats.find((seat) => seat.name === focusId)
+  );
+}
+
 export function useWorkbenchSelection({
   blocks,
   currentPhase,
@@ -138,11 +149,18 @@ export function useWorkbenchSelection({
     () => new Set(selectableAgentTiles.map((agent) => agent.id)),
     [selectableAgentTiles],
   );
+  const selectedRosterTarget = selectedRosterSeatId
+    ? findRosterSeatByFocusId(selectedRosterSeatId, rosterSeats)
+    : null;
+  const selectedRosterAgent = selectedRosterTarget
+    ? (findAgentTileByFocusId(selectedRosterTarget.id, agentTiles) ??
+      findAgentTileByFocusId(selectedRosterTarget.name, agentTiles))
+    : null;
   const selectedAgent =
     selectedAgentId && selectableAgentIds.has(selectedAgentId)
       ? (selectableAgentTiles.find((agent) => agent.id === selectedAgentId) ??
         null)
-      : null;
+      : (selectedRosterAgent ?? null);
   const screenBlocks = useMemo(
     () => screenBlocksForAgent(blocks, selectedAgent?.id ?? null),
     [blocks, selectedAgent?.id],
@@ -246,12 +264,18 @@ export function useWorkbenchSelection({
     // switches); it must be part of the consumed key, not the plain id.
     const intentKey = `${focusedAgentNonce ?? 0}:${focusedAgentId}`;
     if (consumedFocusedAgentIdRef.current === intentKey) return;
-    if (selectableAgentTiles.length === 0) return;
-    const target = findAgentTileByFocusId(focusedAgentId, selectableAgentTiles);
-    if (!target) return;
+    const target =
+      findAgentTileByFocusId(focusedAgentId, agentTiles) ??
+      findAgentTileByFocusId(focusedAgentId, selectableAgentTiles);
+    const rosterTarget = target
+      ? null
+      : findRosterSeatByFocusId(focusedAgentId, rosterSeats);
+    if (!target && !rosterTarget) return;
     consumedFocusedAgentIdRef.current = intentKey;
-    setSelectedAgentId(target.id);
-    setSelectedRosterSeatId(null);
+    setSelectedEffectKey(null);
+    setSelectedAgentId(target?.id ?? null);
+    setSelectedRosterSeatId(rosterTarget?.id ?? null);
+    setManualBlockSelection(false);
     setActivityView(
       focusedAgentView === "role" ? "screen" : (focusedAgentView ?? "screen"),
     );
@@ -259,6 +283,8 @@ export function useWorkbenchSelection({
     focusedAgentId,
     focusedAgentView,
     focusedAgentNonce,
+    agentTiles,
+    rosterSeats,
     selectableAgentTiles,
   ]);
 
@@ -359,16 +385,12 @@ export function useWorkbenchSelection({
   }, [agentTiles, rosterSeats]);
   const leaderRosterSeat =
     rosterSeats.find((seat) => seat.role === "tl") ?? null;
-  const selectedRosterSeat = selectedRosterSeatId
-    ? (visibleRosterSeats.find((seat) => seat.id === selectedRosterSeatId) ??
-      rosterSeats.find((seat) => seat.id === selectedRosterSeatId) ??
-      null)
+  const selectedRosterSeat = !selectedAgent
+    ? (selectedRosterTarget ?? null)
     : null;
   useEffect(() => {
     setSelectedRosterSeatId((current) =>
-      current && rosterSeats.some((seat) => seat.id === current)
-        ? current
-        : null,
+      current && findRosterSeatByFocusId(current, rosterSeats) ? current : null,
     );
   }, [rosterSeats]);
   const openRosterProcess = useCallback(
@@ -394,13 +416,18 @@ export function useWorkbenchSelection({
 
       // Main-chat cards often carry the stable codename/role while the
       // workbench tile carries a runtime id. Resolve all supported aliases.
-      const target = findAgentTileByFocusId(agentId, selectableAgentTiles);
-      if (!target) return;
+      const target =
+        findAgentTileByFocusId(agentId, agentTiles) ??
+        findAgentTileByFocusId(agentId, selectableAgentTiles);
+      const rosterTarget = target
+        ? null
+        : findRosterSeatByFocusId(agentId, rosterSeats);
+      if (!target && !rosterTarget) return;
 
       // Switch to the agent's view
       setSelectedEffectKey(null);
-      setSelectedAgentId(target.id);
-      setSelectedRosterSeatId(null);
+      setSelectedAgentId(target?.id ?? null);
+      setSelectedRosterSeatId(rosterTarget?.id ?? null);
       setActivityView(view === "role" ? "screen" : (view ?? "screen"));
       setManualBlockSelection(false);
 
@@ -414,7 +441,7 @@ export function useWorkbenchSelection({
     return () => {
       window.removeEventListener(AGENT_WORKBENCH_FOCUS_EVENT, handleFocus);
     };
-  }, [onSelectTab, selectableAgentTiles]);
+  }, [agentTiles, onSelectTab, rosterSeats, selectableAgentTiles]);
 
   return {
     selectedBlockId,

@@ -96,15 +96,25 @@ describe("realtime unified right panel contract", () => {
     expect(pageSource).toContain("openTeachRepeatPanel();");
   });
 
-  it("keeps members in the compact header control without duplicating avatars beside the composer", () => {
+  it("keeps member management in the header and member workstations below the group composer", () => {
     expect(pageSource).toContain("<TaskCollaboratorControl");
-    expect(pageSource).not.toContain("<ConversationRosterStrip");
+    const memberControls = sourceBetween(
+      "memberControls={",
+      "responseModeControl={",
+    );
+    expect(memberControls).toContain(
+      "!embeddedDesignChat && isGroupConversation",
+    );
+    expect(memberControls).toContain("<ConversationRosterStrip");
+    expect(memberControls).toContain("seats={collaborationRosterSeats}");
+    expect(memberControls).toContain("onOpenMemberProcess={openAgentPanel}");
 
     const workbench = sourceBetween(
       "<AgentWorkbenchPanel",
       "onClose={closeAgentWorkbenchPanel}",
     );
     expect(workbench).toContain("showMachineScopeRail={false}");
+    expect(workbench).toContain("showMachineRosterRail={false}");
     expect(workbench).toContain("focusedAgentId={focusedWorkbenchAgentId}");
   });
 

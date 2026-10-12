@@ -27,7 +27,9 @@ import json
 import logging
 import sys
 import threading
+from collections import OrderedDict
 from contextlib import suppress
+from copy import deepcopy
 from pathlib import Path
 from typing import Any
 
@@ -55,6 +57,8 @@ _DEFAULT_BUNDLED_PLUGIN_DIR = Path(__file__).resolve().parent / "bundled"
 _EXTERNAL_STATE_SCHEMA = "echo.external_plugin_runtime_state.v1"
 _ACTIVATION_STARTUP = "startup"
 _ACTIVATION_ON_DEMAND = "on_demand"
+_MAX_CACHED_MANIFESTS = 128
+_MAX_CACHED_MANIFEST_BYTES = 256 * 1024
 
 
 def _manifest_activation_mode(data: dict[str, Any]) -> str:
@@ -182,6 +186,13 @@ class PluginHub:
         self._external_module_names: set[str] = set()
         # Internal lock for thread safety
         self._lock_internal = threading.RLock()
+        # Parsed metadata belongs to this hub/root, never to a process-global
+        # plugin name. Every hit checks the current file identity; callers get
+        # their own nested objects so configuration edits cannot poison it.
+        self._manifest_cache: OrderedDict[
+            tuple[Path, str], tuple[tuple[int, ...], dict[str, Any]]
+        ] = OrderedDict()
+        self._manifest_cache_lock = threading.RLock()
 
     # ── Discovery ──────────────────────────────────────────────
 
@@ -192,6 +203,7 @@ class PluginHub:
         """
         results: list[dict[str, Any]] = []
         seen: set[str] = set()
+        external_state: tuple[dict[str, Any], str | None] | None = None
         for base, bundled in self._plugin_roots():
             if not base.exists():
                 continue
@@ -217,7 +229,9 @@ class PluginHub:
                 if bundled and self._activation_store.is_factory(pname):
                     activation = self._activation_store.state(pname)
                 elif not bundled:
-                    activation = self._external_activation(pname)
+                    if external_state is None:
+                        external_state = self._read_external_runtime_state()
+                    activation = self._external_activation(pname, state=external_state)
                 else:
                     activation = {
                         "installed": True,
@@ -860,9 +874,8 @@ class PluginHub:
             "restart_required": False,
         }
 
-    def _external_activation(self, name: str) -> dict[str, Any]:
-        enabled = True
-        error = None
+    def _read_external_runtime_state(self) -> tuple[dict[str, Any], str | None]:
+        """Read one scan's activation snapshot; never retain it across scans."""
         if self._external_state_path.exists():
             try:
                 payload = json.loads(self._external_state_path.read_text(encoding="utf-8"))
@@ -872,12 +885,19 @@ class PluginHub:
                     or not isinstance(payload.get("plugins"), dict)
                 ):
                     raise ValueError("unsupported state schema")
-                row = payload["plugins"].get(name)
-                if isinstance(row, dict) and "enabled" in row:
-                    enabled = row.get("enabled") is True
+                return payload, None
             except (OSError, UnicodeDecodeError, json.JSONDecodeError, ValueError):
-                enabled = False
-                error = "invalid_external_runtime_state"
+                return {}, "invalid_external_runtime_state"
+        return {}, None
+
+    def _external_activation(
+        self, name: str, *, state: tuple[dict[str, Any], str | None] | None = None
+    ) -> dict[str, Any]:
+        payload, error = state if state is not None else self._read_external_runtime_state()
+        enabled = error is None
+        row = payload.get("plugins", {}).get(name)
+        if isinstance(row, dict) and "enabled" in row:
+            enabled = row.get("enabled") is True
         return {
             "installed": True,
             "enabled": enabled,
@@ -1076,9 +1096,7 @@ class PluginHub:
                     "config_schema": (
                         ctx.manifest.config_schema
                         if ctx
-                        else (self._read_manifest_file(Path(discovered["dir"])) or {}).get(
-                            "config_schema", {}
-                        )
+                        else manifest_data.get("config_schema", {})
                     ),
                     "config_ui": instance.config_ui_component if instance else None,
                     "loaded": instance is not None,
@@ -1190,12 +1208,22 @@ class PluginHub:
         return None
 
     def _read_manifest_file(self, plugin_dir: Path) -> dict[str, Any] | None:
-        """Read plugin.yaml or plugin.json from the plugin directory."""
+        """Read current metadata, reusing only an unchanged bounded snapshot."""
         for filename in ("plugin.yaml", "plugin.json"):
             path = plugin_dir / filename
-            if path.exists():
+            with self._manifest_cache_lock:
+                key = None
                 try:
-                    raw = path.read_text(encoding="utf-8")
+                    resolved = path.resolve()
+                    key = (resolved, filename)
+                    stat = resolved.stat()
+                    signature = self._manifest_signature(stat)
+                    cached = self._manifest_cache.get(key)
+                    if cached is not None and cached[0] == signature:
+                        self._manifest_cache.move_to_end(key)
+                        return deepcopy(cached[1])
+                    self._manifest_cache.pop(key, None)
+                    raw = resolved.read_text(encoding="utf-8")
                     if filename.endswith(".yaml"):
                         import yaml
 
@@ -1203,10 +1231,35 @@ class PluginHub:
                     else:
                         data = json.loads(raw)
                     if isinstance(data, dict):
-                        return _normalize_manifest_identity(data)
+                        data = _normalize_manifest_identity(data)
+                        # A concurrent rewrite must not be stamped as the
+                        # version we parsed. Large manifests remain readable,
+                        # but are not retained in memory between requests.
+                        if (
+                            stat.st_size <= _MAX_CACHED_MANIFEST_BYTES
+                            and self._manifest_signature(resolved.stat()) == signature
+                        ):
+                            self._manifest_cache[key] = (signature, deepcopy(data))
+                            while len(self._manifest_cache) > _MAX_CACHED_MANIFESTS:
+                                self._manifest_cache.popitem(last=False)
+                        return data
+                except FileNotFoundError:
+                    if key is not None:
+                        self._manifest_cache.pop(key, None)
                 except Exception as exc:
                     _LOG.debug("Failed to parse %s: %s", path, exc)
         return None
+
+    @staticmethod
+    def _manifest_signature(stat: Any) -> tuple[int, ...]:
+        return (
+            stat.st_dev,
+            stat.st_ino,
+            stat.st_mtime_ns,
+            stat.st_ctime_ns,
+            stat.st_size,
+            stat.st_mode,
+        )
 
     def _find_plugin_class(self, mod: Any) -> type[ModulePlugin] | None:
         """Find a ModulePlugin subclass in the imported module."""

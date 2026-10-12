@@ -18,6 +18,7 @@ import { AgentSummaryPage } from "../agent-workbench-pages";
 import type { LiveToolEvent } from "../live-tool-timeline";
 import type { WorkbenchRosterSeat } from "./helpers";
 import { SubagentProcessView } from "./subagent-process-view";
+import { RosterComputerPlaceholder } from "./roster-computer-placeholder";
 
 type AgentKanbanUserInput = {
   text: string;
@@ -146,7 +147,7 @@ function AgentKanbanViewImpl({
       <div className="flex items-center gap-4 border-b border-border-subtle px-5 py-2">
         {[
           { id: "summary" as const, label: t.agentWorkbenchPanel.summaryLabel },
-          ...(selectedAgent
+          ...(selectedAgent || selectedRosterSeat
             ? [
                 {
                   id: "screen" as const,
@@ -211,6 +212,11 @@ function AgentKanbanViewImpl({
             setSelectedBlockId(blockId);
             setManualBlockSelection(true);
           }}
+        />
+      ) : effectiveActivityView === "screen" && selectedRosterSeat ? (
+        <RosterComputerPlaceholder
+          seat={selectedRosterSeat}
+          onOpenMain={openMainProcess}
         />
       ) : (
         <AgentSummaryPage

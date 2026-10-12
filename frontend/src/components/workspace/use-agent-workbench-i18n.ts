@@ -39,6 +39,7 @@ export function deriveAgentTilesFromEvents(
     if (isInternalAutoParallelFailure(event)) continue;
     addDispatchSpecTiles(event, byId);
     addDispatchResultTiles(event, byId);
+    settleUnstartedDispatchTiles(event, byId);
     // Older journals could persist a truncated spawn payload containing only
     // the parent dispatch id. The dispatch specs already provide the complete
     // seat list, so rendering that identity-less marker creates a phantom
@@ -82,7 +83,8 @@ export function deriveAgentTilesFromEvents(
       status = "pending";
     }
     const existingIsTerminal =
-      existing?.status === "done" || existing?.status === "error";
+      (existing?.status === "done" || existing?.status === "error") &&
+      existing.eventCount > 0;
     // Stale child activity cannot reopen a lifecycle-complete tile. Likewise,
     // don't downgrade running to pending when a sparse event arrives.
     const finalStatus = existingIsTerminal
@@ -366,7 +368,9 @@ function addDispatchSpecTiles(
       status:
         existing && existing.eventCount > 0
           ? existing.status
-          : dispatchStatus(event.status),
+          : event.status === "running"
+            ? "pending"
+            : dispatchStatus(event.status),
       task: existing?.task ?? prompt,
       prompt,
       avatar: existing?.avatar ?? avatarForRole(role),
@@ -444,9 +448,50 @@ function addDispatchResultTiles(
     return;
   }
 
-  [...successes, ...failures].forEach((result, index) => {
-    mergeDispatchResultTile(event, byId, result, index);
+  successes.forEach((result, index) => {
+    mergeDispatchResultTile(event, byId, result, index, "done");
   });
+  failures.forEach((result, index) => {
+    mergeDispatchResultTile(
+      event,
+      byId,
+      result,
+      successes.length + index,
+      "error",
+    );
+  });
+}
+
+function settleUnstartedDispatchTiles(
+  event: LiveToolEvent,
+  byId: Map<string, AgentTile>,
+) {
+  const envelope = dispatchEnvelopeFromOutput(event.output);
+  const failed =
+    event.status === "error" ||
+    (event.status === "done" &&
+      (envelope?.ok === false || envelope?.success === false));
+  if (
+    !failed ||
+    !["call_agent", "call_agent_parallel", "team_swarm"].includes(event.name)
+  )
+    return;
+  const error =
+    event.error?.trim() ||
+    stringFromKeys(envelope, ["error", "message", "detail"]) ||
+    errorFromAgentEvent(event) ||
+    "Subagent dispatch failed before startup";
+  for (const [id, tile] of byId) {
+    // Parent dispatch failure can settle a planned seat, but it cannot claim
+    // that an independently started / completed child failed as well.
+    if (tile.parentToolUseId !== event.id || tile.eventCount > 0) continue;
+    byId.set(id, {
+      ...tile,
+      status: "error",
+      error,
+      finishedAt: event.finishedAt ?? event.startedAt,
+    });
+  }
 }
 
 function dispatchEnvelopeFromOutput(
@@ -478,6 +523,7 @@ function mergeDispatchResultTile(
   byId: Map<string, AgentTile>,
   result: DispatchResultRecord,
   index: number,
+  outcome?: "done" | "error",
 ) {
   const role =
     stringFromKeys(result, [
@@ -507,11 +553,17 @@ function mergeDispatchResultTile(
     result.iteration_count ?? result.rounds_completed,
   );
   const durationSeconds = numberFromUnknown(result.duration_s);
-  const status: AgentTile["status"] = error
-    ? "error"
-    : event.status === "error"
+  const status: AgentTile["status"] =
+    error ||
+    outcome === "error" ||
+    result.ok === false ||
+    result.success === false
       ? "error"
-      : "done";
+      : outcome === "done" || result.ok === true || result.success === true
+        ? "done"
+        : event.status === "error"
+          ? "error"
+          : "done";
   const suffixes = [
     iterationCount !== undefined ? `${iterationCount} 轮` : "",
     result.round_cap_exceeded ? "轮次上限" : "",

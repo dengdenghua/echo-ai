@@ -24,8 +24,13 @@ import {
   type DetectResponse,
 } from "./mode-selector";
 import { WorkDirSelector } from "./workdir-selector";
+import { useWorkDirLabels } from "./workdir-label";
 
 import { ChatComposer } from "./chat-input-box/ChatComposer";
+import {
+  ComposerRunSettings,
+  ComposerRunSettingsRow,
+} from "./chat-input-box/ComposerRunSettings";
 import { ModeIntentSuggestion } from "./chat-input-box/mode-intent-suggestion";
 import type { GroupTaskStrategy } from "./group-task-strategy";
 import type { MentionMemberInput } from "./mention-autocomplete";
@@ -56,6 +61,8 @@ export interface ChatInputBoxProps {
   mentionMembers?: MentionMemberInput[];
   /** Optional per-turn response strategy rendered inside the composer footer. */
   responseModeControl?: ReactNode;
+  /** Member workstations beside the response strategy below the input. */
+  memberControls?: ReactNode;
   /** Optional compact content appended to the workspace/mode status row. */
   statusTrailing?: ReactNode;
   /** Stable browser tab / desktop window bound to this conversation. */
@@ -198,6 +205,7 @@ function ChatInputBoxImpl(props: ChatInputBoxProps) {
     isGroupConversation = false,
     groupTaskStrategy = "auto",
     onGroupTaskStrategyChange,
+    memberControls,
     statusTrailing,
     workspaceControl,
     contextActions,
@@ -235,7 +243,11 @@ function ChatInputBoxImpl(props: ChatInputBoxProps) {
   // directory before the picker appeared, so there was no inline way to choose
   // one. When the parent opts into the picker (``showWorkDirSelector``), show it
   // so picking a folder is the entry point into a project/code workflow.
-  const showWorkDirSegment = Boolean(workspaceControl) || isProjectMode || hasWorkDir || showWorkDirSelector;
+  const showWorkDirSegment =
+    Boolean(workspaceControl) ||
+    isProjectMode ||
+    hasWorkDir ||
+    showWorkDirSelector;
   // Personal and project workspaces share the same two work modes. A folder
   // changes scope only; it must not replace the mode selector with another
   // vocabulary or another backend contract.
@@ -265,13 +277,22 @@ function ChatInputBoxImpl(props: ChatInputBoxProps) {
     [isGroupConversation, onGroupTaskStrategyChange, onProjectAgentModeChange],
   );
   const showAgentSegment = false;
-  const statusSegmentCount =
-    (showAgentSegment ? 1 : 0) +
-    (showWorkDirSegment ? 1 : 0) +
-    (showModeSegment ? 1 : 0) +
-    (statusTrailing ? 1 : 0) +
-    (executionLocationControl ? 1 : 0);
-  const showStatusStrip = statusSegmentCount > 0;
+  const { personalSpaceLabel, folderName } = useWorkDirLabels(
+    workDir ?? "",
+    visibleProjectMode === "uxui",
+  );
+  const workspaceSummary = hasWorkDir ? folderName : personalSpaceLabel;
+  // ``audit`` is a retained alias that reads as General (see ModeSelector).
+  const summaryMode = visibleProjectMode === "uxui" ? "uxui" : "develop";
+  const modeSummary =
+    groupProjectModeLabels?.[summaryMode] ?? t.modes[summaryMode];
+  const runSettingsSummary =
+    [
+      showWorkDirSegment ? workspaceSummary : null,
+      showModeSegment ? modeSummary : null,
+    ]
+      .filter(Boolean)
+      .join(" · ") || t.chatInputBox.runSettings;
 
   return (
     <>
@@ -286,105 +307,144 @@ function ChatInputBoxImpl(props: ChatInputBoxProps) {
       {props.messageQueueControl}
       <ChatComposer
         {...props}
-        renderStatusStrip={(executionLocationLocked) =>
-          showStatusStrip ? (
-            <div
-              data-testid="chat-status-strip"
-              data-composer-context-strip={statusTrailing ? undefined : "true"}
-              className="flex min-h-8 flex-wrap items-center gap-x-2 gap-y-1 px-2 pt-1.5 text-ui text-muted-foreground"
-            >
-              <div className="inline-flex max-w-full items-center gap-1.5 rounded-lg px-0.5 py-0.5">
-                {showAgentSegment ? (
-                  <>
-                    <div
-                      className="inline-flex min-w-0 max-w-[124px] items-center gap-1.5 rounded-full px-2 py-1"
-                      title={displayAgentLabel}
-                    >
-                      <span className="flex size-4 shrink-0 items-center justify-center overflow-hidden rounded-full bg-muted text-xs font-semibold text-muted-foreground">
-                        {displayAgentAvatar ? (
-                          <img
-                            src={displayAgentAvatar}
-                            alt={displayAgentLabel}
-                            className="size-full object-cover"
-                          />
-                        ) : displayAgentIcon ? (
-                          displayAgentIcon
-                        ) : (
-                          displayAgentInitial
-                        )}
-                      </span>
-                      <span className="truncate">{displayAgentLabel}</span>
-                    </div>
-                    {(showWorkDirSegment || showModeSegment) && (
-                      <span
-                        className="h-3 w-px shrink-0 bg-border/35"
-                        aria-hidden="true"
-                      />
-                    )}
-                  </>
-                ) : null}
-                {showWorkDirSegment ? (
-                  <>
-                    <div className="composer-workspace-control">
-                    {workspaceControl ?? <WorkDirSelector
-                      designSpace={visibleProjectMode === "uxui"}
-                      workDir={workDir ?? ""}
-                      onWorkDirChange={onWorkDirChange}
-                      lockToCurrentThread={lockWorkDirToThread}
-                      onOpenWorkDirInNewTask={onOpenWorkDirInNewTask}
-                      variant="muted"
-                      chromeless
-                    />}
-                    </div>
-                  </>
-                ) : null}
-                {showModeSegment ? (
-                  <>
-                    {showWorkDirSegment ? (
-                      <span
-                        className="h-3 w-px shrink-0 bg-border/35"
-                        aria-hidden="true"
-                      />
-                    ) : null}
-                    <ModeSelector
-                      workDir={workDir ?? ""}
-                      sessionId={threadId ?? "new"}
-                      mode={visibleProjectMode}
-                      labelOverrides={groupProjectModeLabels}
-                      codeModeUnlocked={codeModeUnlocked}
-                      readOnlyHint={projectReadOnlyHint}
-                      chromeless
-                      permissionLabel={permissionLabel}
-                      onModeChange={changeProjectMode}
-                      onUserModeChange={onProjectAgentModeUserChange}
-                      onDetectionChange={onProjectDetectionChange}
-                      onManualOverrideChange={onManualOverrideChange}
+        renderStatusStrip={(executionLocationLocked, controls) => (
+          <div
+            data-testid="chat-status-strip"
+            data-composer-context-strip={statusTrailing ? undefined : "true"}
+            className="flex min-h-8 flex-wrap items-center gap-x-2 gap-y-1 px-2 pt-1.5 text-ui text-muted-foreground"
+          >
+            <div className="inline-flex max-w-full items-center gap-1.5 rounded-lg px-0.5 py-0.5">
+              {showAgentSegment ? (
+                <>
+                  <div
+                    className="inline-flex min-w-0 max-w-[124px] items-center gap-1.5 rounded-full px-2 py-1"
+                    title={displayAgentLabel}
+                  >
+                    <span className="flex size-4 shrink-0 items-center justify-center overflow-hidden rounded-full bg-muted text-xs font-semibold text-muted-foreground">
+                      {displayAgentAvatar ? (
+                        <img
+                          src={displayAgentAvatar}
+                          alt={displayAgentLabel}
+                          className="size-full object-cover"
+                        />
+                      ) : displayAgentIcon ? (
+                        displayAgentIcon
+                      ) : (
+                        displayAgentInitial
+                      )}
+                    </span>
+                    <span className="truncate">{displayAgentLabel}</span>
+                  </div>
+                  {(showWorkDirSegment || showModeSegment) && (
+                    <span
+                      className="h-3 w-px shrink-0 bg-border/35"
+                      aria-hidden="true"
                     />
-                  </>
-                ) : null}
-                {statusTrailing ? (
-                  <>
-                    {(showAgentSegment ||
-                      showWorkDirSegment ||
-                      showModeSegment) && (
-                      <span
-                        className="h-3 w-px shrink-0 bg-border/35"
-                        aria-hidden="true"
+                  )}
+                </>
+              ) : null}
+              {showWorkDirSegment ||
+              showModeSegment ||
+              controls.responseMode ||
+              controls.executionEngine ||
+              executionLocationControl ? (
+                // Workspace, work mode, AI participation and where/how the
+                // task runs are per-run settings: one summary trigger here,
+                // the controls in its panel, so the row under the input stays
+                // short. Members and context remain visible beside it.
+                <ComposerRunSettings summary={runSettingsSummary}>
+                  {showWorkDirSegment ? (
+                    <ComposerRunSettingsRow
+                      label={t.chatInputBox.runSettingsWorkspace}
+                    >
+                      <div className="composer-workspace-control">
+                        {workspaceControl ?? (
+                          <WorkDirSelector
+                            designSpace={visibleProjectMode === "uxui"}
+                            workDir={workDir ?? ""}
+                            onWorkDirChange={onWorkDirChange}
+                            lockToCurrentThread={lockWorkDirToThread}
+                            onOpenWorkDirInNewTask={onOpenWorkDirInNewTask}
+                            variant="muted"
+                            chromeless
+                          />
+                        )}
+                      </div>
+                    </ComposerRunSettingsRow>
+                  ) : null}
+                  {showModeSegment ? (
+                    <ComposerRunSettingsRow
+                      label={t.chatInputBox.runSettingsWorkMode}
+                    >
+                      <ModeSelector
+                        workDir={workDir ?? ""}
+                        sessionId={threadId ?? "new"}
+                        mode={visibleProjectMode}
+                        labelOverrides={groupProjectModeLabels}
+                        codeModeUnlocked={codeModeUnlocked}
+                        readOnlyHint={projectReadOnlyHint}
+                        chromeless
+                        permissionLabel={permissionLabel}
+                        onModeChange={changeProjectMode}
+                        onUserModeChange={onProjectAgentModeUserChange}
+                        onDetectionChange={onProjectDetectionChange}
+                        onManualOverrideChange={onManualOverrideChange}
                       />
-                    )}
-                    {statusTrailing}
-                  </>
-                ) : null}
-              </div>
-              {(executionLocationControl || contextActions) ? (
-                <div className="ml-auto flex min-w-0 max-w-full flex-wrap items-center justify-end gap-x-3 gap-y-1">
-                  {executionLocationControl?.(executionLocationLocked)}
-                  {contextActions ? <div className="flex items-center gap-1">{contextActions}</div> : null}
-                </div>
+                    </ComposerRunSettingsRow>
+                  ) : null}
+                  {controls.responseMode ? (
+                    <ComposerRunSettingsRow label={t.chatInputBox.responseMode}>
+                      <div className="composer-status__response inline-flex shrink-0 items-center">
+                        {controls.responseMode}
+                      </div>
+                    </ComposerRunSettingsRow>
+                  ) : null}
+                  {controls.executionEngine ? (
+                    <ComposerRunSettingsRow
+                      label={t.chatInputBox.executionMethod}
+                    >
+                      {controls.executionEngine}
+                    </ComposerRunSettingsRow>
+                  ) : null}
+                  {executionLocationControl ? (
+                    <ComposerRunSettingsRow
+                      label={t.chatInputBox.runSettingsLocation}
+                    >
+                      {executionLocationControl(executionLocationLocked)}
+                    </ComposerRunSettingsRow>
+                  ) : null}
+                </ComposerRunSettings>
+              ) : null}
+              {statusTrailing ? (
+                <>
+                  {(showAgentSegment ||
+                    showWorkDirSegment ||
+                    showModeSegment) && (
+                    <span
+                      className="h-3 w-px shrink-0 bg-border/35"
+                      aria-hidden="true"
+                    />
+                  )}
+                  {statusTrailing}
+                </>
               ) : null}
             </div>
-          ) : null
-        }
+            {memberControls ? (
+              <div
+                className="flex min-w-0 max-w-full flex-wrap items-center gap-x-1.5 gap-y-1"
+                data-slot="composer-members"
+              >
+                {memberControls}
+              </div>
+            ) : null}
+            <div className="ml-auto flex min-w-0 max-w-full flex-wrap items-center justify-end gap-x-1.5 gap-y-1">
+              {controls.context}
+              {contextActions ? (
+                <div className="flex items-center gap-1">{contextActions}</div>
+              ) : null}
+            </div>
+          </div>
+        )}
       />
     </>
   );

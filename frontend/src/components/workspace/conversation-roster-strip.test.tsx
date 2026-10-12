@@ -1,4 +1,5 @@
 import { fireEvent, screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 
 import { renderWithProviders } from "@/test/harness";
@@ -40,5 +41,31 @@ describe("ConversationRosterStrip", () => {
     expect(onOpenMemberProcess).toHaveBeenCalledWith(
       expect.objectContaining({ id: "zero" }),
     );
+  });
+
+  it("keeps every member reachable by keyboard in a large roster", async () => {
+    const onOpenMemberProcess = vi.fn();
+    const seats = Array.from({ length: 12 }, (_, index) => ({
+      id: `member-${index}`,
+      name: `Member ${index}`,
+      kind: "agent" as const,
+      role: index === 0 ? "tl" : "member",
+    }));
+    renderWithProviders(
+      <ConversationRosterStrip
+        seats={[...seats, seats[0]!]}
+        onOpenMemberProcess={onOpenMemberProcess}
+      />,
+    );
+
+    const buttons = screen.getAllByRole("button");
+    expect(buttons).toHaveLength(seats.length);
+    const user = userEvent.setup();
+    for (const button of buttons) {
+      await user.tab();
+      expect(button).toHaveFocus();
+    }
+    await user.keyboard("{Enter}");
+    expect(onOpenMemberProcess).toHaveBeenCalledWith(seats.at(-1));
   });
 });

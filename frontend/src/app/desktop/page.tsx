@@ -33,6 +33,7 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 
+import { EchoAgeShell } from "@/components/brand/echo-age";
 import { useConfirmDialog } from "@/components/ui/confirm-dialog";
 import { cn } from "@/lib/utils";
 import { useDebounce } from "@/hooks";
@@ -517,78 +518,78 @@ export default function DesktopShellPage() {
   };
 
   if (!organizerEnabled) {
+    // Opaque fallback (the transparent `.desktop-overlay` only applies once
+    // the organizer is enabled). The animated field is skipped because this
+    // surface can sit idle behind other windows for hours.
     return (
-      <main className="flex h-screen items-center justify-center bg-background p-6 text-foreground">
-        <section className="w-full max-w-xl rounded-3xl border border-border bg-card p-6 shadow-[var(--shadow-xs)]">
-          <div className="mb-5 flex items-center gap-3">
-            <div className="flex size-11 items-center justify-center rounded-xl bg-primary text-primary-foreground">
-              <FolderIcon className="size-5" />
+      <EchoAgeShell cosmos={{ field: false }}>
+        <main className="relative z-10 flex min-h-screen items-center justify-center p-6">
+          <section className="echo-age-card w-full max-w-xl rounded-[22px] border p-6 backdrop-blur-xl">
+            <div className="mb-5 flex items-center gap-3">
+              <span className="echo-age-tile size-11 shrink-0">
+                <FolderIcon className="size-5" />
+              </span>
+              <div>
+                <h1 className="text-xl font-medium tracking-tight">
+                  {t.desktop.disabledTitle}
+                </h1>
+                <p className="text-sm text-muted-foreground">
+                  {t.desktop.disabledDescription}
+                </p>
+              </div>
             </div>
-            <div>
-              <h1 className="text-xl font-semibold">
-                {t.desktop.disabledTitle}
-              </h1>
-              <p className="text-sm text-muted-foreground">
-                {t.desktop.disabledDescription}
+            <div className="flex flex-wrap gap-3">
+              <button
+                type="button"
+                onClick={enableOrganizer}
+                className="echo-age-primary-button inline-flex h-10 items-center justify-center rounded-xl px-4 text-sm font-medium transition"
+              >
+                {t.desktop.enableButton}
+              </button>
+              <button
+                type="button"
+                onClick={() => navigate(DESKTOP_ORGANIZER_ROUTE)}
+                className="echo-age-secondary-button inline-flex h-10 items-center justify-center rounded-xl border px-4 text-sm font-medium transition"
+              >
+                {t.desktop.pluginSettingsButton}
+              </button>
+              <button
+                type="button"
+                onClick={() => navigate("/workspace/realtime/new")}
+                className="echo-age-secondary-button inline-flex h-10 items-center justify-center rounded-xl border px-4 text-sm font-medium transition"
+              >
+                {t.desktop.backToWorkspaceButton}
+              </button>
+            </div>
+            <div className="mt-6 border-t border-border pt-5">
+              <p className="mb-3 text-xs font-medium tracking-[0.12em] text-[#8592b1]">
+                桌面应用
               </p>
-            </div>
-          </div>
-          <div className="flex flex-wrap gap-3">
-            <button
-              type="button"
-              onClick={enableOrganizer}
-              className="inline-flex h-10 items-center justify-center bg-primary px-4 text-sm font-medium text-primary-foreground shadow-[var(--shadow-xs)] transition hover:bg-primary/90"
-            >
-              {t.desktop.enableButton}
-            </button>
-            <button
-              type="button"
-              onClick={() => navigate(DESKTOP_ORGANIZER_ROUTE)}
-              className="inline-flex h-10 items-center justify-center border border-border bg-background px-4 text-sm font-medium transition hover:bg-muted"
-            >
-              {t.desktop.pluginSettingsButton}
-            </button>
-            <button
-              type="button"
-              onClick={() => navigate("/workspace/realtime/new")}
-              className="inline-flex h-10 items-center justify-center border border-border bg-background px-4 text-sm font-medium transition hover:bg-muted"
-            >
-              {t.desktop.backToWorkspaceButton}
-            </button>
-          </div>
-          <div className="mt-6 border-t border-border pt-5">
-            <p className="mb-3 text-xs font-medium text-muted-foreground">
-              桌面应用
-            </p>
-            <div className="grid grid-cols-4 gap-3 sm:grid-cols-6">
-              {desktopLaunchers.map((app) => {
-                const Icon = app.icon;
-                return (
-                  <button
-                    key={app.id}
-                    type="button"
-                    onClick={() => openApp(app)}
-                    title={`${app.name} · ${app.subtitle}`}
-                    className="group flex min-w-0 flex-col items-center gap-1.5 rounded-xl p-2 text-center transition hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-info"
-                  >
-                    <span
-                      className={cn(
-                        "grid size-10 place-items-center rounded-xl bg-gradient-to-br text-white shadow-sm ring-1 ring-white/30 transition group-hover:-translate-y-0.5",
-                        app.color,
-                      )}
+              <div className="grid grid-cols-4 gap-3 sm:grid-cols-6">
+                {desktopLaunchers.map((app) => {
+                  const Icon = app.icon;
+                  return (
+                    <button
+                      key={app.id}
+                      type="button"
+                      onClick={() => openApp(app)}
+                      title={`${app.name} · ${app.subtitle}`}
+                      className="group flex min-w-0 flex-col items-center gap-1.5 rounded-xl p-2 text-center transition hover:bg-white/[0.04] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                     >
-                      <Icon className="size-5" />
-                    </span>
-                    <span className="line-clamp-2 max-w-20 text-[10px] font-medium leading-tight text-foreground">
-                      {app.name}
-                    </span>
-                  </button>
-                );
-              })}
+                      <span className="echo-age-tile size-10 transition group-hover:-translate-y-0.5">
+                        <Icon className="size-5" />
+                      </span>
+                      <span className="line-clamp-2 max-w-20 text-[10px] font-medium leading-tight text-[#c7cfdf]">
+                        {app.name}
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
             </div>
-          </div>
-        </section>
-      </main>
+          </section>
+        </main>
+      </EchoAgeShell>
     );
   }
 

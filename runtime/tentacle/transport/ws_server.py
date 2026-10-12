@@ -9,6 +9,7 @@
   - task/execute    : Mobile → Runtime 请求母体决策任务
   - task/result     : Runtime → Mobile 返回任务结果
   - tool/execute    : Runtime → Mobile 执行工具
+  - tool/cancel     : Runtime → Mobile 按调用 ID 请求取消
   - tool/result     : Mobile → Runtime 返回工具结果
   - error           : 错误响应
 
@@ -102,6 +103,7 @@ MSG_PC_SCREEN_UNSUBSCRIBE = "pc_screen/unsubscribe"  # 手机端取消订阅PC�
 MSG_TASK_EXECUTE = "task/execute"
 MSG_TASK_RESULT = "task/result"
 MSG_TOOL_EXECUTE = "tool/execute"
+MSG_TOOL_CANCEL = "tool/cancel"
 MSG_TOOL_RESULT = "tool/result"
 MSG_ERROR = "error"
 MSG_PING = "ping"
@@ -214,9 +216,7 @@ class TentacleWebSocketServer:
         # for phones on the LAN), every connection is rejected — an
         # exposed port with no secret to check against is never safe.
         self.auth_token = (
-            auth_token
-            if auth_token is not None
-            else os.environ.get("ECHO_TENTACLE_TOKEN") or None
+            auth_token if auth_token is not None else os.environ.get("ECHO_TENTACLE_TOKEN") or None
         )
         self.on_device_hello = on_device_hello
         self.on_device_disconnect = on_device_disconnect
@@ -332,6 +332,9 @@ class TentacleWebSocketServer:
         if ws is None or not _ws_is_open(ws):
             return ToolResult.fail(call.call_id, -32011, f"Device {tentacle_id} not connected", 0)
 
+        if call.call_id in self._pending_calls:
+            return ToolResult.fail(call.call_id, -32600, "Call ID is already in flight", 0)
+
         # 创建 future 等待结果
         future: asyncio.Future[ToolResult] = asyncio.get_event_loop().create_future()
         self._pending_calls[call.call_id] = future
@@ -348,13 +351,38 @@ class TentacleWebSocketServer:
             # 等待结果（带超时）
             return await asyncio.wait_for(future, timeout=timeout_ms / 1000.0)
         except TimeoutError:
+            await self._cancel_tool_call(ws, tentacle_id, call.call_id)
             return ToolResult.fail(
                 call.call_id, -32012, f"Timeout after {timeout_ms}ms", timeout_ms
             )
+        except asyncio.CancelledError:
+            await self._cancel_tool_call(ws, tentacle_id, call.call_id)
+            raise
         except Exception as e:
             return ToolResult.fail(call.call_id, -32013, f"Send failed: {e}", 0)
         finally:
-            self._pending_calls.pop(call.call_id, None)
+            if self._pending_calls.get(call.call_id) is future:
+                self._pending_calls.pop(call.call_id, None)
+
+    async def _cancel_tool_call(
+        self, ws: WebSocketConnection, tentacle_id: str, call_id: str
+    ) -> None:
+        """Best effort on the original socket; never deliver old cancels after reconnect."""
+        if not _ws_is_open(ws):
+            return
+        with contextlib.suppress(Exception):
+            await asyncio.wait_for(
+                ws.send(
+                    json.dumps(
+                        {
+                            "jsonrpc": "2.0",
+                            "method": MSG_TOOL_CANCEL,
+                            "params": {"call_id": call_id, "tentacle_id": tentacle_id},
+                        }
+                    )
+                ),
+                timeout=1.0,
+            )
 
     async def send_task_result(
         self,

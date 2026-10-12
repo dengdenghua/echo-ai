@@ -155,9 +155,7 @@ def _positive_env(name: str, default: int, *, ceiling: int) -> int:
 
 
 MAX_SUBAGENT_DEPTH = _positive_env("ECHO_MAX_SUBAGENT_DEPTH", 3, ceiling=16)
-MAX_ACTIVE_SUBAGENTS_PER_ROOT = _positive_env(
-    "ECHO_MAX_ACTIVE_SUBAGENTS_PER_ROOT", 16, ceiling=256
-)
+MAX_ACTIVE_SUBAGENTS_PER_ROOT = _positive_env("ECHO_MAX_ACTIVE_SUBAGENTS_PER_ROOT", 16, ceiling=256)
 
 
 def _acquire_subagent_slot(root_id: str = "unscoped") -> bool:
@@ -400,22 +398,57 @@ def call_subagent(
         or ""
     ).strip()
 
+    def _reject_before_start(result: dict[str, Any]) -> dict[str, Any]:
+        # Refusals before worker/session creation still need a terminal marker
+        # on all three observation lanes, without claiming a child was started.
+        rejection_session = session
+        if rejection_session is None:
+            from runtime.platform.process.session import current_session
+
+            rejection_session = current_session()
+        metadata = getattr(rejection_session, "metadata", None)
+        role_label = (role or agent_id or "agent").strip().lower()
+        failed = {
+            "type": "subagent_finished",
+            "agent_id": agent_id,
+            "requested_agent_id": _requested_agent_id,
+            "parent_tool_use_id": _parent_tool_use_id
+            or (metadata.get("_active_parent_tool_use_id") if isinstance(metadata, dict) else None),
+            "role": role_label,
+            "codename": _codename_for_role(role_label),
+            "avatar": _avatar_for_role(role_label),
+            "ok": False,
+            "error": result.get("error"),
+            "status": result.get("status") or "rejected",
+            "duration_s": 0.0,
+            "iteration_count": 0,
+            "files_touched": [],
+            "output": "",
+        }
+        _attach_trace_fields(failed, _subagent_trace_context(context, rejection_session))
+        _safe_emit(event_emitter, failed)
+        _safe_journal_emit(failed)
+        _publish_bus_lifecycle("subagent_finished", failed, rejection_session)
+        return result
+
     required = tuple(requires_capabilities or ())
     if required and _REGISTRY is not None and _REGISTRY.has(agent_id):
         definition = _REGISTRY.get(agent_id)
         missing = [cap for cap in required if cap not in definition.capabilities]
         if missing:
             declared = ", ".join(definition.capabilities) or "none"
-            return {
-                "agent_id": agent_id,
-                "output": "",
-                "success": False,
-                "error": (
-                    f"subagent {agent_id!r} lacks required capability(ies): "
-                    f"{', '.join(missing)} · declared: {declared}"
-                ),
-                "capability_error": "missing_required_capability",
-            }
+            return _reject_before_start(
+                {
+                    "agent_id": agent_id,
+                    "output": "",
+                    "success": False,
+                    "error": (
+                        f"subagent {agent_id!r} lacks required capability(ies): "
+                        f"{', '.join(missing)} · declared: {declared}"
+                    ),
+                    "capability_error": "missing_required_capability",
+                }
+            )
 
     # Capture the ambient parent Session before entering the timeout worker.
     # ContextVars do not propagate into ThreadPoolExecutor threads, but the
@@ -454,19 +487,21 @@ def call_subagent(
         or "unscoped"
     )
     if _child_depth > MAX_SUBAGENT_DEPTH:
-        return {
-            "status": "rejected",
-            "error": (
-                f"subagent nesting depth cap reached ({MAX_SUBAGENT_DEPTH}); "
-                f"refused to spawn '{agent_id}' at depth {_child_depth}"
-            ),
-            "governance_error": "depth_exhausted",
-            "agent_id": agent_id,
-            "output": "",
-            "success": False,
-            "subagent_depth": _child_depth,
-            "subagent_root_id": _subagent_root_id,
-        }
+        return _reject_before_start(
+            {
+                "status": "rejected",
+                "error": (
+                    f"subagent nesting depth cap reached ({MAX_SUBAGENT_DEPTH}); "
+                    f"refused to spawn '{agent_id}' at depth {_child_depth}"
+                ),
+                "governance_error": "depth_exhausted",
+                "agent_id": agent_id,
+                "output": "",
+                "success": False,
+                "subagent_depth": _child_depth,
+                "subagent_root_id": _subagent_root_id,
+            }
+        )
 
     handoff: ArtifactHandoff | None = None
     isolated_workspace: Any = None
@@ -478,14 +513,16 @@ def call_subagent(
         try:
             handoff = ArtifactHandoff.prepare(session, input_files, output_files)
         except (ArtifactHandoffError, OSError, ValueError) as exc:
-            return {
-                "agent_id": agent_id,
-                "output": "",
-                "success": False,
-                "status": "artifact_contract_rejected",
-                "error": str(exc),
-                "retry_allowed": False,
-            }
+            return _reject_before_start(
+                {
+                    "agent_id": agent_id,
+                    "output": "",
+                    "success": False,
+                    "status": "artifact_contract_rejected",
+                    "error": str(exc),
+                    "retry_allowed": False,
+                }
+            )
         prompt += handoff.instruction()
         # A schema or transient retry could re-enter after file effects.
         # Reconciliation and a new explicit dispatch are required instead.
@@ -670,14 +707,16 @@ def call_subagent(
             else None
         )
         if loaded is None:
-            return {
-                "agent_id": agent_id,
-                "output": "",
-                "success": False,
-                "error": f"unknown subagent session {continue_session_id!r}",
-                "session_error": "unknown_session",
-                "session_id": continue_session_id,
-            }
+            return _reject_before_start(
+                {
+                    "agent_id": agent_id,
+                    "output": "",
+                    "success": False,
+                    "error": f"unknown subagent session {continue_session_id!r}",
+                    "session_error": "unknown_session",
+                    "session_id": continue_session_id,
+                }
+            )
         _active_session["session"] = loaded
         _active_session["session_id"] = loaded.session_id
         transcript = _session_store.transcript_prompt(loaded) if _session_store is not None else ""
@@ -716,10 +755,8 @@ def call_subagent(
     except Exception:  # noqa: BLE001 - taint propagation is best-effort
         pass
 
-    # Emit lifecycle: spawn. Caller's emitter (typically the realtime
-    # gateway) forwards this onto the WS so the frontend sees a new
-    # sub-agent card the moment we start. Best-effort — emitter
-    # exceptions never block the run.
+    # Construct the identity now, but announce running only after admission
+    # and workspace / execution-scope preparation have actually succeeded.
     _spawn_event = {
         "type": "subagent_spawned",
         "agent_id": agent_id,
@@ -737,24 +774,32 @@ def call_subagent(
         "started_at": _spawn_started_at,
     }
     _attach_trace_fields(_spawn_event, _trace_context)
-    _safe_emit(event_emitter, _spawn_event)
-    # Mirror onto the genome journal so frontend timeline can render
-    # a sub-agent tile from the spawn moment, independent of the
-    # in-memory emitter being wired through to the realtime gateway.
-    _safe_journal_emit(_spawn_event)
-    _publish_bus_lifecycle("subagent_spawned", _spawn_event, session)
-    try:
-        from runtime.safety.hooks import dispatch_subagent_start
+    _spawn_announced = False
+    _spawn_parent_session = session
 
-        dispatch_subagent_start(
-            thread_id=_memory_thread_id,
-            agent_id=agent_id,
-            subagent_type=_role_label or agent_id,
-            prompt_preview=(prompt[:500] if isinstance(prompt, str) else ""),
-            session_id=str(_active_session.get("session_id") or ""),
-        )
-    except Exception:  # noqa: BLE001 — hooks are best-effort, never break the call
-        pass
+    def _announce_spawn() -> None:
+        nonlocal _spawn_announced
+        if _spawn_announced:
+            return
+        _spawn_announced = True
+        _spawn_event["started_at"] = time.time()
+        _safe_emit(event_emitter, _spawn_event)
+        # Called with the prepared child's Session bound on its worker thread,
+        # so monitored / isolated dispatches still persist the journal marker.
+        _safe_journal_emit(_spawn_event)
+        _publish_bus_lifecycle("subagent_spawned", _spawn_event, _spawn_parent_session)
+        try:
+            from runtime.safety.hooks import dispatch_subagent_start
+
+            dispatch_subagent_start(
+                thread_id=_memory_thread_id,
+                agent_id=agent_id,
+                subagent_type=_role_label or agent_id,
+                prompt_preview=(prompt[:500] if isinstance(prompt, str) else ""),
+                session_id=str(_active_session.get("session_id") or ""),
+            )
+        except Exception:  # noqa: BLE001 — hooks never break the call
+            pass
 
     def _tracking_emitter(event: dict) -> None:
         # Once the parent turn redirects, the old execution generation is
@@ -1000,14 +1045,15 @@ def call_subagent(
                     subagent_root_scope(_subagent_root_id),
                     subagent_session_scope(_active_session["session_id"]),
                 ):
-                    if handoff is not None and _child_source.is_cancelled:
+                    if _child_source.is_cancelled:
                         return {
                             "agent_id": agent_id,
                             "output": "",
                             "success": False,
                             "status": "cancelled",
-                            "error": "artifact child was cancelled before execution",
+                            "error": "subagent was cancelled before execution",
                         }
+                    _announce_spawn()
                     return _dispatch(
                         agent_id=agent_id,
                         prompt=prompt,
@@ -1162,7 +1208,24 @@ def call_subagent(
 
     def _execute_worker() -> dict[str, Any]:
         if not isolate:
-            return _do_call_with_schema()
+            try:
+                return _do_call_with_schema()
+            except asyncio.CancelledError:
+                return {
+                    "agent_id": agent_id,
+                    "success": False,
+                    "output": "",
+                    "status": "cancelled",
+                    "error": "subagent was cancelled before completing execution",
+                }
+            except Exception as exc:  # noqa: BLE001 — keep a terminal lifecycle after setup failure
+                return {
+                    "agent_id": agent_id,
+                    "success": False,
+                    "output": "",
+                    "status": "execution_failed" if _spawn_announced else "startup_failed",
+                    "error": f"{type(exc).__name__}: {exc}",
+                }
         from .isolated_worktree import isolated_worktree_scope
 
         nonlocal session, context, prompt, _locked_root, isolated_workspace
@@ -1837,7 +1900,9 @@ def _dispatch(
     market_role = runnable_market_roles(selected_runner).get(agent_id)
     if (context or {}).get("_require_installed_market_role") and market_role is None:
         return {
-            "agent_id": agent_id, "output": "", "success": False,
+            "agent_id": agent_id,
+            "output": "",
+            "success": False,
             "error": "HUB role is no longer installed or runnable; no substitute was spawned.",
         }
     # A caller-supplied runner already owns execution and its cancellation
@@ -1975,11 +2040,18 @@ def _dispatch(
         "output": str(output) if output is not None else "",
         "success": True,
         "error": None,
-        **({"identity_source": "agent-market", "market_agent_id": agent_id,
-            "display_name": market_role.display_name,
-            "avatar_url": market_role.avatar_url,
-            "avatar": market_role.icon,
-            "role_source_path": market_role.soul_path} if market_role else {}),
+        **(
+            {
+                "identity_source": "agent-market",
+                "market_agent_id": agent_id,
+                "display_name": market_role.display_name,
+                "avatar_url": market_role.avatar_url,
+                "avatar": market_role.icon,
+                "role_source_path": market_role.soul_path,
+            }
+            if market_role
+            else {}
+        ),
     }
 
 

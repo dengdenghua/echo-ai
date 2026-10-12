@@ -484,6 +484,7 @@ function AgentWorkbenchPanelImpl({
     blocks.length === 0 &&
     agentTiles.length === 0 &&
     !selectedAgent &&
+    !selectedRosterSeat &&
     visibleRosterSeats.length === 0 &&
     (progressOutline?.length ?? 0) === 0;
   const coworkResponseOnly =
@@ -531,7 +532,9 @@ function AgentWorkbenchPanelImpl({
     hasBoundProject ||
     (requestedActiveTab === "project" &&
       (projectOsQuery.isLoading || projectOsQuery.isError));
-  const mergeProjectHome = projectTabVisible && workspacePresetForAgent(personaId).workbench === "office";
+  const mergeProjectHome =
+    projectTabVisible &&
+    workspacePresetForAgent(personaId).workbench === "office";
   const effectiveActiveTab:
     | "agent"
     | "diff"
@@ -543,30 +546,38 @@ function AgentWorkbenchPanelImpl({
     requestedActiveTab === "workspace" && mergeProjectHome
       ? "project"
       : requestedActiveTab === "subagents" ||
-    requestedActiveTab === "plan" ||
-    requestedActiveTab === "design"
-      ? "agent"
-      : requestedActiveTab === "project" && !projectTabVisible
+          requestedActiveTab === "plan" ||
+          requestedActiveTab === "design"
         ? "agent"
-        : requestedActiveTab;
+        : requestedActiveTab === "project" && !projectTabVisible
+          ? "agent"
+          : requestedActiveTab;
   const historyDiffEntries = useMemo(
     () =>
       historyEvents && effectiveActiveTab === "diff"
-        ? diffEntriesFromBlocks(toWorkBlocks(historyEvents), { latestPerPath: true })
+        ? diffEntriesFromBlocks(toWorkBlocks(historyEvents), {
+            latestPerPath: true,
+          })
         : undefined,
     [effectiveActiveTab, historyEvents],
   );
   const workbenchTabs: WorkbenchTab[] = useMemo(
     () => [
-      ...(mergeProjectHome ? [{
-        id: "project" as const,
-        label: t.agentWorkbenchPages.projectTab,
-        Icon: FolderKanbanIcon,
-      }] : [{
-        id: "workspace" as const,
-        label: workspacePresetForAgent(personaId).workbenchLabel,
-        Icon: PanelsTopLeftIcon,
-      }]),
+      ...(mergeProjectHome
+        ? [
+            {
+              id: "project" as const,
+              label: t.agentWorkbenchPages.projectTab,
+              Icon: FolderKanbanIcon,
+            },
+          ]
+        : [
+            {
+              id: "workspace" as const,
+              label: workspacePresetForAgent(personaId).workbenchLabel,
+              Icon: PanelsTopLeftIcon,
+            },
+          ]),
       {
         id: "diff",
         label: t.agentWorkbenchPages.diffTab,
@@ -597,7 +608,13 @@ function AgentWorkbenchPanelImpl({
           ]
         : []),
     ],
-    [t.agentWorkbenchPages, t.conversation, projectTabVisible, personaId, mergeProjectHome],
+    [
+      t.agentWorkbenchPages,
+      t.conversation,
+      projectTabVisible,
+      personaId,
+      mergeProjectHome,
+    ],
   );
 
   // Auto-open a tab if it becomes the effective active tab
@@ -683,7 +700,9 @@ function AgentWorkbenchPanelImpl({
   // sub-agent may still open its own computer: a complete, isolated streaming
   // conversation rather than a duplicate mixed activity trace.
   const effectiveActivityView: "summary" | "screen" =
-    selectedAgent && activityView === "screen" ? "screen" : "summary";
+    (selectedAgent || selectedRosterSeat) && activityView === "screen"
+      ? "screen"
+      : "summary";
 
   // Workbench view: summary / computer view.
   if (

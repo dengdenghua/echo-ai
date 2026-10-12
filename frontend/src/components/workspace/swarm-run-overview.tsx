@@ -375,7 +375,9 @@ export function SwarmRunOverview({
                 )}
               </span>
               <span className="mt-0.5 block truncate text-xs text-muted-foreground">
-                {agent.currentTool ?? compactDetail(agent.task, 72)}
+                {agent.error ??
+                  agent.currentTool ??
+                  compactDetail(agent.task, 72)}
               </span>
             </span>
             <span
@@ -822,9 +824,11 @@ function buildSwarmPhases({
       ? "error"
       : counts.waiting > 0
         ? "waiting_approval"
-        : activeCount > 0
+        : counts.running > 0
           ? "running"
-          : "done";
+          : counts.pending > 0
+            ? "pending"
+            : "done";
   const aggregateStatus: SwarmOverviewStatus =
     resultCount > 0 || completedCount > 0
       ? activeCount > 0
@@ -842,7 +846,7 @@ function buildSwarmPhases({
   return [
     {
       id: "dispatch",
-      status: counts.total > 0 ? "done" : "pending",
+      status: counts.pending === counts.total ? "pending" : "done",
       count: counts.total,
     },
     { id: "execute", status: executeStatus, count: completedCount },
@@ -1085,6 +1089,11 @@ function buildRhythmLine(
   }
   if (overview.status === "error") {
     return [labels.rhythmNeedsReview, progressLabel, resultLabel].join(" · ");
+  }
+  if (overview.status === "pending") {
+    return [statusLabel("pending", labels), progressLabel, evidenceLabel].join(
+      " · ",
+    );
   }
   return [
     labels.rhythmDelivered,

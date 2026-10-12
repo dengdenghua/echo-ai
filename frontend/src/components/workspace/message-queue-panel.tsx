@@ -18,6 +18,7 @@ const actionClass =
 export function MessageQueuePanel({ queue }: { queue: MessageQueueControl }) {
   const { locale } = useI18n();
   const zh = locale.startsWith("zh");
+  const canResume = queue.paused && !queue.recovering;
   if (!queue.items.length) return null;
   return (
     <section
@@ -30,26 +31,30 @@ export function MessageQueuePanel({ queue }: { queue: MessageQueueControl }) {
         <span className="font-medium">
           {zh ? "待发送" : "Queued"} · {queue.items.length}
         </span>
-        <span className="text-muted-foreground">
-          {queue.paused
+        <span className="text-muted-foreground" aria-live="polite">
+          {queue.recovering
             ? zh
-              ? "已暂停"
-              : "Paused"
-            : zh
-              ? "按顺序发送"
-              : "In order"}
+              ? "核对送达状态"
+              : "Checking delivery"
+            : queue.paused
+              ? zh
+                ? "已暂停"
+                : "Paused"
+              : zh
+                ? "按顺序发送"
+                : "In order"}
         </span>
         <button
           type="button"
-          onClick={queue.paused ? queue.resume : queue.pause}
+          onClick={canResume ? queue.resume : queue.pause}
           className={`${actionClass} ml-auto inline-flex items-center gap-1`}
         >
-          {queue.paused ? (
+          {canResume ? (
             <PlayIcon className="size-3" />
           ) : (
             <PauseIcon className="size-3" />
           )}
-          {queue.paused
+          {canResume
             ? zh
               ? "继续队列"
               : "Resume queue"
@@ -69,8 +74,8 @@ export function MessageQueuePanel({ queue }: { queue: MessageQueueControl }) {
             ? "无法保存队列，关闭或刷新页面会丢失待发送消息"
             : "Queue could not be saved. Closing or reloading this page will lose it."
           : zh
-            ? "仅保存于当前窗口；刷新后暂停，等待你继续"
-            : "Saved in this window; paused after reload until you resume"}
+            ? "重连确认送达后自动继续；仅保存于当前窗口，刷新后需手动继续"
+            : "Continues after reconnect and delivery confirmation. Saved in this window; resume manually after reload."}
       </p>
     </section>
   );
@@ -91,9 +96,13 @@ function QueueRow({
     waiting: zh ? "等待发送" : "Waiting",
     sending: zh ? "等待送达确认" : "Awaiting receipt",
     failed: zh ? "发送失败" : "Send failed",
-    uncertain: zh
-      ? "送达状态未知，请先检查对话"
-      : "Delivery unknown. Check the conversation first",
+    uncertain: queue.recovering
+      ? zh
+        ? "等待连接恢复并确认送达"
+        : "Waiting for reconnection and delivery confirmation"
+      : zh
+        ? "送达状态未知，请先检查对话"
+        : "Delivery unknown. Check the conversation first",
   };
   return (
     <div

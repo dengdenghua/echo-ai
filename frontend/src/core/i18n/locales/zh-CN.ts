@@ -76,8 +76,7 @@ export const zhCN: Translations = {
 
   // Home
   home: {
-    docs: "文档",
-    blog: "博客",
+    openWorkspace: "进入工作区",
   },
 
   // Welcome
@@ -420,6 +419,10 @@ export const zhCN: Translations = {
     deepResearchConfig: "调研设置",
     conversationOptions: "对话选项",
     executionMethod: "执行方式",
+    runSettings: "运行设置",
+    runSettingsWorkspace: "工作空间",
+    runSettingsWorkMode: "工作模式",
+    runSettingsLocation: "执行位置",
     roles: "子 Agent",
     materials: "材料",
     collapse: "收起",
@@ -695,15 +698,12 @@ export const zhCN: Translations = {
 
   // Landing footer
   landingFooter: {
-    tagline: "开源 Agent OS",
+    tagline: "自托管的 Agent OS",
     productTitle: "产品",
     workspaceLink: "工作区",
     aboutLink: "关于",
-    workflowLink: "工作流",
     resourcesTitle: "资源",
     skillMarketLink: "技能",
-    communityTitle: "社区",
-    wechat: "微信",
   },
 
   // Message grouping labels
@@ -2800,7 +2800,9 @@ export const zhCN: Translations = {
         generateConfig: "生成配置描述",
       },
       labels: {
-        permissions: "权限",
+        permissions: "权限与边界",
+        capabilitySummary: "生成后，它可以",
+        technicalDetails: "技术细节",
       },
       roles: [
         {
@@ -3206,7 +3208,8 @@ export const zhCN: Translations = {
     lifecycleFailed: "任务运行状态未能可靠落盘，请重试或重启后端。",
     eventStreamOverloaded:
       "事件处理出现短暂拥塞，已完成的步骤仍被保留。请重试以继续任务。",
-    sidecarCleanupBlocked: "临时运行目录清理被安全检查拦截：目录路径或标记不符合预期。",
+    sidecarCleanupBlocked:
+      "临时运行目录清理被安全检查拦截：目录路径或标记不符合预期。",
     workspaceWriteRequired:
       "该任务要求修改项目文件，但本轮没有产生有效的文件变更。",
     verificationRequired:
@@ -7337,38 +7340,13 @@ export const zhCN: Translations = {
     cardReflectionSnapshot: "反思快照",
     defaultStrategy: "默认策略",
     journalRow: (task: string, arm: string) => `任务=${task} 策略=${arm}`,
-    subtitle:
-      "运行时自省面板 · 并行协作 / 黑板 / 日志流 / 自进化 / 上下文预算 / 成本",
+    subtitle: "查看任务运行情况、协作事件、资源消耗和系统状态。",
     shell: {
       startTask: "开始一次任务",
-      runReviewTitle: "运行复盘",
-      runReviewDescription: "先看任务是否顺畅，哪里报错，哪里值得回看。",
-      liveEventsTitle: "实时事件",
-      liveEventsDescription: "并行协作、黑板和日志流合并成一个事件视图。",
-      resourcesTitle: "资源与成本",
-      resourcesDescription: "上下文预算、令牌消耗和成本汇总放在一起看。",
-      systemTitle: "系统状态",
-      systemDescription: "自进化、诊断和后台状态统一收口。",
       overviewTab: "总览",
       eventsTab: "事件流",
       resourcesTab: "资源与成本",
       systemTab: "系统",
-      overviewTitle: "先从总览开始",
-      overviewDescription:
-        "把当前后台的健康、事件、资源和系统状态分成四个视角，扫一眼就知道该去哪里。",
-      openNewTask: "打开一次新任务",
-      eventsEyebrow: "事件流",
-      eventsTitle: "运行、协作和日志放到一起看",
-      eventsDescription:
-        "这部分保留了原有的运行复盘、协作、黑板和日志，但不再把它们拆成一长排标签。",
-      resourcesEyebrow: "资源与成本",
-      resourcesGroupTitle: "先看预算，再看账单",
-      resourcesGroupDescription:
-        "把上下文预算和花费放在同一个层级里，减少来回切换。",
-      systemEyebrow: "系统",
-      systemGroupTitle: "把后台状态和自进化收口",
-      systemGroupDescription:
-        "诊断不再单独占一个孤岛标签，而是和自进化一起作为系统视图。",
     },
     toolEffects: {
       title: "外部动作回执",
@@ -7409,8 +7387,6 @@ export const zhCN: Translations = {
     noConcurrentTasks: "暂无并发任务",
     noConcurrentTasksHint:
       "启动需要并行协作的对话后，这里会实时显示子智能体的技能调用。",
-    nestedSseNote:
-      "注:嵌套的 sub_tool_start 事件在聊天 SSE 里(单轮对话内),这里展示的是全局日志的 Step 事件流。",
     journalEventStream: "日志事件流",
     // Tab names
     tabRuns: "运行复盘",
@@ -7502,8 +7478,7 @@ export const zhCN: Translations = {
     // Hemolymph panel
     latestCompose: "最近一次上下文组装",
     noComposeRecords: "暂无上下文组装记录",
-    noComposeRecordsHint:
-      "当 planner 调一次 ContextComposer.compose() 后就会有数据。",
+    noComposeRecordsHint: "运行一次任务后，这里会显示它的上下文预算使用情况。",
     total: "总计",
     historyPrefix: "历史 · 最近",
     hemolymphTable: {
@@ -8078,7 +8053,8 @@ export const zhCN: Translations = {
     manageExpert: "更多智能体操作",
     removeExpert: "移除智能体",
     removeExpertTitle: (name: string) => `移除“${name}”？`,
-    removeExpertDescription: "将从我的智能体中移除该专家及其本地配置，之后可从目录重新添加。",
+    removeExpertDescription:
+      "将从我的智能体中移除该专家及其本地配置，之后可从目录重新添加。",
     removeExpertSuccess: (name: string) => `已移除 ${name}`,
     removeExpertFailed: "移除失败，请重试",
     localExpertNotFound: "无法唯一确认本地智能体，请刷新目录后重试",
@@ -8171,10 +8147,28 @@ export const zhCN: Translations = {
   },
 
   hero: {
-    releaseBadge: "Echo 2.0 已发布",
-    withEcho: "与 Echo 一起",
     heroDescription:
-      "一个开源的 SuperAgent 框架，能做研究、写代码、产内容。借助沙箱、记忆、工具、技能和子智能体，它可以处理从几分钟到几小时不等的不同层级任务。",
+      "Echo 是一个自托管的 Agent OS：把目标拆成计划，在受治理的运行时里调用工具执行，并为下一次运行保留有用的记忆。",
+    pillarsTitle: "它记住，它理解，它行动，它与你共同成长",
+    pillars: {
+      memory: {
+        title: "它记住",
+        description: "每一次运行留下的有用记忆，都会带进下一次。",
+      },
+      understand: {
+        title: "它理解",
+        description: "先弄清你的目标，再把它拆成清晰的计划。",
+      },
+      act: {
+        title: "它行动",
+        description:
+          "在受治理的运行时里调用工具、浏览器与工作区，把计划执行到底。",
+      },
+      grow: {
+        title: "它与你共同成长",
+        description: "每次运行后反思与改进，越用越懂你。",
+      },
+    },
   },
 
   channelPairings: {
@@ -9257,6 +9251,12 @@ export const zhCN: Translations = {
       startFailed: "本地知识库服务启动失败，请检查后端日志后重试。",
       notConnected: "本地知识库服务仍未连接：{url}",
       networkError: "无法连接到本地知识库服务，请确认服务已启动后重试。",
+      offlineTitle: "本地知识库未连接",
+      offlineDescription:
+        "暂时无法读取本机文件和索引。请确认本地知识库服务已启动，然后重新连接。",
+      notInstalledDescription:
+        "这台电脑上还没有本地知识库服务。安装后点击重新连接即可浏览和搜索本机文件。",
+      technicalDetails: "技术细节",
     },
     toolbar: {
       authorize: "授权",

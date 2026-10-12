@@ -21,6 +21,30 @@ import {
 } from "./use-thread-stream-realtime";
 import { RETRY_PENDING_MESSAGE_EVENT } from "./optimistic-messages";
 import { useRealtimeThread } from "@/core/realtime";
+import type * as ConfigModule from "@/core/config";
+
+const session = vi.hoisted(() => ({ account: "alice", backend: "" }));
+vi.mock("@/providers/AuthProvider", () => ({
+  useOptionalAuth: () => ({
+    isLoading: false,
+    authStatus: { enabled: true },
+    isAuthenticated: true,
+    user: {
+      actor_id: session.account,
+      user_id: session.account,
+      provider: "test",
+    },
+  }),
+}));
+vi.mock("@/core/config", async (importOriginal) => ({
+  ...(await importOriginal<typeof ConfigModule>()),
+  getBackendBaseURL: () => session.backend,
+}));
+
+beforeEach(() => {
+  session.account = "alice";
+  session.backend = "";
+});
 
 vi.mock("@/core/realtime", () => ({
   useRealtimeThread: vi.fn(),
@@ -2849,4 +2873,163 @@ describe("realtime message queue integration", () => {
     view.rerender();
     expect(view.startTurn).not.toHaveBeenCalled();
   });
+});
+
+describe("thread session isolation", () => {
+  beforeEach(() => sessionStorage.clear());
+  afterEach(() => sessionStorage.clear());
+
+  it.each(["account", "backend"] as const)(
+    "isolates a same-id thread's pending queue and late send when its %s changes",
+    async (boundary) => {
+      const pending = deferred<void>();
+      const startA = vi.fn(() => pending.promise);
+      const startB = vi.fn().mockResolvedValue(undefined);
+      const realtime = {
+        state: makeConversation([]),
+        connected: true,
+        startTurn: startA,
+        steer: vi.fn(),
+        resolveApproval: vi.fn(),
+        resume: vi.fn(),
+        interrupt: vi.fn(),
+        compact: vi.fn(),
+        decideHunk: vi.fn(),
+      };
+      vi.mocked(useRealtimeThread).mockImplementation(() => realtime);
+      const frames: Array<{
+        scope: string;
+        messages: number;
+        queue: string[];
+        error?: string;
+      }> = [];
+      const view = renderHook(() => {
+        const value = useThreadStreamRealtime({ threadId: "th-test" });
+        frames.push({
+          scope: session[boundary],
+          messages: value[0].messages.length,
+          queue: value[0].messageQueue.items.map((item) => item.text),
+          error: value[0].error?.message,
+        });
+        return value;
+      });
+      const oldSend = view.result.current[1];
+      act(() => {
+        oldSend("th-test", { text: "private pending A", files: [] });
+        view.result.current[0].messageQueue.enqueue("private waiting A");
+      });
+      await waitFor(() => expect(startA).toHaveBeenCalledOnce());
+      const target = boundary === "account" ? "bob" : "/host-b";
+      session[boundary] = target;
+      realtime.startTurn = startB;
+      view.rerender();
+      expect(frames.find((frame) => frame.scope === target)).toEqual({
+        scope: target,
+        messages: 0,
+        queue: [],
+        error: undefined,
+      });
+      act(() => oldSend("th-test", { text: "stale A", files: [] }));
+      await act(async () => {
+        pending.reject(new Error("late private failure A"));
+        await pending.promise.catch(() => undefined);
+      });
+      expect(startA).toHaveBeenCalledOnce();
+      expect(startB).not.toHaveBeenCalled();
+      expect(view.result.current[0].error).toBeUndefined();
+      expect(view.result.current[0].messages).toEqual([]);
+      act(() =>
+        view.result.current[0].messageQueue.enqueue("private waiting B"),
+      );
+      session[boundary] = boundary === "account" ? "alice" : "";
+      view.rerender();
+      expect(
+        view.result.current[0].messageQueue.items.map((item) => item.text),
+      ).toEqual(["private waiting A"]);
+      expect(view.result.current[0].messageQueue.paused).toBe(true);
+      act(() => oldSend("th-test", { text: "first-generation A", files: [] }));
+      expect(startA).toHaveBeenCalledOnce();
+    },
+  );
+
+  it.each(["account", "backend"] as const)(
+    "does not deliver an old upload after a same-id thread changes %s",
+    async (boundary) => {
+      const upload = deferred<Response>();
+      vi.stubGlobal(
+        "fetch",
+        vi.fn(() => upload.promise),
+      );
+      const startTurn = vi.fn().mockResolvedValue(undefined);
+      vi.mocked(useRealtimeThread).mockImplementation(() => ({
+        state: makeConversation([]),
+        connected: true,
+        startTurn,
+        steer: vi.fn(),
+        resolveApproval: vi.fn(),
+        resume: vi.fn(),
+        interrupt: vi.fn(),
+        compact: vi.fn(),
+        decideHunk: vi.fn(),
+      }));
+      const frames: Array<{
+        scope: string;
+        uploading: boolean;
+        messages: number;
+      }> = [];
+      const view = renderHook(() => {
+        const value = useThreadStreamRealtime({ threadId: "th-test" });
+        frames.push({
+          scope: session[boundary],
+          uploading: value[2],
+          messages: value[0].messages.length,
+        });
+        return value;
+      });
+      const file = new File(["private draft"], "draft.txt", {
+        type: "text/plain",
+      });
+      act(() =>
+        view.result.current[1]("th-test", {
+          text: "old upload",
+          files: [
+            {
+              type: "file",
+              filename: file.name,
+              mediaType: file.type,
+              url: "blob:draft",
+              file,
+            },
+          ],
+        }),
+      );
+      await waitFor(() => expect(view.result.current[2]).toBe(true));
+      const target = boundary === "account" ? "bob" : "/host-b";
+      session[boundary] = target;
+      view.rerender();
+      expect(frames.find((frame) => frame.scope === target)).toEqual({
+        scope: target,
+        uploading: false,
+        messages: 0,
+      });
+      await act(async () => {
+        upload.resolve(
+          Response.json({
+            success: true,
+            files: [
+              {
+                filename: file.name,
+                size: file.size,
+                path: "/managed/draft.txt",
+              },
+            ],
+          }),
+        );
+        await upload.promise;
+      });
+      expect(startTurn).not.toHaveBeenCalled();
+      expect(view.result.current[2]).toBe(false);
+      expect(view.result.current[0].messages).toEqual([]);
+    },
+  );
 });

@@ -158,7 +158,7 @@ export default function ObservabilityPage({
       <WorkspaceBody className="px-0 pb-4 sm:px-4">
         <div className="mx-auto flex w-full max-w-6xl flex-col gap-4">
           <section className="workspace-panel px-4 py-4 sm:px-6 sm:py-5">
-            <div className="flex flex-col gap-5 md:flex-row md:items-end md:justify-between">
+            <div className="flex flex-col gap-5 md:flex-row md:items-center md:justify-between">
               <div className="flex items-center gap-4">
                 <div className="flex size-11 items-center justify-center rounded-lg bg-primary/10 text-primary">
                   <ActivityIcon className="size-5" />
@@ -179,29 +179,6 @@ export default function ObservabilityPage({
                   </Link>
                 </Button>
               </div>
-            </div>
-
-            <div className="mt-5 hidden gap-3 md:grid md:grid-cols-2 xl:grid-cols-4">
-              <ObservabilitySignalCard
-                icon={<ActivityIcon className="size-4" />}
-                title={t.observabilityPage.shell.runReviewTitle}
-                description={t.observabilityPage.shell.runReviewDescription}
-              />
-              <ObservabilitySignalCard
-                icon={<NetworkIcon className="size-4" />}
-                title={t.observabilityPage.shell.liveEventsTitle}
-                description={t.observabilityPage.shell.liveEventsDescription}
-              />
-              <ObservabilitySignalCard
-                icon={<GaugeIcon className="size-4" />}
-                title={t.observabilityPage.shell.resourcesTitle}
-                description={t.observabilityPage.shell.resourcesDescription}
-              />
-              <ObservabilitySignalCard
-                icon={<BrainCircuitIcon className="size-4" />}
-                title={t.observabilityPage.shell.systemTitle}
-                description={t.observabilityPage.shell.systemDescription}
-              />
             </div>
           </section>
 
@@ -225,69 +202,28 @@ export default function ObservabilityPage({
               </TabsTrigger>
             </TabsList>
 
+            {/* The tabs are the only navigation; each panel is its own single
+                container, so no extra group wrapper or intro copy per tab. */}
             <TabsContent value="overview" className="mt-4">
-              <div className="space-y-4">
-                <section className="workspace-panel px-5 py-4">
-                  <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
-                    <div>
-                      <h2 className="text-base font-semibold">
-                        {t.observabilityPage.shell.overviewTitle}
-                      </h2>
-                      <p className="text-sm text-muted-foreground">
-                        {t.observabilityPage.shell.overviewDescription}
-                      </p>
-                    </div>
-                    <Button
-                      asChild
-                      variant="outline"
-                      className="h-9 rounded-full px-4"
-                    >
-                      <Link to="/workspace/realtime/new">
-                        {t.observabilityPage.shell.openNewTask}
-                      </Link>
-                    </Button>
-                  </div>
-                </section>
-                <AgentOperatorPanel />
-              </div>
+              <AgentOperatorPanel />
             </TabsContent>
 
             <TabsContent value="events" className="mt-4 space-y-4">
-              <PanelGroup
-                eyebrow={t.observabilityPage.shell.eventsEyebrow}
-                title={t.observabilityPage.shell.eventsTitle}
-                description={t.observabilityPage.shell.eventsDescription}
-              >
-                <RunReviewPanel />
-                <SwarmPanel />
-                <BlackboardPanel />
-                <JournalPanel />
-              </PanelGroup>
+              <RunReviewPanel />
+              <SwarmPanel />
+              <BlackboardPanel />
+              <JournalPanel />
             </TabsContent>
 
             <TabsContent value="resources" className="mt-4 space-y-4">
-              <PanelGroup
-                eyebrow={t.observabilityPage.shell.resourcesEyebrow}
-                title={t.observabilityPage.shell.resourcesGroupTitle}
-                description={
-                  t.observabilityPage.shell.resourcesGroupDescription
-                }
-              >
-                <HemolymphPanel />
-                <CostPanel />
-              </PanelGroup>
+              <HemolymphPanel />
+              <CostPanel />
             </TabsContent>
 
             <TabsContent value="system" className="mt-4 space-y-4">
-              <PanelGroup
-                eyebrow={t.observabilityPage.shell.systemEyebrow}
-                title={t.observabilityPage.shell.systemGroupTitle}
-                description={t.observabilityPage.shell.systemGroupDescription}
-              >
-                <ToolEffectsPanel />
-                <RegenerationPanel />
-                <DiagnosticsContent />
-              </PanelGroup>
+              <ToolEffectsPanel />
+              <RegenerationPanel />
+              <DiagnosticsContent />
             </TabsContent>
           </Tabs>
         </div>
@@ -477,19 +413,12 @@ function SwarmPanel() {
               <EmptyTitle>{t.observabilityPage.noConcurrentTasks}</EmptyTitle>
               <EmptyDescription>
                 {t.observabilityPage.noConcurrentTasksHint}
-                <br />
-                <span className="text-xs">
-                  {t.observabilityPage.nestedSseNote}
-                </span>
               </EmptyDescription>
             </EmptyHeader>
           </Empty>
         )}
         {grouped.map(([taskId, sub]) => (
-          <div
-            key={taskId}
-            className="rounded-lg border border-border-default bg-muted/20 p-3"
-          >
+          <div key={taskId} className="rounded-md bg-muted/30 p-3">
             <div className="mb-2 flex items-center justify-between">
               <div className="text-xs font-mono text-muted-foreground">
                 {t.observabilityPage.taskPrefix}:{taskId.slice(0, 16)}
@@ -1807,51 +1736,4 @@ function normalizeObservabilityTab(tab: string): ObservabilityTab {
     default:
       return "overview";
   }
-}
-
-function PanelGroup({
-  eyebrow,
-  title,
-  description,
-  children,
-}: {
-  eyebrow: string;
-  title: string;
-  description: string;
-  children: React.ReactNode;
-}) {
-  return (
-    <section className="workspace-panel px-5 py-4">
-      <div className="mb-4 space-y-1.5">
-        <div className="text-xs font-semibold uppercase tracking-eyebrow text-muted-foreground">
-          {eyebrow}
-        </div>
-        <h2 className="text-base font-semibold">{title}</h2>
-        <p className="text-sm leading-6 text-muted-foreground">{description}</p>
-      </div>
-      <div className="space-y-4">{children}</div>
-    </section>
-  );
-}
-
-function ObservabilitySignalCard({
-  icon,
-  title,
-  description,
-}: {
-  icon: React.ReactNode;
-  title: string;
-  description: string;
-}) {
-  return (
-    <div className="rounded-lg border border-border-default bg-background/70 px-4 py-3">
-      <div className="flex items-center gap-2 text-sm font-medium">
-        <span className="text-primary">{icon}</span>
-        {title}
-      </div>
-      <p className="mt-2 text-xs leading-5 text-muted-foreground">
-        {description}
-      </p>
-    </div>
-  );
 }

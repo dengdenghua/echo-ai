@@ -7,6 +7,7 @@ import {
   useMemo,
   useRef,
   useState,
+  type ReactNode,
 } from "react";
 import {
   AppWindowIcon,
@@ -44,9 +45,15 @@ import { toast } from "sonner";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from "@/components/ui/collapsible";
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 import { useConfirmDialog } from "@/components/ui/confirm-dialog";
 import { Input } from "@/components/ui/input";
+import { ErrorState } from "@/components/ui/state";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   WorkspaceBody,
@@ -509,6 +516,9 @@ function StorageFilesSurface() {
   const [query, setQuery] = useState("");
   const [hits, setHits] = useState<NASSearchHit[]>([]);
   const [serviceError, setServiceError] = useState<string | null>(null);
+  // Remembered separately from ``serviceError`` so a later background refresh
+  // (window focus) can't swap the "not installed" guidance for a generic one.
+  const [serviceMissing, setServiceMissing] = useState(false);
   const [searchMessage, setSearchMessage] = useState<string | null>(null);
   const [hasSearchResult, setHasSearchResult] = useState(false);
   const [isPickingFolder, setIsPickingFolder] = useState(false);
@@ -570,6 +580,7 @@ function StorageFilesSurface() {
       setVideos(nextVideos.status === "fulfilled" ? nextVideos.value : []);
       setAlbums(nextAlbums.status === "fulfilled" ? nextAlbums.value : []);
       setServiceError(null);
+      setServiceMissing(false);
       return true;
     } catch (error) {
       if (!lifecycle.active) return false;
@@ -599,6 +610,7 @@ function StorageFilesSurface() {
     if (!lifecycle.active) return false;
     const startResult = await startNASService();
     if (!lifecycle.active) return false;
+    setServiceMissing(startResult.status === "not_found");
     if (startResult.status === "not_found") {
       setServiceError(copy.service.notFound);
       return false;
@@ -626,6 +638,9 @@ function StorageFilesSurface() {
       if (!lifecycle.active) return;
       if (didAutoStartRef.current) return;
       didAutoStartRef.current = true;
+      // The automatic start can poll for several seconds; show it as an
+      // in-flight reconnect so the single offline action isn't clickable twice.
+      setIsReconnecting(true);
       try {
         await ensureNASService();
       } catch (error) {
@@ -636,6 +651,8 @@ function StorageFilesSurface() {
         if (isNetworkError) {
           setServiceError(copy.service.networkError);
         }
+      } finally {
+        if (lifecycle.active) setIsReconnecting(false);
       }
     };
     void init();
@@ -677,7 +694,8 @@ function StorageFilesSurface() {
   const reconnectNAS = async () => {
     if (isReconnecting) return;
     setIsReconnecting(true);
-    setServiceError(null);
+    // Keep the current error on screen while reconnecting: clearing it would
+    // briefly remount the library view and flash its own loading/error state.
     try {
       await ensureNASService();
     } catch (error) {
@@ -767,11 +785,19 @@ function StorageFilesSurface() {
     setPolicy(next);
   };
 
+  // Without a manifest every library view fails the same way, so the failure
+  // is shown once (in place of the view) instead of as banner + view + footer.
+  const serviceOffline = !manifest && Boolean(serviceError);
+  // Secondary toolbar buttons sit on a muted bar; when disabled they must drop
+  // their raised card look or they still read as clickable.
+  const toolbarButtonClass =
+    "h-8 rounded-md bg-card px-2 text-xs shadow-[var(--shadow-xs)] disabled:bg-transparent disabled:text-muted-foreground disabled:shadow-none";
+
   return (
     <div className="flex size-full overflow-hidden">
       <section className="workspace-panel flex min-h-0 flex-1 overflow-hidden rounded-none border-0 bg-card">
         <div className="flex min-w-0 flex-1 flex-col overflow-hidden bg-card">
-          {serviceError && (
+          {serviceError && !serviceOffline && (
             <div
               role="alert"
               className="flex shrink-0 flex-wrap items-center justify-between gap-3 border-b border-warning/70 bg-warning/5 px-4 py-2 text-xs text-warning"
@@ -799,9 +825,9 @@ function StorageFilesSurface() {
               <Button
                 size="sm"
                 variant="secondary"
-                className="h-8 rounded-md bg-card px-2 text-xs shadow-[var(--shadow-xs)]"
+                className={toolbarButtonClass}
                 onClick={pickFolder}
-                disabled={isPickingFolder}
+                disabled={isPickingFolder || !manifest}
               >
                 <FolderPlusIcon className="size-3.5" />
                 {copy.toolbar.authorize}
@@ -809,7 +835,7 @@ function StorageFilesSurface() {
               <Button
                 size="sm"
                 variant="secondary"
-                className="h-8 rounded-md bg-card px-2 text-xs shadow-[var(--shadow-xs)]"
+                className={toolbarButtonClass}
                 onClick={startIndexing}
                 disabled={isIndexing || !manifest}
               >
@@ -848,7 +874,14 @@ function StorageFilesSurface() {
             </div>
           )}
 
-          {activeLibrary === "sources" ? (
+          {serviceOffline ? (
+            <StorageServiceOffline
+              detail={serviceMissing ? copy.service.notFound : serviceError!}
+              missing={serviceMissing}
+              isReconnecting={isReconnecting}
+              onReconnect={() => void reconnectNAS()}
+            />
+          ) : activeLibrary === "sources" ? (
             <SourcesView
               sources={sources}
               stats={stats}
@@ -911,6 +944,75 @@ function StorageFilesSurface() {
           )}
         </div>
       </section>
+    </div>
+  );
+}
+
+/** Collapsed raw error text (env vars, URLs) kept out of the headline. */
+function StorageTechnicalDetails({
+  label,
+  children,
+}: {
+  label: string;
+  children: ReactNode;
+}) {
+  return (
+    <Collapsible className="mt-3 text-xs">
+      <CollapsibleTrigger className="group inline-flex items-center gap-1 text-muted-foreground hover:text-foreground">
+        <ChevronRightIcon
+          aria-hidden="true"
+          className="size-3.5 transition-transform group-data-[state=open]:rotate-90"
+        />
+        {label}
+      </CollapsibleTrigger>
+      <CollapsibleContent className="mt-1.5 break-words rounded-md bg-muted px-2 py-1.5 text-left font-mono text-muted-foreground">
+        {children}
+      </CollapsibleContent>
+    </Collapsible>
+  );
+}
+
+function StorageServiceOffline({
+  detail,
+  missing,
+  isReconnecting,
+  onReconnect,
+}: {
+  detail: string;
+  missing: boolean;
+  isReconnecting: boolean;
+  onReconnect: () => void;
+}) {
+  const { t } = useI18n();
+  const copy = t.storage;
+  return (
+    <div className="flex min-h-0 flex-1 overflow-y-auto p-3 md:p-6">
+      <ErrorState
+        className="min-h-[320px] bg-transparent shadow-none"
+        title={copy.service.offlineTitle}
+        detail={
+          <>
+            <p>
+              {missing
+                ? copy.service.notInstalledDescription
+                : copy.service.offlineDescription}
+            </p>
+            <StorageTechnicalDetails label={copy.service.technicalDetails}>
+              {detail}
+            </StorageTechnicalDetails>
+          </>
+        }
+        actionLabel={
+          isReconnecting ? copy.toolbar.reconnecting : copy.toolbar.reconnect
+        }
+        actionIcon={
+          <RefreshCwIcon
+            className={cn("size-3.5", isReconnecting && "animate-spin")}
+          />
+        }
+        actionDisabled={isReconnecting}
+        onAction={onReconnect}
+      />
     </div>
   );
 }
@@ -2876,26 +2978,27 @@ function LocalDiskView({
                   }
                 />
               ))
+            ) : browseError ? (
+              <div className="p-3">
+                <ErrorState
+                  className="min-h-[240px] bg-transparent shadow-none"
+                  title="无法读取当前目录"
+                  detail={browseError}
+                  actionLabel="重试读取"
+                  onAction={() => setBrowseRevision((value) => value + 1)}
+                />
+              </div>
             ) : (
               <div className="px-4 py-12 text-center text-sm text-muted-foreground">
-                {browseError ? "无法读取当前目录" : "当前目录为空"}
+                当前目录为空
               </div>
             )}
           </div>
-          <div className="border-t border-border bg-muted/30 px-3 py-2 text-xs text-muted-foreground">
-            {browseError && (
-              <Button
-                variant="outline"
-                size="sm"
-                className="mr-3"
-                onClick={() => setBrowseRevision((value) => value + 1)}
-              >
-                重试读取
-              </Button>
-            )}
-            {browseError ||
-              (manifest ? "本地路径与索引已连接。" : "目录服务尚未连接。")}
-          </div>
+          {!browseError && (
+            <div className="border-t border-border bg-muted/30 px-3 py-2 text-xs text-muted-foreground">
+              {manifest ? "本地路径与索引已连接。" : "目录服务尚未连接。"}
+            </div>
+          )}
         </main>
       </div>
     </>

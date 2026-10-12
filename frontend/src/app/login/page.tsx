@@ -9,6 +9,11 @@ import {
   UserCircle2Icon,
 } from "lucide-react";
 
+import {
+  EchoAgeFooter,
+  EchoAgeHeader,
+  EchoAgeShell,
+} from "@/components/brand/echo-age";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -177,7 +182,7 @@ function EmailLoginForm({ returnTo }: { returnTo: string }) {
     <form
       aria-busy={submitting}
       onSubmit={onSubmit}
-      className="echo-login-form space-y-5"
+      className="echo-age-form echo-login-form space-y-5"
     >
       <div className="space-y-2.5">
         <Label htmlFor="email" className="text-sm font-medium">
@@ -208,7 +213,7 @@ function EmailLoginForm({ returnTo }: { returnTo: string }) {
             disabled={sending || submitting || cooldown > 0}
             autoComplete="email"
             autoFocus
-            className="echo-login-input h-12 rounded-xl border-border/60 bg-card/50 pl-11 text-base transition-colors focus:border-primary/40 focus:bg-card aria-invalid:border-destructive aria-invalid:focus:border-destructive aria-invalid:focus-visible:ring-destructive/25"
+            className="echo-age-input h-12 rounded-xl border-border/60 bg-card/50 pl-11 text-base transition-colors focus:border-primary/40 focus:bg-card aria-invalid:border-destructive aria-invalid:focus:border-destructive aria-invalid:focus-visible:ring-destructive/25"
           />
         </div>
         {emailError && (
@@ -254,7 +259,7 @@ function EmailLoginForm({ returnTo }: { returnTo: string }) {
                 setLoginError(null);
               }}
               disabled={submitting}
-              className="echo-login-input h-12 rounded-xl border-border/60 bg-card/50 pl-11 text-base transition-colors focus:border-primary/40 focus:bg-card aria-invalid:border-destructive aria-invalid:focus:border-destructive aria-invalid:focus-visible:ring-destructive/25"
+              className="echo-age-input h-12 rounded-xl border-border/60 bg-card/50 pl-11 text-base transition-colors focus:border-primary/40 focus:bg-card aria-invalid:border-destructive aria-invalid:focus:border-destructive aria-invalid:focus-visible:ring-destructive/25"
             />
           </div>
           <Button
@@ -262,7 +267,7 @@ function EmailLoginForm({ returnTo }: { returnTo: string }) {
             variant="outline"
             onClick={sendCode}
             disabled={sending || submitting || cooldown > 0}
-            className="echo-login-code-button h-12 shrink-0 rounded-xl px-5"
+            className="echo-age-secondary-button h-12 shrink-0 rounded-xl px-5"
           >
             {cooldown > 0
               ? `${cooldown}s`
@@ -308,7 +313,7 @@ function EmailLoginForm({ returnTo }: { returnTo: string }) {
       )}
       <Button
         type="submit"
-        className="echo-login-primary-button h-12 w-full rounded-xl text-base font-medium transition-all"
+        className="echo-age-primary-button h-12 w-full rounded-xl text-base font-medium transition-all"
         disabled={submitting}
       >
         {submitting ? "正在进入 ECHO" : "进入 ECHO"}
@@ -376,7 +381,10 @@ function LocalLoginForm({
   }
 
   return (
-    <form onSubmit={onSubmit} className="echo-login-form space-y-5">
+    <form
+      onSubmit={onSubmit}
+      className="echo-age-form echo-login-form space-y-5"
+    >
       {!passwordOnlyUsername && (
         <>
           <div className="rounded-xl border border-border/50 bg-muted/30 px-4 py-3 text-xs text-muted-foreground/80">
@@ -394,7 +402,7 @@ function LocalLoginForm({
                 onChange={(e) => setUsername(e.target.value)}
                 placeholder={t.registerPage.usernamePlaceholder}
                 autoComplete="username"
-                className="echo-login-input h-12 rounded-xl border-border/60 bg-card/50 pl-11 text-base transition-colors focus:border-primary/40 focus:bg-card"
+                className="echo-age-input h-12 rounded-xl border-border/60 bg-card/50 pl-11 text-base transition-colors focus:border-primary/40 focus:bg-card"
               />
             </div>
           </div>
@@ -414,186 +422,20 @@ function LocalLoginForm({
               onChange={(e) => setPassword(e.target.value)}
               placeholder={t.registerPage.passwordPlaceholder}
               autoComplete="current-password"
-              className="echo-login-input h-12 rounded-xl border-border/60 bg-card/50 pl-11 text-base transition-colors focus:border-primary/40 focus:bg-card"
+              className="echo-age-input h-12 rounded-xl border-border/60 bg-card/50 pl-11 text-base transition-colors focus:border-primary/40 focus:bg-card"
             />
           </div>
         </div>
       )}
       <Button
         type="submit"
-        className="echo-login-primary-button h-12 w-full rounded-xl text-base font-medium transition-all"
+        className="echo-age-primary-button h-12 w-full rounded-xl text-base font-medium transition-all"
         disabled={submitting}
       >
         {submitting ? "正在进入 ECHO" : "进入 ECHO"}
         {!submitting && <ArrowRightIcon className="ml-1 size-4" />}
       </Button>
     </form>
-  );
-}
-
-function EchoBrand() {
-  return (
-    <div className="echo-login-brand" aria-label="ECHO AGE 回响纪元">
-      <span className="echo-login-brand-mark" aria-hidden="true">
-        <i />
-        <b>E</b>
-      </span>
-      <span className="echo-login-brand-copy">
-        <strong>ECHO AGE</strong>
-        <small>回响纪元</small>
-      </span>
-    </div>
-  );
-}
-
-const ECHO_PARTICLES = Array.from({ length: 148 }, (_, index) => {
-  const angle = index * 2.3999632297;
-  const radius = 94 + ((index * 37) % 225);
-  const wobble = Math.sin(index * 1.73) * 22;
-
-  return {
-    cx: 515 + Math.cos(angle) * (radius + wobble) * 1.16,
-    cy: 416 + Math.sin(angle) * (radius - wobble) * 0.72,
-    radius: 0.65 + (index % 5) * 0.28,
-    opacity: 0.2 + (index % 7) * 0.1,
-    delay: `${-((index * 0.17) % 6).toFixed(2)}s`,
-  };
-});
-
-function EchoAgeField() {
-  return (
-    <svg
-      className="echo-age-field"
-      viewBox="0 0 1600 900"
-      preserveAspectRatio="xMidYMid slice"
-      role="presentation"
-    >
-      <defs>
-        <linearGradient id="echo-wave-gradient" x1="0" x2="1">
-          <stop offset="0" stopColor="#5b82ff" stopOpacity="0" />
-          <stop offset="0.25" stopColor="#748fff" stopOpacity="0.9" />
-          <stop offset="0.55" stopColor="#b08cff" />
-          <stop offset="0.78" stopColor="#70dfff" stopOpacity="0.9" />
-          <stop offset="1" stopColor="#5b82ff" stopOpacity="0" />
-        </linearGradient>
-        <radialGradient id="echo-core-gradient" cx="38%" cy="30%">
-          <stop offset="0" stopColor="#ffffff" />
-          <stop offset="0.08" stopColor="#b9c9ff" />
-          <stop offset="0.36" stopColor="#586bd5" />
-          <stop offset="0.72" stopColor="#171b51" />
-          <stop offset="1" stopColor="#070812" />
-        </radialGradient>
-        <filter
-          id="echo-field-glow"
-          x="-50%"
-          y="-50%"
-          width="200%"
-          height="200%"
-        >
-          <feGaussianBlur stdDeviation="3.5" result="blur" />
-          <feMerge>
-            <feMergeNode in="blur" />
-            <feMergeNode in="SourceGraphic" />
-          </feMerge>
-        </filter>
-        <filter
-          id="echo-field-soft-glow"
-          x="-100%"
-          y="-100%"
-          width="300%"
-          height="300%"
-        >
-          <feGaussianBlur stdDeviation="18" />
-        </filter>
-      </defs>
-
-      <g className="echo-age-waves" fill="none">
-        <path
-          className="echo-age-wave echo-age-wave-1"
-          d="M-80 463 C 125 292, 275 574, 475 423 S 795 278, 1015 432 S 1350 585, 1680 380"
-        />
-        <path
-          className="echo-age-wave echo-age-wave-2"
-          d="M-80 457 C 128 310, 282 554, 475 420 S 792 296, 1014 430 S 1358 566, 1680 392"
-        />
-        <path
-          className="echo-age-wave echo-age-wave-3"
-          d="M-60 489 C 158 340, 298 584, 492 445 S 808 324, 1020 452 S 1370 594, 1660 420"
-        />
-        <path
-          className="echo-age-wave echo-age-wave-4"
-          d="M-60 422 C 134 278, 296 520, 472 391 S 786 250, 1005 405 S 1356 530, 1660 360"
-        />
-      </g>
-
-      <g className="echo-age-vortex" fill="none">
-        <ellipse cx="515" cy="416" rx="306" ry="208" />
-        <ellipse
-          cx="515"
-          cy="416"
-          rx="280"
-          ry="225"
-          transform="rotate(28 515 416)"
-        />
-        <ellipse
-          cx="515"
-          cy="416"
-          rx="246"
-          ry="171"
-          transform="rotate(-18 515 416)"
-        />
-        <ellipse
-          cx="515"
-          cy="416"
-          rx="215"
-          ry="145"
-          transform="rotate(38 515 416)"
-        />
-      </g>
-
-      <g className="echo-age-particles" filter="url(#echo-field-glow)">
-        {ECHO_PARTICLES.map((particle, index) => (
-          <circle
-            className="echo-age-particle"
-            key={index}
-            cx={particle.cx}
-            cy={particle.cy}
-            r={particle.radius}
-            opacity={particle.opacity}
-            style={{ animationDelay: particle.delay }}
-          />
-        ))}
-      </g>
-
-      <g className="echo-age-core">
-        <circle
-          cx="515"
-          cy="416"
-          r="54"
-          fill="#6e75ff"
-          opacity="0.2"
-          filter="url(#echo-field-soft-glow)"
-        />
-        <circle
-          cx="515"
-          cy="416"
-          r="34"
-          fill="url(#echo-core-gradient)"
-          stroke="#93aaff"
-          strokeOpacity="0.5"
-        />
-        <text
-          x="515"
-          y="425"
-          textAnchor="middle"
-          fill="#f5f7ff"
-          fontSize="25"
-          fontWeight="350"
-        >
-          E
-        </text>
-      </g>
-    </svg>
   );
 }
 
@@ -699,46 +541,25 @@ export default function LoginPage() {
   const embeddedWindow = isEmbeddedWindow();
 
   return (
-    <div
-      className={`echo-login-shell relative min-h-screen overflow-hidden${embeddedWindow ? " echo-login-shell-embedded" : ""}`}
-    >
-      <div className="echo-login-cosmos" aria-hidden="true">
-        <div className="echo-login-stars" />
-        <div className="echo-login-aurora echo-login-aurora-blue" />
-        <div className="echo-login-aurora echo-login-aurora-violet" />
-        <EchoAgeField />
-      </div>
+    <EchoAgeShell embedded={embeddedWindow}>
+      <EchoAgeHeader status="ENTER ECHO" />
 
-      <header className="echo-login-header">
-        <EchoBrand />
-        <nav className="echo-login-header-nav" aria-hidden="true">
-          <span>PRODUCT</span>
-          <i />
-          <span>MEMORY</span>
-          <i />
-          <span>AGENTS</span>
-          <i />
-          <span>VISION</span>
-        </nav>
-        <div className="echo-login-header-status">
-          ENTER ECHO
-          <span />
-        </div>
-      </header>
-
-      <main className="echo-login-layout">
-        <section className="echo-login-hero" aria-labelledby="echo-login-title">
-          <div className="echo-login-eyebrow">THE ECHO ECOSYSTEM</div>
-          <h1 id="echo-login-title" className="echo-login-title">
+      <main className="echo-age-auth-layout">
+        <section
+          className="echo-age-auth-hero"
+          aria-labelledby="echo-login-title"
+        >
+          <div className="echo-age-eyebrow">THE ECHO ECOSYSTEM</div>
+          <h1 id="echo-login-title" className="echo-age-title">
             <span>THE AGE OF</span>
             <strong>ECHO</strong>
           </h1>
-          <div className="echo-login-subtitle">
+          <div className="echo-age-subtitle">
             <span />
             <strong>回响纪元</strong>
             <span />
           </div>
-          <p className="echo-login-lead">
+          <p className="echo-age-lead">
             <span>Every interaction leaves an echo.</span>
             <small>每一次交互，都留下回响。</small>
           </p>
@@ -770,10 +591,10 @@ export default function LoginPage() {
           </div>
         </section>
 
-        <section className="echo-login-form-column" aria-label="ECHO 账号登录">
-          <Card className="echo-login-card overflow-hidden rounded-[22px] border-border/50 bg-card/80 backdrop-blur-xl">
+        <section className="echo-age-auth-column" aria-label="ECHO 账号登录">
+          <Card className="echo-age-card overflow-hidden rounded-[22px] border-border/50 bg-card/80 backdrop-blur-xl">
             <CardHeader className="space-y-2.5 px-8 pb-6 pt-8 text-center">
-              <div className="echo-login-card-kicker">
+              <div className="echo-age-card-kicker">
                 <span /> ENTER THE ECHO
               </div>
               <CardTitle className="text-2xl font-medium tracking-tight">
@@ -917,11 +738,9 @@ export default function LoginPage() {
             </CardContent>
           </Card>
 
-          <p className="echo-login-footer">
-            AN AGE BEGINS · © {new Date().getFullYear()} ECHO AGE
-          </p>
+          <EchoAgeFooter />
         </section>
       </main>
-    </div>
+    </EchoAgeShell>
   );
 }

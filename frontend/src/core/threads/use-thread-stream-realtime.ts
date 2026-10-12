@@ -23,6 +23,7 @@ import {
   type ThreadConnectionPhase,
 } from "@/core/realtime";
 import { itemStreamText } from "@/core/realtime/reducer";
+import { useThreadSessionScope } from "@/core/realtime/session-scope";
 import type {
   AgentPhaseSnapshot,
   ApprovalItem,
@@ -105,6 +106,7 @@ type SendMessageFn = (
 
 interface ThreadEpoch {
   threadId: string;
+  scope: string;
   generation: number;
 }
 
@@ -117,9 +119,7 @@ interface ScopedOptimisticMessages extends ThreadEpoch {
 }
 
 function isSameThreadEpoch(left: ThreadEpoch, right: ThreadEpoch): boolean {
-  return (
-    left.threadId === right.threadId && left.generation === right.generation
-  );
+  return left.scope === right.scope && left.generation === right.generation;
 }
 
 function newClientMessageId(): string {
@@ -1177,6 +1177,7 @@ export function useThreadStreamRealtime(
     context,
   } = opts;
 
+  const sessionScope = useThreadSessionScope(threadId);
   const realtime = useRealtimeThread({ threadId });
   const {
     state,
@@ -1207,11 +1208,13 @@ export function useThreadStreamRealtime(
   // must not become current merely because the string id matches again.
   const threadEpochRef = useRef<ThreadEpoch>({
     threadId,
+    scope: sessionScope,
     generation: 0,
   });
-  if (threadEpochRef.current.threadId !== threadId) {
+  if (threadEpochRef.current.scope !== sessionScope) {
     threadEpochRef.current = {
       threadId,
+      scope: sessionScope,
       generation: threadEpochRef.current.generation + 1,
     };
   }
@@ -2039,7 +2042,7 @@ export function useThreadStreamRealtime(
   );
   const lastStatus = state.turns.at(-1)?.status;
   const messageQueue = useMessageQueue({
-    scope: threadId,
+    scope: sessionScope,
     running: isUiLoading,
     ready: transportReady,
     blocked:
@@ -2056,10 +2059,11 @@ export function useThreadStreamRealtime(
     send: sendQueued,
     discard: discardQueued,
   });
+  const pauseQueue = messageQueue.pause;
   const stopWithQueue = useCallback(() => {
-    messageQueue.pause();
+    pauseQueue();
     return stop();
-  }, [messageQueue.pause, stop]);
+  }, [pauseQueue, stop]);
   const threadWithQueue = useMemo(
     () => ({ ...exposedThread, messageQueue, stop: stopWithQueue }),
     [exposedThread, messageQueue, stopWithQueue],

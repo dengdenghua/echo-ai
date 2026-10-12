@@ -6,11 +6,14 @@ import {
   BriefcaseBusinessIcon,
   CalendarDaysIcon,
   CheckCircleIcon,
+  CheckIcon,
+  ChevronRightIcon,
   DatabaseIcon,
   FileSearchIcon,
   InfoIcon,
   MoreHorizontalIcon,
   SaveIcon,
+  ShieldCheckIcon,
   TagIcon,
 } from "lucide-react";
 import { useNavigate, useSearchParams } from "react-router-dom";
@@ -20,6 +23,11 @@ import { toast } from "sonner";
 import { ChatInputBox } from "@/components/workspace/chat-input-box";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from "@/components/ui/collapsible";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -630,7 +638,16 @@ export default function NewAgentPage() {
     </header>
   );
 
-  if (searchParams.get("cloudExpert")) return <div className="flex min-h-0 flex-1 flex-col">{header}<CloudAgentCreation key={searchParams.get("cloudExpert")} sourceId={searchParams.get("cloudExpert")!} /></div>;
+  if (searchParams.get("cloudExpert"))
+    return (
+      <div className="flex min-h-0 flex-1 flex-col">
+        {header}
+        <CloudAgentCreation
+          key={searchParams.get("cloudExpert")}
+          sourceId={searchParams.get("cloudExpert")!}
+        />
+      </div>
+    );
 
   if (step === "name") {
     return (
@@ -642,7 +659,6 @@ export default function NewAgentPage() {
           <div className="pointer-events-none absolute inset-x-14 bottom-0 h-px bg-gradient-to-r from-transparent via-white/8 to-transparent" />
           <div className="relative grid h-full grid-cols-1 lg:grid-cols-[minmax(0,0.64fr)_minmax(260px,0.36fr)]">
             <section className="relative flex min-h-0 flex-col px-8 py-6 lg:px-10 lg:py-7">
-              <div className="pointer-events-none absolute left-0 top-0 h-5 w-5 border-l border-t border-primary/60" />
               <div className="mb-6 flex shrink-0 items-center justify-between">
                 <Button
                   aria-label={t.agentConfig.back}
@@ -672,12 +688,22 @@ export default function NewAgentPage() {
                     {agentNew.pageSubtitle}
                   </p>
 
-                  <ProfessionPicker onSelect={(profession) => {
-                    setSelectedTemplateId("");
-                    setAgentBrief(`创建一位${profession.name}数字员工。\n${profession.description}\n请明确岗位职责、常见任务、交付物和协作边界，并根据职责建议合适的技能与工具。仅使用已授权且实际可用的能力。`);
-                    setNameInput((current) => current.trim() ? current : profession.id ? `${profession.id}-assistant` : "");
-                    setNameError("");
-                  }} />
+                  <ProfessionPicker
+                    onSelect={(profession) => {
+                      setSelectedTemplateId("");
+                      setAgentBrief(
+                        `创建一位${profession.name}数字员工。\n${profession.description}\n请明确岗位职责、常见任务、交付物和协作边界，并根据职责建议合适的技能与工具。仅使用已授权且实际可用的能力。`,
+                      );
+                      setNameInput((current) =>
+                        current.trim()
+                          ? current
+                          : profession.id
+                            ? `${profession.id}-assistant`
+                            : "",
+                      );
+                      setNameError("");
+                    }}
+                  />
 
                   <div className="mt-6 rounded-sm border border-border bg-muted/16 p-3">
                     <div className="mb-2 flex items-center justify-between gap-2">
@@ -766,7 +792,7 @@ export default function NewAgentPage() {
               </div>
             </section>
 
-            <section className="relative min-h-0 overflow-hidden border-l border-border">
+            <section className="relative min-h-0 overflow-hidden border-t border-border lg:border-t-0 lg:border-l">
               <div className="pointer-events-none absolute inset-0 opacity-[0.14] [background-image:radial-gradient(circle_at_50%_44%,hsl(var(--primary)/0.16),transparent_30%),linear-gradient(90deg,rgba(255,255,255,0.05)_1px,transparent_1px),linear-gradient(180deg,rgba(255,255,255,0.035)_1px,transparent_1px)] [background-size:100%_100%,34px_34px,34px_34px]" />
               <div className="relative flex h-full min-h-0 flex-col px-5 py-7">
                 <div className="flex shrink-0 items-center justify-between gap-3">
@@ -872,25 +898,74 @@ export default function NewAgentPage() {
 
                   {selectedScenePresets.length > 0 &&
                   selectedCapabilityPacks.length > 0 ? (
-                    <div className="grid gap-1.5 rounded-sm border border-border bg-muted/10 p-3 text-xs leading-5 text-muted-foreground">
-                      <div>
-                        ARM:{" "}
-                        <span className="text-foreground">
-                          {selectedArms.join(", ")}
-                        </span>
+                    <div
+                      data-testid="agent-config-summary"
+                      className="rounded-sm border border-border bg-muted/10 p-3 text-xs leading-5"
+                    >
+                      <div className="mb-1.5 font-medium text-foreground">
+                        {agentNew.labels.capabilitySummary}
                       </div>
-                      <div>
-                        Skill:{" "}
-                        <span className="text-foreground">
-                          {selectedSkills.join(", ")}
-                        </span>
-                      </div>
-                      <div>
-                        {agentNew.labels.permissions}:{" "}
-                        <span className="text-foreground">
-                          {selectedPermissions.join(" / ")}
-                        </span>
-                      </div>
+                      <ul className="grid gap-1">
+                        {selectedCapabilityPacks.map((pack) => (
+                          <li key={pack.id} className="flex gap-1.5">
+                            <CheckIcon
+                              aria-hidden="true"
+                              className="mt-0.5 size-3.5 shrink-0 text-primary"
+                            />
+                            <span className="text-muted-foreground">
+                              <span className="font-medium text-foreground">
+                                {pack.label}
+                              </span>
+                              {" · "}
+                              {pack.brief}
+                            </span>
+                          </li>
+                        ))}
+                      </ul>
+                      {selectedPermissions.length > 0 ? (
+                        <>
+                          <div className="mt-3 mb-1.5 font-medium text-foreground">
+                            {agentNew.labels.permissions}
+                          </div>
+                          <ul className="grid gap-1">
+                            {selectedPermissions.map((permission) => (
+                              <li
+                                key={permission}
+                                className="flex gap-1.5 text-muted-foreground"
+                              >
+                                <ShieldCheckIcon
+                                  aria-hidden="true"
+                                  className="mt-0.5 size-3.5 shrink-0"
+                                />
+                                {permission}
+                              </li>
+                            ))}
+                          </ul>
+                        </>
+                      ) : null}
+                      <Collapsible className="mt-3 border-t border-border pt-2">
+                        <CollapsibleTrigger className="group flex items-center gap-1 text-muted-foreground hover:text-foreground">
+                          <ChevronRightIcon
+                            aria-hidden="true"
+                            className="size-3.5 transition-transform group-data-[state=open]:rotate-90"
+                          />
+                          {agentNew.labels.technicalDetails}
+                        </CollapsibleTrigger>
+                        <CollapsibleContent className="mt-1.5 grid gap-1 break-words font-mono text-muted-foreground">
+                          <div>
+                            ARM:{" "}
+                            <span className="text-foreground">
+                              {selectedArms.join(", ")}
+                            </span>
+                          </div>
+                          <div>
+                            Skill:{" "}
+                            <span className="text-foreground">
+                              {selectedSkills.join(", ")}
+                            </span>
+                          </div>
+                        </CollapsibleContent>
+                      </Collapsible>
                     </div>
                   ) : null}
 

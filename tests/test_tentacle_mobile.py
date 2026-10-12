@@ -12,6 +12,9 @@
 
 from __future__ import annotations
 
+import sys
+from pathlib import Path
+
 import pytest
 
 from runtime.execution.arms.presets import (
@@ -40,6 +43,23 @@ from runtime.tentacle.mobile.apks.tool_bridge import (
 from runtime.tentacle.mobile.apks.version import ECHO_MOBILE_VERSION, is_compatible
 from runtime.tentacle.mobile.capabilities import android_capabilities
 from runtime.tentacle.mobile.mcp_server import TentacleMcpServer
+
+
+@pytest.fixture(autouse=True)
+def simulated_device_manifests(monkeypatch):
+    """Mock phones expose bundled skills without enabling host plugins."""
+    from runtime.tentacle import device_plugins
+
+    skills = Path(__file__).resolve().parents[1] / "runtime/tentacle/mobile/skills"
+    monkeypatch.setattr(
+        device_plugins,
+        "device_plugin_tools_root",
+        lambda platform: skills if platform == "android" else skills / ".no-ios",
+    )
+    # The legacy export is a snapshot made at import time. Give this test
+    # module the snapshot for its simulated, enabled Android device.
+    monkeypatch.setattr(sys.modules[__name__], "ANDROID_CAPABILITIES", list(android_capabilities()))
+
 
 # ── 1. 包导入测试 ─────────────────────────────────────────
 

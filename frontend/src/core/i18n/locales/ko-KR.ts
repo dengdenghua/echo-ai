@@ -76,8 +76,7 @@ export const koKR: Translations = {
 
   // Home
   home: {
-    docs: "문서",
-    blog: "블로그",
+    openWorkspace: "워크스페이스 열기",
   },
 
   // Welcome
@@ -430,6 +429,10 @@ export const koKR: Translations = {
     deepResearchConfig: "리서치 설정",
     conversationOptions: "대화 옵션",
     executionMethod: "실행 방식",
+    runSettings: "실행 설정",
+    runSettingsWorkspace: "작업 공간",
+    runSettingsWorkMode: "작업 모드",
+    runSettingsLocation: "실행 위치",
     roles: "하위 에이전트",
     materials: "자료",
     collapse: "접기",
@@ -723,15 +726,12 @@ export const koKR: Translations = {
 
   // Landing footer
   landingFooter: {
-    tagline: "오픈소스 Agent OS",
-    productTitle: "Product",
-    workspaceLink: "Workspace",
-    aboutLink: "About",
-    workflowLink: "Workflows",
-    resourcesTitle: "Resources",
-    skillMarketLink: "스킬 마켓",
-    communityTitle: "Community",
-    wechat: "WeChat",
+    tagline: "셀프 호스팅 Agent OS",
+    productTitle: "제품",
+    workspaceLink: "워크스페이스",
+    aboutLink: "소개",
+    resourcesTitle: "리소스",
+    skillMarketLink: "스킬",
   },
 
   // Message grouping labels
@@ -2944,7 +2944,9 @@ export const koKR: Translations = {
         generateConfig: "구성 설명 생성",
       },
       labels: {
-        permissions: "권한",
+        permissions: "권한 및 제한",
+        capabilitySummary: "생성 후 할 수 있는 일",
+        technicalDetails: "기술 세부 정보",
       },
       roles: [
         {
@@ -3389,7 +3391,8 @@ export const koKR: Translations = {
       "작업 결과를 안정적으로 저장하지 못했습니다. 다시 시도하거나 백엔드를 재시작하세요.",
     eventStreamOverloaded:
       "이벤트 처리가 일시적으로 과부하되었습니다. 완료된 단계는 보존되었습니다. 다시 시도해 계속하세요.",
-    sidecarCleanupBlocked: "안전 검사에서 임시 실행 폴더 정리가 차단되었습니다. 경로나 표식이 예상과 일치하지 않습니다.",
+    sidecarCleanupBlocked:
+      "안전 검사에서 임시 실행 폴더 정리가 차단되었습니다. 경로나 표식이 예상과 일치하지 않습니다.",
     workspaceWriteRequired:
       "이 작업은 프로젝트 파일 변경이 필요하지만, 성공적인 파일 변경이 기록되지 않았습니다.",
     verificationRequired:
@@ -7280,7 +7283,8 @@ export const koKR: Translations = {
       "echo 는 아직 풀 리퀘스트 데이터 소스를 연결하지 않았습니다. gh 또는 호스팅 API 를 연결하면 채워집니다.",
     trackedOnly: "줄 수는 추적 중인 파일만 집계합니다.",
     diffUnavailable: "차이를 가져오지 못해 줄 수를 집계할 수 없습니다.",
-    unavailable: "워크스페이스 상태를 읽지 못했습니다. 마지막 결과를 표시합니다.",
+    unavailable:
+      "워크스페이스 상태를 읽지 못했습니다. 마지막 결과를 표시합니다.",
     processSection: "진행",
     processProgress: (current, total) => `${current}/${total}`,
     processEmpty: "이번 실행에는 아직 단계 목록이 없습니다.",
@@ -7624,40 +7628,13 @@ export const koKR: Translations = {
     defaultStrategy: "기본 전략",
     journalRow: (task: string, arm: string) => `작업=${task} 전략=${arm}`,
     subtitle:
-      "런타임 자기 성찰 · 병렬 협업 / 보드 / 저널 스트림 / 자가 진화 / 컨텍스트 예산 / 비용",
+      "작업 실행 상황, 협업 이벤트, 리소스 사용량, 시스템 상태를 확인합니다.",
     shell: {
       startTask: "작업 시작",
-      runReviewTitle: "실행 검토",
-      runReviewDescription:
-        "원활했던 부분, 실패한 부분, 자세히 살펴볼 부분을 확인합니다.",
-      liveEventsTitle: "실시간 이벤트",
-      liveEventsDescription:
-        "협업, 블랙보드 활동, 로그를 하나의 이벤트 보기로 통합합니다.",
-      resourcesTitle: "리소스 및 비용",
-      resourcesDescription:
-        "컨텍스트 예산, 토큰 사용량, 비용 합계를 한곳에서 확인합니다.",
-      systemTitle: "시스템 상태",
-      systemDescription: "자가 진화, 진단, 백엔드 상태를 함께 확인합니다.",
       overviewTab: "개요",
       eventsTab: "이벤트",
       resourcesTab: "리소스 및 비용",
       systemTab: "시스템",
-      overviewTitle: "개요부터 확인",
-      overviewDescription:
-        "상태, 이벤트, 리소스, 시스템 상태를 네 가지 명확한 보기로 구성했습니다.",
-      openNewTask: "새 작업 열기",
-      eventsEyebrow: "이벤트",
-      eventsTitle: "실행, 협업, 로그를 한곳에",
-      eventsDescription:
-        "긴 탭 목록을 오가지 않고 실행 검토, 협업, 블랙보드, 로그를 확인합니다.",
-      resourcesEyebrow: "리소스 및 비용",
-      resourcesGroupTitle: "예산을 먼저, 청구를 다음에",
-      resourcesGroupDescription:
-        "컨텍스트 예산과 지출을 같은 단계에서 비교할 수 있습니다.",
-      systemEyebrow: "시스템",
-      systemGroupTitle: "백엔드 상태와 자가 진화를 한곳에",
-      systemGroupDescription:
-        "진단과 자가 진화를 하나의 시스템 보기로 통합합니다.",
     },
     toolEffects: {
       title: "외부 작업 영수증",
@@ -7704,8 +7681,6 @@ export const koKR: Translations = {
     noConcurrentTasks: "동시 작업 없음",
     noConcurrentTasksHint:
       "병렬 협업이 필요한 작업을 시작하면, 서브 Agent의 스킬 호출이 여기에 실시간으로 표시됩니다.",
-    nestedSseNote:
-      "참고: 중첩된 sub_tool_start 이벤트는 채팅 SSE 내에 있습니다(단일 턴 내). 여기에 표시되는 것은 전역 저널 Step 이벤트 스트림입니다.",
     journalEventStream: "저널 이벤트 스트림",
     // Tab names
     tabRuns: "실행",
@@ -7800,7 +7775,7 @@ export const koKR: Translations = {
     latestCompose: "최신 컨텍스트 조합",
     noComposeRecords: "아직 컨텍스트 조합 기록이 없습니다",
     noComposeRecordsHint:
-      "planner가 ContextComposer.compose()를 호출하면 데이터가 나타납니다.",
+      "작업을 실행하면 컨텍스트 예산 사용 현황이 여기에 표시됩니다.",
     total: "합계",
     historyPrefix: "기록 · 최근",
     hemolymphTable: {
@@ -8396,10 +8371,12 @@ export const koKR: Translations = {
     manageExpert: "역할 추가 작업",
     removeExpert: "역할 삭제",
     removeExpertTitle: (name: string) => `${name}을(를) 삭제할까요?`,
-    removeExpertDescription: "역할 목록에서 이 전문가와 로컬 설정을 삭제합니다. 카탈로그에서 다시 추가할 수 있습니다.",
+    removeExpertDescription:
+      "역할 목록에서 이 전문가와 로컬 설정을 삭제합니다. 카탈로그에서 다시 추가할 수 있습니다.",
     removeExpertSuccess: (name: string) => `${name} 삭제 완료`,
     removeExpertFailed: "역할을 삭제하지 못했습니다. 다시 시도해 주세요.",
-    localExpertNotFound: "로컬 역할을 하나로 식별할 수 없습니다. 새로고침 후 다시 시도해 주세요.",
+    localExpertNotFound:
+      "로컬 역할을 하나로 식별할 수 없습니다. 새로고침 후 다시 시도해 주세요.",
     detailProfession: "분야",
     detailQuickPrompts: "빠른 시작 프롬프트",
     detailTags: "태그",
@@ -8453,10 +8430,28 @@ export const koKR: Translations = {
   },
 
   hero: {
-    releaseBadge: "Echo 2.0 출시",
-    withEcho: "Echo와 함께",
     heroDescription:
-      "오픈소스 SuperAgent 프레임워크로 연구, 코딩, 콘텐츠 생성을 수행합니다. 샌드박스, 메모리, 도구, 스킬, 서브 Agent를 활용해 몇 분에서 몇 시간까지 다양한 작업을 처리합니다.",
+      "Echo는 셀프 호스팅 Agent OS입니다. 목표를 계획으로 나누고, 거버넌스가 적용된 런타임에서 도구를 실행하며, 다음 실행에 쓸모 있는 기억을 남깁니다.",
+    pillarsTitle: "기억하고, 이해하고, 행동하고, 당신과 함께 성장합니다",
+    pillars: {
+      memory: {
+        title: "기억한다",
+        description: "실행마다 남는 유용한 기억을 다음 실행으로 이어 갑니다.",
+      },
+      understand: {
+        title: "이해한다",
+        description: "먼저 목표를 파악한 뒤 명확한 계획으로 정리합니다.",
+      },
+      act: {
+        title: "행동한다",
+        description:
+          "거버넌스가 적용된 런타임에서 도구, 브라우저, 워크스페이스로 계획을 끝까지 실행합니다.",
+      },
+      grow: {
+        title: "당신과 함께 성장한다",
+        description: "실행할 때마다 돌아보고 개선합니다.",
+      },
+    },
   },
 
   channelPairings: {
@@ -9567,6 +9562,12 @@ export const koKR: Translations = {
       notConnected: "로컬 지식 베이스 서비스에 아직 연결되지 않았습니다: {url}",
       networkError:
         "로컬 지식 베이스 서비스에 연결할 수 없습니다. 서비스가 실행 중인지 확인한 후 다시 시도하세요.",
+      offlineTitle: "로컬 지식 베이스에 연결되지 않음",
+      offlineDescription:
+        "지금은 로컬 파일과 색인을 읽을 수 없습니다. 로컬 지식 베이스 서비스가 실행 중인지 확인한 후 다시 연결하세요.",
+      notInstalledDescription:
+        "이 컴퓨터에 아직 로컬 지식 베이스 서비스가 없습니다. 설치한 후 다시 연결하면 로컬 파일을 탐색하고 검색할 수 있습니다.",
+      technicalDetails: "기술 세부 정보",
     },
     toolbar: {
       authorize: "승인",

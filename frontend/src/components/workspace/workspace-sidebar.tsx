@@ -1551,6 +1551,7 @@ export const __testing = {
   activeTeamTaskRoomId,
   ProjectGroupTrigger,
   SidebarTimestamp,
+  ChatsSection,
 };
 
 function SurfaceCreateButton({
@@ -2028,7 +2029,11 @@ function ProjectGroup({
                           : undefined,
                       workspacePath: thread.workspacePath,
                     }}
-                    onMouseDown={() => syncThreadAgentSelection(thread.agents)}
+                    // Sync on click, not mousedown: the thread queries are
+                    // keyed by the active agent, so switching it at mousedown
+                    // refetches the list and unmounts this link before the
+                    // click lands. Link runs onClick before navigating.
+                    onClick={() => syncThreadAgentSelection(thread.agents)}
                     aria-current={active ? "page" : undefined}
                     title={thread.title}
                     className={cn(
@@ -2598,7 +2603,8 @@ function ChatsSection({
                           t.agents.length === 1 ? t.agents[0] : undefined,
                         workspacePath: t.workspacePath,
                       }}
-                      onMouseDown={() => syncThreadAgentSelection(t.agents)}
+                      // Click, not mousedown: see the conversation list above.
+                      onClick={() => syncThreadAgentSelection(t.agents)}
                       aria-current={active ? "page" : undefined}
                       title={t.title}
                       className={cn(
