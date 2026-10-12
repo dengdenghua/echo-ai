@@ -6,18 +6,18 @@ import { cn } from "@/lib/utils";
 
 import { Section } from "../section";
 
-// Deterministic per-card gradients. Previously each card pulled a
-// ``public/images/<threadId>.jpg`` background, but those JPEG assets were
-// corrupted (UTF-8-mangled, ~4.5 MB of unrenderable bytes) and shipped a
-// broken background on the landing page. Gradients keep the visual design,
-// add zero network weight, and never break.
+// ECHO card covers: a graphite ground with one cyan core glow per card.
+// The family palette is monochrome — the core is the only hue (brand book:
+// "no gold or rainbow"), so each card varies the glow's position and
+// strength instead of inventing new colors. The colors resolve through
+// the ECHO tokens; this section renders on the pinned-graphite shell.
 const CARD_GRADIENTS = [
-  "linear-gradient(135deg, #4f46e5 0%, #9333ea 100%)",
-  "linear-gradient(135deg, #e11d48 0%, #f59e0b 100%)",
-  "linear-gradient(135deg, #0284c7 0%, #06b6d4 100%)",
-  "linear-gradient(135deg, #059669 0%, #14b8a6 100%)",
-  "linear-gradient(135deg, #c026d3 0%, #7c3aed 100%)",
-  "linear-gradient(135deg, #ea580c 0%, #db2777 100%)",
+  "radial-gradient(115% 85% at 20% 18%, color-mix(in srgb, var(--echo-core) 20%, transparent) 0%, transparent 58%), linear-gradient(155deg, #12151a 0%, #090a0c 100%)",
+  "radial-gradient(105% 80% at 82% 22%, color-mix(in srgb, var(--echo-core) 14%, transparent) 0%, transparent 55%), linear-gradient(155deg, #0d0f13 0%, #101216 100%)",
+  "radial-gradient(120% 90% at 50% 88%, color-mix(in srgb, var(--echo-core) 24%, transparent) 0%, transparent 60%), linear-gradient(155deg, #090a0c 0%, #12151a 100%)",
+  "radial-gradient(100% 75% at 26% 76%, color-mix(in srgb, var(--echo-core) 12%, transparent) 0%, transparent 52%), linear-gradient(155deg, #101216 0%, #0b0d10 100%)",
+  "radial-gradient(110% 82% at 74% 30%, color-mix(in srgb, var(--echo-core) 18%, transparent) 0%, transparent 56%), linear-gradient(155deg, #0b0d10 0%, #12151a 100%)",
+  "radial-gradient(118% 88% at 48% 24%, color-mix(in srgb, var(--echo-core) 22%, transparent) 0%, transparent 59%), linear-gradient(155deg, #12151a 0%, #0d0f13 100%)",
 ];
 
 export function CaseStudySection({ className }: { className?: string }) {
