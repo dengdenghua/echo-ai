@@ -17,7 +17,13 @@ export function StaticEchoCosmos() {
   const particles = useMemo(() => COSMIC_PARTICLES, []);
 
   return (
-    <div className="browser-start-cosmos" aria-hidden="true">
+    // Always ECHO Graphite: the start page backdrop is a dark wallpaper in
+    // either scheme, so the --echo-* values below resolve to graphite here.
+    <div
+      className="browser-start-cosmos"
+      data-echo-theme="graphite"
+      aria-hidden="true"
+    >
       <div className="browser-start-cosmos-bg" />
       <div className="browser-start-stars" />
       <div className="browser-start-aurora browser-start-aurora-blue" />
@@ -31,19 +37,27 @@ export function StaticEchoCosmos() {
       >
         <defs>
           <linearGradient id="echo-start-wave-gradient" x1="0" x2="1">
-            <stop offset="0" stopColor="#5b82ff" stopOpacity="0" />
-            <stop offset="0.25" stopColor="#748fff" stopOpacity="0.85" />
-            <stop offset="0.55" stopColor="#b08cff" stopOpacity="0.9" />
-            <stop offset="0.78" stopColor="#70dfff" stopOpacity="0.85" />
-            <stop offset="1" stopColor="#5b82ff" stopOpacity="0" />
+            <stop
+              offset="0"
+              style={{ stopColor: "var(--echo-ink)", stopOpacity: 0 }}
+            />
+            <stop
+              offset="0.3"
+              style={{ stopColor: "var(--echo-ink)", stopOpacity: 0.5 }}
+            />
+            <stop
+              offset="0.55"
+              style={{ stopColor: "var(--echo-core)", stopOpacity: 0.75 }}
+            />
+            <stop
+              offset="0.78"
+              style={{ stopColor: "var(--echo-ink)", stopOpacity: 0.45 }}
+            />
+            <stop
+              offset="1"
+              style={{ stopColor: "var(--echo-ink)", stopOpacity: 0 }}
+            />
           </linearGradient>
-          <radialGradient id="echo-start-core-gradient" cx="38%" cy="30%">
-            <stop offset="0" stopColor="#ffffff" />
-            <stop offset="0.08" stopColor="#b9c9ff" />
-            <stop offset="0.36" stopColor="#586bd5" />
-            <stop offset="0.72" stopColor="#171b51" />
-            <stop offset="1" stopColor="#070812" />
-          </radialGradient>
           <filter
             id="echo-start-field-glow"
             x="-50%"
@@ -122,40 +136,31 @@ export function StaticEchoCosmos() {
               cx={particle.cx}
               cy={particle.cy}
               r={particle.radius}
-              fill="#a6c0ff"
+              style={{
+                fill: index % 7 === 0 ? "var(--echo-core)" : "var(--echo-ink)",
+              }}
               opacity={particle.opacity}
             />
           ))}
         </g>
 
-        {/* Central Celestial Core */}
+        {/* Central Echo Core: the orbits circle one cyan dot with the
+            screen's single soft core glow (same as the login field). */}
         <g className="echo-core">
           <circle
             cx="515"
             cy="416"
-            r="54"
-            fill="#6e75ff"
-            opacity="0.22"
+            r="40"
+            style={{ fill: "var(--echo-core)" }}
+            opacity="0.14"
             filter="url(#echo-start-field-soft-glow)"
           />
           <circle
             cx="515"
             cy="416"
-            r="34"
-            fill="url(#echo-start-core-gradient)"
-            stroke="#93aaff"
-            strokeOpacity="0.5"
+            r="5"
+            style={{ fill: "var(--echo-core)" }}
           />
-          <text
-            x="515"
-            y="425"
-            textAnchor="middle"
-            fill="#f5f7ff"
-            fontSize="25"
-            fontWeight="350"
-          >
-            E
-          </text>
         </g>
       </svg>
     </div>

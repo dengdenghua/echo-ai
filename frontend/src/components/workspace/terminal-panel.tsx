@@ -20,6 +20,21 @@ interface TerminalPanelProps {
   onClose?: () => void;
 }
 
+/** ECHO mono stack (--font-mono, JetBrains Mono first); used if the CSS
+ *  variable is unavailable, e.g. before styles load or under tests. */
+const TERMINAL_FONT_FALLBACK =
+  '"JetBrains Mono", "Cascadia Code", Consolas, ui-monospace, monospace';
+
+/** xterm draws on a canvas and needs a concrete family list, not var(). */
+function terminalFontFamily(): string {
+  if (typeof window === "undefined") return TERMINAL_FONT_FALLBACK;
+  const value = window
+    .getComputedStyle(document.documentElement)
+    .getPropertyValue("--font-mono")
+    .trim();
+  return value || TERMINAL_FONT_FALLBACK;
+}
+
 function terminalShellLabel(platform: string): string {
   if (/win/i.test(platform)) return "PowerShell";
   if (/mac|iphone|ipad/i.test(platform)) return "zsh";
@@ -99,7 +114,7 @@ export function TerminalPanel({
     const term = new Terminal({
       cursorBlink: true,
       fontSize: 13,
-      fontFamily: "'Cascadia Code', 'Fira Code', 'JetBrains Mono', monospace",
+      fontFamily: terminalFontFamily(),
       theme: {
         background: "#ffffff",
         foreground: "#111827",

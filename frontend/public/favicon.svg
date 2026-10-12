@@ -1,15 +1,5 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" fill="none" role="img" aria-label="Echo">
-  <!-- The Echo orb; keep in sync with components/brand/echo-brand-mark.tsx. -->
-  <defs>
-    <radialGradient id="core" cx="38%" cy="30%" r="72%">
-      <stop offset="0" stop-color="#dce7ff"/>
-      <stop offset="0.07" stop-color="#7f97e6"/>
-      <stop offset="0.42" stop-color="#25357a"/>
-      <stop offset="1" stop-color="#060914"/>
-    </radialGradient>
-  </defs>
-  <ellipse cx="24" cy="24" rx="22.5" ry="11" transform="rotate(-28 24 24)" stroke="#7a97f6" stroke-opacity="0.55"/>
-  <circle cx="24" cy="24" r="15.5" fill="url(#core)" stroke="#97b1ff" stroke-opacity="0.5"/>
-  <ellipse cx="24" cy="24" rx="21" ry="12.5" transform="rotate(42 24 24)" stroke="#b977ff" stroke-opacity="0.45"/>
-  <text x="24" y="29.4" text-anchor="middle" font-family="Inter, system-ui, sans-serif" font-size="15.5" font-weight="400" fill="#f1f5ff">E</text>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="ECHO">
+  <rect width="64" height="64" rx="14" fill="#101216"/>
+  <path d="M50 17H24a7 7 0 0 0-7 7v16a7 7 0 0 0 7 7h26" fill="none" stroke="#EEF1F4" stroke-width="6"/>
+  <circle cx="38" cy="32" r="5" fill="#6FE3F0"/>
 </svg>

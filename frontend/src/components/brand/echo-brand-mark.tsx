@@ -1,9 +1,38 @@
-import { useId } from "react";
-
 import { cn } from "@/lib/utils";
 
-type EchoBrandMarkProps = {
+/**
+ * Echo Core light states (ECHO brand book, "Echo Core 灯语"). The frame never
+ * changes; only the core dot carries state, and only where the mark stands
+ * for live system status. Everywhere else it stays `sync`.
+ */
+export type EchoCoreState =
+  | "sync"
+  | "signal"
+  | "warning"
+  | "resonance"
+  | "nano"
+  | "breach"
+  | "off";
+
+const CORE_FILL: Record<EchoCoreState, string> = {
+  sync: "var(--echo-core)",
+  signal: "var(--echo-signal)",
+  warning: "var(--echo-warning)",
+  resonance: "var(--echo-resonance)",
+  nano: "var(--echo-nano)",
+  breach: "var(--echo-breach)",
+  off: "var(--echo-ink-faint)",
+};
+
+type EchoGlyphProps = {
   className?: string;
+  /** Core light color; defaults to the stable `core` cyan. */
+  state?: EchoCoreState;
+  /** Breathe the core (the only looping motion ECHO allows). */
+  breathe?: boolean;
+};
+
+type EchoBrandMarkProps = EchoGlyphProps & {
   size?: "sm" | "md" | "lg";
 };
 
@@ -14,76 +43,61 @@ const sizeConfig = {
 } as const;
 
 /**
- * The Echo orb: the same glowing "E" sphere with crossing orbits that the
- * login page and browser start page draw in CSS, as one scalable SVG so the
- * workspace, favicon and auth pages share a single mark. It carries its own
- * dark sphere, so it reads on both light and dark surfaces.
+ * The ECHO mark: an open frame "E" whose middle bar is the Echo Core dot.
+ * Geometry is the brand kit's 64-unit grid, copied exactly. The frame takes
+ * `currentColor`, so it reads as ink on Snow and snow on Graphite; the core
+ * is always `--echo-core` (or a state color). No gradients, glows or shadows.
+ *
+ * The name is kept from the retired orb glyph so existing callers compile.
  */
-export function EchoOrbGlyph({ className }: { className?: string }) {
-  // useId may contain ":" or "«»", which are not safe inside url(#...).
-  const id = `echo-orb-${useId().replace(/[^a-zA-Z0-9_-]/g, "")}`;
+export function EchoOrbGlyph({
+  className,
+  state = "sync",
+  breathe = false,
+}: EchoGlyphProps) {
   return (
-    <svg viewBox="0 0 48 48" fill="none" className={className} aria-hidden="true">
-      <defs>
-        <radialGradient id={`${id}-core`} cx="38%" cy="30%" r="72%">
-          <stop offset="0" stopColor="#dce7ff" />
-          <stop offset="0.07" stopColor="#7f97e6" />
-          <stop offset="0.42" stopColor="#25357a" />
-          <stop offset="1" stopColor="#060914" />
-        </radialGradient>
-      </defs>
-      <ellipse
-        cx="24"
-        cy="24"
-        rx="22.5"
-        ry="11"
-        transform="rotate(-28 24 24)"
-        stroke="#7a97f6"
-        strokeOpacity="0.55"
+    <svg
+      viewBox="0 0 64 64"
+      fill="none"
+      className={className}
+      aria-hidden="true"
+      data-echo-core={state}
+    >
+      <path
+        d="M50 17H24a7 7 0 0 0-7 7v16a7 7 0 0 0 7 7h26"
+        stroke="currentColor"
+        strokeWidth="6"
       />
       <circle
-        cx="24"
-        cy="24"
-        r="15.5"
-        fill={`url(#${id}-core)`}
-        stroke="#97b1ff"
-        strokeOpacity="0.5"
+        cx="38"
+        cy="32"
+        r="5"
+        fill={CORE_FILL[state]}
+        className={cn(
+          breathe &&
+            "animate-[echo-core-breathe_2.4s_ease-in-out_infinite] motion-reduce:animate-none",
+        )}
       />
-      <ellipse
-        cx="24"
-        cy="24"
-        rx="21"
-        ry="12.5"
-        transform="rotate(42 24 24)"
-        stroke="#b977ff"
-        strokeOpacity="0.45"
-      />
-      <text
-        x="24"
-        y="29.4"
-        textAnchor="middle"
-        fontFamily="Inter, system-ui, sans-serif"
-        fontSize="15.5"
-        fontWeight="400"
-        fill="#f1f5ff"
-      >
-        E
-      </text>
     </svg>
   );
 }
 
-export function EchoBrandMark({ className, size = "md" }: EchoBrandMarkProps) {
+export function EchoBrandMark({
+  className,
+  size = "md",
+  state,
+  breathe,
+}: EchoBrandMarkProps) {
   return (
     <span
       aria-hidden="true"
       className={cn(
-        "relative inline-grid shrink-0 place-items-center drop-shadow-[0_0_10px_rgba(93,126,240,0.28)]",
+        "relative inline-grid shrink-0 place-items-center",
         sizeConfig[size],
         className,
       )}
     >
-      <EchoOrbGlyph className="size-full" />
+      <EchoOrbGlyph className="size-full" state={state} breathe={breathe} />
     </span>
   );
 }

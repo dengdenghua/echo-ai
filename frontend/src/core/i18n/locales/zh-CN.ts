@@ -3674,6 +3674,8 @@ export const zhCN: Translations = {
       darkDescription: "深色界面,减轻眼睛疲劳",
       paletteTitle: "配色风格",
       paletteDescription: "中性底色，细腻点缀。找到适合你的经典配色。",
+      paletteEcho: "ECHO 石墨",
+      paletteEchoDescription: "家族默认配色：石墨与雪白，只亮一点青色核心",
       paletteRose: "樱花粉",
       paletteRoseDescription: "樱花般的柔粉，搭配轻盈奶白",
       paletteSteel: "经典蓝",

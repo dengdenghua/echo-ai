@@ -18,7 +18,11 @@ import { describe, expect, it } from "vitest";
  * down, so any new violation turns CI red.
  */
 const root = process.cwd();
-const globalsCss = readFileSync(join(root, "src/styles/globals.css"), "utf8");
+// Normalize line endings so multi-line selectors match on CRLF checkouts too.
+const readCss = (path: string) =>
+  readFileSync(join(root, path), "utf8").replace(/\r\n/g, "\n");
+const globalsCss = readCss("src/styles/globals.css");
+const echoTokensCss = readCss("src/styles/echo-tokens.css");
 const loginCss = readFileSync(join(root, "src/app/login/login.css"), "utf8");
 const indexHtml = readFileSync(join(root, "index.html"), "utf8");
 
@@ -87,28 +91,47 @@ function token(block: string, name: string): string | null {
   return match ? match[1].trim() : null;
 }
 
-// Any custom property that is itself a var() indirection cannot be resolved
-// statically; callers assert on the tokens that are literal colors.
-function literalColor(block: string, name: string): Rgb | null {
-  const raw = token(block, name);
+// The ECHO palette maps the theme variables onto the family tokens in
+// echo-tokens.css (`--background: var(--echo-surface)`). One level of
+// var(--echo-*) indirection is resolved against the matching scheme block;
+// anything else that is not a literal hex color cannot be checked statically.
+function literalColor(
+  block: string,
+  name: string,
+  echoBlock?: string,
+): Rgb | null {
+  let raw = token(block, name);
+  const ref = raw?.match(/^var\((--echo-[a-z-]+)\)$/);
+  if (ref && echoBlock) raw = token(echoBlock, ref[1]);
   if (!raw) return null;
   return /^#[0-9a-fA-F]{6}$/.test(raw) ? parseHex(raw) : null;
 }
 
-const lightBlock = blockAfter(globalsCss, "\n:root {");
-const darkBlock = blockAfter(globalsCss, "\n.dark {");
+// The ECHO palette declares one mapping block on every scheme scope
+// (`:root, .dark, [data-echo-theme]`); the light and dark checks read the
+// same block and resolve it against the Snow and Graphite token values.
+const echoMappingSelector = "\n:root,\n.dark,\n[data-echo-theme] {";
+const lightBlock = blockAfter(globalsCss, echoMappingSelector);
+const darkBlock = blockAfter(globalsCss, echoMappingSelector);
 const steelBlock = blockAfter(globalsCss, '[data-theme="steel"]');
+const echoSnowBlock = blockAfter(echoTokensCss, "\n:root {");
+const echoGraphiteBlock = blockAfter(
+  echoTokensCss,
+  '[data-echo-theme="graphite"] {',
+);
 
-// The landing shell always renders on the dark brand surfaces, so every text
-// color in login.css is measured against the darkest and lightest of them.
-const SHELL_BG: Rgb = [2, 3, 8];
-const CARD_BG: Rgb = [10, 14, 27];
+// The landing shell always renders on ECHO Graphite, so every literal text
+// color in login.css is measured against its ground and raised card surface.
+const SHELL_BG: Rgb = [9, 10, 12];
+const CARD_BG: Rgb = [23, 26, 31];
 
 describe("theme token contrast (WCAG AA)", () => {
-  it("resolves the light, dark, and steel token blocks", () => {
+  it("resolves the light, dark, steel, and ECHO token blocks", () => {
     expect(lightBlock.length).toBeGreaterThan(0);
     expect(darkBlock.length).toBeGreaterThan(0);
     expect(steelBlock.length).toBeGreaterThan(0);
+    expect(echoSnowBlock).toContain("--echo-ground");
+    expect(echoGraphiteBlock).toContain("--echo-ground");
   });
 
   const pairs: Array<[string, string, string, number]> = [
@@ -122,16 +145,16 @@ describe("theme token contrast (WCAG AA)", () => {
 
   for (const [fg, bg, label, min] of pairs) {
     it(`light theme: ${label} >= ${min}:1`, () => {
-      const a = literalColor(lightBlock, fg);
-      const b = literalColor(lightBlock, bg);
+      const a = literalColor(lightBlock, fg, echoSnowBlock);
+      const b = literalColor(lightBlock, bg, echoSnowBlock);
       expect(a, `${fg} must be a literal hex color`).not.toBeNull();
       expect(b, `${bg} must be a literal hex color`).not.toBeNull();
       expect(contrast(a!, b!)).toBeGreaterThanOrEqual(min);
     });
 
     it(`dark theme: ${label} >= ${min}:1`, () => {
-      const a = literalColor(darkBlock, fg);
-      const b = literalColor(darkBlock, bg);
+      const a = literalColor(darkBlock, fg, echoGraphiteBlock);
+      const b = literalColor(darkBlock, bg, echoGraphiteBlock);
       expect(a, `${fg} must be a literal hex color`).not.toBeNull();
       expect(b, `${bg} must be a literal hex color`).not.toBeNull();
       expect(contrast(a!, b!)).toBeGreaterThanOrEqual(min);
@@ -210,8 +233,12 @@ describe("theme layering", () => {
   });
 
   it("defines the theme background token in both schemes", () => {
-    expect(literalColor(lightBlock, "--background")).not.toBeNull();
-    expect(literalColor(darkBlock, "--background")).not.toBeNull();
+    expect(
+      literalColor(lightBlock, "--background", echoSnowBlock),
+    ).not.toBeNull();
+    expect(
+      literalColor(darkBlock, "--background", echoGraphiteBlock),
+    ).not.toBeNull();
   });
 });
 
@@ -221,6 +248,9 @@ describe("contrast debt ratchet", () => {
   // across src/ have been cleared to standard tokens. The baseline is locked at 0.
   const BASELINE_MUTED_OPACITY_BELOW_80 = 0;
 
+  // The scan reads ~20 MB across 1,400+ files synchronously (generated
+  // openapi types, four locale bundles, design canvas); a cold page cache
+  // can push it past the 15 s default, so allow for disk, not logic.
   it("never adds another sub-AA muted-foreground opacity modifier", () => {
     const srcDir = join(root, "src");
     const re = /text-muted-foreground\/(?:[0-7]\d|\d)\b/g;
@@ -239,7 +269,7 @@ describe("contrast debt ratchet", () => {
     }
     scanDir(srcDir);
     expect(total).toBeLessThanOrEqual(BASELINE_MUTED_OPACITY_BELOW_80);
-  });
+  }, 120_000);
 });
 
 describe("type size floor", () => {
@@ -263,5 +293,5 @@ describe("type size floor", () => {
     }
     scanDir(srcDir);
     expect(hits).toEqual([]);
-  });
+  }, 120_000);
 });

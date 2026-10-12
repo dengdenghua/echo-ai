@@ -3871,6 +3871,9 @@ export const koKR: Translations = {
       darkDescription: "눈부심을 줄여 집중에 도움이 되는 어두운 팔레트입니다.",
       paletteTitle: "색상 팔레트",
       paletteDescription: "중성 배경에 섬세한 색상으로 나만의 분위기를.",
+      paletteEcho: "ECHO 그래파이트",
+      paletteEchoDescription:
+        "패밀리 기본값. 그래파이트와 스노에 시안 코어 하나.",
       paletteRose: "벚꽃 핑크",
       paletteRoseDescription: "부드러운 벚꽃 핑크와 밀크 화이트.",
       paletteSteel: "클래식 블루",

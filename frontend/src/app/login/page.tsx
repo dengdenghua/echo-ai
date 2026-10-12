@@ -11,6 +11,7 @@ import {
   UserCircle2Icon,
 } from "lucide-react";
 
+import { EchoOrbGlyph } from "@/components/brand/echo-brand-mark";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -580,10 +581,7 @@ function LocalLoginForm({
 function EchoBrand() {
   return (
     <div className="echo-login-brand" aria-label="ECHO AGE 回响纪元">
-      <span className="echo-login-brand-mark" aria-hidden="true">
-        <i />
-        <b>E</b>
-      </span>
+      <EchoOrbGlyph className="echo-login-brand-mark" />
       <span className="echo-login-brand-copy">
         <strong>ECHO AGE</strong>
         <small>回响纪元</small>
@@ -758,7 +756,10 @@ export default function LoginPage() {
 
   if (isLoading) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-background">
+      <div
+        data-echo-theme="graphite"
+        className="flex min-h-screen items-center justify-center bg-background"
+      >
         <div className="animate-pulse text-sm text-muted-foreground">
           {t.common.loading}
         </div>
@@ -774,6 +775,7 @@ export default function LoginPage() {
 
   return (
     <div
+      data-echo-theme="graphite"
       className={`echo-login-shell relative min-h-screen overflow-hidden${embeddedWindow ? " echo-login-shell-embedded" : ""}`}
     >
       <div className="echo-login-cosmos" aria-hidden="true">

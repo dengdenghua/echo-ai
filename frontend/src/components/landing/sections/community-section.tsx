@@ -14,7 +14,7 @@ export function CommunitySection() {
   return (
     <Section
       title={
-        <AuroraText colors={["#60A5FA", "#A5FA60", "#A560FA"]}>
+        <AuroraText colors={["#ffffff", "#eef1f4", "#9aa3ae"]}>
           {copy.title}
         </AuroraText>
       }

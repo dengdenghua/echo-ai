@@ -149,10 +149,7 @@ export function PageLoading() {
         className="flex flex-col items-center gap-4"
         data-testid="page-loading-skeleton"
       >
-        <EchoBrandMark
-          size="lg"
-          className="animate-pulse motion-reduce:animate-none"
-        />
+        <EchoBrandMark size="lg" breathe />
         {isSlow ? (
           <div className="flex animate-none flex-col items-center gap-2 pt-2 text-center">
             <div className="text-sm text-muted-foreground">

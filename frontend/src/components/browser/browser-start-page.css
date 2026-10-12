@@ -435,12 +435,15 @@
 }
 
 /* ─── Static Echo Cosmos Background ────────────────────────────── */
+/* ECHO Graphite: the element carries data-echo-theme="graphite", so the
+   --echo-* tokens resolve to graphite in either app scheme. Neutral haze
+   only, no blue/violet aurora; the core cyan stays on the mark. */
 .browser-start-cosmos {
   position: absolute;
   inset: 0;
   z-index: -1;
   overflow: hidden;
-  background: #020308;
+  background: var(--echo-ground);
   pointer-events: none;
   user-select: none;
 }
@@ -451,20 +454,20 @@
   background:
     radial-gradient(
       circle at 35% 45%,
-      rgba(61, 78, 166, 0.16),
+      rgba(238, 241, 244, 0.045),
       transparent 35%
     ),
     radial-gradient(
       circle at 75% 25%,
-      rgba(110, 85, 245, 0.1),
+      rgba(154, 163, 174, 0.05),
       transparent 40%
     ),
     linear-gradient(
       180deg,
-      rgba(2, 3, 8, 0.4) 0%,
+      rgba(9, 10, 12, 0.4) 0%,
       transparent 30%,
       transparent 70%,
-      rgba(2, 3, 8, 0.6) 100%
+      rgba(9, 10, 12, 0.6) 100%
     );
 }
 
@@ -475,12 +478,12 @@
   background-image:
     radial-gradient(
       circle,
-      rgba(220, 229, 255, 0.6) 0 0.65px,
+      rgba(238, 241, 244, 0.55) 0 0.65px,
       transparent 0.95px
     ),
     radial-gradient(
       circle,
-      rgba(123, 233, 255, 0.32) 0 0.55px,
+      rgba(111, 227, 240, 0.24) 0 0.55px,
       transparent 0.85px
     );
   background-position:
@@ -503,7 +506,7 @@
   left: 12%;
   width: min(52vw, 720px);
   height: min(52vw, 720px);
-  background: rgba(61, 104, 255, 0.22);
+  background: rgba(238, 241, 244, 0.06);
 }
 
 .browser-start-aurora-violet {
@@ -511,7 +514,7 @@
   right: 5%;
   width: min(45vw, 620px);
   height: min(45vw, 620px);
-  background: rgba(151, 83, 255, 0.18);
+  background: rgba(154, 163, 174, 0.08);
 }
 
 .browser-static-echo-field {
@@ -523,7 +526,7 @@
 }
 
 .browser-static-echo-field .echo-waves {
-  opacity: 0.75;
+  opacity: 0.6;
   filter: url("#echo-start-field-glow");
 }
 
@@ -554,7 +557,7 @@
   stroke: url("#echo-start-wave-gradient");
   stroke-width: 0.85;
   stroke-dasharray: 3 8 20 16;
-  opacity: 0.55;
+  opacity: 0.4;
   filter: url("#echo-start-field-glow");
 }
 
@@ -581,13 +584,13 @@
   background:
     radial-gradient(
       circle at 30% 40%,
-      rgba(91, 130, 255, 0.45),
+      rgba(238, 241, 244, 0.16),
       transparent 60%
     ),
     radial-gradient(
-      circle at 75% 65%,
-      rgba(176, 140, 255, 0.35),
-      transparent 60%
+      circle at 62% 50%,
+      rgba(111, 227, 240, 0.45) 0 3%,
+      transparent 4%
     ),
-    #020308;
+    #090a0c;
 }

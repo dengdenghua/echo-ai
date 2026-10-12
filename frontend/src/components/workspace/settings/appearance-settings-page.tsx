@@ -99,6 +99,14 @@ export default function AppearanceSettingsPage() {
           label: t.settings.appearance.paletteGroupDeep,
           options: [
             {
+              // The ECHO family default: a graphite dot with its cyan core.
+              id: "echo",
+              label: t.settings.appearance.paletteEcho,
+              description: t.settings.appearance.paletteEchoDescription,
+              swatch: "#101216",
+              core: "#6fe3f0",
+            },
+            {
               id: "steel",
               label: t.settings.appearance.paletteSteel,
               description: t.settings.appearance.paletteSteelDescription,
@@ -132,6 +140,7 @@ export default function AppearanceSettingsPage() {
           label: string;
           description: string;
           swatch: string;
+          core?: string;
         }[];
       }[],
     [
@@ -139,6 +148,8 @@ export default function AppearanceSettingsPage() {
       t.settings.appearance.paletteAmberDescription,
       t.settings.appearance.paletteApricot,
       t.settings.appearance.paletteApricotDescription,
+      t.settings.appearance.paletteEcho,
+      t.settings.appearance.paletteEchoDescription,
       t.settings.appearance.paletteEmerald,
       t.settings.appearance.paletteEmeraldDescription,
       t.settings.appearance.paletteGroupDeep,
@@ -229,6 +240,7 @@ export default function AppearanceSettingsPage() {
                     description={option.description}
                     active={palette === option.id}
                     swatch={option.swatch}
+                    core={"core" in option ? option.core : undefined}
                     onSelect={() => setPalette(option.id)}
                   />
                 ))}
@@ -421,12 +433,15 @@ function PaletteSwatchButton({
   description,
   active,
   swatch,
+  core,
   onSelect,
 }: {
   label: string;
   description?: string;
   active: boolean;
   swatch: string;
+  /** Optional center dot, e.g. the ECHO core on the graphite swatch. */
+  core?: string;
   onSelect: () => void;
 }) {
   return (
@@ -446,9 +461,16 @@ function PaletteSwatchButton({
     >
       <span
         aria-hidden="true"
-        className="size-7 shrink-0 rounded-full border border-black/10 shadow-[inset_0_1px_2px_rgba(255,255,255,0.2)] dark:border-white/15"
+        className="grid size-7 shrink-0 place-items-center rounded-full border border-black/10 shadow-[inset_0_1px_2px_rgba(255,255,255,0.2)] dark:border-white/15"
         style={{ backgroundColor: swatch }}
-      />
+      >
+        {core ? (
+          <span
+            className="size-2 rounded-full"
+            style={{ backgroundColor: core }}
+          />
+        ) : null}
+      </span>
       <span className="min-w-0 flex-1 text-xs font-medium">{label}</span>
       <CheckIcon
         aria-hidden="true"

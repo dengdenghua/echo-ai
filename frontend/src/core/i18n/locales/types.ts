@@ -3242,6 +3242,8 @@ export interface Translations {
       darkDescription: string;
       paletteTitle: string;
       paletteDescription: string;
+      paletteEcho: string;
+      paletteEchoDescription: string;
       paletteRose: string;
       paletteRoseDescription: string;
       paletteSteel: string;

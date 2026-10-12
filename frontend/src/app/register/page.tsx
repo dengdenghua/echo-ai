@@ -142,23 +142,23 @@ export default function RegisterPage() {
 
   return (
     <div className="relative flex min-h-screen items-center justify-center overflow-hidden bg-background">
-      {/* 背景渐变装饰 */}
+      {/* 背景装饰：ECHO 只用中性雾面，外加一处很淡的 core 青光，不用彩虹渐变 */}
       <div className="pointer-events-none absolute inset-0">
         <FloatingOrb
           className="-top-32 -left-32"
-          color="linear-gradient(135deg, oklch(0.85 0.15 15), oklch(0.75 0.18 350))"
+          color="color-mix(in srgb, var(--echo-ink) 8%, transparent)"
           size={500}
           blur={100}
         />
         <FloatingOrb
           className="top-1/3 -right-40"
-          color="linear-gradient(135deg, oklch(0.8 0.12 260), oklch(0.75 0.15 220))"
+          color="var(--echo-core-soft)"
           size={450}
           blur={120}
         />
         <FloatingOrb
           className="-bottom-40 left-1/4"
-          color="linear-gradient(135deg, oklch(0.88 0.1 140), oklch(0.8 0.12 180))"
+          color="color-mix(in srgb, var(--echo-ink-muted) 8%, transparent)"
           size={400}
           blur={100}
         />
@@ -187,9 +187,7 @@ export default function RegisterPage() {
             <h1 className="text-5xl font-bold leading-[1.1] tracking-tight lg:text-[3.5rem]">
               创建账户
               <br />
-              <span className="bg-gradient-to-r from-primary via-[oklch(0.65_0.18_20)] to-[oklch(0.6_0.16_320)] bg-clip-text text-transparent">
-                即刻开启
-              </span>
+              <span className="text-muted-foreground">即刻开启</span>
             </h1>
             <p className="max-w-md text-lg leading-relaxed text-muted-foreground">
               注册一个账户，让不同角色在 EchoOS 上协作、学习与进化。

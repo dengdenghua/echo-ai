@@ -3949,6 +3949,9 @@ export const enUS: Translations = {
       paletteTitle: "Color palette",
       paletteDescription:
         "Neutral surfaces. Considered accents. Find your signature color.",
+      paletteEcho: "ECHO Graphite",
+      paletteEchoDescription:
+        "The family default: graphite and snow with a single cyan core.",
       paletteRose: "Sakura Pink",
       paletteRoseDescription: "Soft blossom pink with airy ivory.",
       paletteSteel: "Classic Blue",

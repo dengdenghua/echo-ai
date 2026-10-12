@@ -3927,6 +3927,9 @@ export const jaJP: Translations = {
       darkDescription: "眩しさを抑えて集中できるダークな配色。",
       paletteTitle: "配色スタイル",
       paletteDescription: "ニュートラルな背景に、さりげない彩りを。",
+      paletteEcho: "ECHO グラファイト",
+      paletteEchoDescription:
+        "ファミリー標準。グラファイトとスノーに、シアンのコアをひとつ。",
       paletteRose: "さくらピンク",
       paletteRoseDescription: "桜色に軽やかなミルクホワイト。",
       paletteSteel: "クラシックブルー",

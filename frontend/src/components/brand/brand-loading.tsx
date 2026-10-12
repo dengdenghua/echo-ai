@@ -19,10 +19,7 @@ export function BrandLoading({
         className,
       )}
     >
-      <EchoBrandMark
-        size="lg"
-        className="animate-pulse motion-reduce:animate-none"
-      />
+      <EchoBrandMark size="lg" breathe />
       <span className="text-sm text-muted-foreground">{label}</span>
     </div>
   );

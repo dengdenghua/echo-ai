@@ -25,6 +25,8 @@ import "@fontsource/inter/400.css";
 import "@fontsource/inter/500.css";
 import "@fontsource/inter/600.css";
 import "@fontsource/inter/700.css";
+// ECHO display (Michroma) and telemetry (JetBrains Mono) faces.
+import "./styles/echo-fonts.css";
 import "./styles/globals.css";
 
 // The fetch interceptor only expires the host session when the backend marks a

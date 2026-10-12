@@ -2271,17 +2271,20 @@ export const WebviewTab = forwardRef<WebviewTabHandle, Props>(
       return (
         <Suspense
           fallback={
-            // Matches the start page's night sky so the first paint already
-            // looks like home instead of an empty grey pane.
+            // Matches the start page's graphite backdrop so the first paint
+            // already looks like home instead of an empty grey pane. Graphite
+            // tokens regardless of scheme: the start page is always dark.
             <div
-              className="grid size-full place-items-center bg-[radial-gradient(ellipse_at_50%_38%,#1a2456_0%,#0a0f26_48%,#04060f_100%)]"
+              data-echo-theme="graphite"
+              className="grid size-full place-items-center bg-[radial-gradient(ellipse_at_50%_38%,var(--echo-surface-raised)_0%,var(--echo-surface)_48%,var(--echo-ground)_100%)]"
               role="status"
               aria-label="加载浏览器桌面"
             >
-              <div className="flex flex-col items-center gap-3 text-sm text-white/70">
+              <div className="flex flex-col items-center gap-3 text-sm text-[var(--echo-ink-muted)]">
                 <EchoBrandMark
                   size="lg"
-                  className="animate-pulse motion-reduce:animate-none"
+                  breathe
+                  className="text-[var(--echo-ink)]"
                 />
                 正在打开主页…
               </div>

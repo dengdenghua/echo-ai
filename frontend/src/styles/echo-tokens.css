@@ -1,0 +1,131 @@
+/*
+ * ECHO family tokens — generated from the ECHO design system (tokens.json).
+ * Snow (light) on :root, Graphite (dark) on .dark / [data-echo-theme="graphite"].
+ * Products map their own variables (shadcn --background, --primary…) onto these; never hand-pick hex.
+ */
+:root {
+  --echo-ground: #eef0f3;
+  --echo-surface: #f8f9fa;
+  --echo-surface-raised: #ffffff;
+  --echo-surface-sunken: #e6e9ed;
+  --echo-glass: rgba(255, 255, 255, 0.72);
+  --echo-line: rgba(10, 12, 16, 0.08);
+  --echo-line-strong: rgba(10, 12, 16, 0.16);
+  --echo-ink: #111317;
+  --echo-ink-muted: #59616c;
+  --echo-ink-faint: #7d8590;
+  --echo-action: #111317;
+  --echo-on-action: #ffffff;
+  --echo-core: #08788a;
+  --echo-core-soft: rgba(8, 120, 138, 0.1);
+  --echo-on-core: #ffffff;
+  --echo-signal: #2f5db8;
+  --echo-resonance: #a83669;
+  --echo-warning: #8a5600;
+  --echo-warning-soft: rgba(138, 86, 0, 0.1);
+  --echo-nano: #5f43c9;
+  --echo-breach: #c42638;
+  --echo-breach-soft: rgba(196, 38, 56, 0.08);
+  --echo-focus: var(--echo-core);
+
+  --echo-shadow-raised:
+    0 1px 2px rgba(17, 19, 23, 0.06), 0 8px 24px rgba(17, 19, 23, 0.08);
+  --echo-shadow-window:
+    0 0 0 1px rgba(17, 19, 23, 0.06), 0 28px 70px rgba(17, 19, 23, 0.18);
+  --echo-glow-core:
+    0 0 0 1px rgba(8, 120, 138, 0.35), 0 0 12px rgba(8, 120, 138, 0.25);
+
+  --echo-font-display:
+    "Michroma", "Eurostile Extended", "Microsoft YaHei", sans-serif;
+  --echo-font-sans:
+    "Inter", "PingFang SC", "Microsoft YaHei UI", "Microsoft YaHei",
+    "Noto Sans SC", system-ui, sans-serif;
+  --echo-font-mono:
+    "JetBrains Mono", "Cascadia Code", Consolas, ui-monospace, monospace;
+
+  --echo-radius-xs: 3px;
+  --echo-radius-sm: 6px;
+  --echo-radius-md: 10px;
+  --echo-radius-lg: 14px;
+  --echo-radius-xl: 20px;
+
+  --echo-blur-glass: 20px;
+  --echo-blur-veil: 6px;
+  --echo-ease: cubic-bezier(0.2, 0.8, 0.2, 1);
+  --echo-duration-fast: 120ms;
+  --echo-duration-base: 200ms;
+  --echo-duration-slow: 320ms;
+}
+
+.dark,
+[data-echo-theme="graphite"] {
+  --echo-ground: #090a0c;
+  --echo-surface: #101216;
+  --echo-surface-raised: #171a1f;
+  --echo-surface-sunken: #060708;
+  --echo-glass: rgba(16, 18, 22, 0.72);
+  --echo-line: rgba(255, 255, 255, 0.08);
+  --echo-line-strong: rgba(255, 255, 255, 0.16);
+  --echo-ink: #eef1f4;
+  --echo-ink-muted: #9aa3ae;
+  --echo-ink-faint: #6b7380;
+  --echo-action: #eef1f4;
+  --echo-on-action: #0a0b0d;
+  --echo-core: #6fe3f0;
+  --echo-core-soft: rgba(111, 227, 240, 0.12);
+  --echo-on-core: #061014;
+  --echo-signal: #a9c7ff;
+  --echo-resonance: #f4a6c8;
+  --echo-warning: #f2b84b;
+  --echo-warning-soft: rgba(242, 184, 75, 0.12);
+  --echo-nano: #b49cff;
+  --echo-breach: #ff6b78;
+  --echo-breach-soft: rgba(255, 107, 120, 0.12);
+  /* Re-declared per scope so nested themes resolve their own core. */
+  --echo-focus: var(--echo-core);
+
+  --echo-shadow-raised:
+    0 1px 0 rgba(255, 255, 255, 0.04) inset, 0 8px 24px rgba(0, 0, 0, 0.35);
+  --echo-shadow-window:
+    0 1px 0 rgba(255, 255, 255, 0.06) inset,
+    0 0 0 1px rgba(255, 255, 255, 0.06), 0 28px 70px rgba(0, 0, 0, 0.55);
+  --echo-glow-core:
+    0 0 0 1px rgba(111, 227, 240, 0.45), 0 0 18px rgba(111, 227, 240, 0.45);
+}
+
+@keyframes echo-core-breathe {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.7;
+  }
+}
+
+/* A snow island inside a graphite scope (e.g. a light card on the dark desktop). */
+[data-echo-theme="snow"] {
+  --echo-ground: #eef0f3;
+  --echo-surface: #f8f9fa;
+  --echo-surface-raised: #ffffff;
+  --echo-surface-sunken: #e6e9ed;
+  --echo-glass: rgba(255, 255, 255, 0.72);
+  --echo-line: rgba(10, 12, 16, 0.08);
+  --echo-line-strong: rgba(10, 12, 16, 0.16);
+  --echo-ink: #111317;
+  --echo-ink-muted: #59616c;
+  --echo-ink-faint: #7d8590;
+  --echo-action: #111317;
+  --echo-on-action: #ffffff;
+  --echo-core: #08788a;
+  --echo-core-soft: rgba(8, 120, 138, 0.1);
+  --echo-on-core: #ffffff;
+  --echo-signal: #2f5db8;
+  --echo-resonance: #a83669;
+  --echo-warning: #8a5600;
+  --echo-warning-soft: rgba(138, 86, 0, 0.1);
+  --echo-nano: #5f43c9;
+  --echo-breach: #c42638;
+  --echo-breach-soft: rgba(196, 38, 56, 0.08);
+  --echo-focus: var(--echo-core);
+}

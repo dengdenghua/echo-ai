@@ -34,7 +34,7 @@ export function Welcome({
           </p>
         </>
       ) : (
-        // Same orb mark and line as the login page, so signing in continues
+        // Same ECHO mark and line as the login page, so signing in continues
         // the brand instead of switching to a different product.
         <div className="flex flex-col items-center gap-2.5">
           <div className="inline-flex items-center justify-center gap-3">

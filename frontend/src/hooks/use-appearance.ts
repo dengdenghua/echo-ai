@@ -21,8 +21,9 @@ export type Density =
   | "dense"
   | "ultradense";
 
-/** 配色主题：violet = 香芋紫（默认，贴近品牌蓝紫），rouge = 樱花粉（globals.css 的基础变量），steel = 冷钢蓝，emerald/violet/amber/teal = 高级预设，custom = 用户自定义主色。 */
+/** 配色主题：echo = ECHO 家族石墨/雪白（默认，globals.css 的基础变量），rouge = 樱花粉（ECHO 之前的基础色，现为可选配色），steel = 冷钢蓝，apricot/violet/mint/emerald/amber/teal = 其他预设，custom = 用户自定义主色（以 rouge 为底）。 */
 export type Palette =
+  | "echo"
   | "rouge"
   | "apricot"
   | "violet"
@@ -41,8 +42,8 @@ const APPEARANCE_CHANGE_EVENT = "echo:appearance-change";
 
 const DEFAULT_CORNER: CornerScale = 1;
 const DEFAULT_DENSITY: Density = "comfortable";
-const DEFAULT_PALETTE: Palette = "violet";
-const DEFAULT_CUSTOM_COLOR = "#3e6fd8";
+const DEFAULT_PALETTE: Palette = "echo";
+const DEFAULT_CUSTOM_COLOR = "#08788a";
 
 /** 主色相关的 CSS 变量；自定义配色时覆盖这一组即可,其余 token 沿用基础主题。 */
 const CUSTOM_PALETTE_VARS = [
@@ -169,6 +170,7 @@ function isDensity(value: string | null): value is Density {
 /** Single source of truth for valid palette ids — keep in sync with the
     [data-theme] blocks in globals.css. */
 const PALETTES = [
+  "echo",
   "rouge",
   "apricot",
   "violet",
@@ -220,8 +222,9 @@ function applyPalette(palette: Palette, customColor?: string) {
     root.style.setProperty("--chart-1", color);
     return;
   }
-  // rouge is the unscoped base theme in globals.css; every other palette is a [data-theme] block.
-  if (palette === "rouge") delete root.dataset.theme;
+  // echo is the unscoped base theme in globals.css; every other palette sets
+  // [data-theme], which starts from the legacy rouge base and then swaps accents.
+  if (palette === "echo") delete root.dataset.theme;
   else root.dataset.theme = palette;
   clearCustomPaletteVars(root);
 }
