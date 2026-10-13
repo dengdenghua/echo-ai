@@ -118,11 +118,13 @@ export function useBoundProjectState(threadId: string | undefined | null) {
   return useQuery<ProjectFullState | null>({
     queryKey,
     queryFn: async () => {
-      // First load only. Refetches (after a binding change, or a manual
-      // retry) always ask the server directly.
+      // Until the thread is known to be a project, ask the shared thread map
+      // first: remounts and focus refetches of an ordinary chat otherwise
+      // cost a 404 each. A bound thread asks the server directly so an
+      // unbinding shows up; binding mutations invalidate the map as well.
       if (
         threadId &&
-        queryClient.getQueryData(queryKey) === undefined &&
+        queryClient.getQueryData(queryKey) == null &&
         (await threadHasProject(queryClient, threadId)) === false
       ) {
         return null;
