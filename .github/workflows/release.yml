@@ -4,6 +4,11 @@ on:
   push:
     tags:
       - "v*.*.*"
+      # `*` also matches "-", so without this exclusion a preview tag such as
+      # v0.2.0-preview.1 would start the stable release. Preview tags belong
+      # to preview-release.yml; the version check below still requires the
+      # tag to be exactly v<pyproject version>.
+      - "!v*.*.*-*"
   # Allow maintainers to rerun the complete release gate from an existing
   # version tag after a prerequisite workflow finishes or an artifact expires.
   # The selected ref is still validated against pyproject.toml/package.json.

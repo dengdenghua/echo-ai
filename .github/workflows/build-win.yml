@@ -4,6 +4,15 @@ on:
   push:
     branches: [main]
   workflow_dispatch:
+  # preview-release.yml calls this with preview: true. A preview build is
+  # always unsigned and uploads only the -UNSIGNED artifacts, which
+  # release.yml never downloads.
+  workflow_call:
+    inputs:
+      preview:
+        description: Build the unsigned preview-channel installer
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -27,7 +36,9 @@ jobs:
       CI: "true"
       # Step-level `if:` cannot read the secrets context (GitHub rejects the
       # whole workflow), so expose only whether the certificate is configured.
-      HAS_WINDOWS_SIGNING: ${{ secrets.WINDOWS_CODE_SIGNING_CERTIFICATE_BASE64 != '' }}
+      # A preview build is unsigned even when it is, so no step that reads the
+      # signing secrets runs for it.
+      HAS_WINDOWS_SIGNING: ${{ !inputs.preview && secrets.WINDOWS_CODE_SIGNING_CERTIFICATE_BASE64 != '' }}
 
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
@@ -36,7 +47,7 @@ jobs:
         if: env.HAS_WINDOWS_SIGNING != 'true'
         shell: pwsh
         run: |
-          Write-Output "::warning title=Unsigned build::WINDOWS_CODE_SIGNING_CERTIFICATE_BASE64 is not configured; the installer will not be Authenticode-signed and must not be published."
+          Write-Output "::warning title=Unsigned build::Preview build or WINDOWS_CODE_SIGNING_CERTIFICATE_BASE64 not configured; the installer is not Authenticode-signed and only the preview channel may publish it."
 
       - name: Validate protected Windows signing identity
         if: env.HAS_WINDOWS_SIGNING == 'true'

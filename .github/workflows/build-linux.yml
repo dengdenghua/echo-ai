@@ -4,6 +4,9 @@ on:
   push:
     branches: [main]
   workflow_dispatch:
+  # preview-release.yml calls this unchanged; the plugin publisher step below
+  # already skips when its variables are not configured.
+  workflow_call:
 
 permissions:
   contents: read
