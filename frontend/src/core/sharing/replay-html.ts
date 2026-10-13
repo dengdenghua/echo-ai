@@ -206,7 +206,7 @@ h1 { font-size:24px; line-height:1.25; margin:5px 0 10px; color:var(--ink); word
 .row:hover { background:#f8f9fa; }
 .row.active { background:#eef0f3; }
 .row .n { color:#7d8590; font-variant-numeric:tabular-nums; font-size:11px; min-width:24px; }
-.row .glyph { width:18px; text-align:center; }
+.row .glyph { width:18px; display:inline-grid; place-items:center; color:#59616c; }
 .row .t { flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-size:13px; }
 .dot { width:7px; height:7px; border-radius:50%; flex:none; background:#7d8590; }
 .detail { border:1px solid var(--line); border-radius:14px; padding:20px; background:var(--panel); min-height:230px; box-shadow:0 1px 2px rgba(17,19,23,.03); }
@@ -287,7 +287,28 @@ ${
 (function(){
   var STEPS = ${stepData};
   var MS = ${frameMs};
-  var GLYPH = { terminal:'❯', browser:'\u{1f310}', file:'\u{1f4c4}', read:'\u{1f4d6}', search:'\u{1f50d}', todo:'☑', agent:'\u{1f916}', skill:'\u{1f9e9}', swarm:'\u{1f41d}' };
+  // Line icons (lucide geometry), not emoji: ECHO chrome never uses emoji.
+  var ICON = {
+    terminal: ['m4 17 6-6-6-6', 'M12 19h8'],
+    browser: ['M2 12a10 10 0 1 0 20 0a10 10 0 1 0-20 0', 'M12 2a14.5 14.5 0 0 0 0 20 14.5 14.5 0 0 0 0-20', 'M2 12h20'],
+    file: ['M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z', 'M14 2v4a2 2 0 0 0 2 2h4'],
+    read: ['M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z', 'M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z'],
+    search: ['M3 11a8 8 0 1 0 16 0a8 8 0 1 0-16 0', 'm21 21-4.3-4.3'],
+    todo: ['M5 3h14a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2z', 'm9 12 2 2 4-4'],
+    agent: ['M12 8V4H8', 'M6 8h12a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2v-8a2 2 0 0 1 2-2z', 'M2 14h2', 'M20 14h2', 'M15 13v2', 'M9 13v2'],
+    skill: ['M13 2 3 14h9l-1 8 10-12h-9l1-8z'],
+    swarm: ['M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2', 'M5 7a4 4 0 1 0 8 0a4 4 0 1 0-8 0', 'M22 21v-2a4 4 0 0 0-3-3.87', 'M16 3.13a4 4 0 0 1 0 7.75']
+  };
+  var SVGNS = 'http://www.w3.org/2000/svg';
+  function glyph(kind){
+    var paths = ICON[kind];
+    if (!paths) return null;
+    var svg = document.createElementNS(SVGNS, 'svg');
+    var attrs = { viewBox:'0 0 24 24', width:'16', height:'16', fill:'none', stroke:'currentColor', 'stroke-width':'1.5', 'stroke-linecap':'round', 'stroke-linejoin':'round', 'aria-hidden':'true' };
+    Object.keys(attrs).forEach(function(k){ svg.setAttribute(k, attrs[k]); });
+    paths.forEach(function(d){ var p = document.createElementNS(SVGNS, 'path'); p.setAttribute('d', d); svg.appendChild(p); });
+    return svg;
+  }
   var DOT = { done:'#08788a', error:'#c42638', running:'#2f5db8', waiting_approval:'#8a5600' };
   var i = 0, timer = null, loop = false, speedIdx = 1;
   var SPEEDS = [0.5, 1, 2];
@@ -308,7 +329,8 @@ ${
     var row = document.createElement('button');
     row.type = 'button'; row.className = 'row';
     var n = document.createElement('span'); n.className = 'n'; n.textContent = String(idx + 1);
-    var g = document.createElement('span'); g.className = 'glyph'; g.textContent = GLYPH[s.kind] || '•';
+    var g = document.createElement('span'); g.className = 'glyph';
+    var icon = glyph(s.kind); if (icon) g.appendChild(icon); else g.textContent = '•';
     var t = document.createElement('span'); t.className = 't'; t.textContent = s.title || '(step)';
     var d = document.createElement('span'); d.className = 'dot'; d.style.background = DOT[s.status] || '#59616c';
     row.appendChild(n); row.appendChild(g); row.appendChild(t); row.appendChild(d);

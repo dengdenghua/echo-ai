@@ -26,6 +26,13 @@ function sample(overrides: Partial<ReplayData> = {}): ReplayData {
 }
 
 describe("buildReplayHtml", () => {
+  it("draws step kinds with line icons instead of emoji", () => {
+    const html = buildReplayHtml(sample());
+    expect(html).toContain("createElementNS(SVGNS, 'svg')");
+    // Emoji-as-icon would read as off-brand chrome in the shared page.
+    expect(html).not.toMatch(/[\u{1F300}-\u{1FAFF}]/u);
+  });
+
   it("emits a self-contained html document with a step player", () => {
     const html = buildReplayHtml(sample());
     expect(html.startsWith("<!doctype html")).toBe(true);
