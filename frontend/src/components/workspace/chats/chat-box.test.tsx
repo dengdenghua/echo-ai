@@ -11,10 +11,15 @@ const mocks = vi.hoisted(() => ({
   setArtifacts: vi.fn(),
   setArtifactsOpen: vi.fn(),
   threadArtifacts: [] as string[],
+  useWorkspaceArtifacts: vi.fn(
+    (_threadId: string, _options?: { enabled?: boolean }) => ({
+      data: ["workspace/report.md"],
+    }),
+  ),
 }));
 
 vi.mock("@/core/artifacts/use-workspace-artifacts", () => ({
-  useWorkspaceArtifacts: () => ({ data: ["workspace/report.md"] }),
+  useWorkspaceArtifacts: mocks.useWorkspaceArtifacts,
 }));
 
 vi.mock("../artifacts", () => ({
@@ -44,6 +49,19 @@ describe("ChatBox artifact panel ownership", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mocks.threadArtifacts = [];
+  });
+
+  it("does not list outputs for a pending thread the server has not created", () => {
+    renderWithProviders(
+      <ChatBox artifactPanelMode="external" threadId="pending-1" isNewThread>
+        <div>conversation</div>
+      </ChatBox>,
+    );
+
+    expect(mocks.useWorkspaceArtifacts).toHaveBeenCalledWith(
+      "pending-1",
+      expect.objectContaining({ enabled: false }),
+    );
   });
 
   it("does not auto-open legacy artifact state in external mode", async () => {

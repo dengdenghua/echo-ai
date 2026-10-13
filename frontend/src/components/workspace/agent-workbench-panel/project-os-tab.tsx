@@ -15,7 +15,11 @@ import {
   useState,
   type ComponentType,
 } from "react";
-import { useQuery } from "@tanstack/react-query";
+import {
+  useQuery,
+  useQueryClient,
+  type QueryClient,
+} from "@tanstack/react-query";
 import {
   AlertTriangleIcon,
   ExternalLinkIcon,
@@ -35,6 +39,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { authHeaders, jsonAuthHeaders } from "@/core/auth/api";
 import { getBackendBaseURL } from "@/core/config";
+import { THREAD_MAP_QUERY_KEY, fetchThreadMap } from "@/core/projects/hooks";
 import { cn } from "@/lib/utils";
 import { type WorkbenchRosterSeat } from "./helpers";
 import type {
@@ -86,10 +91,42 @@ export function boundProjectRefetchInterval(
   return data === null ? false : 15_000;
 }
 
+/**
+ * Whether the thread map lists this thread, or ``null`` when the map cannot
+ * be read. One shared request (the sidebar holds the same query) answers it
+ * for every thread, so an ordinary chat does not cost a 404 on open.
+ */
+async function threadHasProject(
+  queryClient: QueryClient,
+  threadId: string,
+): Promise<boolean | null> {
+  try {
+    const map = await queryClient.fetchQuery({
+      queryKey: THREAD_MAP_QUERY_KEY,
+      queryFn: fetchThreadMap,
+      staleTime: 30_000,
+    });
+    return Object.hasOwn(map, threadId);
+  } catch {
+    return null;
+  }
+}
+
 export function useBoundProjectState(threadId: string | undefined | null) {
+  const queryClient = useQueryClient();
+  const queryKey = ["project", "by-thread", threadId ?? ""];
   return useQuery<ProjectFullState | null>({
-    queryKey: ["project", "by-thread", threadId ?? ""],
+    queryKey,
     queryFn: async () => {
+      // First load only. Refetches (after a binding change, or a manual
+      // retry) always ask the server directly.
+      if (
+        threadId &&
+        queryClient.getQueryData(queryKey) === undefined &&
+        (await threadHasProject(queryClient, threadId)) === false
+      ) {
+        return null;
+      }
       const res = await fetch(
         `${getBackendBaseURL()}/api/projects/by-thread/${threadId}`,
         { headers: authHeaders() },

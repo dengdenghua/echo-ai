@@ -644,15 +644,20 @@ export function usePortfolio(enabled = true) {
   });
 }
 
+export const THREAD_MAP_QUERY_KEY = ["thread-map"] as const;
+
+/** ``{thread_id: project_id}`` for every thread this principal can read. */
+export async function fetchThreadMap(): Promise<Record<string, string>> {
+  return apiGet("/api/projects/thread-map", {
+    errorMessage: failed("Failed to load thread map"),
+  });
+}
+
 export function useThreadMap() {
   return useQuery<Record<string, string>>({
-    queryKey: ["thread-map"],
+    queryKey: THREAD_MAP_QUERY_KEY,
     staleTime: 5 * 60 * 1000,
     refetchOnWindowFocus: false,
-    queryFn: async () => {
-      return apiGet("/api/projects/thread-map", {
-        errorMessage: failed("Failed to load thread map"),
-      });
-    },
+    queryFn: fetchThreadMap,
   });
 }

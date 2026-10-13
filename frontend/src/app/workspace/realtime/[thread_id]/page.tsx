@@ -183,7 +183,10 @@ export default function RealtimePage() {
   const chatState = useThreadChat();
 
   return (
-    <ArtifactsProvider threadId={chatState.threadId}>
+    <ArtifactsProvider
+      threadId={chatState.threadId}
+      threadExists={!chatState.isNewThread}
+    >
       <RealtimePageContent chatState={chatState} />
     </ArtifactsProvider>
   );
@@ -963,6 +966,7 @@ function RealtimePageContent({
     handleCompressContext,
   } = useContextWindow({
     threadId,
+    isNewThread,
     thread,
     models,
     modelName: settings.context.model_name,
@@ -1351,7 +1355,11 @@ function RealtimePageContent({
                 : null
             }
           >
-            <ChatBox artifactPanelMode="external" threadId={threadId}>
+            <ChatBox
+              artifactPanelMode="external"
+              threadId={threadId}
+              isNewThread={isNewThread}
+            >
               <ChatPageLayout
                 composerNeedsAttention={
                   realtimeApprovals.pendingApprovals.length > 0
@@ -1510,7 +1518,7 @@ function RealtimePageContent({
                     footer={
                       <>
                         <TaskDeliveryReview events={lastTurnToolEvents} running={thread.isLoading} />
-                        <ProjectProposalNotice threadId={threadId} busy={thread.isLoading || !thread.readyForMutations} onReview={handleSendFollowUp} />
+                        <ProjectProposalNotice threadId={isNewThread ? "new" : threadId} busy={thread.isLoading || !thread.readyForMutations} onReview={handleSendFollowUp} />
                         {hasCompletedAgentOutput &&
                         hasFinalArtifact &&
                         !hasReportArtifact ? (

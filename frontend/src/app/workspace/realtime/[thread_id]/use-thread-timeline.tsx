@@ -158,12 +158,15 @@ export function useConversationTimelineEntries({
 /** Context-window size, usage estimate, segments and manual compaction. */
 export function useContextWindow({
   threadId,
+  isNewThread,
   thread,
   models,
   modelName,
   t,
 }: {
   threadId: string;
+  /** A pending id the server has not created yet; nothing to measure. */
+  isNewThread: boolean;
   thread: RealtimeThread;
   models: ReturnType<typeof useModels>["models"];
   modelName: string | undefined;
@@ -183,7 +186,7 @@ export function useContextWindow({
   }, [models, modelName]);
   const maxContextTokens = useMemo(() => resolveModelContextWindow(selectedModel), [selectedModel]);
   const contextTokens = useMemo(() => estimateCurrentContextTokens(thread.messages), [thread.messages]);
-  const contextSegments = useThreadContextSegments(threadId, thread.messages, thread.lastTurnStatus, t);
+  const contextSegments = useThreadContextSegments(isNewThread ? null : threadId, thread.messages, thread.lastTurnStatus, t);
   const compactThread = (thread as typeof thread & CompactableThread).compact;
   const handleCompressContext = useCallback(async () => {
     if (!compactThread || isCompressingContext) {

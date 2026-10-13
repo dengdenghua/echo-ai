@@ -618,14 +618,18 @@ describe("ProjectOsTab", () => {
 
 describe("AgentWorkbenchPanel project tab", () => {
   const fetchMock = vi.fn();
+  let threadMap: Record<string, string> = {};
+  let byThread: { ok: boolean; status: number; json?: () => Promise<unknown> };
 
   beforeEach(() => {
+    threadMap = { "thread-1": "pm-demo" };
+    byThread = { ok: true, status: 200, json: async () => projectState };
     fetchMock.mockReset();
-    fetchMock.mockResolvedValue({
-      ok: true,
-      status: 200,
-      json: async () => projectState,
-    });
+    fetchMock.mockImplementation(async (url: string) =>
+      String(url).includes("/api/projects/thread-map")
+        ? { ok: true, status: 200, json: async () => threadMap }
+        : byThread,
+    );
     vi.stubGlobal("fetch", fetchMock);
   });
 
@@ -695,11 +699,7 @@ describe("AgentWorkbenchPanel project tab", () => {
   });
 
   it("falls back to the agent surface when no project is bound", async () => {
-    fetchMock.mockResolvedValue({
-      ok: false,
-      status: 404,
-      json: async () => ({}),
-    });
+    byThread = { ok: false, status: 404, json: async () => ({}) };
 
     renderWithProviders(
       <AgentWorkbenchPanel
@@ -716,8 +716,29 @@ describe("AgentWorkbenchPanel project tab", () => {
     });
   });
 
+  it("does not ask for the project of a thread the map does not list", async () => {
+    threadMap = {};
+
+    renderWithProviders(
+      <AgentWorkbenchPanel
+        activeTab="project"
+        events={[]}
+        threadId="thread-1"
+      />,
+      { locale: "zh-CN" },
+    );
+
+    await waitFor(() => {
+      expect(screen.queryByTestId("project-workbench-loading")).toBeNull();
+    });
+    expect(fetchMock).not.toHaveBeenCalledWith(
+      expect.stringContaining("/api/projects/by-thread/"),
+      expect.anything(),
+    );
+  });
+
   it("keeps the requested project surface visible when loading fails", async () => {
-    fetchMock.mockResolvedValue({ ok: false, status: 503 });
+    byThread = { ok: false, status: 503 };
 
     renderWithProviders(
       <AgentWorkbenchPanel
