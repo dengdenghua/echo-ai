@@ -99,7 +99,8 @@ export function useAgentDisplayEvents({
   allToolEvents,
   lastTurnMessages,
   focusedWorkbenchTurnIndex,
-  initialPrompt,
+  threadTitle,
+  locale,
   t,
 }: {
   thread: RealtimeThread;
@@ -107,7 +108,10 @@ export function useAgentDisplayEvents({
   allToolEvents: RealtimeToolEvents;
   lastTurnMessages: Message[];
   focusedWorkbenchTurnIndex: number | null;
-  initialPrompt: string;
+  /** The title the header shows (thread metadata); the stream has none. */
+  threadTitle?: string;
+  /** UI locale; the exported replay chrome follows it. */
+  locale: string;
   t: RealtimeTranslations;
 }) {
   const latestPersistedTodoEvents = useMemo(
@@ -145,14 +149,17 @@ export function useAgentDisplayEvents({
   const handleExportReplay = useCallback(() => {
     if (replayBlocks.length === 0) return;
     const title =
-      thread?.values?.title || initialPrompt || t.realtime.replay.titleDefault;
+      threadTitle?.trim() ||
+      thread?.values?.title?.trim() ||
+      t.realtime.replay.titleDefault;
     const html = buildReplayHtml(
       buildReplayFromBlocks(
         replayBlocks,
         {
           title,
           brand: "ECHO · AI",
-          footer: `${new Date().toLocaleDateString()} · ${t.realtime.replay.footer}`,
+          footer: `${new Date().toLocaleDateString(locale)} · ${t.realtime.replay.footer}`,
+          locale,
         },
         workBlockLabelsFromShape(
           (t as unknown as { workBlocks?: unknown }).workBlocks,
@@ -160,7 +167,7 @@ export function useAgentDisplayEvents({
       ),
     );
     downloadTextFile(html, `echo-replay-${shareSlug(title)}.html`);
-  }, [replayBlocks, thread, initialPrompt, t]);
+  }, [replayBlocks, thread, threadTitle, locale, t]);
   const latestArtifactFocusPath = useMemo(
     () => latestArtifactFocusPathFromEvents(agentDisplayEvents),
     [agentDisplayEvents],

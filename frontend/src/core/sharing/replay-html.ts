@@ -66,6 +66,198 @@ export interface ReplayData {
   /** Completed-case handoff, rendered above the replay rather than hidden in
    * the event list. This is optional so partial/live exports remain honest. */
   receipt?: ReplayReceipt;
+  /** UI locale (e.g. "zh-CN"); the page chrome follows it. Default English. */
+  locale?: string;
+}
+
+type ReplayStatusKey = "done" | "error" | "running" | "waiting_approval";
+
+/** Static page chrome of the exported replay, per UI language. */
+export interface ReplayHtmlLabels {
+  lang: string;
+  kind: string;
+  statusAttention: string;
+  statusReady: string;
+  steps: (n: number) => string;
+  completed: (n: number) => string;
+  needsAttention: (n: number) => string;
+  receiptEyebrow: string;
+  receiptTitle: string;
+  receiptNeedsReview: string;
+  receiptReady: string;
+  verifyEyebrow: string;
+  empty: string;
+  prev: string;
+  play: string;
+  pause: string;
+  next: string;
+  loop: string;
+  loopTitle: string;
+  speedTitle: string;
+  hint: string;
+  dockAttention: string;
+  dockReady: string;
+  dockCompleted: (done: number, total: number) => string;
+  dockPlay: string;
+  dockPause: string;
+  untitledStep: string;
+  status: Record<ReplayStatusKey, string>;
+}
+
+const REPLAY_LABELS: Record<"en" | "zh" | "ja" | "ko", ReplayHtmlLabels> = {
+  en: {
+    lang: "en",
+    kind: "replay",
+    statusAttention: "Needs attention",
+    statusReady: "Replay ready",
+    steps: (n) => `${n} steps`,
+    completed: (n) => `${n} completed`,
+    needsAttention: (n) => `${n} needs attention`,
+    receiptEyebrow: "RESULT RECEIPT",
+    receiptTitle: "What was delivered",
+    receiptNeedsReview: "Needs review",
+    receiptReady: "Ready to verify",
+    verifyEyebrow: "VERIFY IN YOUR BROWSER",
+    empty: "No steps in this replay.",
+    prev: "⟨ Prev",
+    play: "▶ Play",
+    pause: "❚❚ Pause",
+    next: "Next ⟩",
+    loop: "⟲ Loop",
+    loopTitle: "Loop playback",
+    speedTitle: "Playback speed",
+    hint: "← → step · Space play/pause · Home/End first/last",
+    dockAttention: "Replay needs attention",
+    dockReady: "Replay ready",
+    dockCompleted: (done, total) => `${done}/${total} completed`,
+    dockPlay: "▶ Play replay",
+    dockPause: "❚❚ Pause replay",
+    untitledStep: "(step)",
+    status: {
+      done: "done",
+      error: "error",
+      running: "running",
+      waiting_approval: "awaiting approval",
+    },
+  },
+  zh: {
+    lang: "zh-CN",
+    kind: "回放",
+    statusAttention: "需要处理",
+    statusReady: "回放就绪",
+    steps: (n) => `${n} 步`,
+    completed: (n) => `完成 ${n}`,
+    needsAttention: (n) => `${n} 项需要处理`,
+    receiptEyebrow: "交付回执",
+    receiptTitle: "交付了什么",
+    receiptNeedsReview: "需要复核",
+    receiptReady: "可以验证",
+    verifyEyebrow: "在浏览器中验证",
+    empty: "这次回放没有步骤。",
+    prev: "⟨ 上一步",
+    play: "▶ 播放",
+    pause: "❚❚ 暂停",
+    next: "下一步 ⟩",
+    loop: "⟲ 循环",
+    loopTitle: "循环播放",
+    speedTitle: "播放速度",
+    hint: "← → 切换 · 空格 播放/暂停 · Home/End 首尾",
+    dockAttention: "回放需要处理",
+    dockReady: "回放就绪",
+    dockCompleted: (done, total) => `已完成 ${done}/${total}`,
+    dockPlay: "▶ 播放回放",
+    dockPause: "❚❚ 暂停回放",
+    untitledStep: "（步骤）",
+    status: {
+      done: "完成",
+      error: "出错",
+      running: "进行中",
+      waiting_approval: "待审批",
+    },
+  },
+  ja: {
+    lang: "ja",
+    kind: "リプレイ",
+    statusAttention: "要対応",
+    statusReady: "再生準備完了",
+    steps: (n) => `${n} ステップ`,
+    completed: (n) => `完了 ${n}`,
+    needsAttention: (n) => `要対応 ${n}`,
+    receiptEyebrow: "成果の記録",
+    receiptTitle: "納品した内容",
+    receiptNeedsReview: "要確認",
+    receiptReady: "検証できます",
+    verifyEyebrow: "ブラウザーで検証",
+    empty: "このリプレイにはステップがありません。",
+    prev: "⟨ 前へ",
+    play: "▶ 再生",
+    pause: "❚❚ 一時停止",
+    next: "次へ ⟩",
+    loop: "⟲ ループ",
+    loopTitle: "ループ再生",
+    speedTitle: "再生速度",
+    hint: "← → 移動 · Space 再生/一時停止 · Home/End 最初/最後",
+    dockAttention: "リプレイ要対応",
+    dockReady: "リプレイ準備完了",
+    dockCompleted: (done, total) => `完了 ${done}/${total}`,
+    dockPlay: "▶ リプレイを再生",
+    dockPause: "❚❚ リプレイを一時停止",
+    untitledStep: "（ステップ）",
+    status: {
+      done: "完了",
+      error: "エラー",
+      running: "実行中",
+      waiting_approval: "承認待ち",
+    },
+  },
+  ko: {
+    lang: "ko",
+    kind: "리플레이",
+    statusAttention: "확인 필요",
+    statusReady: "리플레이 준비됨",
+    steps: (n) => `${n}단계`,
+    completed: (n) => `완료 ${n}`,
+    needsAttention: (n) => `확인 필요 ${n}`,
+    receiptEyebrow: "결과 기록",
+    receiptTitle: "전달된 내용",
+    receiptNeedsReview: "검토 필요",
+    receiptReady: "검증 준비됨",
+    verifyEyebrow: "브라우저에서 검증",
+    empty: "이 리플레이에는 단계가 없습니다.",
+    prev: "⟨ 이전",
+    play: "▶ 재생",
+    pause: "❚❚ 일시정지",
+    next: "다음 ⟩",
+    loop: "⟲ 반복",
+    loopTitle: "반복 재생",
+    speedTitle: "재생 속도",
+    hint: "← → 이동 · Space 재생/일시정지 · Home/End 처음/끝",
+    dockAttention: "리플레이 확인 필요",
+    dockReady: "리플레이 준비됨",
+    dockCompleted: (done, total) => `완료 ${done}/${total}`,
+    dockPlay: "▶ 리플레이 재생",
+    dockPause: "❚❚ 리플레이 일시정지",
+    untitledStep: "(단계)",
+    status: {
+      done: "완료",
+      error: "오류",
+      running: "진행 중",
+      waiting_approval: "승인 대기",
+    },
+  },
+};
+
+/** Labels for a UI locale ("zh-CN", "ja-JP"…); unknown locales get English. */
+export function replayLabelsFor(locale: string | undefined): ReplayHtmlLabels {
+  const language = (locale || "en").toLowerCase().split(/[-_]/)[0];
+  return language === "zh" || language === "ja" || language === "ko"
+    ? REPLAY_LABELS[language]
+    : REPLAY_LABELS.en;
+}
+
+function statusLabel(L: ReplayHtmlLabels, status: string | undefined): string {
+  const key = (status || "done") as ReplayStatusKey;
+  return L.status[key] ?? status ?? L.status.done;
 }
 
 /**
@@ -134,7 +326,7 @@ function cleanReceipt(
 }
 
 export function buildReplayHtml(replay: ReplayData): string {
-  const title = cleanText(replay.title || "ECHO replay") || "ECHO replay";
+  const title = cleanText(replay.title || "ECHO AI replay") || "ECHO AI replay";
   const brand = cleanText(replay.brand || "ECHO") || "ECHO";
   const footer = cleanText(replay.footer || "");
   const frameMs = Number.isFinite(replay.frameMs)
@@ -147,14 +339,15 @@ export function buildReplayHtml(replay: ReplayData): string {
   const attentionCount = steps.filter(
     (step) => step.status === "error" || step.status === "waiting_approval",
   ).length;
-  const replayStatus = attentionCount > 0 ? "Needs attention" : "Replay ready";
+  const L = replayLabelsFor(replay.locale);
+  const replayStatus = attentionCount > 0 ? L.statusAttention : L.statusReady;
   const receipt = cleanReceipt(replay.receipt);
   const receiptHtml = receipt
-    ? `<section class="receipt" aria-label="Result receipt">
-<div class="receipt-head"><div><div class="eyebrow">RESULT RECEIPT</div><h2>What was delivered</h2></div><span class="receipt-status">${attentionCount > 0 ? "Needs review" : "Ready to verify"}</span></div>
+    ? `<section class="receipt" aria-label="${escapeXml(L.receiptEyebrow)}">
+<div class="receipt-head"><div><div class="eyebrow">${escapeXml(L.receiptEyebrow)}</div><h2>${escapeXml(L.receiptTitle)}</h2></div><span class="receipt-status">${escapeXml(attentionCount > 0 ? L.receiptNeedsReview : L.receiptReady)}</span></div>
 ${receipt.summary ? `<p class="receipt-summary">${escapeXml(receipt.summary)}</p>` : ""}
-${receipt.items && receipt.items.length > 0 ? `<div class="receipt-items">${receipt.items.map((item) => `<div class="receipt-item"><span class="receipt-dot ${escapeXml(item.status)}"></span><div><strong>${escapeXml(item.title)}</strong>${item.detail ? `<p>${escapeXml(item.detail)}</p>` : ""}</div><span class="receipt-item-status">${escapeXml(item.status || "done")}</span></div>`).join("")}</div>` : ""}
-${receipt.verification && receipt.verification.length > 0 ? `<div class="verification"><div class="eyebrow">VERIFY IN YOUR BROWSER</div><ol>${receipt.verification.map((item) => `<li>${escapeXml(item)}</li>`).join("")}</ol></div>` : ""}
+${receipt.items && receipt.items.length > 0 ? `<div class="receipt-items">${receipt.items.map((item) => `<div class="receipt-item"><span class="receipt-dot ${escapeXml(item.status)}"></span><div><strong>${escapeXml(item.title)}</strong>${item.detail ? `<p>${escapeXml(item.detail)}</p>` : ""}</div><span class="receipt-item-status">${escapeXml(statusLabel(L, item.status))}</span></div>`).join("")}</div>` : ""}
+${receipt.verification && receipt.verification.length > 0 ? `<div class="verification"><div class="eyebrow">${escapeXml(L.verifyEyebrow)}</div><ol>${receipt.verification.map((item) => `<li>${escapeXml(item)}</li>`).join("")}</ol></div>` : ""}
 </section>`
     : "";
 
@@ -165,7 +358,7 @@ ${receipt.verification && receipt.verification.length > 0 ? `<div class="verific
   // textContent / img.src by the player — never innerHTML — so step content can
   // never inject markup. Only the static page chrome is XML-escaped here.
   return `<!doctype html>
-<html lang="en">
+<html lang="${L.lang}">
 <head>
 <meta charset="utf-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1"/>
@@ -177,7 +370,7 @@ ${receipt.verification && receipt.verification.length > 0 ? `<div class="verific
 body { margin:0; background:var(--soft); color:var(--ink); font:14px/1.5 Inter,"PingFang SC","Microsoft YaHei",system-ui,-apple-system,sans-serif; }
 .wrap { max-width: 1120px; margin: 0 auto; padding: 24px 18px 92px; }
 .mark { display:block; width:30px; height:30px; margin-bottom:12px; }
-.brand { color:#59616c; font:600 11px/1.4 ui-monospace,"Cascadia Code",Consolas,monospace; letter-spacing:.14em; text-transform:uppercase; }
+.brand { color:#59616c; font:600 12px/1.4 ui-monospace,"Cascadia Code",Consolas,monospace; letter-spacing:.14em; text-transform:uppercase; }
 h1 { font-size:24px; line-height:1.25; margin:5px 0 10px; color:var(--ink); word-break:break-word; }
 .meta { display:flex; flex-wrap:wrap; align-items:center; gap:8px; color:var(--muted); font-size:12px; margin-bottom:18px; }
 .meta .pill { border:1px solid var(--line); border-radius:999px; padding:3px 9px; background:#fff; }
@@ -185,7 +378,10 @@ h1 { font-size:24px; line-height:1.25; margin:5px 0 10px; color:var(--ink); word
 .meta .attention { color:#8a5600; border-color:rgba(138,86,0,.28); background:rgba(138,86,0,.08); }
 .receipt { margin:0 0 18px; border:1px solid var(--line); border-radius:14px; padding:18px 20px; background:var(--panel); box-shadow:0 1px 2px rgba(17,19,23,.03); }
 .receipt-head { display:flex; align-items:flex-start; justify-content:space-between; gap:12px; }
-.eyebrow { color:#59616c; font-size:10px; font-weight:700; letter-spacing:.12em; }
+.eyebrow { color:#59616c; font-size:12px; font-weight:700; letter-spacing:.12em; }
+.brand-kind { letter-spacing:0; text-transform:none; }
+/* ECHO: Chinese, Japanese and Korean are never letter-spaced. */
+html:lang(zh) .eyebrow, html:lang(ja) .eyebrow, html:lang(ko) .eyebrow { letter-spacing:0; }
 .receipt h2 { margin:3px 0 0; font-size:16px; line-height:1.3; }
 .receipt-status { flex:none; border-radius:999px; padding:3px 9px; background:rgba(8,120,138,.08); color:#08788a; font-size:11px; font-weight:600; }
 .receipt-summary { margin:12px 0 0; color:#59616c; }
@@ -233,18 +429,18 @@ footer { margin-top:20px; color:#7d8590; font-size:12px; }
 <body>
 <div class="wrap">
 <svg class="mark" viewBox="0 0 64 64" aria-hidden="true"><path d="M50 17H24a7 7 0 0 0-7 7v16a7 7 0 0 0 7 7h26" fill="none" stroke="#111317" stroke-width="6"/><circle cx="38" cy="32" r="5" fill="#08788a"/></svg>
-<div class="brand">${escapeXml(brand)} · replay</div>
+<div class="brand">${escapeXml(brand)} · <span class="brand-kind">${escapeXml(L.kind)}</span></div>
 <h1>${escapeXml(title)}</h1>
 <div class="meta">
 <span class="pill ${attentionCount > 0 ? "attention" : "status"}">${escapeXml(replayStatus)}</span>
-<span class="pill">${steps.length} steps</span>
-<span class="pill">${doneCount} completed</span>
-${attentionCount > 0 ? `<span class="pill attention">${attentionCount} needs attention</span>` : ""}
+<span class="pill">${escapeXml(L.steps(steps.length))}</span>
+<span class="pill">${escapeXml(L.completed(doneCount))}</span>
+${attentionCount > 0 ? `<span class="pill attention">${escapeXml(L.needsAttention(attentionCount))}</span>` : ""}
 </div>
 ${receiptHtml}
 ${
   empty
-    ? `<div class="detail"><div class="empty">No steps in this replay.</div></div>`
+    ? `<div class="detail"><div class="empty">${escapeXml(L.empty)}</div></div>`
     : `<div class="layout">
 <div class="steps" id="steps"></div>
 <div>
@@ -255,15 +451,15 @@ ${
 <pre id="dbody" hidden></pre>
 </div>
 <div class="controls">
-<button id="prev" type="button">⟨ Prev</button>
-<button id="play" type="button">▶ Play</button>
-<button id="next" type="button">Next ⟩</button>
-<button id="loop" type="button" aria-pressed="false" title="循环播放">⟲ Loop</button>
-<button id="speed" type="button" title="播放速度">1×</button>
+<button id="prev" type="button">${escapeXml(L.prev)}</button>
+<button id="play" type="button">${escapeXml(L.play)}</button>
+<button id="next" type="button">${escapeXml(L.next)}</button>
+<button id="loop" type="button" aria-pressed="false" title="${escapeXml(L.loopTitle)}">${escapeXml(L.loop)}</button>
+<button id="speed" type="button" title="${escapeXml(L.speedTitle)}">1×</button>
 <input id="seek" type="range" min="0" value="0"/>
 <span class="counter" id="counter"></span>
 </div>
-<div class="hint">← → 切换 · 空格 播放/暂停 · Home/End 首尾</div>
+<div class="hint">${escapeXml(L.hint)}</div>
 </div>
 </div>`
 }
@@ -272,10 +468,10 @@ ${
     ? ""
     : `<div class="dock" role="status" aria-live="polite">
 <span class="live"></span>
-<span class="dock-label">Replay ${attentionCount > 0 ? "needs attention" : "ready"}</span>
-<span class="dock-meta">${doneCount}/${steps.length} completed</span>
+<span class="dock-label">${escapeXml(attentionCount > 0 ? L.dockAttention : L.dockReady)}</span>
+<span class="dock-meta">${escapeXml(L.dockCompleted(doneCount, steps.length))}</span>
 <span class="spacer"></span>
-<button id="dock-play" type="button">▶ Play replay</button>
+<button id="dock-play" type="button">${escapeXml(L.dockPlay)}</button>
 </div>`
 }
 <footer>${escapeXml(footer)}</footer>
@@ -287,6 +483,13 @@ ${
 (function(){
   var STEPS = ${stepData};
   var MS = ${frameMs};
+  var LABEL = ${embedJson({
+    play: L.play,
+    pause: L.pause,
+    dockPlay: L.dockPlay,
+    dockPause: L.dockPause,
+    untitledStep: L.untitledStep,
+  })};
   // Line icons (lucide geometry), not emoji: ECHO chrome never uses emoji.
   var ICON = {
     terminal: ['m4 17 6-6-6-6', 'M12 19h8'],
@@ -331,7 +534,7 @@ ${
     var n = document.createElement('span'); n.className = 'n'; n.textContent = String(idx + 1);
     var g = document.createElement('span'); g.className = 'glyph';
     var icon = glyph(s.kind); if (icon) g.appendChild(icon); else g.textContent = '•';
-    var t = document.createElement('span'); t.className = 't'; t.textContent = s.title || '(step)';
+    var t = document.createElement('span'); t.className = 't'; t.textContent = s.title || LABEL.untitledStep;
     var d = document.createElement('span'); d.className = 'dot'; d.style.background = DOT[s.status] || '#59616c';
     row.appendChild(n); row.appendChild(g); row.appendChild(t); row.appendChild(d);
     row.onclick = function(){ stop(); i = idx; render(); };
@@ -348,15 +551,15 @@ ${
     counter.textContent = (i + 1) + ' / ' + STEPS.length;
     seek.value = String(i);
   }
-  function stop(){ if (timer){ clearInterval(timer); timer = null; } play.textContent = '▶ Play'; if (dockPlay) dockPlay.textContent = '▶ Play replay'; }
+  function stop(){ if (timer){ clearInterval(timer); timer = null; } play.textContent = LABEL.play; if (dockPlay) dockPlay.textContent = LABEL.dockPlay; }
   function tick(){
     if (i >= STEPS.length - 1){ if (loop){ i = 0; render(); return; } stop(); return; }
     i++; render();
   }
   function start(){
     if (i >= STEPS.length - 1 && !loop) i = 0;
-    play.textContent = '❚❚ Pause';
-    if (dockPlay) dockPlay.textContent = '❚❚ Pause replay';
+    play.textContent = LABEL.pause;
+    if (dockPlay) dockPlay.textContent = LABEL.dockPause;
     timer = setInterval(tick, Math.round(MS / SPEEDS[speedIdx]));
   }
   function go(n){ stop(); i = Math.max(0, Math.min(STEPS.length - 1, n)); render(); }

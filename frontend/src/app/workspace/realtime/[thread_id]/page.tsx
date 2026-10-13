@@ -197,7 +197,7 @@ function RealtimePageContent({
 }: {
   chatState: ReturnType<typeof useThreadChat>;
 }) {
-  const { t } = useI18n();
+  const { t, locale } = useI18n();
   const { authStatus, user, isLoading: authLoading } = useAuth();
   const { threadId, isNewThread, setIsNewThread } = chatState;
   const activeThreadIdRef = useRef(threadId);
@@ -1010,7 +1010,8 @@ function RealtimePageContent({
     allToolEvents,
     lastTurnMessages,
     focusedWorkbenchTurnIndex,
-    initialPrompt,
+    threadTitle: headerThreadTitle,
+    locale,
     t,
   });
   const isAgentWorkflowMode =

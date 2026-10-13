@@ -149,6 +149,8 @@ export interface ReplayMeta {
   brand?: string;
   footer?: string;
   frameMs?: number;
+  /** UI locale for the exported page chrome. */
+  locale?: string;
 }
 
 export function buildReplayFromBlocks(
@@ -185,6 +187,7 @@ export function buildReplayFromBlocks(
     footer: meta.footer,
     frameMs: meta.frameMs,
     receipt,
+    locale: meta.locale,
   };
 }
 

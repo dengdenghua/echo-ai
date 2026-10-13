@@ -77,7 +77,11 @@ describe("buildReplayHtml", () => {
         receipt: {
           summary: "2 changes completed · ready to verify",
           items: [
-            { title: "Update layout", status: "done", detail: "Grid is now responsive" },
+            {
+              title: "Update layout",
+              status: "done",
+              detail: "Grid is now responsive",
+            },
           ],
           verification: ["Open the preview and confirm the responsive grid"],
         },
@@ -87,7 +91,7 @@ describe("buildReplayHtml", () => {
     expect(html).toContain("What was delivered");
     expect(html).toContain("Update layout");
     expect(html).toContain("VERIFY IN YOUR BROWSER");
-    expect(html).toContain("id=\"dock-play\"");
+    expect(html).toContain('id="dock-play"');
   });
 
   it("renders an empty-state (and no script) when there are no steps", () => {
@@ -166,5 +170,51 @@ describe("buildReplayHtml", () => {
     expect(html).toContain("operation");
     expect(html).toContain("12 passed");
     expect(html).not.toMatch(/read_file|exec_shell|Bearer abcdef/i);
+  });
+
+  it("follows the UI locale for the page chrome (zh)", () => {
+    const html = buildReplayHtml(
+      sample({
+        locale: "zh-CN",
+        receipt: {
+          summary: "已完成",
+          items: [{ title: "改动", status: "done" }],
+        },
+        steps: [
+          { title: "run tests", status: "done" },
+          { title: "fetch", status: "error" },
+        ],
+      }),
+    );
+
+    expect(html).toContain('<html lang="zh-CN">');
+    for (const zh of [
+      "需要处理",
+      "交付回执",
+      "上一步",
+      "播放",
+      "下一步",
+      "循环",
+      "完成 1",
+      "2 步",
+    ]) {
+      expect(html).toContain(zh);
+    }
+    for (const en of [
+      "Needs attention",
+      "RESULT RECEIPT",
+      "Prev",
+      "Next ⟩",
+      "Play replay",
+      "completed",
+    ]) {
+      expect(html).not.toContain(en);
+    }
+  });
+
+  it("keeps English chrome when no locale is given", () => {
+    const html = buildReplayHtml(sample());
+    expect(html).toContain('<html lang="en">');
+    expect(html).toContain("⟨ Prev");
   });
 });
