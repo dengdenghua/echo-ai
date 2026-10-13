@@ -3,6 +3,7 @@ import { describe, expect, test, vi } from "vitest";
 
 import type { AIMessage, Message } from "@/core/api/types";
 import type { BaseStream } from "@/core/api/use-stream-types";
+import type { StreamVitals } from "@/core/realtime/stream-vitals";
 import type { AgentThreadState } from "@/core/threads";
 import { SubtasksProvider } from "@/core/tasks/context";
 import { renderWithProviders } from "@/test/harness";
@@ -15,6 +16,7 @@ import {
 } from "../agent-workbench-events";
 import { ThreadProviders } from "./context";
 import {
+  MESSAGE_LIST_STALL_HINT_MS,
   MESSAGE_LIST_TIMEOUT_WARNING_MS,
   MessageList,
   streamingMessageProgressKey,
@@ -3020,6 +3022,45 @@ describe("MessageList stalled-run warning", () => {
       });
       expect(stoppingButton).toBeDisabled();
       expect(stoppingButton).toHaveAttribute("aria-busy", "true");
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  test("leaves a slow first response to the inline lane instead of a banner", () => {
+    vi.useFakeTimers();
+    try {
+      const messages = [message("user-1", "human", "nihao")];
+      const waiting = {
+        ...mockThread({ messages, isLoading: true }),
+        vitals: {
+          phase: "waiting",
+          ttftMs: null,
+          lastDeltaAgeMs: Infinity,
+          sinceActivityMs: Infinity,
+          elapsedMs: MESSAGE_LIST_STALL_HINT_MS + 5_000,
+          maxDeltaGapMs: 0,
+          stalled: false,
+        } satisfies StreamVitals,
+      };
+      const { unmount } = renderMessageList({ thread: waiting });
+      act(() => {
+        vi.advanceTimersByTime(MESSAGE_LIST_STALL_HINT_MS + 2_000);
+      });
+      expect(screen.getByTestId("conversation-activity-pulse")).toHaveAttribute(
+        "data-first-response-delayed",
+        "true",
+      );
+      expect(screen.queryByText(/no new output for/)).not.toBeInTheDocument();
+      unmount();
+
+      // A stream without vitals has no inline wording for the silence, so
+      // the banner still speaks up.
+      renderMessageList({ thread: mockThread({ messages, isLoading: true }) });
+      act(() => {
+        vi.advanceTimersByTime(MESSAGE_LIST_STALL_HINT_MS + 2_000);
+      });
+      expect(screen.getByText(/no new output for/)).toBeInTheDocument();
     } finally {
       vi.useRealTimers();
     }

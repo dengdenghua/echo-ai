@@ -1629,12 +1629,20 @@ export function MessageList({
   // Early, neutral "still working" hint for long silences: 5 minutes is far
   // too late for a user watching a dead-quiet stream. The watermark resets on
   // every content delta, so this only fires when the model is truly silent
-  // (and no tool is visibly running).
+  // (and no tool is visibly running). While the turn is waiting on its first
+  // response, slow or reconnecting, the inline activity lane and the header
+  // badge already name that state with the elapsed time; a third banner
+  // saying the same thing is noise.
+  const inlineLaneNamesSilence =
+    streamVitals?.phase === "waiting" ||
+    streamVitals?.phase === "slow" ||
+    streamVitals?.phase === "disconnected";
   const showStallHint =
     thread.isLoading &&
     !showTimeoutWarning &&
     loadingAgeMs >= MESSAGE_LIST_STALL_HINT_MS &&
-    !hasActiveTool;
+    !hasActiveTool &&
+    !inlineLaneNamesSilence;
   // The realtime hook wraps send failures in Error now, but other BaseStream
   // implementations may still surface raw strings — keep accepting both
   // shapes when extracting the message text.
