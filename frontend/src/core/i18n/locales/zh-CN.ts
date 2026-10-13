@@ -2411,7 +2411,7 @@ export const zhCN: Translations = {
     unassignConfirmTitle: "解绑响应对象",
     unassignConfirmDescription:
       "解绑后该渠道将恢复默认消息处理方式，可随时重新绑定。",
-    howToSetup: "如何接入?",
+    howToSetup: "如何接入？",
     clickToChangeAgent: "点击更换响应对象",
     handlingMessages: "正在处理此渠道消息",
     handlingMessagesAsTeam: "成员并行协作并汇总回复",

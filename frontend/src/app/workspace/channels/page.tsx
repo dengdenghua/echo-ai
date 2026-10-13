@@ -915,7 +915,7 @@ function ChannelCard({
                 <RoutedWebLink
                   href={row.help_url}
                   openTargetSource="channel-help"
-                  className="ml-1 text-primary underline underline-offset-2 hover:opacity-80 cursor-pointer"
+                  className="ml-1 whitespace-nowrap text-primary underline underline-offset-2 hover:opacity-80 cursor-pointer"
                   onClick={(e) => {
                     if (!row.help_url || row.help_url === "#") {
                       e.preventDefault();
