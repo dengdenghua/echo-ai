@@ -310,18 +310,18 @@
   /* Micro typography ladder. Font-size theme keys live in the
      ``--text-*`` namespace in Tailwind v4 (``--font-size-*`` is silently
      ignored — an earlier iteration of this block used it and the classes
-     never generated). The numeric xs-rungs (3xs=8px, 2xs=9px) can't
-     express 10px/11px, so they get semantic names instead — these
-     replace the old ``text-[10px]`` / ``text-[11px]`` arbitrary values.
-     No line-height is paired on purpose: the arbitrary values they
-     replace didn't set one either, so leading keeps inheriting. */
-  --text-micro: 0.625rem;
-  --text-mini: 0.6875rem;
-  /* 12.5px — dialog descriptions / compact buttons; replaces text-[12.5px].
-     No line-height paired, same rationale as micro/mini above. */
-  --text-caption: 0.78125rem;
-  --text-2xs: 0.5625rem;
-  --text-3xs: 0.5rem;
+     never generated). ECHO type floor (BRAND.md): Chinese is never set
+     below 12px, so every rung of this ladder resolves to at least 12px
+     whatever the density preference does to the root size. The names
+     stay so existing call sites keep compiling; they are registered with
+     tailwind-merge in ``lib/utils.ts``. No line-height is paired on
+     purpose: leading keeps inheriting from the surrounding text. */
+  --text-micro: 12px;
+  --text-mini: 12px;
+  /* Dialog descriptions / compact buttons: a hair above the floor. */
+  --text-caption: max(12px, 0.8125rem);
+  --text-2xs: 12px;
+  --text-3xs: 12px;
 
   /* Letter-spacing tiers for uppercase eyebrow/label text — replaces the
      tracking-[0.12em]/[0.14em]/[0.16em]/[0.18em] arbitrary-value spread. */

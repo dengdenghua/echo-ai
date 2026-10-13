@@ -274,8 +274,9 @@ describe("contrast debt ratchet", () => {
 
 describe("type size floor", () => {
   // 133 places used 7–9px text (mostly the design canvas and project
-  // workbench); all were raised to the 10px `text-micro` token on
-  // 2026-10-10. Nothing in src/ may go below it again.
+  // workbench); all were raised to the `text-micro` token on 2026-10-10,
+  // and the whole micro ladder resolves to the 12px ECHO floor since
+  // 2026-10-13. Nothing in src/ may go below 10px again.
   it("never sets text smaller than 10px", () => {
     const srcDir = join(root, "src");
     // text-[Npx] with N < 10 (decimals allowed), or the 8/9px tokens.
