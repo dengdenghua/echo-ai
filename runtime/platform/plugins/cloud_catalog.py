@@ -47,6 +47,7 @@ from runtime.platform.plugins.catalog_provenance import (
     verify_marketplace_catalog,
 )
 from runtime.platform.plugins.host_api import HOST_API_VERSION
+from runtime.platform.plugins.install_errors import ContentPackUnavailableError
 from runtime.platform.plugins.marketplace_package import (
     CONNECTOR_RELEASE_SUMMARY,
     compute_marketplace_content_provenance,
@@ -67,26 +68,6 @@ LOCAL_MIRROR_DIR = REPO / "extensions" / "workbuddy-experts" / "storefront" / "d
 CACHE_DIR = app_paths().data_dir / "cache"
 
 _log = logging.getLogger(__name__)
-
-
-class ContentPackUnavailableError(RuntimeError):
-    """The marketplace content pack could not be downloaded; the message is user-facing."""
-
-
-_SIGNATURE_REFUSAL = re.compile(r"publisher signature (?:rejected|is required)")
-
-
-def public_install_error(exc: ValueError) -> str:
-    """The message an install refusal shows the user.
-
-    A signature refusal carries verifier details (trust store, key id) that
-    mean nothing in a toast; log them and say what happened instead.
-    """
-    text = str(exc)
-    if _SIGNATURE_REFUSAL.search(text):
-        _log.warning("install refused: %s", text)
-        return "应用安装包的签名无法验证，已拒绝安装。请更新 Echo 到最新版本后重试。"
-    return text
 
 
 def _download_content_pack(url: str, *, timeout: float, max_bytes: int) -> bytes:

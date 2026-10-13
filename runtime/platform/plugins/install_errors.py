@@ -1,6 +1,28 @@
 """Public installation diagnostics; never expose URLs, paths or credentials."""
 
+import logging
+
 import httpx
+
+_logger = logging.getLogger(__name__)
+
+
+class ContentPackUnavailableError(RuntimeError):
+    """The marketplace content pack could not be downloaded; the message is user-facing."""
+
+
+def public_install_error(exc: ValueError) -> str:
+    """The message a refused cloud install shows in the HUB.
+
+    Signature and integrity refusals carry verifier details (trust store, key
+    id) that mean nothing in a toast: they read as the shared verification
+    message and the detail goes to the log. Other refusals keep their text.
+    """
+    _, detail = installation_failure(exc)
+    if detail["code"] == "PACKAGE_VERIFICATION_FAILED":
+        _logger.warning("install refused: %s", exc)
+        return str(detail["message"])
+    return str(exc)
 
 
 def installation_failure(exc: Exception) -> tuple[int, dict[str, object]]:

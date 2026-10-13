@@ -15,7 +15,7 @@ from pathlib import Path
 
 import pytest
 
-from runtime.platform.plugins import cloud_catalog
+from runtime.platform.plugins import cloud_catalog, install_errors
 from runtime.platform.plugins.cloud_catalog import CloudCatalog
 
 
@@ -299,13 +299,13 @@ class TestArchiveDownload:
         ],
     )
     def test_signature_refusal_reads_as_a_sentence(self, detail):
-        message = cloud_catalog.public_install_error(ValueError(detail))
+        message = install_errors.public_install_error(ValueError(detail))
 
-        assert message.startswith("应用安装包的签名无法验证")
+        assert message.startswith("插件包签名或完整性验证失败")
         assert "trust store" not in message
 
     def test_other_install_errors_pass_through(self):
-        assert cloud_catalog.public_install_error(ValueError("enabled must be a boolean")) == (
+        assert install_errors.public_install_error(ValueError("enabled must be a boolean")) == (
             "enabled must be a boolean"
         )
 
