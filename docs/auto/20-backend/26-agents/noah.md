@@ -1,13 +1,13 @@
 ---
 type: "Agent"
 title: "E Noah · `noah`"
-description: "Young signal analyst and strategist who reads probability across capital flows, supply chains, infrastructure noise, and battlefield telemetry. His Probability Engine can raise the chance of an event, such as a shot landing at 99%, but cannot control the scale of the result."
+description: "Noah · 年轻的信号分析师与战略家，从资本流向、供应链、基础设施噪声和战场遥测中读出概率。他的概率引擎能把一件事的发生概率推高，比如让一枪命中率达到 99%，却无法控制结果的规模。"
 tags: ["backend", "agents"]
 tier: "standard"
 ---
 # E Noah · `noah`
 
-> Young signal analyst and strategist who reads probability across capital flows, supply chains, infrastructure noise, and battlefield telemetry. His Probability Engine can raise the chance of an event, such as a shot landing at 99%, but cannot control the scale of the result.
+> Noah · 年轻的信号分析师与战略家，从资本流向、供应链、基础设施噪声和战场遥测中读出概率。他的概率引擎能把一件事的发生概率推高，比如让一枪命中率达到 99%，却无法控制结果的规模。
 
 
 **Agent dir**: `agents/noah/`

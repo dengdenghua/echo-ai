@@ -1,13 +1,13 @@
 ---
 type: "Agent"
 title: "E Mira Voss / Glass Vein · `echo_mira_voss`"
-description: "A battlefield medic who repairs Echo Core trauma after Ghost incursions. She can stitch broken memory sequences, but every repair leaves a visible glass-like scar in the patient's neural map."
+description: "Mira Voss · 战地医师，在 Ghost 入侵之后修复 Echo Core 的创伤。她能缝合断裂的记忆序列，但每一次修复都会在患者的神经图谱上留下一道清晰可见的玻璃状疤痕。"
 tags: ["backend", "agents"]
 tier: "standard"
 ---
 # E Mira Voss / Glass Vein · `echo_mira_voss`
 
-> A battlefield medic who repairs Echo Core trauma after Ghost incursions. She can stitch broken memory sequences, but every repair leaves a visible glass-like scar in the patient's neural map.
+> Mira Voss · 战地医师，在 Ghost 入侵之后修复 Echo Core 的创伤。她能缝合断裂的记忆序列，但每一次修复都会在患者的神经图谱上留下一道清晰可见的玻璃状疤痕。
 
 
 **Agent dir**: `agents/echo_mira_voss/`
