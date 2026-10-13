@@ -103,7 +103,11 @@ def test_bridge_children_have_distinct_identity_and_contend_for_same_file(tmp_pa
 def test_parent_deadline_cancels_monitored_child_without_explicit_child_timeout(tmp_path):
     from runtime.safety.approval.cancellation import current_cancellation_token
 
-    parent = _parent(tmp_path, deadline=time.monotonic() + 0.3)
+    # The first call_subagent in a process pays for lazy imports before the
+    # worker starts: ~0.9 s on Windows, longer than the old 0.3 s budget, so the
+    # deadline expired before the runner ever ran and ``finished`` never fired.
+    # Two seconds still exercises the parent deadline, never a child timeout.
+    parent = _parent(tmp_path, deadline=time.monotonic() + 2.0)
     finished = threading.Event()
 
     def runner(*_args, **_kwargs):
