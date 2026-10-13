@@ -8,6 +8,7 @@ import {
 } from "react-router-dom";
 
 import { ProtectedRoute } from "@/components/auth/protected-route";
+import { BrandTopProgress } from "@/components/brand/brand-progress";
 import { EchoBrandMark } from "@/components/brand/echo-brand-mark";
 import { ErrorBoundary } from "@/components/ui/error-boundary";
 import {
@@ -141,6 +142,7 @@ export function PageLoading() {
       aria-busy="true"
       className="flex h-full min-h-[320px] w-full items-center justify-center p-4 sm:p-6"
     >
+      <BrandTopProgress fixed />
       {!isSlow ? <span className="sr-only">{t.common.loading}</span> : null}
       {/* This fallback serves every lazy route, so it must not sketch any one
           page's layout: a card grid flashed before the login page and the

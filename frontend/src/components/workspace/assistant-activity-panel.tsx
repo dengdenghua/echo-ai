@@ -5,7 +5,6 @@ import {
   CheckCircle2Icon,
   CircleAlertIcon,
   ExternalLinkIcon,
-  Loader2Icon,
   RefreshCwIcon,
   SearchIcon,
   XIcon,
@@ -38,6 +37,7 @@ import {
 } from "@/core/i18n/locales/assistant-activity";
 import { useI18n } from "@/core/i18n/hooks";
 import { cn } from "@/lib/utils";
+import { BrandLoadingPanel } from "@/components/brand/brand-progress";
 
 type ActivityFilter = "all" | AssistantActivityState;
 
@@ -228,16 +228,7 @@ export function AssistantActivityPanel({
             className="min-h-0 overflow-y-auto overscroll-contain px-4 py-3"
           >
             {activity.isPending && !activity.data ? (
-              <div
-                role="status"
-                className="flex items-center justify-center gap-2 py-12 text-sm text-muted-foreground"
-              >
-                <Loader2Icon
-                  className="size-4 animate-spin"
-                  aria-hidden="true"
-                />
-                {copy.loading}
-              </div>
+              <BrandLoadingPanel label={copy.loading} className="py-12" />
             ) : activity.data && visible.length === 0 ? (
               <p
                 role="status"

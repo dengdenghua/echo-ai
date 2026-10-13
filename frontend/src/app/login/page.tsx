@@ -11,6 +11,7 @@ import {
   UserCircle2Icon,
 } from "lucide-react";
 
+import { BrandLoadingPanel } from "@/components/brand/brand-progress";
 import { EchoLockup } from "@/components/brand/echo-wordmark";
 import { Button } from "@/components/ui/button";
 import {
@@ -759,9 +760,7 @@ export default function LoginPage() {
         data-echo-theme="graphite"
         className="flex min-h-screen items-center justify-center bg-background"
       >
-        <div className="text-sm text-muted-foreground">
-          {t.common.loading}
-        </div>
+        <BrandLoadingPanel label={t.common.loading} />
       </div>
     );
   }
@@ -894,9 +893,10 @@ export default function LoginPage() {
                   onAction={retryBackend}
                 />
               ) : !providersReady ? (
-                <div className="flex min-h-40 items-center justify-center text-sm text-muted-foreground">
-                  {t.common.loading}
-                </div>
+                <BrandLoadingPanel
+                  label={t.common.loading}
+                  className="min-h-40"
+                />
               ) : hasOct && localProvider ? (
                 <Tabs
                   defaultValue={

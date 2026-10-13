@@ -34,6 +34,7 @@ import {
   type NASFileAsset,
 } from "@/core/storage/api";
 import { cn } from "@/lib/utils";
+import { BrandLoadingPanel } from "@/components/brand/brand-progress";
 
 export type MediaAppKind = "image" | "video";
 
@@ -409,10 +410,7 @@ export default function MediaAppPage({ kind }: MediaAppPageProps) {
             </div>
           ) : loading && files.length === 0 ? (
             <div className="grid min-h-[360px] place-items-center rounded-2xl border border-border bg-card">
-              <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                <Loader2Icon className="size-4 animate-spin" />
-                正在读取本机索引…
-              </div>
+              <BrandLoadingPanel label="正在读取本机索引…" />
             </div>
           ) : visibleFiles.length > 0 ? (
             <>

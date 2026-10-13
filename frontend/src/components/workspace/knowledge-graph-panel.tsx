@@ -4,7 +4,6 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import {
   BrainIcon,
-  Loader2Icon,
   NetworkIcon,
   RefreshCwIcon,
   SearchIcon,
@@ -25,6 +24,7 @@ import {
 } from "@/core/observability/api";
 import { KnowledgeGraphView } from "./knowledge-graph-view";
 import { serviceErrorMessage } from "@/core/utils/service-error";
+import { BrandLoadingPanel } from "@/components/brand/brand-progress";
 
 interface KGEntity {
   id: string;
@@ -126,9 +126,11 @@ export function KnowledgeGraphPanel() {
 
   if (loading) {
     return (
-      <div className="flex h-64 items-center justify-center">
-        <Loader2Icon className="h-6 w-6 animate-spin text-muted-foreground" />
-      </div>
+      <BrandLoadingPanel
+        label={t.common.loading}
+        hideLabel
+        className="h-64 min-h-0"
+      />
     );
   }
 

@@ -98,6 +98,7 @@ import {
   openExternalAuthTab,
   safeExternalAuthUrl,
 } from "./external-auth-url";
+import { BrandLoadingPanel } from "@/components/brand/brand-progress";
 
 // 统一「插件」市场 —— 所有外部能力(WorkBuddy MCP 服务、Codex 插件、注册表插件)统一叫插件。
 // 一个市场统一管理:安装→技能/MCP,连接→认证编排,插件直接就绪。
@@ -1235,9 +1236,11 @@ function PermissionReviewDialog({
         </DialogHeader>
 
         {loading ? (
-          <div className="flex min-h-28 items-center justify-center text-muted-foreground">
-            <Loader2 className="size-5 animate-spin" />
-          </div>
+          <BrandLoadingPanel
+            label="正在读取…"
+            hideLabel
+            className="min-h-28"
+          />
         ) : plan ? (
           <div className="space-y-3 text-xs">
             <div className="rounded-md border border-border-default bg-muted/25 px-3 py-2 leading-5">
@@ -2147,9 +2150,10 @@ export function CapabilityMarketPanel({
       ) : null}
 
       {loading ? (
-        <div role="status" className="flex min-h-[200px] items-center justify-center gap-2 text-ui text-muted-foreground">
-          <Loader2 className="size-5 animate-spin" /> 正在读取插件目录…
-        </div>
+        <BrandLoadingPanel
+          label="正在读取插件目录…"
+          className="min-h-[200px]"
+        />
       ) : (
         <div
           className={cn(

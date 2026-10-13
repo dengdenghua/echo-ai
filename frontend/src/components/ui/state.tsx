@@ -9,6 +9,7 @@ import {
 } from "lucide-react";
 import type { ReactNode } from "react";
 
+import { BrandLoadingPanel } from "@/components/brand/brand-progress";
 import { Button } from "@/components/ui/button";
 import {
   Empty,
@@ -120,21 +121,13 @@ export function LoadingState({
     );
   }
 
+  // ECHO loads with a thin core line, not a spinning icon (BRAND.md).
   return (
-    <Empty
-      className={cn("min-h-[220px] border-0 bg-transparent", className)}
-      aria-busy="true"
-    >
-      <EmptyHeader>
-        <EmptyMedia variant="icon">
-          <Loader2Icon className="animate-spin" />
-        </EmptyMedia>
-        <EmptyTitle>{title}</EmptyTitle>
-        {description ? (
-          <EmptyDescription>{description}</EmptyDescription>
-        ) : null}
-      </EmptyHeader>
-    </Empty>
+    <BrandLoadingPanel
+      label={title}
+      description={description}
+      className={cn("min-h-[220px]", className)}
+    />
   );
 }
 

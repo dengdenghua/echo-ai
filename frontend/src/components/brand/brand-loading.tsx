@@ -1,3 +1,4 @@
+import { BrandTopProgress } from "@/components/brand/brand-progress";
 import { EchoBrandMark } from "@/components/brand/echo-brand-mark";
 import { cn } from "@/lib/utils";
 
@@ -19,6 +20,7 @@ export function BrandLoading({
         className,
       )}
     >
+      <BrandTopProgress fixed />
       <EchoBrandMark size="lg" breathe />
       <span className="text-sm text-muted-foreground">{label}</span>
     </div>

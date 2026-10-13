@@ -7,7 +7,6 @@ import {
   CodeIcon,
   CodeXmlIcon,
   EyeIcon,
-  Loader2Icon,
   SquareMousePointerIcon,
 } from "lucide-react";
 import {
@@ -23,6 +22,7 @@ import { swallow } from "@/core/utils/log";
 import { useI18n } from "@/core/i18n/hooks";
 import { PreviewConsole } from "./preview-console";
 import { BrowserPreviewPanel } from "./browser-preview-panel";
+import { BrandLoadingPanel } from "@/components/brand/brand-progress";
 
 const CodeEditor = lazy(() =>
   import("./code-editor").then((module) => ({
@@ -437,10 +437,7 @@ ${jsContent || "// No JavaScript"}
       {/* Content */}
       <div className="flex-1 min-h-0 overflow-hidden relative">
         {isLoading ? (
-          <div className="flex h-full min-h-0 flex-col items-center justify-center text-muted-foreground">
-            <Loader2Icon className="size-8 animate-spin mb-2" />
-            <span className="text-sm">{t.livePreview.loading}</span>
-          </div>
+          <BrandLoadingPanel label={t.livePreview.loading} />
         ) : showCode ? (
           <Suspense
             fallback={

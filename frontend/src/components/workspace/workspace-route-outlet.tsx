@@ -1,20 +1,12 @@
 import { Suspense } from "react";
 import { Outlet, useLocation } from "react-router-dom";
 
+import { BrandLoadingPanel } from "@/components/brand/brand-progress";
 import { ErrorBoundary } from "@/components/ui/error-boundary";
 import { useI18n } from "@/core/i18n/hooks";
 
 function WorkspaceRoutePending({ label }: { label: string }) {
-  return (
-    <div
-      role="status"
-      aria-live="polite"
-      aria-busy="true"
-      className="flex h-full min-h-[220px] items-center justify-center px-4 text-sm text-muted-foreground"
-    >
-      {label}
-    </div>
-  );
+  return <BrandLoadingPanel label={label} className="min-h-[220px]" />;
 }
 
 /**

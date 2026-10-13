@@ -40,6 +40,7 @@ import {
   type TeamTaskProgressEvent,
 } from "./collab-provider";
 import { CreateTaskDialog } from "./create-task-dialog";
+import { BrandLoadingPanel } from "@/components/brand/brand-progress";
 
 interface TeamTasksPanelProps {
   roomId: string | null | undefined;
@@ -287,10 +288,10 @@ export function TeamTasksPanel({
 
       <div className="min-h-0 flex-1 overflow-y-auto p-3">
         {tasksQuery.isLoading ? (
-          <div className="flex min-h-40 items-center justify-center gap-2 text-sm text-muted-foreground">
-            <Loader2Icon className="size-4 animate-spin" />
-            {t.teamTasksPanel.loading}
-          </div>
+          <BrandLoadingPanel
+            label={t.teamTasksPanel.loading}
+            className="min-h-40"
+          />
         ) : visibleTasks.length === 0 ? (
           <div className="flex min-h-48 items-center justify-center rounded-lg border border-dashed border-border-default bg-muted/15 px-4 text-center text-sm text-muted-foreground">
             {t.teamTasksPanel.emptyFilter}

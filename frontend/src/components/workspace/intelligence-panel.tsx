@@ -41,6 +41,7 @@ import { useI18n } from "@/core/i18n/hooks";
 import type { Translations } from "@/core/i18n/locales/types";
 import { cn } from "@/lib/utils";
 import { MarkdownContent } from "./messages/markdown-content";
+import { BrandLoadingPanel } from "@/components/brand/brand-progress";
 
 type IntelligenceSubscription = {
   id: string;
@@ -693,15 +694,7 @@ export function IntelligencePanel() {
   };
 
   if (loading) {
-    return (
-      <div
-        role="status"
-        className="flex min-h-64 items-center justify-center gap-2 text-muted-foreground"
-      >
-        <Loader2Icon className="size-5 animate-spin" />
-        <span>{t.common.loading}</span>
-      </div>
-    );
+    return <BrandLoadingPanel label={t.common.loading} className="min-h-64" />;
   }
 
   if (loadError) {

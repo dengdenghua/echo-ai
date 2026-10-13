@@ -44,6 +44,7 @@ import type {
   MemoryVisibility,
 } from "@/core/memory/types";
 import { cn } from "@/lib/utils";
+import { BrandLoadingPanel } from "@/components/brand/brand-progress";
 
 const LAYERS: Array<{ value: "" | MemoryLayer; label: string; hint: string }> =
   [
@@ -372,9 +373,11 @@ export function MemoryAssetsPanel() {
         </div>
 
         {assets.isLoading ? (
-          <div className="flex min-h-48 items-center justify-center text-muted-foreground">
-            <Loader2Icon className="size-5 animate-spin" />
-          </div>
+          <BrandLoadingPanel
+            label="正在读取记忆资产…"
+            hideLabel
+            className="min-h-48"
+          />
         ) : assets.isError ? (
           <div className="flex min-h-48 flex-col items-center justify-center gap-2 text-center">
             <CircleGaugeIcon className="size-5 text-muted-foreground" />

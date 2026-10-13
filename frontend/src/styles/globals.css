@@ -1988,3 +1988,14 @@
   ) {
   letter-spacing: normal;
 }
+
+/* ECHO loading line (components/brand/brand-progress.tsx): one 40% core
+   segment sweeping the 2px track. Reduced motion stops it (motion-reduce). */
+@keyframes echo-progress-slide {
+  0% {
+    transform: translateX(-100%);
+  }
+  100% {
+    transform: translateX(250%);
+  }
+}

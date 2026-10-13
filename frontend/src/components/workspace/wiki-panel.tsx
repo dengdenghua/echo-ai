@@ -26,6 +26,7 @@ import {
   useActiveProjectRoot,
 } from "@/core/workspace/use-active-project-root";
 import { cn } from "@/lib/utils";
+import { BrandLoadingPanel } from "@/components/brand/brand-progress";
 
 const LazyStreamdown = lazy(
   () => import("@/components/ai-elements/streamdown-host"),
@@ -117,9 +118,11 @@ export function WikiPanel() {
 
   if (loading) {
     return (
-      <div className="flex min-h-64 items-center justify-center text-muted-foreground">
-        <Loader2Icon className="size-5 animate-spin" />
-      </div>
+      <BrandLoadingPanel
+        label="正在读取知识库…"
+        hideLabel
+        className="min-h-64"
+      />
     );
   }
 
@@ -291,9 +294,11 @@ export function WikiPanel() {
               选择知识页查看
             </div>
           ) : selectedDoc.isLoading ? (
-            <div className="flex min-h-64 items-center justify-center text-muted-foreground">
-              <Loader2Icon className="size-5 animate-spin" />
-            </div>
+            <BrandLoadingPanel
+              label="正在读取知识页…"
+              hideLabel
+              className="min-h-64"
+            />
           ) : selectedDoc.isError ? (
             <div className="flex min-h-64 flex-col items-center justify-center gap-2">
               <div className="text-sm font-medium">知识页读取失败</div>
