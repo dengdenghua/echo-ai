@@ -255,9 +255,18 @@ export function replayLabelsFor(locale: string | undefined): ReplayHtmlLabels {
     : REPLAY_LABELS.en;
 }
 
+function isReplayStatusKey(value: string): value is ReplayStatusKey {
+  return (
+    value === "done" ||
+    value === "error" ||
+    value === "running" ||
+    value === "waiting_approval"
+  );
+}
+
 function statusLabel(L: ReplayHtmlLabels, status: string | undefined): string {
-  const key = (status || "done") as ReplayStatusKey;
-  return L.status[key] ?? status ?? L.status.done;
+  const key = status || "done";
+  return isReplayStatusKey(key) ? L.status[key] : key;
 }
 
 /**

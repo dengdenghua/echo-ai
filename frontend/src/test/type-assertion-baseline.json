@@ -265,7 +265,7 @@
     "src/core/workspace/use-git-summary.ts": 1,
     "src/core/workspace/workbench-preferences.ts": 2,
     "src/hooks/use-ambient-suggestions.ts": 1,
-    "src/hooks/use-appearance.ts": 3,
+    "src/hooks/use-appearance.ts": 2,
     "src/hooks/use-feature-flags.ts": 3,
     "src/hooks/use-global-shortcuts.ts": 1,
     "src/hooks/use-local-storage.ts": 2,
