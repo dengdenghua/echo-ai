@@ -237,7 +237,7 @@ describe("CapabilityMarketPanel", () => {
 
     await waitFor(() =>
       expect(
-        screen.getByText(/请在 Echo 桌面版中完成授权/),
+        screen.getByText(/请在 ECHO AI 桌面版中完成授权/),
       ).toBeInTheDocument(),
     );
     expect(open).not.toHaveBeenCalled();

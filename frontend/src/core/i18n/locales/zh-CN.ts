@@ -92,7 +92,7 @@ export const zhCN: Translations = {
     brandLine: "每一次交互，都留下回响。",
     createYourOwnSkill: "创建你自己的智能体技能",
     createYourOwnSkillDescription:
-      "创建自定义智能体技能是 Echo 的核心功能之一,Echo\n会根据你的描述自动生成代码,你可以随时修改和优化\n这个技能,让它更好地为你服务。",
+      "创建自定义智能体技能是 ECHO AI 的核心功能之一,Echo\n会根据你的描述自动生成代码,你可以随时修改和优化\n这个技能,让它更好地为你服务。",
 
     scenes: {
       daily: "日常办公",
@@ -1091,7 +1091,7 @@ export const zhCN: Translations = {
       idle: "REC：录制本轮对话并学习为可复用回放技能",
     },
     replay: {
-      titleDefault: "Echo 运行回放",
+      titleDefault: "ECHO AI 运行回放",
       footer: "自包含离线回放",
     },
     composer: {
@@ -2175,7 +2175,7 @@ export const zhCN: Translations = {
     saveConfig: "保存配置",
     configSaved: "配置已保存",
     installExtensionTitle: "安装 Echo Browser Relay",
-    installExtensionDesc: "安装扩展以将浏览器连接到 Echo。",
+    installExtensionDesc: "安装扩展以将浏览器连接到 ECHO AI。",
     step1Title: "打开 Chrome 扩展管理页面并启用开发者模式",
     step1Desc: "在浏览器地址栏输入并打开扩展管理页面",
     step1Action: "打开 chrome://extensions",
@@ -2191,7 +2191,7 @@ export const zhCN: Translations = {
     relayDisconnected: "扩展未连接",
     relayVersion: "版本",
     compareTitle: "选择连接方式",
-    compareDesc: "两种方式均可将浏览器连接到 Echo，选择最适合你的方案。",
+    compareDesc: "两种方式均可将浏览器连接到 ECHO AI，选择最适合你的方案。",
     compareFeature: "功能",
     compareExtension: "扩展方式",
     compareCdp: "CDP 直连",
@@ -2224,7 +2224,7 @@ export const zhCN: Translations = {
     allVersions: "所有版本",
     // Page Agent integration
     pageAgentDesc:
-      "Page Agent 是阿里巴巴开源的 GUI Agent 框架，通过文本 DOM 操作控制网页，无需截图或多模态模型。通过 MCP 协议集成到 Echo。",
+      "Page Agent 是阿里巴巴开源的 GUI Agent 框架，通过文本 DOM 操作控制网页，无需截图或多模态模型。通过 MCP 协议集成到 ECHO AI。",
     pageAgentDocs: "查看文档",
     pageAgentFeature1: "页内 JS 集成",
     pageAgentFeature1Desc: "无需 Python、无需 headless 浏览器，纯前端注入。",
@@ -2266,7 +2266,7 @@ export const zhCN: Translations = {
     extConNeedExtension: "需要安装一个 Chrome 扩展。",
     cdpProNoExtension: "无需安装任何扩展。",
     cdpProChrome144: "Chrome 144+ 即可用。",
-    cdpConReAuth: "每次重启 Echo 后需重新授权。",
+    cdpConReAuth: "每次重启 ECHO AI 后需重新授权。",
     cdpConChrome144Only: "仅支持 Chrome 144+。",
   },
 
@@ -2524,7 +2524,7 @@ export const zhCN: Translations = {
     loadoutReady: "能力已接入",
     saved: "智能体配置已保存",
     saveFailed: (msg) => `保存失败：${msg}`,
-    officialFaction: "Echo 指挥部",
+    officialFaction: "ECHO 指挥部",
     authorFaction: (author) => `${author} Lab`,
     categoryRoles: {
       assistant: "支援",
@@ -2800,7 +2800,7 @@ export const zhCN: Translations = {
     saveHint: "你可以继续与智能体对话来完善它的功能,或者现在就开始使用",
     saveCommandMessage:
       "如果你想修改智能体的配置,可以直接编辑工作目录中的文件。系统提示词存储在 SOUL.md 中,你可以使用 setup_agent 命令来更新配置",
-    agentCreatedPendingRefresh: "智能体已创建,Echo 正在刷新以应用更改",
+    agentCreatedPendingRefresh: "智能体已创建,ECHO AI 正在刷新以应用更改",
     more: "更多操作",
     agentCreated: "智能体创建成功!",
     startChatting: "开始对话",
@@ -3024,13 +3024,13 @@ export const zhCN: Translations = {
 
   // Workspace
   workspace: {
-    officialWebsite: "访问 Echo 官网",
-    githubTooltip: "查看 Echo 的 Github 仓库",
+    officialWebsite: "访问 ECHO AI 官网",
+    githubTooltip: "查看 ECHO AI 的 Github 仓库",
     settingsAndMore: "设置和更多",
-    visitGithub: "在 Github 上关注 Echo",
+    visitGithub: "在 Github 上关注 ECHO AI",
     reportIssue: "报告问题",
     contactUs: "联系我们",
-    about: "关于 Echo",
+    about: "关于 ECHO AI",
     modes: {
       chat: "对话",
       team: "团队",
@@ -3042,7 +3042,7 @@ export const zhCN: Translations = {
       badge: "Agent OS 控制中心",
       headline: "赋予智能体目标，然后监督工作。",
       description:
-        "Echo 将目标转化为计划，在限定运行时中执行工具，记录轨迹，并为下一次运行保留有用的记忆。",
+        "ECHO AI 将目标转化为计划，在限定运行时中执行工具，记录轨迹，并为下一次运行保留有用的记忆。",
       newTask: "新任务",
       codeTask: "代码任务",
       systemLoop: {
@@ -3164,7 +3164,7 @@ export const zhCN: Translations = {
 
   // Page titles (document title)
   pages: {
-    appName: "Echo",
+    appName: "ECHO AI",
     chats: "对话",
     newChat: "新对话",
     untitled: "未命名",
@@ -3189,7 +3189,7 @@ export const zhCN: Translations = {
     writeFile: "写入文件",
     clickToViewContent: "点击查看内容",
     writeTodos: "创建 To-do 列表",
-    skillInstallTooltip: "点击安装此技能到 Echo 工作区",
+    skillInstallTooltip: "点击安装此技能到 ECHO AI 工作区",
     toastSkillInstallFailed: "安装技能失败",
     toastExportConversationFailed: "导出对话失败",
   },
@@ -3236,7 +3236,7 @@ export const zhCN: Translations = {
     environmentBlockedAuthorizeFull: "授权完整网络并重试",
     blockedOnUser: "任务需要你的输入才能继续。",
     streamEndpointUnavailable:
-      "当前后端未启用或暂不可用对话/团队流接口，请启动完整 Echo 后端或检查前端代理。",
+      "当前后端未启用或暂不可用对话/团队流接口，请启动完整 ECHO AI 后端或检查前端代理。",
     iteration: (count: number) => `第 ${count} 轮`,
     toolCalls: (count: number) => `${count} 次调用`,
     generating: "生成中…",
@@ -3333,7 +3333,7 @@ export const zhCN: Translations = {
     noResults: "没有找到匹配的操作",
     actions: "操作",
     keyboardShortcuts: "键盘快捷键",
-    keyboardShortcutsDescription: "使用键盘快捷键更高效地使用 Echo",
+    keyboardShortcutsDescription: "使用键盘快捷键更高效地使用 ECHO AI",
     openCommandPalette: "打开命令面板",
     commandPaletteDescription: "搜索要执行的命令...",
     toggleSidebar: "切换侧边栏",
@@ -3425,7 +3425,7 @@ export const zhCN: Translations = {
   // Settings
   settings: {
     title: "设置",
-    description: "管理你的 Echo 账户和偏好设置",
+    description: "管理你的 ECHO 账户和偏好设置",
     sections: {
       account: "账户",
       subscription: "订阅与用量",
@@ -3585,7 +3585,7 @@ export const zhCN: Translations = {
       importConfirmTitle: "确认导入记忆？",
       importConfirmDescription: "导入的记忆将覆盖现有的记忆数据",
       importFileLabel: "选择记忆文件",
-      importInvalidFile: "文件格式无效，请选择由 Echo 导出的 JSON 记忆文件",
+      importInvalidFile: "文件格式无效，请选择由 ECHO AI 导出的 JSON 记忆文件",
       importFileTooLarge: "记忆文件不能超过 5 MB",
       importSuccess: "记忆导入成功",
       manualFactSource: "手动添加",
@@ -3740,7 +3740,7 @@ export const zhCN: Translations = {
       createSkill: "创建技能",
       emptyTitle: "还没有自定义技能",
       emptyDescription:
-        "自定义智能体技能可以放在 Echo 工作区的 `/skills/custom` 目录中",
+        "自定义智能体技能可以放在 ECHO AI 工作区的 `/skills/custom` 目录中",
       emptyButton: "了解如何创建技能",
       enabledDescription:
         "已启用的技能会进入智能体可用工具目录；关闭后模型不可见，也不能执行。",
@@ -3763,16 +3763,16 @@ export const zhCN: Translations = {
     notification: {
       title: "通知",
       description:
-        "窗口不在前台时，Echo 会在任务完成后提醒你，适合需要切换去处理其他工作的长任务。",
+        "窗口不在前台时，ECHO AI 会在任务完成后提醒你，适合需要切换去处理其他工作的长任务。",
       enableNotification: "启用通知",
       permissionGranted: "权限已允许",
       permissionPrompt: "需要授权",
       permissionDenied: "权限被拒绝",
       requestPermission: "请求通知权限",
       deniedHint:
-        "通知权限已被拒绝，请前往系统或浏览器的通知设置，为 Echo 开启通知。",
+        "通知权限已被拒绝，请前往系统或浏览器的通知设置，为 ECHO AI 开启通知。",
       testButton: "发送测试通知",
-      testTitle: "Echo",
+      testTitle: "ECHO AI",
       testBody: "这是一条测试通知。",
       testSent: "测试通知已发送",
       requestFailed: "无法请求通知权限",
@@ -4316,7 +4316,7 @@ export const zhCN: Translations = {
       listFailed: "插件列表读取失败",
       installFailed: "插件安装失败",
       statusFailed: "插件状态更新失败",
-      removeConfirm: "从 Echo 移除此插件？本地文件不会被删除。",
+      removeConfirm: "从 ECHO AI 移除此插件？本地文件不会被删除。",
       removeFailed: "插件移除失败",
       enabled: "启用",
       disabled: "停用",
@@ -4326,7 +4326,7 @@ export const zhCN: Translations = {
       emptyWeb: "当前 localhost 预览无法访问 Electron 插件接口。",
       placeholderTitle: "插件目录占位",
       placeholderDesc:
-        "本地预览不能访问桌面端插件接口，但这里会展示 Echo 支持的插件类型。",
+        "本地预览不能访问桌面端插件接口，但这里会展示 ECHO AI 支持的插件类型。",
       placeholderBrowserTitle: "浏览器插件",
       placeholderBrowserDesc:
         "Chrome / Edge 扩展，让智能体能读取页面、点击控件和截图。",
@@ -4633,15 +4633,15 @@ export const zhCN: Translations = {
       openDirectory: "打开目录",
       extPluginTitle: "外部浏览器插件",
       extPluginDesc:
-        "给 Chrome / Edge 使用。插件连接本机 Echo，让外部网页也能被智能体读取和操作。",
+        "给 Chrome / Edge 使用。插件连接本机 ECHO AI，让外部网页也能被智能体读取和操作。",
       dragToBookmarks: "拖到书签栏",
       dragToBookmarksDesc: "轻量 Page Agent 模式，适合临时连接当前网页。",
       dragToBookmarksTitle: "拖到 Chrome/Edge 书签栏",
       step1Temporary:
-        "1. 临时使用：把上面的 Echo Agent 拖到书签栏，在目标网页点击它。",
+        "1. 临时使用：把上面的 ECHO AI 按钮拖到书签栏，在目标网页点击它。",
       step2LongTerm:
         '2. 长期使用：打开 Chrome/Edge 扩展管理页，启用"开发者模式"。',
-      step3LoadExtension: '3. 点击"加载已解压的扩展程序"，选择 Echo 插件目录。',
+      step3LoadExtension: '3. 点击"加载已解压的扩展程序"，选择 ECHO AI 插件目录。',
       pluginDirectory: "插件目录",
       pluginDirectoryOpened: (path: string) => `插件目录已打开: ${path}`,
       pluginPathCopied: "插件目录路径已复制",
@@ -4813,7 +4813,7 @@ export const zhCN: Translations = {
       searchOrUrl: "搜索或输入网址",
       siteInfo: "站点信息",
       siteInfoDesc:
-        "登录态、Cookie 和本地数据会保留在 Echo 浏览器中，并在标签页之间共享。",
+        "登录态、Cookie 和本地数据会保留在 ECHO AI 浏览器中，并在标签页之间共享。",
       clearData: "清除数据",
       openExternally: "外部打开",
       confirmClearSiteData:
@@ -5859,13 +5859,13 @@ export const zhCN: Translations = {
 
   intelligencePanel: {
     examplePrompts: [
-      "每天跟踪 Echo Agent 相关 GitHub release、issue 和竞品动态，只保留和产品决策有关的变化",
+      "每天跟踪 ECHO AI 相关 GitHub release、issue 和竞品动态，只保留和产品决策有关的变化",
       "每周汇总 AI 智能体、浏览器自动化、多智能体框架的新论文和开源项目，过滤重复新闻",
       "关注三个竞品的价格、插件生态、企业版功能变化，发现重要更新时提醒我",
     ],
     goalLabel: "描述你想持续追踪的内容",
     goalPlaceholder:
-      "例如：每天跟踪 Echo Agent、browser-use 和 OpenAI Agent SDK 的 release、issue 与重要讨论，只保留影响产品路线的变化。",
+      "例如：每天跟踪 ECHO AI、browser-use 和 OpenAI Agent SDK 的 release、issue 与重要讨论，只保留影响产品路线的变化。",
     subscriptionName: "订阅名称",
     keywords: "关键词（用逗号分隔）",
     cadence: "执行频率",
@@ -6162,10 +6162,10 @@ export const zhCN: Translations = {
   // Onboarding
   onboarding: {
     title: "新手引导",
-    welcomeToEcho: "欢迎使用 Echo",
+    welcomeToEcho: "欢迎使用 ECHO AI",
     yourAIPlatform: "你的 AI 智能体平台",
     welcomeDesc:
-      "Echo 是一个开源的超级智能体平台，可以编排子智能体、记忆和沙箱来完成几乎任何事情 \u2014 由可扩展的技能驱动。",
+      "ECHO AI 是一个开源的超级智能体平台，可以编排子智能体、记忆和沙箱来完成几乎任何事情 \u2014 由可扩展的技能驱动。",
     chatModes: "任务能力",
     chatModesDesc: "从一个任务开始，按需要接入能力和协作者",
     modeChat: "对话",
@@ -6380,7 +6380,7 @@ export const zhCN: Translations = {
     },
     technicalDetails: "技术细节",
     createPluginPrompt:
-      "使用 $plugin-creator 创建一个新的 Echo 插件。\n请先询问插件名称、用途、是否包含 skills/apps/MCP，然后 scaffold 到个人插件目录，补齐 manifest，并验证插件可被市场识别。",
+      "使用 $plugin-creator 创建一个新的 ECHO AI 插件。\n请先询问插件名称、用途、是否包含 skills/apps/MCP，然后 scaffold 到个人插件目录，补齐 manifest，并验证插件可被市场识别。",
   },
 
   // Local skill directory panel
@@ -6545,7 +6545,7 @@ export const zhCN: Translations = {
   // Bundle Info
   bundleInfo: {
     title: "构建信息",
-    appVersion: "Echo 版本",
+    appVersion: "ECHO AI 版本",
     license: "开源许可",
     environment: "环境",
     vite: "Vite",
@@ -6618,7 +6618,7 @@ export const zhCN: Translations = {
     confirmDelete: "确认删除",
     factoryResetTitle: "恢复出厂设置",
     factoryResetDescription:
-      "清除本地对话、工作区、记忆、安装状态和浏览器侧 Echo 缓存，保留源码与内置角色。",
+      "清除本地对话、工作区、记忆、安装状态和浏览器侧 ECHO AI 缓存，保留源码与内置角色。",
     factoryResetDialogDescription:
       "这会删除本机运行数据和本地缓存，操作后需要重启或刷新应用。源码、内置角色目录不会被删除。",
     factoryResetTypeToConfirm: "输入 RESET ECHO 确认",
@@ -6653,7 +6653,7 @@ export const zhCN: Translations = {
     totalCredits: (total) => `共 ${total} 积分`,
     billingUnavailableTitle: "套餐暂时不可用",
     billingUnavailableDescription:
-      "当前 Echo 账号已登录，但计费服务尚未连接。请重试刷新账号关联与可购买套餐。",
+      "当前 ECHO 账户已登录，但计费服务尚未连接。请重试刷新账号关联与可购买套餐。",
     subscriptionUnavailable: "订阅信息暂时无法加载。",
     plansUnavailable: "套餐加载失败。",
     noPlans: "当前暂无可购买的套餐。",
@@ -7940,13 +7940,13 @@ export const zhCN: Translations = {
   // Register page
   registerPage: {
     loadingText: "加载中...",
-    badgeText: "创建你的 Echo 账户",
+    badgeText: "创建你的 ECHO 账户",
     heroTitleLine1: "加入后立即开始",
     heroTitleLine2: "多智能体工作流",
     heroDescription:
       "建立自己的工作区，接入技能、工具和模型，把研究、协作与自动化任务统一到一个平台里。",
     cardTitle: "创建账户",
-    cardDescription: "加入 Echo 开始你的智能体之旅",
+    cardDescription: "加入 ECHO AI 开始你的智能体之旅",
     usernameLabel: "用户名",
     usernamePlaceholder: "至少 3 个字符",
     emailLabel: "邮箱（可选）",
@@ -8027,7 +8027,7 @@ export const zhCN: Translations = {
       privacyPolicy: "隐私政策",
     },
     page: {
-      title: "安全访问你的 Echo 工作区",
+      title: "安全访问你的 ECHO AI 工作区",
       subtitle: "登录后继续你的",
       description:
         "继续你的研究、编码、协作与自动化任务，在统一工作区里管理上下文、技能与执行结果。",
@@ -8171,7 +8171,7 @@ export const zhCN: Translations = {
   },
 
   hero: {
-    releaseBadge: "Echo 2.0 已发布",
+    releaseBadge: "ECHO AI 2.0 已发布",
     withEcho: "与 Echo 一起",
     heroDescription:
       "一个开源的 SuperAgent 框架，能做研究、写代码、产内容。借助沙箱、记忆、工具、技能和子智能体，它可以处理从几分钟到几小时不等的不同层级任务。",
@@ -8919,13 +8919,13 @@ export const zhCN: Translations = {
   desktop: {
     disabledTitle: "桌面助手未开启",
     disabledDescription:
-      "Echo 默认进入欢迎、登录与工作区。需要处理系统桌面文件时，可以单独开启透明桌面助手。",
+      "ECHO AI 默认进入欢迎、登录与工作区。需要处理系统桌面文件时，可以单独开启透明桌面助手。",
     enableButton: "开启桌面助手",
     pluginSettingsButton: "打开插件设置",
     backToWorkspaceButton: "回到工作区",
     header: {
       workspaceTooltip: "打开工作台",
-      brand: "Echo",
+      brand: "ECHO AI",
       accountModels: "官方模型",
       desktopAssistant: "桌面助手",
       desktopCount: (count) => `桌面 ${count || "--"}`,
@@ -9412,9 +9412,9 @@ export const zhCN: Translations = {
       colType: "类型",
       colItems: "项目",
       footerOnline:
-        "常用位置与 Echo NAS 已接入。资料库只保存路径、缩略图、OCR 文本和向量索引。",
+        "常用位置与 ECHO NAS 已接入。资料库只保存路径、缩略图、OCR 文本和向量索引。",
       footerOffline:
-        "常用位置可直接浏览；Echo NAS 正等待连接。资料库只保存路径、缩略图、OCR 文本和向量索引。",
+        "常用位置可直接浏览；ECHO NAS 正等待连接。资料库只保存路径、缩略图、OCR 文本和向量索引。",
       folderType: "文件夹",
     },
     sources: {

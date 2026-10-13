@@ -158,7 +158,7 @@ export default function NotificationSettingsPage() {
             </p>
             <p className="text-xs text-muted-foreground">
               {zh
-                ? "正在查看 Echo 时不弹出系统通知，测试通知除外。"
+                ? "正在查看 ECHO AI 时不弹出系统通知，测试通知除外。"
                 : "Suppress notifications while viewing Echo, except test notifications."}
             </p>
           </div>

@@ -45,13 +45,13 @@ const en = {
     network:
       "Could not connect to the selected host. Check the connection and retry.",
     invalid:
-      "The selected host returned invalid activity. Update Echo and retry.",
+      "The selected host returned invalid activity. Update ECHO AI and retry.",
     session:
       "Your session on this host has expired. Reconnect or sign in and retry.",
     forbidden:
       "This account cannot view assistant activity on the selected host.",
     unavailable:
-      "Assistant activity is not available on this host. Update or restart its Echo service and retry.",
+      "Assistant activity is not available on this host. Update or restart its ECHO AI service and retry.",
     timeout: "Loading activity timed out. Check the host connection and retry.",
     busy: "Too many requests. Refresh again shortly.",
     server:
@@ -154,10 +154,10 @@ const zh: AssistantActivityCopy = {
   more: (n) => `仅展示最近 ${n} 条活动，可打开来源查看完整记录。`,
   errors: {
     network: "无法连接当前主机，请检查连接后重试。",
-    invalid: "当前主机返回的活动记录格式不正确，请更新 Echo 后重试。",
+    invalid: "当前主机返回的活动记录格式不正确，请更新 ECHO AI 后重试。",
     session: "当前主机的登录已失效，请重新连接或登录后重试。",
     forbidden: "当前账号没有权限查看此主机的助手活动。",
-    unavailable: "当前主机尚未提供助手活动，请更新或重启 Echo 服务后重试。",
+    unavailable: "当前主机尚未提供助手活动，请更新或重启 ECHO AI 服务后重试。",
     timeout: "读取活动超时，请检查当前主机连接后重试。",
     busy: "当前请求较多，请稍后刷新。",
     server: "当前主机暂时无法响应，请稍后刷新或检查连接。",
@@ -253,12 +253,13 @@ const ja: AssistantActivityCopy = {
   errors: {
     network:
       "選択したホストに接続できません。接続を確認して再試行してください。",
-    invalid: "活動データの形式が不正です。Echo を更新して再試行してください。",
+    invalid:
+      "活動データの形式が不正です。ECHO AI を更新して再試行してください。",
     session:
       "ホストのセッションが期限切れです。再接続またはログインして再試行してください。",
     forbidden: "このアカウントではホストの活動を表示できません。",
     unavailable:
-      "このホストは活動表示に対応していません。Echo を更新または再起動してください。",
+      "このホストは活動表示に対応していません。ECHO AI を更新または再起動してください。",
     timeout:
       "活動の読み込みがタイムアウトしました。接続を確認して再試行してください。",
     busy: "リクエストが多すぎます。しばらくしてから更新してください。",
@@ -357,12 +358,12 @@ const ko: AssistantActivityCopy = {
     network:
       "선택한 호스트에 연결할 수 없습니다. 연결을 확인한 후 다시 시도하세요.",
     invalid:
-      "활동 데이터 형식이 올바르지 않습니다. Echo를 업데이트한 후 다시 시도하세요.",
+      "활동 데이터 형식이 올바르지 않습니다. ECHO AI를 업데이트한 후 다시 시도하세요.",
     session:
       "호스트의 로그인 세션이 만료되었습니다. 다시 연결하거나 로그인하세요.",
     forbidden: "이 계정은 해당 호스트의 도우미 활동을 볼 수 없습니다.",
     unavailable:
-      "호스트가 도우미 활동을 제공하지 않습니다. Echo 서비스를 업데이트하거나 다시 시작하세요.",
+      "호스트가 도우미 활동을 제공하지 않습니다. ECHO AI 서비스를 업데이트하거나 다시 시작하세요.",
     timeout:
       "활동을 불러오는 시간이 초과되었습니다. 연결을 확인한 후 다시 시도하세요.",
     busy: "요청이 너무 많습니다. 잠시 후 새로고침하세요.",

@@ -1515,7 +1515,7 @@ export default function NarrativePage() {
                   </div>
                   <p className="mt-1 text-xs leading-5 text-muted-foreground">
                     可供其他智能体和 MCP
-                    客户端读取项目、构建上下文并创建候选章节；直接继承 Echo
+                    客户端读取项目、构建上下文并创建候选章节；直接继承 ECHO AI
                     当前身份与权限，无需再次登录或授权。
                   </p>
                 </div>

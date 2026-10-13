@@ -143,11 +143,11 @@ export function GoogleMailboxConnect({
         {flow ? "等待 Google 授权…" : "使用 Google 账号连接"}
       </button>
       <p>
-        在系统浏览器登录并授权，Echo 无需你的 Google 登录密码或应用专用密码。
+        在系统浏览器登录并授权，ECHO AI 无需你的 Google 登录密码或应用专用密码。
       </p>
       {config && !config.local && (
         <p role="alert" className="mail-error">
-          请在运行 Echo 后端的电脑上打开本机 Echo，再进行 Google 授权。
+          请在运行 ECHO AI 后端的电脑上打开本机 ECHO AI，再进行 Google 授权。
         </p>
       )}
       {flow && (
@@ -178,7 +178,7 @@ export function GoogleMailboxConnect({
           <summary>
             {config.configured
               ? "Google 客户端已配置 · 更换配置"
-              : "首次使用：配置 Echo 的 Google 客户端"}
+              : "首次使用：配置 ECHO AI 的 Google 客户端"}
           </summary>
           <ol>
             <li>
@@ -218,8 +218,8 @@ export function GoogleMailboxConnect({
             导入客户端 JSON
           </button>
           <p>
-            配置和授权令牌加密保存在 Echo 后端。测试模式下 Google 授权可能在 7
-            天后过期，届时重新连接即可。组织账号仍受管理员策略限制。
+            配置和授权令牌加密保存在 ECHO AI 后端。测试模式下 Google 授权可能在
+            7 天后过期，届时重新连接即可。组织账号仍受管理员策略限制。
           </p>
         </details>
       )}

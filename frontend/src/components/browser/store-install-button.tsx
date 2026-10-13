@@ -40,7 +40,7 @@ export function StoreInstallButton({ url }: { url: string | undefined }) {
       ) : (
         <PuzzleIcon className="size-3" />
       )}
-      安装到 Echo
+      安装到 ECHO AI
     </button>
   );
 }

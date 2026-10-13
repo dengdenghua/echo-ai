@@ -592,9 +592,9 @@ export function BrowserStartPage({
             </DialogTitle>
             <DialogDescription>
               {panel === "apps"
-                ? "打开常用网站与 Echo 工作台"
+                ? "打开常用网站与 ECHO AI 工作台"
                 : panel === "account"
-                  ? "当前 Echo 登录账号"
+                  ? "当前 ECHO 账户"
                   : panel === "weather"
                     ? "数据来自 Open-Meteo，只会发送你填的城市名"
                     : "设置主页背景、搜索引擎与应用"}

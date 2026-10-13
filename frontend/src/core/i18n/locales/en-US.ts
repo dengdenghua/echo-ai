@@ -87,13 +87,13 @@ export const enUS: Translations = {
   welcome: {
     greeting: "Hello, I am {name}",
     description:
-      "Welcome to 🦌 Echo, an open source super agent. With built-in and custom skills, Echo helps you search on the web, analyze data, and generate artifacts like slides, web pages and do almost anything.",
+      "Welcome to ECHO AI, an open source super agent. With built-in and custom skills, Echo helps you search on the web, analyze data, and generate artifacts like slides, web pages and do almost anything.",
     echoTagline: "Multi-agent collaboration · One input, direct solutions",
 
     brandLine: "Every interaction leaves an echo.",
     createYourOwnSkill: "Create Your Own Skill",
     createYourOwnSkillDescription:
-      "Create your own skill to release the power of Echo. With customized skills,\nEcho can help you search on the web, analyze data, and generate\n artifacts like slides, web pages and do almost anything.",
+      "Create your own skill to release the power of ECHO AI. With customized skills,\nEcho can help you search on the web, analyze data, and generate\n artifacts like slides, web pages and do almost anything.",
 
     scenes: {
       daily: "Daily Work",
@@ -1150,7 +1150,7 @@ export const enUS: Translations = {
       idle: "REC: Record this conversation and learn as a reusable replay skill",
     },
     replay: {
-      titleDefault: "Echo Run Replay",
+      titleDefault: "ECHO AI Run Replay",
       footer: "Self-contained offline replay",
     },
     composer: {
@@ -2276,7 +2276,7 @@ export const enUS: Translations = {
     configSaved: "Config saved",
     installExtensionTitle: "Install Echo Browser Relay",
     installExtensionDesc:
-      "Install the extension to connect your browser to Echo.",
+      "Install the extension to connect your browser to ECHO AI.",
     step1Title: "Open Chrome Extensions page and enable Developer Mode",
     step1Desc: "Open the extensions management page in your browser",
     step1Action: "Open chrome://extensions",
@@ -2294,7 +2294,7 @@ export const enUS: Translations = {
     relayVersion: "Version",
     compareTitle: "Choose Connection Method",
     compareDesc:
-      "Both methods connect your browser to Echo. Choose the one that fits your needs.",
+      "Both methods connect your browser to ECHO AI. Choose the one that fits your needs.",
     compareFeature: "Feature",
     compareExtension: "Extension",
     compareCdp: "CDP Direct",
@@ -2327,7 +2327,7 @@ export const enUS: Translations = {
     allVersions: "All versions",
     // Page Agent integration
     pageAgentDesc:
-      "Page Agent is an open-source GUI Agent framework by Alibaba. It controls web pages via text-based DOM manipulation — no screenshots or multimodal models needed. Integrated into Echo via MCP protocol.",
+      "Page Agent is an open-source GUI Agent framework by Alibaba. It controls web pages via text-based DOM manipulation — no screenshots or multimodal models needed. Integrated into ECHO AI via MCP protocol.",
     pageAgentDocs: "View docs",
     pageAgentFeature1: "In-page JS integration",
     pageAgentFeature1Desc:
@@ -2373,7 +2373,7 @@ export const enUS: Translations = {
     extConNeedExtension: "Requires installing a Chrome extension.",
     cdpProNoExtension: "No extension installation required.",
     cdpProChrome144: "Works with Chrome 144+.",
-    cdpConReAuth: "Requires re-authorization after each Echo restart.",
+    cdpConReAuth: "Requires re-authorization after each ECHO AI restart.",
     cdpConChrome144Only: "Only supports Chrome 144+.",
   },
 
@@ -2651,7 +2651,7 @@ export const enUS: Translations = {
     loadoutReady: "LOADOUT READY",
     saved: "Agent configuration saved",
     saveFailed: (msg) => `Save failed: ${msg}`,
-    officialFaction: "Echo Command",
+    officialFaction: "ECHO Command",
     authorFaction: (author) => `${author} Lab`,
     categoryRoles: {
       assistant: "Support",
@@ -3013,7 +3013,7 @@ export const enUS: Translations = {
     saveCommandMessage:
       "Please save this custom agent now based on everything we have discussed so far. Treat this as my explicit confirmation to save. If some details are still missing, make reasonable assumptions, generate a concise first SOUL.md in English, and call setup_agent immediately without asking me for more confirmation.",
     agentCreatedPendingRefresh:
-      "The agent was created, but Echo could not load it yet. Please refresh this page in a moment.",
+      "The agent was created, but ECHO AI could not load it yet. Please refresh this page in a moment.",
     more: "More actions",
     agentCreated: "Agent created!",
     startChatting: "Start chatting",
@@ -3267,13 +3267,13 @@ export const enUS: Translations = {
 
   // Workspace
   workspace: {
-    officialWebsite: "Echo's official website",
-    githubTooltip: "Echo on Github",
+    officialWebsite: "ECHO AI official website",
+    githubTooltip: "ECHO AI on Github",
     settingsAndMore: "Settings and more",
-    visitGithub: "Echo on GitHub",
+    visitGithub: "ECHO AI on GitHub",
     reportIssue: "Report a issue",
     contactUs: "Contact us",
-    about: "About Echo",
+    about: "About ECHO AI",
     modes: {
       chat: "Chat",
       team: "Team",
@@ -3285,7 +3285,7 @@ export const enUS: Translations = {
       badge: "Agent OS Control Room",
       headline: "Give agents a goal, then supervise the work.",
       description:
-        "Echo turns goals into plans, runs tools in a scoped runtime, records the trace, and keeps useful memory for the next run.",
+        "ECHO AI turns goals into plans, runs tools in a scoped runtime, records the trace, and keeps useful memory for the next run.",
       newTask: "New Task",
       codeTask: "Code Task",
       systemLoop: {
@@ -3417,7 +3417,7 @@ export const enUS: Translations = {
 
   // Page titles (document title)
   pages: {
-    appName: "Echo",
+    appName: "ECHO AI",
     chats: "Chats",
     newChat: "New chat",
     untitled: "Untitled",
@@ -3443,7 +3443,7 @@ export const enUS: Translations = {
     writeFile: "Write file",
     clickToViewContent: "Click to view file content",
     writeTodos: "Update to-do list",
-    skillInstallTooltip: "Install skill and make it available to Echo",
+    skillInstallTooltip: "Install skill and make it available to ECHO AI",
     toastSkillInstallFailed: "Failed to install skill",
     toastExportConversationFailed: "Failed to export conversation",
   },
@@ -3495,7 +3495,7 @@ export const enUS: Translations = {
     environmentBlockedAuthorizeFull: "Authorize full network and retry",
     blockedOnUser: "This task needs your input before it can continue.",
     streamEndpointUnavailable:
-      "The backend chat/team stream endpoint is not enabled or is unavailable. Start the full Echo backend or check the frontend proxy.",
+      "The backend chat/team stream endpoint is not enabled or is unavailable. Start the full ECHO AI backend or check the frontend proxy.",
     iteration: (count: number) => `Round ${count}`,
     toolCalls: (count: number) => `${count} call${count === 1 ? "" : "s"}`,
     generating: "Generating…",
@@ -3593,7 +3593,7 @@ export const enUS: Translations = {
     actions: "Actions",
     keyboardShortcuts: "Keyboard Shortcuts",
     keyboardShortcutsDescription:
-      "Navigate Echo faster with keyboard shortcuts.",
+      "Navigate ECHO AI faster with keyboard shortcuts.",
     openCommandPalette: "Open Command Palette",
     commandPaletteDescription: "Search for a command to run...",
     toggleSidebar: "Toggle Sidebar",
@@ -3685,7 +3685,7 @@ export const enUS: Translations = {
   // Settings
   settings: {
     title: "Settings",
-    description: "Adjust how Echo looks and behaves for you.",
+    description: "Adjust how ECHO AI looks and behaves for you.",
     sections: {
       account: "Account",
       subscription: "Plan & Usage",
@@ -4021,7 +4021,7 @@ export const enUS: Translations = {
       createSkill: "Create skill",
       emptyTitle: "No agent skill yet",
       emptyDescription:
-        "Put your agent skill folders under the `/skills/custom` folder under the root folder of Echo.",
+        "Put your agent skill folders under the `/skills/custom` folder under the root folder of ECHO AI.",
       emptyButton: "Create Your First Skill",
       enabledDescription:
         "Enabled skills enter the Agent tool catalog. Disabled skills are hidden from models and cannot be executed.",
@@ -4045,16 +4045,16 @@ export const enUS: Translations = {
     notification: {
       title: "Notification",
       description:
-        "Echo only sends a completion notification when the window is not active. This is especially useful for long-running tasks so you can switch to other work and get notified when done.",
+        "ECHO AI only sends a completion notification when the window is not active. This is especially useful for long-running tasks so you can switch to other work and get notified when done.",
       enableNotification: "Enable notifications",
       permissionGranted: "Permission granted",
       permissionPrompt: "Permission required",
       permissionDenied: "Permission denied",
       requestPermission: "Request notification permission",
       deniedHint:
-        "Notification permission was denied. Enable Echo notifications in your system or browser notification settings.",
+        "Notification permission was denied. Enable ECHO AI notifications in your system or browser notification settings.",
       testButton: "Send test notification",
-      testTitle: "Echo",
+      testTitle: "ECHO AI",
       testBody: "This is a test notification.",
       testSent: "Test notification sent",
       requestFailed: "Unable to request notification permission",
@@ -4605,7 +4605,7 @@ export const enUS: Translations = {
       installFailed: "Plugin installation failed",
       statusFailed: "Plugin status update failed",
       removeConfirm:
-        "Remove this plugin from Echo? Local files will not be deleted.",
+        "Remove this plugin from ECHO AI? Local files will not be deleted.",
       removeFailed: "Plugin removal failed",
       enabled: "Enabled",
       disabled: "Disabled",
@@ -4616,7 +4616,7 @@ export const enUS: Translations = {
       emptyWeb: "The localhost preview cannot access the Electron plugin API.",
       placeholderTitle: "Plugin catalog placeholder",
       placeholderDesc:
-        "Run the desktop app to install and manage local plugins. The preview still shows the plugin categories Echo supports.",
+        "Run the desktop app to install and manage local plugins. The preview still shows the plugin categories ECHO AI supports.",
       placeholderBrowserTitle: "Browser plugins",
       placeholderBrowserDesc:
         "Chrome / Edge extensions that let agents read pages, click controls, and collect screenshots.",
@@ -4938,17 +4938,17 @@ Strategy:
       openDirectory: "Open Directory",
       extPluginTitle: "External Browser Plugin",
       extPluginDesc:
-        "For Chrome / Edge. The plugin connects to local Echo, allowing external pages to be read and operated by Agent.",
+        "For Chrome / Edge. The plugin connects to local ECHO AI, allowing external pages to be read and operated by Agent.",
       dragToBookmarks: "Drag to Bookmarks Bar",
       dragToBookmarksDesc:
         "Lightweight Page Agent mode, suitable for temporarily connecting the current page.",
       dragToBookmarksTitle: "Drag to Chrome/Edge bookmarks bar",
       step1Temporary:
-        "1. Temporary: Drag the Echo Agent above to your bookmarks bar, then click it on the target page.",
+        "1. Temporary: Drag the ECHO AI button above to your bookmarks bar, then click it on the target page.",
       step2LongTerm:
         "2. Long-term: Open Chrome/Edge extension management page, enable 'Developer mode'.",
       step3LoadExtension:
-        "3. Click 'Load unpacked extension', select the Echo plugin directory.",
+        "3. Click 'Load unpacked extension', select the ECHO AI plugin directory.",
       pluginDirectory: "Plugin Directory",
       pluginDirectoryOpened: (path: string) =>
         `Plugin directory opened: ${path}`,
@@ -5125,7 +5125,7 @@ Strategy:
       searchOrUrl: "Search or enter URL",
       siteInfo: "Site Info",
       siteInfoDesc:
-        "Login state, cookies, and local data are retained in the Echo browser and shared across tabs.",
+        "Login state, cookies, and local data are retained in the ECHO AI browser and shared across tabs.",
       clearData: "Clear Data",
       openExternally: "Open Externally",
       confirmClearSiteData:
@@ -6210,13 +6210,13 @@ Strategy:
 
   intelligencePanel: {
     examplePrompts: [
-      "Track Echo Agent GitHub releases, issues, and competitor updates daily, keeping only changes relevant to product decisions",
+      "Track ECHO AI GitHub releases, issues, and competitor updates daily, keeping only changes relevant to product decisions",
       "Summarize new papers and open-source projects on AI Agents, browser automation, and multi-agent frameworks weekly, filtering duplicate news",
       "Monitor pricing, plugin ecosystem, and enterprise feature changes for three competitors, alerting on important updates",
     ],
     goalLabel: "Describe what you want to track continuously",
     goalPlaceholder:
-      "e.g., Track Echo Agent, browser-use, and OpenAI Agent SDK releases, issues, and important discussions daily, keeping only changes that impact the product roadmap.",
+      "e.g., Track ECHO AI, browser-use, and OpenAI Agent SDK releases, issues, and important discussions daily, keeping only changes that impact the product roadmap.",
     subscriptionName: "Subscription name",
     keywords: "Keywords (comma-separated)",
     cadence: "Frequency",
@@ -6528,10 +6528,10 @@ Strategy:
   // Onboarding
   onboarding: {
     title: "Onboarding Guide",
-    welcomeToEcho: "Welcome to Echo",
+    welcomeToEcho: "Welcome to ECHO AI",
     yourAIPlatform: "Your AI Agent Platform",
     welcomeDesc:
-      "Echo is an open-source super agent harness that orchestrates sub-agents, memory, and sandboxes to do almost anything \u2014 powered by extensible skills.",
+      "ECHO AI is an open-source super agent harness that orchestrates sub-agents, memory, and sandboxes to do almost anything \u2014 powered by extensible skills.",
     chatModes: "Task capabilities",
     chatModesDesc: "Start with one task, then add capabilities and helpers",
     modeChat: "Chat",
@@ -6761,7 +6761,7 @@ Strategy:
     },
     technicalDetails: "Technical details",
     createPluginPrompt:
-      "Use $plugin-creator to create a new Echo plugin.\nPlease first ask for the plugin name, purpose, and whether it includes skills/apps/MCP, then scaffold it into the personal plugin directory, complete the manifest, and verify the plugin can be recognized by the marketplace.",
+      "Use $plugin-creator to create a new ECHO AI plugin.\nPlease first ask for the plugin name, purpose, and whether it includes skills/apps/MCP, then scaffold it into the personal plugin directory, complete the manifest, and verify the plugin can be recognized by the marketplace.",
   },
 
   // Local skill directory panel
@@ -6932,7 +6932,7 @@ Strategy:
   // Bundle Info
   bundleInfo: {
     title: "Build Information",
-    appVersion: "Echo version",
+    appVersion: "ECHO AI version",
     license: "License",
     environment: "Environment",
     vite: "Vite",
@@ -7008,7 +7008,7 @@ Strategy:
     confirmDelete: "Confirm Delete",
     factoryResetTitle: "Factory reset",
     factoryResetDescription:
-      "Clear local conversations, workspaces, memory, install state, and browser-side Echo cache. Source code and built-in roles are preserved.",
+      "Clear local conversations, workspaces, memory, install state, and browser-side ECHO AI cache. Source code and built-in roles are preserved.",
     factoryResetDialogDescription:
       "This deletes local runtime data and cache. Restart or refresh the app afterward. Source code and built-in role folders will not be deleted.",
     factoryResetTypeToConfirm: "Type RESET ECHO to confirm",
@@ -7046,7 +7046,7 @@ Strategy:
     totalCredits: (total) => `Total ${total} credits`,
     billingUnavailableTitle: "Plans are temporarily unavailable",
     billingUnavailableDescription:
-      "Your Echo account is signed in, but the billing service is not connected. Retry to refresh the account link and available plans.",
+      "Your ECHO account is signed in, but the billing service is not connected. Retry to refresh the account link and available plans.",
     subscriptionUnavailable: "Subscription information could not be loaded.",
     plansUnavailable: "Plans could not be loaded.",
     noPlans: "No purchasable plans are currently available.",
@@ -8391,13 +8391,13 @@ Strategy:
   // Register page
   registerPage: {
     loadingText: "Loading...",
-    badgeText: "Create your Echo account",
+    badgeText: "Create your ECHO account",
     heroTitleLine1: "Start right after you join",
     heroTitleLine2: "the multi-agent workflow",
     heroDescription:
       "Set up your own workspace, plug in skills, tools and models, and unify research, collaboration and automation on one platform.",
     cardTitle: "Create account",
-    cardDescription: "Join Echo and start your agent journey",
+    cardDescription: "Join ECHO AI and start your agent journey",
     usernameLabel: "Username",
     usernamePlaceholder: "at least 3 characters",
     emailLabel: "Email (optional)",
@@ -8480,7 +8480,7 @@ Strategy:
       privacyPolicy: "Privacy Policy",
     },
     page: {
-      title: "Secure Access to Your Echo Workspace",
+      title: "Secure Access to Your ECHO AI Workspace",
       subtitle: "Continue your",
       description:
         "Continue your research, coding, collaboration, and automation tasks in a unified workspace for managing context, skills, and execution results.",
@@ -8590,7 +8590,7 @@ Strategy:
   },
 
   hero: {
-    releaseBadge: "Echo 2.0 released",
+    releaseBadge: "ECHO AI 2.0 released",
     withEcho: "with Echo",
     heroDescription:
       "An open-source SuperAgent harness that researches, codes, and creates. With the help of sandboxes, memories, tools, skills and subagents, it handles different levels of tasks that could take minutes to hours.",
@@ -9380,13 +9380,13 @@ Strategy:
   desktop: {
     disabledTitle: "Desktop assistant is off",
     disabledDescription:
-      "By default, Echo opens the welcome, sign-in, and workspace surfaces. Turn on the transparent desktop assistant when you want to manage system desktop files.",
+      "By default, ECHO AI opens the welcome, sign-in, and workspace surfaces. Turn on the transparent desktop assistant when you want to manage system desktop files.",
     enableButton: "Enable Desktop Assistant",
     pluginSettingsButton: "Open Plugin Settings",
     backToWorkspaceButton: "Back to Workspace",
     header: {
       workspaceTooltip: "Open Workspace",
-      brand: "Echo",
+      brand: "ECHO AI",
       accountModels: "Official Models",
       desktopAssistant: "Desktop Assistant",
       desktopCount: (count) => `Desktop ${count || "--"}`,
@@ -9887,9 +9887,9 @@ Strategy:
       colType: "Type",
       colItems: "Items",
       footerOnline:
-        "Frequent locations are connected to Echo NAS. The local database only stores paths, thumbnails, OCR text, and vector indexes.",
+        "Frequent locations are connected to ECHO NAS. The local database only stores paths, thumbnails, OCR text, and vector indexes.",
       footerOffline:
-        "Frequent locations are browsable; Echo NAS is waiting to connect. The local database only stores paths, thumbnails, OCR text, and vector indexes.",
+        "Frequent locations are browsable; ECHO NAS is waiting to connect. The local database only stores paths, thumbnails, OCR text, and vector indexes.",
       folderType: "Folder",
     },
     sources: {

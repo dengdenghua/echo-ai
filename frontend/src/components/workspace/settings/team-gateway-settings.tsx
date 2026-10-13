@@ -148,7 +148,7 @@ export function TeamGatewaySettings({
         <div>
           <h3 className="font-medium">团队模型</h3>
           <p className="text-sm text-muted-foreground">
-            统一发布团队模型，成员独立授权。工具在使用者自己的 Echo 中执行。
+            统一发布团队模型，成员独立授权。工具在使用者自己的 ECHO AI 中执行。
           </p>
         </div>
       )}

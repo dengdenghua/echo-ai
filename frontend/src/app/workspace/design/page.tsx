@@ -884,7 +884,7 @@ function ChatPanel({
       >
         <iframe
           ref={frameRef}
-          title="Echo 设计工作台"
+          title="ECHO AI 设计工作台"
           data-echo-design-chat="true"
           src={chatUrl}
           onLoad={() => {
@@ -2849,13 +2849,13 @@ function ComfyUIView({
         window.setTimeout(() => void check(), 900);
       } else {
         setOnline(false);
-        toast.success("已停止由 Echo 启动的 ComfyUI");
+        toast.success("已停止由 ECHO AI 启动的 ComfyUI");
       }
     } catch {
       toast.error(
         action === "start"
           ? "未能启动，请确认本地 ComfyUI 安装完整"
-          : "该服务不是由 Echo 启动，无法代为停止",
+          : "该服务不是由 ECHO AI 启动，无法代为停止",
       );
     } finally {
       setChecking(false);
@@ -3750,7 +3750,7 @@ function ComfyUIView({
                 {selectedWorkflow.description}
                 {"\n"}
                 {selectedWorkflow.availability === "dependency"
-                  ? "这是能力目录，需要先安装页面列出的模型或扩展，Echo 不会静默下载大模型。"
+                  ? "这是能力目录，需要先安装页面列出的模型或扩展，ECHO AI 不会静默下载大模型。"
                   : "工作流可在本机手动运行，也可加入画布交给智能体调用。模型和输入文件始终由你选择。"}
               </p>
               <Button
@@ -3882,7 +3882,7 @@ function ComfyUIView({
               <div className="mt-5 max-w-xl">
                 <h3 className="text-[12px] font-semibold">来源与许可</h3>
                 <div className="mt-2 rounded-xl border border-border-default px-3 py-2.5 text-[10px]">
-                  <div className="font-medium">Echo 原创工作流模板</div>
+                  <div className="font-medium">ECHO 原创工作流模板</div>
                   <div className="mt-0.5 text-muted-foreground">
                     Apache-2.0 · 兼容 ComfyUI 工作流格式
                   </div>
@@ -4003,7 +4003,7 @@ function ComfyUIView({
                     </p>
                     <div className="mt-2 flex items-center text-micro text-muted-foreground">
                       <span className="rounded bg-muted px-1.5 py-0.5">
-                        {workflow.source === "user" ? "用户导入" : "Echo 原创"}
+                        {workflow.source === "user" ? "用户导入" : "ECHO 原创"}
                       </span>
                       <span className="ml-auto">{workflow.tags[0]}</span>
                     </div>
@@ -4041,7 +4041,7 @@ function ComfyUIView({
           <div className="mt-6 rounded-xl border border-amber-200 bg-amber-50 p-4 text-xs text-amber-900">
             <div className="font-semibold">没有发现 ComfyUI</div>
             <p className="mt-1 leading-5 text-amber-800">
-              启动本机 ComfyUI 并监听 127.0.0.1:8188 后再检测。Echo
+              启动本机 ComfyUI 并监听 127.0.0.1:8188 后再检测。ECHO AI
               只连接你的本地服务，不会自动下载数十 GB 的模型。
             </p>
           </div>
@@ -7162,7 +7162,7 @@ export default function DesignPage({
               {feedbackDialog === "wish" ? "功能许愿" : "反馈"}
             </DialogTitle>
             <DialogDescription>
-              内容会保存到 Echo 的反馈记录，便于后续产品迭代。
+              内容会保存到 ECHO AI 的反馈记录，便于后续产品迭代。
             </DialogDescription>
           </DialogHeader>
           <Textarea
@@ -7544,7 +7544,7 @@ export default function DesignPage({
                   className="mr-1 h-8 text-[10px]"
                   onClick={() => setComfyNative(false)}
                 >
-                  返回 Echo 编辑器
+                  返回 ECHO AI 编辑器
                 </Button>
                 <Button
                   variant="ghost"

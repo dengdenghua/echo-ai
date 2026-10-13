@@ -4,11 +4,11 @@
  * because the surrounding UI uses another supported locale.
  */
 const ABOUT_MARKDOWN = {
-  en: `# [About Echo](https://github.com/dengdenghua/echo-ai)
+  en: `# [About ECHO AI](https://github.com/dengdenghua/echo-ai)
 
 > **From Open Source, Back to Open Source**
 
-Echo is an open-source **super-agent harness** that coordinates **agents**, **memory**, and **safe execution environments** to complete complex work with extensible skills.
+ECHO AI is an open-source **super-agent harness** that coordinates **agents**, **memory**, and **safe execution environments** to complete complex work with extensible skills.
 
 ---
 
@@ -30,21 +30,21 @@ Echo is an open-source **super-agent harness** that coordinates **agents**, **me
 
 ## License
 
-Echo is open source and distributed under the **Apache License 2.0**.
+ECHO AI is open source and distributed under the **Apache License 2.0**.
 
 ---
 
 ## Acknowledgments
 
-Thank you to the open-source projects and contributors who make Echo possible, including [React](https://react.dev/), [Vite](https://vite.dev/), [FastAPI](https://fastapi.tiangolo.com/), [shadcn/ui](https://ui.shadcn.com/), and [SToneX](https://github.com/stonexer).
+Thank you to the open-source projects and contributors who make ECHO AI possible, including [React](https://react.dev/), [Vite](https://vite.dev/), [FastAPI](https://fastapi.tiangolo.com/), [shadcn/ui](https://ui.shadcn.com/), and [SToneX](https://github.com/stonexer).
 
 Special thanks to [Daniel Walnut](https://github.com/hetaoBackend/) and [Henry Li](https://github.com/magiccube/) for their vision and dedication.
 `,
-  zh: `# [关于 Echo](https://github.com/dengdenghua/echo-ai)
+  zh: `# [关于 ECHO AI](https://github.com/dengdenghua/echo-ai)
 
 > **源于开源，回馈开源**
 
-Echo 是一个开源的**超级智能体框架**，通过协同**智能体、记忆与安全执行环境**，结合可扩展技能完成复杂工作。
+ECHO AI 是一个开源的**超级智能体框架**，通过协同**智能体、记忆与安全执行环境**，结合可扩展技能完成复杂工作。
 
 ---
 
@@ -66,21 +66,21 @@ Echo 是一个开源的**超级智能体框架**，通过协同**智能体、记
 
 ## 开源许可
 
-Echo 采用 **Apache License 2.0** 开源发布。
+ECHO AI 采用 **Apache License 2.0** 开源发布。
 
 ---
 
 ## 致谢
 
-感谢所有让 Echo 成为可能的开源项目与贡献者，包括 [React](https://react.dev/)、[Vite](https://vite.dev/)、[FastAPI](https://fastapi.tiangolo.com/)、[shadcn/ui](https://ui.shadcn.com/) 和 [SToneX](https://github.com/stonexer)。
+感谢所有让 ECHO AI 成为可能的开源项目与贡献者，包括 [React](https://react.dev/)、[Vite](https://vite.dev/)、[FastAPI](https://fastapi.tiangolo.com/)、[shadcn/ui](https://ui.shadcn.com/) 和 [SToneX](https://github.com/stonexer)。
 
 特别感谢 [Daniel Walnut](https://github.com/hetaoBackend/) 与 [Henry Li](https://github.com/magiccube/) 的愿景、热情和长期投入。
 `,
-  ja: `# [Echo について](https://github.com/dengdenghua/echo-ai)
+  ja: `# [ECHO AI について](https://github.com/dengdenghua/echo-ai)
 
 > **オープンソースから生まれ、オープンソースへ還元する**
 
-Echo は、**エージェント、メモリ、安全な実行環境**を連携させ、拡張可能なスキルで複雑な作業を進めるオープンソースの**スーパーエージェント基盤**です。
+ECHO AI は、**エージェント、メモリ、安全な実行環境**を連携させ、拡張可能なスキルで複雑な作業を進めるオープンソースの**スーパーエージェント基盤**です。
 
 ---
 
@@ -102,21 +102,21 @@ Echo は、**エージェント、メモリ、安全な実行環境**を連携�
 
 ## ライセンス
 
-Echo は **Apache License 2.0** で公開されています。
+ECHO AI は **Apache License 2.0** で公開されています。
 
 ---
 
 ## 謝辞
 
-Echo を支えるすべてのオープンソースプロジェクトと貢献者に感謝します。特に [React](https://react.dev/)、[Vite](https://vite.dev/)、[FastAPI](https://fastapi.tiangolo.com/)、[shadcn/ui](https://ui.shadcn.com/)、[SToneX](https://github.com/stonexer) に感謝します。
+ECHO AI を支えるすべてのオープンソースプロジェクトと貢献者に感謝します。特に [React](https://react.dev/)、[Vite](https://vite.dev/)、[FastAPI](https://fastapi.tiangolo.com/)、[shadcn/ui](https://ui.shadcn.com/)、[SToneX](https://github.com/stonexer) に感謝します。
 
 ビジョンと継続的な貢献を寄せてくださった [Daniel Walnut](https://github.com/hetaoBackend/) と [Henry Li](https://github.com/magiccube/) に、心より感謝します。
 `,
-  ko: `# [Echo 소개](https://github.com/dengdenghua/echo-ai)
+  ko: `# [ECHO AI 소개](https://github.com/dengdenghua/echo-ai)
 
 > **오픈 소스에서 시작해 오픈 소스로 돌려드립니다**
 
-Echo는 **에이전트, 메모리, 안전한 실행 환경**을 조율하고 확장 가능한 스킬로 복잡한 작업을 수행하는 오픈 소스 **슈퍼 에이전트 프레임워크**입니다.
+ECHO AI는 **에이전트, 메모리, 안전한 실행 환경**을 조율하고 확장 가능한 스킬로 복잡한 작업을 수행하는 오픈 소스 **슈퍼 에이전트 프레임워크**입니다.
 
 ---
 
@@ -138,13 +138,13 @@ Echo는 **에이전트, 메모리, 안전한 실행 환경**을 조율하고 확
 
 ## 라이선스
 
-Echo는 **Apache License 2.0**으로 공개됩니다.
+ECHO AI는 **Apache License 2.0**으로 공개됩니다.
 
 ---
 
 ## 감사의 말
 
-Echo를 가능하게 한 모든 오픈 소스 프로젝트와 기여자에게 감사드립니다. 특히 [React](https://react.dev/), [Vite](https://vite.dev/), [FastAPI](https://fastapi.tiangolo.com/), [shadcn/ui](https://ui.shadcn.com/), [SToneX](https://github.com/stonexer)에 감사드립니다.
+ECHO AI를 가능하게 한 모든 오픈 소스 프로젝트와 기여자에게 감사드립니다. 특히 [React](https://react.dev/), [Vite](https://vite.dev/), [FastAPI](https://fastapi.tiangolo.com/), [shadcn/ui](https://ui.shadcn.com/), [SToneX](https://github.com/stonexer)에 감사드립니다.
 
 비전과 꾸준한 헌신을 보여 주신 [Daniel Walnut](https://github.com/hetaoBackend/)과 [Henry Li](https://github.com/magiccube/)에게 특별히 감사드립니다.
 `,

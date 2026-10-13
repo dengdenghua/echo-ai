@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 const sections = [
   {
     title: "我们处理的数据",
-    body: "Echo 可能处理你的登录标识、对话内容、任务上下文、上传文件、操作记录、浏览器会话状态、工作区配置和错误日志。实际范围取决于你启用的功能和部署方式。",
+    body: "ECHO AI 可能处理你的登录标识、对话内容、任务上下文、上传文件、操作记录、浏览器会话状态、工作区配置和错误日志。实际范围取决于你启用的功能和部署方式。",
   },
   {
     title: "处理目的",
@@ -43,7 +43,7 @@ export default function PrivacyPage() {
           </p>
           <h1 className="mt-2 text-2xl font-semibold">隐私政策</h1>
           <p className="mt-3 text-sm leading-6 text-muted-foreground">
-            本政策说明 Echo
+            本政策说明 ECHO AI
             在产品运行中可能处理哪些数据，以及这些数据如何用于完成你的任务。
           </p>
 

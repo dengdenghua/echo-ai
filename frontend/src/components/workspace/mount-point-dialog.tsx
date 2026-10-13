@@ -370,7 +370,7 @@ export function MountPointDialog({
           </div>
 
           <p className="text-xs text-muted-foreground">
-            先在运行 Echo 的设备上用 CD2 或系统文件共享挂载目录，再选择“本地”并填写挂载路径（例如 Z:\team\project 或 /mnt/team/project）。此处接入已有目录，不会自动安装或启动挂载软件。挂载在另一台电脑上的盘符不能直接使用。
+            先在运行 ECHO AI 的设备上用 CD2 或系统文件共享挂载目录，再选择“本地”并填写挂载路径（例如 Z:\team\project 或 /mnt/team/project）。此处接入已有目录，不会自动安装或启动挂载软件。挂载在另一台电脑上的盘符不能直接使用。
           </p>
           {mountType !== "local" && <FieldRow
             id="workspace-filesystem-path"

@@ -32,7 +32,7 @@ describe("connection error hints", () => {
 
   it("separates Echo-level failures from SSH ones", () => {
     expect(connectionErrorHint("HTTP 401", workLocationZhCN)).toMatch(
-      /^远端 Echo 拒绝了访问/,
+      /^远端 ECHO AI 拒绝了访问/,
     );
     expect(connectionErrorHint("something odd", workLocationZhCN)).toBe(
       "something odd",

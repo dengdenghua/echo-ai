@@ -2,6 +2,7 @@ import { GlobeIcon } from "lucide-react";
 import { useEffect, useLayoutEffect, useRef } from "react";
 import { Link, useLocation } from "react-router-dom";
 
+import { EchoOrbGlyph } from "@/components/brand/echo-brand-mark";
 import { useI18n } from "@/core/i18n/hooks";
 import {
   BROWSER_WORKSPACE_ROUTE,
@@ -18,8 +19,7 @@ const sliderPosition = (surface: WorkspaceSurfaceMode) =>
     ? { transform: "translateX(0)", width: "48px" }
     : { transform: "translateX(50px)", width: "48px" };
 
-export const LAST_AGENT_WORKSPACE_ROUTE_KEY =
-  "echo:last-agent-workspace-route";
+export const LAST_AGENT_WORKSPACE_ROUTE_KEY = "echo:last-agent-workspace-route";
 
 export function WorkspaceSurfaceSwitch({
   active,
@@ -79,7 +79,6 @@ export function WorkspaceSurfaceSwitch({
     {
       to: agentReturnRoute,
       label: t.desktop.header.brand,
-      text: t.desktop.header.brand,
       value: "agent" as const,
     },
     {
@@ -136,8 +135,10 @@ export function WorkspaceSurfaceSwitch({
                 aria-hidden="true"
               />
             )}
+            {/* The product name ("ECHO AI") does not fit half of this
+                pill; the ECHO mark stands in, the name stays the label. */}
             {item.value === "agent" && (
-              <span className="min-w-0 truncate">{item.text}</span>
+              <EchoOrbGlyph className="size-4 shrink-0" />
             )}
           </Link>
         );

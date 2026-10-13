@@ -30,7 +30,7 @@ export function WebShortcutEditor() {
     <section className="mb-5 border-b border-border-subtle pb-5">
       <h3 className="mb-1 text-sm font-medium">网页标签</h3>
       <p className="mb-3 text-xs text-muted-foreground">
-        固定到左侧，在 Echo 内打开。保存在当前浏览器或设备。
+        固定到左侧，在 ECHO AI 内打开。保存在当前浏览器或设备。
       </p>
       <form
         className="space-y-2"

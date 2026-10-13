@@ -43,7 +43,9 @@ it("connects and registers a Responses source in Echo without requiring a Codex 
   expect(await screen.findByLabelText("热点模型")).toHaveValue(
     "upstream-model",
   );
-  fireEvent.click(screen.getByRole("button", { name: "添加到 Echo 模型列表" }));
+  fireEvent.click(
+    screen.getByRole("button", { name: "添加到 ECHO AI 模型列表" }),
+  );
   await waitFor(() => expect(onConnected).toHaveBeenCalledTimes(1));
   expect(screen.getByLabelText("邀请凭证")).toHaveValue("");
   expect(screen.getByRole("status")).toHaveTextContent("聊天的模型选择器");
@@ -52,7 +54,9 @@ it("connects and registers a Responses source in Echo without requiring a Codex 
   });
   fireEvent.click(screen.getByRole("button", { name: "验证并读取模型" }));
   await screen.findByLabelText("热点模型");
-  fireEvent.click(screen.getByRole("button", { name: "添加到 Echo 模型列表" }));
+  fireEvent.click(
+    screen.getByRole("button", { name: "添加到 ECHO AI 模型列表" }),
+  );
   await waitFor(() => expect(onConnected).toHaveBeenCalledTimes(2));
   const saved = fetchMock.mock.calls.filter(
     ([, init]) => init?.method === "PUT",

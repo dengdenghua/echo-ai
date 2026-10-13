@@ -8,6 +8,7 @@ import {
 } from "lucide-react";
 import { useParams } from "react-router-dom";
 
+import { EchoLockup } from "@/components/brand/echo-wordmark";
 import { MarkdownContent } from "@/components/workspace/messages/markdown-content";
 import {
   getPublicThreadShare,
@@ -121,11 +122,8 @@ function PublicShareView({ share }: { share: PublicThreadShare }) {
     <div className="min-h-screen bg-muted/35 text-foreground">
       <header className="border-b border-border-subtle bg-background/95 px-4 backdrop-blur sm:px-6">
         <div className="mx-auto flex h-14 max-w-3xl items-center justify-between gap-4">
-          <div className="flex min-w-0 items-center gap-2.5">
-            <div className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-foreground text-background">
-              <BotIcon className="size-4" />
-            </div>
-            <span className="truncate text-sm font-semibold">Echo</span>
+          <div className="flex min-w-0 items-center">
+            <EchoLockup product="AI" wordmarkClassName="h-5" />
           </div>
           <span className="shrink-0 rounded-full border border-border-default bg-muted/50 px-2.5 py-1 text-[11px] font-medium text-muted-foreground">
             公开分享 · 只读
@@ -140,7 +138,7 @@ function PublicShareView({ share }: { share: PublicThreadShare }) {
             id="share-title"
             className="mt-2 text-balance text-2xl font-semibold tracking-tight sm:text-3xl"
           >
-            {share.title || "Echo 分享任务"}
+            {share.title || "ECHO AI 分享任务"}
           </h1>
           <div className="mt-4 flex flex-wrap items-center gap-x-4 gap-y-2 text-xs text-muted-foreground">
             <span>{share.stats?.turns ?? 0} 轮对话</span>
@@ -252,8 +250,8 @@ export default function PublicThreadSharePage() {
     const previousTitle = document.title;
     document.title =
       state.status === "ready"
-        ? `${state.share.title} · Echo 分享`
-        : "Echo 公开分享";
+        ? `${state.share.title} · ECHO AI 分享`
+        : "ECHO AI 公开分享";
     return () => {
       document.title = previousTitle;
     };

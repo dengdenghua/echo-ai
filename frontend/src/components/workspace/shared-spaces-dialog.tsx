@@ -107,7 +107,7 @@ export function SharedSpacesDialog({
           </DialogHeader>
           <p className="text-xs text-muted-foreground">
             {zh
-              ? "两边目录都须在当前 Echo 执行设备上可访问。直接选择共享目录作为项目时，无须这一步复制同步。"
+              ? "两边目录都须在当前 ECHO AI 执行设备上可访问。直接选择共享目录作为项目时，无须这一步复制同步。"
               : "Both directories must be accessible on the connected Echo runtime. Projects opened directly on a shared mount need no copy sync."}
           </p>
           {error && (

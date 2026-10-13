@@ -57,7 +57,7 @@ vi.mock("@/core/i18n/hooks", () => {
     },
     intelligencePanel: {
       examplePrompts: [
-        "每天跟踪 Echo Agent 相关 GitHub release、issue 和竞品动态",
+        "每天跟踪 ECHO AI 相关 GitHub release、issue 和竞品动态",
         "每周汇总 AI Agent、浏览器自动化、多智能体框架的新论文",
       ],
       goalPlaceholder: "描述你想持续追踪的情报目标",

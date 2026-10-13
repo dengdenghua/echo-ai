@@ -246,7 +246,7 @@ export default function MailPage() {
     try {
       await api("/drafts", { method: "POST", body: draft });
       if (close) setDraft(null);
-      setNotice("草稿已保存到 Echo");
+      setNotice("草稿已保存到 ECHO AI");
       setRefresh((n) => n + 1);
     } catch (err) {
       setDraftError(errorText(err));
@@ -332,7 +332,7 @@ export default function MailPage() {
             <Mail size={19} />
           </span>
           <strong>邮箱</strong>
-          <span>Echo</span>
+          <span>ECHO AI</span>
         </div>
         <button
           className="mail-primary mail-compose"
@@ -362,7 +362,7 @@ export default function MailPage() {
             onClick={() => changeFolder("drafts")}
           >
             <FileText size={17} />
-            Echo 草稿
+            ECHO AI 草稿
           </button>
         </nav>
         <div className="mail-account-label">
@@ -748,8 +748,8 @@ export default function MailPage() {
                 />
               </label>
               <p>
-                先开启 Google 两步验证，再生成应用专用密码。凭据加密保存在 Echo
-                后端，不进入聊天记录。
+                先开启 Google 两步验证，再生成应用专用密码。凭据加密保存在 ECHO
+                AI 后端，不进入聊天记录。
               </p>
               <a
                 href="https://myaccount.google.com/apppasswords"

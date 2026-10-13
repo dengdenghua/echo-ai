@@ -57,7 +57,7 @@ export const attentionNotificationsEnUS: AttentionNotificationCopy = {
   untitledThread: "Untitled task",
   summaryTitle: (count) =>
     `${count} more task ${count === 1 ? "update" : "updates"}`,
-  summaryBody: "Open Echo to see which tasks need you.",
+  summaryBody: "Open ECHO AI to see which tasks need you.",
   projectDigestTitle: (count) =>
     `${count} ${count === 1 ? "project needs" : "projects need"} your attention`,
   projectDigestBody:
@@ -65,7 +65,7 @@ export const attentionNotificationsEnUS: AttentionNotificationCopy = {
 
   settingsHeading: "Notify me when",
   settingsHint:
-    "Sent when Echo is in the background or the task is not the one on screen.",
+    "Sent when ECHO AI is in the background or the task is not the one on screen.",
   categoryCompleted: "A task completes",
   categoryCompletedHint: "Including tasks that finish in the background.",
   categoryFailed: "A task fails",
@@ -96,10 +96,10 @@ export const attentionNotificationsZhCN: AttentionNotificationCopy = {
   actionHint: "点击前往处理。",
   untitledThread: "未命名任务",
   summaryTitle: (count) => `另有 ${count} 条任务提醒`,
-  summaryBody: "打开 Echo 查看哪些任务需要你处理。",
+  summaryBody: "打开 ECHO AI 查看哪些任务需要你处理。",
 
   settingsHeading: "提醒类型",
-  settingsHint: "Echo 在后台，或该任务不是当前正在查看的对话时发送。",
+  settingsHint: "ECHO AI 在后台，或该任务不是当前正在查看的对话时发送。",
   categoryCompleted: "任务完成",
   categoryCompletedHint: "包括在后台结束的任务。",
   categoryFailed: "任务失败",
@@ -130,11 +130,11 @@ export const attentionNotificationsJaJP: AttentionNotificationCopy = {
   actionHint: "クリックして確認してください。",
   untitledThread: "無題のタスク",
   summaryTitle: (count) => `ほかに ${count} 件のタスク通知`,
-  summaryBody: "Echo を開いて対応が必要なタスクを確認してください。",
+  summaryBody: "ECHO AI を開いて対応が必要なタスクを確認してください。",
 
   settingsHeading: "通知するタイミング",
   settingsHint:
-    "Echo がバックグラウンドにあるとき、または表示中ではないタスクで送信します。",
+    "ECHO AI がバックグラウンドにあるとき、または表示中ではないタスクで送信します。",
   categoryCompleted: "タスクの完了",
   categoryCompletedHint: "バックグラウンドで終了したタスクを含みます。",
   categoryFailed: "タスクの失敗",
@@ -166,11 +166,11 @@ export const attentionNotificationsKoKR: AttentionNotificationCopy = {
   actionHint: "클릭하여 확인하세요.",
   untitledThread: "제목 없는 작업",
   summaryTitle: (count) => `작업 알림 ${count}건 더 있음`,
-  summaryBody: "Echo를 열어 처리가 필요한 작업을 확인하세요.",
+  summaryBody: "ECHO AI를 열어 처리가 필요한 작업을 확인하세요.",
 
   settingsHeading: "알림 받을 상황",
   settingsHint:
-    "Echo가 백그라운드에 있거나 현재 보고 있지 않은 작업일 때 보냅니다.",
+    "ECHO AI가 백그라운드에 있거나 현재 보고 있지 않은 작업일 때 보냅니다.",
   categoryCompleted: "작업 완료",
   categoryCompletedHint: "백그라운드에서 종료된 작업을 포함합니다.",
   categoryFailed: "작업 실패",

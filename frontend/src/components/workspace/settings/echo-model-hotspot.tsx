@@ -65,7 +65,7 @@ export function EchoModelHotspotSettings({
         <div>
           <h3 className="font-medium">个人共享</h3>
           <p className="text-sm text-muted-foreground">
-            共享模型额度，或连接同事的热点。会话和本地工具继续在各自的 Echo
+            共享模型额度，或连接同事的热点。会话和本地工具继续在各自的 ECHO AI
             中运行。
           </p>
         </div>
@@ -202,7 +202,7 @@ export function EchoModelHotspotSettings({
                 })
               }
             >
-              添加到 Echo 模型列表
+              添加到 ECHO AI 模型列表
             </button>
           </div>
         )}

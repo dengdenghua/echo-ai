@@ -119,7 +119,7 @@ export function ExecutionNodesDialog({
           </DialogTitle>
           <DialogDescription>
             {zh
-              ? "选择已接入的 Echo 设备处理项目文件。任务保存在服务端，关闭窗口不会取消；选多台设备可在掉线后接续。"
+              ? "选择已接入的 ECHO AI 设备处理项目文件。任务保存在服务端，关闭窗口不会取消；选多台设备可在掉线后接续。"
               : "Process project files on connected Echo devices. Closing this window keeps tasks running. Select multiple devices for recovery."}
           </DialogDescription>
         </DialogHeader>
@@ -161,7 +161,7 @@ export function ExecutionNodesDialog({
         {workspace && nodes.length === 0 && (
           <p className="text-sm text-muted-foreground">
             {zh
-              ? "暂无设备提供这个项目。请在运行 Echo 的设备上配置执行节点及该项目目录映射。"
+              ? "暂无设备提供这个项目。请在运行 ECHO AI 的设备上配置执行节点及该项目目录映射。"
               : "No device offers this project. Configure an execution node with this workspace mapping."}
           </p>
         )}

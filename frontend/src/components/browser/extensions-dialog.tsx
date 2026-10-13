@@ -92,8 +92,8 @@ export function ExtensionsDialog({
     const ok = await confirm({
       title: "移除扩展",
       description: fromStore
-        ? `从 Echo 中移除「${extension.name}」？`
-        : `从 Echo 中移除「${extension.name}」？扩展文件夹本身不会被删除。`,
+        ? `从 ECHO AI 中移除「${extension.name}」？`
+        : `从 ECHO AI 中移除「${extension.name}」？扩展文件夹本身不会被删除。`,
     });
     if (ok && api) await run(() => api.remove(extension.id));
   };
@@ -120,7 +120,7 @@ export function ExtensionsDialog({
         </DialogHeader>
         {!api ? (
           <p className="rounded-lg bg-muted/60 px-3 py-2 text-sm text-muted-foreground">
-            扩展需要在 Echo 桌面版中使用。
+            扩展需要在 ECHO AI 桌面版中使用。
           </p>
         ) : (
           <div className="max-h-[50vh] space-y-2 overflow-y-auto">
@@ -232,8 +232,8 @@ export function ExtensionsDialog({
         </div>
         {api ? (
           <p className="text-xs leading-5 text-muted-foreground">
-            在应用店打开扩展详情页，点地址栏的“安装到
-            Echo”，或复制链接粘贴到上面。部分扩展接口在 Echo 中不可用。
+            在应用店打开扩展详情页，点地址栏的“安装到 ECHO
+            AI”，或复制链接粘贴到上面。部分扩展接口在 ECHO AI 中不可用。
           </p>
         ) : null}
         {confirmDialog}

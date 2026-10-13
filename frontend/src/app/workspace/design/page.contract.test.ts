@@ -115,7 +115,7 @@ describe("Echo Design platform contract", () => {
     expect(pageSource).toContain("data-add-node-trigger");
     expect(pageSource).toContain("画布 + 个人工作台");
     expect(pageSource).toContain("仅个人工作台");
-    expect(pageSource).toContain('title="Echo 设计工作台"');
+    expect(pageSource).toContain('title="ECHO AI 设计工作台"');
     expect(pageSource).not.toContain("交给 AI");
     expect(pageSource).toContain("在个人工作台发送需求时");
     expect(pageSource).toContain("<CreativeProjectSelector");
@@ -302,7 +302,7 @@ describe("Echo Design platform contract", () => {
     expect(pageSource).toContain("selectedWorkflowNodeTypes");
     expect(pageSource).toContain("个节点");
     expect(pageSource).toContain("来源与许可");
-    expect(pageSource).toContain("Echo 原创工作流模板");
+    expect(pageSource).toContain("ECHO 原创工作流模板");
   });
 
   it("keeps the original creative prompt collection in the catalog", () => {
@@ -330,7 +330,7 @@ describe("Echo Design platform contract", () => {
 
   it("embeds a persistent native Comfy workflow editor", () => {
     expect(pageSource).toContain("<ComfyWorkflowEditor");
-    expect(pageSource).toContain("返回 Echo 编辑器");
+    expect(pageSource).toContain("返回 ECHO AI 编辑器");
     expect(comfyEditorSource).toContain("ui: { positions }");
     expect(comfyEditorSource).toContain("expected_revision: revision");
     expect(comfyEditorSource).toContain(

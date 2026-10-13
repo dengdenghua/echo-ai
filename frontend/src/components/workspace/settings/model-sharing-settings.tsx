@@ -18,7 +18,7 @@ export function ModelSharingSettings({
       <div>
         <h3 className="font-medium">模型共享</h3>
         <p className="mt-1 text-sm text-muted-foreground">
-          连接同事或团队提供的模型，在自己的 Echo 中使用。
+          连接同事或团队提供的模型，在自己的 ECHO AI 中使用。
         </p>
       </div>
       <div

@@ -77,7 +77,7 @@ describe("WorkspaceSurfaceSwitch", () => {
       initialRoute: "/browser",
     });
 
-    expect(screen.getByRole("tab", { name: "Echo" })).toHaveAttribute(
+    expect(screen.getByRole("tab", { name: "ECHO AI" })).toHaveAttribute(
       "href",
       "/workspace/realtime/thread-42?mode=team",
     );

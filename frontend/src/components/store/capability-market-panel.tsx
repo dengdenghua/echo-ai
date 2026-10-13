@@ -756,7 +756,7 @@ export function ConnectDialog({
 
         {isPlugin && (
           <p className="text-xs leading-5 text-muted-foreground">
-            插件(Echo
+            插件(ECHO AI
             插件)无需认证,安装后技能即可用。点「保存凭据」直接确认就绪。
           </p>
         )}
@@ -804,7 +804,7 @@ export function ConnectDialog({
                   "直连模型 API，不安装或检测任何 CLI"}
               </p>
               <p className="mt-0.5 text-muted-foreground">
-                Key 会加密保存在本机；模型继续使用 Echo
+                Key 会加密保存在本机；模型继续使用 ECHO AI
                 的流式输出、工具调用和记忆。
               </p>
               {modelProvider.dashboard_url ? (
@@ -914,7 +914,7 @@ export function ConnectDialog({
                 官方 Freebuff CLI · 交互式本地智能体
               </p>
               <p className="text-muted-foreground">
-                登录会打开 freebuff.com 官方授权页。Echo
+                登录会打开 freebuff.com 官方授权页。ECHO AI
                 不读取或保存其登录凭据；Freebuff
                 会处理你交给它的对话、代码和工作区文件。
               </p>
@@ -1980,7 +1980,7 @@ export function CapabilityMarketPanel({
       !window.echo?.isElectron
     ) {
       setError(
-        "该服务商使用桌面客户端回跳，请在 Echo 桌面版中完成授权。浏览器版无法安全接收授权结果。",
+        "该服务商使用桌面客户端回跳，请在 ECHO AI 桌面版中完成授权。浏览器版无法安全接收授权结果。",
       );
       return;
     }

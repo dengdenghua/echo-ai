@@ -71,7 +71,7 @@ function issueFromError(error: unknown): SurfaceIssue {
   if (error instanceof TypeError) {
     return {
       kind: "offline",
-      message: "无法连接本地服务。请确认 Echo 服务正在运行，然后重试。",
+      message: "无法连接本地服务。请确认 ECHO AI 服务正在运行，然后重试。",
     };
   }
   return {
@@ -105,7 +105,7 @@ function manifestLoadError(
   if (status === 409) {
     return new RemoteWorkbenchLoadError(
       "incompatible",
-      detail || "当前应用版本与 Echo 宿主不兼容，请更新应用。",
+      detail || "当前应用版本与 ECHO AI 宿主不兼容，请更新应用。",
     );
   }
   if (status === 422) {
@@ -338,7 +338,7 @@ export function RemoteWorkbenchSurface({
         if (packageStatus?.lifecycle_state === "incompatible") {
           throw new RemoteWorkbenchLoadError(
             "incompatible",
-            packageStatus.error || "应用版本与当前 Echo 宿主不兼容。",
+            packageStatus.error || "应用版本与当前 ECHO AI 宿主不兼容。",
           );
         }
         if (packageStatus && !packageStatus.installed) {
@@ -390,7 +390,7 @@ export function RemoteWorkbenchSurface({
           if (status.lifecycle_state === "incompatible") {
             throw new RemoteWorkbenchLoadError(
               "incompatible",
-              status.error || "应用版本与当前 Echo 宿主不兼容。",
+              status.error || "应用版本与当前 ECHO AI 宿主不兼容。",
             );
           }
         } catch (statusError) {

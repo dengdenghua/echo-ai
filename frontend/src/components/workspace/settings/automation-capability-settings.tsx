@@ -468,7 +468,7 @@ export function BrowserAutomationSettingsPage() {
               {zh ? "外部浏览器" : "External browser"}
             </SelectItem>
             <SelectItem value="in_app">
-              {zh ? "Echo 应用内" : "Inside Echo"}
+              {zh ? "ECHO AI 应用内" : "Inside ECHO AI"}
             </SelectItem>
           </SelectContent>
         </Select>
@@ -498,7 +498,7 @@ export function BrowserAutomationSettingsPage() {
               {zh ? "外部浏览器" : "External browser"}
             </SelectItem>
             <SelectItem value="in_app">
-              {zh ? "Echo 应用内" : "Inside Echo"}
+              {zh ? "ECHO AI 应用内" : "Inside ECHO AI"}
             </SelectItem>
           </SelectContent>
         </Select>
@@ -656,7 +656,7 @@ export function DesktopAutomationSettingsPage() {
         )}
         <span>
           {zh
-            ? "系统权限与 Echo 总开关是两层控制：两者都就绪时桌面操控才可用。"
+            ? "系统权限与 ECHO AI 总开关是两层控制：两者都就绪时桌面操控才可用。"
             : "System permissions and the Echo capability switch are separate gates; both must be ready."}
         </span>
       </div>

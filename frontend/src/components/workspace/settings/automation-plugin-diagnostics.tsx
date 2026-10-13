@@ -92,7 +92,7 @@ export function AutomationPluginDiagnostics({
           ) && (
             <p className="text-xs text-muted-foreground">
               {lang === 0
-                ? "缺少驱动时，安装对应插件依赖并重启 Echo 后端；可选驱动无需全部安装。"
+                ? "缺少驱动时，安装对应插件依赖并重启 ECHO AI 后端；可选驱动无需全部安装。"
                 : "Install the relevant plugin dependencies and restart the Echo backend. Alternative drivers are optional."}
             </p>
           )}

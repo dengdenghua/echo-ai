@@ -111,6 +111,8 @@ function isTranslationExempt(value: string): boolean {
   if (/^[\w-]+(,\s*[\w-]+)+/.test(trimmed)) return true;
   // CJK characters are their own translation (e.g. "中文" in all locales)
   if (/[\u4e00-\u9fff]/.test(trimmed)) return true;
+  // ECHO family product names are never translated ("ECHO AI", "ECHO OS").
+  if (/^ECHO(?: (?:AI|OS|NAS))?$/.test(trimmed)) return true;
   // Brand name + punctuation (e.g. "Arms ·", "URL:")
   if (/^[A-Z]\w+\s*[\u00B7:].*$/.test(trimmed)) return true;
   return false;

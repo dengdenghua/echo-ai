@@ -59,7 +59,7 @@ export interface AboutPageCopy {
 export const aboutPageEnUS: AboutPageCopy = {
   caseStudies: {
     title: "Case Studies",
-    subtitle: "See how Echo is used in the wild",
+    subtitle: "See how ECHO AI is used in the wild",
     tryPrompt: "Start a chat with this prompt",
     items: [
       {
@@ -125,7 +125,7 @@ export const aboutPageEnUS: AboutPageCopy = {
     tags: ["Isolated", "Safe", "Persistent", "Mountable FS", "Long-running"],
   },
   whatsNew: {
-    title: "What's New in Echo",
+    title: "What's New in ECHO AI",
     subtitle:
       "ECHO AI is evolving into a social, full-stack intelligent character platform powered by ECHO OS",
     features: [
@@ -166,7 +166,7 @@ export const aboutPageEnUS: AboutPageCopy = {
   community: {
     title: "Join the Community",
     subtitle:
-      "Contribute brilliant ideas to shape the future of Echo. Collaborate, innovate, and make an impact.",
+      "Contribute brilliant ideas to shape the future of ECHO AI. Collaborate, innovate, and make an impact.",
     contribute: "Contribute Now",
   },
 };
@@ -174,7 +174,7 @@ export const aboutPageEnUS: AboutPageCopy = {
 export const aboutPageZhCN: AboutPageCopy = {
   caseStudies: {
     title: "应用案例",
-    subtitle: "看看大家都用 Echo 做些什么",
+    subtitle: "看看大家都用 ECHO AI 做些什么",
     tryPrompt: "用这个提示开始新对话",
     items: [
       {
@@ -236,7 +236,7 @@ export const aboutPageZhCN: AboutPageCopy = {
     tags: ["隔离", "安全", "持久化", "可挂载文件系统", "长时间运行"],
   },
   whatsNew: {
-    title: "Echo 新功能",
+    title: "ECHO AI 新功能",
     subtitle: "ECHO AI 正在成长为一个由 ECHO OS 驱动、可社交的全栈智能角色平台",
     features: [
       {
@@ -273,7 +273,7 @@ export const aboutPageZhCN: AboutPageCopy = {
   },
   community: {
     title: "加入社区",
-    subtitle: "贡献你的好点子，一起塑造 Echo 的未来。协作、创新，留下你的影响。",
+    subtitle: "贡献你的好点子，一起塑造 ECHO AI 的未来。协作、创新，留下你的影响。",
     contribute: "立即参与贡献",
   },
 };
@@ -281,7 +281,7 @@ export const aboutPageZhCN: AboutPageCopy = {
 export const aboutPageJaJP: AboutPageCopy = {
   caseStudies: {
     title: "活用事例",
-    subtitle: "Echo の実際の使われ方",
+    subtitle: "ECHO AI の実際の使われ方",
     tryPrompt: "このプロンプトで新しいチャットを開始",
     items: [
       {
@@ -349,7 +349,7 @@ export const aboutPageJaJP: AboutPageCopy = {
     tags: ["分離", "安全", "永続化", "FS マウント可", "長時間実行"],
   },
   whatsNew: {
-    title: "Echo の新機能",
+    title: "ECHO AI の新機能",
     subtitle:
       "ECHO AI は ECHO OS を基盤とした、ソーシャルでフルスタックな AI キャラクタープラットフォームへと進化しています",
     features: [
@@ -390,7 +390,7 @@ export const aboutPageJaJP: AboutPageCopy = {
   community: {
     title: "コミュニティに参加",
     subtitle:
-      "アイデアを持ち寄って、Echo の未来を一緒に形づくりましょう。協力し、革新し、インパクトを。",
+      "アイデアを持ち寄って、ECHO AI の未来を一緒に形づくりましょう。協力し、革新し、インパクトを。",
     contribute: "今すぐ貢献する",
   },
 };
@@ -398,7 +398,7 @@ export const aboutPageJaJP: AboutPageCopy = {
 export const aboutPageKoKR: AboutPageCopy = {
   caseStudies: {
     title: "활용 사례",
-    subtitle: "Echo가 실제로 쓰이는 모습",
+    subtitle: "ECHO AI가 실제로 쓰이는 모습",
     tryPrompt: "이 프롬프트로 새 대화 시작",
     items: [
       {
@@ -466,7 +466,7 @@ export const aboutPageKoKR: AboutPageCopy = {
     tags: ["격리", "안전", "영구 저장", "파일 시스템 마운트", "장시간 실행"],
   },
   whatsNew: {
-    title: "Echo의 새로운 기능",
+    title: "ECHO AI의 새로운 기능",
     subtitle:
       "ECHO AI는 ECHO OS 기반의 소셜 풀스택 지능형 캐릭터 플랫폼으로 진화하고 있습니다",
     features: [
@@ -507,7 +507,7 @@ export const aboutPageKoKR: AboutPageCopy = {
   community: {
     title: "커뮤니티에 참여하세요",
     subtitle:
-      "멋진 아이디어로 Echo의 미래를 함께 만들어 가세요. 협업하고, 혁신하고, 변화를 만드세요.",
+      "멋진 아이디어로 ECHO AI의 미래를 함께 만들어 가세요. 협업하고, 혁신하고, 변화를 만드세요.",
     contribute: "지금 기여하기",
   },
 };

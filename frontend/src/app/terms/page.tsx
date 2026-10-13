@@ -14,7 +14,7 @@ const sections = [
   },
   {
     title: "使用边界",
-    body: "请不要使用 Echo 进行违法、侵权、绕过访问控制、批量骚扰、恶意爬取或破坏系统稳定性的行为。涉及敏感数据、外部提交、删除、购买或权限变更时，应在执行前确认目标和影响。",
+    body: "请不要使用 ECHO AI 进行违法、侵权、绕过访问控制、批量骚扰、恶意爬取或破坏系统稳定性的行为。涉及敏感数据、外部提交、删除、购买或权限变更时，应在执行前确认目标和影响。",
   },
   {
     title: "输出与责任",
@@ -43,8 +43,8 @@ export default function TermsPage() {
           </p>
           <h1 className="mt-2 text-2xl font-semibold">用户协议</h1>
           <p className="mt-3 text-sm leading-6 text-muted-foreground">
-            欢迎使用
-            Echo。以下条款用于说明你与服务之间的基本权利、责任和使用边界。
+            欢迎使用 ECHO
+            AI。以下条款用于说明你与服务之间的基本权利、责任和使用边界。
           </p>
 
           <div className="mt-6 space-y-5">

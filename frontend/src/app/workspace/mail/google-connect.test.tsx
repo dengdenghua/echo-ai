@@ -16,7 +16,7 @@ afterEach(() => { vi.restoreAllMocks(); });
 it("requires a desktop client config and imports it without browser persistence", async () => {
   api.mockImplementation(async (path) => path === "/google/config" ? {configured: false, local: true} : {});
   renderWithProviders(<GoogleMailboxConnect onConnected={vi.fn()}/>);
-  expect(await screen.findByText("首次使用：配置 Echo 的 Google 客户端")).toBeVisible();
+  expect(await screen.findByText("首次使用：配置 ECHO AI 的 Google 客户端")).toBeVisible();
   expect(screen.getByRole("button", {name: "使用 Google 账号连接"})).toBeDisabled();
   const file = new File(["{}"], "client.json", {type: "application/json"});
   Object.defineProperty(file, "text", {value: async () => JSON.stringify({installed: {client_id: "client.apps.googleusercontent.com", client_secret: "secret"}})});
@@ -44,7 +44,7 @@ it("opens Google and only completes when the backend confirms the grant", async 
 it("rejects web client files with a useful error", async () => {
   api.mockResolvedValue({configured: false, local: true});
   renderWithProviders(<GoogleMailboxConnect onConnected={vi.fn()}/>);
-  await screen.findByText("首次使用：配置 Echo 的 Google 客户端");
+  await screen.findByText("首次使用：配置 ECHO AI 的 Google 客户端");
   const file = new File(["{}"], "web.json", {type: "application/json"});
   Object.defineProperty(file, "text", {value: async () => JSON.stringify({web: {client_id: "client", client_secret: "secret"}})});
   await userEvent.upload(screen.getByLabelText("导入 Google 客户端 JSON"), file);
