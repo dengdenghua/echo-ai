@@ -18,7 +18,7 @@ export interface ShareCardOptions {
   prompt?: string;
   /** Optional one-line result summary. */
   summary?: string;
-  /** Brand line. Defaults to "Echo". */
+  /** Brand line. Defaults to "ECHO". */
   brand?: string;
   /** Footer note (e.g. a date). Caller formats it (no Date.now() here). */
   footer?: string;
@@ -40,7 +40,7 @@ export function buildShareCard(opts: ShareCardOptions): ShareCard {
     title: (opts.title ?? "").trim() || "Untitled task",
     prompt: (opts.prompt ?? "").trim(),
     summary: (opts.summary ?? "").trim(),
-    brand: (opts.brand ?? "Echo").trim(),
+    brand: (opts.brand ?? "ECHO").trim(),
     footer: (opts.footer ?? "").trim(),
   };
 }
@@ -135,7 +135,7 @@ export function renderShareCardSvg(card: ShareCard): string {
 
   const titleSvg = tspans(titleLines, padX, 220, 64);
   const summarySvg = summaryLines.length
-    ? `<text font-family="system-ui, -apple-system, sans-serif" font-size="30" fill="#94a3b8">${tspans(
+    ? `<text font-family="system-ui, -apple-system, sans-serif" font-size="30" fill="#9aa3ae">${tspans(
         summaryLines,
         padX,
         220 + titleLines.length * 64 + 36,
@@ -144,9 +144,9 @@ export function renderShareCardSvg(card: ShareCard): string {
     : "";
 
   const promptBlock = promptLines.length
-    ? `<rect x="${padX}" y="${H - 250}" width="${W - padX * 2}" height="170" rx="16" fill="#1e293b" stroke="#334155" stroke-width="1"/>` +
-      `<text x="${padX + 24}" y="${H - 210}" font-family="system-ui, -apple-system, sans-serif" font-size="20" fill="#64748b">做同款 · prompt</text>` +
-      `<text font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="24" fill="#cbd5e1">${tspans(
+    ? `<rect x="${padX}" y="${H - 250}" width="${W - padX * 2}" height="170" rx="14" fill="#101216" stroke="#2b3038" stroke-width="1"/>` +
+      `<text x="${padX + 24}" y="${H - 210}" font-family="system-ui, -apple-system, sans-serif" font-size="20" fill="#7d8590">做同款 · prompt</text>` +
+      `<text font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="24" fill="#c3c9d1">${tspans(
         promptLines,
         padX + 24,
         H - 170,
@@ -156,17 +156,18 @@ export function renderShareCardSvg(card: ShareCard): string {
 
   return `<svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${H}" viewBox="0 0 ${W} ${H}">
 <defs><linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
-<stop offset="0" stop-color="#0f172a"/><stop offset="1" stop-color="#020617"/>
+<stop offset="0" stop-color="#171a1f"/><stop offset="1" stop-color="#090a0c"/>
 </linearGradient></defs>
 <rect width="${W}" height="${H}" fill="url(#bg)"/>
-<rect x="0" y="0" width="${W}" height="6" fill="#6366f1"/>
-<text x="${padX}" y="110" font-family="system-ui, -apple-system, sans-serif" font-size="28" font-weight="600" fill="#818cf8">${escapeXml(
+<g transform="translate(${padX} 62) scale(0.9)"><path d="M50 17H24a7 7 0 0 0-7 7v16a7 7 0 0 0 7 7h26" fill="none" stroke="#eef1f4" stroke-width="6"/><circle cx="38" cy="32" r="5" fill="#6fe3f0"/></g>
+<circle cx="${W - 120}" cy="${H - 120}" r="220" fill="#6fe3f0" opacity="0.05"/>
+<text x="${padX + 72}" y="104" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="22" font-weight="600" letter-spacing="4" fill="#9aa3ae">${escapeXml(
     card.brand,
   )}</text>
-<text font-family="system-ui, -apple-system, sans-serif" font-size="52" font-weight="700" fill="#f8fafc">${titleSvg}</text>
+<text font-family="system-ui, -apple-system, sans-serif" font-size="52" font-weight="700" fill="#eef1f4">${titleSvg}</text>
 ${summarySvg}
 ${promptBlock}
-<text x="${padX}" y="${H - 40}" font-family="system-ui, -apple-system, sans-serif" font-size="20" fill="#475569">${escapeXml(
+<text x="${padX}" y="${H - 40}" font-family="system-ui, -apple-system, sans-serif" font-size="20" fill="#7d8590">${escapeXml(
     card.footer,
   )}</text>
 </svg>`;

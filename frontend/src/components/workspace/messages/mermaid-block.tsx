@@ -119,15 +119,15 @@ export function MermaidBlock({
             theme: "base",
             themeVariables: {
               darkMode: dark,
-              background: dark ? "#161617" : "#ffffff",
-              mainBkg: dark ? "#202022" : "#fdf7fa",
-              nodeBorder: dark ? "#38383c" : "#e2e2e2",
-              primaryColor: dark ? "#2c2c2e" : "#f8eaf0",
-              primaryTextColor: dark ? "#f5f5f7" : "#1d1d1f",
-              primaryBorderColor: dark ? "#efb0ca" : "#b13f6c",
-              lineColor: dark ? "#a1a1a8" : "#6e6e73",
-              secondaryColor: dark ? "#202022" : "#f5f5f5",
-              tertiaryColor: dark ? "#262628" : "#ffffff",
+              background: dark ? "#101216" : "#ffffff",
+              mainBkg: dark ? "#171a1f" : "#f8f9fa",
+              nodeBorder: dark ? "#2b3038" : "#d5d9de",
+              primaryColor: dark ? "#171a1f" : "#f8f9fa",
+              primaryTextColor: dark ? "#eef1f4" : "#111317",
+              primaryBorderColor: dark ? "#6b7380" : "#9aa3ae",
+              lineColor: dark ? "#9aa3ae" : "#59616c",
+              secondaryColor: dark ? "#101216" : "#eef0f3",
+              tertiaryColor: dark ? "#060708" : "#ffffff",
               fontFamily: "var(--font-sans)",
               fontSize: "13px",
             },
@@ -239,7 +239,7 @@ export function MermaidBlock({
         className="max-h-[720px] overflow-auto transition-colors duration-fast"
         style={{
           background: dark
-            ? "var(--card, #202022)"
+            ? "var(--card, #171a1f)"
             : "var(--background, #ffffff)",
         }}
       >
@@ -249,8 +249,8 @@ export function MermaidBlock({
             width: `${zoom * 100}%`,
             minWidth: `${zoom * 100}%`,
             color: dark
-              ? "var(--foreground, #f5f5f7)"
-              : "var(--foreground, #1d1d1f)",
+              ? "var(--foreground, #eef1f4)"
+              : "var(--foreground, #111317)",
           }}
           className={cn(
             "overflow-auto bg-muted/15 p-4 animate-fade-in transition-colors duration-fast",
