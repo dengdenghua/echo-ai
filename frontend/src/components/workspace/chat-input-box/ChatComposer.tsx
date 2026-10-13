@@ -1657,7 +1657,7 @@ export function ChatComposer({
                 type="button"
                 data-testid="chat-tools-trigger"
                 disabled={isBusy || status === "streaming"}
-                className="relative flex size-[42px] items-center justify-center rounded-lg text-muted-foreground outline-none transition-all duration-base hover:bg-muted/60 hover:text-foreground focus-visible:bg-muted/60 focus-visible:text-foreground focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-45 sm:size-8 active:scale-95"
+                className="relative flex size-[42px] items-center justify-center rounded-lg text-muted-foreground outline-none transition-all duration-base hover:bg-muted/60 hover:text-foreground focus-visible:bg-muted/60 focus-visible:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/30 disabled:cursor-not-allowed disabled:opacity-45 sm:size-8 active:scale-95"
                 title={toolsMenuTitle}
                 aria-label={toolsMenuLabel}
               >

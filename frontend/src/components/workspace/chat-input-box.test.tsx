@@ -178,6 +178,9 @@ it("keeps the plus entry visually lightweight when focused", () => {
 
   expect(screen.getByTestId("chat-tools-trigger")).toHaveClass(
     "focus-visible:outline-none",
+    // Lightweight, but keyboard focus still needs a visible core ring.
+    "focus-visible:ring-2",
+    "focus-visible:ring-ring/30",
   );
 });
 
