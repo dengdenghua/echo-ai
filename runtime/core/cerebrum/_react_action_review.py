@@ -43,6 +43,78 @@ def turn_network_denials(state: _LoopState) -> NetworkDenialMemory:
     return denials
 
 
+def _session_risk_policy() -> Any:
+    """The active session's ``approval_risk_policy`` override, if any."""
+    try:
+        from runtime.platform.process.session import current_session as _cs_ap
+
+        _sess_ap = _cs_ap()
+        return (
+            (getattr(_sess_ap, "metadata", {}) or {}).get("approval_risk_policy")
+            if _sess_ap is not None
+            else None
+        )
+    except (AttributeError, TypeError):
+        return None
+
+
+def _tool_end_event(
+    tool_name: str,
+    call_id: str,
+    iteration: int,
+    status: str,
+    output_preview: Any,
+    started_at: float,
+    **extra: Any,
+) -> dict[str, Any]:
+    """A ``tool_end`` event for a call the review stopped before dispatch."""
+    return {
+        "type": "tool_end",
+        "tool_name": tool_name,
+        "tool_call_id": call_id,
+        "iteration": iteration,
+        "status": status,
+        "output_preview": output_preview,
+        "duration_ms": int((time.monotonic() - started_at) * 1000),
+        **extra,
+    }
+
+
+def _guardian_verdict(
+    state: _LoopState,
+    guardian_reviewer: Any,
+    *,
+    action: str,
+    risk: Any,
+    tool_name: str,
+    input_preview: Any,
+) -> tuple[str, str | None]:
+    """The rule engine's action after the opt-in guardian review.
+
+    Returns ``(action, deny_reason)``: a guardian deny tightens the action to
+    ``deny`` with the guardian's note; an allow or a failure keeps the rule
+    engine's action and no reason.
+    """
+    if guardian_reviewer is None:
+        return action, None
+    from runtime.safety.approval.guardian_review import decide_with_guardian
+
+    guardian_user_intent = _latest_human_intent(state.convo.messages)
+    guardian_action, guardian_note = decide_with_guardian(
+        rule_engine_action=action,
+        rule_engine_risk=risk.level,
+        rule_engine_categories=risk.categories,
+        reviewer=guardian_reviewer,
+        thread_id=state.wiring.thread_id,
+        tool_name=tool_name,
+        args_preview=(str(input_preview)[:500] if input_preview else ""),
+        user_intent=guardian_user_intent,
+    )
+    if guardian_action == "deny":
+        return "deny", guardian_note
+    return action, None
+
+
 def review_tool_action(
     state: _LoopState,
     *,
@@ -62,7 +134,6 @@ def review_tool_action(
     intent = state.wiring.intent
     thread_id = state.wiring.thread_id
     approval_provider = state.wiring.approval_provider
-    messages = state.convo.messages
     i = iteration - 1
     _input_preview = input_preview
     _guardian_reviewer = guardian_reviewer
@@ -73,17 +144,7 @@ def review_tool_action(
         "auto_approve", False
     )
 
-    try:
-        from runtime.platform.process.session import current_session as _cs_ap
-
-        _sess_ap = _cs_ap()
-        _risk_policy_raw = (
-            (getattr(_sess_ap, "metadata", {}) or {}).get("approval_risk_policy")
-            if _sess_ap is not None
-            else None
-        )
-    except (AttributeError, TypeError):
-        _risk_policy_raw = None
+    _risk_policy_raw = _session_risk_policy()
     _permission_context = {
         **state.wiring.metadata,
         **intent.user_context,
@@ -127,18 +188,17 @@ def review_tool_action(
         else _network_denials.refusal(resolved_name, _approval_risk, _input_preview)
     )
     if _refused is not None:
-        yield {
-            "type": "tool_end",
-            "tool_name": resolved_name,
-            "tool_call_id": call_id,
-            "iteration": i + 1,
-            "status": "rejected",
-            "output_preview": _refused,
-            "duration_ms": int((time.monotonic() - _tool_started_at) * 1000),
-            "risk": _approval_risk.to_dict(),
-            "approval_action": "deny",
-            "approval_policy": _approval_policy.to_dict(),
-        }
+        yield _tool_end_event(
+            resolved_name,
+            call_id,
+            i + 1,
+            "rejected",
+            _refused,
+            _tool_started_at,
+            risk=_approval_risk.to_dict(),
+            approval_action="deny",
+            approval_policy=_approval_policy.to_dict(),
+        )
         observation = f"(工具审批未通过) {_refused}。请告诉用户因此无法完成的部分。"
         return ActionReview(False, _auto_approve, observation, _LoopControl.NEXT_ITERATION)
     if _approval_action in {
@@ -154,46 +214,33 @@ def review_tool_action(
     # gate so tainted actions still route to the human): a
     # guardian deny tightens ask/confirm/allow to deny; an
     # allow or a failure keeps the rule engine's action.
-    _approval_deny_reason: str | None = None
-    if _guardian_reviewer is not None:
-        from runtime.safety.approval.guardian_review import (
-            decide_with_guardian,
-        )
-
-        _guardian_user_intent = _latest_human_intent(messages)
-        _guardian_action, _guardian_note = decide_with_guardian(
-            rule_engine_action=_approval_action,
-            rule_engine_risk=_approval_risk.level,
-            rule_engine_categories=_approval_risk.categories,
-            reviewer=_guardian_reviewer,
-            thread_id=thread_id,
-            tool_name=resolved_name,
-            args_preview=(str(_input_preview)[:500] if _input_preview else ""),
-            user_intent=_guardian_user_intent,
-        )
-        if _guardian_action == "deny":
-            _approval_action = "deny"
-            _approval_deny_reason = _guardian_note
+    _approval_action, _approval_deny_reason = _guardian_verdict(
+        state,
+        _guardian_reviewer,
+        action=_approval_action,
+        risk=_approval_risk,
+        tool_name=resolved_name,
+        input_preview=_input_preview,
+    )
     if _approval_action == "deny" and not _auto_approve and not _scoped_artifact_write:
         if _approval_deny_reason is not None:
             # The guardian refused this exact call; keep it refused for the turn.
             _network_denials.note_denial(resolved_name, _approval_risk, _input_preview)
-        yield {
-            "type": "tool_end",
-            "tool_name": resolved_name,
-            "tool_call_id": call_id,
-            "iteration": i + 1,
-            "status": "rejected",
-            "output_preview": (
+        yield _tool_end_event(
+            resolved_name,
+            call_id,
+            i + 1,
+            "rejected",
+            (
                 _approval_deny_reason
                 or f"Denied by approval risk policy "
                 f"(risk={_approval_risk.level}: {_approval_risk.reason})"
             ),
-            "duration_ms": int((time.monotonic() - _tool_started_at) * 1000),
-            "risk": _approval_risk.to_dict(),
-            "approval_action": _approval_action,
-            "approval_policy": _approval_policy.to_dict(),
-        }
+            _tool_started_at,
+            risk=_approval_risk.to_dict(),
+            approval_action=_approval_action,
+            approval_policy=_approval_policy.to_dict(),
+        )
         observation = (
             "(工具被风险策略拒绝) 此操作被 approval risk policy 拒绝，请换一种方式或询问用户。"
         )
@@ -233,28 +280,26 @@ def review_tool_action(
                 tool_name=resolved_name,
                 detail=_approval_detail,
             ):
-                yield {
-                    "type": "tool_end",
-                    "tool_name": resolved_name,
-                    "tool_call_id": call_id,
-                    "iteration": i + 1,
-                    "status": "waiting_approval",
-                    "output_preview": _paused_preview,
-                    "duration_ms": int((time.monotonic() - _tool_started_at) * 1000),
-                }
+                yield _tool_end_event(
+                    resolved_name,
+                    call_id,
+                    i + 1,
+                    "waiting_approval",
+                    _paused_preview,
+                    _tool_started_at,
+                )
                 return ActionReview(
                     False, _auto_approve, _paused_preview, _LoopControl.CONTINUE, stop_batch=True
                 )
             _network_denials.note_denial(resolved_name, _approval_risk, _input_preview)
-            yield {
-                "type": "tool_end",
-                "tool_name": resolved_name,
-                "tool_call_id": call_id,
-                "iteration": i + 1,
-                "status": "rejected",
-                "output_preview": _decision.reason or "User denied tool execution",
-                "duration_ms": int((time.monotonic() - _tool_started_at) * 1000),
-            }
+            yield _tool_end_event(
+                resolved_name,
+                call_id,
+                i + 1,
+                "rejected",
+                _decision.reason or "User denied tool execution",
+                _tool_started_at,
+            )
             observation = _approval_denied_observation(
                 _decision, network=is_network_risk(_approval_risk)
             )

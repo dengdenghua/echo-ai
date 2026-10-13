@@ -4,8 +4,8 @@
 runtime/sensing/gateway/_team_stream_group_fanout.py::_drive_group_fanout	1568
 runtime/execution/subagents/bridge.py::call_subagent	1537
 runtime/platform/ui/browser_router.py::create_browser_router	1179
-runtime/core/cerebrum/_react_execution_phase6d.py::_phase_6d_dispatch_and_observe	969
-runtime/tentacle/dashboard.py::create_tentacle_router	984
+runtime/core/cerebrum/_react_execution_phase6d.py::_phase_6d_dispatch_and_observe	972
+runtime/tentacle/dashboard.py::create_tentacle_router	978
 runtime/execution/tool_engine/executor.py::ToolExecutor.execute_step	997
 runtime/sensing/gateway/agent_world_router.py::create_agent_world_router	961
 runtime/core/cerebrum/react_model_stream.py::_phase_6b_model_stream	946
@@ -45,7 +45,7 @@ runtime/sensing/gateway/openai_gateway_router.py::create_openai_router	477
 runtime/sensing/gateway/workspace_api_router.py::create_workspace_api_router	447
 runtime/cli_serve.py::run_serve	458
 runtime/platform/ui/_app_stack.py::wire_stack	396
-runtime/sensing/gateway/_observability_kg.py::register_kg_endpoints	463
+runtime/sensing/gateway/_observability_kg.py::register_kg_endpoints	459
 runtime/execution/agents/group_fanout.py::run_group_fanout	446
 runtime/sensing/gateway/_observability_journal.py::register_journal_endpoints	427
 runtime/sensing/gateway/realtime_thread_history.py::_flatten_turns_to_messages	419
