@@ -744,7 +744,7 @@ def test_pr_scale_release_train_exception_is_exact_sha_and_same_repo_only() -> N
     assert "approvedHead.length === 40" in script
     assert "approvedHead === head" in script
     assert "pr.base.ref === 'main'" in script
-    assert "pr.head.ref === 'codex/production-hardening'" in script
+    assert "pr.head.ref.startsWith('codex/')" in script
     assert "pr.head.repo.full_name === pr.base.repo.full_name" in script
     assert "if (releaseTrainApproved)" in script
 

@@ -170,7 +170,7 @@ jobs:
       - name: Verify packaged backend and engines are present and runnable
         run: |
           set -euo pipefail
-          appimage=$(ls "$PWD/frontend/release/"EchoAI-Setup-Linux-*.AppImage)
+          appimage=$(ls "$PWD/frontend/release/"Echo-Setup-Linux-*.AppImage)
           case "$appimage" in
             *"$GITHUB_SHA"*) ;;
             *) echo "AppImage filename is not bound to GITHUB_SHA: $appimage"; exit 1 ;;
@@ -255,7 +255,7 @@ jobs:
         working-directory: frontend/release
         run: |
           set -euo pipefail
-          appimage=$(ls EchoAI-Setup-Linux-*.AppImage)
+          appimage=$(ls Echo-Setup-Linux-*.AppImage)
           echo "$(sha256sum "$appimage" | awk '{print $1}') *$appimage" > SHA256SUMS
           cat SHA256SUMS
 
@@ -263,14 +263,14 @@ jobs:
         working-directory: frontend/release
         run: |
           ls -R .
-          du -h EchoAI-Setup-Linux-*.AppImage
+          du -h Echo-Setup-Linux-*.AppImage
 
       - name: Upload AppImage
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: Echo-Setup-Linux-${{ github.sha }}
           path: |
-            frontend/release/EchoAI-Setup-Linux-*.AppImage
+            frontend/release/Echo-Setup-Linux-*.AppImage
             frontend/release/SHA256SUMS
             frontend/release/*.blockmap
             frontend/release/*.yml

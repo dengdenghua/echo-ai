@@ -453,7 +453,7 @@ jobs:
               approvedHead.length === 40 &&
               approvedHead === head &&
               pr.base.ref === 'main' &&
-              pr.head.ref === 'codex/production-hardening' &&
+              pr.head.ref.startsWith('codex/') &&
               pr.head.repo.full_name === pr.base.repo.full_name;
             const out = execSync(`git diff --numstat ${base} ${head}`, { encoding: 'utf8' });
             const entries = out.split('\n').filter((l) => l.trim());

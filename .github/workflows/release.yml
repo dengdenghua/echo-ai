@@ -267,8 +267,8 @@ jobs:
             throw "Windows signing proof does not use the required trusted RFC3161 endpoint"
           }
           $proofFiles = @($buildProof.files)
-          if ($proofFiles.Count -ne 8) {
-            throw "Windows signing proof must cover the installer, app, backend, and all five packaged Codex executables"
+          if ($proofFiles.Count -ne 9) {
+            throw "Windows signing proof must cover the installer, app, backend, all five packaged Codex executables, and OpenCode"
           }
 
           $signedFiles = [ordered]@{}
@@ -286,6 +286,8 @@ jobs:
             Join-Path $root "win-unpacked/resources/codex/codex-resources/codex-windows-sandbox-setup.exe"
           $signedFiles["win-unpacked/resources/codex/codex-path/rg.exe"] = `
             Join-Path $root "win-unpacked/resources/codex/codex-path/rg.exe"
+          $signedFiles["win-unpacked/resources/opencode/opencode.exe"] = `
+            Join-Path $root "win-unpacked/resources/opencode/opencode.exe"
 
           $expectedSignerThumbprint = $null
           $expectedPublisher = $null

@@ -123,6 +123,10 @@ jobs:
           --extra desktop-build
 
       - name: Configure trusted first-party plugin publisher
+        # Without the publisher variables the script refuses to run. An unsigned
+        # preview build skips it (as build-linux.yml does); a signed, releasable
+        # build always runs it, so a missing variable still fails that build.
+        if: ${{ vars.ECHO_PLUGIN_SIGNING_PUBLIC_KEY != '' || env.HAS_WINDOWS_SIGNING == 'true' }}
         shell: pwsh
         env:
           ECHO_PLUGIN_SIGNING_PUBLIC_KEY: ${{ vars.ECHO_PLUGIN_SIGNING_PUBLIC_KEY }}
@@ -282,6 +286,7 @@ jobs:
         run: pnpm build
 
       - name: Build canonical Electron EXE
+        if: env.HAS_WINDOWS_SIGNING == 'true'
         working-directory: frontend
         env:
           # electron-builder consumes these only for this signing step. They are
@@ -289,6 +294,17 @@ jobs:
           CSC_LINK: ${{ secrets.WINDOWS_CODE_SIGNING_CERTIFICATE_BASE64 }}
           CSC_KEY_PASSWORD: ${{ secrets.WINDOWS_CODE_SIGNING_CERTIFICATE_PASSWORD }}
         run: pnpm electron:build:win
+
+      - name: Build unsigned Electron EXE (not releasable)
+        # build.yml sets win.forceCodeSigning, which makes electron-builder fail
+        # outright without a certificate. Without the signing secret, lift it for
+        # this build only: the artifacts are uploaded with an -UNSIGNED suffix,
+        # which release.yml never downloads.
+        if: env.HAS_WINDOWS_SIGNING != 'true'
+        working-directory: frontend
+        env:
+          CSC_IDENTITY_AUTO_DISCOVERY: "false"
+        run: pnpm electron:build:win -c.win.forceCodeSigning=false
 
       - name: Verify packaged backend and engines are present and runnable
         shell: pwsh

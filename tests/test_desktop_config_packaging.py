@@ -790,6 +790,16 @@ def test_windows_workflow_builds_and_smokes_canonical_offline_shell() -> None:
     electron = steps["Build canonical Electron EXE"]
     assert electron["working-directory"] == "frontend"
     assert electron["run"] == "pnpm electron:build:win"
+    assert electron["if"] == "env.HAS_WINDOWS_SIGNING == 'true'"
+    # Without the certificate the build still runs, unsigned, instead of
+    # failing on forceCodeSigning; it never sees the signing secrets.
+    unsigned = steps["Build unsigned Electron EXE (not releasable)"]
+    assert unsigned["if"] == "env.HAS_WINDOWS_SIGNING != 'true'"
+    assert unsigned["working-directory"] == "frontend"
+    assert unsigned["run"] == "pnpm electron:build:win -c.win.forceCodeSigning=false"
+    assert "CSC_LINK" not in unsigned.get("env", {})
+    assert "CSC_KEY_PASSWORD" not in unsigned.get("env", {})
+    assert "-UNSIGNED" in steps["Upload EXE installer"]["with"]["name"]
     smoke = steps["Verify packaged backend and engines are present and runnable"]["run"]
     assert "frontend/release/win-unpacked/resources/backend/echo-backend.exe" in smoke
     assert '"frontend/release/win-unpacked/resources/codex"' in smoke
@@ -850,9 +860,12 @@ def test_windows_workflow_builds_and_smokes_canonical_offline_shell() -> None:
 def test_release_reverifies_every_packaged_codex_executable_identity() -> None:
     source = RELEASE_WORKFLOW.read_text(encoding="utf-8")
 
-    assert "$proofFiles.Count -ne 8" in source
+    # build-win signs and proves nine files: installer, Echo.exe, backend,
+    # five Codex executables and OpenCode. The release re-verifies all nine.
+    assert "$proofFiles.Count -ne 9" in source
     for relative in CODEX_BUNDLE_EXECUTABLES:
         assert f'"win-unpacked/resources/codex/{relative}"' in source
+    assert '"win-unpacked/resources/opencode/opencode.exe"' in source
     assert "$proofEntry[0].publisher -ne $publisher" in source
     assert "$proofEntry[0].timestampSubject" in source
 
@@ -1088,7 +1101,12 @@ def test_linux_workflow_builds_and_smokes_canonical_linux_shell() -> None:
     assert electron["run"] == "pnpm electron:build:linux"
 
     smoke = steps["Verify packaged backend and engines are present and runnable"]["run"]
-    assert "EchoAI-Setup-Linux-*.AppImage" in smoke
+    # electron-builder names the AppImage after build.yml's productName; a
+    # glob for any other prefix never matches and fails the packaged smoke.
+    build_config = yaml.safe_load(BUILD_CONFIG.read_text(encoding="utf-8"))
+    assert build_config["linux"]["artifactName"].startswith("${productName}-Setup-Linux-")
+    assert f"{build_config['productName']}-Setup-Linux-*.AppImage" in smoke
+    assert "Echo-Setup-Linux-*.AppImage" in smoke
     assert "frontend/release" in smoke
     assert "app-server --help" in smoke
     assert "echo-codex-bundle.json" in smoke
@@ -1106,7 +1124,7 @@ def test_linux_workflow_builds_and_smokes_canonical_linux_shell() -> None:
 
     setup_upload = steps["Upload AppImage"]["with"]["path"]
     assert "frontend/release/" in setup_upload
-    assert "EchoAI-Setup-Linux-*.AppImage" in setup_upload
+    assert "Echo-Setup-Linux-*.AppImage" in setup_upload
     portable_upload = steps["Upload portable (unpacked)"]["with"]["path"]
     assert portable_upload == "frontend/release/linux-unpacked/**"
 
