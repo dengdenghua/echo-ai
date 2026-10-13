@@ -290,6 +290,25 @@ class TestArchiveDownload:
             CloudCatalog("plugins", use_remote=False, use_cache=False)._archive_path()
         assert not list(tmp_path.iterdir()), "a failed download must not leave a cache file"
 
+    @pytest.mark.parametrize(
+        "detail",
+        [
+            "workbench publisher signature rejected: publisher trust store is unavailable",
+            "trusted workbench publisher signature is required: unsigned",
+            "trusted publisher signature is required: key revoked",
+        ],
+    )
+    def test_signature_refusal_reads_as_a_sentence(self, detail):
+        message = cloud_catalog.public_install_error(ValueError(detail))
+
+        assert message.startswith("应用安装包的签名无法验证")
+        assert "trust store" not in message
+
+    def test_other_install_errors_pass_through(self):
+        assert cloud_catalog.public_install_error(ValueError("enabled must be a boolean")) == (
+            "enabled must be a boolean"
+        )
+
 
 class TestInstallSkill:
     def test_installs_to_target_and_is_idempotent(self, tmp_path, monkeypatch):
