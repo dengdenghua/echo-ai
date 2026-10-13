@@ -33,7 +33,6 @@ export interface DesktopApp {
   subtitle: string;
   route: string;
   icon: LucideIcon;
-  color: string;
   placement: DesktopAppPlacement;
 }
 
@@ -48,17 +47,6 @@ const WORKBENCH_ICONS: Record<WorkbenchBuiltinApp["icon"], LucideIcon> = {
   mail: MailIcon,
 };
 
-const WORKBENCH_COLORS: Record<WorkbenchBuiltinApp["icon"], string> = {
-  projects: "from-amber-500 to-orange-600",
-  trading: "from-emerald-500 to-teal-600",
-  design: "from-fuchsia-500 to-violet-600",
-  narrative: "from-rose-500 to-orange-500",
-  evolution: "from-violet-500 to-indigo-600",
-  intelligence: "from-indigo-500 to-cyan-500",
-  community: "from-sky-500 to-blue-600",
-  mail: "from-rose-500 to-pink-600",
-};
-
 function workbenchDesktopApp(app: WorkbenchBuiltinApp): DesktopApp {
   return {
     id: `workbench:${app.id}`,
@@ -66,7 +54,6 @@ function workbenchDesktopApp(app: WorkbenchBuiltinApp): DesktopApp {
     subtitle: app.description,
     route: app.workspaceRoute,
     icon: WORKBENCH_ICONS[app.icon],
-    color: WORKBENCH_COLORS[app.icon],
     placement: "workbench",
   };
 }
@@ -84,7 +71,6 @@ export function buildDesktopApps(t: Translations): DesktopApp[] {
       subtitle: "电脑与手机 · 同屏与文件收发",
       route: "/workspace/devices",
       icon: MonitorSmartphoneIcon,
-      color: "from-blue-500 to-cyan-500",
       placement: "primary",
     },
     {
@@ -93,7 +79,6 @@ export function buildDesktopApps(t: Translations): DesktopApp[] {
       subtitle: t.desktop.apps.workspace.subtitle,
       route: "/workspace/realtime/new",
       icon: MonitorIcon,
-      color: "from-sky-500 to-blue-600",
       placement: "primary",
     },
     {
@@ -102,7 +87,6 @@ export function buildDesktopApps(t: Translations): DesktopApp[] {
       subtitle: t.desktop.apps.aiBrowser.subtitle,
       route: BROWSER_WORKSPACE_ROUTE,
       icon: GlobeIcon,
-      color: "from-indigo-500 to-cyan-500",
       placement: "primary",
     },
     {
@@ -111,7 +95,6 @@ export function buildDesktopApps(t: Translations): DesktopApp[] {
       subtitle: t.desktop.apps.localFiles.subtitle,
       route: "/workspace/knowledge",
       icon: FolderIcon,
-      color: "from-warning to-orange-500",
       placement: "primary",
     },
     {
@@ -120,7 +103,6 @@ export function buildDesktopApps(t: Translations): DesktopApp[] {
       subtitle: t.storage.libraries.imagesDetail,
       route: "/apps/photos",
       icon: FileImageIcon,
-      color: "from-cyan-400 to-blue-500",
       placement: "library",
     },
     {
@@ -129,7 +111,6 @@ export function buildDesktopApps(t: Translations): DesktopApp[] {
       subtitle: t.storage.libraries.videosDetail,
       route: "/apps/media",
       icon: FilmIcon,
-      color: "from-violet-500 to-fuchsia-500",
       placement: "library",
     },
     {
@@ -138,7 +119,6 @@ export function buildDesktopApps(t: Translations): DesktopApp[] {
       subtitle: t.desktop.apps.localApps.subtitle,
       route: "/workspace/agents?surface=chat&tab=plugins",
       icon: AppWindowIcon,
-      color: "from-violet-500 to-fuchsia-500",
       placement: "library",
     },
     {
@@ -147,7 +127,6 @@ export function buildDesktopApps(t: Translations): DesktopApp[] {
       subtitle: t.desktop.apps.terminalLogs.subtitle,
       route: "/workspace/observability",
       icon: TerminalSquareIcon,
-      color: "from-muted-foreground to-muted-foreground/70",
       placement: "system",
     },
     {
@@ -156,7 +135,6 @@ export function buildDesktopApps(t: Translations): DesktopApp[] {
       subtitle: t.desktop.apps.settings.subtitle,
       route: "/workspace/settings",
       icon: SettingsIcon,
-      color: "from-stone-500 to-neutral-700",
       placement: "system",
     },
   ];

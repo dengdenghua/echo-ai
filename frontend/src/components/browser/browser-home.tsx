@@ -1,6 +1,7 @@
 import { resolveBrowserInput } from "./task-browser-start";
 import { SEARCH_ENGINES, type SearchEngine } from "./search-engines";
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
+import { EchoAppTile } from "@/components/ui/echo-app-tile";
 import {
   useEffect,
   useState,
@@ -98,7 +99,6 @@ interface BrowserDesktopApp {
   url: string;
   icon: LucideIcon;
   logoUrl?: string;
-  color: string;
   description: string;
   category: DesktopAppCategory;
   moduleId?: string;
@@ -172,25 +172,11 @@ const BUILTIN_ICON_MAP: Record<WorkbenchBuiltinIcon, LucideIcon> = {
   mail: MailIcon,
 };
 
-/** Keep native app tiles distinct without letting the theme's saturated
- * primary color overpower translucent desktop and Dock surfaces. */
-const BUILTIN_ICON_TONE: Record<WorkbenchBuiltinIcon, string> = {
-  projects: "from-slate-600/75 to-sky-500/65",
-  trading: "from-teal-600/75 to-emerald-500/65",
-  design: "from-violet-600/70 to-indigo-400/60",
-  narrative: "from-fuchsia-600/70 to-violet-500/60",
-  evolution: "from-violet-600/75 to-cyan-500/60",
-  intelligence: "from-cyan-600/75 to-blue-500/65",
-  community: "from-indigo-600/70 to-violet-500/60",
-  mail: "from-rose-600/70 to-pink-500/60",
-};
-
 const WORKSPACE_DESKTOP_APPS: BrowserDesktopApp[] = WORKBENCH_BUILTIN_APPS.map(
   (app) => ({
     name: app.name,
     url: app.launchUrl,
     icon: BUILTIN_ICON_MAP[app.icon],
-    color: BUILTIN_ICON_TONE[app.icon],
     description: app.description,
     category: "workspace",
     workspaceRoute: app.workspaceRoute,
@@ -204,7 +190,6 @@ const AI_DESKTOP_APPS: BrowserDesktopApp[] = [
     name: "QQ 邮箱",
     url: "https://mail.qq.com/",
     icon: MailIcon,
-    color: "from-blue-500 to-sky-400",
     description: "QQ 邮箱网页版，收发邮件",
     category: "tool",
   },
@@ -212,7 +197,6 @@ const AI_DESKTOP_APPS: BrowserDesktopApp[] = [
     name: "163 邮箱",
     url: "https://mail.163.com/",
     icon: MailIcon,
-    color: "from-red-500 to-orange-400",
     description: "网易 163 邮箱网页版，收发邮件",
     category: "tool",
   },
@@ -220,7 +204,6 @@ const AI_DESKTOP_APPS: BrowserDesktopApp[] = [
     name: "Gmail",
     url: "https://mail.google.com/",
     icon: MailIcon,
-    color: "from-red-500 to-rose-400",
     description: "Google 邮箱网页版，收发邮件",
     category: "tool",
   },
@@ -228,7 +211,6 @@ const AI_DESKTOP_APPS: BrowserDesktopApp[] = [
     name: "Outlook",
     url: "https://outlook.live.com/mail/",
     icon: MailIcon,
-    color: "from-blue-600 to-cyan-400",
     description: "Microsoft 邮箱网页版，收发邮件",
     category: "tool",
   },
@@ -237,7 +219,6 @@ const AI_DESKTOP_APPS: BrowserDesktopApp[] = [
     url: "https://gemini.google.com/app",
     icon: SparklesIcon,
     logoUrl: "https://cdn.simpleicons.org/googlegemini",
-    color: "from-blue-500 to-cyan-400",
     description: "Comprehensive search, multi-turn analysis",
     category: "ai",
   },
@@ -246,7 +227,6 @@ const AI_DESKTOP_APPS: BrowserDesktopApp[] = [
     url: "https://notebooklm.google.com/",
     icon: BookOpenIcon,
     logoUrl: "https://cdn.simpleicons.org/notebooklm",
-    color: "from-warning to-orange-400",
     description: "Library, citations, document research",
     category: "ai",
   },
@@ -255,7 +235,6 @@ const AI_DESKTOP_APPS: BrowserDesktopApp[] = [
     url: "https://www.doubao.com/chat/",
     icon: MessageCircleIcon,
     logoUrl: "https://www.google.com/s2/favicons?domain=www.doubao.com&sz=128",
-    color: "from-success to-teal-400",
     description: "Chinese research, Chinese rewriting",
     category: "ai",
   },
@@ -264,7 +243,6 @@ const AI_DESKTOP_APPS: BrowserDesktopApp[] = [
     url: "https://chat.deepseek.com/",
     icon: BrainCircuitIcon,
     logoUrl: "https://cdn.simpleicons.org/deepseek",
-    color: "from-blue-700 to-indigo-500",
     description: "Reasoning, coding, Chinese Q&A",
     category: "ai",
   },
@@ -273,7 +251,6 @@ const AI_DESKTOP_APPS: BrowserDesktopApp[] = [
     url: "https://chat.qwen.ai/",
     icon: SparklesIcon,
     logoUrl: "https://cdn.simpleicons.org/qwen",
-    color: "from-blue-600 to-cyan-500",
     description: "Tongyi models, multimodal chat",
     category: "ai",
   },
@@ -282,7 +259,6 @@ const AI_DESKTOP_APPS: BrowserDesktopApp[] = [
     url: "https://yiyan.baidu.com/",
     icon: MessageCircleIcon,
     logoUrl: "https://cdn.simpleicons.org/baidu",
-    color: "from-indigo-600 to-blue-500",
     description: "Baidu agents, Chinese creation",
     category: "ai",
   },
@@ -292,7 +268,6 @@ const AI_DESKTOP_APPS: BrowserDesktopApp[] = [
     icon: BotIcon,
     logoUrl:
       "https://www.google.com/s2/favicons?domain=yuanbao.tencent.com&sz=128",
-    color: "from-cyan-600 to-blue-500",
     description: "Chinese search, material summary",
     category: "ai",
   },
@@ -301,7 +276,6 @@ const AI_DESKTOP_APPS: BrowserDesktopApp[] = [
     url: "https://www.perplexity.ai/",
     icon: SearchIcon,
     logoUrl: "https://cdn.simpleicons.org/perplexity",
-    color: "from-sky-500 to-indigo-500",
     description: "Web search, source leads",
     category: "ai",
   },
@@ -310,7 +284,6 @@ const AI_DESKTOP_APPS: BrowserDesktopApp[] = [
     url: "https://chatgpt.com/",
     icon: BotIcon,
     logoUrl: "https://chatgpt.com/favicon.ico",
-    color: "from-zinc-700 to-zinc-500",
     description: "General chat, coding assistance",
     category: "ai",
   },
@@ -319,7 +292,6 @@ const AI_DESKTOP_APPS: BrowserDesktopApp[] = [
     url: "https://claude.ai/",
     icon: BrainCircuitIcon,
     logoUrl: "https://cdn.simpleicons.org/claude",
-    color: "from-stone-600 to-destructive",
     description: "Long-text analysis, writing organization",
     category: "ai",
   },
@@ -328,7 +300,6 @@ const AI_DESKTOP_APPS: BrowserDesktopApp[] = [
     url: "https://www.kimi.com/",
     icon: GraduationCapIcon,
     logoUrl: "https://www.google.com/s2/favicons?domain=www.kimi.com&sz=128",
-    color: "from-violet-500 to-fuchsia-500",
     description: "Long context, Chinese materials",
     category: "ai",
   },
@@ -338,7 +309,6 @@ const AI_DESKTOP_APPS: BrowserDesktopApp[] = [
     icon: ImageIcon,
     logoUrl:
       "https://www.google.com/s2/favicons?domain=app.agnes-ai.com&sz=128",
-    color: "from-pink-500 to-destructive",
     description: "AI gateway, image/video generation",
     category: "ai",
   },
@@ -347,7 +317,6 @@ const AI_DESKTOP_APPS: BrowserDesktopApp[] = [
     url: "https://www.youtube.com/",
     icon: ImageIcon,
     logoUrl: "https://cdn.simpleicons.org/youtube",
-    color: "from-destructive to-destructive",
     description: "Videos, channels, live streams",
     category: "video",
   },
@@ -356,7 +325,6 @@ const AI_DESKTOP_APPS: BrowserDesktopApp[] = [
     url: "https://www.bilibili.com/",
     icon: ImageIcon,
     logoUrl: "https://cdn.simpleicons.org/bilibili",
-    color: "from-sky-500 to-cyan-400",
     description: "Videos, anime, knowledge zone",
     category: "video",
   },
@@ -365,7 +333,6 @@ const AI_DESKTOP_APPS: BrowserDesktopApp[] = [
     url: "https://github.com/",
     icon: BotIcon,
     logoUrl: "https://github.githubassets.com/favicons/favicon.svg",
-    color: "from-zinc-900 to-zinc-700",
     description: "Code repos, project collaboration",
     category: "dev",
   },
@@ -374,7 +341,6 @@ const AI_DESKTOP_APPS: BrowserDesktopApp[] = [
     url: "https://stackoverflow.com/",
     icon: BrainCircuitIcon,
     logoUrl: "https://cdn.simpleicons.org/stackoverflow",
-    color: "from-orange-500 to-warning",
     description: "Programming Q&A, troubleshooting",
     category: "dev",
   },
@@ -383,7 +349,6 @@ const AI_DESKTOP_APPS: BrowserDesktopApp[] = [
     url: "https://developer.mozilla.org/",
     icon: BookOpenIcon,
     logoUrl: "https://cdn.simpleicons.org/mdnwebdocs",
-    color: "from-foreground to-blue-600",
     description: "Web docs, API reference",
     category: "dev",
   },
@@ -392,7 +357,6 @@ const AI_DESKTOP_APPS: BrowserDesktopApp[] = [
     url: "https://www.zhihu.com/",
     icon: SearchIcon,
     logoUrl: "https://cdn.simpleicons.org/zhihu",
-    color: "from-blue-600 to-sky-500",
     description: "Q&A, columns, Chinese materials",
     category: "knowledge",
   },
@@ -401,7 +365,6 @@ const AI_DESKTOP_APPS: BrowserDesktopApp[] = [
     url: "https://www.wikipedia.org/",
     icon: GraduationCapIcon,
     logoUrl: "https://cdn.simpleicons.org/wikipedia",
-    color: "from-muted-foreground to-muted-foreground/70",
     description: "Encyclopedia, background materials",
     category: "knowledge",
   },
@@ -466,27 +429,30 @@ function DesktopAppLogo({
   iconClassName?: string;
 }) {
   const [failed, setFailed] = useState(false);
-  const FallbackIcon = app.icon;
+
+  if (failed || !app.logoUrl) {
+    return (
+      <EchoAppTile
+        icon={app.icon}
+        className={cn("rounded-md", className)}
+        iconClassName={iconClassName}
+      />
+    );
+  }
 
   return (
     <span
       className={cn(
         "grid place-items-center overflow-hidden rounded-md text-foreground transition",
         className,
-        (failed || !app.logoUrl) && "bg-gradient-to-br text-white",
-        (failed || !app.logoUrl) && app.color,
       )}
     >
-      {failed || !app.logoUrl ? (
-        <FallbackIcon className={cn("size-1/2", iconClassName)} />
-      ) : (
-        <img
-          src={app.logoUrl}
-          alt=""
-          className={cn("size-[68%] object-contain", iconClassName)}
-          onError={() => setFailed(true)}
-        />
-      )}
+      <img
+        src={app.logoUrl}
+        alt=""
+        className={cn("size-[68%] object-contain", iconClassName)}
+        onError={() => setFailed(true)}
+      />
     </span>
   );
 }

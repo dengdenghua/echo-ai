@@ -47,6 +47,7 @@ import { authHeaders, jsonAuthHeaders } from "@/core/auth/api";
 import { copyTextToClipboard } from "@/core/clipboard";
 import { getBackendBaseURL } from "@/core/config";
 import { useI18n } from "@/core/i18n/hooks";
+import { EchoAppTile } from "@/components/ui/echo-app-tile";
 import { cn } from "@/lib/utils";
 import { WORKBENCH_BUILTIN_APPS } from "@/core/workbench/apps";
 import { RemoteWorkbenchSurface } from "@/core/workbench/remote-surface";
@@ -194,7 +195,6 @@ interface BrowserDesktopApp {
   name: string;
   url: string;
   icon: LucideIcon;
-  color: string;
   description: string;
 }
 
@@ -202,7 +202,6 @@ interface BrowserDesktopWidget {
   title: string;
   subtitle: string;
   icon: LucideIcon;
-  color: string;
 }
 
 type DesktopPanelId =
@@ -219,49 +218,42 @@ const AI_DESKTOP_APPS: BrowserDesktopApp[] = [
     name: "Gemini",
     url: "https://gemini.google.com/app",
     icon: SparklesIcon,
-    color: "from-blue-500 to-cyan-400",
     description: "comprehensiveSearch",
   },
   {
     name: "NotebookLM",
     url: "https://notebooklm.google.com/",
     icon: BookOpenIcon,
-    color: "from-warning to-orange-400",
     description: "researchDocs",
   },
   {
     name: "Doubao",
     url: "https://www.doubao.com/chat/",
     icon: MessageCircleIcon,
-    color: "from-success to-teal-400",
     description: "chineseResearch",
   },
   {
     name: "Perplexity",
     url: "https://www.perplexity.ai/",
     icon: SearchIcon,
-    color: "from-sky-500 to-indigo-500",
     description: "webSearch",
   },
   {
     name: "ChatGPT",
     url: "https://chatgpt.com/",
     icon: BotIcon,
-    color: "from-zinc-700 to-zinc-500",
     description: "generalChat",
   },
   {
     name: "Claude",
     url: "https://claude.ai/",
     icon: BrainCircuitIcon,
-    color: "from-stone-600 to-destructive",
     description: "longTextAnalysis",
   },
   {
     name: "Kimi",
     url: "https://www.kimi.com/",
     icon: GraduationCapIcon,
-    color: "from-violet-500 to-fuchsia-500",
     description: "longContext",
   },
 ];
@@ -271,13 +263,11 @@ const DESKTOP_WIDGETS: BrowserDesktopWidget[] = [
     title: "research",
     subtitle: "researchSubtitle",
     icon: FileTextIcon,
-    color: "from-muted-foreground to-muted-foreground/70",
   },
   {
     title: "todayTasks",
     subtitle: "todayTasksSubtitle",
     icon: LayoutGridIcon,
-    color: "from-indigo-500 to-blue-400",
   },
 ];
 
@@ -1379,20 +1369,16 @@ function BrowserDesktopHome({
                   )}
                 >
                   {DESKTOP_WIDGETS.map((widget) => {
-                    const Icon = widget.icon;
                     return (
                       <div
                         key={widget.title}
                         className="flex items-center gap-4 border-b border-white/20 pb-4 last:border-0"
                       >
-                        <span
-                          className={cn(
-                            "grid size-10 place-items-center rounded-2xl bg-gradient-to-br",
-                            widget.color,
-                          )}
-                        >
-                          <Icon className="size-5 text-white" />
-                        </span>
+                        <EchoAppTile
+                          icon={widget.icon}
+                          className="size-10 rounded-2xl"
+                          iconClassName="size-5"
+                        />
                         <div className="min-w-0 flex-1">
                           <div className="truncate text-lg font-semibold">
                             {labelFromMap(widgetTitleMap, widget.title)}
@@ -1469,44 +1455,46 @@ function BrowserDesktopHome({
             mobileDesktop && "bottom-4 left-16 right-4 gap-2 px-3",
           )}
         >
-          {orderedApps.map((app) => {
-            const Icon = app.icon;
-            return (
-              <button
-                key={app.url}
-                type="button"
-                draggable={editMode}
-                onClick={() => {
-                  if (!editMode) onOpen(app.url);
-                }}
-                onDragStart={(event) => startAppDrag(event, app.url)}
-                onDragOver={(event) => {
-                  if (editMode) event.preventDefault();
-                }}
-                onDrop={(event) => dropApp(event, app.url)}
-                onDragEnd={() => setDraggingUrl(null)}
+          {orderedApps.map((app) => (
+            <button
+              key={app.url}
+              type="button"
+              draggable={editMode}
+              onClick={() => {
+                if (!editMode) onOpen(app.url);
+              }}
+              onDragStart={(event) => startAppDrag(event, app.url)}
+              onDragOver={(event) => {
+                if (editMode) event.preventDefault();
+              }}
+              onDrop={(event) => dropApp(event, app.url)}
+              onDragEnd={() => setDraggingUrl(null)}
+              className={cn(
+                "group shrink-0 rounded-3xl transition hover:-translate-y-1 focus-visible:outline-none",
+                compactDesktop && "rounded-2xl",
+                mobileDesktop && "rounded-2xl",
+                editMode &&
+                  "cursor-move ring-2 ring-white/35 hover:translate-y-0",
+                draggingUrl === app.url && "scale-95 opacity-45",
+              )}
+              title={`${labelFromMap(appNameMap, app.name)} · ${labelFromMap(appDescMap, app.description)}`}
+            >
+              <EchoAppTile
+                icon={app.icon}
                 className={cn(
-                  "grid size-16 place-items-center rounded-3xl bg-gradient-to-br text-white shadow-[var(--shadow-md)] shadow-black/12 transition hover:-translate-y-1 hover:shadow-xl",
-                  app.color,
-                  compactDesktop && "size-13 shrink-0 rounded-2xl",
+                  "size-16 rounded-3xl",
+                  compactDesktop && "size-13 rounded-2xl",
                   tabletDesktop && "size-14",
                   mobileDesktop && "size-11 rounded-2xl",
-                  editMode &&
-                    "cursor-move ring-2 ring-white/35 hover:translate-y-0",
-                  draggingUrl === app.url && "scale-95 opacity-45",
                 )}
-                title={`${labelFromMap(appNameMap, app.name)} · ${labelFromMap(appDescMap, app.description)}`}
-              >
-                <Icon
-                  className={cn(
-                    "size-8",
-                    compactDesktop && "size-7",
-                    mobileDesktop && "size-6",
-                  )}
-                />
-              </button>
-            );
-          })}
+                iconClassName={cn(
+                  "size-8",
+                  compactDesktop && "size-7",
+                  mobileDesktop && "size-6",
+                )}
+              />
+            </button>
+          ))}
         </div>
       </div>
       {activePanel !== "home" && (
@@ -1660,14 +1648,16 @@ function DesktopControlPanel({
                 <button
                   key={name}
                   type="button"
-                  className="flex w-full items-center gap-3 rounded-2xl bg-white/46 p-3 text-left transition hover:bg-white/74"
+                  className="group flex w-full items-center gap-3 rounded-2xl bg-white/46 p-3 text-left transition hover:bg-white/74"
                   onClick={() => {
                     if (index === 0) onOpen("https://www.bilibili.com/");
                   }}
                 >
-                  <span className="grid size-10 place-items-center rounded-2xl bg-gradient-to-br from-blue-500 to-cyan-400 text-white">
-                    <Icon className="size-5" />
-                  </span>
+                  <EchoAppTile
+                    icon={Icon}
+                    className="size-10 rounded-2xl"
+                    iconClassName="size-5"
+                  />
                   <span className="text-sm font-semibold">{name}</span>
                 </button>
               );
@@ -1678,22 +1668,18 @@ function DesktopControlPanel({
         {panel === "add" && (
           <div className="space-y-3">
             {AI_DESKTOP_APPS.map((app) => {
-              const Icon = app.icon;
               return (
                 <button
                   key={app.url}
                   type="button"
                   onClick={() => onOpen(app.url)}
-                  className="flex w-full items-center gap-3 rounded-2xl bg-white/46 p-3 text-left transition hover:bg-white/74"
+                  className="group flex w-full items-center gap-3 rounded-2xl bg-white/46 p-3 text-left transition hover:bg-white/74"
                 >
-                  <span
-                    className={cn(
-                      "grid size-10 place-items-center rounded-2xl bg-gradient-to-br text-white",
-                      app.color,
-                    )}
-                  >
-                    <Icon className="size-5" />
-                  </span>
+                  <EchoAppTile
+                    icon={app.icon}
+                    className="size-10 rounded-2xl"
+                    iconClassName="size-5"
+                  />
                   <span className="min-w-0 flex-1">
                     <span className="block text-sm font-semibold">
                       {appNameMap[app.name] ?? app.name}
@@ -1748,7 +1734,6 @@ function DesktopAppIcon({
   appNameMap?: Record<string, string>;
   appDescMap?: Record<string, string>;
 }) {
-  const Icon = app.icon;
   const displayName = appNameMap?.[app.name] ?? app.name;
   const displayDesc = appDescMap?.[app.description] ?? app.description;
   return (
@@ -1771,15 +1756,14 @@ function DesktopAppIcon({
       )}
       title={`${displayName} · ${displayDesc}`}
     >
-      <span
+      <EchoAppTile
+        icon={app.icon}
         className={cn(
-          "grid place-items-center rounded-3xl bg-gradient-to-br text-white shadow-[var(--shadow-md)] shadow-black/14 transition group-hover:-translate-y-0.5 group-hover:shadow-xl",
+          "rounded-3xl transition group-hover:-translate-y-0.5",
           compact ? "size-16" : "size-[72px]",
-          app.color,
         )}
-      >
-        <Icon className={compact ? "size-8" : "size-9"} />
-      </span>
+        iconClassName={compact ? "size-8" : "size-9"}
+      />
       <span className="w-24 truncate text-sm font-medium text-white drop-shadow">
         {displayName}
       </span>
