@@ -1,0 +1,357 @@
+name: Preview release
+
+# Preview channel. A vX.Y.Z-preview.N tag publishes a GitHub pre-release with
+# unsigned installers, the wheel and the sdist. It requires same-SHA CI and
+# runtime-security-contract success but no behavioral evidence, and it never
+# publishes to PyPI, pushes an image or signs anything. Stable vX.Y.Z tags go
+# through release.yml, which ignores preview tags (and vice versa).
+on:
+  push:
+    tags:
+      - "v*.*.*-preview.*"
+  # Re-publish an existing preview tag. Dispatch on the tag itself so every
+  # build is bound to the tagged commit:
+  #   gh workflow run preview-release.yml --ref v0.2.0-preview.1 -f tag=v0.2.0-preview.1
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Preview tag to publish (must equal the ref the workflow is dispatched on)
+        required: true
+        type: string
+      include_linux:
+        description: Build and attach the Linux AppImage
+        type: boolean
+        default: true
+
+permissions:
+  contents: read
+
+concurrency:
+  group: preview-release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  preview-readiness:
+    name: Verify preview tag and same-SHA CI evidence
+    runs-on: ubuntu-24.04
+    permissions:
+      actions: read
+      contents: read
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          ref: ${{ github.sha }}
+
+      - name: Set up Python
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
+        with:
+          python-version: "3.11.9"
+
+      - name: Verify preview tag matches package versions
+        id: version
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          DISPATCH_TAG: ${{ inputs.tag }}
+          REF_TYPE: ${{ github.ref_type }}
+          PREVIEW_TAG: ${{ github.ref_name }}
+        run: |
+          python - <<'PY'
+          import json
+          import os
+          import re
+          import tomllib
+          from pathlib import Path
+
+          tag = os.environ["PREVIEW_TAG"]
+          if os.environ["REF_TYPE"] != "tag":
+              raise SystemExit(
+                  "::error::Preview releases run only on a tag ref. Dispatch with "
+                  "--ref vX.Y.Z-preview.N -f tag=vX.Y.Z-preview.N"
+              )
+          dispatch_tag = os.environ.get("DISPATCH_TAG", "")
+          if os.environ["EVENT_NAME"] == "workflow_dispatch" and dispatch_tag != tag:
+              raise SystemExit(
+                  f"::error::Input tag {dispatch_tag!r} must equal the dispatched ref {tag!r}"
+              )
+          match = re.fullmatch(r"v(\d+\.\d+\.\d+)-preview\.([1-9]\d*)", tag)
+          if match is None:
+              raise SystemExit(f"::error::Preview tag {tag!r} must look like vX.Y.Z-preview.N")
+          base_version = match.group(1)
+
+          root = Path.cwd()
+          with (root / "pyproject.toml").open("rb") as handle:
+              python_version = str(tomllib.load(handle)["project"]["version"])
+          frontend_version = str(
+              json.loads((root / "frontend" / "package.json").read_text(encoding="utf-8"))["version"]
+          )
+          if frontend_version != python_version:
+              raise SystemExit(
+                  "::error::pyproject.toml and frontend/package.json versions differ: "
+                  f"{python_version!r} != {frontend_version!r}"
+              )
+          if base_version != python_version:
+              raise SystemExit(
+                  f"::error::Preview tag {tag!r} is for {base_version} but the package "
+                  f"version is {python_version}"
+              )
+          changelog = (root / "CHANGELOG.md").read_text(encoding="utf-8")
+          if f"## [{base_version}]" not in changelog:
+              raise SystemExit(f"::error::CHANGELOG.md has no '## [{base_version}]' section")
+          with open(os.environ["GITHUB_OUTPUT"], "a", encoding="utf-8") as output:
+              output.write(f"version={base_version}\n")
+          print(f"Preview version contract verified: {tag} -> {base_version}")
+          PY
+
+      - name: Find successful same-SHA CI and runtime security runs
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          ci_response="$(gh api --method GET \
+            "repos/${GITHUB_REPOSITORY}/actions/workflows/ci.yml/runs" \
+            -f head_sha="${GITHUB_SHA}" \
+            -f status=success \
+            -F per_page=100)"
+          ci_run_id="$(jq -r --arg sha "${GITHUB_SHA}" \
+            '[.workflow_runs[] | select(.head_sha == $sha and .conclusion == "success")] | sort_by(.run_started_at) | last | .id // empty' \
+            <<<"${ci_response}")"
+          if [[ -z "${ci_run_id}" ]]; then
+            echo "::error::No successful CI workflow exists for ${GITHUB_SHA}."
+            echo "::error::A preview still requires the same-commit backend, frontend, security and browser gates."
+            exit 1
+          fi
+
+          security_response="$(gh api --method GET \
+            "repos/${GITHUB_REPOSITORY}/actions/workflows/runtime-security-contract.yml/runs" \
+            -f head_sha="${GITHUB_SHA}" \
+            -f status=success \
+            -F per_page=100)"
+          security_run_id="$(jq -r --arg sha "${GITHUB_SHA}" \
+            '[.workflow_runs[] | select(.head_sha == $sha and .status == "completed" and .conclusion == "success")] | sort_by(.run_started_at) | last | .id // empty' \
+            <<<"${security_response}")"
+          if [[ -z "${security_run_id}" ]]; then
+            echo "::error::No successful runtime-security-contract workflow exists for ${GITHUB_SHA}."
+            echo "::error::A preview still requires the same-commit runtime security contract on Linux and Windows."
+            exit 1
+          fi
+          {
+            echo "### Preview evidence for \`${GITHUB_SHA}\`"
+            echo "- CI run: ${ci_run_id}"
+            echo "- Runtime security contract run: ${security_run_id}"
+            echo "- Behavioral evidence: not required for the preview channel"
+          } >> "${GITHUB_STEP_SUMMARY}"
+
+  windows:
+    name: Build unsigned Windows installer
+    needs: preview-readiness
+    permissions:
+      contents: read
+    uses: ./.github/workflows/build-win.yml
+    with:
+      preview: true
+
+  linux:
+    name: Build Linux AppImage
+    needs: preview-readiness
+    if: ${{ github.event_name != 'workflow_dispatch' || inputs.include_linux }}
+    permissions:
+      contents: read
+    uses: ./.github/workflows/build-linux.yml
+
+  python-distribution:
+    name: Build and verify Python distribution
+    needs: preview-readiness
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          ref: ${{ github.sha }}
+
+      - name: Set up Python
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
+        with:
+          python-version: "3.11.9"
+
+      - name: Set up pinned uv
+        uses: astral-sh/setup-uv@d4b2f3b6ecc6e67c4457f6d3e41ec42d3d0fcb86 # v5
+        with:
+          version: "0.11.25"
+          enable-cache: true
+          cache-dependency-glob: uv.lock
+
+      - name: Sync locked release validation tools
+        env:
+          UV_PYTHON_DOWNLOADS: never
+        run: uv sync --locked --python 3.11.9 --extra release
+
+      - name: Configure trusted first-party plugin publisher
+        if: ${{ vars.ECHO_PLUGIN_SIGNING_PUBLIC_KEY != '' }}
+        env:
+          ECHO_PLUGIN_SIGNING_PUBLIC_KEY: ${{ vars.ECHO_PLUGIN_SIGNING_PUBLIC_KEY }}
+          ECHO_PLUGIN_SIGNING_PUBLISHER_ID: ${{ vars.ECHO_PLUGIN_SIGNING_PUBLISHER_ID }}
+          ECHO_PLUGIN_SIGNING_KEY_ID: ${{ vars.ECHO_PLUGIN_SIGNING_KEY_ID }}
+        run: ./.venv/bin/python scripts/configure_builtin_plugin_publisher.py
+
+      - name: Report the unconfigured plugin publisher
+        if: ${{ vars.ECHO_PLUGIN_SIGNING_PUBLIC_KEY == '' }}
+        run: >-
+          echo "::warning title=No built-in plugin publisher::ECHO_PLUGIN_SIGNING_PUBLIC_KEY/_KEY_ID/_PUBLISHER_ID
+          are not configured; this preview wheel trusts no first-party plugin publisher."
+
+      - name: Build wheel and source distribution
+        run: uv build --no-sources --out-dir dist
+
+      - name: Validate distribution metadata
+        run: |
+          set -euo pipefail
+          .venv/bin/python -m twine check --strict dist/*
+          .venv/bin/python - <<'PY'
+          from email.parser import BytesParser
+          from pathlib import Path
+          import tomllib
+          from zipfile import ZipFile
+
+          dist = Path("dist")
+          with Path("pyproject.toml").open("rb") as handle:
+              expected_version = str(tomllib.load(handle)["project"]["version"])
+          wheels = list(dist.glob("echo_ai_runtime-*.whl"))
+          sdists = list(dist.glob("echo_ai_runtime-*.tar.gz"))
+          if len(wheels) != 1 or len(sdists) != 1:
+              raise SystemExit(
+                  f"expected one wheel and one sdist, got wheels={wheels}, sdists={sdists}"
+              )
+          with ZipFile(wheels[0]) as package:
+              metadata_names = [name for name in package.namelist() if name.endswith(".dist-info/METADATA")]
+              if len(metadata_names) != 1:
+                  raise SystemExit(f"expected one METADATA entry, got {metadata_names}")
+              metadata = BytesParser().parsebytes(package.read(metadata_names[0]))
+          if metadata["Name"] != "echo-ai-runtime" or metadata["Version"] != expected_version:
+              raise SystemExit(
+                  f"unexpected distribution identity: {metadata['Name']} {metadata['Version']}"
+              )
+          PY
+
+      - name: Upload preview Python distribution
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: preview-python-distribution-${{ github.sha }}
+          path: dist/*
+          if-no-files-found: error
+          retention-days: 14
+
+  publish:
+    name: Publish GitHub pre-release
+    needs:
+      - preview-readiness
+      - windows
+      - linux
+      - python-distribution
+    # The Linux job is skipped only when a dispatch sets include_linux: false.
+    if: >-
+      ${{ !cancelled()
+      && needs.preview-readiness.result == 'success'
+      && needs.windows.result == 'success'
+      && needs.python-distribution.result == 'success'
+      && (needs.linux.result == 'success' || needs.linux.result == 'skipped') }}
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          ref: ${{ github.sha }}
+
+      - name: Download unsigned Windows installer
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          name: Echo-Setup-Windows-${{ github.sha }}-UNSIGNED
+          path: preview-inputs/windows
+
+      - name: Download Linux AppImage
+        if: ${{ needs.linux.result == 'success' }}
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          name: Echo-Setup-Linux-${{ github.sha }}
+          path: preview-inputs/linux
+
+      - name: Download Python distribution
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          name: preview-python-distribution-${{ github.sha }}
+          path: preview-inputs/python
+
+      - name: Stage commit-bound preview assets and SHA256SUMS
+        run: |
+          set -euo pipefail
+          shopt -s nullglob
+          mkdir -p preview-assets
+          windows=(preview-inputs/windows/Echo-Setup-*.exe)
+          test "${#windows[@]}" -eq 1
+          installers=("${windows[0]}")
+          if [[ -d preview-inputs/linux ]]; then
+            (cd preview-inputs/linux && sha256sum -c SHA256SUMS)
+            linux=(preview-inputs/linux/Echo-Setup-Linux-*.AppImage)
+            test "${#linux[@]}" -eq 1
+            installers+=("${linux[0]}")
+          fi
+          for installer in "${installers[@]}"; do
+            [[ "$(basename "${installer}")" == *"${GITHUB_SHA}"* ]] || {
+              echo "Installer filename is not bound to GITHUB_SHA: ${installer}" >&2
+              exit 1
+            }
+            cp "${installer}" preview-assets/
+          done
+          wheels=(preview-inputs/python/echo_ai_runtime-*.whl)
+          sdists=(preview-inputs/python/echo_ai_runtime-*.tar.gz)
+          test "${#wheels[@]}" -eq 1
+          test "${#sdists[@]}" -eq 1
+          cp "${wheels[0]}" "${sdists[0]}" preview-assets/
+          (cd preview-assets && sha256sum -- * > "${RUNNER_TEMP}/SHA256SUMS")
+          mv "${RUNNER_TEMP}/SHA256SUMS" preview-assets/SHA256SUMS
+          cat preview-assets/SHA256SUMS
+
+      - name: Compose preview release notes
+        env:
+          RELEASE_VERSION: ${{ needs.preview-readiness.outputs.version }}
+          LINUX_RESULT: ${{ needs.linux.result }}
+          PLUGIN_PUBLISHER_KEY: ${{ vars.ECHO_PLUGIN_SIGNING_PUBLIC_KEY }}
+        run: |
+          set -euo pipefail
+          {
+            cat .github/preview-release-notes.md
+            if [[ "${LINUX_RESULT}" != "success" ]]; then
+              printf '\n- 本预览版不含 Linux AppImage。 / This preview does not include a Linux AppImage.\n'
+            fi
+            if [[ -z "${PLUGIN_PUBLISHER_KEY}" ]]; then
+              printf '\n- 本预览版没有内置第一方插件发布者公钥，商店插件无法校验签名。 / This preview ships no built-in first-party plugin publisher key, so store plugin signatures cannot be verified.\n'
+            fi
+            printf '\n---\n\n'
+            # The section starting at "## [<version>]" up to the next "## [" heading.
+            awk -v v="${RELEASE_VERSION}" '
+              BEGIN { in_section = 0 }
+              /^## \[/ {
+                if (in_section) { exit }
+                if (index($0, "[" v "]") > 0) { in_section = 1; print; next }
+              }
+              in_section { print }
+            ' CHANGELOG.md
+          } > preview_release_notes.md
+          grep -qF "## [${RELEASE_VERSION}]" preview_release_notes.md
+
+      - name: Create GitHub pre-release (not latest)
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PREVIEW_TAG: ${{ github.ref_name }}
+        run: |
+          set -euo pipefail
+          gh release create "${PREVIEW_TAG}" preview-assets/* \
+            --repo "${GITHUB_REPOSITORY}" \
+            --verify-tag \
+            --prerelease \
+            --latest=false \
+            --title "ECHO AI ${PREVIEW_TAG}（预览版 / Preview）" \
+            --notes-file preview_release_notes.md
