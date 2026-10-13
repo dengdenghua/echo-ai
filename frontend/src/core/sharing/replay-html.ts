@@ -247,10 +247,14 @@ const REPLAY_LABELS: Record<"en" | "zh" | "ja" | "ko", ReplayHtmlLabels> = {
   },
 };
 
+function isReplayLanguage(value: string): value is keyof typeof REPLAY_LABELS {
+  return Object.hasOwn(REPLAY_LABELS, value);
+}
+
 /** Labels for a UI locale ("zh-CN", "ja-JP"…); unknown locales get English. */
 export function replayLabelsFor(locale: string | undefined): ReplayHtmlLabels {
   const language = (locale || "en").toLowerCase().split(/[-_]/)[0];
-  return language === "zh" || language === "ja" || language === "ko"
+  return isReplayLanguage(language)
     ? REPLAY_LABELS[language]
     : REPLAY_LABELS.en;
 }
