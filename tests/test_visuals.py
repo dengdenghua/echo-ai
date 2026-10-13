@@ -86,6 +86,22 @@ def test_visual_tool_schemas_remain_available():
     assert "document" in native.input_schema["properties"]
 
 
+def test_base_and_agent_meta_groups_both_register():
+    """Regression: the base set and agent-meta both register the visual
+    skills; the second registration raised "duplicate skill name:
+    'visual_guidelines'" and serve started without todo_write & co."""
+    from runtime.execution.all_skills import register_base
+    from runtime.execution.suckers.agent_meta_skills import register_agent_meta_skills
+
+    registry = SkillRegistry()
+    register_base(registry)
+    register_agent_meta_skills(registry)
+
+    assert registry.has("todo_write")
+    assert registry.has("search_skills")
+    assert register_visual_skills(registry) == 0
+
+
 def test_http_receipt_auth_and_invalid_tokens():
     app = FastAPI()
     app.include_router(create_visuals_router())

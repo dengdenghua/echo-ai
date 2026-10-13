@@ -64,6 +64,13 @@ def _show_ui(document: dict[str, Any]) -> dict[str, Any]:
 
 
 def register_visual_skills(registry: SkillRegistry) -> int:
+    """Register the visual skills that are not registered yet.
+
+    Both the base set and the agent-meta group carry them; registering twice
+    raised "duplicate skill name" and dropped the whole agent-meta group
+    (todo_write, search_skills, use_capability …) at startup.
+    """
+    before = sum(registry.has(name) for name in VISUAL_SKILL_NAMES)
     for name, summary, handler in (
         (
             "visual_guidelines",
@@ -81,6 +88,8 @@ def register_visual_skills(registry: SkillRegistry) -> int:
             _status,
         ),
     ):
+        if registry.has(name):
+            continue
         registry.register(
             Skill(
                 name=name,
@@ -91,6 +100,8 @@ def register_visual_skills(registry: SkillRegistry) -> int:
                 trusted_source=f"skill://public/{name}",
             )
         )
+    if registry.has("show_ui"):
+        return len(VISUAL_SKILL_NAMES) - before
     registry.register(
         Skill(
             name="show_ui",
@@ -102,4 +113,4 @@ def register_visual_skills(registry: SkillRegistry) -> int:
             trusted_source="skill://public/show_ui",
         )
     )
-    return len(VISUAL_SKILL_NAMES)
+    return len(VISUAL_SKILL_NAMES) - before
