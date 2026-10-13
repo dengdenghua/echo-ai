@@ -35,6 +35,10 @@ import {
 } from "@/components/ai-elements/conversation";
 import { useLocalSettings } from "@/core/settings";
 import { useI18n } from "@/core/i18n/hooks";
+import {
+  engineSelectionFailureMessage,
+  executionEngineCopy,
+} from "@/core/i18n/locales/execution-engine";
 import { emitOpenSettings } from "@/core/events/event-bus";
 import {
   extractContentFromMessage,
@@ -816,6 +820,9 @@ type StructuredFailure = {
   disposition?: string;
   /** Backend failure classification kind: "environment" | "git_hook" | "". */
   failure_kind?: string;
+  /** ``execution_unavailable``: the engine that could not start, and why. */
+  engine?: string;
+  reason?: string;
 };
 
 function asFailureRecord(value: unknown): Record<string, unknown> | null {
@@ -843,6 +850,8 @@ export function structuredFailureFromMessages(
       typeof info?.failure_kind === "string" && info.failure_kind.trim()
         ? info.failure_kind.trim()
         : "";
+    const engine = typeof info?.engine === "string" ? info.engine.trim() : "";
+    const reason = typeof info?.reason === "string" ? info.reason.trim() : "";
     return {
       detail,
       eventId: message.id,
@@ -851,6 +860,8 @@ export function structuredFailureFromMessages(
         : {}),
       ...(disposition ? { disposition } : {}),
       ...(failureKind ? { failure_kind: failureKind } : {}),
+      ...(engine ? { engine } : {}),
+      ...(reason ? { reason } : {}),
     };
   }
   return null;
@@ -1302,7 +1313,7 @@ export function MessageList({
    *  history, so the page turns this off and lets its empty state stand alone. */
   showResumeSkeleton?: boolean;
 }) {
-  const { t } = useI18n();
+  const { t, locale } = useI18n();
   const [settings] = useLocalSettings();
   // Settled group lanes (clarification / present-files) never token-stream:
   // their content arrives complete with the tool result. Keying this stack on
@@ -1663,39 +1674,46 @@ export function MessageList({
       // backend (``turn.error.message``) verbatim; the i18n strings are only
       // the fallback when no detail came through.
       const message =
-        kind === "blocked"
-          ? failure.detail !== "turn failed"
-            ? failure.detail
-            : t.streaming.blockedOnUser
-          : kind === "environment"
+        failure.code === "execution_unavailable"
+          ? engineSelectionFailureMessage(
+              executionEngineCopy(locale),
+              failure.engine,
+              failure.reason,
+              failure.detail,
+            )
+          : kind === "blocked"
             ? failure.detail !== "turn failed"
               ? failure.detail
-              : t.streaming.environmentBlocked
-            : kind === "network"
-              ? t.streaming.networkLost
-              : kind === "auth"
-                ? t.streaming.modelAuthRequired
-                : kind === "capability"
-                  ? t.streaming.subagentCapabilityMismatch
-                  : kind === "rate-limit"
-                    ? t.streaming.modelRateLimited
-                    : kind === "backpressure"
-                      ? t.streaming.eventStreamOverloaded
-                      : kind === "verification"
-                        ? t.streaming.verificationRequired
-                        : kind === "verification-failed"
-                          ? t.streaming.verificationRunFailed
-                          : kind === "guard"
-                            ? hasStructuredReadableDetail
-                              ? failure.detail
-                              : t.streaming.guardBlocked
-                            : kind === "lifecycle"
-                              ? t.streaming.lifecycleFailed
-                              : requiresWorkspaceWrite
-                                ? t.streaming.workspaceWriteRequired
-                                : hasStructuredReadableDetail
-                                  ? failure.detail
-                                  : t.streaming.turnFailed;
+              : t.streaming.blockedOnUser
+            : kind === "environment"
+              ? failure.detail !== "turn failed"
+                ? failure.detail
+                : t.streaming.environmentBlocked
+              : kind === "network"
+                ? t.streaming.networkLost
+                : kind === "auth"
+                  ? t.streaming.modelAuthRequired
+                  : kind === "capability"
+                    ? t.streaming.subagentCapabilityMismatch
+                    : kind === "rate-limit"
+                      ? t.streaming.modelRateLimited
+                      : kind === "backpressure"
+                        ? t.streaming.eventStreamOverloaded
+                        : kind === "verification"
+                          ? t.streaming.verificationRequired
+                          : kind === "verification-failed"
+                            ? t.streaming.verificationRunFailed
+                            : kind === "guard"
+                              ? hasStructuredReadableDetail
+                                ? failure.detail
+                                : t.streaming.guardBlocked
+                              : kind === "lifecycle"
+                                ? t.streaming.lifecycleFailed
+                                : requiresWorkspaceWrite
+                                  ? t.streaming.workspaceWriteRequired
+                                  : hasStructuredReadableDetail
+                                    ? failure.detail
+                                    : t.streaming.turnFailed;
       return {
         ...failure,
         kind,
@@ -1722,6 +1740,7 @@ export function MessageList({
       t.streaming.verificationRunFailed,
       t.streaming.workspaceWriteRequired,
       t.streaming.sidecarCleanupBlocked,
+      locale,
     ],
   );
   const failureReceipt = useMemo<FailurePresentation | null>(() => {
@@ -2182,7 +2201,8 @@ export function MessageList({
     headerMeta?: ReactNode;
     children: ReactNode;
   }) => {
-    const displayName = builtinPersonaDisplayName(agentName) || agentName || t.message.assistant;
+    const displayName =
+      builtinPersonaDisplayName(agentName) || agentName || t.message.assistant;
     const capabilitySummary = summarizeAgentCapabilities(agentToolGroups);
     // In a team room, label each agent's message with its name (and 队长
     // badge) so the thread reads like a group chat — you can see who's

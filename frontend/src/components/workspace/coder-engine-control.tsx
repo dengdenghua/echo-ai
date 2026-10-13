@@ -99,7 +99,7 @@ const COPY = {
     aliasHint:
       "后端默认值是自动路由入口，尚未指定可供 Codex 执行的模型。请选择具体模型，或使用已连接的 ChatGPT / Codex 账号。",
     routeHint:
-      "所选模型尚未接入后端路由。请接入该模型，或使用 ChatGPT / Codex 账号。",
+      "当前系统模型不能交给 Codex 运行。请在「Codex」标签选择模型并登录 ChatGPT 账号，或选择其他可用模型。",
     proxyHint: "系统模型服务暂不可用，请检查后端模型连接。",
     savedUnavailable: "配置已保存，当前尚不可执行",
     useChatDefault: (model: string) => `使用对话默认模型 · ${model}`,
@@ -185,7 +185,8 @@ const COPY = {
       "Sign in with ChatGPT; a separate OpenAI key is available under advanced options.",
     loading: "Loading Coder configuration…",
     loadFailed: "The Coder model configuration is unavailable.",
-    authExpired: "Your Echo session has expired. Sign in again to choose a model.",
+    authExpired:
+      "Your Echo session has expired. Sign in again to choose a model.",
     retry: "Retry",
     compatible: "Compatible with the Codex engine",
     incompatible: "The system model is not compatible with Codex",
@@ -198,7 +199,7 @@ const COPY = {
     aliasHint:
       "The backend default is an automatic routing entry, not an executable Codex model. Select a specific model or use your connected ChatGPT / Codex account.",
     routeHint:
-      "The selected model has no backend route. Connect that model or use a ChatGPT / Codex account.",
+      "Codex cannot run the current system model. Choose a model on the Codex tab and sign in with ChatGPT, or pick another available model.",
     proxyHint:
       "The system model service is unavailable. Check the backend model connection.",
     savedUnavailable: "Configuration saved; execution is still unavailable",
@@ -305,7 +306,7 @@ const COPY_JA: typeof COPY.en = {
   aliasHint:
     "バックエンドのデフォルトは自動ルーティング入口で、実行可能なCodexモデルではありません。具体的なモデルまたは接続済みのChatGPT / Codexアカウントを選択してください。",
   routeHint:
-    "選択したモデルにはバックエンドルートがありません。モデルを接続するか、ChatGPT / Codexアカウントを使用してください。",
+    "現在のシステムモデルは Codex で実行できません。「Codex」タブでモデルを選んで ChatGPT にログインするか、利用できる別のモデルを選んでください。",
   proxyHint:
     "システムモデルサービスを利用できません。バックエンドのモデル接続を確認してください。",
   savedUnavailable: "設定を保存しましたが、現在は実行できません",
@@ -409,7 +410,7 @@ const COPY_KO: typeof COPY.en = {
   aliasHint:
     "백엔드 기본값은 자동 라우팅 항목이며 실행 가능한 Codex 모델이 아닙니다. 특정 모델이나 연결된 ChatGPT / Codex 계정을 선택하세요.",
   routeHint:
-    "선택한 모델에 백엔드 경로가 없습니다. 모델을 연결하거나 ChatGPT / Codex 계정을 사용하세요.",
+    "현재 시스템 모델은 Codex로 실행할 수 없습니다. 「Codex」 탭에서 모델을 고르고 ChatGPT에 로그인하거나 사용 가능한 다른 모델을 선택하세요.",
   proxyHint:
     "시스템 모델 서비스를 사용할 수 없습니다. 백엔드 모델 연결을 확인하세요.",
   savedUnavailable: "설정을 저장했지만 현재 실행할 수 없습니다",
@@ -660,6 +661,9 @@ function ProfileCompatibility({
   const { locale } = useI18n();
   const copy = copyForLocale(locale);
   const available = profileCanExecute(profile);
+  // The compact row sits in the composer's model menu, where a first-time
+  // user lands after picking Codex: "暂不可执行" alone does not say what to do.
+  const problem = profileProblem(profile, locale);
   return (
     <div
       className={cn(
@@ -678,9 +682,14 @@ function ProfileCompatibility({
         <div className="font-medium">
           {available ? copy.compatible : copy.unavailable}
         </div>
-        {!compact && profileProblem(profile, locale) ? (
-          <div className="mt-0.5 break-words text-current/80">
-            {profileProblem(profile, locale)}
+        {problem ? (
+          <div
+            className={cn(
+              "mt-0.5 break-words text-current/80",
+              compact && "leading-5",
+            )}
+          >
+            {problem}
           </div>
         ) : null}
       </div>
@@ -826,7 +835,9 @@ export function CoderEngineControl({
     activeSystemModel?.display_name ||
     activeSystemModel?.name ||
     activeSystemModel?.model ||
-    (!nativeKernel ? profile?.effective_model?.replace(/^official\//, "") : undefined) ||
+    (!nativeKernel
+      ? profile?.effective_model?.replace(/^official\//, "")
+      : undefined) ||
     value?.replace(/^official\//, "") ||
     "auto";
   const visibleSystemSource = activeSystemModel?.source_display_name;
@@ -1233,11 +1244,12 @@ export function CoderEngineControl({
             ) : null}
             {saveProfile.isError ? (
               <p role="alert" className="px-2 py-2 text-xs text-destructive">
-                {saveProfile.error instanceof CoderAPIError && saveProfile.error.status === 401
+                {saveProfile.error instanceof CoderAPIError &&
+                saveProfile.error.status === 401
                   ? copy.authExpired
                   : saveProfile.error instanceof Error
-                  ? saveProfile.error.message
-                  : copy.unavailable}
+                    ? saveProfile.error.message
+                    : copy.unavailable}
               </p>
             ) : null}
 
@@ -1607,15 +1619,17 @@ export function CoderEngineSettings({
     profile?.source === chatDefaultSource &&
     (profile?.selected_model || profile?.effective_model) === chatDefaultModel;
   const executionAvailable = profile ? profileCanExecute(profile) : false;
-  const error = saveProfile.error instanceof CoderAPIError && saveProfile.error.status === 401
-    ? copy.authExpired
-    : saveProfile.error
-    ? saveProfile.error instanceof Error
-      ? saveProfile.error.message
-      : String(saveProfile.error)
-    : showAccountPanel
-      ? loginError
-      : null;
+  const error =
+    saveProfile.error instanceof CoderAPIError &&
+    saveProfile.error.status === 401
+      ? copy.authExpired
+      : saveProfile.error
+        ? saveProfile.error instanceof Error
+          ? saveProfile.error.message
+          : String(saveProfile.error)
+        : showAccountPanel
+          ? loginError
+          : null;
   const notice =
     showAccountPanel ||
     loginNotice === copy.saved ||

@@ -34,6 +34,14 @@ export interface ExecutionEngineCopy {
   executedBy: (engine: string) => string;
   /** Freshness of the engine's last real chat call (engineVerificationLabel). */
   verification: { verified: string; failed: string; configured: string };
+  /** A sent message the selected engine could not start (turn error
+   * ``execution_unavailable``), keyed by the backend's reason code. */
+  turnBlocked: {
+    reasons: Partial<Record<ExecutionEngineReason, string>>;
+    codexFallback: string;
+    switchEngine: string;
+    opencode: string;
+  };
 }
 
 const zhCN: ExecutionEngineCopy = {
@@ -65,6 +73,24 @@ const zhCN: ExecutionEngineCopy = {
     verified: "最近会话调用通过",
     failed: "最近会话调用失败，可重试",
     configured: "配置就绪，尚无近期调用验证",
+  },
+  turnBlocked: {
+    reasons: {
+      model_incompatible:
+        "Codex 还没有可运行的模型。点「打开模型设置」登录 ChatGPT 账号，或在输入框的模型菜单里换一个可用模型。",
+      account_required:
+        "Codex 还没有连接账号。点「打开模型设置」登录 ChatGPT 账号。",
+      account_unavailable:
+        "Codex 账号凭据暂不可用。点「打开模型设置」重新连接账号。",
+      executable_unavailable: "这台电脑上没有可用的 Codex，请检查安装。",
+      disabled: "Codex 引擎尚未启用。",
+      tools_unavailable: "执行工具尚未就绪，请稍后重试。",
+      workspace_required: "Codex 需要一个工作目录，请先选择工作位置。",
+      configuration_unavailable: "暂时无法读取 Codex 配置，请稍后重试。",
+    },
+    codexFallback: "Codex 暂时无法运行这条消息。",
+    switchEngine: "也可以把执行引擎换成 OpenCode，用它的免费模型继续。",
+    opencode: "OpenCode 暂时无法运行这条消息，请检查 OpenCode 安装和模型配置。",
   },
 };
 
@@ -101,6 +127,30 @@ const enUS: ExecutionEngineCopy = {
     failed: "Recent session call failed; retry available",
     configured: "Configured; no recent call verification",
   },
+  turnBlocked: {
+    reasons: {
+      model_incompatible:
+        "Codex has no model it can run yet. Open model settings to sign in with ChatGPT, or pick another available model in the composer's model menu.",
+      account_required:
+        "Codex is not connected to an account. Open model settings to sign in with ChatGPT.",
+      account_unavailable:
+        "Codex account credentials are unavailable. Open model settings to reconnect the account.",
+      executable_unavailable:
+        "Codex is not available on this computer. Check the installation.",
+      disabled: "The Codex engine is disabled.",
+      tools_unavailable:
+        "Execution tools are not ready yet. Try again shortly.",
+      workspace_required:
+        "Codex needs a working directory. Choose a work location first.",
+      configuration_unavailable:
+        "The Codex configuration cannot be read right now. Try again shortly.",
+    },
+    codexFallback: "Codex cannot run this message right now.",
+    switchEngine:
+      " You can also switch the execution engine to OpenCode and continue with its free models.",
+    opencode:
+      "OpenCode cannot run this message right now. Check the OpenCode installation and model configuration.",
+  },
 };
 
 const jaJP: ExecutionEngineCopy = {
@@ -135,6 +185,30 @@ const jaJP: ExecutionEngineCopy = {
     failed: "最近のセッション呼び出しは失敗しました。再試行できます",
     configured: "設定済み。最近の呼び出し検証はまだありません",
   },
+  turnBlocked: {
+    reasons: {
+      model_incompatible:
+        "Codex で実行できるモデルがまだありません。「モデル設定を開く」から ChatGPT にログインするか、入力欄のモデルメニューで利用できるモデルを選んでください。",
+      account_required:
+        "Codex にアカウントが接続されていません。「モデル設定を開く」から ChatGPT にログインしてください。",
+      account_unavailable:
+        "Codex のアカウント認証情報を利用できません。「モデル設定を開く」から再接続してください。",
+      executable_unavailable:
+        "このコンピューターで Codex を利用できません。インストールを確認してください。",
+      disabled: "Codex エンジンは無効です。",
+      tools_unavailable:
+        "実行ツールの準備ができていません。しばらくしてから再試行してください。",
+      workspace_required:
+        "Codex には作業ディレクトリが必要です。先に作業場所を選んでください。",
+      configuration_unavailable:
+        "Codex の設定を読み込めません。しばらくしてから再試行してください。",
+    },
+    codexFallback: "Codex は現在このメッセージを実行できません。",
+    switchEngine:
+      "実行エンジンを OpenCode に切り替えて、無料モデルで続けることもできます。",
+    opencode:
+      "OpenCode は現在このメッセージを実行できません。OpenCode のインストールとモデル設定を確認してください。",
+  },
 };
 
 const koKR: ExecutionEngineCopy = {
@@ -168,7 +242,62 @@ const koKR: ExecutionEngineCopy = {
     failed: "최근 세션 호출 실패, 다시 시도할 수 있음",
     configured: "구성 완료, 최근 호출 검증 없음",
   },
+  turnBlocked: {
+    reasons: {
+      model_incompatible:
+        "Codex가 실행할 수 있는 모델이 아직 없습니다. 모델 설정을 열어 ChatGPT에 로그인하거나 입력창의 모델 메뉴에서 사용 가능한 모델을 선택하세요.",
+      account_required:
+        "Codex에 계정이 연결되어 있지 않습니다. 모델 설정을 열어 ChatGPT에 로그인하세요.",
+      account_unavailable:
+        "Codex 계정 자격 증명을 사용할 수 없습니다. 모델 설정을 열어 다시 연결하세요.",
+      executable_unavailable:
+        "이 컴퓨터에서 Codex를 사용할 수 없습니다. 설치를 확인하세요.",
+      disabled: "Codex 엔진이 비활성화되어 있습니다.",
+      tools_unavailable:
+        "실행 도구가 아직 준비되지 않았습니다. 잠시 후 다시 시도하세요.",
+      workspace_required:
+        "Codex에는 작업 디렉터리가 필요합니다. 먼저 작업 위치를 선택하세요.",
+      configuration_unavailable:
+        "지금은 Codex 구성을 읽을 수 없습니다. 잠시 후 다시 시도하세요.",
+    },
+    codexFallback: "Codex가 지금 이 메시지를 실행할 수 없습니다.",
+    switchEngine:
+      " 실행 엔진을 OpenCode로 바꿔 무료 모델로 계속할 수도 있습니다.",
+    opencode:
+      "OpenCode가 지금 이 메시지를 실행할 수 없습니다. OpenCode 설치와 모델 구성을 확인하세요.",
+  },
 };
+
+function isExecutionEngineReason(
+  copy: ExecutionEngineCopy,
+  reason: string,
+): reason is ExecutionEngineReason {
+  return Object.hasOwn(copy.reasons, reason);
+}
+
+/** Readable, actionable text for a turn the selected engine could not start.
+ *
+ * The backend reports ``execution_unavailable`` with the engine and a reason
+ * code; its own message is English diagnostics, so the UI words it here.
+ */
+export function engineSelectionFailureMessage(
+  copy: ExecutionEngineCopy,
+  engine: string | undefined,
+  reason: string | undefined,
+  detail: string,
+): string {
+  if (engine === "opencode") {
+    // OpenCode readiness reasons are already written for people (Chinese).
+    return /\p{Script=Han}/u.test(detail) ? detail : copy.turnBlocked.opencode;
+  }
+  const known =
+    reason && isExecutionEngineReason(copy, reason)
+      ? copy.turnBlocked.reasons[reason]
+      : undefined;
+  return (
+    (known ?? copy.turnBlocked.codexFallback) + copy.turnBlocked.switchEngine
+  );
+}
 
 export function executionEngineCopy(locale: string): ExecutionEngineCopy {
   if (locale.startsWith("zh")) return zhCN;
