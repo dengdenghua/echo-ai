@@ -1964,10 +1964,14 @@ export function AgentWorldUnified() {
                           ) : (
                             <button
                               type="button"
+                              // The accessible name contains the visible verb
+                              // (移除 / 恢复 / 安装) so voice control finds it.
                               aria-label={
                                 isInSidebar
                                   ? `从侧栏移除${app.name}`
-                                  : `将${app.name}添加到侧栏`
+                                  : recoveries.length > 0
+                                    ? `恢复${app.name}`
+                                    : `安装${app.name}`
                               }
                               disabled={
                                 isMutating ||

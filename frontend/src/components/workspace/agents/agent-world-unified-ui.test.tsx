@@ -416,7 +416,7 @@ describe("HUB market shell", () => {
       }),
     ).toBeVisible();
     expect(
-      screen.queryByRole("button", { name: "将模拟炒股添加到侧栏" }),
+      screen.queryByRole("button", { name: "安装模拟炒股" }),
     ).not.toBeInTheDocument();
     expect(
       screen.getByRole("button", { name: "从侧栏移除设计画布" }),
