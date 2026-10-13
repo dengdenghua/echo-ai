@@ -1,6 +1,7 @@
 import { CheckIcon, CopyIcon, TriangleAlertIcon } from "lucide-react";
 import DOMPurify from "dompurify";
 import {
+  type CSSProperties,
   useCallback,
   useEffect,
   useId,
@@ -84,9 +85,22 @@ export function MermaidBlock({
     ).documentElement;
     if (element.tagName !== "svg") return "";
     // Persist sizing in the markup: React may replace innerHTML on any render.
+    // Fill the column, but never grow past the diagram's natural width times
+    // the zoom: a three-node flowchart must not blow up to full width.
+    const naturalWidth = Number(
+      (element.getAttribute("viewBox") || "").trim().split(/[\s,]+/)[2],
+    );
+    const ownStyle = (element.getAttribute("style") || "").replace(
+      /max-width\s*:[^;]*;?/gi,
+      "",
+    );
+    const maxWidth =
+      Number.isFinite(naturalWidth) && naturalWidth > 0
+        ? `min(100%, calc(${naturalWidth}px * var(--mermaid-zoom, 1)))`
+        : "100%";
     element.setAttribute(
       "style",
-      `${element.getAttribute("style") || ""};max-width:none;width:100%;height:auto`,
+      `${ownStyle};max-width:${maxWidth};width:100%;height:auto`,
     );
     return element.outerHTML;
   }, [svg]);
@@ -245,13 +259,16 @@ export function MermaidBlock({
       >
         <div
           ref={containerRef}
-          style={{
-            width: `${zoom * 100}%`,
-            minWidth: `${zoom * 100}%`,
-            color: dark
-              ? "var(--foreground, #eef1f4)"
-              : "var(--foreground, #111317)",
-          }}
+          style={
+            {
+              "--mermaid-zoom": zoom,
+              width: `${zoom * 100}%`,
+              minWidth: `${zoom * 100}%`,
+              color: dark
+                ? "var(--foreground, #eef1f4)"
+                : "var(--foreground, #111317)",
+            } as CSSProperties
+          }
           className={cn(
             "overflow-auto bg-muted/15 p-4 animate-fade-in transition-colors duration-fast",
             "[&_svg]:mx-auto [&_svg]:h-auto [&_svg]:max-w-full",

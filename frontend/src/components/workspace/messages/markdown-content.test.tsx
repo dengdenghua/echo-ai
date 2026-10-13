@@ -208,6 +208,21 @@ describe("<MarkdownContent /> Mermaid", () => {
     expect(await screen.findByText("Rendered Mermaid")).toBeInTheDocument();
   });
 
+  it("caps a small diagram at its natural width instead of filling the column", async () => {
+    mermaidMock.render.mockResolvedValue({
+      svg: '<svg role="img" viewBox="0 0 104 254" style="max-width: 104px;"><text>Small flow</text></svg>',
+    });
+    renderMarkdown("```mermaid\ngraph TD\nA-->B-->C\n```");
+
+    const svg = (await screen.findByText("Small flow")).closest("svg");
+    const style = svg?.getAttribute("style") ?? "";
+    expect(style).toContain(
+      "max-width:min(100%, calc(104px * var(--mermaid-zoom, 1)))",
+    );
+    expect(style).not.toContain("max-width:none");
+    expect(style).not.toContain("max-width: 104px");
+  });
+
   it("settles streaming blocks once without remounting the tree", async () => {
     const content = "```mermaid\ngraph TD\nA-->B\n```";
     const view = renderMarkdown(content, true);
