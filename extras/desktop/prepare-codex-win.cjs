@@ -46,6 +46,11 @@ const REQUIRED_VENDOR_FILES = [
   "codex-path/rg.exe",
   "codex-package.json",
 ];
+// Codex 0.162 also ships an optional voice host (codex-resources/voice, its own
+// PE plus native notices). Echo never starts it, its native closure is outside
+// the reviewed notices above, and it is outside the signed-executable inventory
+// that build-win.yml and release.yml verify, so it is not packaged.
+const UNPACKAGED_VENDOR_DIRS = [path.join("codex-resources", "voice")];
 const LICENSE_FILES = [
   {
     source: path.join(
@@ -320,7 +325,18 @@ function prepare() {
   }
   fs.rmSync(outputRoot, { recursive: true, force: true });
   fs.mkdirSync(outputRoot, { recursive: true });
-  fs.cpSync(sourceRoot, outputRoot, { recursive: true, errorOnExist: false });
+  const unpackaged = UNPACKAGED_VENDOR_DIRS.map((relative) =>
+    path.join(sourceRoot, relative),
+  );
+  fs.cpSync(sourceRoot, outputRoot, {
+    recursive: true,
+    errorOnExist: false,
+    filter: (source) =>
+      !unpackaged.some(
+        (skipped) =>
+          source === skipped || source.startsWith(skipped + path.sep),
+      ),
+  });
   for (const license of LICENSE_FILES) {
     const destination = path.join(outputRoot, license.destination);
     fs.mkdirSync(path.dirname(destination), { recursive: true });

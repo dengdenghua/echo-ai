@@ -931,6 +931,10 @@ def test_windows_codex_preparer_copies_only_the_locked_official_platform_package
     assert "bundled license text failed its source hash" in source
     assert "fs.copyFileSync(license.source, destination)" in source
     assert "fs.cpSync(sourceRoot, outputRoot" in source
+    # The unreviewed voice host would break build-win's five-executable
+    # inventory check and the reviewed native-notice closure.
+    assert 'const UNPACKAGED_VENDOR_DIRS = [path.join("codex-resources", "voice")];' in source
+    assert "filter: (source) =>" in source
     assert "https:" not in source
     assert "fetch(" not in source
     assert "npm install" not in source
