@@ -1,15 +1,32 @@
 import { useCallback, useSyncExternalStore } from "react";
+
+import { EchoAPIError } from "@/core/api/client";
+
 import { fetchDeviceLinkStatus } from "./device-link";
 import { fetchNearbyDevices, type NearbyDevice } from "./nearby-devices";
 
 type Status = Awaited<ReturnType<typeof fetchDeviceLinkStatus>>;
+/**
+ * Whether this account may use the device control plane. ``signin`` (401)
+ * and ``forbidden`` (403) will not change by polling again, so the
+ * directory stops polling until the user refreshes or signs in again.
+ */
+export type DeviceAccess = "ok" | "signin" | "forbidden";
 type Snapshot = {
   status: Status | null;
   error: string;
+  access: DeviceAccess;
   loading: boolean;
   nearby: NearbyDevice[];
 };
-const empty: Snapshot = { status: null, error: "", loading: true, nearby: [] };
+const POLL_MS = 5000;
+const empty: Snapshot = {
+  status: null,
+  error: "",
+  access: "ok",
+  loading: true,
+  nearby: [],
+};
 let snapshot = empty;
 const listeners = new Set<() => void>();
 let timer: ReturnType<typeof setInterval> | undefined;
@@ -17,10 +34,28 @@ let pending: Promise<void> | undefined;
 let generation = 0;
 const emit = () => listeners.forEach((listener) => listener());
 
+function startPolling() {
+  if (timer !== undefined || !listeners.size) return;
+  timer = setInterval(() => void refreshDeviceDirectory(), POLL_MS);
+}
+
+function stopPolling() {
+  clearInterval(timer);
+  timer = undefined;
+}
+
+function accessFromError(error: unknown): DeviceAccess {
+  if (!(error instanceof EchoAPIError)) return "ok";
+  if (error.status === 401) return "signin";
+  if (error.status === 403) return "forbidden";
+  return "ok";
+}
+
 export function publishDeviceStatus(status: Status) {
   generation++;
   pending = undefined;
-  snapshot = { ...snapshot, status, error: "", loading: false };
+  snapshot = { ...snapshot, status, error: "", access: "ok", loading: false };
+  startPolling();
   emit();
 }
 
@@ -40,10 +75,13 @@ export function refreshDeviceDirectory(): Promise<void> {
     .catch((error: unknown) => {
       if (version !== generation) return;
       // Never leave cached devices looking online after authentication/network failure.
+      const access = accessFromError(error);
+      if (access !== "ok") stopPolling();
       snapshot = {
         status: null,
         nearby: [],
         loading: false,
+        access,
         error: error instanceof Error ? error.message : "无法读取设备",
       };
       emit();
@@ -62,12 +100,12 @@ export function useDeviceDirectory(enabled = true) {
       listeners.add(listener);
       if (listeners.size === 1) {
         void refreshDeviceDirectory();
-        timer = setInterval(() => void refreshDeviceDirectory(), 5000);
+        startPolling();
       }
       return () => {
         listeners.delete(listener);
         if (!listeners.size) {
-          clearInterval(timer);
+          stopPolling();
           generation++;
           pending = undefined;
           snapshot = empty;

@@ -141,3 +141,18 @@ def test_role_gate_is_inert_when_auth_disabled() -> None:
     assert (
         client.get("/api/tentacle/devices", headers={"Authorization": "Bearer sk-mallory"})
     ).status_code == 200
+
+
+def test_browser_session_cookie_authenticates_like_other_routes() -> None:
+    """A cookie-restored browser session has no Authorization header.
+
+    The dashboard resolves credentials the way every HTTP route does, so the
+    HttpOnly session cookie reaches it; the operator role gate still applies.
+    """
+    client = _client(require_auth=True, store=_store())
+    client.cookies.set("echo_session", "sk-alice")
+    assert client.get("/api/tentacle/devices").status_code == 200
+    client.cookies.set("echo_session", "sk-mallory")
+    assert client.get("/api/tentacle/devices").status_code == 403
+    client.cookies.set("echo_session", "wrong")
+    assert client.get("/api/tentacle/devices").status_code == 401

@@ -6,8 +6,14 @@ import {
 } from "@/components/device-interconnect/device-directory";
 import type { LinkedDevice } from "@/components/device-interconnect/device-link";
 import { PhoneTransferList } from "@/components/device-interconnect/phone-transfer-list";
-import { Monitor, RefreshCw, Smartphone } from "lucide-react";
-import { useSearchParams } from "react-router-dom";
+import {
+  LogInIcon,
+  Monitor,
+  RefreshCw,
+  ShieldIcon,
+  Smartphone,
+} from "lucide-react";
+import { Link, useSearchParams } from "react-router-dom";
 
 import { cn } from "@/lib/utils";
 
@@ -15,6 +21,45 @@ import { PhoneMirrorApp } from "@/components/device-interconnect/phone-mirror-ap
 
 const button =
   "rounded-xl border px-3 py-2 text-sm hover:bg-muted disabled:opacity-40";
+
+/**
+ * The device control plane is for admin/operator accounts. A refused session
+ * gets one calm explanation instead of a raw server string on every poll.
+ */
+function DeviceAccessNotice({ access }: { access: "signin" | "forbidden" }) {
+  const signin = access === "signin";
+  const Icon = signin ? LogInIcon : ShieldIcon;
+  return (
+    <section
+      role="status"
+      className="mb-4 flex max-w-xl gap-3 rounded-2xl border bg-card p-5 text-sm"
+    >
+      <Icon
+        aria-hidden="true"
+        className="mt-0.5 size-5 shrink-0 text-muted-foreground"
+        strokeWidth={1.5}
+      />
+      <div className="min-w-0">
+        <h2 className="font-medium text-foreground">
+          {signin ? "登录后才能查看设备" : "设备互联需要管理员权限"}
+        </h2>
+        <p className="mt-1 text-muted-foreground">
+          {signin
+            ? "当前会话没有通过设备服务的验证，可能已经过期。重新登录后，已配对的手机和电脑会出现在这里。"
+            : "这台主机上的设备可被远程查看和操作，所以只对管理员和运维账号开放。请让管理员为你开通，或换用管理员账号登录。"}
+        </p>
+        {signin && (
+          <Link
+            to="/login"
+            className="mt-3 inline-flex rounded-xl border px-3 py-1.5 text-sm text-foreground hover:bg-muted"
+          >
+            重新登录
+          </Link>
+        )}
+      </div>
+    </section>
+  );
+}
 
 function deviceName(device: LinkedDevice) {
   return (
@@ -32,15 +77,17 @@ export default function DevicesPage() {
     selected ? [selected] : [],
   );
   const [pip, setPip] = useState(false);
+  const [transfersOpen, setTransfersOpen] = useState(false);
   useEffect(() => {
     if (selected)
       setOpened((previous) =>
         previous.includes(selected) ? previous : [...previous, selected],
       );
   }, [selected]);
+  const denied = directory.access === "ok" ? null : directory.access;
   const query = {
     data: directory.status?.devices,
-    error: directory.error ? new Error(directory.error) : null,
+    error: directory.error && !denied ? new Error(directory.error) : null,
     isPending: directory.loading,
     isFetching: directory.loading,
     refetch: refreshDeviceDirectory,
@@ -74,12 +121,13 @@ export default function DevicesPage() {
           正在读取设备…
         </p>
       )}
+      {denied && <DeviceAccessNotice access={denied} />}
       {query.error && (
         <p role="alert" className="mb-4 text-sm text-destructive">
-          无法读取设备：{query.error.message}。请检查登录和设备服务连接。
+          暂时读不到设备列表。设备服务可能还没启动，稍后会自动重试，也可以点右上角刷新。
         </p>
       )}
-      {!query.isPending && !query.error && !query.data?.length && (
+      {!query.isPending && !query.error && !denied && !query.data?.length && (
         <section className="rounded-2xl border p-6 text-sm text-muted-foreground">
           <h2 className="mb-2 font-medium text-foreground">连接第一台设备</h2>
           <p>
@@ -193,15 +241,25 @@ export default function DevicesPage() {
               选择一台在线手机，即可操作手机和收发文件。
             </p>
           )}
-          <DeviceTaskSection />
-          <details className="rounded-2xl border px-4 py-3">
-            <summary className="cursor-pointer text-sm font-medium">
-              全部文件传输
-            </summary>
-            <div className="mt-3">
-              <PhoneTransferList />
-            </div>
-          </details>
+          {!denied && (
+            <>
+              <DeviceTaskSection />
+              <details
+                className="rounded-2xl border px-4 py-3"
+                onToggle={(event) => setTransfersOpen(event.currentTarget.open)}
+              >
+                <summary className="cursor-pointer text-sm font-medium">
+                  全部文件传输
+                </summary>
+                {/* The list polls the hub; only while someone is looking. */}
+                {transfersOpen && (
+                  <div className="mt-3">
+                    <PhoneTransferList />
+                  </div>
+                )}
+              </details>
+            </>
+          )}
         </div>
       </div>
     </main>

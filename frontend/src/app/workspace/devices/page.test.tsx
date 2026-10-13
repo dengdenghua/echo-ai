@@ -1,8 +1,15 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import {
+  act,
+  cleanup,
+  fireEvent,
+  render,
+  screen,
+} from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { afterEach, expect, it, vi } from "vitest";
 
+import { EchoAPIError } from "@/core/api/client";
 import { listDevices } from "@/core/tentacle/api";
 import DevicesPage from "./page";
 
@@ -69,12 +76,37 @@ it("opens the selected phone while showing desktops and blocking offline phones"
 });
 
 it("shows connection failures instead of presenting an empty successful inventory", async () => {
-  vi.mocked(listDevices).mockRejectedValue(
-    new Error("authentication required"),
-  );
+  vi.mocked(listDevices).mockRejectedValue(new Error("connect ECONNREFUSED"));
   mount();
-  expect(await screen.findByRole("alert")).toHaveTextContent(
-    "authentication required",
-  );
+  const alert = await screen.findByRole("alert");
+  expect(alert).toHaveTextContent("暂时读不到设备列表");
+  expect(alert).not.toHaveTextContent("ECONNREFUSED");
   expect(screen.queryByText("连接第一台设备")).not.toBeInTheDocument();
 });
+
+it.each([
+  [401, "missing tentacle auth token", "登录后才能查看设备"],
+  [403, "admin/operator role required", "设备互联需要管理员权限"],
+])(
+  "explains a %i refusal once and stops polling the device hub",
+  async (status, detail, title) => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    try {
+      vi.mocked(listDevices).mockRejectedValue(
+        new EchoAPIError(detail, status, detail),
+      );
+      mount();
+      expect(await screen.findByText(title)).toBeInTheDocument();
+      expect(screen.queryByText(detail)).not.toBeInTheDocument();
+      expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+      expect(screen.queryByText("跨端任务")).not.toBeInTheDocument();
+      const calls = vi.mocked(listDevices).mock.calls.length;
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(20_000);
+      });
+      expect(vi.mocked(listDevices).mock.calls.length).toBe(calls);
+    } finally {
+      vi.useRealTimers();
+    }
+  },
+);

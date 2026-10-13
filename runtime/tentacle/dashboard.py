@@ -49,13 +49,6 @@ from runtime.tentacle.simulation import ProcedureSimulator, SimulationScenario
 
 logger = logging.getLogger(__name__)
 
-_OPERATOR_ROLES = frozenset({"admin", "operator"})
-
-
-def _is_operator(identity: Any) -> bool:
-    roles = {str(role).strip().lower() for role in (getattr(identity, "roles", None) or ())}
-    return bool(roles & _OPERATOR_ROLES)
-
 
 def create_tentacle_router(
     coordinator: TentacleCoordinator,
@@ -102,32 +95,26 @@ def create_tentacle_router(
         devices (screen capture, remote input, task dispatch), so being logged
         in is not enough: open-signup accounts (OCT/social) are plain users.
         Only ``admin``/``operator`` principals may use the control plane.
+
+        Credentials resolve exactly as on every other HTTP route
+        (``resolve_principal``): the ``Authorization`` header or the HttpOnly
+        session cookie, whose browser Origins ``LocalOriginGuardMiddleware``
+        polices. A browser session restored from its cookie carries no
+        header (the JWT is kept out of script-readable storage), so a
+        header-only check here refused signed-in operators.
         """
         if not _enforce_auth:
             return
-        if identity_store is None:
-            raise HTTPException(401, "tentacle identity store unavailable")
-        token: str | None = None
-        auth_header = request.headers.get("authorization") or ""
-        if auth_header.lower().startswith("bearer "):
-            token = auth_header[7:].strip()
-        if not token:
-            raise HTTPException(401, "missing tentacle auth token")
-        identity = None
-        if jwt_secret and token.count(".") == 2:
-            identity = identity_store.verify_jwt(
-                token,
-                secret=jwt_secret,
-                required_issuer=jwt_issuer,
-                required_audience=jwt_audience,
-            )
-        if identity is None:
-            identity = identity_store.verify_api_key(token)
-        if identity is None:
-            raise HTTPException(401, "invalid tentacle auth token")
-        if not _is_operator(identity):
-            raise HTTPException(403, "admin/operator role required")
-        request.state.device_workspace_actor = identity.actor_id
+        principal = require_operator(
+            request,
+            identity_store,
+            True,
+            jwt_secret=jwt_secret,
+            jwt_issuer=jwt_issuer,
+            jwt_audience=jwt_audience,
+        )
+        if principal is not None:
+            request.state.device_workspace_actor = principal.actor_id
 
     from .mirror_api import create_mirror_router
 
