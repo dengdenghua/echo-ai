@@ -68,7 +68,8 @@ export function formatRelativeTimestamp(
   const deltaSec = Math.max(0, (Date.now() - d.getTime()) / 1000);
   const isZh = effectiveLocale === "zh-CN";
 
-  if (deltaSec < 30) return isZh ? "刚刚" : "just now";
+  // Under a minute stays "just now" so the label never reads "0 分钟前".
+  if (deltaSec < 60) return isZh ? "刚刚" : "just now";
   if (deltaSec < 3600) {
     const m = Math.floor(deltaSec / 60);
     return isZh ? `${m} 分钟前` : `${m}m ago`;
@@ -95,7 +96,8 @@ export function formatCompactRelativeTimestamp(
   const deltaSec = Math.max(0, (Date.now() - d.getTime()) / 1000);
   const isZh = effectiveLocale === "zh-CN";
 
-  if (deltaSec < 30) return isZh ? "刚刚" : "now";
+  // Under a minute stays "now"; 30–59 s used to render as "0m".
+  if (deltaSec < 60) return isZh ? "刚刚" : "now";
   if (deltaSec < 3600) {
     const m = Math.floor(deltaSec / 60);
     return `${m}m`;
