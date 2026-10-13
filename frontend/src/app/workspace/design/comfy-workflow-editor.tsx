@@ -438,7 +438,7 @@ export function ComfyWorkflowEditor({
         </Button>
         <Button
           size="sm"
-          className="h-8 gap-1.5 bg-violet-500 text-xs hover:bg-violet-400"
+          className="h-8 gap-1.5 text-xs"
           onClick={() => void run()}
           disabled={!Object.keys(workflow).length}
         >
@@ -495,7 +495,7 @@ export function ComfyWorkflowEditor({
                   className={cn(
                     "absolute overflow-hidden rounded-[10px] border bg-[#20232b] shadow-[0_14px_30px_rgba(0,0,0,.32)]",
                     selectedId === id
-                      ? "border-violet-400 ring-1 ring-violet-400/50"
+                      ? "border-core ring-1 ring-core/50"
                       : "border-white/10",
                   )}
                   style={{
@@ -528,7 +528,7 @@ export function ComfyWorkflowEditor({
                     {inputs.length ? (
                       inputs.slice(0, 5).map(([key, value]) => (
                         <div key={key} className="flex items-center gap-1.5">
-                          <span className="size-1.5 rounded-full bg-violet-400" />
+                          <span className="size-1.5 rounded-full bg-core" />
                           <span className="min-w-0 flex-1 truncate">{key}</span>
                           <span className="max-w-24 truncate text-zinc-500">
                             {isConnection(value)
@@ -541,7 +541,7 @@ export function ComfyWorkflowEditor({
                       <span>暂无输入</span>
                     )}
                   </div>
-                  <span className="absolute right-[-4px] top-11 size-2 rounded-full bg-violet-400" />
+                  <span className="absolute right-[-4px] top-11 size-2 rounded-full bg-core" />
                 </div>
               );
             })}

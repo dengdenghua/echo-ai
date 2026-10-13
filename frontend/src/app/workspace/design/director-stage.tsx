@@ -1357,7 +1357,7 @@ export function DirectorStage({
                         : "hover:bg-muted",
                     )}
                   >
-                    <BoxIcon className="size-3.5 text-violet-500" />
+                    <BoxIcon className="size-3.5 text-muted-foreground" />
                     <span className="truncate">{model.name}</span>
                     <span className="ml-auto text-micro text-muted-foreground">
                       {model.parts.length}
@@ -1455,7 +1455,7 @@ export function DirectorStage({
                   playheadRef.current = value;
                   setPlayheadSec(value);
                 }}
-                className="ml-2 w-36 accent-violet-500"
+                className="ml-2 w-36 accent-core"
               />
               <span className="flex-1" />
               <Button

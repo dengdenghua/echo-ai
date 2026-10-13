@@ -428,7 +428,7 @@ function EdgeLayer({
         <path
           d={`M ${connectionSource.x + (connectionSource.width ?? NODE_WIDTH)} ${connectionSource.y + (connectionSource.height ?? NODE_HEIGHT) / 2} C ${connectionSource.x + (connectionSource.width ?? NODE_WIDTH) + 80} ${connectionSource.y + (connectionSource.height ?? NODE_HEIGHT) / 2}, ${pointer.x - 80} ${pointer.y}, ${pointer.x} ${pointer.y}`}
           fill="none"
-          className="stroke-violet-500"
+          className="stroke-core"
           strokeWidth="1.5"
           strokeDasharray="5 4"
         />
@@ -536,7 +536,7 @@ function CanvasNode({
           "pointer-events-auto absolute rounded-[18px] border border-dashed transition",
           tone.frame,
           mode === "select" && "cursor-grab active:cursor-grabbing",
-          selected && "ring-[3px] ring-purple-500/12",
+          selected && "ring-[3px] ring-core/15",
         )}
         style={{
           width: node.width ?? NODE_WIDTH,
@@ -685,7 +685,7 @@ function CanvasNode({
               event.stopPropagation();
               onCompleteConnection();
             }}
-            className="absolute -left-1.5 z-10 size-3 rounded-full border-2 border-white bg-foreground/35 hover:scale-125 hover:bg-violet-500 dark:border-[#1a1a1a]"
+            className="absolute -left-1.5 z-10 size-3 rounded-full border-2 border-white bg-foreground/35 hover:scale-125 hover:bg-core dark:border-[#1a1a1a]"
             style={{ top: height / 2 - 6 }}
           />
         ) : null}
@@ -699,8 +699,8 @@ function CanvasNode({
             }}
             onClick={(event) => event.stopPropagation()}
             className={cn(
-              "absolute -right-1.5 z-10 size-3 rounded-full border-2 border-white bg-foreground/55 hover:scale-125 hover:bg-violet-500 dark:border-[#1a1a1a]",
-              connecting && "scale-125 bg-violet-500 ring-4 ring-violet-500/15",
+              "absolute -right-1.5 z-10 size-3 rounded-full border-2 border-white bg-foreground/55 hover:scale-125 hover:bg-core dark:border-[#1a1a1a]",
+              connecting && "scale-125 bg-core ring-4 ring-core/15",
             )}
             style={{ top: height / 2 - 6 }}
           />
@@ -783,7 +783,7 @@ function CanvasNode({
             event.stopPropagation();
             onCompleteConnection();
           }}
-          className="absolute -left-1.5 z-10 size-3 rounded-full border-2 border-white bg-foreground/35 hover:scale-125 hover:bg-violet-500 dark:border-[#1a1a1a]"
+          className="absolute -left-1.5 z-10 size-3 rounded-full border-2 border-white bg-foreground/35 hover:scale-125 hover:bg-core dark:border-[#1a1a1a]"
           style={{ top: (node.height ?? NODE_HEIGHT) / 2 - 6 }}
         />
       ) : null}
@@ -797,8 +797,8 @@ function CanvasNode({
           }}
           onClick={(event) => event.stopPropagation()}
           className={cn(
-            "absolute -right-1.5 z-10 size-3 rounded-full border-2 border-white bg-foreground/55 hover:scale-125 hover:bg-violet-500 dark:border-[#1a1a1a]",
-            connecting && "scale-125 bg-violet-500 ring-4 ring-violet-500/15",
+            "absolute -right-1.5 z-10 size-3 rounded-full border-2 border-white bg-foreground/55 hover:scale-125 hover:bg-core dark:border-[#1a1a1a]",
+            connecting && "scale-125 bg-core ring-4 ring-core/15",
           )}
           style={{ top: (node.height ?? NODE_HEIGHT) / 2 - 6 }}
         />
@@ -932,7 +932,7 @@ function ChatPanel({
       </div>
       <div className="min-h-0 flex-1 overflow-y-auto px-4 py-5 text-[13px] leading-6">
         <div className="flex gap-2.5">
-          <span className="mt-0.5 grid size-7 shrink-0 place-items-center rounded-full bg-violet-100 text-violet-600">
+          <span className="mt-0.5 grid size-7 shrink-0 place-items-center rounded-full bg-muted text-foreground">
             <SparklesIcon className="size-3.5" />
           </span>
           <div>
@@ -1097,13 +1097,13 @@ function CreativeProjectSelector({
           aria-expanded={open}
         >
           {brand ? (
-            <span className="grid size-7 shrink-0 place-items-center rounded-lg bg-violet-100 text-violet-600">
+            <span className="grid size-7 shrink-0 place-items-center rounded-lg bg-muted text-foreground">
               <WandSparklesIcon className="size-3.5" />
             </span>
           ) : current ? (
             <FolderIcon className="size-3.5 shrink-0 text-muted-foreground" />
           ) : (
-            <span className="grid size-5 shrink-0 place-items-center rounded-md bg-violet-100 text-violet-600 dark:bg-violet-500/15 dark:text-violet-400" aria-hidden="true">
+            <span className="grid size-5 shrink-0 place-items-center rounded-md bg-muted text-foreground" aria-hidden="true">
                 <SparklesIcon className="size-3.5" strokeWidth={1.75} />
               </span>
           )}
@@ -1160,7 +1160,7 @@ function CreativeProjectSelector({
               }}
               className="flex h-10 w-full items-center gap-2 rounded-lg px-2.5 text-left text-xs hover:bg-muted"
             >
-              <span className="grid size-5 shrink-0 place-items-center rounded-md bg-violet-100 text-violet-600 dark:bg-violet-500/15 dark:text-violet-400" aria-hidden="true">
+              <span className="grid size-5 shrink-0 place-items-center rounded-md bg-muted text-foreground" aria-hidden="true">
                 <SparklesIcon className="size-3.5" strokeWidth={1.75} />
               </span>
               <span className="min-w-0 flex-1">
@@ -3268,7 +3268,7 @@ function ComfyUIView({
               !dependencies.manager.job.running ? (
                 <Button
                   variant="outline"
-                  className="rounded-xl border-violet-200 text-violet-700"
+                  className="rounded-xl"
                   onClick={() => void controlManagedComfy("install")}
                   disabled={checking}
                 >
@@ -3361,8 +3361,8 @@ function ComfyUIView({
               className={cn(
                 "mt-3 rounded-xl border px-4 py-3 text-xs",
                 dependencies.manager.job.state === "failed"
-                  ? "border-red-200 bg-red-50 text-red-800"
-                  : "border-violet-200 bg-violet-50 text-violet-800",
+                  ? "border-breach/30 bg-breach/10 text-breach"
+                  : "border-signal/30 bg-signal/10 text-signal",
               )}
             >
               <div className="flex items-center gap-2 font-medium">
@@ -3552,7 +3552,7 @@ function ComfyUIView({
                   className="rounded-xl border border-border-subtle bg-muted/15 p-3"
                 >
                   <div className="flex items-start gap-2">
-                    <span className="grid size-8 shrink-0 place-items-center rounded-lg bg-violet-100 text-violet-700">
+                    <span className="grid size-8 shrink-0 place-items-center rounded-lg bg-muted text-foreground">
                       <PuzzleIcon className="size-4" />
                     </span>
                     <div className="min-w-0 flex-1">
@@ -3639,7 +3639,7 @@ function ComfyUIView({
                 ? "border-breach/30 bg-breach/10 text-breach"
                 : runState.state === "completed"
                   ? "border-core/30 bg-core/10 text-core"
-                  : "border-violet-200 bg-violet-50 text-violet-800",
+                  : "border-signal/30 bg-signal/10 text-signal",
             )}
           >
             <div className="flex items-center gap-2 font-medium">
@@ -3754,7 +3754,7 @@ function ComfyUIView({
                   : "工作流可在本机手动运行，也可加入画布交给智能体调用。模型和输入文件始终由你选择。"}
               </p>
               <Button
-                className="mt-7 h-11 w-full max-w-xl rounded-xl bg-violet-600 text-white hover:bg-violet-700"
+                className="mt-7 h-11 w-full max-w-xl rounded-xl"
                 disabled={selectedWorkflow.availability === "dependency"}
                 onClick={() =>
                   onUse(selectedWorkflow.id, selectedWorkflow.title)
@@ -3897,7 +3897,7 @@ function ComfyUIView({
                   className={cn(
                     "w-full rounded-xl border p-3 text-left transition hover:bg-muted/50",
                     workflow.id === selectedWorkflow.id
-                      ? "border-violet-300 bg-violet-50/60"
+                      ? "border-core/40 bg-core/5"
                       : "border-border-subtle",
                   )}
                 >
@@ -6135,7 +6135,7 @@ export default function DesignPage({
         {selectionRect ? (
           <div
             aria-hidden
-            className="absolute border border-violet-500/70 bg-violet-500/10"
+            className="absolute border border-core/70 bg-core/10"
             style={{
               transform: `translate(${selectionRect.x}px, ${selectionRect.y}px)`,
               width: selectionRect.width,
@@ -6517,7 +6517,7 @@ export default function DesignPage({
                 key={node.id}
                 className={cn(
                   "absolute min-h-1 min-w-1 rounded-[2px] border border-black/10 bg-foreground/35",
-                  node.id === selectedId && "bg-violet-500/80",
+                  node.id === selectedId && "bg-core/80",
                 )}
                 style={{
                   left: `${((node.x - minimapBounds.minX) / minimapBounds.width) * 100}%`,
@@ -6749,7 +6749,7 @@ export default function DesignPage({
         </div>
       ) : null}
       {connectionSourceId ? (
-        <div className="absolute bottom-[68px] left-1/2 z-30 -translate-x-1/2 rounded-full border border-violet-200 bg-white/92 px-3 py-1.5 text-micro font-medium text-violet-700 shadow-sm backdrop-blur dark:border-violet-400/30 dark:bg-[#1a1a1a]/92 dark:text-violet-300">
+        <div className="absolute bottom-[68px] left-1/2 z-30 -translate-x-1/2 rounded-full border border-border bg-background/92 px-3 py-1.5 text-micro font-medium text-foreground shadow-sm backdrop-blur">
           拖到目标端口完成连接 · 落到空白处新建并连接 · Esc 取消
         </div>
       ) : null}
