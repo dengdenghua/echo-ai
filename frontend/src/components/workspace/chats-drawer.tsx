@@ -1,5 +1,6 @@
 import { WORKBENCH_BUILTIN_APPS } from "@/core/workbench/apps";
 import { RemovedThreadsButton } from "./removed-threads-button";
+import { MODULE_ICONS } from "./module-icons";
 import { useCallback, useMemo, useState } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 
@@ -41,6 +42,15 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
 import { useActiveAgentId } from "@/core/agents/active";
+import {
+  isInstallableModule,
+  useEnabledModuleIds,
+  useModuleAvailabilityKnown,
+} from "@/core/modules/enabled-modules";
+import {
+  filterRoutesByEnabled,
+  removableModuleForRoute,
+} from "@/core/modules/module-routing";
 import { emitOpenSettings, eventBus } from "@/core/events";
 import { useI18n } from "@/core/i18n/hooks";
 import {
@@ -72,9 +82,7 @@ function deriveTitle(thread: AgentThread): string {
   }
   const values: Record<string, unknown> = thread.values ?? {};
   const valuesTitle =
-    typeof values["title"] === "string"
-      ? values["title"].trim()
-      : "";
+    typeof values["title"] === "string" ? values["title"].trim() : "";
   if (valuesTitle && valuesTitle !== "New chat" && valuesTitle !== "New task") {
     return valuesTitle.length > 60
       ? `${valuesTitle.slice(0, 58)}...`
@@ -149,11 +157,25 @@ export function ChatsDrawer({ open, onOpenChange }: ChatsDrawerProps) {
   );
   const [renameValue, setRenameValue] = useState("");
   const activeAgentId = useActiveAgentId();
+  const enabledModuleIds = useEnabledModuleIds(activeAgentId ?? "general");
+  const availabilityKnown = useModuleAvailabilityKnown();
+  // Same rule as the desktop sidebar: optional apps appear once installed,
+  // each with its own icon, never as a fixed list of every catalog app.
+  const workbenchApps = WORKBENCH_BUILTIN_APPS.filter((app) => {
+    if (
+      !filterRoutesByEnabled([{ to: app.workspaceRoute }], enabledModuleIds)
+        .length
+    )
+      return false;
+    if (availabilityKnown) return true;
+    const descriptor = removableModuleForRoute(app.workspaceRoute);
+    return !descriptor || !isInstallableModule(descriptor.id);
+  });
   const workspaceDestinations = [
-    ...WORKBENCH_BUILTIN_APPS.map((app) => ({
+    ...workbenchApps.map((app) => ({
       label: app.name,
       to: app.workspaceRoute,
-      icon: CompassIcon,
+      icon: MODULE_ICONS[app.moduleId] ?? CompassIcon,
       active: pathname === app.workspaceRoute.split("?")[0],
     })),
     {
@@ -244,8 +266,8 @@ export function ChatsDrawer({ open, onOpenChange }: ChatsDrawerProps) {
     async (thread: AgentThread) => {
       const ok = await confirm({
         title: t.sidebar.deleteThreadTooltip,
-      confirmLabel: t.sidebar.deleteThreadTooltip,
-      destructive: false,
+        confirmLabel: t.sidebar.deleteThreadTooltip,
+        destructive: false,
         description: t.sidebar.confirmDeleteThread(deriveTitle(thread)),
       });
       if (!ok) return;

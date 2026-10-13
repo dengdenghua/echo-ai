@@ -1,19 +1,11 @@
-import { MailIcon } from "lucide-react";
 import { RemovedThreadsButton } from "./removed-threads-button";
 import {
   ArrowLeftIcon,
-  AppWindowIcon,
-  BookOpenIcon,
   ChevronRightIcon,
   DatabaseIcon,
-  DnaIcon,
-  FileImageIcon,
-  FileTextIcon,
-  FilmIcon,
   FolderIcon,
   FolderPlusIcon,
   GlobeIcon,
-  HardDriveIcon,
   ListTodoIcon,
   MessageSquarePlusIcon,
   MoreHorizontalIcon,
@@ -21,14 +13,9 @@ import {
   PanelLeftOpenIcon,
   PencilIcon,
   PlusIcon,
-  RssIcon,
   Trash2Icon,
-  CandlestickChartIcon,
-  CompassIcon,
   SquareKanbanIcon,
   StoreIcon,
-  UserRoundPenIcon,
-  WorkflowIcon,
   type LucideIcon,
 } from "lucide-react";
 import { useQueryClient } from "@tanstack/react-query";
@@ -150,6 +137,7 @@ import {
 } from "@/core/workspace/sidebar-routing";
 
 import { ModuleEditorDialog } from "@/components/workspace/module-editor-dialog";
+import { MODULE_ICONS } from "@/components/workspace/module-icons";
 import { modulesInSection } from "@/core/modules/catalog";
 import {
   isInstallableModule,
@@ -223,27 +211,6 @@ const SIDEBAR_THREAD_QUERY_PARAMS = {
     "values.room_id",
   ],
 } as const;
-
-// Icons live here rather than in the catalog so `core/modules` stays free of
-// component imports (it is pure data + logic, unit-tested without React).
-const MODULE_ICONS: Record<string, ComponentType<SVGProps<SVGSVGElement>>> = {
-  hr: StoreIcon,
-  assistant: UserRoundPenIcon,
-  intelligence: RssIcon,
-  "paper.trading": CandlestickChartIcon,
-  projects: SquareKanbanIcon,
-  design: WorkflowIcon,
-  narrative: BookOpenIcon,
-  evolution: DnaIcon,
-  community: CompassIcon,
-  mail: MailIcon,
-  knowledge: DatabaseIcon,
-  "library.apps": AppWindowIcon,
-  "library.docs": FileTextIcon,
-  "library.images": FileImageIcon,
-  "library.videos": FilmIcon,
-  "library.computer": HardDriveIcon,
-};
 
 /** Catalog descriptors → sidebar NavRoutes, in catalog order. */
 function moduleNavRoutes(section: ModuleSection): NavRoute[] {
@@ -2488,8 +2455,8 @@ function ChatsSection({
     async (thread: ThreadSummary) => {
       const ok = await confirm({
         title: tr.sidebar.deleteThreadTooltip,
-      confirmLabel: tr.sidebar.deleteThreadTooltip,
-      destructive: false,
+        confirmLabel: tr.sidebar.deleteThreadTooltip,
+        destructive: false,
         description: tr.sidebar.confirmDeleteThread(thread.title),
       });
       if (!ok) return;
@@ -2497,7 +2464,8 @@ function ChatsSection({
         { threadId: thread.id },
         {
           onSuccess: () => {
-            if (pathname === thread.href) void navigate(PRIMARY_WORKSPACE_ROUTE);
+            if (pathname === thread.href)
+              void navigate(PRIMARY_WORKSPACE_ROUTE);
           },
         },
       );
