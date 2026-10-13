@@ -35,6 +35,7 @@ import {
 } from "@/core/storage/api";
 import { cn } from "@/lib/utils";
 import { BrandLoadingPanel } from "@/components/brand/brand-progress";
+import { EchoAppTile } from "@/components/ui/echo-app-tile";
 
 export type MediaAppKind = "image" | "video";
 
@@ -247,20 +248,10 @@ export default function MediaAppPage({ kind }: MediaAppPageProps) {
             >
               <ArrowLeftIcon className="size-4" />
             </Button>
-            <div
-              className={cn(
-                "grid size-10 shrink-0 place-items-center rounded-xl text-white shadow-sm",
-                isPhotos
-                  ? "bg-gradient-to-br from-cyan-400 to-blue-500"
-                  : "bg-gradient-to-br from-violet-500 to-fuchsia-500",
-              )}
-            >
-              {isPhotos ? (
-                <FileImageIcon className="size-5" />
-              ) : (
-                <FilmIcon className="size-5" />
-              )}
-            </div>
+            <EchoAppTile
+              icon={isPhotos ? FileImageIcon : FilmIcon}
+              className="size-10"
+            />
             <div className="min-w-0">
               <h1 className="truncate text-base font-semibold">{title}</h1>
               <p className="truncate text-xs text-muted-foreground">
@@ -548,14 +539,7 @@ function MediaAssetCard({
             className="size-full object-cover transition duration-300 group-hover:scale-105"
           />
         ) : (
-          <div
-            className={cn(
-              "grid size-full place-items-center",
-              isImage
-                ? "bg-gradient-to-br from-cyan-400/20 to-blue-500/20 text-blue-500"
-                : "bg-gradient-to-br from-violet-500/20 to-fuchsia-500/20 text-violet-500",
-            )}
-          >
+          <div className="grid size-full place-items-center bg-muted text-muted-foreground">
             {isImage ? (
               <ImageIcon className="size-10 opacity-70" />
             ) : (

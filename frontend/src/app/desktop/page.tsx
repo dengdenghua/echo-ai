@@ -14,6 +14,7 @@ import {
   BotIcon,
   CpuIcon,
   ExternalLinkIcon,
+  FileArchiveIcon,
   FileTextIcon,
   FolderIcon,
   FolderInputIcon,
@@ -455,10 +456,7 @@ export default function DesktopShellPage() {
         const folderName = t.desktop.categories[category];
         if (!folderName || !desktopPath) return;
         const destDir = desktopPath + "\\" + folderName;
-        const result = await window.echo.desktop.moveItem(
-          item.path,
-          destDir,
-        );
+        const result = await window.echo.desktop.moveItem(item.path, destDir);
         if (result.ok) {
           refreshDesktopItems();
           toast.success(t.desktop.toasts.fileArchived(item.name, folderName));
@@ -966,7 +964,9 @@ export default function DesktopShellPage() {
                                     ? AppWindowIcon
                                     : category === "image"
                                       ? ImageIcon
-                                      : FileTextIcon;
+                                      : category === "package"
+                                        ? FileArchiveIcon
+                                        : FileTextIcon;
                               return (
                                 <button
                                   key={item.path}
@@ -991,24 +991,10 @@ export default function DesktopShellPage() {
                                   title={item.path}
                                   className="group flex min-h-[92px] flex-col items-center justify-center gap-1.5 rounded-2xl p-2 text-center transition hover:bg-foreground/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-info focus-visible:ring-offset-2"
                                 >
-                                  <span
-                                    className={cn(
-                                      "grid size-12 place-items-center rounded-xl text-white shadow-[var(--shadow-md)] shadow-black/12 ring-1 ring-white/35 transition-transform duration-fast group-hover:scale-105",
-                                      category === "folder"
-                                        ? "bg-gradient-to-br from-warning to-orange-500"
-                                        : category === "app"
-                                          ? "bg-gradient-to-br from-violet-500 to-fuchsia-500"
-                                          : category === "image"
-                                            ? "bg-gradient-to-br from-cyan-400 to-blue-500"
-                                            : category === "document"
-                                              ? "bg-gradient-to-br from-blue-500 to-indigo-500"
-                                              : category === "package"
-                                                ? "bg-gradient-to-br from-destructive to-orange-500"
-                                                : "bg-gradient-to-br from-muted-foreground to-muted-foreground/70",
-                                    )}
-                                  >
-                                    <Icon className="size-6" />
-                                  </span>
+                                  <EchoAppTile
+                                    icon={Icon}
+                                    className="size-12 transition-transform duration-fast group-hover:scale-105"
+                                  />
                                   <span className="line-clamp-2 max-w-24 text-mini font-medium leading-tight text-foreground">
                                     {item.name}
                                   </span>
