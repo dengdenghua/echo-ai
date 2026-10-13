@@ -514,3 +514,15 @@ class TestSyncCodexCache:
         # 幂等:重复同步不再复制
         n2 = codex_discovery.sync_codex_cache_to_echo(source=legacy, dest=dest)
         assert n2 == 0
+
+
+def test_builtin_catalog_entries_use_current_brand_author():
+    """Market cards print ``来自 <author>``; retired names must not resurface."""
+    from runtime.platform.plugins import _cloud_catalog_entries as entries
+
+    authors = {
+        entry["author"]
+        for group in (entries._REMOTE_SURFACE_PLUGINS, entries._WORKBENCH_APPS)
+        for entry in group
+    }
+    assert not authors & {"EchoAI", "EchoOS", "Octopus"}
