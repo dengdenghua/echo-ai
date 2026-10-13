@@ -40,8 +40,9 @@ describe("built-in workbench apps", () => {
       resolve("src/components/browser/webview-tab.tsx"),
       "utf8",
     );
+    // The sidebar and the phone drawer share one module icon map.
     const sidebar = readFileSync(
-      resolve("src/components/workspace/workspace-sidebar.tsx"),
+      resolve("src/components/workspace/module-icons.ts"),
       "utf8",
     );
     const hub = readFileSync(
