@@ -2474,3 +2474,19 @@
   outline: 2px solid var(--ring);
   outline-offset: 1px;
 }
+
+/* ECHO type rule (BRAND.md): Chinese is never letter-spaced. Eyebrow and
+   caps labels take their text from the locale, so in a Chinese UI the
+   positive tracking tiers fall back to normal spacing. Unlayered so it wins
+   over the utility layer. A Latin-only telemetry label that should keep its
+   spacing marks itself `lang="en"`. */
+:lang(zh):is(
+    .tracking-eyebrow,
+    .tracking-caps,
+    .tracking-wide,
+    .tracking-wider,
+    .tracking-widest,
+    [class*="tracking-[0."]
+  ) {
+  letter-spacing: normal;
+}

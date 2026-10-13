@@ -691,7 +691,7 @@ export default function ProjectsPage() {
                                         </div>
                                         {m.overdue_tasks.length > 0 && (
                                           <div className="mt-3 space-y-2 border-t border-warning/30 pt-2.5">
-                                            <div className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wide text-warning">
+                                            <div className="flex items-center gap-1.5 text-xs font-semibold text-warning">
                                               <TimerIcon className="size-3" />
                                               逾期任务 ·{" "}
                                               {m.overdue_tasks.length}
