@@ -54,6 +54,29 @@ def make_auth_dep(ctx: ObservabilityContext) -> Callable[[Request], None]:
     return _auth_dep
 
 
+def make_principal_dep(ctx: ObservabilityContext) -> Callable[[Request], None]:
+    """Authenticate without a role, for views that serve the caller's own scope.
+
+    The knowledge views read the caller's tenant/owner partition (or, with
+    ``cross_tenant=true``, the global graph behind its own admin-and-scope
+    gate), so an ordinary account needs no operator role to see its graph.
+    """
+
+    def _principal_dep(request: Request) -> None:
+        from runtime.safety.auth.principal import resolve_principal
+
+        resolve_principal(
+            request,
+            ctx.identity_store,
+            ctx.require_auth,
+            jwt_secret=ctx.jwt_secret,
+            jwt_issuer=ctx.jwt_issuer,
+            jwt_audience=ctx.jwt_audience,
+        )
+
+    return _principal_dep
+
+
 def _observability_scope(
     request: Request,
     ctx: ObservabilityContext,

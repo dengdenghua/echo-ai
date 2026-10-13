@@ -75,6 +75,15 @@ def _identity_store() -> IdentityStore:
         ),
         api_key_plaintext="global-admin-token",
     )
+    # A plain local account: no operator or admin role.
+    store.add(
+        Identity(
+            actor_id="carol",
+            roles=("user", "local"),
+            metadata={"tenant_id": "tenant-c"},
+        ),
+        api_key_plaintext="carol-token",
+    )
     return store
 
 
@@ -510,3 +519,50 @@ def test_knowledge_graph_reads_the_callers_own_partition(
     assert everyone.json()["global_control_plane"] is True
     global_names = {entity["id"] for entity in everyone.json()["entities"]}
     assert {"query:alice topic", "query:bob topic"} <= global_names
+
+
+def test_plain_account_reads_its_own_knowledge_but_not_the_journal(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """AI-29 follow-up: a local account has roles ``user``/``local`` only.
+
+    The whole observability router required admin/operator, so the scoped
+    knowledge views above still answered such an account with 403. They now
+    only need authentication; the journal and the global graph keep their
+    gates.
+    """
+    monkeypatch.setenv("ECHO_DATA_DIR", str(tmp_path / "data"))
+    journal = StreamingJournal(InMemoryJournal())
+    _write_search_step(
+        journal,
+        tenant_id="tenant-c",
+        actor_id="carol",
+        query="carol topic",
+        url="https://carol.example/",
+    )
+    _write_search_step(
+        journal,
+        tenant_id="tenant-a",
+        actor_id="alice",
+        query="alice topic",
+        url="https://alice.example/",
+    )
+    client = _client(journal)
+    carol = _headers("carol-token")
+
+    graph = client.get("/api/knowledge/graph", headers=carol)
+    assert graph.status_code == 200
+    names = {entity["id"] for entity in graph.json()["entities"]}
+    assert "query:carol topic" in names
+    assert not any("alice" in name for name in names)
+    assert client.get("/api/knowledge/stats", headers=carol).status_code == 200
+
+    assert client.get("/api/knowledge/graph").status_code == 401
+    assert (
+        client.get(
+            "/api/knowledge/graph", params={"cross_tenant": "true"}, headers=carol
+        ).status_code
+        == 403
+    )
+    assert client.get("/api/kg", params={"cross_tenant": "true"}, headers=carol).status_code == 403
+    assert client.get("/api/journal", headers=carol).status_code == 403

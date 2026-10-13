@@ -8,17 +8,19 @@ import {
   updateWiki,
 } from "./api";
 
-export function useWikiStatus(root?: string | null) {
+export function useWikiStatus(root?: string | null, enabled = true) {
   return useQuery({
     queryKey: ["wiki-status", root ?? "echo"],
     queryFn: () => getWikiStatus(root),
+    enabled,
   });
 }
 
-export function useWikiDocs(root?: string | null) {
+export function useWikiDocs(root?: string | null, enabled = true) {
   return useQuery({
     queryKey: ["wiki-docs", root ?? "echo"],
     queryFn: () => listWikiDocs(root),
+    enabled,
   });
 }
 
