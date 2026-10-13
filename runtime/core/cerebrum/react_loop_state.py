@@ -62,6 +62,9 @@ class _WiringState:
     # The turn's AutoReviewApprovalProvider, built lazily by phase 6d and
     # reused by every iteration so its denial breakers can accumulate.
     auto_review_provider: Any = None
+    # The turn's ``NetworkDenialMemory``, built lazily by the action review:
+    # network access refused once stays refused, whichever tool asks next.
+    network_denials: Any = None
     output_chunk_sink: Any = None
     router: Any = None
     metadata: dict = field(default_factory=dict)

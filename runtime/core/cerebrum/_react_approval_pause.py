@@ -33,6 +33,12 @@ _UNAVAILABLE_REVIEW_REASONS = ("automatic review was unavailable",)
 _APPROVAL_PAUSED_PREVIEW = "审批界面暂不可用，任务已保存并暂停，等待用户授权后继续。"
 _ESCALATION_PAUSED_PREVIEW = "沙箱放宽审批暂不可用，任务已保存并暂停，等待授权后继续。"
 _APPROVAL_DENIED_OBSERVATION = "(工具审批未通过) 此操作未获批准，请换一种更安全的方式或询问用户。"
+# A refused network call must not be read as "try another route": fetching the
+# same target through another tool is exactly the bypass the refusal closes.
+_NETWORK_DENIED_OBSERVATION = (
+    "(工具审批未通过) 用户拒绝了这次网络访问。本轮不要再用这个或其他工具"
+    "（网页抓取、浏览、平台读取等）访问同一目标；请告诉用户因此无法完成的部分。"
+)
 _ESCALATION_DENIED_OBSERVATION = (
     "(工具被沙箱拦截，用户拒绝放宽沙箱重跑；请换一种不需要该权限/网络的方式，或询问用户。)"
 )
@@ -129,12 +135,16 @@ def _approval_could_not_reach_user(
     return any(reason == marker or reason.startswith(marker) for marker in markers)
 
 
-def _approval_denied_observation(decision: Any, *, sandbox_escalation: bool = False) -> str:
+def _approval_denied_observation(
+    decision: Any, *, sandbox_escalation: bool = False, network: bool = False
+) -> str:
     """What the model reads after an approval that did not pause the run."""
     if _is_review_stop(decision):
         return _REVIEW_STOPPED_OBSERVATION
     if sandbox_escalation:
         return _ESCALATION_DENIED_OBSERVATION
+    if network:
+        return _NETWORK_DENIED_OBSERVATION
     return _APPROVAL_DENIED_OBSERVATION
 
 

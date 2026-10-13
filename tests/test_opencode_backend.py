@@ -296,6 +296,11 @@ def test_child_environment_isolates_credentials_and_denies_local_tools(tmp_path,
     assert config["permission"]["bash"] == "ask"
     assert config["permission"]["edit"] == "ask"
     assert config["permission"]["write"] == "ask"
+    # Native network tools bypass Echo's approval gate, so they are refused
+    # the same way; network access goes through the echo_* host tools.
+    assert config["permission"]["webfetch"] == "ask"
+    assert config["permission"]["websearch"] == "ask"
+    assert config["permission"]["codesearch"] == "ask"
     assert "deny" not in env["OPENCODE_CONFIG_CONTENT"]
     assert "*" not in config["permission"]
     assert "tools" not in config
@@ -327,10 +332,10 @@ async def test_every_native_permission_prompt_is_refused_with_a_reason():
     async with httpx.AsyncClient(
         transport=httpx.MockTransport(handler), base_url="http://localhost"
     ) as client:
-        for tool in ("bash", "edit", "write", "some_tool_we_never_declared"):
+        for tool in ("bash", "edit", "write", "webfetch", "some_tool_we_never_declared"):
             assert await refuse_permission(client, _permission_event(tool)) is True
 
-    assert [path for path, _ in seen] == ["/permission/per_1/reply"] * 4
+    assert [path for path, _ in seen] == ["/permission/per_1/reply"] * 5
     assert all(body["reply"] == "reject" for _, body in seen)
     assert all(body.get("message") for _, body in seen)
 
@@ -529,6 +534,9 @@ def test_host_mcp_is_explicit_and_credentials_stay_out_of_config(tmp_path, monke
         "bash": "ask",
         "edit": "ask",
         "write": "ask",
+        "webfetch": "ask",
+        "websearch": "ask",
+        "codesearch": "ask",
         "echo_*": "allow",
     }
 

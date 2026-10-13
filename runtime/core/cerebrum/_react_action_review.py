@@ -17,7 +17,9 @@ from runtime.core.cerebrum.react_loop_state import _LoopControl, _LoopState
 from runtime.safety.approval.approval_gate import (
     ApprovalRequest,
     AutoDenyProvider,
+    NetworkDenialMemory,
     approval_action_for_tool,
+    is_network_risk,
 )
 from runtime.safety.approval.guardian_review import is_auto_review_turn_stop
 from runtime.safety.validation.prompt_injection import injection_taint_gates
@@ -74,10 +76,15 @@ def review_tool_action(
         )
     except (AttributeError, TypeError):
         _risk_policy_raw = None
+    _permission_context = {
+        **state.wiring.metadata,
+        **intent.user_context,
+    }
     _approval_risk, _approval_action, _approval_policy = approval_action_for_tool(
         resolved_name,
         str(_input_preview)[:500] if _input_preview else "",
         policy=_risk_policy_raw,
+        permission_mode=_permission_context.get("permission_mode"),
     )
     _scoped_artifact_write = _is_scoped_artifact_write(
         resolved_name,
@@ -105,10 +112,29 @@ def review_tool_action(
         if _approval_action not in {"ask", "confirm", "deny"}:
             _approval_action = "ask"
         _approval_risk = _approval_risk.with_injection_taint()
-    _permission_context = {
-        **state.wiring.metadata,
-        **intent.user_context,
-    }
+    _network_denials = state.wiring.network_denials
+    if _network_denials is None:
+        _network_denials = state.wiring.network_denials = NetworkDenialMemory()
+    _refused = (
+        None
+        if _auto_approve or _scoped_artifact_write
+        else _network_denials.refusal(resolved_name, _approval_risk, _input_preview)
+    )
+    if _refused is not None:
+        yield {
+            "type": "tool_end",
+            "tool_name": resolved_name,
+            "tool_call_id": call_id,
+            "iteration": i + 1,
+            "status": "rejected",
+            "output_preview": _refused,
+            "duration_ms": int((time.monotonic() - _tool_started_at) * 1000),
+            "risk": _approval_risk.to_dict(),
+            "approval_action": "deny",
+            "approval_policy": _approval_policy.to_dict(),
+        }
+        observation = f"(工具审批未通过) {_refused}。请告诉用户因此无法完成的部分。"
+        return ActionReview(False, _auto_approve, observation, _LoopControl.NEXT_ITERATION)
     if _approval_action in {
         "ask",
         "confirm",
@@ -143,6 +169,9 @@ def review_tool_action(
             _approval_action = "deny"
             _approval_deny_reason = _guardian_note
     if _approval_action == "deny" and not _auto_approve and not _scoped_artifact_write:
+        if _approval_deny_reason is not None:
+            # The guardian refused this exact call; keep it refused for the turn.
+            _network_denials.note_denial(resolved_name, _approval_risk, _input_preview)
         yield {
             "type": "tool_end",
             "tool_name": resolved_name,
@@ -210,6 +239,7 @@ def review_tool_action(
                 return ActionReview(
                     False, _auto_approve, _paused_preview, _LoopControl.CONTINUE, stop_batch=True
                 )
+            _network_denials.note_denial(resolved_name, _approval_risk, _input_preview)
             yield {
                 "type": "tool_end",
                 "tool_name": resolved_name,
@@ -219,7 +249,9 @@ def review_tool_action(
                 "output_preview": _decision.reason or "User denied tool execution",
                 "duration_ms": int((time.monotonic() - _tool_started_at) * 1000),
             }
-            observation = _approval_denied_observation(_decision)
+            observation = _approval_denied_observation(
+                _decision, network=is_network_risk(_approval_risk)
+            )
             return ActionReview(
                 False,
                 _auto_approve,

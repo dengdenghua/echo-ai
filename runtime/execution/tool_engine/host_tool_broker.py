@@ -44,7 +44,9 @@ from runtime.platform.process.session import (
 from runtime.safety.approval.approval_gate import (
     ApprovalProvider,
     AutoDenyProvider,
+    NetworkDenialMemory,
     approval_action_for_tool,
+    is_network_risk,
 )
 from runtime.safety.approval.approval_gate import (
     ApprovalRequest as EchoApprovalRequest,
@@ -456,6 +458,9 @@ class HostToolBroker:
         self._lock = asyncio.Lock()
         self._results: OrderedDict[str, tuple[str, str, dict[str, Any]]] = OrderedDict()
         self._result_cache_chars = 0
+        # One broker serves one engine turn, so this is the turn's memory of
+        # refused network access (see ``NetworkDenialMemory``).
+        self._network_denials = NetworkDenialMemory()
 
         metadata, parent = _metadata_for_bridge(
             self._context,
@@ -697,6 +702,7 @@ class HostToolBroker:
             entry.skill_name,
             preview,
             policy=self._metadata.get("approval_risk_policy"),
+            permission_mode=self._metadata.get("permission_mode"),
         )
         if (
             _TAINT_ORDER.get(self._taint, 0) >= _TAINT_ORDER["medium"]
@@ -709,6 +715,9 @@ class HostToolBroker:
             return dynamic_tool_failure(
                 f"denied by Echo approval policy (risk={risk.level}: {risk.reason})"
             )
+        refused = self._network_denials.refusal(entry.skill_name, risk, arguments)
+        if refused is not None:
+            return dynamic_tool_failure(f"denied by Echo approval policy: {refused}")
 
         approval_handled = False
         if action in {"ask", "confirm"} and not auto_approve:
@@ -731,8 +740,17 @@ class HostToolBroker:
                 )
             except (OSError, RuntimeError, TimeoutError):
                 return dynamic_tool_failure("Echo approval failed closed")
-            if not decision.approved or self._interrupted():
-                return dynamic_tool_failure(decision.reason or "user declined the tool request")
+            if not decision.approved:
+                self._network_denials.note_denial(entry.skill_name, risk, arguments)
+                reason = decision.reason or "user declined the tool request"
+                if is_network_risk(risk):
+                    reason += (
+                        " — this network access was refused; do not retry it or reach "
+                        "the same target through another tool"
+                    )
+                return dynamic_tool_failure(reason)
+            if self._interrupted():
+                return dynamic_tool_failure("outer Echo turn was interrupted")
             approval_handled = True
         elif auto_approve:
             approval_handled = True

@@ -71,8 +71,11 @@ _WARM_IDLE_SECONDS = 600.0
 
 # Native tools the engine must never run. Injected as "ask" (see
 # ``child_environment``) and refused on every ``permission.asked`` event, so the
-# ceiling holds without a static deny the Zen free tier rejects.
-DENIED_NATIVE_TOOLS = ("bash", "edit", "write")
+# ceiling holds without a static deny the Zen free tier rejects. The network
+# tools are here because Echo's approval gate never sees a native call: an
+# allowed ``webfetch`` would reach a URL the user just refused through
+# ``echo_fetch_url``. Network access goes through the ``echo_*`` host tools.
+DENIED_NATIVE_TOOLS = ("bash", "edit", "write", "webfetch", "websearch", "codesearch")
 
 
 @dataclass
@@ -334,11 +337,12 @@ def child_environment(
     # these keys.
     #
     # So ask instead of deny, and refuse every ask for these tools in
-    # ``stream_prompt``. The ceiling is unchanged — bash/edit/write never run —
-    # but it is now enforced by us at request time rather than declared in a
-    # config the gate rejects. read/glob/grep/list/webfetch stay available
-    # natively; privileged actions must still go through the echo_* host MCP
-    # tools, which are allowed outright.
+    # ``stream_prompt``. The ceiling is unchanged — bash/edit/write and the
+    # native network tools never run — but it is now enforced by us at request
+    # time rather than declared in a config the gate rejects. read/glob/grep/list
+    # stay available natively; privileged and network actions must go through
+    # the echo_* host MCP tools, which OpenCode allows outright because Echo's
+    # own approval gate reviews each call.
     permission = dict.fromkeys(DENIED_NATIVE_TOOLS, "ask")
     if host_mcp:
         permission["echo_*"] = "allow"

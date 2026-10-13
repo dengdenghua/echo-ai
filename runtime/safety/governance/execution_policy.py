@@ -36,6 +36,7 @@ from runtime.safety.approval.approval_gate import (
     ApprovalRiskPolicy,
     assess_approval_risk,
     injection_taint_block,
+    resolve_approval_risk_policy,
 )
 from runtime.safety.validation.prompt_injection import current_injection_taint
 
@@ -90,11 +91,9 @@ class ExecutionPolicyContext:
     def from_metadata(cls, metadata: Mapping[str, Any] | None) -> ExecutionPolicyContext:
         value = metadata if isinstance(metadata, Mapping) else {}
         permission_mode = str(value.get("permission_mode") or "").strip().lower()
-        raw_risk_policy = value.get("approval_risk_policy")
-        risk_policy = (
-            raw_risk_policy
-            if isinstance(raw_risk_policy, ApprovalRiskPolicy)
-            else ApprovalRiskPolicy.from_mapping(raw_risk_policy)
+        risk_policy = resolve_approval_risk_policy(
+            value.get("approval_risk_policy"),
+            permission_mode=value.get("permission_mode"),
         )
         return cls(
             enforce_approval=bool(value.get("enforce_executor_approval")),
