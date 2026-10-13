@@ -4,9 +4,11 @@ import {
   AlertCircleIcon,
   CoinsIcon,
   LoaderCircleIcon,
+  LockIcon,
   LogOutIcon,
   RefreshCwIcon,
   SettingsIcon,
+  StarIcon,
   UserCircleIcon,
   UsersIcon,
 } from "lucide-react";
@@ -343,7 +345,7 @@ export function AgentFooter() {
               </span>
               <span
                 className={cn(
-                  "truncate text-micro leading-tight text-muted-foreground",
+                  "truncate text-xs leading-tight text-muted-foreground",
                   showAgentError && "text-destructive",
                 )}
               >
@@ -354,8 +356,17 @@ export function AgentFooter() {
                   <span className="ml-1.5">
                     Lv.{level}
                     {stars !== null && stars > 0 && (
-                      <span className="ml-0.5">
-                        {"⭐".repeat(Math.min(stars, 5))}
+                      <span
+                        className="ml-0.5 inline-flex items-center gap-px align-[-1px]"
+                        aria-label={`${Math.min(stars, 5)}★`}
+                      >
+                        {Array.from({ length: Math.min(stars, 5) }, (_, i) => (
+                          <StarIcon
+                            key={i}
+                            aria-hidden
+                            className="size-2.5 fill-current"
+                          />
+                        ))}
                       </span>
                     )}
                   </span>
@@ -364,10 +375,10 @@ export function AgentFooter() {
             </span>
             {lock ? (
               <span
-                className="shrink-0 text-micro uppercase tracking-wider text-muted-foreground group-data-[collapsible=icon]:hidden"
+                className="shrink-0 text-muted-foreground group-data-[collapsible=icon]:hidden"
                 aria-hidden
               >
-                🔒
+                <LockIcon className="size-3" />
               </span>
             ) : (
               <span className="shrink-0 text-muted-foreground group-hover/agent:text-muted-foreground group-data-[collapsible=icon]:hidden">

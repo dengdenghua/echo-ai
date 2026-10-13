@@ -17,6 +17,7 @@ const mocks = vi.hoisted(() => ({
   },
   logout: vi.fn(),
   credits: 999 as number | undefined,
+  evolution: null as { learning_events: number } | null,
 }));
 
 vi.mock("@/core/agents", () => ({
@@ -38,7 +39,7 @@ vi.mock("@/core/oct/hooks", () => ({
 }));
 
 vi.mock("@/core/evolution/hooks", () => ({
-  useEvolutionOverview: () => ({ data: null }),
+  useEvolutionOverview: () => ({ data: mocks.evolution }),
 }));
 
 vi.mock("@/components/workspace/credits-center", () => ({
@@ -62,6 +63,7 @@ beforeEach(() => {
   mocks.agentState.refetch.mockReset();
   mocks.logout.mockReset();
   mocks.credits = 999;
+  mocks.evolution = null;
   window.localStorage.clear();
 });
 
@@ -260,5 +262,31 @@ describe("AgentFooter roster states", () => {
 
     expect(screen.getByRole("button", { name: /当前角色 Eve$/ })).toBeInTheDocument();
     expect(screen.queryByText("EchoAI")).not.toBeInTheDocument();
+  });
+
+  it("keeps the role line at the caption size and draws stars as icons", () => {
+    mocks.evolution = { learning_events: 15 };
+    mocks.agentState.agents = [
+      {
+        name: "general",
+        display_name: "Eve",
+        description: "通用智能助理",
+        avatar_url: "/api/agents/general/avatar",
+        icon: "",
+        model: null,
+        tool_groups: [],
+      },
+    ];
+
+    renderWithProviders(<AgentFooter />, {
+      initialRoute: "/workspace/realtime/thread-1",
+      locale: "zh-CN",
+    });
+
+    const roleLine = screen.getByText(/Lv\.2/).parentElement as HTMLElement;
+    // A custom size next to a text colour must survive tailwind-merge.
+    expect(roleLine).toHaveClass("text-xs", "text-muted-foreground");
+    expect(roleLine.textContent).not.toMatch(/⭐/u);
+    expect(roleLine.querySelectorAll("svg.lucide-star")).toHaveLength(1);
   });
 });
