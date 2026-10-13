@@ -267,7 +267,8 @@ test.describe("Full-stack golden smoke", () => {
       await page.waitForLoadState("domcontentloaded");
       const intelligenceSurface = page.getByTestId("intelligence-panel").or(
         page.getByRole("heading", {
-          name: /订阅暂时不可用|Subscriptions unavailable|安装订阅|Install subscriptions/i,
+          // The workbench app was renamed 订阅 → 自动化 (f4098333).
+          name: /订阅暂时不可用|Subscriptions unavailable|安装(?:订阅|自动化)|Install (?:subscriptions|automation)/i,
         }),
       );
       await expect(intelligenceSurface).toBeVisible({ timeout: 20_000 });

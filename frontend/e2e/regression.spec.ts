@@ -227,7 +227,8 @@ test.describe("Bug#1 regression · Intelligence subscriptions", () => {
 
     try {
       const unavailable = page.getByRole("heading", {
-        name: /订阅暂时不可用|Subscriptions? (?:is|are) temporarily unavailable|安装订阅|Install subscriptions/i,
+        // The workbench app was renamed 订阅 → 自动化 (f4098333).
+        name: /订阅暂时不可用|Subscriptions? (?:is|are) temporarily unavailable|安装(?:订阅|自动化)|Install (?:subscriptions|automation)/i,
       });
       const draftInput = page
         .locator("textarea")

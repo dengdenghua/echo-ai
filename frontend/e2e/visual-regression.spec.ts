@@ -52,7 +52,8 @@ test.describe("Visual regression · workspace surfaces", () => {
       )
       .toBeDefined();
     await expect(
-      page.getByRole("heading", { name: "Echo", exact: true }),
+      // The empty state is titled with the product name since 3ae6f7bf.
+      page.getByRole("heading", { name: "ECHO AI", exact: true }),
     ).toBeVisible({
       timeout: 15_000,
     });
@@ -101,7 +102,7 @@ test.describe("Visual regression · workspace surfaces", () => {
     await page.goto("/#/workspace/realtime/new");
     await page.waitForLoadState("domcontentloaded");
 
-    await expect(page.getByRole("tab", { name: "Echo" })).toBeVisible({
+    await expect(page.getByRole("tab", { name: "ECHO AI" })).toBeVisible({
       timeout: 15_000,
     });
     await expect(page.locator("textarea").first()).toBeVisible();
