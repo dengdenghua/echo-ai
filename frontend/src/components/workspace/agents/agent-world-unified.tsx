@@ -1745,7 +1745,7 @@ export function AgentWorldUnified() {
                   应用中心
                 </h2>
                 <div className="mb-6">
-                  <h3 className="mb-2 text-sm font-semibold">本机应用</h3>
+                  <h3 className="mb-2 text-sm font-semibold">应用</h3>
                   {workbenchPackageError ? (
                     <div
                       role="alert"

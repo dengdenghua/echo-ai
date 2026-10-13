@@ -394,7 +394,7 @@ describe("HUB market shell", () => {
     expect(
       screen.getByRole("heading", { name: "应用中心" }),
     ).toBeInTheDocument();
-    expect(screen.getByRole("heading", { name: "本机应用" })).toBeVisible();
+    expect(screen.getByRole("heading", { name: "应用" })).toBeVisible();
     expect(screen.getByRole("heading", { name: "推荐插件" })).toBeVisible();
     expect(
       screen.queryByRole("heading", { name: "从这些能力开始" }),
