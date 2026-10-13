@@ -16,6 +16,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { authHeaders } from "@/core/auth/api";
+import { useGlobalControlPlaneAccess } from "@/core/auth/use-control-plane-access";
 import { useI18n } from "@/core/i18n/hooks";
 import {
   GlobalControlPlaneAccessError,
@@ -47,6 +48,7 @@ interface GraphStats {
 
 export function KnowledgeGraphPanel() {
   const { t } = useI18n();
+  const canViewGraph = useGlobalControlPlaneAccess();
   const [entities, setEntities] = useState<KGEntity[]>([]);
   const [relationships, setRelationships] = useState<KGRelationship[]>([]);
   const [stats, setStats] = useState<GraphStats | null>(null);
@@ -56,6 +58,13 @@ export function KnowledgeGraphPanel() {
   const [viewMode, setViewMode] = useState<"map" | "graph" | "list">("map");
 
   const loadData = useCallback(async () => {
+    if (!canViewGraph) {
+      // The graph is a process-global view; without the cross-tenant scope
+      // the server refuses it, so explain instead of asking.
+      setLoadError(t.observabilityPage.crossTenantAdminRequired);
+      setLoading(false);
+      return;
+    }
     setLoading(true);
     setLoadError(null);
     try {
@@ -97,7 +106,7 @@ export function KnowledgeGraphPanel() {
     } finally {
       setLoading(false);
     }
-  }, [t]);
+  }, [canViewGraph, t]);
 
   useEffect(() => {
     void loadData();
@@ -131,15 +140,17 @@ export function KnowledgeGraphPanel() {
       >
         <BrainIcon className="size-5 text-muted-foreground" />
         <p className="max-w-lg text-sm text-muted-foreground">{loadError}</p>
-        <Button
-          type="button"
-          variant="outline"
-          size="sm"
-          onClick={() => void loadData()}
-        >
-          <RefreshCwIcon className="mr-1.5 size-3.5" />
-          {t.knowledgeGraph.refresh}
-        </Button>
+        {canViewGraph && (
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={() => void loadData()}
+          >
+            <RefreshCwIcon className="mr-1.5 size-3.5" />
+            {t.knowledgeGraph.refresh}
+          </Button>
+        )}
       </div>
     );
   }

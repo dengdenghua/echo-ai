@@ -115,6 +115,11 @@ import EvolutionDashboard from "./evolution-dashboard";
 import { IntelligencePanel } from "./intelligence-panel";
 import { KnowledgeGraphPanel } from "./knowledge-graph-panel";
 
+const access = vi.hoisted(() => ({ global: true }));
+vi.mock("@/core/auth/use-control-plane-access", () => ({
+  useGlobalControlPlaneAccess: () => access.global,
+}));
+
 // ─── Global fetch stub ───────────────────────────────────────────
 //
 // Each panel hits one or more /api/* endpoints on mount. We stub
@@ -247,6 +252,24 @@ describe("KnowledgeGraphPanel", () => {
       expect(String(input)).toContain("cross_tenant=true");
     }
     expect(consoleErrorSpy).not.toHaveBeenCalled();
+  });
+
+  it("explains the gate without asking when the account lacks the scope", async () => {
+    access.global = false;
+    try {
+      const fetchMock = vi.mocked(globalThis.fetch);
+      fetchMock.mockClear();
+
+      render(withProviders(<KnowledgeGraphPanel />));
+
+      expect(
+        await screen.findByText("crossTenantAdminRequired"),
+      ).toBeInTheDocument();
+      expect(fetchMock).not.toHaveBeenCalled();
+      expect(screen.queryByRole("button")).not.toBeInTheDocument();
+    } finally {
+      access.global = true;
+    }
   });
 });
 

@@ -106,6 +106,17 @@ def _register_auth_routes(router: APIRouter, d: MetaRouterDeps) -> None:
             if isinstance(permissions_raw, (list, tuple))
             else []
         )
+        # Report the durable scopes the server authorizes on (the same
+        # ``metadata.scopes`` a CurrentPrincipal carries), so the client can
+        # tell whether cross-tenant views will be granted before asking.
+        # Display only: every privileged route still checks the principal.
+        scopes_raw = metadata.get("scopes")
+        if isinstance(scopes_raw, str):
+            scopes_raw = scopes_raw.split(",")
+        if isinstance(scopes_raw, (list, tuple, set, frozenset)):
+            for scope in sorted(str(value).strip() for value in scopes_raw):
+                if scope and scope not in permissions:
+                    permissions.append(scope)
         response: dict[str, Any] = {
             "user_id": actor,
             "actor_id": actor,

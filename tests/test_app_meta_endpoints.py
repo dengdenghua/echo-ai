@@ -207,6 +207,28 @@ def test_auth_me_uses_real_identity_store(secured_meta_client) -> None:
     assert client.get("/api/auth/me").status_code == 401
 
 
+def test_auth_me_reports_durable_scopes_as_permissions(isolated_cwd: Path) -> None:
+    """The client gates cross-tenant views on these; the server keeps deciding."""
+    store = IdentityStore()
+    store.add(
+        Identity(
+            actor_id="root",
+            roles=("admin",),
+            metadata={"scopes": "global:admin, tenant:cross_tenant", "permissions": ["x"]},
+        ),
+        api_key_plaintext="sk-root",
+    )
+    app = FastAPI()
+    app.include_router(
+        create_meta_router(registry=SkillRegistry(), identity_store=store, require_auth=True)
+    )
+    with TestClient(app) as client:
+        response = client.get("/api/auth/me", headers={"Authorization": "Bearer sk-root"})
+
+    assert response.status_code == 200
+    assert response.json()["permissions"] == ["x", "global:admin", "tenant:cross_tenant"]
+
+
 def test_auth_me_accepts_session_cookie_and_logout_expires_it(secured_meta_client) -> None:
     client, _, _registry = secured_meta_client
 

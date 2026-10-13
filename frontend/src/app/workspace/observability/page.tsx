@@ -50,7 +50,9 @@ import { AgentOperatorPanel } from "@/components/workspace/agent-operator-panel"
 import { RunReviewPanel } from "@/components/workspace/run-review-panel";
 import { cn } from "@/lib/utils";
 import { useI18n } from "@/core/i18n/hooks";
+import { useGlobalControlPlaneAccess } from "@/core/auth/use-control-plane-access";
 import {
+  GLOBAL_CONTROL_PLANE_ACCESS_CODE,
   GlobalControlPlaneAccessError,
   authorizeToolEffectRetry,
   globalControlPlaneUrl,
@@ -64,7 +66,7 @@ import { DiagnosticsContent } from "../diagnostics/page";
 // on an interval, track loading / error, expose a manual-refresh
 // button. Abstracting it keeps each panel's render code tight.
 function useHeartbeat<T>(
-  url: string,
+  requestedUrl: string,
   intervalMs: number,
   initial: T,
   options: { globalControlPlane?: boolean } = {},
@@ -77,6 +79,11 @@ function useHeartbeat<T>(
   lastFetchedAt: number | null;
 } {
   const globalControlPlane = options.globalControlPlane === true;
+  // Without the cross-tenant scope the server refuses every global request;
+  // do not ask, and report the same forbidden state a 403 would.
+  const globalAllowed = useGlobalControlPlaneAccess();
+  const blocked = globalControlPlane && !globalAllowed;
+  const url = blocked ? "" : requestedUrl;
   const [data, setData] = useState<T>(initial);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -133,7 +140,16 @@ function useHeartbeat<T>(
     void fetchOnce();
   }, [fetchOnce]);
 
-  return { data, loading, error, forbidden, refresh, lastFetchedAt };
+  return blocked
+    ? {
+        data,
+        loading: false,
+        error: GLOBAL_CONTROL_PLANE_ACCESS_CODE,
+        forbidden: true,
+        refresh,
+        lastFetchedAt,
+      }
+    : { data, loading, error, forbidden, refresh, lastFetchedAt };
 }
 
 // ═══════════════════════════════════════════════════════════
