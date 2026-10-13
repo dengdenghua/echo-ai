@@ -78,6 +78,47 @@ it("recovers an authenticated actor from the HttpOnly cookie after browser resta
   expect(mocks.getMe).toHaveBeenCalledTimes(1);
 });
 
+it("does not ask for the actor when the browser presented no credential", async () => {
+  // Regression: every signed-out first visit (login page, public share link)
+  // logged "GET /api/auth/me 401" in the console.
+  mocks.getAuthStatus.mockResolvedValue({
+    enabled: true,
+    jwt_available: true,
+    allow_registration: false,
+    exempt_paths: [],
+    credential_present: false,
+  });
+
+  renderWithProviders(
+    <AuthProvider>
+      <AuthState />
+    </AuthProvider>,
+  );
+
+  expect(await screen.findByText("anonymous")).toBeInTheDocument();
+  expect(mocks.getMe).not.toHaveBeenCalled();
+});
+
+it("still asks when a tab-scoped token exists without a cookie", async () => {
+  mocks.getToken.mockReturnValue("tab-token");
+  mocks.getAuthStatus.mockResolvedValue({
+    enabled: true,
+    jwt_available: true,
+    allow_registration: false,
+    exempt_paths: [],
+    credential_present: false,
+  });
+
+  renderWithProviders(
+    <AuthProvider>
+      <AuthState />
+    </AuthProvider>,
+  );
+
+  expect(await screen.findByText("authenticated")).toBeInTheDocument();
+  expect(mocks.getMe).toHaveBeenCalledTimes(1);
+});
+
 it("drops the in-memory actor when a protected request reports expiry", async () => {
   renderWithProviders(
     <AuthProvider>

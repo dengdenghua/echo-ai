@@ -3,6 +3,10 @@ export interface AuthStatus {
   jwt_available: boolean;
   allow_registration: boolean;
   exempt_paths: string[];
+  /** Whether this request carried a bearer token or session cookie. Older
+   * backends omit it; only an explicit ``false`` lets the client skip
+   * ``/api/auth/me``. */
+  credential_present?: boolean;
 }
 
 export interface LoginRequest {

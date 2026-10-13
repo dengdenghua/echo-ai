@@ -48,13 +48,23 @@ def _register_auth_routes(router: APIRouter, d: MetaRouterDeps) -> None:
     _any_auth_enabled = _oct_enabled or _local_auth_enabled
 
     @router.get("/api/auth/status")
-    def auth_status() -> dict[str, Any]:
+    def auth_status(request: Request) -> dict[str, Any]:
+        from runtime.safety.auth.principal import SESSION_COOKIE_NAME
+
         has_jwt = _oct_enabled or _local_auth_enabled
+        # Whether this request carries a credential at all (not whether it is
+        # valid). The session cookie is HttpOnly, so without this a signed-out
+        # browser must ask /api/auth/me and log a 401 on every first visit.
+        authorization = str(request.headers.get("authorization") or "")
+        credential_present = authorization.lower().startswith("bearer ") or bool(
+            str(request.cookies.get(SESSION_COOKIE_NAME) or "").strip()
+        )
         return {
             "enabled": _any_auth_enabled,
             "jwt_available": has_jwt,
             "allow_registration": False,
             "exempt_paths": [],
+            "credential_present": credential_present,
         }
 
     def auth_me(request: Request) -> dict[str, Any]:

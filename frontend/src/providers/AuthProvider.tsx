@@ -222,13 +222,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         return;
       }
       // A browser restart intentionally has no sessionStorage JWT.  The
-      // HttpOnly cookie is the durable credential, so always ask the backend
-      // for the current actor when authentication is enabled.
-      const current = status.enabled
-        ? await getMe()
-            .then((currentUser) => ({ currentUser, error: null }))
-            .catch((error: unknown) => ({ currentUser: null, error }))
-        : { currentUser: null, error: null };
+      // HttpOnly cookie is the durable credential, so ask the backend for the
+      // current actor whenever one may exist.  When the status call carried
+      // neither cookie nor token, /api/auth/me can only answer 401.
+      const mayHaveSession =
+        status.credential_present !== false || Boolean(getToken());
+      const current =
+        status.enabled && mayHaveSession
+          ? await getMe()
+              .then((currentUser) => ({ currentUser, error: null }))
+              .catch((error: unknown) => ({ currentUser: null, error }))
+          : { currentUser: null, error: null };
       if (current.currentUser) {
         setUser(
           normalizeUserIdentity(current.currentUser, storedUser || tokenUser),

@@ -809,6 +809,21 @@ class TestAuthProviders:
         assert "oct" in ids
         assert c.get("/api/auth/status").json()["enabled"] is True
 
+    def test_status_reports_whether_a_credential_was_presented(
+        self,
+        isolated_cwd: Path,
+    ) -> None:
+        """A signed-out browser can skip /api/auth/me (and its 401)."""
+        from runtime.adapters.integrations.oct.config import OctConfig
+
+        cfg = OctConfig(enabled=True, jwt_secret="0123456789abcdef0123456789ABCDEF!")
+        c = TestClient(create_app(oct_config=cfg))
+        assert c.get("/api/auth/status").json()["credential_present"] is False
+        headers = {"Authorization": "Bearer not-checked-here"}
+        assert c.get("/api/auth/status", headers=headers).json()["credential_present"] is True
+        c.cookies.set("echo_session", "opaque")
+        assert c.get("/api/auth/status").json()["credential_present"] is True
+
     def test_local_provider_when_configured(
         self,
         isolated_cwd: Path,
