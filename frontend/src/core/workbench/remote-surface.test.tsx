@@ -262,7 +262,10 @@ describe("RemoteWorkbenchSurface", () => {
     expect(apiMocks.installCloudPlugin).toHaveBeenCalledWith(APP.cloudId);
   });
 
-  it("starts independent reads together but waits for lifecycle checks before mounting", async () => {
+  it("checks the installed list before asking for the package", async () => {
+    // Regression: opening a workbench that is not installed fired the
+    // manifest and runtime reads anyway, logging two 404s on the way to the
+    // designed install card.
     let finishInstalled!: (value: unknown) => void;
     apiMocks.fetchWorkbenchInstalled.mockImplementationOnce(
       () =>
@@ -271,9 +274,11 @@ describe("RemoteWorkbenchSurface", () => {
         }),
     );
     renderSurface();
-    expect(apiMocks.fetchRuntimePluginStatus).toHaveBeenCalled();
-    expect(apiMocks.fetchWorkbenchInstalled).toHaveBeenCalledWith("narrative_studio");
-    expect(fetch).toHaveBeenCalled();
+    expect(apiMocks.fetchWorkbenchInstalled).toHaveBeenCalledWith(
+      "narrative_studio",
+    );
+    expect(apiMocks.fetchRuntimePluginStatus).not.toHaveBeenCalled();
+    expect(fetch).not.toHaveBeenCalled();
     expect(screen.queryByTitle("Narrative Studio")).not.toBeInTheDocument();
     await act(async () => {
       finishInstalled({
@@ -291,6 +296,20 @@ describe("RemoteWorkbenchSurface", () => {
       await screen.findByRole("heading", { name: "叙事工坊已停用" }),
     ).toBeInTheDocument();
     expect(screen.queryByTitle("Narrative Studio")).not.toBeInTheDocument();
+    expect(fetch).not.toHaveBeenCalled();
+  });
+
+  it("does not request the package of an app that is not installed", async () => {
+    apiMocks.fetchWorkbenchInstalled.mockReset().mockResolvedValue({
+      plugins: [],
+      plugin_states: {},
+    });
+    renderSurface();
+    expect(
+      await screen.findByRole("heading", { name: "安装叙事工坊" }),
+    ).toBeInTheDocument();
+    expect(fetch).not.toHaveBeenCalled();
+    expect(apiMocks.fetchRuntimePluginStatus).not.toHaveBeenCalled();
   });
 
   it("offers one-click enable when the runtime is installed but disabled", async () => {

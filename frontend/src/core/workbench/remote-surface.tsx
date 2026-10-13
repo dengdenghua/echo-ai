@@ -314,16 +314,13 @@ export function RemoteWorkbenchSurface({
     setManifest(null);
     setIssue(null);
     void (async () => {
-      // These reads are independent. Wait for all checks before mounting, but
-      // don't add their network latencies together on every mode switch.
-      const [installedResult, runtimeResult, manifestResult] =
-        await Promise.allSettled([
-          fetchWorkbenchInstalled(packageId),
-          app.runtimePlugin
-            ? fetchRuntimePluginStatus(app.runtimePlugin)
-            : Promise.resolve(null),
-          fetchRemoteWorkbenchManifest(packageId, controller.signal),
-        ]);
+      // Ask the cheap local installed list first: for an app that is not
+      // installed, the package and runtime endpoints can only answer 404,
+      // which a first visit would log as failed requests. Once the app is
+      // known to be present, the remaining reads run together.
+      const [installedResult] = await Promise.allSettled([
+        fetchWorkbenchInstalled(packageId),
+      ]);
       if (controller.signal.aborted) return;
       try {
         if (installedResult.status === "rejected") throw installedResult.reason;
@@ -365,6 +362,13 @@ export function RemoteWorkbenchSurface({
         }
         // Older backends may only expose the signed package endpoint.
       }
+      const [runtimeResult, manifestResult] = await Promise.allSettled([
+        app.runtimePlugin
+          ? fetchRuntimePluginStatus(app.runtimePlugin)
+          : Promise.resolve(null),
+        fetchRemoteWorkbenchManifest(packageId, controller.signal),
+      ]);
+      if (controller.signal.aborted) return;
       if (app.runtimePlugin) {
         try {
           if (runtimeResult.status === "rejected") throw runtimeResult.reason;
