@@ -1,6 +1,6 @@
 # Echo AI
 
-> v0.1.0 · Apache-2.0
+> v0.2.0 · Apache-2.0
 
 Echo AI 是 Echo 家族的**桌面 AI 工作端**。本仓库同时包含共享的 Agent 运行时 —— 以 `runtime/` 里的 Python 运行时为核心，跑通「规划 → 执行 → 观察 → 记忆 → 改进」的完整闭环：支持工具调用、记忆反思、安全治理、浏览器/桌面控制与自改进循环。
 
@@ -22,28 +22,31 @@ English readers: [README.en.md](README.en.md)
 
 ## 快速开始
 
+依赖由 [uv](https://docs.astral.sh/uv/) 按 `uv.lock` 锁定安装（Python 3.11+）；也可以用 `pip install -e ".[dev,serve,web]"`，但不走锁文件。
+
 ```bash
 # 最小确定性后端演示，无需 LLM key
-pip install -e ".[minimal]"
-python -m runtime bugfix-demo
+uv sync --locked --extra minimal
+uv run python -m runtime bugfix-demo
 
-# 开发环境（测试、FastAPI UI、web skills）
-pip install -e ".[dev,serve,web]"
-python -m runtime quickstart --non-interactive
-python -m runtime status
-python -m runtime ui --port 8310
+# 开发环境（测试、FastAPI 后端、web skills）
+uv sync --locked --extra dev --extra serve --extra web
+uv run python -m runtime quickstart --non-interactive   # 生成 ./config.yaml 并运行 doctor
+uv run python -m runtime serve --config config.yaml --port 8310
 ```
 
 打开 <http://127.0.0.1:8310>。
 
-前端开发：
+前端与桌面端（Node 22+，pnpm 由 corepack 按 `packageManager` 提供）：
 
 ```bash
 cd frontend
-corepack enable
-pnpm install --frozen-lockfile
-pnpm dev
+corepack pnpm install --frozen-lockfile
+corepack pnpm dev            # Vite 开发服务器
+corepack pnpm electron:dev   # Electron 桌面壳 + 本地后端
 ```
+
+桌面安装包由 CI 构建（`.github/workflows/build-win.yml`、`build-linux.yml`），发布流程见 [docs/RELEASING.md](docs/RELEASING.md)。
 
 ## 核心文档
 
