@@ -74,6 +74,33 @@ describe("<StreamingDebugger />", () => {
     expect(screen.getByText("tool-failed")).toBeInTheDocument();
   });
 
+  it("toggles the panel with the Ctrl+Shift+D shortcut it advertises", async () => {
+    window.localStorage.setItem("echo:debug:streaming", "1");
+    const user = userEvent.setup();
+
+    render(<StreamingDebugger events={[event("running", "running")]} />);
+    expect(screen.queryByText("流式事件追踪")).toBeNull();
+
+    await user.keyboard("{Control>}{Shift>}D{/Shift}{/Control}");
+    expect(screen.getByText("流式事件追踪")).toBeInTheDocument();
+    expect(screen.getByTitle("流式调试面板 (Ctrl+Shift+D)")).toHaveAttribute(
+      "aria-expanded",
+      "true",
+    );
+
+    await user.keyboard("{Control>}{Shift>}D{/Shift}{/Control}");
+    expect(screen.queryByText("流式事件追踪")).toBeNull();
+  });
+
+  it("ignores the shortcut while the debugger is disabled", async () => {
+    const user = userEvent.setup();
+    render(<StreamingDebugger events={[event("running", "running")]} />);
+
+    await user.keyboard("{Control>}{Shift>}D{/Shift}{/Control}");
+
+    expect(screen.queryByText("流式事件追踪")).toBeNull();
+  });
+
   it("stays hidden in dev builds once the debug setting is turned off", () => {
     vi.stubEnv("DEV", true);
     window.localStorage.setItem("echo:debug:streaming", "0");

@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
 import {
   BugIcon,
@@ -52,11 +52,33 @@ export function StreamingDebugger({
   return <EnabledStreamingDebugger events={events} className={className} />;
 }
 
+/** Ctrl+Shift+D (⌘⇧D on macOS) toggles the panel the button advertises. */
+function isStreamingDebugShortcut(event: KeyboardEvent): boolean {
+  return (
+    (event.ctrlKey || event.metaKey) &&
+    event.shiftKey &&
+    !event.altKey &&
+    (event.code === "KeyD" || event.key.toLowerCase() === "d")
+  );
+}
+
 function EnabledStreamingDebugger({
   events,
   className,
 }: StreamingDebuggerProps) {
   const [isOpen, setIsOpen] = useState(false);
+
+  // Only mounted while the debugger is enabled (dev builds, or the
+  // Settings → 可观测性 switch), so the shortcut never reaches other users.
+  useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.repeat || !isStreamingDebugShortcut(event)) return;
+      event.preventDefault();
+      setIsOpen((open) => !open);
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, []);
   const [filter, setFilter] = useState("");
   const [selectedEvent, setSelectedEvent] = useState<LiveToolEvent | null>(
     null,
@@ -138,6 +160,8 @@ function EnabledStreamingDebugger({
         <button
           type="button"
           onClick={() => setIsOpen(!isOpen)}
+          aria-keyshortcuts="Control+Shift+D Meta+Shift+D"
+          aria-expanded={isOpen}
           className={cn(
             // Dev-only affordance: tucked into the very corner at a small size
             // so it never competes with the composer or the paused-tasks
