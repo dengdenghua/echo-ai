@@ -155,7 +155,7 @@ export function ContextPackPreview({
       <div className="flex flex-wrap items-center gap-2">
         <div className="mr-auto">
           <p className="flex items-center gap-2 text-xs font-medium">
-            <PackageSearchIcon className="size-3.5 text-violet-500" />
+            <PackageSearchIcon className="size-3.5 text-muted-foreground" />
             章节上下文包
           </p>
           <p className="mt-1 text-xs text-muted-foreground">
@@ -206,7 +206,7 @@ export function ContextPackPreview({
             <div
               className={cn(
                 "h-full rounded-full transition-[width]",
-                usage.overBudget ? "bg-red-500" : "bg-violet-500",
+                usage.overBudget ? "bg-breach" : "bg-core",
               )}
               style={{ width: `${usage.percentage}%` }}
             />
@@ -367,7 +367,7 @@ export function StudioInspector({
               <div className="space-y-5">
                 <div className="grid grid-cols-2 gap-2">
                   <div className="rounded-xl bg-muted/35 p-3">
-                    <BoxesIcon className="size-4 text-violet-500" />
+                    <BoxesIcon className="size-4 text-muted-foreground" />
                     <p className="mt-2 text-xl font-semibold">
                       {worldPacks.length}
                     </p>
@@ -509,7 +509,7 @@ export function StudioInspector({
 
             {tab === "continuity" ? (
               <div className="space-y-5">
-                <div className="rounded-xl border border-violet-400/20 bg-violet-500/8 p-3">
+                <div className="rounded-xl border border-border/70 bg-muted/40 p-3">
                   <p className="flex items-center gap-2 text-sm font-medium">
                     <PackageSearchIcon className="size-4" />
                     当前上下文包
@@ -727,7 +727,7 @@ export function StudioInspector({
                                   ) : null}
                                   {agentRunning ? (
                                     <div
-                                      className="flex items-center gap-2 rounded-lg border border-violet-400/20 bg-violet-500/8 p-2 text-xs text-violet-700 dark:text-violet-200"
+                                      className="flex items-center gap-2 rounded-lg border border-border/70 bg-muted/40 p-2 text-xs text-foreground"
                                       role="status"
                                     >
                                       <LoaderCircleIcon className="size-3 animate-spin" />
@@ -1120,7 +1120,7 @@ export function GovernanceActionDialog({
         className="w-full max-w-md rounded-2xl border border-border/70 bg-background p-5 shadow-2xl"
       >
         <div className="flex items-start gap-3">
-          <div className="grid size-10 shrink-0 place-items-center rounded-xl bg-violet-500/10 text-violet-600">
+          <div className="grid size-10 shrink-0 place-items-center rounded-xl bg-muted text-foreground">
             <VoteIcon className="size-5" />
           </div>
           <div className="min-w-0 flex-1">
@@ -1141,7 +1141,7 @@ export function GovernanceActionDialog({
             <XIcon className="size-4" />
           </Button>
         </div>
-        <label className="mt-4 flex cursor-pointer items-start gap-2 rounded-xl border border-violet-400/20 bg-violet-500/8 p-3 text-xs leading-5">
+        <label className="mt-4 flex cursor-pointer items-start gap-2 rounded-xl border border-border/70 bg-muted/40 p-3 text-xs leading-5">
           <input
             type="checkbox"
             checked={confirmed}

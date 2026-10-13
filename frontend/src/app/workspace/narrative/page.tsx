@@ -77,7 +77,7 @@ type GovernanceAction =
     };
 
 const fieldClass =
-  "border-border/70 bg-background/55 shadow-none focus-visible:ring-violet-400/40";
+  "border-border/70 bg-background/55 shadow-none focus-visible:ring-ring/40";
 
 function errorMessage(error: unknown): string {
   return error instanceof Error ? error.message : "操作失败，请稍后重试。";
@@ -903,7 +903,7 @@ export default function NarrativePage() {
       <header className="sticky top-0 z-20 border-b border-border/55 bg-background/85 px-4 py-3 backdrop-blur-xl md:px-6">
         <div className="mx-auto flex w-full max-w-[1720px] flex-wrap items-center gap-3">
           <div className="mr-auto flex min-w-0 items-center gap-3">
-            <div className="grid size-10 shrink-0 place-items-center rounded-2xl bg-violet-500/12 text-violet-600 dark:text-violet-300">
+            <div className="grid size-10 shrink-0 place-items-center rounded-2xl bg-muted text-foreground">
               <BookOpenIcon className="size-5" />
             </div>
             <div className="min-w-0">
@@ -919,7 +919,7 @@ export default function NarrativePage() {
 
           {projects.length ? (
             <select
-              className="h-9 max-w-56 rounded-lg border border-border/70 bg-background px-3 text-sm outline-none focus:border-violet-400/60"
+              className="h-9 max-w-56 rounded-lg border border-border/70 bg-background px-3 text-sm outline-none focus:border-ring"
               value={activeProjectId}
               onChange={(event) => {
                 setActiveProjectId(event.target.value);
@@ -956,7 +956,6 @@ export default function NarrativePage() {
             size="sm"
             onClick={() => void importEcho()}
             disabled={!workspace || busy}
-            className="bg-violet-600 text-white hover:bg-violet-500"
           >
             {busy ? (
               <LoaderCircleIcon className="size-4 animate-spin" />
@@ -1110,7 +1109,7 @@ export default function NarrativePage() {
                                 "flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-left text-sm transition-colors hover:bg-muted/60",
                                 selectedChapterId === chapter.id &&
                                   !selectedSceneId &&
-                                  "bg-violet-500/10 text-violet-700 dark:text-violet-200",
+                                  "bg-core/10 text-core",
                               )}
                               onClick={() => {
                                 setSelectedChapterId(chapter.id);
@@ -1134,7 +1133,7 @@ export default function NarrativePage() {
                                     className={cn(
                                       "flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-xs text-muted-foreground hover:bg-muted/55 hover:text-foreground",
                                       selectedSceneId === scene.id &&
-                                        "bg-violet-500/10 text-violet-700 dark:text-violet-200",
+                                        "bg-core/10 text-core",
                                     )}
                                     onClick={() => {
                                       setSelectedChapterId(chapter.id);
@@ -1510,7 +1509,7 @@ export default function NarrativePage() {
               <div className="flex items-start justify-between gap-3">
                 <div>
                   <div className="flex items-center gap-2 text-sm font-semibold">
-                    <PlugZapIcon className="size-4 text-violet-500" />
+                    <PlugZapIcon className="size-4 text-muted-foreground" />
                     Narrative MCP
                   </div>
                   <p className="mt-1 text-xs leading-5 text-muted-foreground">
@@ -1568,7 +1567,7 @@ export default function NarrativePage() {
               </div>
             </div>
 
-            <div className="rounded-xl border border-violet-400/20 bg-violet-500/6 px-4 py-3 text-xs leading-5 text-muted-foreground">
+            <div className="rounded-xl border border-border/70 bg-muted/40 px-4 py-3 text-xs leading-5 text-muted-foreground">
               MCP 与技能均不提供直接写入正典、跳过投票或解除审核阻断的能力。
             </div>
           </div>
