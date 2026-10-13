@@ -9275,6 +9275,10 @@ export const zhCN: Translations = {
       startFailed: "本地知识库服务启动失败，请检查后端日志后重试。",
       notConnected: "本地知识库服务仍未连接：{url}",
       networkError: "无法连接到本地知识库服务，请确认服务已启动后重试。",
+      unavailable:
+        "本地知识库服务暂时没有响应，可能还没启动。它是可选服务，不影响对话；需要检索本机文件时，点「重新连接」启动它。",
+      directoryUnavailable:
+        "本地知识库服务没有响应，目录还没读取。",
     },
     toolbar: {
       authorize: "授权",

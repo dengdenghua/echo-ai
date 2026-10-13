@@ -9585,6 +9585,10 @@ export const koKR: Translations = {
       notConnected: "로컬 지식 베이스 서비스에 아직 연결되지 않았습니다: {url}",
       networkError:
         "로컬 지식 베이스 서비스에 연결할 수 없습니다. 서비스가 실행 중인지 확인한 후 다시 시도하세요.",
+      unavailable:
+        "로컬 지식 베이스 서비스가 응답하지 않습니다. 아직 시작되지 않았을 수 있습니다. 선택 서비스라 대화에는 영향이 없으며, 로컬 파일을 검색할 때 「다시 연결」로 시작하세요.",
+      directoryUnavailable:
+        "로컬 지식 베이스 서비스가 응답하지 않아 이 폴더를 아직 읽지 못했습니다.",
     },
     toolbar: {
       authorize: "승인",

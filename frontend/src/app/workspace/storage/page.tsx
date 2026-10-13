@@ -56,6 +56,7 @@ import {
   getNASPolicy,
   getVideoCoverURL,
   isNASAuthenticationError,
+  isNASUnavailableError,
   loadNASAssetURL,
   listNASApps,
   listNASAlbums,
@@ -474,7 +475,9 @@ export default function StoragePage() {
           ? copy.service.credentialsExpired
           : isNetworkError
             ? copy.service.networkError
-            : serviceErrorMessage(error),
+            : isNASUnavailableError(error)
+              ? copy.service.unavailable
+              : serviceErrorMessage(error),
       );
       return false;
     }
@@ -646,18 +649,25 @@ export default function StoragePage() {
         <div className="flex size-full overflow-hidden">
           <section className="workspace-panel flex min-h-0 flex-1 overflow-hidden rounded-none border-0 bg-card">
             <div className="flex min-w-0 flex-1 flex-col overflow-hidden bg-card">
+              {/* An optional service being offline is state, not risk: no
+                  warning amber (BRAND.md reserves it for approval/risk). */}
               {serviceError && (
                 <div
-                  role="alert"
-                  className="flex shrink-0 flex-wrap items-center justify-between gap-3 border-b border-warning/70 bg-warning/5 px-4 py-2 text-xs text-warning"
+                  role="status"
+                  className="flex shrink-0 flex-wrap items-center justify-between gap-3 border-b border-border bg-muted/60 px-4 py-2 text-xs text-muted-foreground"
                 >
-                  <span className="min-w-0 flex-1 break-words">
+                  <span className="flex min-w-0 flex-1 items-start gap-2 break-words">
+                    <DatabaseIcon
+                      aria-hidden="true"
+                      className="mt-0.5 size-3.5 shrink-0"
+                      strokeWidth={1.5}
+                    />
                     {serviceError}
                   </span>
                   <Button
                     size="sm"
                     variant="outline"
-                    className="h-7 shrink-0 rounded-md border-warning/40 bg-card px-3 text-warning hover:bg-warning/10"
+                    className="h-7 shrink-0 rounded-md px-3"
                     onClick={() => void reconnectNAS()}
                     disabled={isReconnecting}
                   >
@@ -2637,6 +2647,8 @@ function LocalDiskView({
   const [isLoading, setIsLoading] = useState(false);
   const [browseRevision, setBrowseRevision] = useState(0);
   const [browseError, setBrowseError] = useState<string | null>(null);
+  const { t } = useI18n();
+  const directoryUnavailable = t.storage.service.directoryUnavailable;
 
   useEffect(() => {
     let cancelled = false;
@@ -2661,7 +2673,9 @@ function LocalDiskView({
           setBrowseError(
             error instanceof NASRequestTimeoutError
               ? "本地服务连接超时，目录尚未读取。请检查连接后重试。"
-              : serviceErrorMessage(error),
+              : isNASUnavailableError(error)
+                ? directoryUnavailable
+                : serviceErrorMessage(error),
           );
           setEntries([]);
         }
@@ -2673,7 +2687,7 @@ function LocalDiskView({
     return () => {
       cancelled = true;
     };
-  }, [currentPath, browseRevision]);
+  }, [currentPath, browseRevision, directoryUnavailable]);
 
   const pathParts = currentPath.split("/").filter(Boolean);
   const goUp = () => {

@@ -1,6 +1,7 @@
 import { screen, waitFor } from "@testing-library/react";
-import { describe, expect, test, vi } from "vitest";
+import { beforeEach, describe, expect, test, vi } from "vitest";
 
+import { listNASFiles, startNASService } from "@/core/storage/api";
 import { renderWithProviders } from "@/test/harness";
 
 import MediaAppPage from "./page";
@@ -35,6 +36,10 @@ vi.mock("@/core/storage/api", () => ({
 }));
 
 describe("MediaAppPage", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
   test("renders indexed photos and album filters as a standalone app", async () => {
     renderWithProviders(<MediaAppPage kind="image" />, {
       initialRoute: "/apps/photos",
@@ -46,5 +51,50 @@ describe("MediaAppPage", () => {
     );
     expect(screen.getByText("旅行 1")).toBeInTheDocument();
     expect(screen.getByText(/本机索引 · 1 项/)).toBeInTheDocument();
+  });
+
+  test("shows the unavailable state with retry when storage is not installed", async () => {
+    vi.mocked(listNASFiles).mockRejectedValueOnce(
+      new Error("NAS /v1/files failed: 503 - echo-storage unavailable"),
+    );
+    vi.mocked(startNASService).mockResolvedValueOnce({
+      ok: false,
+      status: "not_found",
+      base_url: "/api/storage",
+    });
+
+    renderWithProviders(<MediaAppPage kind="video" />, {
+      initialRoute: "/apps/media",
+      locale: "zh-CN",
+    });
+
+    expect(
+      await screen.findByText("本机媒体服务暂时不可用"),
+    ).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "重试" })).toBeInTheDocument();
+    // Not installed: no second listing round-trip behind the spinner.
+    expect(listNASFiles).toHaveBeenCalledTimes(1);
+  });
+
+  test("bounds the start probe and shows the error when it times out", async () => {
+    vi.mocked(listNASFiles).mockRejectedValueOnce(
+      new Error("NAS /v1/files failed: 503"),
+    );
+    vi.mocked(startNASService).mockRejectedValueOnce(
+      new DOMException("signal timed out", "TimeoutError"),
+    );
+
+    renderWithProviders(<MediaAppPage kind="video" />, {
+      initialRoute: "/apps/media",
+      locale: "zh-CN",
+    });
+
+    expect(
+      await screen.findByText("本机媒体服务暂时不可用"),
+    ).toBeInTheDocument();
+    expect(startNASService).toHaveBeenCalledWith({
+      signal: expect.any(AbortSignal),
+    });
+    expect(listNASFiles).toHaveBeenCalledTimes(1);
   });
 });

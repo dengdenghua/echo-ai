@@ -127,6 +127,17 @@ export function isNASAuthenticationError(error: unknown): boolean {
   return error instanceof NASRequestError && error.status === 401;
 }
 
+/**
+ * The optional storage service is not answering (gateway 502/503/504 or a
+ * client timeout): a state to explain, not a server string to show.
+ */
+export function isNASUnavailableError(error: unknown): boolean {
+  return (
+    error instanceof NASRequestTimeoutError ||
+    (error instanceof NASRequestError && [502, 503, 504].includes(error.status))
+  );
+}
+
 export function getNASBaseURL(): string {
   return `${getBackendBaseURL()}/api/storage`;
 }
@@ -190,10 +201,13 @@ async function request<T>(path: string, init: NASRequestInit = {}): Promise<T> {
   }
 }
 
-export async function startNASService(): Promise<NASServiceStartResponse> {
+export async function startNASService(
+  options: { signal?: AbortSignal } = {},
+): Promise<NASServiceStartResponse> {
   return looseBody(
     await apiPost("/api/local-brain/storage/start", {
       credentials: "include",
+      signal: options.signal,
       errorMessage: (failure) =>
         `Storage start failed: ${failure.status}${
           failure.text ? ` - ${failure.text}` : ""

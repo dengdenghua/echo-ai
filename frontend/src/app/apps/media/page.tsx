@@ -98,6 +98,9 @@ function useAssetObjectURL(assetId: string | undefined): string | null {
   return url;
 }
 
+/** Starting the storage service is a probe, not a wait: bound it. */
+const STORAGE_START_TIMEOUT_MS = 10_000;
+
 async function loadAssets(
   kind: MediaAppKind,
 ): Promise<{ files: NASFileAsset[]; albums: NASAlbum[] }> {
@@ -110,7 +113,14 @@ async function loadAssets(
   } catch (firstError) {
     // A packaged desktop app may race the local storage service on first
     // launch. Start it once and retry so the app remains self-contained.
-    await startNASService();
+    // When the service is not installed, failed to start, or the start call
+    // itself stalls, report the original failure instead of spinning.
+    const started = await startNASService({
+      signal: AbortSignal.timeout(STORAGE_START_TIMEOUT_MS),
+    }).catch(() => null);
+    if (!started || !(started.ok || started.status === "started")) {
+      throw firstError;
+    }
     const [files, albums] = await Promise.all([
       listNASFiles(kind, 500),
       kind === "image" ? listNASAlbums().catch(() => []) : Promise.resolve([]),

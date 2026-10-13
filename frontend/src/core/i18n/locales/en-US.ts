@@ -9742,6 +9742,10 @@ Strategy:
       notConnected: "Local knowledge base service is still unreachable: {url}",
       networkError:
         "Unable to connect to the local knowledge base service. Please make sure it is running and try again.",
+      unavailable:
+        "The local knowledge base service is not responding; it may not be running yet. It is optional and chat keeps working. Choose Reconnect when you need to search local files.",
+      directoryUnavailable:
+        "The local knowledge base service is not responding, so this folder has not been read.",
     },
     toolbar: {
       authorize: "Authorize",

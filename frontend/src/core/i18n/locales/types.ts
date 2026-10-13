@@ -8398,6 +8398,8 @@ export interface Translations {
       startFailed: string;
       notConnected: string;
       networkError: string;
+      unavailable: string;
+      directoryUnavailable: string;
     };
     toolbar: {
       authorize: string;
