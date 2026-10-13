@@ -253,7 +253,7 @@ function isReplayLanguage(value: string): value is keyof typeof REPLAY_LABELS {
 
 /** Labels for a UI locale ("zh-CN", "ja-JP"…); unknown locales get English. */
 export function replayLabelsFor(locale: string | undefined): ReplayHtmlLabels {
-  const language = (locale || "en").toLowerCase().split(/[-_]/)[0];
+  const language = (locale || "en").toLowerCase().split(/[-_]/)[0] ?? "en";
   return isReplayLanguage(language)
     ? REPLAY_LABELS[language]
     : REPLAY_LABELS.en;
