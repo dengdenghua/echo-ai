@@ -23,14 +23,18 @@ export function parseFileReference(
   if (/^[a-z][a-z0-9+.-]*:/i.test(path) && !/^[a-z]:[\\/]/i.test(path))
     return null;
   if (/^(?:\/\/|\\\\)|[\n\r\0<>?*|]/.test(path)) return null;
+  // A URL inside the text means a command or a link (`curl -I https://x.org`),
+  // never a file: its host would otherwise pass for a file name.
+  if (/[a-z][a-z0-9+.-]*:\/\//i.test(path)) return null;
   const match = /^(.*?)(?::(\d+(?:-\d+)?)(?::\d+)?|#L(\d+(?:-L?\d+)?))?$/.exec(
     path,
   );
   if (!match?.[1]) return null;
   path = match[1];
   if (!/(?:^|[\\/])[^\\/]+\.[a-z0-9]{1,12}$/i.test(path)) return null;
-  // Only path-like input or a filename, never a sentence/command made clickable.
-  if (!/^[a-z]:[\\/]|^[./~]|[\\/]/i.test(path) && /\s/.test(path)) return null;
+  // Only path-like input or a filename, never a sentence/command made
+  // clickable: text with spaces must start like a path (`D:\My App\a.py`).
+  if (/\s/.test(path) && !/^(?:[a-z]:[\\/]|[./~\\])/i.test(path)) return null;
   return { path, lines: (match[2] || match[3])?.replace(/L/g, "") };
 }
 

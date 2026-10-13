@@ -55,6 +55,13 @@ describe("clickable conversation resources", () => {
     });
     expect(parseFileReference("https://example.com/a.ts")).toBeNull();
     expect(parseFileReference("python script.py")).toBeNull();
+    // Regression: a command quoted in a reply became a file chip "example.org".
+    expect(parseFileReference("curl -I https://example.org")).toBeNull();
+    expect(parseFileReference("git -C src/app diff main.ts")).toBeNull();
+    expect(parseFileReference("./My Notes/plan.md")).toEqual({
+      path: "./My Notes/plan.md",
+      lines: undefined,
+    });
     expect(resolveFileReference("src/main.ts", "D:\\Project")).toBe(
       "D:\\Project/src/main.ts",
     );
