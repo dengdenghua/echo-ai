@@ -867,7 +867,7 @@ function ChannelCard({
   probing: boolean;
 }) {
   const { t } = useI18n();
-  const PlatformIcon = PLATFORM_ICONS[row.platform] ?? PLATFORM_ICONS.other;
+  const PlatformIcon = PLATFORM_ICONS[row.platform] ?? PlugIcon;
   const assignedAgent = agents.find((a) => a.id === row.assigned_agent_id);
   const assignedGroup = groups.find(
     (group) => group.group_id === row.assigned_group_id,
