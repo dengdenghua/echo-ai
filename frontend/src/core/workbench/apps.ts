@@ -83,7 +83,7 @@ export const WORKBENCH_BUILTIN_APPS: readonly WorkbenchBuiltinApp[] = [
   {
     id: "intelligence",
     moduleId: "intelligence",
-    name: "订阅",
+    name: "自动化",
     description: "持续跟踪主题与情报",
     workspaceRoute: "/workspace/intelligence?surface=chat",
     launchUrl: "echo://workspace/intelligence",

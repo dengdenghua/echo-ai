@@ -130,7 +130,7 @@ _WORKBENCH_APPS: tuple[dict[str, Any], ...] = (
         "source": "echo",
         "kind": "workbench",
         "name": "Intelligence",
-        "name_zh": "订阅",
+        "name_zh": "自动化",
         "description": "持续跟踪主题与情报",
         "category": "workbench",
         "author": "Echo",

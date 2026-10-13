@@ -1939,7 +1939,7 @@ export const zhCN: Translations = {
     navDatabase: "资料库",
     navKnowledgeGraph: "知识库",
     navReflex: "反射规则",
-    navIntelligence: "订阅",
+    navIntelligence: "自动化",
     navAssistant: "助手",
     navPaperTrading: "模拟炒股",
     navPaperTradingDesc:
