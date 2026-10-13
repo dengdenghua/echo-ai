@@ -696,12 +696,100 @@ def _same_site(host: str, refused: str) -> bool:
     return host == refused or host.endswith("." + refused) or refused.endswith("." + host)
 
 
+# Shell and code execution reach the network too: refusing
+# ``curl https://example.com`` refuses that site. Those calls carry no network
+# category (the sandbox decides their network), so the memory reads the
+# destination from the command: any absolute URL, plus a bare host handed to a
+# known network client (``curl example.com``). A sandbox escalation reruns a
+# command with network, so it is read the same way.
+_COMMAND_RISK_CATEGORIES: frozenset[str] = frozenset(
+    {"shell_execution", "code_execution", "sandbox_escalation"}
+)
+_NETWORK_CLIENTS: frozenset[str] = frozenset(
+    {
+        "curl",
+        "wget",
+        "http",
+        "https",
+        "xh",
+        "aria2c",
+        "ping",
+        "nslookup",
+        "dig",
+        "traceroute",
+        "tracert",
+        "ssh",
+        "scp",
+        "sftp",
+        "telnet",
+        "nc",
+        "ncat",
+        "ftp",
+        "invoke-webrequest",
+        "iwr",
+        "invoke-restmethod",
+        "irm",
+        "test-netconnection",
+        "tnc",
+    }
+)
+_COMMAND_SEGMENT_SPLIT = re.compile(r"[;|&\n]+")
+_COMMAND_TOKEN_SPLIT = re.compile(r"[\s\"'`\[\](){},<>]+")
+
+
+def _command_client_hosts(arguments: Any) -> frozenset[str]:
+    """Bare hosts passed to a network client inside command strings."""
+
+    texts: list[str] = []
+    stack: list[Any] = [arguments]
+    nodes = 0
+    while stack and nodes < _MAX_TARGET_NODES:
+        value = stack.pop()
+        nodes += 1
+        if isinstance(value, str):
+            texts.append(value)
+        elif isinstance(value, Mapping):
+            stack.extend(value.values())
+        elif isinstance(value, (list, tuple)):
+            stack.extend(value)
+    hosts: set[str] = set()
+    for text in texts:
+        for segment in _COMMAND_SEGMENT_SPLIT.split(text):
+            after_client = False
+            for token in _COMMAND_TOKEN_SPLIT.split(segment):
+                if not token:
+                    continue
+                program = re.split(r"[\\/]", token)[-1].lower().removesuffix(".exe")
+                if program in _NETWORK_CLIENTS:
+                    after_client = True
+                elif after_client and not token.startswith("-"):
+                    host = _normalized_host(token, bare_allowed=True)
+                    if host:
+                        hosts.add(host)
+    return frozenset(hosts)
+
+
+def _reached_hosts(risk: ApprovalRisk, arguments: Any) -> frozenset[str] | None:
+    """Hosts a call reaches, or ``None`` when it is not a network call."""
+
+    network = is_network_risk(risk)
+    command = bool(_COMMAND_RISK_CATEGORIES.intersection(risk.categories))
+    if not (network or command):
+        return None
+    hosts = network_targets(arguments)
+    if command:
+        hosts |= _command_client_hosts(arguments)
+    return hosts if network or hosts else None
+
+
 class NetworkDenialMemory:
     """Network access the user (or reviewer) refused earlier in this turn.
 
-    A refusal is remembered per target host. When the refused call names no
-    resolvable host (a search query, an opaque MCP call), the refusal is
-    remembered for that tool instead. Thread-safe; one instance per turn.
+    A refusal is remembered per target host, whichever tool reached for it —
+    including a shell command or sandbox escalation that names the host. When
+    a refused network call names no resolvable host (a search query, an
+    opaque MCP call), the refusal is remembered for that tool instead.
+    Thread-safe; one instance per turn.
     """
 
     def __init__(self) -> None:
@@ -710,9 +798,9 @@ class NetworkDenialMemory:
         self._lock = threading.Lock()
 
     def note_denial(self, tool_name: str, risk: ApprovalRisk, arguments: Any) -> None:
-        if not is_network_risk(risk):
+        targets = _reached_hosts(risk, arguments)
+        if targets is None:
             return
-        targets = network_targets(arguments)
         with self._lock:
             if targets:
                 self._hosts.update(targets)
@@ -722,9 +810,9 @@ class NetworkDenialMemory:
     def refusal(self, tool_name: str, risk: ApprovalRisk, arguments: Any) -> str | None:
         """Why this call is refused without asking again, or ``None``."""
 
-        if not is_network_risk(risk):
+        targets = _reached_hosts(risk, arguments)
+        if targets is None:
             return None
-        targets = network_targets(arguments)
         with self._lock:
             refused = sorted(
                 host for host in targets if any(_same_site(host, denied) for denied in self._hosts)

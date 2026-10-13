@@ -21,7 +21,7 @@ import uuid
 from collections.abc import Callable, Generator
 from typing import Any, cast
 
-from runtime.core.cerebrum._react_action_review import review_tool_action
+from runtime.core.cerebrum._react_action_review import review_tool_action, turn_network_denials
 from runtime.core.cerebrum._react_approval_pause import (  # noqa: F401 — re-exported for tests
     _approval_could_not_reach_user,
     _approval_denied_observation,
@@ -77,7 +77,7 @@ from runtime.execution.tool_engine.tool_protocol import (
     normalize_tool_lifecycle_event,
     tool_lifecycle_event_to_react_event,
 )
-from runtime.safety.approval.approval_gate import ApprovalRequest, AutoDenyProvider
+from runtime.safety.approval.approval_gate import ApprovalRequest, ApprovalRisk, AutoDenyProvider
 from runtime.safety.governance.execution_policy import caller_reviewed_tool_call
 from runtime.safety.hooks.tool_edge_hooks import post_write_diagnostic_record
 from runtime.safety.validation.prompt_injection import (
@@ -172,6 +172,17 @@ def _looks_like_sandbox_violation(observation: str | None) -> bool:
 def _can_escalate_sandbox(tool_name: str) -> bool:
     """Whether this tool is eligible for the sandbox-escalation prompt."""
     return tool_name in _ESCALABLE_TOOLS
+
+
+# The escalation reruns the command with network, so declining it refuses the
+# hosts the command names for the rest of the turn (the turn's network-denial
+# memory). A host refused earlier never gets this far: the shell call itself
+# is refused by the same memory before it runs.
+_SANDBOX_ESCALATION_RISK = ApprovalRisk(
+    level="high",
+    categories=("sandbox_escalation",),
+    reason="sandbox blocked the command; a rerun would allow network access",
+)
 
 
 _WORKSPACE_LOCAL_VCS_TOOLS = frozenset(
@@ -741,6 +752,9 @@ def _phase_6d_dispatch_and_observe(
                                     ),
                                 }
                                 return _LoopControl.CONTINUE
+                            turn_network_denials(state).note_denial(
+                                resolved_name, _SANDBOX_ESCALATION_RISK, _input_preview
+                            )
                             yield {
                                 "type": "tool_end",
                                 "tool_name": resolved_name,

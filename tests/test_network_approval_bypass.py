@@ -183,6 +183,29 @@ def test_refused_host_stays_refused_through_every_network_tool() -> None:
     assert not refused("read_file", {"path": "https://example.com"})
 
 
+def test_shell_commands_and_web_tools_share_refused_hosts() -> None:
+    """Live rerun: the agent tried ``echo_exec_shell`` curl before any web tool."""
+
+    shell = assess_approval_risk("exec_shell")
+    fetch = assess_approval_risk("fetch_url")
+
+    memory = NetworkDenialMemory()
+    memory.note_denial("exec_shell", shell, {"command": '["curl", "-sI", "https://example.com"]'})
+    assert memory.refusal("fetch_url", fetch, {"url": "https://example.com"})
+    assert memory.refusal("exec_shell", shell, {"command": "wget -qO- example.com"})
+    assert memory.refusal("exec_shell", shell, {"command": "ls -la"}) is None
+
+    reverse = NetworkDenialMemory()
+    reverse.note_denial("fetch_url", fetch, {"url": "https://example.com"})
+    assert reverse.refusal("exec_shell", shell, {"command": "Invoke-WebRequest -Uri example.com"})
+    assert reverse.refusal("exec_shell", shell, {"command": "curl https://example.org"}) is None
+
+    # Refusing a local command is not a network refusal.
+    local = NetworkDenialMemory()
+    local.note_denial("exec_shell", shell, {"command": "rm -rf build"})
+    assert local.refusal("exec_shell", shell, {"command": "curl https://example.com"}) is None
+
+
 def test_refusal_without_a_target_is_remembered_for_that_tool() -> None:
     memory = NetworkDenialMemory()
     memory.note_denial("web_search", assess_approval_risk("web_search"), {"query": "echo"})
@@ -207,13 +230,17 @@ def _web_registry(calls: list[tuple[str, str]]) -> SkillRegistry:
         calls.append(("platform_read", url))
         return {"url": url, "status_code": 200}
 
+    def exec_shell(command: str) -> dict[str, Any]:
+        calls.append(("exec_shell", command))
+        return {"exit_code": 0, "stdout": "HTTP/1.1 200 OK"}
+
     registry = SkillRegistry()
-    for handler in (fetch_url, web_fetch, platform_read):
+    for handler in (fetch_url, web_fetch, platform_read, exec_shell):
         registry.register(
             Skill(
                 name=handler.__name__,
                 description=f"{handler.__name__} reads a web page",
-                affinity=["web"],
+                affinity=["shell", "exec"] if handler is exec_shell else ["web"],
                 trusted_source=f"builtin://{handler.__name__}",
                 handler=handler,
             ),
@@ -230,7 +257,8 @@ def _broker(tmp_path, provider: ApprovalProvider, *, permission_mode: str, calls
         agent_id="eve",
         arms=[
             SimpleNamespace(
-                arm_id="web", allowed_skills=["fetch_url", "web_fetch", "platform_read"]
+                arm_id="web",
+                allowed_skills=["fetch_url", "web_fetch", "platform_read", "exec_shell"],
             )
         ],
         extra_skills=[],
@@ -267,7 +295,7 @@ def _broker(tmp_path, provider: ApprovalProvider, *, permission_mode: str, calls
         is_interrupted=lambda: False,
     )
     broker.bind_inner_scope(thread_id="inner-thread", turn_id="inner-turn")
-    assert set(broker.catalog.names) == {"fetch_url", "web_fetch", "platform_read"}
+    assert set(broker.catalog.names) == {"fetch_url", "web_fetch", "platform_read", "exec_shell"}
     return broker
 
 
@@ -308,6 +336,25 @@ async def test_broker_replays_ai18_and_keeps_the_refusal(tmp_path) -> None:
     other = await broker.invoke("web_fetch", {"url": "https://docs.python.org"}, call_id="c6")
     assert other["success"] is False
     assert [req.tool_name for req in human.requests] == ["fetch_url", "web_fetch"]
+    assert calls == []
+
+
+@pytest.mark.asyncio
+async def test_broker_keeps_a_refused_shell_curl_off_the_web_tools(tmp_path) -> None:
+    """Live rerun of AI-18: refuse ``curl`` in the shell, then the web read."""
+
+    calls: list[tuple[str, str]] = []
+    human = _Human(approve=False)
+    broker = _broker(tmp_path, human, permission_mode="default", calls=calls)
+
+    shell = await broker.invoke(
+        "exec_shell", {"command": '["curl", "-sI", "https://example.com"]'}, call_id="c1"
+    )
+    fetch = await broker.invoke("fetch_url", {"url": "https://example.com"}, call_id="c2")
+
+    assert shell["success"] is False and fetch["success"] is False
+    assert [req.tool_name for req in human.requests] == ["exec_shell"]
+    assert "refused earlier in this turn" in _text(fetch)
     assert calls == []
 
 
@@ -392,6 +439,47 @@ def test_react_loop_replays_ai18_and_keeps_the_refusal() -> None:
     observations = " ".join(str(step.observation or "") for step in result.steps)
     assert "用户拒绝了这次网络访问" in observations
     assert observations.count("refused earlier in this turn") == 2
+
+
+def test_react_loop_declined_network_escalation_refuses_the_host() -> None:
+    """Declining "rerun with network" refuses the command's host for the turn."""
+
+    calls: list[tuple[str, str]] = []
+    human = _Human(approve=False)
+    script = [
+        'Thought: lint\nAction: lint({"command": "curl -sI https://example.com"})\n',
+        'Thought: read it instead\nAction: fetch_url({"url": "https://example.com"})\n',
+        "Final Answer: 无法访问 example.com。",
+    ]
+    stack = _react_stack(script, _SequenceReviewer([]), calls)
+
+    def lint(command: str = "", **_kw: Any) -> dict[str, Any]:
+        calls.append(("lint", command))
+        return {"error": "sandbox_violation: network access denied", "argv": [command]}
+
+    stack.executor.registry.register(
+        Skill(
+            name="lint",
+            description="lint the workspace",
+            affinity=["lint", "verify"],
+            trusted_source="builtin://lint",
+            handler=lint,
+        ),
+        verify_tests=False,
+    )
+
+    run_react_loop(
+        stack,
+        _intent("default"),
+        None,
+        max_iterations=5,
+        thread_id="th-esc",
+        approval_provider=human,
+    )
+
+    # The only question was the escalation; the web read was refused unasked.
+    assert [req.tool_name for req in human.requests] == ["lint"]
+    assert calls == [("lint", "curl -sI https://example.com")]
 
 
 def test_react_loop_asks_before_a_web_read_in_ask_mode() -> None:
