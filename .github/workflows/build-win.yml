@@ -25,12 +25,13 @@ jobs:
       ECHO_WINDOWS_TIMESTAMP_URL: http://timestamp.digicert.com
       UV_PYTHON_DOWNLOADS: never
       CI: "true"
+      HAS_WINDOWS_SIGNING: ${{ secrets.WINDOWS_CODE_SIGNING_CERTIFICATE_BASE64 != '' }}
 
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
 
       - name: Validate protected Windows signing identity
-        if: ${{ secrets.WINDOWS_CODE_SIGNING_CERTIFICATE_BASE64 != '' }}
+        if: env.HAS_WINDOWS_SIGNING == 'true'
         shell: pwsh
         env:
           CSC_LINK: ${{ secrets.WINDOWS_CODE_SIGNING_CERTIFICATE_BASE64 }}
@@ -406,7 +407,7 @@ jobs:
           }
 
       - name: Verify Authenticode signatures and create commit-bound checksums
-        if: ${{ secrets.WINDOWS_CODE_SIGNING_CERTIFICATE_BASE64 != '' }}
+        if: env.HAS_WINDOWS_SIGNING == 'true'
         shell: pwsh
         run: |
           $releaseRoot = (Resolve-Path "frontend/release").Path
