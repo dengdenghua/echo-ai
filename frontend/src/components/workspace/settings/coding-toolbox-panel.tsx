@@ -123,7 +123,10 @@ export function CodingToolboxPanel({ onOpen, compact = false }: CodingToolboxPan
                 if (item.key === "environment") onOpen?.("automationSecurity");
               }}
               className={cn(
-                "group rounded-lg border border-border-subtle bg-background/60 p-3 text-left transition-colors",
+                // flex-col keeps every card's content at the top: a <button>
+                // centres its content, so a card whose detail wraps would
+                // shift its neighbours' rows down.
+                "group flex flex-col rounded-lg border border-border-subtle bg-background/60 p-3 text-left transition-colors",
                 clickable
                   ? "hover:border-primary/40 hover:bg-primary/[0.03]"
                   : "cursor-default",
@@ -134,7 +137,7 @@ export function CodingToolboxPanel({ onOpen, compact = false }: CodingToolboxPan
                 <span className="text-xs text-muted-foreground">{item.status}</span>
               </div>
               <div className="mt-2 text-sm font-medium">{item.label}</div>
-              <div className="mt-1 text-xs leading-4 text-muted-foreground">
+              <div className="mt-1 break-keep text-xs leading-4 text-muted-foreground">
                 {item.detail}
               </div>
             </button>
