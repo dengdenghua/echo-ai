@@ -127,6 +127,8 @@ export interface EchoElectronAPI {
       mode: DevicePreset,
     ) => Promise<{ ok: boolean; mode: DevicePreset }>;
     executeJS: (webContentsId: number, code: string) => Promise<unknown>;
+    /** Runs `code` in Echo's isolated world: the page's DOM, not its JS. */
+    executeIsolated?: (webContentsId: number, code: string) => Promise<unknown>;
     reload: (webContentsId: number) => Promise<void>;
     goBack: (webContentsId: number) => Promise<void>;
     goForward: (webContentsId: number) => Promise<void>;

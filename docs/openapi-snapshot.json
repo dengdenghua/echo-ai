@@ -6927,6 +6927,128 @@
         "title": "OwnerDecisionBody",
         "type": "object"
       },
+      "PageTranslateRequest": {
+        "properties": {
+          "segments": {
+            "items": {
+              "$ref": "#/components/schemas/PageTranslateSegment"
+            },
+            "maxItems": 40,
+            "minItems": 1,
+            "title": "Segments",
+            "type": "array"
+          },
+          "target": {
+            "default": "zh-CN",
+            "enum": [
+              "zh-CN",
+              "en-US",
+              "ja-JP",
+              "ko-KR"
+            ],
+            "title": "Target",
+            "type": "string"
+          }
+        },
+        "required": [
+          "segments"
+        ],
+        "title": "PageTranslateRequest",
+        "type": "object"
+      },
+      "PageTranslateResponse": {
+        "properties": {
+          "cached": {
+            "default": 0,
+            "title": "Cached",
+            "type": "integer"
+          },
+          "model": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Model"
+          },
+          "translations": {
+            "items": {
+              "$ref": "#/components/schemas/PageTranslation"
+            },
+            "title": "Translations",
+            "type": "array"
+          }
+        },
+        "required": [
+          "translations"
+        ],
+        "title": "PageTranslateResponse",
+        "type": "object"
+      },
+      "PageTranslateSegment": {
+        "properties": {
+          "id": {
+            "maxLength": 32,
+            "minLength": 1,
+            "title": "Id",
+            "type": "string"
+          },
+          "kinds": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "maxItems": 64,
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Kinds"
+          },
+          "pieces": {
+            "items": {
+              "type": "string"
+            },
+            "maxItems": 64,
+            "minItems": 1,
+            "title": "Pieces",
+            "type": "array"
+          }
+        },
+        "required": [
+          "id",
+          "pieces"
+        ],
+        "title": "PageTranslateSegment",
+        "type": "object"
+      },
+      "PageTranslation": {
+        "properties": {
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "pieces": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Pieces",
+            "type": "array"
+          }
+        },
+        "required": [
+          "id",
+          "pieces"
+        ],
+        "title": "PageTranslation",
+        "type": "object"
+      },
       "Part": {
         "allOf": [
           {
@@ -21535,6 +21657,47 @@
           }
         },
         "summary": "Api Browser System Info",
+        "tags": [
+          "browser"
+        ]
+      }
+    },
+    "/api/browser/translate": {
+      "post": {
+        "operationId": "translate_page_api_browser_translate_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PageTranslateRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PageTranslateResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Translate Page",
         "tags": [
           "browser"
         ]

@@ -5117,6 +5117,33 @@ Strategy:
       newTab: "New Tab · Ctrl+T",
       homeTabShort: "Home",
     },
+    pageTranslate: {
+      button: "Translate page",
+      title: "Page translation",
+      detected: (language) => `This page is in ${language}`,
+      languages: {
+        zh: "Chinese",
+        ja: "Japanese",
+        ko: "Korean",
+        ru: "Russian",
+        en: "English",
+        fr: "French",
+        de: "German",
+        es: "Spanish",
+        latin: "another language",
+        unknown: "another language",
+      },
+      translated: "Translated",
+      bilingual: "Side by side",
+      original: "Original",
+      translating: "Translating…",
+      skipped: (count) =>
+        `${count} paragraph${count === 1 ? "" : "s"} could not be translated`,
+      alwaysSite: "Always translate this site",
+      retry: "Retry",
+      privacy:
+        "Paragraphs on screen are sent to your configured model; translation follows your scrolling.",
+    },
     urlBar: {
       back: "Back",
       forward: "Forward",

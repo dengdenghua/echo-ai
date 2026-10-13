@@ -12,6 +12,7 @@ import {
   type ReactNode,
 } from "react";
 
+import { pageTranslation } from "@/core/browser/page-translation";
 import type { BrowserNavigationEntry } from "@/types/electron";
 
 import type { DevicePreset } from "../workspace/embedded-browser/browser-context";
@@ -753,7 +754,10 @@ export function BrowserStoreProvider({ children }: { children: ReactNode }) {
       activeTab,
       openTab: (url?: string, patch?: Partial<BrowserTab>) =>
         dispatch({ type: "OPEN_TAB", url: url ?? settings.homepage, patch }),
-      closeTab: (id: string) => dispatch({ type: "CLOSE_TAB", id }),
+      closeTab: (id: string) => {
+        pageTranslation.forget(id);
+        dispatch({ type: "CLOSE_TAB", id });
+      },
       restoreClosedTab: (id?: string) =>
         dispatch({ type: "RESTORE_CLOSED_TAB", id }),
       activateTab: (id: string) => dispatch({ type: "ACTIVATE_TAB", id }),

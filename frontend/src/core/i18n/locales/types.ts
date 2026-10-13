@@ -4340,6 +4340,20 @@ export interface Translations {
       newTab: string;
       homeTabShort: string;
     };
+    pageTranslate: {
+      button: string;
+      title: string;
+      detected: (language: string) => string;
+      languages: Record<string, string>;
+      translated: string;
+      bilingual: string;
+      original: string;
+      translating: string;
+      skipped: (count: number) => string;
+      alwaysSite: string;
+      retry: string;
+      privacy: string;
+    };
     urlBar: {
       back: string;
       forward: string;

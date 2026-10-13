@@ -297,6 +297,7 @@ tier: "standard"
 | `openai_gateway/turn_context.py` | Shared turn/session preparation for the OpenAI compatibility gateway. |
 | `openai_gateway_router.py` | — |
 | `org_router.py` | Organization API router (阶段一 企业协作 · 组织 API 路由). |
+| `page_translate_router.py` | Page translation for the desktop browser. |
 | `parallel_agents_router.py` | — |
 | `plugin_hub_router.py` | PluginHub management REST API. |
 | `plugins_router.py` | — |
@@ -1557,6 +1558,23 @@ tier: "standard"
 | Kind | Symbol | Doc |
 | --- | --- | --- |
 | func | `def create_org_router(org_store, identity_store, require_auth, jwt_secret, jwt_issuer, jwt_audience, audit_chain_path, audit_chain_secret)` |  |
+
+### `page_translate_router.py`
+
+| Kind | Symbol | Doc |
+| --- | --- | --- |
+| func | `def system_prompt(target)` |  |
+| class | `class PageTranslateSegment(BaseModel)` |  |
+| class | `class PageTranslateRequest(BaseModel)` |  |
+| class | `class PageTranslation(BaseModel)` |  |
+| class | `class PageTranslateResponse(BaseModel)` |  |
+| class | `class PageTranslateError(RuntimeError)` | A failure whose message is shown to the user as is. |
+| func | `def piece_kinds(segment)` | Valid kinds for every piece. Without them, each piece of a multi-piece paragraph is tagged so its boundary survives. |
+| func | `def tagged_text(pieces, kinds)` | The paragraph as the model sees it: formatted pieces in numbered tags. |
+| func | `def map_translation(pieces, kinds, translated)` | Spread a tagged translation over the page's text nodes, in page order. |
+| func | `def parse_translations(text)` | ``{id: text}`` from the model's reply; tolerates code fences and prose. |
+| func | `def translate_segments(call, model, segments, target, cache)` | Translate ``segments`` with one model call for the ones not cached. |
+| func | `def create_page_translate_router(stack, identity_store, require_auth, jwt_secret, jwt_issuer, jwt_audience)` |  |
 
 ### `parallel_agents_router.py`
 

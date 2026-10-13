@@ -88,6 +88,7 @@ import {
 } from "./browser-store";
 import { openBrowserFind, openBrowserReader } from "./browser-events";
 import { ExtensionToolbar } from "./extension-toolbar";
+import { PageTranslateButton } from "./page-translate-button";
 import {
   PasswordNeverSites,
   PasswordOfferBubble,
@@ -828,6 +829,14 @@ export function UrlBar({ webviewHandle, onOpenExtensions }: Props) {
             </div>
           )}
           <StoreInstallButton url={activeTab?.url} />
+          {window.echo?.isElectron && activeTab && !activeTab.private ? (
+            <PageTranslateButton
+              tabId={activeTab.id}
+              url={activeTab.url}
+              isLoading={Boolean(activeTab.isLoading)}
+              webContentsId={webviewHandle?.getWebContentsId() ?? null}
+            />
+          ) : null}
           {window.echo?.isElectron && !activeTab?.private ? (
             <SavedPasswordButton
               origin={siteOrigin}

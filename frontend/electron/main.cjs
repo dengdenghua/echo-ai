@@ -355,6 +355,10 @@ function sampleSystemInfo() {
 }
 
 // ── browser bridge (embedded <webview> automation) ─────────────
+// Isolated world for Echo's page tools (0 is the page, 999 Electron's
+// preload world).
+const PAGE_TOOLS_WORLD_ID = 1031;
+
 function wc(webContentsId) {
   const target = webContents.fromId(webContentsId);
   if (!target || target.isDestroyed())
@@ -1622,6 +1626,16 @@ function registerIpc() {
   });
   handle("browser:executeJS", (id, code) =>
     wc(id).executeJavaScript(code, true),
+  );
+  // Page tools such as translation run in their own isolated world: they
+  // share the page's DOM but not its JavaScript, so page scripts can neither
+  // see nor tamper with them.
+  handle("browser:executeIsolated", (id, code) =>
+    wc(id).executeJavaScriptInIsolatedWorld(
+      PAGE_TOOLS_WORLD_ID,
+      [{ code }],
+      false,
+    ),
   );
   handle("browser:reload", (id) => wc(id).reload());
   handle("browser:goBack", (id) => wc(id).navigationHistory.goBack());

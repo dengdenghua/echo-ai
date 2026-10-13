@@ -3587,6 +3587,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/browser/translate": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Translate Page */
+        post: operations["translate_page_api_browser_translate_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/budget/summary": {
         parameters: {
             query?: never;
@@ -20533,6 +20550,45 @@ export interface components {
             /** Expected Fingerprint */
             expected_fingerprint: string;
         };
+        /** PageTranslateRequest */
+        PageTranslateRequest: {
+            /** Segments */
+            segments: components["schemas"]["PageTranslateSegment"][];
+            /**
+             * Target
+             * @default zh-CN
+             * @enum {string}
+             */
+            target: "zh-CN" | "en-US" | "ja-JP" | "ko-KR";
+        };
+        /** PageTranslateResponse */
+        PageTranslateResponse: {
+            /**
+             * Cached
+             * @default 0
+             */
+            cached: number;
+            /** Model */
+            model?: string | null;
+            /** Translations */
+            translations: components["schemas"]["PageTranslation"][];
+        };
+        /** PageTranslateSegment */
+        PageTranslateSegment: {
+            /** Id */
+            id: string;
+            /** Kinds */
+            kinds?: string[] | null;
+            /** Pieces */
+            pieces: string[];
+        };
+        /** PageTranslation */
+        PageTranslation: {
+            /** Id */
+            id: string;
+            /** Pieces */
+            pieces: string[];
+        };
         /**
          * @example {
          *       "text": ""
@@ -29045,6 +29101,39 @@ export interface operations {
                     "application/json": {
                         [key: string]: unknown;
                     };
+                };
+            };
+        };
+    };
+    translate_page_api_browser_translate_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PageTranslateRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PageTranslateResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
         };

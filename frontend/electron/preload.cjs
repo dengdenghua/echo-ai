@@ -43,6 +43,7 @@ const api = {
   browser: {
     setDevice: invoke("browser:setDevice"),
     executeJS: invoke("browser:executeJS"),
+    executeIsolated: invoke("browser:executeIsolated"),
     reload: invoke("browser:reload"),
     goBack: invoke("browser:goBack"),
     goForward: invoke("browser:goForward"),
