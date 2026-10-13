@@ -2209,6 +2209,7 @@ export function MessageList({
             >
               <AgentAvatar
                 agentDisplayName={displayName}
+                agentId={agentName}
                 avatarUrl={
                   agentAvatar
                     ? withAgentAvatarVersion(agentAvatar)

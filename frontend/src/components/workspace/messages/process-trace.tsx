@@ -15,6 +15,7 @@ import {
   XCircleIcon,
 } from "lucide-react";
 
+import { PersonaGlyph } from "@/components/brand/persona-glyph";
 import { useI18n } from "@/core/i18n/hooks";
 import { cn } from "@/lib/utils";
 import { DotProgress } from "@/components/workspace/swarm/dot-progress";
@@ -343,8 +344,9 @@ function AgentClusterRow({
               className="size-6 rounded-full object-cover"
             />
           ) : agent.avatar ? (
-            <span className="text-base leading-none" aria-hidden="true">
-              {agent.avatar}
+            // Emoji role avatars are never drawn (BRAND.md).
+            <span className="flex size-6 items-center justify-center rounded-full border border-border-default bg-muted text-xs">
+              <PersonaGlyph agentId={agent.id} name={agent.name} />
             </span>
           ) : (
             <BotIcon

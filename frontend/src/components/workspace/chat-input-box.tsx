@@ -289,8 +289,6 @@ export function GroupMemberAvatarStack({
                   alt={name}
                   className="size-full object-cover"
                 />
-              ) : member.icon ? (
-                <span className="text-micro">{member.icon}</span>
               ) : (
                 <span>{initial}</span>
               )}

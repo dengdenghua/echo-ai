@@ -9,6 +9,7 @@ import {
   type Subtask,
   type SubtaskStatus,
 } from "@/core/tasks/types";
+import { PersonaGlyph } from "@/components/brand/persona-glyph";
 import { cn } from "@/lib/utils";
 import {
   agentRunHue,
@@ -156,16 +157,11 @@ const MiniSubtaskRow = memo(function MiniSubtaskRow({
         {task.avatarEmoji && (
           <span
             className={cn(
-              "flex shrink-0 items-center justify-center rounded-lg",
+              "flex shrink-0 items-center justify-center rounded-lg border border-border-default bg-muted",
               compact ? "size-5 text-xs" : "size-6 text-xs"
             )}
-            style={
-              task.hue != null
-                ? { background: `hsl(${task.hue} 70% 92%)` }
-                : undefined
-            }
           >
-            {task.avatarEmoji}
+            <PersonaGlyph name={task.name ?? task.description} />
           </span>
         )}
         <div className="min-w-0 flex-1">

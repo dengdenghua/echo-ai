@@ -1,5 +1,4 @@
 import {
-  BotIcon,
   CheckIcon,
   ChevronDownIcon,
   ChevronUpIcon,
@@ -19,6 +18,7 @@ import {
 import { isTeammateToolName } from "@/components/workspace/messages/action-display";
 import { useI18n } from "@/core/i18n/hooks";
 import { useAgents } from "@/core/agents/hooks";
+import { PersonaGlyph } from "@/components/brand/persona-glyph";
 import { cn } from "@/lib/utils";
 import { emitAgentWorkbenchFocus } from "@/components/workspace/agent-workbench-events";
 import {
@@ -989,28 +989,17 @@ function AgentAvatar({
       />
     );
   }
-  if (avatar) {
-    return (
-      <span
-        aria-hidden="true"
-        className={cn(
-          className,
-          "flex items-center justify-center leading-none",
-          large ? "text-xl" : "text-sm",
-        )}
-      >
-        {avatar}
-      </span>
-    );
-  }
+  // Emoji role avatars are never drawn (BRAND.md): a neutral monogram tile.
   return (
     <span
+      aria-hidden="true"
       className={cn(
         className,
-        "flex items-center justify-center rounded-md bg-muted text-muted-foreground",
+        "flex items-center justify-center rounded-md border border-border-default bg-muted",
+        large ? "text-xs" : "text-micro",
       )}
     >
-      <BotIcon className={large ? "size-4" : "size-[13px]"} />
+      <PersonaGlyph agentId={agent.id} name={agent.name || agent.role} />
     </span>
   );
 }

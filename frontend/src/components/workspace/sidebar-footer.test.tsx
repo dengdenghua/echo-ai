@@ -87,7 +87,7 @@ describe("AgentAvatar", () => {
     );
   });
 
-  it("falls back to the agent icon when a remote avatar fails", () => {
+  it("falls back to a monogram, never the emoji icon, when a remote avatar fails", () => {
     const agent: Agent = {
       name: "remote_researcher",
       display_name: "Remote Researcher",
@@ -104,7 +104,46 @@ describe("AgentAvatar", () => {
     fireEvent.error(image!);
 
     expect(container.querySelector("img")).not.toBeInTheDocument();
-    expect(screen.getByText("🟦")).toBeInTheDocument();
+    expect(screen.queryByText("🟦")).not.toBeInTheDocument();
+    expect(screen.getByText("R")).toBeInTheDocument();
+  });
+
+  it("draws the default Echo agent with the ECHO mark, not its portrait", () => {
+    const agent: Agent = {
+      name: "echo",
+      display_name: "Echo",
+      description: "",
+      avatar_url: "/api/agents/echo/avatar",
+      icon: "🤖",
+      model: null,
+      tool_groups: null,
+    };
+
+    const { container } = render(<AgentAvatar agent={agent} />);
+    expect(container.querySelector("img")).not.toBeInTheDocument();
+    expect(container.querySelector("[data-echo-core]")).toBeInTheDocument();
+    expect(screen.queryByText("🤖")).not.toBeInTheDocument();
+  });
+
+  it("retries a built-in persona's own avatar route when avatar_url fails", () => {
+    const agent: Agent = {
+      name: "noah",
+      display_name: "Noah",
+      description: "",
+      avatar_url: "https://cdn.invalid/noah.png",
+      icon: "E",
+      model: null,
+      tool_groups: null,
+    };
+
+    const { container } = render(<AgentAvatar agent={agent} />);
+    const first = container.querySelector("img");
+    expect(first?.getAttribute("src")).toBe("https://cdn.invalid/noah.png");
+    fireEvent.error(first!);
+    const second = container.querySelector("img");
+    expect(second?.getAttribute("src")).toContain("/api/agents/noah/avatar");
+    expect(screen.getByText("N")).toBeInTheDocument();
+    expect(screen.queryByText("E")).not.toBeInTheDocument();
   });
 });
 
@@ -142,9 +181,7 @@ describe("AgentFooter roster states", () => {
         initialRoute: "/workspace/realtime/new",
         locale: "zh-CN",
       });
-      await user.click(
-        screen.getByRole("button", { name: /当前角色 Eve$/ }),
-      );
+      await user.click(screen.getByRole("button", { name: /当前角色 Eve$/ }));
       expect(screen.getByText("办公统筹")).toBeVisible();
       const account = screen.getByRole("menuitem", {
         name: /user@example.com/,
@@ -185,9 +222,7 @@ describe("AgentFooter roster states", () => {
           locale: "zh-CN",
         },
       );
-      await user.click(
-        screen.getByRole("button", { name: /当前角色 Eve$/ }),
-      );
+      await user.click(screen.getByRole("button", { name: /当前角色 Eve$/ }));
       const profileButton = screen.getByRole("button", {
         name: "查看 Kane 的资料",
       });
@@ -260,7 +295,9 @@ describe("AgentFooter roster states", () => {
       locale: "zh-CN",
     });
 
-    expect(screen.getByRole("button", { name: /当前角色 Eve$/ })).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: /当前角色 Eve$/ }),
+    ).toBeInTheDocument();
     expect(screen.queryByText("EchoAI")).not.toBeInTheDocument();
   });
 

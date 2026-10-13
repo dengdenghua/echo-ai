@@ -347,7 +347,7 @@ def make_general_arm(runtime: GraphRuntime) -> Worker:
         display_name="Eve",
         description=("AI 办公首席助理，负责会议、邮件、文档、日程、汇报和复杂任务推进。"),
         soul=_ECHO_SOUL,
-        icon="🐙",
+        icon="E",
     )
 
 

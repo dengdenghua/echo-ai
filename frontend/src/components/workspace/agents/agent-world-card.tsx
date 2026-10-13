@@ -15,53 +15,34 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { useI18n } from "@/core/i18n/hooks";
+import { isEchoAgentId, PersonaGlyph } from "@/components/brand/persona-glyph";
 import { cn } from "@/lib/utils";
 import { installAgent, uninstallAgent } from "@/core/agents/agent-world-api";
 import type { AgentWorldAgent, AgentWorldCategory } from "@/core/agents/types";
 
 // ---------------------------------------------------------------------------
-// Category colours
+// Category tag style
 // ---------------------------------------------------------------------------
+
+// BRAND.md: colour carries state only, never a module or category, and emoji
+// are never icons. Every category shares one neutral tag; a persona is drawn
+// by its portrait or monogram.
+const NEUTRAL_CATEGORY_STYLE = {
+  bg: "bg-muted",
+  text: "text-foreground",
+} as const;
 
 export const CATEGORY_STYLES: Record<
   AgentWorldCategory,
-  { bg: string; text: string; icon: string }
+  { bg: string; text: string }
 > = {
-  assistant: {
-    bg: "bg-info/10",
-    text: "text-info dark:text-info",
-    icon: "🤖",
-  },
-  coder: {
-    bg: "bg-success/10",
-    text: "text-success",
-    icon: "💻",
-  },
-  researcher: {
-    bg: "bg-chart-1/10",
-    text: "text-chart-1 dark:text-chart-1",
-    icon: "🔬",
-  },
-  creative: {
-    bg: "bg-warning/10",
-    text: "text-warning",
-    icon: "🎨",
-  },
-  automation: {
-    bg: "bg-destructive/10",
-    text: "text-destructive",
-    icon: "⚡",
-  },
-  specialist: {
-    bg: "bg-info/10",
-    text: "text-info dark:text-info",
-    icon: "🎯",
-  },
-  financial: {
-    bg: "bg-chart-2/10",
-    text: "text-chart-2 dark:text-chart-2",
-    icon: "💼",
-  },
+  assistant: NEUTRAL_CATEGORY_STYLE,
+  coder: NEUTRAL_CATEGORY_STYLE,
+  researcher: NEUTRAL_CATEGORY_STYLE,
+  creative: NEUTRAL_CATEGORY_STYLE,
+  automation: NEUTRAL_CATEGORY_STYLE,
+  specialist: NEUTRAL_CATEGORY_STYLE,
+  financial: NEUTRAL_CATEGORY_STYLE,
 };
 
 // ---------------------------------------------------------------------------
@@ -98,8 +79,8 @@ export function AgentWorldCard({
     ),
   ).slice(0, 3);
   const iconFallback = (
-    <span className="bg-gradient-to-br from-primary/12 to-muted/35 text-primary flex h-full w-full items-center justify-center rounded-sm">
-      {agent.icon || catStyle.icon}
+    <span className="flex h-full w-full items-center justify-center rounded-sm bg-muted text-base">
+      <PersonaGlyph agentId={agent.id} name={agent.display_name} />
     </span>
   );
 
@@ -153,7 +134,7 @@ export function AgentWorldCard({
         <CardHeader className="flex flex-1 flex-col px-4 pb-3 pt-4">
           <div className="flex items-start gap-3">
             <div className="relative flex size-12 shrink-0 items-center justify-center overflow-hidden rounded-xl border border-border-default bg-background text-lg">
-              {agent.avatar_url ? (
+              {agent.avatar_url && !isEchoAgentId(agent.id) ? (
                 <AuthenticatedImage
                   src={withAgentAvatarVersion(agent.avatar_url)}
                   alt={agent.display_name}

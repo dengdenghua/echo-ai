@@ -23,6 +23,7 @@ import { type TeamMode } from "@/components/workspace/team-mode-picker";
 import { type Agent } from "@/core/agents";
 import { isPrimaryPersonaAgentId } from "@/core/agents/persona-policy";
 import { useI18n } from "@/core/i18n/hooks";
+import { PersonaGlyph } from "@/components/brand/persona-glyph";
 import { cn } from "@/lib/utils";
 
 export type ChatCollaborationRosterEntry = {
@@ -235,12 +236,11 @@ export function TaskCollaboratorControl({
                           alt={entry.display_name}
                           className="size-full object-cover"
                         />
-                      ) : entry.icon?.trim() ? (
-                        <span className="text-sm leading-none">
-                          {entry.icon}
-                        </span>
                       ) : (
-                        entry.display_name.charAt(0).toUpperCase()
+                        <PersonaGlyph
+                          agentId={entry.name}
+                          name={entry.display_name}
+                        />
                       )}
                     </span>
                     <span className="min-w-0 flex-1 truncate text-xs font-medium">

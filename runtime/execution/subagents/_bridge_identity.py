@@ -102,7 +102,9 @@ _ROLE_AVATAR: dict[str, str] = {
     "evaluator": "⚖️",
     "generator": "✨",
 }
-_DEFAULT_AVATAR = "🐙"
+# Unknown roles get no glyph: clients draw a neutral monogram (ECHO brand:
+# emoji are never icons, and the octopus mascot is retired). Still a string.
+_DEFAULT_AVATAR = ""
 
 
 def _codename_for_role(role: str) -> str:

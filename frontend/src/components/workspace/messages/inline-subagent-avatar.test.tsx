@@ -39,9 +39,11 @@ test.each(["/api/agents/twin_health/avatar", null])(
     if (avatarUrl) {
       expect(container.querySelector("img")).toHaveAttribute("src", avatarUrl);
       // Compact roster URLs are optimistic; a missing image falls back to
-      // the HUB icon instead of leaving an invisible broken image.
+      // a neutral monogram instead of leaving an invisible broken image.
       for (const img of container.querySelectorAll("img")) fireEvent.error(img);
     }
-    expect(screen.getAllByText("🩺").length).toBeGreaterThan(0);
+    // Emoji role glyphs are never drawn (ECHO brand): monogram of the name.
+    expect(screen.queryByText("🩺")).not.toBeInTheDocument();
+    expect(screen.getAllByText("医").length).toBeGreaterThan(0);
   },
 );

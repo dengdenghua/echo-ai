@@ -5,7 +5,7 @@
   "templateId": "echo",
   "templateVersion": "1.0.0",
   "name": "Eve",
-  "icon": "🐙",
+  "icon": "E",
   "did": "DID-F456DA-2B0D4C",
   "identity_code": "ECHO-AGT-000001",
   "identity": {

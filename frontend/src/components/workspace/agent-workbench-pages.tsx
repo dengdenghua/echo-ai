@@ -30,6 +30,7 @@ import {
   type WorkBlock,
   type WorkBlockStatus,
 } from "./work-blocks";
+import { PersonaGlyph } from "@/components/brand/persona-glyph";
 import { cn } from "@/lib/utils";
 import { builtinPersonaDisplayName } from "@/core/agents/persona-display";
 import { useI18n } from "@/core/i18n/hooks";
@@ -1816,9 +1817,7 @@ export function AgentCreationCard({
                         className="size-full rounded-full object-cover"
                       />
                     ) : (
-                      agent.avatar || (
-                        <BotIcon className="size-5 text-muted-foreground" />
-                      )
+                      <PersonaGlyph name={displayName} />
                     )}
                   </span>
                   <div className="min-w-0">
@@ -1849,12 +1848,8 @@ export function AgentCreationCard({
                       alt=""
                       className="size-full rounded-lg object-cover"
                     />
-                  ) : agent.avatar ? (
-                    <span className="text-5xl" aria-hidden="true">
-                      {agent.avatar}
-                    </span>
                   ) : (
-                    <BotIcon className="size-14 text-foreground" />
+                    <PersonaGlyph name={displayName} className="text-5xl" />
                   )}
                 </div>
                 <div className="mt-8 text-2xl font-semibold tracking-normal text-foreground">
