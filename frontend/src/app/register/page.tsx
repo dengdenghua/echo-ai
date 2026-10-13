@@ -11,7 +11,7 @@ import {
   UserCircle2Icon,
 } from "lucide-react";
 
-import { EchoBrandMark } from "@/components/brand/echo-brand-mark";
+import { EchoLockup } from "@/components/brand/echo-wordmark";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -174,9 +174,8 @@ export default function RegisterPage() {
       <div className="relative z-10 grid w-full max-w-6xl items-center gap-16 px-8 py-12 lg:grid-cols-[1.2fr_1fr] lg:gap-20">
         {/* 左侧品牌区 */}
         <div className="hidden flex-col justify-center space-y-10 lg:flex">
-          <div className="inline-flex items-center gap-3">
-            <EchoBrandMark size="lg" />
-            <span className="text-xl font-semibold tracking-tight">Echo</span>
+          <div className="inline-flex items-center">
+            <EchoLockup product="AI" wordmarkClassName="h-7" />
           </div>
 
           <div className="space-y-5">
@@ -219,9 +218,8 @@ export default function RegisterPage() {
 
         {/* 右侧注册表单 */}
         <div className="mx-auto w-full max-w-md">
-          <div className="mb-8 flex items-center justify-center gap-2.5 lg:hidden">
-            <EchoBrandMark size="md" />
-            <span className="text-lg font-semibold tracking-tight">Echo</span>
+          <div className="mb-8 flex items-center justify-center lg:hidden">
+            <EchoLockup product="AI" wordmarkClassName="h-6" />
           </div>
 
           <Card className="overflow-hidden rounded-2xl border-border/50 bg-card/80 shadow-2xl shadow-black/[0.03] backdrop-blur-xl">

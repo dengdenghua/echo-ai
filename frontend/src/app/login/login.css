@@ -241,39 +241,25 @@ html:has(.echo-login-shell) {
   padding-left: 56px;
 }
 
+/* "ECHO · AI" lockup (BRAND.md): the drawn wordmark, then the product name
+   in the telemetry style. */
 .echo-login-brand {
   display: inline-flex;
   align-items: center;
-  gap: 13px;
-}
-
-/* The ECHO mark (EchoOrbGlyph): snow frame, cyan core. */
-.echo-login-brand-mark {
-  display: block;
-  width: 36px;
-  height: 36px;
-  flex: none;
   color: var(--echo-ink);
 }
 
-.echo-login-brand-copy {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: 4px;
+.echo-login-brand-wordmark {
+  display: block;
+  height: 20px;
+  width: auto;
 }
 
-.echo-login-brand-copy strong {
-  font-family: var(--echo-font-display);
-  font-size: 13px;
-  font-weight: 400;
-  letter-spacing: 0.24em;
-}
-
-.echo-login-brand-copy small {
-  color: var(--echo-ink-muted);
+.echo-login-brand-product {
+  color: var(--echo-ink-muted) !important;
+  font-family: var(--echo-font-mono);
   font-size: 12px;
-  letter-spacing: 0.24em;
+  letter-spacing: 0.16em;
 }
 
 .echo-login-layout {
@@ -353,12 +339,11 @@ html:has(.echo-login-shell) {
   transform: scaleX(-1);
 }
 
+/* Chinese is never letter-spaced (BRAND.md). */
 .echo-login-subtitle strong {
   color: var(--echo-ink);
   font-size: 13px;
   font-weight: 400;
-  letter-spacing: 0.36em;
-  text-indent: 0.36em;
 }
 
 .echo-login-lead {
@@ -380,7 +365,6 @@ html:has(.echo-login-shell) {
 .echo-login-lead small {
   color: var(--echo-ink-muted);
   font-size: 12px;
-  letter-spacing: 0.1em;
 }
 
 .echo-login-continuum {
@@ -511,7 +495,6 @@ html:has(.echo-login-shell) {
 .echo-login-form label {
   color: var(--echo-ink);
   font-size: 12px;
-  letter-spacing: 0.035em;
 }
 
 .echo-login-input {
@@ -578,7 +561,6 @@ html:has(.echo-login-shell) {
   gap: 7px;
   color: var(--echo-ink-muted);
   font-size: 12px;
-  letter-spacing: 0.025em;
 }
 
 .echo-login-security-note svg {
@@ -656,17 +638,8 @@ html:has(.echo-login-shell) {
     min-height: 68px;
   }
 
-  .echo-login-brand-mark {
-    width: 32px;
-    height: 32px;
-  }
-
-  .echo-login-brand-copy strong {
-    font-size: 12px;
-  }
-
-  .echo-login-brand-copy small {
-    font-size: 12px;
+  .echo-login-brand-wordmark {
+    height: 18px;
   }
 
   .echo-login-layout {

@@ -255,7 +255,7 @@ describe("LoginPage", () => {
 
     // Social providers lead; email remains available below.
     expect(
-      await screen.findByText("选择一种方式，登录你的 ECHO 账号"),
+      await screen.findByText("选择一种方式，登录你的 ECHO 账户"),
     ).toBeInTheDocument();
     expect(screen.getByRole("textbox", { name: "邮箱" })).toBeInTheDocument();
     expect(screen.queryByText("登录你的 Echo 账户")).not.toBeInTheDocument();
@@ -270,7 +270,7 @@ describe("LoginPage", () => {
     renderPage();
 
     expect(
-      await screen.findByText("暂时无法连接 Echo 服务"),
+      await screen.findByText("暂时无法连接 ECHO AI 服务"),
     ).toBeInTheDocument();
     expect(screen.getByRole("alert")).toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: "重试连接" }));
@@ -283,7 +283,7 @@ describe("LoginPage", () => {
 
     renderPage();
 
-    expect(screen.getByText("暂时无法连接 Echo 服务")).toBeInTheDocument();
+    expect(screen.getByText("暂时无法连接 ECHO AI 服务")).toBeInTheDocument();
     expect(retryAuthMock).not.toHaveBeenCalled();
 
     await vi.advanceTimersByTimeAsync(2_000);

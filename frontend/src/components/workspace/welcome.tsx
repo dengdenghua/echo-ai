@@ -1,6 +1,6 @@
 import { useSearchParams } from "react-router-dom";
 
-import { EchoBrandMark } from "@/components/brand/echo-brand-mark";
+import { EchoLockup } from "@/components/brand/echo-wordmark";
 import { type Agent } from "@/core/agents";
 import { useI18n } from "@/core/i18n/hooks";
 import { cn } from "@/lib/utils";
@@ -34,18 +34,17 @@ export function Welcome({
           </p>
         </>
       ) : (
-        // Same ECHO mark and line as the login page, so signing in continues
+        // Same "ECHO · AI" lockup and line as the login page, so signing in continues
         // the brand instead of switching to a different product.
-        <div className="flex flex-col items-center gap-2.5">
-          <div className="inline-flex items-center justify-center gap-3">
-            <EchoBrandMark size="lg" className="sm:size-12" />
-            <h2 className="whitespace-nowrap text-[28px] leading-tight font-semibold tracking-[-0.03em] text-foreground sm:text-[34px]">
-              Echo
-            </h2>
-          </div>
-          <p className="text-sm text-muted-foreground">
-            {t.welcome.brandLine}
-          </p>
+        <div className="flex flex-col items-center gap-3">
+          <h2 className="inline-flex items-center justify-center text-foreground">
+            <EchoLockup
+              product="AI"
+              wordmarkClassName="h-7 sm:h-8"
+              productClassName="text-sm"
+            />
+          </h2>
+          <p className="text-sm text-muted-foreground">{t.welcome.brandLine}</p>
         </div>
       )}
     </div>

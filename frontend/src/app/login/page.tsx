@@ -11,7 +11,7 @@ import {
   UserCircle2Icon,
 } from "lucide-react";
 
-import { EchoOrbGlyph } from "@/components/brand/echo-brand-mark";
+import { EchoLockup } from "@/components/brand/echo-wordmark";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -580,13 +580,12 @@ function LocalLoginForm({
 
 function EchoBrand() {
   return (
-    <div className="echo-login-brand" aria-label="ECHO AI">
-      <EchoOrbGlyph className="echo-login-brand-mark" />
-      <span className="echo-login-brand-copy">
-        <strong>ECHO</strong>
-        <small>AI</small>
-      </span>
-    </div>
+    <EchoLockup
+      product="AI"
+      className="echo-login-brand"
+      wordmarkClassName="echo-login-brand-wordmark"
+      productClassName="echo-login-brand-product"
+    />
   );
 }
 
@@ -626,7 +625,7 @@ function DesktopOwnerLogin() {
       )}
       <div className="flex items-center gap-3 pt-2 text-xs text-muted-foreground">
         <span className="h-px flex-1 bg-border" />
-        或使用 ECHO 账号登录
+        或使用 ECHO 账户登录
         <span className="h-px flex-1 bg-border" />
       </div>
     </div>
@@ -833,8 +832,8 @@ export default function LoginPage() {
           </div>
         </section>
 
-        <section className="echo-login-form-column" aria-label="ECHO 账号登录">
-          <Card className="echo-login-card overflow-hidden rounded-[22px] border-border/50 bg-card/80 backdrop-blur-xl">
+        <section className="echo-login-form-column" aria-label="ECHO 账户登录">
+          <Card className="echo-login-card overflow-hidden border-border/50 bg-card/80 backdrop-blur-xl">
             <CardHeader className="space-y-2.5 px-8 pb-6 pt-8 text-center">
               <div className="echo-login-card-kicker">
                 <span /> ENTER THE ECHO
@@ -843,7 +842,7 @@ export default function LoginPage() {
                 进入 ECHO
               </CardTitle>
               <CardDescription className="text-[15px] text-muted-foreground">
-                选择一种方式，登录你的 ECHO 账号
+                选择一种方式，登录你的 ECHO 账户
               </CardDescription>
             </CardHeader>
             <CardContent className="px-8 pb-7 pt-0">
@@ -889,7 +888,7 @@ export default function LoginPage() {
               {backendUnavailable ? (
                 <ErrorState
                   className="min-h-40 rounded-xl border border-destructive/20 bg-destructive/5"
-                  title="暂时无法连接 Echo 服务"
+                  title="暂时无法连接 ECHO AI 服务"
                   detail="本地服务可能仍在启动或已停止，正在自动重试连接…"
                   actionLabel="重试连接"
                   onAction={retryBackend}
