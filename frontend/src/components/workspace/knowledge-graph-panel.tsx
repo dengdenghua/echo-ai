@@ -19,8 +19,8 @@ import { useGlobalControlPlaneAccess } from "@/core/auth/use-control-plane-acces
 import { useI18n } from "@/core/i18n/hooks";
 import {
   GlobalControlPlaneAccessError,
-  globalControlPlaneUrl,
   requireGlobalControlPlaneResponse,
+  scopedControlPlaneUrl,
 } from "@/core/observability/api";
 import { KnowledgeGraphView } from "./knowledge-graph-view";
 import { serviceErrorMessage } from "@/core/utils/service-error";
@@ -48,7 +48,9 @@ interface GraphStats {
 
 export function KnowledgeGraphPanel() {
   const { t } = useI18n();
-  const canViewGraph = useGlobalControlPlaneAccess();
+  // With the cross-tenant scope the panel shows everyone's graph; any other
+  // account reads its own tenant/owner partition (AI-29).
+  const globalView = useGlobalControlPlaneAccess();
   const [entities, setEntities] = useState<KGEntity[]>([]);
   const [relationships, setRelationships] = useState<KGRelationship[]>([]);
   const [stats, setStats] = useState<GraphStats | null>(null);
@@ -58,21 +60,15 @@ export function KnowledgeGraphPanel() {
   const [viewMode, setViewMode] = useState<"map" | "graph" | "list">("map");
 
   const loadData = useCallback(async () => {
-    if (!canViewGraph) {
-      // The graph is a process-global view; without the cross-tenant scope
-      // the server refuses it, so explain instead of asking.
-      setLoadError(t.observabilityPage.crossTenantAdminRequired);
-      setLoading(false);
-      return;
-    }
     setLoading(true);
     setLoadError(null);
     try {
       const [entitiesRes, statsRes] = await Promise.all([
-        fetch(globalControlPlaneUrl("/api/knowledge/graph?limit=100"), {
-          headers: authHeaders(),
-        }),
-        fetch(globalControlPlaneUrl("/api/knowledge/stats"), {
+        fetch(
+          scopedControlPlaneUrl("/api/knowledge/graph?limit=100", globalView),
+          { headers: authHeaders() },
+        ),
+        fetch(scopedControlPlaneUrl("/api/knowledge/stats", globalView), {
           headers: authHeaders(),
         }),
       ]);
@@ -106,7 +102,7 @@ export function KnowledgeGraphPanel() {
     } finally {
       setLoading(false);
     }
-  }, [canViewGraph, t]);
+  }, [globalView, t]);
 
   useEffect(() => {
     void loadData();
@@ -142,17 +138,15 @@ export function KnowledgeGraphPanel() {
       >
         <BrainIcon className="size-5 text-muted-foreground" />
         <p className="max-w-lg text-sm text-muted-foreground">{loadError}</p>
-        {canViewGraph && (
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            onClick={() => void loadData()}
-          >
-            <RefreshCwIcon className="mr-1.5 size-3.5" />
-            {t.knowledgeGraph.refresh}
-          </Button>
-        )}
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          onClick={() => void loadData()}
+        >
+          <RefreshCwIcon className="mr-1.5 size-3.5" />
+          {t.knowledgeGraph.refresh}
+        </Button>
       </div>
     );
   }

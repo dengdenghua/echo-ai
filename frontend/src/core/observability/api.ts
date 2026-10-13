@@ -60,6 +60,15 @@ export function globalControlPlaneUrl(path: string): string {
   return `${getBackendBaseURL()}${path}${separator}cross_tenant=true`;
 }
 
+/**
+ * A view that has both forms: the caller's own tenant/owner partition, or
+ * the process-global one for an account holding the cross-tenant scope. The
+ * knowledge graph is one; an ordinary account must still see its own graph.
+ */
+export function scopedControlPlaneUrl(path: string, global: boolean): string {
+  return global ? globalControlPlaneUrl(path) : `${getBackendBaseURL()}${path}`;
+}
+
 export async function requireGlobalControlPlaneResponse(
   response: Response,
   fallback: string,

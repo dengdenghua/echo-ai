@@ -17,7 +17,7 @@ from typing import Any
 
 from runtime.sensing._fastapi_guard import require_fastapi
 
-from ._observability_auth import _require_global_control
+from ._observability_auth import _observability_scope, _require_global_control
 from ._observability_helpers import HTTPException, Query, Request
 from ._observability_state import ObservabilityContext
 
@@ -29,16 +29,36 @@ def register_kg_endpoints(router: Any, ctx: ObservabilityContext) -> None:
     journal = ctx.journal
 
     kg_sync_lock = Lock()
-    kg_sync_cache: dict[str, Any] = {
-        "expires_at": 0.0,
-        "report": None,
-    }
+    # One sync cache entry per KG file: the process-global graph and each
+    # tenant/owner partition refresh independently.
+    kg_sync_cache: dict[str, dict[str, Any]] = {}
     kg_sync_ttl_seconds = 3.0
 
-    def _kg_db_path() -> Any:
+    def _kg_db_path(scope: Any = None) -> Any:
         from runtime.platform.process.paths import app_paths
+        from runtime.safety.auth.scope import tenant_scoped_path
 
-        return app_paths().data_dir / "knowledge_graph.sqlite"
+        base = app_paths().data_dir / "knowledge_graph.sqlite"
+        if _is_global_view(scope):
+            return base
+        # The same partition ``persist_kg_from_journal`` writes for a scope.
+        return tenant_scoped_path(base, scope)
+
+    def _is_global_view(scope: Any) -> bool:
+        return scope is None or bool(getattr(scope, "allow_cross_tenant", False))
+
+    def _kg_read_scope(request: Request, *, cross_tenant: bool) -> Any:
+        """Scope for a knowledge-graph read.
+
+        ``cross_tenant=true`` is the process-global graph and still needs the
+        durable cross-tenant admin scope. Without it an authenticated caller
+        reads its own tenant/owner partition, distilled only from its own
+        journal events, so an ordinary account sees its graph rather than a
+        403. Single-user mode (``require_auth`` off) keeps the global view.
+        """
+        if cross_tenant:
+            return _require_global_control(request, ctx, cross_tenant=True)
+        return _observability_scope(request, ctx, cross_tenant=False)
 
     def _open_synced_kg(
         *,
@@ -50,21 +70,23 @@ def register_kg_endpoints(router: Any, ctx: ObservabilityContext) -> None:
 
         persistent = True
         kg: KnowledgeGraph
+        db_path = _kg_db_path(scope)
         try:
-            kg = SqliteKnowledgeGraph(_kg_db_path())
+            kg = SqliteKnowledgeGraph(db_path)
         except Exception:  # noqa: BLE001 - observability must degrade gracefully.
             persistent = False
             kg = KnowledgeGraph()
         now = time.monotonic()
         with kg_sync_lock:
-            cache_fresh = persistent and now < float(kg_sync_cache["expires_at"])
+            entry = kg_sync_cache.setdefault(str(db_path), {"expires_at": 0.0, "report": None})
+            cache_fresh = persistent and now < float(entry["expires_at"])
             if cache_fresh and not force_sync:
-                report = kg_sync_cache["report"]
+                report = entry["report"]
             else:
                 report = KGUpdater(journal, kg, scope=scope).update()
                 if persistent:
-                    kg_sync_cache["report"] = report
-                    kg_sync_cache["expires_at"] = now + kg_sync_ttl_seconds
+                    entry["report"] = report
+                    entry["expires_at"] = now + kg_sync_ttl_seconds
         return kg, persistent, report
 
     def _close_kg(kg: Any) -> None:
@@ -313,10 +335,10 @@ def register_kg_endpoints(router: Any, ctx: ObservabilityContext) -> None:
         limit: int = Query(default=200, ge=1, le=1000),
         cross_tenant: bool = Query(default=False),
     ) -> dict[str, Any]:
-        scope = _require_global_control(request, ctx, cross_tenant=cross_tenant)
+        scope = _kg_read_scope(request, cross_tenant=cross_tenant)
         entities, relationships, stats = _build_kg_view(limit, scope=scope)
         return {
-            "global_control_plane": True,
+            "global_control_plane": _is_global_view(scope),
             "entities": entities,
             "relationships": relationships,
             "stats": stats,
@@ -331,9 +353,9 @@ def register_kg_endpoints(router: Any, ctx: ObservabilityContext) -> None:
         request: Request,
         cross_tenant: bool = Query(default=False),
     ) -> dict[str, Any]:
-        scope = _require_global_control(request, ctx, cross_tenant=cross_tenant)
+        scope = _kg_read_scope(request, cross_tenant=cross_tenant)
         _, _, stats = _build_kg_view(500, scope=scope)
-        return {"global_control_plane": True, **stats}
+        return {"global_control_plane": _is_global_view(scope), **stats}
 
     @router.get("/api/knowledge/neighbors")
     def api_knowledge_neighbors(
@@ -343,7 +365,7 @@ def register_kg_endpoints(router: Any, ctx: ObservabilityContext) -> None:
         limit: int = Query(default=50, ge=1, le=200),
         cross_tenant: bool = Query(default=False),
     ) -> dict[str, Any]:
-        scope = _require_global_control(request, ctx, cross_tenant=cross_tenant)
+        scope = _kg_read_scope(request, cross_tenant=cross_tenant)
         kg, persistent, update_report = _open_synced_kg(scope=scope)
         try:
             triples = kg.neighbors(entity, hops=hops)[:limit]
@@ -372,7 +394,7 @@ def register_kg_endpoints(router: Any, ctx: ObservabilityContext) -> None:
                     }
                 )
             return {
-                "global_control_plane": True,
+                "global_control_plane": _is_global_view(scope),
                 "center": entity,
                 "nodes": list(nodes.values()),
                 "edges": edges,
@@ -389,11 +411,11 @@ def register_kg_endpoints(router: Any, ctx: ObservabilityContext) -> None:
         limit: int = Query(default=50, ge=1, le=200),
         cross_tenant: bool = Query(default=False),
     ) -> dict[str, Any]:
-        scope = _require_global_control(request, ctx, cross_tenant=cross_tenant)
+        scope = _kg_read_scope(request, cross_tenant=cross_tenant)
         query = " ".join(q.split()).casefold()
         if not query:
             return {
-                "global_control_plane": True,
+                "global_control_plane": _is_global_view(scope),
                 "nodes": [],
                 "edges": [],
                 "count": 0,
@@ -417,7 +439,7 @@ def register_kg_endpoints(router: Any, ctx: ObservabilityContext) -> None:
                     )
                 edges.append(_relationship_payload(t))
             return {
-                "global_control_plane": True,
+                "global_control_plane": _is_global_view(scope),
                 "nodes": list(nodes.values()),
                 "edges": edges,
                 "count": len(edges),
@@ -435,7 +457,7 @@ def register_kg_endpoints(router: Any, ctx: ObservabilityContext) -> None:
         max_hops: int = Query(default=3, ge=1, le=6),
         cross_tenant: bool = Query(default=False),
     ) -> dict[str, Any]:
-        scope = _require_global_control(request, ctx, cross_tenant=cross_tenant)
+        scope = _kg_read_scope(request, cross_tenant=cross_tenant)
         kg, persistent, update_report = _open_synced_kg(scope=scope)
         try:
             triples = kg.query()
@@ -473,7 +495,7 @@ def register_kg_endpoints(router: Any, ctx: ObservabilityContext) -> None:
                         },
                     )
             return {
-                "global_control_plane": True,
+                "global_control_plane": _is_global_view(scope),
                 "source": source,
                 "target": target,
                 "found": bool(path),

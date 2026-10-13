@@ -254,7 +254,9 @@ describe("KnowledgeGraphPanel", () => {
     expect(consoleErrorSpy).not.toHaveBeenCalled();
   });
 
-  it("explains the gate without asking when the account lacks the scope", async () => {
+  it("shows an ordinary account its own graph without the cross-tenant scope", async () => {
+    // AI-29: an account without the scope reads its own tenant partition
+    // instead of being told it needs cross-tenant admin rights.
     access.global = false;
     try {
       const fetchMock = vi.mocked(globalThis.fetch);
@@ -262,11 +264,17 @@ describe("KnowledgeGraphPanel", () => {
 
       render(withProviders(<KnowledgeGraphPanel />));
 
+      expect(await screen.findByText(/知识图谱为空/)).toBeInTheDocument();
       expect(
-        await screen.findByText("crossTenantAdminRequired"),
-      ).toBeInTheDocument();
-      expect(fetchMock).not.toHaveBeenCalled();
-      expect(screen.queryByRole("button")).not.toBeInTheDocument();
+        screen.queryByText("crossTenantAdminRequired"),
+      ).not.toBeInTheDocument();
+      const urls = fetchMock.mock.calls.map(([input]) => String(input));
+      expect(urls.some((url) => url.includes("/api/knowledge/graph"))).toBe(
+        true,
+      );
+      for (const url of urls) {
+        expect(url).not.toContain("cross_tenant");
+      }
     } finally {
       access.global = true;
     }

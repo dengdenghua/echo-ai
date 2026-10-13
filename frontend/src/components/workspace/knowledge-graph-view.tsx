@@ -27,8 +27,9 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
 import { authHeaders } from "@/core/auth/api";
+import { useGlobalControlPlaneAccess } from "@/core/auth/use-control-plane-access";
 import { useI18n } from "@/core/i18n/hooks";
-import { globalControlPlaneUrl } from "@/core/observability/api";
+import { scopedControlPlaneUrl } from "@/core/observability/api";
 import { swallow } from "@/core/utils/log";
 import { cn } from "@/lib/utils";
 
@@ -624,6 +625,8 @@ function Section({
 
 function KnowledgeGraph3DContent() {
   const { t } = useI18n();
+  // Everyone's graph with the cross-tenant scope, otherwise the caller's own.
+  const globalView = useGlobalControlPlaneAccess();
   const containerRef = useRef<HTMLDivElement | null>(null);
   const sceneRef = useRef<THREE.Scene | null>(null);
   const rendererRef = useRef<THREE.WebGLRenderer | null>(null);
@@ -745,7 +748,7 @@ function KnowledgeGraph3DContent() {
     setLoading(true);
     try {
       const response = await fetch(
-        globalControlPlaneUrl("/api/knowledge/graph?limit=260"),
+        scopedControlPlaneUrl("/api/knowledge/graph?limit=260", globalView),
         { headers: authHeaders() },
       );
       if (!response.ok) return;
@@ -790,79 +793,83 @@ function KnowledgeGraph3DContent() {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [globalView]);
 
-  const expandNode = useCallback(async (nodeId: string) => {
-    setSelectedId(nodeId);
-    if (expandedRef.current.has(nodeId)) return;
-    expandedRef.current.add(nodeId);
-    try {
-      const response = await fetch(
-        globalControlPlaneUrl(
-          `/api/knowledge/neighbors?entity=${encodeURIComponent(nodeId)}&hops=1&limit=48`,
-        ),
-        { headers: authHeaders() },
-      );
-      if (!response.ok) return;
-      const data: { nodes: ApiNode[]; edges: ApiEdge[] } =
-        await response.json();
-      const anchor =
-        positionsRef.current.get(nodeId)?.clone() ?? new THREE.Vector3();
-      setBaseNodes((previous) => {
-        const existing = new Set(previous.map((node) => node.id));
-        const additions = data.nodes
-          .filter((node) => !existing.has(node.id))
-          .map((node, index) => {
-            const position = anchor
-              .clone()
-              .add(
-                initialSpherePosition(
-                  `${nodeId}:${node.id}`,
-                  index,
-                  data.nodes.length,
-                  displaySettingsRef.current,
-                ).multiplyScalar(0.28),
-              );
-            positionsRef.current.set(node.id, position);
-            return {
-              id: node.id,
-              label: node.label,
-              fullName: node.full_name || node.id,
-              entityType: node.entity_type || "neighbor",
-              roles: [node.entity_type || "neighbor"],
-              backendDegree: 0,
-              inDegree: 0,
-              outDegree: 0,
-              confidenceAvg: null,
-              sources: [],
-              firstSeen: null,
-              lastSeen: null,
-              color: colorForEntityType(node.entity_type || "neighbor"),
-            };
-          });
-        return [...previous, ...additions];
-      });
-      setBaseEdges((previous) => {
-        const existing = new Set(previous.map((edge) => edge.id));
-        const additions = data.edges
-          .filter((edge) => !existing.has(edge.id))
-          .map((edge) => ({
-            id: edge.id,
-            tripleId: edge.triple_id || edge.id,
-            source: edge.source,
-            target: edge.target,
-            label: edge.label,
-            confidence: edge.confidence ?? 0.55,
-            status: edge.status || "active",
-            sourceRef: edge.source_ref || "",
-            timestamp: edge.ts ?? null,
-          }));
-        return [...previous, ...additions];
-      });
-    } catch (error) {
-      swallow(error);
-    }
-  }, []);
+  const expandNode = useCallback(
+    async (nodeId: string) => {
+      setSelectedId(nodeId);
+      if (expandedRef.current.has(nodeId)) return;
+      expandedRef.current.add(nodeId);
+      try {
+        const response = await fetch(
+          scopedControlPlaneUrl(
+            `/api/knowledge/neighbors?entity=${encodeURIComponent(nodeId)}&hops=1&limit=48`,
+            globalView,
+          ),
+          { headers: authHeaders() },
+        );
+        if (!response.ok) return;
+        const data: { nodes: ApiNode[]; edges: ApiEdge[] } =
+          await response.json();
+        const anchor =
+          positionsRef.current.get(nodeId)?.clone() ?? new THREE.Vector3();
+        setBaseNodes((previous) => {
+          const existing = new Set(previous.map((node) => node.id));
+          const additions = data.nodes
+            .filter((node) => !existing.has(node.id))
+            .map((node, index) => {
+              const position = anchor
+                .clone()
+                .add(
+                  initialSpherePosition(
+                    `${nodeId}:${node.id}`,
+                    index,
+                    data.nodes.length,
+                    displaySettingsRef.current,
+                  ).multiplyScalar(0.28),
+                );
+              positionsRef.current.set(node.id, position);
+              return {
+                id: node.id,
+                label: node.label,
+                fullName: node.full_name || node.id,
+                entityType: node.entity_type || "neighbor",
+                roles: [node.entity_type || "neighbor"],
+                backendDegree: 0,
+                inDegree: 0,
+                outDegree: 0,
+                confidenceAvg: null,
+                sources: [],
+                firstSeen: null,
+                lastSeen: null,
+                color: colorForEntityType(node.entity_type || "neighbor"),
+              };
+            });
+          return [...previous, ...additions];
+        });
+        setBaseEdges((previous) => {
+          const existing = new Set(previous.map((edge) => edge.id));
+          const additions = data.edges
+            .filter((edge) => !existing.has(edge.id))
+            .map((edge) => ({
+              id: edge.id,
+              tripleId: edge.triple_id || edge.id,
+              source: edge.source,
+              target: edge.target,
+              label: edge.label,
+              confidence: edge.confidence ?? 0.55,
+              status: edge.status || "active",
+              sourceRef: edge.source_ref || "",
+              timestamp: edge.ts ?? null,
+            }));
+          return [...previous, ...additions];
+        });
+      } catch (error) {
+        swallow(error);
+      }
+    },
+    [globalView],
+  );
 
   useEffect(() => {
     void loadGraph();

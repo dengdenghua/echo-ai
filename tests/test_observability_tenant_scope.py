@@ -409,3 +409,104 @@ def test_process_global_panels_require_explicit_privileged_cross_tenant(
     dev = _client(StreamingJournal(InMemoryJournal()), require_auth=False).get(path)
     assert dev.status_code == 200
     assert dev.json()["global_control_plane"] is True
+
+
+def _write_search_step(
+    journal: StreamingJournal,
+    *,
+    tenant_id: str,
+    actor_id: str,
+    query: str,
+    url: str,
+) -> None:
+    from runtime.platform.models import ExecutionResult, Step, ToolCall
+
+    call = ToolCall(caller="arms/test", sucker_id="web_search", args={})
+    step = Step(
+        step_id=0,
+        node_id="n0",
+        action=call,
+        result=ExecutionResult(
+            call_id=call.call_id,
+            status="success",
+            output={
+                "query": query,
+                "backend": "ddg",
+                "results": [{"title": f"{query} notes", "url": url}],
+            },
+        ),
+    )
+    with journal_context(tenant_id=tenant_id, owner_actor_id=actor_id):
+        journal.write_step(task_id=TaskId(uuid4()), arm_id=ArmId("intel/x"), step=step)
+
+
+def test_knowledge_graph_reads_the_callers_own_partition(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """AI-29: an ordinary account sees its own graph instead of a 403.
+
+    Without ``cross_tenant`` the knowledge views read the caller's tenant/owner
+    partition, distilled only from that caller's journal events. The global
+    graph still needs the explicit, durably scoped cross-tenant request.
+    """
+    monkeypatch.setenv("ECHO_DATA_DIR", str(tmp_path / "data"))
+    journal = StreamingJournal(InMemoryJournal())
+    _write_search_step(
+        journal,
+        tenant_id="tenant-a",
+        actor_id="alice",
+        query="alice topic",
+        url="https://alice.example/",
+    )
+    _write_search_step(
+        journal,
+        tenant_id="tenant-b",
+        actor_id="bob",
+        query="bob topic",
+        url="https://bob.example/",
+    )
+    client = _client(journal)
+
+    graph = client.get("/api/knowledge/graph", headers=_headers("alice-token"))
+    assert graph.status_code == 200
+    body = graph.json()
+    assert body["global_control_plane"] is False
+    names = {entity["id"] for entity in body["entities"]}
+    assert "query:alice topic" in names
+    assert "https://alice.example/" in names
+    assert not any("bob" in name for name in names)
+
+    stats = client.get("/api/knowledge/stats", headers=_headers("alice-token"))
+    assert stats.status_code == 200
+    assert stats.json()["total_relationships"] == 2  # returned + has_title
+
+    neighbors = client.get(
+        "/api/knowledge/neighbors",
+        params={"entity": "query:bob topic"},
+        headers=_headers("alice-token"),
+    )
+    assert neighbors.status_code == 200
+    assert neighbors.json()["edges"] == []
+
+    bob = client.get("/api/knowledge/graph", headers=_headers("bob-token")).json()
+    assert {entity["id"] for entity in bob["entities"]} >= {"query:bob topic"}
+    assert not any("alice" in entity["id"] for entity in bob["entities"])
+
+    # The process-global graph keeps its explicit privileged gate.
+    assert (
+        client.get(
+            "/api/knowledge/graph",
+            params={"cross_tenant": "true"},
+            headers=_headers("alice-token"),
+        ).status_code
+        == 403
+    )
+    everyone = client.get(
+        "/api/knowledge/graph",
+        params={"cross_tenant": "true"},
+        headers=_headers("global-admin-token"),
+    )
+    assert everyone.status_code == 200
+    assert everyone.json()["global_control_plane"] is True
+    global_names = {entity["id"] for entity in everyone.json()["entities"]}
+    assert {"query:alice topic", "query:bob topic"} <= global_names
