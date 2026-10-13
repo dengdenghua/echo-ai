@@ -16,6 +16,7 @@ from runtime.core.cerebrum._react_execution_results import _is_scoped_artifact_w
 from runtime.core.cerebrum.react_loop_state import _LoopControl, _LoopState
 from runtime.safety.approval.approval_gate import (
     ApprovalRequest,
+    ApprovalRiskAction,
     AutoDenyProvider,
     NetworkDenialMemory,
     approval_action_for_tool,
@@ -84,11 +85,11 @@ def _guardian_verdict(
     state: _LoopState,
     guardian_reviewer: Any,
     *,
-    action: str,
+    action: ApprovalRiskAction,
     risk: Any,
     tool_name: str,
     input_preview: Any,
-) -> tuple[str, str | None]:
+) -> tuple[ApprovalRiskAction, str | None]:
     """The rule engine's action after the opt-in guardian review.
 
     Returns ``(action, deny_reason)``: a guardian deny tightens the action to
