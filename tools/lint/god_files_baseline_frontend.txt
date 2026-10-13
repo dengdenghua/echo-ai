@@ -48,8 +48,8 @@ frontend/src/components/workspace/messages/inline-subagent-cards.tsx	1596
 frontend/src/components/workspace/messages/message-group.test.tsx	3339
 frontend/src/components/workspace/messages/message-group.tsx	3350
 frontend/src/components/workspace/messages/message-list-item.tsx	1509
-frontend/src/components/workspace/messages/message-list.process-trace.test.tsx	3210
-frontend/src/components/workspace/messages/message-list.tsx	3740
+frontend/src/components/workspace/messages/message-list.process-trace.test.tsx	3251
+frontend/src/components/workspace/messages/message-list.tsx	3748
 frontend/src/components/workspace/messages/message-output-summary.test.tsx	1218
 frontend/src/components/workspace/messages/message-output-summary.tsx	1251
 frontend/src/components/workspace/model-picker.tsx	1081

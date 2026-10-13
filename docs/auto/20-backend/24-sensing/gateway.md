@@ -601,6 +601,7 @@ tier: "standard"
 | Kind | Symbol | Doc |
 | --- | --- | --- |
 | func | `def make_auth_dep(ctx)` | Router-level auth gate · mirrors create_browser_router. These endpoints expose the journal (file diffs, absolute paths, task history) over / |
+| func | `def make_principal_dep(ctx)` | Authenticate without a role, for views that serve the caller's own scope. |
 
 ### `_observability_journal.py`
 
