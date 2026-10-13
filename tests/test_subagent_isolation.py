@@ -259,7 +259,9 @@ def test_external_emitter_still_called(monkeypatch) -> None:
         assert tool_evt["skill"] == "read_file"
         # Annotated with subagent identity for downstream timeline grouping.
         assert tool_evt.get("subagent_codename")
-        assert tool_evt.get("subagent_avatar")
+        # An unknown role has no glyph since a710d8ef (clients draw a
+        # monogram), but the field is still annotated, as a string.
+        assert tool_evt.get("subagent_avatar") == ""
     finally:
         _restore_runner(orig)
 
