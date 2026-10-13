@@ -522,7 +522,7 @@ export function ModeSelector({
         )}
         {codeModeUnlocked ? (
           <span
-            className="size-1.5 rounded-full bg-success/90 shadow-[0_0_6px_rgba(16,185,129,0.28)] transition-all duration-base"
+            className="size-1.5 rounded-full bg-core transition-all duration-base"
             aria-hidden="true"
           />
         ) : (

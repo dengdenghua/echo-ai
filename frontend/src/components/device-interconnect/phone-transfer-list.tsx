@@ -113,7 +113,7 @@ export function PhoneTransferList({ deviceId }: { deviceId?: string }) {
             }
           </p>
           {job.state === "done" && (
-            <p className="mt-1 text-emerald-700">
+            <p className="mt-1 text-core">
               {job.upload
                 ? "已送达。手机 Echo 文件收发中可打开、分享或保存。"
                 : "已交给浏览器下载，可在下载列表打开。"}

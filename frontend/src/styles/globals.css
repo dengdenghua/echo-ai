@@ -377,9 +377,9 @@
   --color-chart-7: var(--chart-7);
   --color-chart-8: var(--chart-8);
   /* Status colors — semantic states (success / warning / info). Errors
-     already have ``--color-destructive``. Values switch per color scheme,
-     so a single ``text-success`` replaces the old
-     ``text-emerald-700 dark:text-emerald-300`` pairs. */
+     already have ``--color-destructive``. Values switch per color scheme.
+     ECHO has no green: ``success`` is the core "stable sync" colour, so
+     ``text-success`` and ``text-core`` render the same. */
   --color-success: var(--success);
   --color-warning: var(--warning);
   --color-info: var(--info);

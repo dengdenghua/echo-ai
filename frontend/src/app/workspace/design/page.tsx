@@ -3222,9 +3222,9 @@ function ComfyUIView({
               className={cn(
                 "mr-1.5 size-1.5 rounded-full",
                 online === true
-                  ? "bg-emerald-500"
+                  ? "bg-core"
                   : online === false
-                    ? "bg-red-500"
+                    ? "bg-breach"
                     : "bg-zinc-400",
               )}
             />
@@ -3561,7 +3561,7 @@ function ComfyUIView({
                           {node.name}
                         </span>
                         {node.installed ? (
-                          <span className="shrink-0 rounded bg-emerald-100 px-1 py-0.5 text-micro text-emerald-700">
+                          <span className="shrink-0 rounded bg-core/10 px-1 py-0.5 text-micro text-core">
                             已安装
                           </span>
                         ) : null}
@@ -3636,9 +3636,9 @@ function ComfyUIView({
             className={cn(
               "mt-4 rounded-xl border px-4 py-3 text-xs",
               runState.state === "error"
-                ? "border-red-200 bg-red-50 text-red-800"
+                ? "border-breach/30 bg-breach/10 text-breach"
                 : runState.state === "completed"
-                  ? "border-emerald-200 bg-emerald-50 text-emerald-800"
+                  ? "border-core/30 bg-core/10 text-core"
                   : "border-violet-200 bg-violet-50 text-violet-800",
             )}
           >
@@ -3830,10 +3830,10 @@ function ComfyUIView({
                   className={cn(
                     "mt-4 max-w-xl rounded-2xl border p-4",
                     selectedWorkflowDiagnostics.compatible
-                      ? "border-emerald-200 bg-emerald-50/60 dark:border-emerald-900 dark:bg-emerald-950/25"
+                      ? "border-core/30 bg-core/[0.06]"
                       : selectedWorkflowDiagnostics.counts.errors
-                        ? "border-red-200 bg-red-50/60 dark:border-red-900 dark:bg-red-950/25"
-                        : "border-amber-200 bg-amber-50/60 dark:border-amber-900 dark:bg-amber-950/25",
+                        ? "border-breach/30 bg-breach/[0.06]"
+                        : "border-warning/30 bg-warning/[0.06]",
                   )}
                 >
                   <div className="flex items-center gap-2">
@@ -3987,8 +3987,8 @@ function ComfyUIView({
                         className={cn(
                           "shrink-0 rounded-full px-1.5 py-0.5 text-micro font-medium",
                           workflow.availability !== "dependency"
-                            ? "bg-emerald-50 text-emerald-700"
-                            : "bg-amber-50 text-amber-700",
+                            ? "bg-core/10 text-core"
+                            : "bg-warning/10 text-warning",
                         )}
                       >
                         {workflow.availability === "bundled"
@@ -6010,7 +6010,7 @@ export default function DesignPage({
             <ChevronDownIcon className={cn("size-3 transition-transform", stagePlanOpen && "rotate-180")} />
             <span className="h-1 flex-1 overflow-hidden rounded-full bg-muted">
               <span
-                className="block h-full rounded-full bg-emerald-500 transition-all"
+                className="block h-full rounded-full bg-core transition-all"
                 style={{
                   width: `${(completedWorkflowStages / workflowStages.length) * 100}%`,
                 }}

@@ -1292,8 +1292,8 @@ function PermissionReviewDialog({
                       <span
                         className={
                           dependency.ready
-                            ? "text-emerald-600"
-                            : "text-amber-600"
+                            ? "text-core"
+                            : "text-warning"
                         }
                       >
                         {dependency.ready ? "已验证" : "待安装"}
@@ -2305,8 +2305,8 @@ export function CapabilityMarketPanel({
                       className={cn(
                         "border-transparent text-xs",
                         cap.enabled && (!needsConnection || connected)
-                          ? "bg-emerald-500/15 text-emerald-600 dark:text-emerald-400"
-                          : "bg-amber-500/15 text-amber-600 dark:text-amber-400",
+                          ? "bg-core/15 text-core"
+                          : "bg-warning/15 text-warning",
                       )}
                     >
                       {statusError

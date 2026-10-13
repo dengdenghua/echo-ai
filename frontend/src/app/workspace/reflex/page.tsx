@@ -532,7 +532,8 @@ function Sparkline({ buckets }: { buckets: TimeseriesBucket[] }) {
     if (!buckets.length || totalHits === 0) return;
     const max = Math.max(1, ...buckets.map((b) => b.count));
     const bw = w / buckets.length;
-    ctx.fillStyle = "#34d399";
+    ctx.fillStyle =
+      getComputedStyle(c).getPropertyValue("--echo-core").trim() || "#08788a";
     for (let i = 0; i < buckets.length; i += 1) {
       const bucket = buckets[i];
       if (!bucket) continue;

@@ -693,7 +693,7 @@ function BrowserShell() {
                   data-testid="local-preview-toolbar"
                   className="flex h-10 shrink-0 items-center gap-2 border-b border-border-subtle bg-muted/35 px-3"
                 >
-                  <span className="grid size-6 place-items-center rounded-md bg-emerald-500/10 text-emerald-600">
+                  <span className="grid size-6 place-items-center rounded-md bg-core/10 text-core">
                     <ServerIcon className="size-3.5" />
                   </span>
                   <span className="text-xs font-semibold">

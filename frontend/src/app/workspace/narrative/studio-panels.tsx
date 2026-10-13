@@ -115,8 +115,8 @@ function StageStatus({ status }: { status: string }) {
     <span
       className={cn(
         "rounded-full px-2 py-0.5 text-xs font-medium",
-        completed && "bg-emerald-500/10 text-emerald-700 dark:text-emerald-300",
-        failed && "bg-red-500/10 text-red-700 dark:text-red-300",
+        completed && "bg-core/10 text-core",
+        failed && "bg-breach/10 text-breach",
         !completed && !failed && "bg-muted text-muted-foreground",
       )}
     >
@@ -655,7 +655,7 @@ export function StudioInspector({
                               <div className="flex items-center gap-2">
                                 {stage.status === "completed" ||
                                 stage.status === "submitted" ? (
-                                  <CheckCircle2Icon className="size-3.5 text-emerald-500" />
+                                  <CheckCircle2Icon className="size-3.5 text-core" />
                                 ) : (
                                   <CircleDashedIcon className="size-3.5 text-muted-foreground" />
                                 )}
@@ -887,7 +887,7 @@ export function StudioInspector({
                           </p>
                         </div>
                         {committed ? (
-                          <span className="rounded-full bg-emerald-500/10 px-2 py-1 text-xs text-emerald-700 dark:text-emerald-300">
+                          <span className="rounded-full bg-core/10 px-2 py-1 text-xs text-core">
                             已入正典
                           </span>
                         ) : null}

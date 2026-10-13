@@ -2412,26 +2412,30 @@ export const WebviewTab = forwardRef<WebviewTabHandle, Props>(
 
     const controlEdgeVisible = controlIndicator.mode !== "idle";
     const controlEdgePaused = controlIndicator.mode === "paused";
+    // Agent control lights the edge in core (running); a pause is a
+    // warning. ECHO has no green or teal.
+    const edgeTint = (token: "--echo-core" | "--echo-warning", pct: number) =>
+      `color-mix(in srgb, var(${token}) ${pct}%, transparent)`;
     const controlEdgeColor = controlEdgePaused
-      ? "rgba(245, 158, 11, 0.78)"
-      : "rgba(20, 184, 166, 0.62)";
+      ? edgeTint("--echo-warning", 78)
+      : edgeTint("--echo-core", 62);
     const controlEdgeGlow = controlEdgePaused
       ? [
-          "inset 0 0 0 1px rgba(245, 158, 11, 0.34)",
-          "inset 0 0 18px rgba(245, 158, 11, 0.18)",
+          `inset 0 0 0 1px ${edgeTint("--echo-warning", 34)}`,
+          `inset 0 0 18px ${edgeTint("--echo-warning", 18)}`,
         ].join(", ")
       : [
-          "inset 0 0 0 1px rgba(20, 184, 166, 0.26)",
-          "inset 0 0 18px rgba(20, 184, 166, 0.16)",
+          `inset 0 0 0 1px ${edgeTint("--echo-core", 26)}`,
+          `inset 0 0 18px ${edgeTint("--echo-core", 16)}`,
         ].join(", ");
 
     return (
       <div style={style} className="relative overflow-hidden bg-background">
         <style>
           {`@keyframes echo-browser-webview-edge-pulse {
-  0% { box-shadow: inset 0 0 0 1px rgba(20, 184, 166, 0.24), inset 0 0 10px rgba(20, 184, 166, 0.10); }
-  45% { box-shadow: inset 0 0 0 2px rgba(20, 184, 166, 0.72), inset 0 0 24px rgba(20, 184, 166, 0.24); }
-  100% { box-shadow: inset 0 0 0 1px rgba(20, 184, 166, 0.26), inset 0 0 18px rgba(20, 184, 166, 0.16); }
+  0% { box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--echo-core) 24%, transparent), inset 0 0 10px color-mix(in srgb, var(--echo-core) 10%, transparent); }
+  45% { box-shadow: inset 0 0 0 2px color-mix(in srgb, var(--echo-core) 72%, transparent), inset 0 0 24px color-mix(in srgb, var(--echo-core) 24%, transparent); }
+  100% { box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--echo-core) 26%, transparent), inset 0 0 18px color-mix(in srgb, var(--echo-core) 16%, transparent); }
 }
 @media (prefers-reduced-motion: reduce) {
   .echo-browser-webview-edge-light { animation: none !important; transition: none !important; }

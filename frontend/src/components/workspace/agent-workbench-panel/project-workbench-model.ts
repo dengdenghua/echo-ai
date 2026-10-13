@@ -25,9 +25,9 @@ export const STATUS_TONE: Record<string, string> = {
   planning: "border-border-default bg-muted text-muted-foreground",
   pending: "border-border-default bg-muted text-muted-foreground",
   ready: "border-sky-500/25 bg-sky-500/10 text-sky-600",
-  active: "border-emerald-500/25 bg-emerald-500/10 text-emerald-600",
-  in_progress: "border-emerald-500/25 bg-emerald-500/10 text-emerald-600",
-  running: "border-emerald-500/25 bg-emerald-500/10 text-emerald-600",
+  active: "border-core/25 bg-core/10 text-core",
+  in_progress: "border-core/25 bg-core/10 text-core",
+  running: "border-core/25 bg-core/10 text-core",
   blocked: "border-rose-500/25 bg-rose-500/10 text-rose-600",
   done: "border-sky-500/25 bg-sky-500/10 text-sky-600",
   completed: "border-sky-500/25 bg-sky-500/10 text-sky-600",
@@ -44,7 +44,7 @@ export const HEALTH_LABEL: Record<Health, string> = {
 };
 
 export const HEALTH_TONE: Record<Health, string> = {
-  on_track: "border-emerald-500/25 bg-emerald-500/10 text-emerald-600",
+  on_track: "border-core/25 bg-core/10 text-core",
   at_risk: "border-amber-500/25 bg-amber-500/10 text-amber-700",
   overdue: "border-orange-500/25 bg-orange-500/10 text-orange-600",
   blocked: "border-rose-500/25 bg-rose-500/10 text-rose-600",
@@ -52,7 +52,7 @@ export const HEALTH_TONE: Record<Health, string> = {
 };
 
 export const HEALTH_DOT: Record<Health, string> = {
-  on_track: "bg-emerald-500",
+  on_track: "bg-core",
   at_risk: "bg-amber-500",
   overdue: "bg-orange-500",
   blocked: "bg-rose-500",
