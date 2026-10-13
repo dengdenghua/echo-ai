@@ -146,6 +146,7 @@ Native planner exports, loaded only when a caller actually requests them.
 | Kind | Symbol | Doc |
 | --- | --- | --- |
 | class | `class ActionReview` |  |
+| func | `def turn_network_denials(state)` | The turn's memory of refused network access, created on first use. |
 | func | `def review_tool_action(state, resolved_name, input_preview, call_id, iteration, guardian_reviewer, auto_review_provider, approval_timeout_s)` | Review immediately before dispatch, after earlier untrusted output taints the turn. |
 
 ### `_react_context_helpers.py`
