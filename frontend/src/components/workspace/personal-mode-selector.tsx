@@ -53,14 +53,12 @@ const PERSONAL_MODES: [ModeMeta, ModeMeta] = [
   {
     name: "general",
     icon: SparklesIcon,
-    activeTone:
-      "bg-info/15 text-info dark:bg-info/40 dark:text-info ring-1 ring-info/20",
+    activeTone: "bg-core/10 text-foreground ring-1 ring-core/30",
   },
   {
     name: "uxui",
     icon: PaletteIcon,
-    activeTone:
-      "bg-chart-3/15 text-chart-3 dark:bg-chart-3/40 dark:text-chart-3 ring-1 ring-chart-3/20",
+    activeTone: "bg-core/10 text-foreground ring-1 ring-core/30",
   },
 ];
 
