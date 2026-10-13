@@ -328,9 +328,7 @@ function EmailLoginForm({ returnTo }: { returnTo: string }) {
           <p
             aria-live="polite"
             className={`px-1 text-xs ${
-              sendStatus.kind === "error"
-                ? "text-destructive"
-                : "text-emerald-600 dark:text-emerald-400"
+              sendStatus.kind === "error" ? "text-destructive" : "text-success"
             }`}
             id="email-send-feedback"
             role={sendStatus.kind === "error" ? "alert" : "status"}
@@ -358,7 +356,9 @@ function EmailLoginForm({ returnTo }: { returnTo: string }) {
         {!submitting && <ArrowRightIcon className="ml-1 size-4" />}
       </Button>
       <p className="px-1 text-center text-xs leading-relaxed text-muted-foreground">
-        {t.auth.terms.emailAutoRegister}
+        {/* Two sentences: keep them on separate lines so no locale needs a
+            separator baked into its strings. */}
+        <span className="block">{t.auth.terms.emailAutoRegister}</span>
         {t.auth.terms.agreeTo}{" "}
         <Link
           to="/terms"
@@ -475,7 +475,7 @@ function LocalLoginForm({
                 placeholder={
                   passwordRequired
                     ? t.registerPage.usernamePlaceholder
-                    : "输入任意用户名，例如 guest 或您的昵称"
+                    : "输入任意用户名，例如 guest 或你的昵称"
                 }
                 autoComplete="username"
                 className="echo-login-input h-12 rounded-xl border-border/60 bg-card/50 pl-11 text-base transition-colors focus:border-primary/40 focus:bg-card aria-invalid:border-destructive aria-invalid:focus:border-destructive aria-invalid:focus-visible:ring-destructive/25"

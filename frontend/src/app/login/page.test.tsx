@@ -415,6 +415,17 @@ describe("LoginPage", () => {
     expect(screen.getByRole("status")).toHaveTextContent(
       "验证码已发送，请查收邮箱 · alice@example.com",
     );
+    // ECHO has no green: success reads in the stable core colour.
+    expect(screen.getByRole("status")).toHaveClass("text-success");
+    expect(screen.getByRole("status").className).not.toMatch(/emerald/);
+  });
+
+  it("keeps the auto-register notice and the consent line apart", async () => {
+    await renderPageAtLoginForm();
+
+    const notice = screen.getByText("未注册邮箱将自动创建账号");
+    expect(notice.tagName).toBe("SPAN");
+    expect(notice).toHaveClass("block");
   });
 
   it("keeps send failures visible inside the form", async () => {
