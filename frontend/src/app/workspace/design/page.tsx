@@ -322,8 +322,8 @@ const STAGE_STATUS_STYLE: Record<
   },
   approved: {
     label: "已通过",
-    dot: "bg-emerald-500",
-    pill: "bg-emerald-50 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300",
+    dot: "bg-core",
+    pill: "bg-core/10 text-core",
   },
   failed: {
     label: "失败",
@@ -759,7 +759,7 @@ function CanvasNode({
               {stageStyle.label}
             </span>
           ) : (
-            <span className="size-1.5 rounded-full bg-emerald-500" />
+            <span className="size-1.5 rounded-full bg-core" />
           )}
         </div>
         {node.kind === "image" && assetPreviewUrl ? (

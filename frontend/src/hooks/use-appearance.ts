@@ -21,32 +21,27 @@ export type Density =
   | "dense"
   | "ultradense";
 
-/** 配色主题：echo = ECHO 家族石墨/雪白（默认，globals.css 的基础变量），rouge = 樱花粉（ECHO 之前的基础色，现为可选配色），steel = 冷钢蓝，apricot/violet/mint/emerald/amber/teal = 其他预设，custom = 用户自定义主色（以 rouge 为底）。 */
-export type Palette =
-  | "echo"
-  | "rouge"
-  | "apricot"
-  | "violet"
-  | "mint"
-  | "steel"
-  | "teal"
-  | "emerald"
-  | "amber"
-  | "custom";
+/**
+ * 配色：ECHO 家族只有一套配色（石墨 / 雪白，只亮一点 core 青光）。曾经的
+ * 可选配色（rouge 樱花粉、steel 经典蓝、apricot、violet、mint、teal、emerald、
+ * amber 以及自定义主色）会带回品牌之外的色相，已经移除（AI-27）；本地存过的
+ * 旧配色 id 在读取时迁回 "echo"。
+ */
+export type Palette = "echo";
 
 const CORNER_KEY = "echo-corner-scale";
 const DENSITY_KEY = "echo-density";
 const PALETTE_KEY = "echo-palette";
+/** Legacy key from the removed custom-colour palette; cleared on load. */
 const CUSTOM_COLOR_KEY = "echo-custom-color";
 const APPEARANCE_CHANGE_EVENT = "echo:appearance-change";
 
 const DEFAULT_CORNER: CornerScale = 1;
 const DEFAULT_DENSITY: Density = "comfortable";
 const DEFAULT_PALETTE: Palette = "echo";
-const DEFAULT_CUSTOM_COLOR = "#08788a";
 
-/** 主色相关的 CSS 变量；自定义配色时覆盖这一组即可,其余 token 沿用基础主题。 */
-const CUSTOM_PALETTE_VARS = [
+/** CSS variables the removed custom palette wrote inline on <html>. */
+const LEGACY_CUSTOM_PALETTE_VARS = [
   "--primary",
   "--primary-foreground",
   "--ring",
@@ -56,21 +51,6 @@ const CUSTOM_PALETTE_VARS = [
   "--chart-1",
 ] as const;
 
-/** 根据色值亮度返回可读前景色（深色字 / 浅色字）,保证主色上的文字对比度达标。 */
-function readableForeground(hex: string): string {
-  const m = /^#?([0-9a-f]{6})$/i.exec(hex.trim());
-  if (!m) return "#f8fafc";
-  const int = parseInt(m[1] ?? "0", 16);
-  const channel = (c: number) => {
-    const s = c / 255;
-    return s <= 0.03928 ? s / 12.92 : Math.pow((s + 0.055) / 1.055, 2.4);
-  };
-  const r = channel((int >> 16) & 255);
-  const g = channel((int >> 8) & 255);
-  const b = channel(int & 255);
-  const luminance = 0.2126 * r + 0.7152 * g + 0.0722 * b;
-  return luminance > 0.45 ? "#1f2937" : "#f8fafc";
-}
 const DENSITY_TOKENS: Record<
   Density,
   {
@@ -167,66 +147,32 @@ function isDensity(value: string | null): value is Density {
   );
 }
 
-/** Single source of truth for valid palette ids — keep in sync with the
-    [data-theme] blocks in globals.css. */
-const PALETTES = [
-  "echo",
-  "rouge",
-  "apricot",
-  "violet",
-  "mint",
-  "steel",
-  "teal",
-  "emerald",
-  "amber",
-  "custom",
-] as const satisfies readonly Palette[];
-
-function isPalette(value: string | null): value is Palette {
-  return (PALETTES as readonly string[]).includes(value ?? "");
-}
-
+/**
+ * ECHO is the only palette. Any other stored id (rouge, steel, apricot,
+ * violet, mint, teal, emerald, amber, custom) is migrated to "echo" and the
+ * stored custom colour is dropped, so an old preference cannot bring back an
+ * off-brand accent or a green success colour.
+ */
 function readPalette(): Palette {
   if (typeof window === "undefined") return DEFAULT_PALETTE;
-  const raw = window.localStorage.getItem(PALETTE_KEY);
-  return isPalette(raw) ? raw : DEFAULT_PALETTE;
-}
-
-function isHexColor(value: string | null | undefined): value is string {
-  return /^#[0-9a-f]{6}$/i.test(value ?? "");
-}
-
-function readCustomColor(): string {
-  if (typeof window === "undefined") return DEFAULT_CUSTOM_COLOR;
-  const raw = window.localStorage.getItem(CUSTOM_COLOR_KEY);
-  return isHexColor(raw) ? raw : DEFAULT_CUSTOM_COLOR;
-}
-
-function clearCustomPaletteVars(root: HTMLElement) {
-  for (const v of CUSTOM_PALETTE_VARS) root.style.removeProperty(v);
-}
-
-function applyPalette(palette: Palette, customColor?: string) {
-  const root = document.documentElement;
-  if (palette === "custom") {
-    // 以 rouge 基础变量为底,再用用户色值覆盖主色相关 token。
-    root.dataset.theme = "rouge";
-    const color = isHexColor(customColor) ? customColor : DEFAULT_CUSTOM_COLOR;
-    const fg = readableForeground(color);
-    root.style.setProperty("--primary", color);
-    root.style.setProperty("--primary-foreground", fg);
-    root.style.setProperty("--ring", color);
-    root.style.setProperty("--sidebar-primary", color);
-    root.style.setProperty("--sidebar-primary-foreground", fg);
-    root.style.setProperty("--sidebar-ring", color);
-    root.style.setProperty("--chart-1", color);
-    return;
+  try {
+    const raw = window.localStorage.getItem(PALETTE_KEY);
+    if (raw !== null && raw !== DEFAULT_PALETTE) {
+      window.localStorage.setItem(PALETTE_KEY, DEFAULT_PALETTE);
+    }
+    window.localStorage.removeItem(CUSTOM_COLOR_KEY);
+  } catch (e) {
+    swallow(e, "storage");
   }
-  // echo is the unscoped base theme in globals.css; every other palette sets
-  // [data-theme], which starts from the legacy rouge base and then swaps accents.
-  if (palette === "echo") delete root.dataset.theme;
-  else root.dataset.theme = palette;
-  clearCustomPaletteVars(root);
+  return DEFAULT_PALETTE;
+}
+
+function applyPalette() {
+  const root = document.documentElement;
+  // ECHO is the unscoped base theme in globals.css: no [data-theme] scope and
+  // no inline accent overrides left behind by the removed custom palette.
+  delete root.dataset.theme;
+  for (const v of LEGACY_CUSTOM_PALETTE_VARS) root.style.removeProperty(v);
 }
 
 function applyCorner(scale: CornerScale) {
@@ -260,22 +206,18 @@ export function useAppearance() {
     useState<CornerScale>(DEFAULT_CORNER);
   const [density, setDensityState] = useState<Density>(DEFAULT_DENSITY);
   const [palette, setPaletteState] = useState<Palette>(DEFAULT_PALETTE);
-  const [customColor, setCustomColorState] =
-    useState<string>(DEFAULT_CUSTOM_COLOR);
 
   useEffect(() => {
     const syncFromStorage = () => {
       const c = readCorner();
       const d = readDensity();
       const p = readPalette();
-      const pc = readCustomColor();
       setCornerScaleState(c);
       setDensityState(d);
       setPaletteState(p);
-      setCustomColorState(pc);
       applyCorner(c);
       applyDensity(d);
-      applyPalette(p, pc);
+      applyPalette();
     };
 
     syncFromStorage();
@@ -309,25 +251,11 @@ export function useAppearance() {
     emitAppearanceChange();
   }, []);
 
-  const setPalette = useCallback((p: Exclude<Palette, "custom">) => {
+  const setPalette = useCallback((p: Palette) => {
     setPaletteState(p);
-    applyPalette(p);
+    applyPalette();
     try {
       window.localStorage.setItem(PALETTE_KEY, p);
-    } catch (e) {
-      swallow(e, "storage");
-    }
-    emitAppearanceChange();
-  }, []);
-
-  const setCustomColor = useCallback((hex: string) => {
-    const color = isHexColor(hex) ? hex : DEFAULT_CUSTOM_COLOR;
-    setPaletteState("custom");
-    setCustomColorState(color);
-    applyPalette("custom", color);
-    try {
-      window.localStorage.setItem(PALETTE_KEY, "custom");
-      window.localStorage.setItem(CUSTOM_COLOR_KEY, color);
     } catch (e) {
       swallow(e, "storage");
     }
@@ -338,11 +266,9 @@ export function useAppearance() {
     cornerScale,
     density,
     palette,
-    customColor,
     setCornerScale,
     setDensity,
     setPalette,
-    setCustomColor,
   };
 }
 

@@ -24,33 +24,35 @@ describe("useAppearance palette", () => {
     expect(root().dataset.theme).toBeUndefined();
   });
 
-  it("keeps a previously stored palette", () => {
-    window.localStorage.setItem("echo-palette", "violet");
+  it.each([
+    "rouge",
+    "steel",
+    "apricot",
+    "violet",
+    "mint",
+    "teal",
+    "emerald",
+    "amber",
+    "custom",
+  ])("migrates a stored %s palette to ECHO", (stored) => {
+    window.localStorage.setItem("echo-palette", stored);
+    window.localStorage.setItem("echo-custom-color", "#336699");
+    root().dataset.theme = stored;
+    root().style.setProperty("--primary", "#336699");
+
     const { result } = renderHook(() => useAppearance());
-    expect(result.current.palette).toBe("violet");
-    expect(root().dataset.theme).toBe("violet");
+
+    expect(result.current.palette).toBe("echo");
+    expect(root().dataset.theme).toBeUndefined();
+    expect(root().style.getPropertyValue("--primary")).toBe("");
+    expect(window.localStorage.getItem("echo-palette")).toBe("echo");
+    expect(window.localStorage.getItem("echo-custom-color")).toBeNull();
   });
 
-  it("scopes the legacy rouge base instead of treating it as the default", () => {
-    window.localStorage.setItem("echo-palette", "rouge");
-    renderHook(() => useAppearance());
-    expect(root().dataset.theme).toBe("rouge");
-  });
-
-  it("returns to ECHO by clearing the palette scope", () => {
-    window.localStorage.setItem("echo-palette", "steel");
+  it("keeps ECHO when set explicitly", () => {
     const { result } = renderHook(() => useAppearance());
-    expect(root().dataset.theme).toBe("steel");
-
     act(() => result.current.setPalette("echo"));
     expect(root().dataset.theme).toBeUndefined();
     expect(window.localStorage.getItem("echo-palette")).toBe("echo");
-  });
-
-  it("builds a custom color on the legacy base", () => {
-    const { result } = renderHook(() => useAppearance());
-    act(() => result.current.setCustomColor("#336699"));
-    expect(root().dataset.theme).toBe("rouge");
-    expect(root().style.getPropertyValue("--primary")).toBe("#336699");
   });
 });

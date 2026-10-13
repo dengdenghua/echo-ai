@@ -700,7 +700,7 @@ function BrowserShell() {
                     {t.browserPreviewPanel.localPreviewMode}
                   </span>
                   <span className="flex items-center gap-1 text-[10px] text-muted-foreground">
-                    <span className="size-1.5 rounded-full bg-emerald-500" />
+                    <span className="size-1.5 rounded-full bg-core" />
                     {t.browserPreviewPanel.localPreviewRunning(previewPort)}
                   </span>
                   <span className="mx-1 h-4 w-px bg-border-subtle" />

@@ -1,9 +1,4 @@
-import {
-  CheckIcon,
-  MonitorSmartphoneIcon,
-  MoonIcon,
-  SunIcon,
-} from "lucide-react";
+import { MonitorSmartphoneIcon, MoonIcon, SunIcon } from "lucide-react";
 import { useTheme } from "next-themes";
 import {
   useCallback,
@@ -28,14 +23,10 @@ import {
   useAppearance,
   type CornerScale,
   type Density,
-  type Palette,
 } from "@/hooks/use-appearance";
 import { cn } from "@/lib/utils";
 
 import { SettingsSection } from "./settings-section";
-
-/** Palettes with a fixed swatch — excludes "custom", which setPalette rejects. */
-type NamedPalette = Exclude<Palette, "custom">;
 
 const LANGUAGE_OPTIONS = [
   { value: "en-US", label: "English" },
@@ -48,124 +39,7 @@ export default function AppearanceSettingsPage() {
   const { t, locale, changeLocale } = useI18n();
   const { theme, setTheme, systemTheme } = useTheme();
   const currentTheme = (theme ?? "system") as "system" | "light" | "dark";
-  const {
-    cornerScale,
-    density,
-    palette,
-    customColor,
-    setCornerScale,
-    setDensity,
-    setPalette,
-    setCustomColor,
-  } = useAppearance();
-
-  // Classic neutrals and restrained accents; stored palette ids stay stable.
-  // Pastel swatches represent the atmosphere; stronger action colors retain text contrast.
-  const paletteGroups = useMemo(
-    () =>
-      [
-        {
-          id: "soft",
-          label: t.settings.appearance.paletteGroupSoft,
-          options: [
-            {
-              id: "rouge",
-              label: t.settings.appearance.paletteRose,
-              description: t.settings.appearance.paletteRoseDescription,
-              swatch: "#edb7cb",
-            },
-            {
-              id: "apricot",
-              label: t.settings.appearance.paletteApricot,
-              description: t.settings.appearance.paletteApricotDescription,
-              swatch: "#f3c4af",
-            },
-            {
-              id: "violet",
-              label: t.settings.appearance.paletteViolet,
-              description: t.settings.appearance.paletteVioletDescription,
-              swatch: "#d3bfeb",
-            },
-            {
-              id: "emerald",
-              label: t.settings.appearance.paletteEmerald,
-              description: t.settings.appearance.paletteEmeraldDescription,
-              swatch: "#efdda6",
-            },
-          ],
-        },
-        {
-          id: "deep",
-          label: t.settings.appearance.paletteGroupDeep,
-          options: [
-            {
-              // The ECHO family default: a graphite dot with its cyan core.
-              id: "echo",
-              label: t.settings.appearance.paletteEcho,
-              description: t.settings.appearance.paletteEchoDescription,
-              swatch: "#101216",
-              core: "#6fe3f0",
-            },
-            {
-              id: "steel",
-              label: t.settings.appearance.paletteSteel,
-              description: t.settings.appearance.paletteSteelDescription,
-              swatch: "#0066cc",
-            },
-            {
-              id: "teal",
-              label: t.settings.appearance.paletteTeal,
-              description: t.settings.appearance.paletteTealDescription,
-              swatch: "#34363b",
-            },
-            {
-              id: "mint",
-              label: t.settings.appearance.paletteMint,
-              description: t.settings.appearance.paletteMintDescription,
-              swatch: "#686b73",
-            },
-            {
-              id: "amber",
-              label: t.settings.appearance.paletteAmber,
-              description: t.settings.appearance.paletteAmberDescription,
-              swatch: "#807366",
-            },
-          ],
-        },
-      ] satisfies {
-        id: string;
-        label: string;
-        options: {
-          id: NamedPalette;
-          label: string;
-          description: string;
-          swatch: string;
-          core?: string;
-        }[];
-      }[],
-    [
-      t.settings.appearance.paletteAmber,
-      t.settings.appearance.paletteAmberDescription,
-      t.settings.appearance.paletteApricot,
-      t.settings.appearance.paletteApricotDescription,
-      t.settings.appearance.paletteEcho,
-      t.settings.appearance.paletteEchoDescription,
-      t.settings.appearance.paletteEmerald,
-      t.settings.appearance.paletteEmeraldDescription,
-      t.settings.appearance.paletteGroupDeep,
-      t.settings.appearance.paletteGroupSoft,
-      t.settings.appearance.paletteMint,
-      t.settings.appearance.paletteMintDescription,
-      t.settings.appearance.paletteRose,
-      t.settings.appearance.paletteRoseDescription,
-      t.settings.appearance.paletteSteel,
-      t.settings.appearance.paletteSteelDescription,
-      t.settings.appearance.paletteTeal,
-      t.settings.appearance.paletteTealDescription,
-      t.settings.appearance.paletteViolet,
-      t.settings.appearance.paletteVioletDescription,
-    ],
-  );
+  const { cornerScale, density, setCornerScale, setDensity } = useAppearance();
 
   const themeOptions = useMemo(
     () => [
@@ -222,70 +96,9 @@ export default function AppearanceSettingsPage() {
 
       <Separator className="my-1" />
 
-      <SettingsSection
-        title={t.settings.appearance.paletteTitle}
-        description={t.settings.appearance.paletteDescription}
-      >
-        <div className="space-y-3">
-          {[...paletteGroups].reverse().map((group) => (
-            <div key={group.id} className="space-y-2">
-              <span className="block text-xs font-medium tracking-wide text-muted-foreground">
-                {group.label}
-              </span>
-              <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
-                {group.options.map((option) => (
-                  <PaletteSwatchButton
-                    key={option.id}
-                    label={option.label}
-                    description={option.description}
-                    active={palette === option.id}
-                    swatch={option.swatch}
-                    core={"core" in option ? option.core : undefined}
-                    onSelect={() => setPalette(option.id)}
-                  />
-                ))}
-              </div>
-            </div>
-          ))}
-        </div>
-        <div className="mt-4 flex flex-wrap items-center gap-2 border-t border-border/60 pt-3">
-          <PaletteSwatchButton
-            label={t.settings.appearance.paletteCustom}
-            active={palette === "custom"}
-            swatch={customColor}
-            onSelect={() => setCustomColor(customColor)}
-          />
-          <label
-            className={cn(
-              "relative ml-1 inline-flex size-8 shrink-0 cursor-pointer items-center",
-              "justify-center rounded-full border border-dashed text-muted-foreground",
-              "transition-colors hover:border-primary/50 hover:text-foreground",
-            )}
-            title={t.settings.appearance.paletteCustomHint}
-          >
-            <input
-              type="color"
-              aria-label={t.settings.appearance.paletteCustom}
-              className="absolute inset-0 cursor-pointer opacity-0"
-              value={customColor}
-              onChange={(event) => setCustomColor(event.target.value)}
-            />
-            <span
-              aria-hidden="true"
-              className="font-mono text-ui-caption leading-none"
-            >
-              +
-            </span>
-          </label>
-        </div>
-        <p className="mt-2 text-ui-caption text-muted-foreground">
-          {t.settings.appearance.paletteCustomHint}
-          <span className="ml-1.5 font-mono uppercase">{customColor}</span>
-        </p>
-      </SettingsSection>
-
-      <Separator className="my-1" />
-
+      {/* ECHO has one palette (graphite / snow with a core accent), so the
+          old palette and custom-colour picker is gone (AI-27); light / dark
+          above is the only colour choice. */}
       {/* Language remains a general application preference. Conversation
           density now has its own destination in Settings. */}
       <div className="divide-y">
@@ -424,63 +237,6 @@ function SettingRow({
       </div>
       <div className="shrink-0">{children}</div>
     </div>
-  );
-}
-
-/** Compact palette picker: a color dot with a check when active. */
-function PaletteSwatchButton({
-  label,
-  description,
-  active,
-  swatch,
-  core,
-  onSelect,
-}: {
-  label: string;
-  description?: string;
-  active: boolean;
-  swatch: string;
-  /** Optional center dot, e.g. the ECHO core on the graphite swatch. */
-  core?: string;
-  onSelect: () => void;
-}) {
-  return (
-    <button
-      type="button"
-      onClick={onSelect}
-      aria-pressed={active}
-      aria-label={label}
-      title={description ? `${label} · ${description}` : label}
-      className={cn(
-        "group relative flex min-h-14 items-center gap-3 rounded-xl border px-3 py-2.5 text-left",
-        "transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background",
-        active
-          ? "border-foreground/30 bg-foreground/[0.04] shadow-sm"
-          : "border-border/70 bg-card hover:border-foreground/20 hover:bg-muted/60",
-      )}
-    >
-      <span
-        aria-hidden="true"
-        className="grid size-7 shrink-0 place-items-center rounded-full border border-black/10 shadow-[inset_0_1px_2px_rgba(255,255,255,0.2)] dark:border-white/15"
-        style={{ backgroundColor: swatch }}
-      >
-        {core ? (
-          <span
-            className="size-2 rounded-full"
-            style={{ backgroundColor: core }}
-          />
-        ) : null}
-      </span>
-      <span className="min-w-0 flex-1 text-xs font-medium">{label}</span>
-      <CheckIcon
-        aria-hidden="true"
-        className={cn(
-          "size-3.5 shrink-0 text-foreground",
-          !active && "invisible",
-        )}
-        strokeWidth={2}
-      />
-    </button>
   );
 }
 

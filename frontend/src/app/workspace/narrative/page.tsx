@@ -1592,7 +1592,7 @@ export default function NarrativePage() {
         <span
           className={cn(
             "size-1.5 rounded-full",
-            status?.ready ? "bg-emerald-500" : "bg-amber-500",
+            status?.ready ? "bg-core" : "bg-warning",
           )}
         />
         Narrative Engine {status?.version || "0.1"} · candidate only

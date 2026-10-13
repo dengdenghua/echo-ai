@@ -113,7 +113,6 @@ function literalColor(
 const echoMappingSelector = "\n:root,\n.dark,\n[data-echo-theme] {";
 const lightBlock = blockAfter(globalsCss, echoMappingSelector);
 const darkBlock = blockAfter(globalsCss, echoMappingSelector);
-const steelBlock = blockAfter(globalsCss, '[data-theme="steel"]');
 const echoSnowBlock = blockAfter(echoTokensCss, "\n:root {");
 const echoGraphiteBlock = blockAfter(
   echoTokensCss,
@@ -126,10 +125,15 @@ const SHELL_BG: Rgb = [9, 10, 12];
 const CARD_BG: Rgb = [23, 26, 31];
 
 describe("theme token contrast (WCAG AA)", () => {
-  it("resolves the light, dark, steel, and ECHO token blocks", () => {
+  // AI-27: ECHO is the only palette; the optional [data-theme] palettes (and
+  // the green success colour they carried) must not come back.
+  it("declares no optional [data-theme] palettes", () => {
+    expect(globalsCss).not.toMatch(/\[data-theme(=|\])/);
+  });
+
+  it("resolves the light, dark and ECHO token blocks", () => {
     expect(lightBlock.length).toBeGreaterThan(0);
     expect(darkBlock.length).toBeGreaterThan(0);
-    expect(steelBlock.length).toBeGreaterThan(0);
     expect(echoSnowBlock).toContain("--echo-ground");
     expect(echoGraphiteBlock).toContain("--echo-ground");
   });
@@ -158,14 +162,6 @@ describe("theme token contrast (WCAG AA)", () => {
       expect(a, `${fg} must be a literal hex color`).not.toBeNull();
       expect(b, `${bg} must be a literal hex color`).not.toBeNull();
       expect(contrast(a!, b!)).toBeGreaterThanOrEqual(min);
-    });
-
-    it(`steel theme: ${label} >= ${min}:1`, () => {
-      const a = literalColor(steelBlock, fg);
-      const b = literalColor(steelBlock, bg);
-      if (a && b) {
-        expect(contrast(a, b)).toBeGreaterThanOrEqual(min);
-      }
     });
   }
 });

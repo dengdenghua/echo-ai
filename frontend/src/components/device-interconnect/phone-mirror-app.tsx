@@ -383,7 +383,7 @@ export function PhoneMirrorApp({ deviceId, deviceName, onClose }: Props) {
           <div className="flex w-full items-center justify-between text-xs text-slate-500">
             <span className="flex items-center gap-2">
               <i
-                className={`size-2 rounded-full ${online ? "bg-emerald-500" : "bg-slate-300"}`}
+                className={`size-2 rounded-full ${online ? "bg-core" : "bg-muted-foreground/40"}`}
               />
               {online ? "设备在线" : "等待设备连接"}
             </span>
