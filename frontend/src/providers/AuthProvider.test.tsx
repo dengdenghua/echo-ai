@@ -1,4 +1,5 @@
 import { act, screen } from "@testing-library/react";
+import { QueryClient } from "@tanstack/react-query";
 import { beforeEach, expect, it, vi } from "vitest";
 
 import { renderWithProviders } from "@/test/harness";
@@ -6,6 +7,7 @@ import { renderWithProviders } from "@/test/harness";
 const mocks = vi.hoisted(() => ({
   getAuthStatus: vi.fn(),
   getMe: vi.fn(),
+  login: vi.fn(),
   getToken: vi.fn(),
   getStoredUser: vi.fn(),
   clearTokens: vi.fn(),
@@ -17,7 +19,7 @@ vi.mock("@/core/auth/api", () => ({
   getMe: mocks.getMe,
   getToken: mocks.getToken,
   getUser: mocks.getStoredUser,
-  login: vi.fn(),
+  login: mocks.login,
   logout: vi.fn(),
   refreshToken: vi.fn(),
   register: vi.fn(),
@@ -151,4 +153,42 @@ it("exposes a retryable error when the auth status endpoint is unavailable", asy
   expect(await screen.findByText("anonymous")).toBeInTheDocument();
   expect(screen.getByText("auth unavailable")).toBeInTheDocument();
   expect(mocks.getMe).not.toHaveBeenCalled();
+});
+
+it("drops the previous account's cached data when another account signs in", async () => {
+  // Regression: after 退出登录 and signing in as another local account in the
+  // same tab, the sidebar still listed the previous account's threads.
+  mocks.getMe.mockRejectedValue(new Error("401 Unauthorized"));
+  mocks.login.mockResolvedValue({
+    success: true,
+    token_type: "bearer",
+    expires_in: 3600,
+    user: {
+      user_id: "local:reader",
+      actor_id: "local:reader",
+      username: "reader",
+    },
+  });
+  const queryClient = new QueryClient();
+  queryClient.setQueryData(["threads", "search"], [{ thread_id: "previous" }]);
+  let signIn!: ReturnType<typeof useAuth>["login"];
+  function Capture() {
+    signIn = useAuth().login;
+    return null;
+  }
+
+  renderWithProviders(
+    <AuthProvider>
+      <Capture />
+      <AuthState />
+    </AuthProvider>,
+    { queryClient },
+  );
+  expect(await screen.findByText("anonymous")).toBeInTheDocument();
+  await act(async () => {
+    await signIn({ username: "reader" });
+  });
+
+  expect(await screen.findByText("authenticated")).toBeInTheDocument();
+  expect(queryClient.getQueryData(["threads", "search"])).toBeUndefined();
 });

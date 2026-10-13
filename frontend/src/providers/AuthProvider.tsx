@@ -1,3 +1,4 @@
+import { useQueryClient } from "@tanstack/react-query";
 import {
   createContext,
   useCallback,
@@ -157,6 +158,7 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const { t } = useI18n();
+  const queryClient = useQueryClient();
   const [isLoading, setIsLoading] = useState(true);
   const [authError, setAuthError] = useState<Error | null>(null);
   const [authStatus, setAuthStatus] = useState<AuthStatus | null>(null);
@@ -284,35 +286,55 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     return () => window.removeEventListener(AUTH_EXPIRED_EVENT, expire);
   }, []);
 
-  const login = useCallback(async (request: LoginRequest) => {
-    const response = await loginApi(request);
-    if (response.user) {
-      const normalized = normalizeUserIdentity(response.user);
-      if (response.access_token) _writeToken(response.access_token, normalized);
-      setUser(normalized);
-    }
-  }, []);
+  // Signing in starts a new account session in the same tab: drop data the
+  // previous account loaded (thread list, projects, settings) so it never
+  // shows under the next account. The workspace is not mounted on the
+  // sign-in page, so nothing refetches with the old credential.
+  const startSession = useCallback(
+    (next: User) => {
+      queryClient.clear();
+      setUser(next);
+    },
+    [queryClient],
+  );
 
-  const emailLogin = useCallback(async (email: string, code: string) => {
-    // oct 账号网关:邮箱验证码登录 → agent 自有会话 JWT
-    const response = await octAuthApi.emailLogin(email, code);
-    if (response.user) {
-      const normalized = normalizeUserIdentity(
-        looseBody(response.user, isUser),
-        null,
-        email,
-      );
-      if (response.access_token) _writeToken(response.access_token, normalized);
-      setUser(normalized);
-    }
-  }, []);
+  const login = useCallback(
+    async (request: LoginRequest) => {
+      const response = await loginApi(request);
+      if (response.user) {
+        const normalized = normalizeUserIdentity(response.user);
+        if (response.access_token)
+          _writeToken(response.access_token, normalized);
+        startSession(normalized);
+      }
+    },
+    [startSession],
+  );
+
+  const emailLogin = useCallback(
+    async (email: string, code: string) => {
+      // oct 账号网关:邮箱验证码登录 → agent 自有会话 JWT
+      const response = await octAuthApi.emailLogin(email, code);
+      if (response.user) {
+        const normalized = normalizeUserIdentity(
+          looseBody(response.user, isUser),
+          null,
+          email,
+        );
+        if (response.access_token)
+          _writeToken(response.access_token, normalized);
+        startSession(normalized);
+      }
+    },
+    [startSession],
+  );
 
   const desktopLogin = useCallback(async () => {
     desktopAutoLoginSuppressedRef.current = false;
     const owner = await desktopOwnerLogin();
     if (!owner) throw new Error("本机登录不可用");
-    setUser(normalizeUserIdentity(owner));
-  }, []);
+    startSession(normalizeUserIdentity(owner));
+  }, [startSession]);
 
   const guestLogin = useCallback(async () => {
     _clearTokens();
@@ -339,10 +361,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setUser(accountFreeUser);
   }, []);
 
-  const register = useCallback(async (request: RegisterRequest) => {
-    const newUser = await registerApi(request);
-    setUser(newUser);
-  }, []);
+  const register = useCallback(
+    async (request: RegisterRequest) => {
+      startSession(await registerApi(request));
+    },
+    [startSession],
+  );
 
   const logout = useCallback(async () => {
     await logoutApi();
