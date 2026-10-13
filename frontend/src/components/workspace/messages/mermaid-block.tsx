@@ -194,6 +194,13 @@ export function MermaidBlock({
     );
   }
 
+  const zoomStyle: CSSProperties & { "--mermaid-zoom": number } = {
+    "--mermaid-zoom": zoom,
+    width: `${zoom * 100}%`,
+    minWidth: `${zoom * 100}%`,
+    color: dark ? "var(--foreground, #eef1f4)" : "var(--foreground, #111317)",
+  };
+
   return (
     <div
       className={cn(
@@ -259,16 +266,7 @@ export function MermaidBlock({
       >
         <div
           ref={containerRef}
-          style={
-            {
-              "--mermaid-zoom": zoom,
-              width: `${zoom * 100}%`,
-              minWidth: `${zoom * 100}%`,
-              color: dark
-                ? "var(--foreground, #eef1f4)"
-                : "var(--foreground, #111317)",
-            } as CSSProperties
-          }
+          style={zoomStyle}
           className={cn(
             "overflow-auto bg-muted/15 p-4 animate-fade-in transition-colors duration-fast",
             "[&_svg]:mx-auto [&_svg]:h-auto [&_svg]:max-w-full",
