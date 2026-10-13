@@ -2968,6 +2968,8 @@ export interface Translations {
       git_commit: string;
       schedule_cron: string;
       remote_trigger: string;
+      web_read: string;
+      web_search: string;
     };
   };
 

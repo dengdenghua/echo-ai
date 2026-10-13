@@ -3386,6 +3386,8 @@ export const zhCN: Translations = {
       project_phase: "阶段执行与组队",
       project_budget: "调整项目预算",
       remote_trigger: "Webhook",
+      web_read: "读取网页",
+      web_search: "搜索网页",
     },
   },
 

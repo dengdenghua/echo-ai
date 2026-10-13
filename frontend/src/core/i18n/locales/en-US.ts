@@ -3646,6 +3646,8 @@ export const enUS: Translations = {
       git_commit: "Commit",
       schedule_cron: "Schedule task",
       remote_trigger: "Webhook",
+      web_read: "Read web page",
+      web_search: "Search the web",
     },
   },
 

@@ -84,3 +84,28 @@ export function shellCommandFromInput(
   }
   return undefined;
 }
+
+// External execution engines report their native tools with an engine
+// namespace (``opencode.bash``). The namespace says who ran the tool, not what
+// it did, so presenters strip it before mapping the name to a label.
+const ENGINE_TOOL_PREFIX_RE = /^(?:opencode|codex)\./i;
+
+export function canonicalToolName(name: string): string {
+  return name.trim().replace(ENGINE_TOOL_PREFIX_RE, "").toLowerCase();
+}
+
+// Tools that read one known web page. Approval prompts and transcript rows
+// both describe these as "read a web page", never as running a command.
+export const WEB_READ_TOOL_NAMES = new Set([
+  "fetch_url",
+  "web_fetch",
+  "webfetch",
+  "fetch",
+  "platform_read",
+]);
+
+export const WEB_SEARCH_TOOL_NAMES = new Set([
+  "web_search",
+  "websearch",
+  "platform_search",
+]);

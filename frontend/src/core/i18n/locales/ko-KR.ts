@@ -3571,6 +3571,8 @@ export const koKR: Translations = {
       git_commit: "커밋",
       schedule_cron: "예약 작업",
       remote_trigger: "Webhook",
+      web_read: "웹 페이지 읽기",
+      web_search: "웹 검색",
     },
   },
 

@@ -57,6 +57,7 @@ import { emitOpenAgentWorkbench } from "../agent-workbench-events";
 import { FlipDisplay } from "../flip-display";
 import { isAutoVerificationToolName } from "../process-trace-events";
 import {
+  canonicalToolName,
   isFileMutationToolName,
   isReadToolName,
   isShellToolName,
@@ -2022,10 +2023,16 @@ const SENSITIVE_ARG_VALUE_RE =
 
 function extractPathFromArgs(
   args: Record<string, unknown>,
+  toolName?: string,
 ): string | undefined {
+  // Realtime command items without their own ``command`` argument carry the
+  // tool name in ``command`` (realtime-tool-compat). That is not a target.
+  const ownName = toolName?.trim().toLowerCase();
   for (const key of _PATH_KEYS) {
     const val = args[key];
-    if (typeof val === "string" && val.trim()) return val.trim();
+    if (typeof val !== "string" || !val.trim()) continue;
+    if (ownName && val.trim().toLowerCase() === ownName) continue;
+    return val.trim();
   }
   return undefined;
 }
@@ -2555,7 +2562,8 @@ function localizedAggregateVerb(
 }
 
 function compactToolTargets(step: CoTToolCallStep): string[] {
-  if (isShellToolName(step.name)) {
+  const toolName = canonicalToolName(step.name);
+  if (isShellToolName(toolName)) {
     const command = shellCommandFromInput(step.args, step.name);
     if (!command) return [];
     const targets = shellEvidenceTargets(command);
@@ -2567,13 +2575,18 @@ function compactToolTargets(step: CoTToolCallStep): string[] {
     }
     return [];
   }
-  const target = isReadToolName(step.name)
+  const target = isReadToolName(toolName)
     ? extractReadEvidenceTarget(step.args)
-    : (extractPathFromArgs(step.args) ?? extractTeamCallTarget(step.args));
+    : (extractPathFromArgs(step.args, step.name) ??
+      extractTeamCallTarget(step.args));
   if (!target) return [];
+  if (/^https?:\/\//i.test(target)) {
+    const page = compactUrlTarget(target);
+    return page && isPublicCompactEvidenceTarget(page) ? [page] : [];
+  }
   if (
-    isReadToolName(step.name) ||
-    isFileMutationToolName(step.name) ||
+    isReadToolName(toolName) ||
+    isFileMutationToolName(toolName) ||
     isPathLikeEvidence(target)
   ) {
     const basename = target.split(/[\\/]/).filter(Boolean).at(-1) ?? target;
@@ -2581,6 +2594,17 @@ function compactToolTargets(step: CoTToolCallStep): string[] {
   }
   const summary = compactReasoningSummary(target, 64);
   return isPublicCompactEvidenceTarget(summary) ? [summary] : [];
+}
+
+// A web page reads as its host (plus a short path), not as the full URL.
+function compactUrlTarget(url: string): string | null {
+  try {
+    const parsed = new URL(url);
+    const path = parsed.pathname === "/" ? "" : parsed.pathname;
+    return compactReasoningSummary(`${parsed.hostname}${path}`, 48);
+  } catch {
+    return null;
+  }
 }
 
 // Planning notes and crawler transport files are implementation evidence, not

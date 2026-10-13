@@ -1986,6 +1986,52 @@ describe("MessageGroup reasoning grouping", () => {
     expect(executions[0]).toHaveTextContent("执行了 3 个操作");
   });
 
+  it("never shows realtime tool names as the targets of a web-read run", () => {
+    // Realtime command items without their own command argument carry the
+    // tool name in ``command``/``tool`` (realtime-tool-compat).
+    const webRead = (id: string, name: string, sequence: number) => ({
+      id,
+      name,
+      args: {
+        url: "https://example.com",
+        command: name,
+        tool: name,
+        networkAccess: false,
+      },
+      timelineSequence: sequence,
+    });
+    const messages: AIMessage[] = [
+      {
+        id: "ai-web-tools",
+        type: "ai",
+        content: "",
+        tool_calls: [
+          {
+            id: "bash-1",
+            name: "opencode.bash",
+            args: { command: "curl -sI https://example.com" },
+            timelineSequence: 1,
+          },
+          webRead("fetch-1", "fetch_url", 2),
+          webRead("fetch-2", "web_fetch", 3),
+          webRead("read-1", "platform_read", 4),
+        ],
+      },
+      { id: "ai-final", type: "ai", content: "HTTP 状态码：200" },
+    ];
+
+    renderWithProviders(<MessageGroup messages={messages} />, {
+      locale: "zh-CN",
+    });
+
+    const executions = screen.getAllByTestId(
+      "process-timeline-event-execution",
+    );
+    expect(executions).toHaveLength(1);
+    expect(executions[0]).toHaveTextContent("执行了 4 个操作");
+    expect(executions[0]).not.toHaveTextContent(/operation|platform_read/);
+  });
+
   it("does not render raw shell commands for a single shell tool call", () => {
     const messages: AIMessage[] = [
       {

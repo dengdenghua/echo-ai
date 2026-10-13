@@ -3624,6 +3624,8 @@ export const jaJP: Translations = {
       git_commit: "コミット",
       schedule_cron: "定期タスク",
       remote_trigger: "Webhook",
+      web_read: "ウェブページを読む",
+      web_search: "ウェブ検索",
     },
   },
 
