@@ -51,7 +51,10 @@ import {
 import { getAPIClient } from "@/core/api";
 import { useActiveAgentId } from "@/core/agents/active";
 import { copyTextToClipboard } from "@/core/clipboard";
-import { deriveThreadAgents, syncThreadAgentSelection } from "@/core/threads/sidebar";
+import {
+  deriveThreadAgents,
+  syncThreadAgentSelection,
+} from "@/core/threads/sidebar";
 import { useI18n } from "@/core/i18n/hooks";
 import {
   type Project,
@@ -61,6 +64,7 @@ import {
   useProjects,
   useThreadMap,
 } from "@/core/projects/hooks";
+import { ProjectIcon } from "@/core/projects/project-icons";
 import {
   exportThreadAsJSON,
   exportThreadAsMarkdown,
@@ -170,7 +174,9 @@ export function RecentChatList() {
         {
           onSuccess: () => {
             if (threadId === threadIdFromPath) {
-              const threadIndex = threads.findIndex((x) => x.thread_id === threadId);
+              const threadIndex = threads.findIndex(
+                (x) => x.thread_id === threadId,
+              );
               let nextThreadId = "new";
               if (threadIndex > -1) {
                 if (threads[threadIndex + 1]) {
@@ -397,7 +403,10 @@ export function RecentChatList() {
                         })
                       }
                     >
-                      <span className="mr-1">{project.icon}</span>
+                      <ProjectIcon
+                        icon={project.icon}
+                        className="text-muted-foreground"
+                      />
                       <span>{project.name}</span>
                     </DropdownMenuItem>
                   ))}
@@ -465,7 +474,7 @@ export function RecentChatList() {
                     }
                     title={`打开项目工作群：${group.label}`}
                   >
-                    {group.icon && <span>{group.icon}</span>}
+                    <ProjectIcon icon={group.icon} className="size-3" />
                     <span className="truncate">{group.label}</span>
                   </button>
                 ) : (

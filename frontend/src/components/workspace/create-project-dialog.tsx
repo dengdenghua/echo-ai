@@ -34,6 +34,11 @@ import {
   useCreateProject,
 } from "@/core/projects/hooks";
 import { useI18n } from "@/core/i18n/hooks";
+import {
+  DEFAULT_PROJECT_ICON,
+  ProjectIcon,
+  type ProjectIconId,
+} from "@/core/projects/project-icons";
 import { isIMEComposing } from "@/lib/ime";
 import { cn } from "@/lib/utils";
 
@@ -49,25 +54,25 @@ export function CreateProjectDialog({
   const { t } = useI18n();
   const navigate = useNavigate();
   const CATEGORY_PRESETS = useMemo(
-    () => [
+    (): { label: string; icon: ProjectIconId; category: string }[] => [
       {
         label: t.createProjectDialog.categoryInvest,
-        icon: "📈",
+        icon: "trending-up",
         category: "investment",
       },
       {
         label: t.createProjectDialog.categoryHomework,
-        icon: "📝",
+        icon: "notebook-pen",
         category: "homework",
       },
       {
         label: t.createProjectDialog.categoryWriting,
-        icon: "✍️",
+        icon: "pen-line",
         category: "writing",
       },
       {
         label: t.createProjectDialog.categoryTravel,
-        icon: "✈️",
+        icon: "plane",
         category: "travel",
       },
     ],
@@ -75,7 +80,8 @@ export function CreateProjectDialog({
   );
   const [name, setName] = useState("");
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
-  const [selectedIcon, setSelectedIcon] = useState<string>("📁");
+  const [selectedIcon, setSelectedIcon] =
+    useState<ProjectIconId>(DEFAULT_PROJECT_ICON);
   const [selectedAgentIds, setSelectedAgentIds] = useState<string[] | null>(
     null,
   );
@@ -126,7 +132,7 @@ export function CreateProjectDialog({
   const resetForm = () => {
     setName("");
     setSelectedCategory(null);
-    setSelectedIcon("📁");
+    setSelectedIcon(DEFAULT_PROJECT_ICON);
     setSelectedAgentIds(null);
     setInvitePeopleAfterCreate(false);
     setAiBudget("");
@@ -142,7 +148,7 @@ export function CreateProjectDialog({
   const handleCategorySelect = (preset: (typeof CATEGORY_PRESETS)[number]) => {
     if (selectedCategory === preset.category) {
       setSelectedCategory(null);
-      setSelectedIcon("📁");
+      setSelectedIcon(DEFAULT_PROJECT_ICON);
     } else {
       setSelectedCategory(preset.category);
       setSelectedIcon(preset.icon);
@@ -253,7 +259,7 @@ export function CreateProjectDialog({
                   size="sm"
                   onClick={() => handleCategorySelect(preset)}
                 >
-                  <span className="mr-1">{preset.icon}</span>
+                  <ProjectIcon icon={preset.icon} />
                   {preset.label}
                 </Button>
               ))}

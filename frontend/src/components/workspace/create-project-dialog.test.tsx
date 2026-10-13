@@ -166,6 +166,26 @@ describe("CreateProjectDialog", () => {
     expect(mocks.createProject).not.toHaveBeenCalled();
   });
 
+  it("draws quick categories with line icons and stores an icon id", async () => {
+    // Regression (AI-46): quick categories were emoji (📈 📝 ✍️ ✈️) and the
+    // emoji itself was the project icon.
+    const user = userEvent.setup();
+    renderWithProviders(<CreateProjectDialog open onOpenChange={vi.fn()} />, {
+      locale: "zh-CN",
+    });
+
+    const travel = screen.getByRole("button", { name: "旅行" });
+    expect(travel.textContent).toBe("旅行");
+    expect(travel.querySelector("svg")).not.toBeNull();
+    await user.click(travel);
+    await user.click(screen.getByRole("button", { name: "创建项目" }));
+
+    expect(mocks.createProject).toHaveBeenCalledWith(
+      expect.objectContaining({ icon: "plane", category: "travel" }),
+      expect.anything(),
+    );
+  });
+
   it("creates immediately with the default AI collaborator", async () => {
     const user = userEvent.setup();
     renderWithProviders(<CreateProjectDialog open onOpenChange={vi.fn()} />, {
@@ -181,7 +201,7 @@ describe("CreateProjectDialog", () => {
     expect(mocks.createProject).toHaveBeenCalledWith(
       {
         name: "发布新版",
-        icon: "📁",
+        icon: "folder",
         category: undefined,
         initialAgents: [
           {
