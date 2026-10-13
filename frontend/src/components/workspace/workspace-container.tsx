@@ -24,7 +24,11 @@ export function WorkspaceContainer({
       )}
       style={
         titleBarHeight > 0 && !embeddedInBrowser
-          ? { height: `calc(100dvh - ${contentTopInset})` }
+          ? {
+              height: `calc(100dvh - ${contentTopInset})`,
+              // Keep page controls out of the Windows title-bar band.
+              paddingTop: "var(--window-titlebar-reserve, 0px)",
+            }
           : undefined
       }
       {...props}

@@ -1585,7 +1585,7 @@ export function AgentWorldUnified() {
         : "搜索应用与插件…";
 
   return (
-    <div className="relative flex size-full flex-col px-2 pb-2 pt-2 md:px-3">
+    <div className="relative flex size-full flex-col px-2 pb-2 pt-[calc(0.5rem+var(--window-titlebar-reserve,0px))] md:px-3">
       {!hudOnly ? (
         <div className="-mx-2 -mt-2 flex h-12 shrink-0 items-center gap-2 border-b border-border-subtle bg-background/95 px-2 md:hidden">
           <SidebarTrigger

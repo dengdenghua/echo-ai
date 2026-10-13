@@ -75,8 +75,16 @@ function StubResponseBannerHost() {
 }
 
 export default function WorkspaceLayout() {
-  const { titleBarHeight, contentTopInset, controlsSafeInset } =
-    useElectronTitleBar();
+  const {
+    titleBarHeight,
+    titleBarInset,
+    contentTopInset,
+    controlsSafeInset,
+    controlsSide,
+  } = useElectronTitleBar();
+  // Windows draws min/max/close over the top band, which is also the window's
+  // drag strip. Pages without a chat-style header reserve it with this.
+  const titleBarReserve = controlsSide === "right" ? titleBarInset : "0px";
   const navigate = useNavigate();
   const activeAgentId = useActiveAgentId() ?? "general";
   const personaThemeId = workspacePresetForAgent(activeAgentId).themeId;
@@ -144,6 +152,7 @@ export default function WorkspaceLayout() {
                     paddingTop: contentTopInset,
                     "--window-content-top-inset": contentTopInset,
                     "--window-controls-safe-inset": controlsSafeInset,
+                    "--window-titlebar-reserve": titleBarReserve,
                   } as React.CSSProperties)
                 : undefined
             }

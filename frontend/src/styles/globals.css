@@ -2005,3 +2005,21 @@
     transform: translateX(250%);
   }
 }
+
+/* Electron (frameless window): the top title-bar band is a window drag region,
+   and anything inside a drag region swallows clicks unless it opts out. Keep
+   every control clickable wherever a page places it; empty space still drags. */
+:where(
+  button,
+  a[href],
+  input,
+  textarea,
+  select,
+  summary,
+  [role="button"],
+  [role="tab"],
+  [role="menuitem"],
+  [contenteditable="true"]
+) {
+  -webkit-app-region: no-drag;
+}

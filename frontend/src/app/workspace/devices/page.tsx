@@ -99,7 +99,7 @@ export default function DevicesPage() {
     setParams(next);
   };
   return (
-    <main className="flex h-full min-h-0 flex-col overflow-auto bg-background p-4 sm:p-6">
+    <main className="flex h-full min-h-0 flex-col overflow-auto bg-background p-4 pt-[calc(1rem+var(--window-titlebar-reserve,0px))] sm:p-6 sm:pt-[calc(1.5rem+var(--window-titlebar-reserve,0px))]">
       <header className="mb-5 flex items-start justify-between gap-3">
         <div>
           <h1 className="text-xl font-semibold">设备互联</h1>
