@@ -95,8 +95,8 @@ class ApprovalRiskPolicy:
     # Optional floor for network-reaching calls (``NETWORK_RISK_CATEGORIES``),
     # applied on top of the level action. ``None`` keeps the level matrix
     # alone. ``resolve_approval_risk_policy`` sets ``"ask"`` for the "询问审批"
-    # permission mode, and an unattended auto-review loop sets it too, so every
-    # network call is reviewed whatever its level.
+    # and "自动审批" permission modes, so every network call is reviewed (by
+    # the user or the review agent) whatever its level.
     network: ApprovalRiskAction | None = None
 
     def action_for(self, risk: ApprovalRisk) -> ApprovalRiskAction:
@@ -544,6 +544,13 @@ def needs_approval_for_chain(tool_names: list[str], auto_approve: bool = False) 
     return any(assess_approval_risk(name).requires_approval for name in tool_names)
 
 
+# Permission modes that review every network-reaching call. "询问审批"
+# (``default``) promises to ask before network access; "自动审批"
+# (``acceptEdits``) keeps the same boundary and hands each crossing to the
+# review agent instead of the user.
+_NETWORK_REVIEW_MODES: frozenset[str] = frozenset({"default", "acceptEdits"})
+
+
 def resolve_approval_risk_policy(
     policy: ApprovalRiskPolicy | Mapping[str, Any] | None = None,
     *,
@@ -551,11 +558,11 @@ def resolve_approval_risk_policy(
 ) -> ApprovalRiskPolicy:
     """The risk policy a turn runs under, including its permission mode.
 
-    "询问审批" (``default``) tells the user it asks before network access, so
-    an explicit default mode floors every network-reaching call at ``ask``,
-    whatever its level. A missing mode keeps the policy as configured:
-    headless callers (cron, channels, tests) never chose that contract, and
-    realtime turns always stamp a mode.
+    An explicit "询问审批" or "自动审批" mode floors every network-reaching
+    call at ``ask``, whatever its level: the user or the review agent decides,
+    per the mode. A missing mode keeps the policy as configured: headless
+    callers (cron, channels, tests) never chose that contract, and realtime
+    turns always stamp a mode.
     """
 
     resolved = (
@@ -567,7 +574,7 @@ def resolve_approval_risk_policy(
         resolved.network is None
         and isinstance(permission_mode, str)
         and permission_mode.strip()
-        and canonical_permission_mode(permission_mode) == "default"
+        and canonical_permission_mode(permission_mode) in _NETWORK_REVIEW_MODES
     ):
         resolved = dataclasses.replace(resolved, network="ask")
     return resolved

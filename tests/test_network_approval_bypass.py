@@ -69,17 +69,20 @@ _NETWORK_TOOLS = (
 
 
 class _Human(ApprovalProvider):
-    """The person at the approval banner: one fixed answer, every request kept."""
+    """Whoever answers the approval (person or review agent); every request kept.
 
-    def __init__(self, *, approve: bool = False) -> None:
+    ``answers`` are used in order, then ``approve`` for every later request.
+    """
+
+    def __init__(self, *, approve: bool = False, answers: list[bool] | None = None) -> None:
         self.approve = approve
+        self.answers = list(answers or [])
         self.requests: list[ApprovalRequest] = []
 
     def request(self, req: ApprovalRequest, *, timeout: float = 120.0) -> ApprovalDecision:
         self.requests.append(req)
-        return ApprovalDecision(
-            approved=self.approve, reason="accept" if self.approve else "decline"
-        )
+        approved = self.answers.pop(0) if self.answers else self.approve
+        return ApprovalDecision(approved=approved, reason="accept" if approved else "decline")
 
 
 # ── classification and policy ────────────────────────────────────────────
@@ -102,9 +105,9 @@ def test_ask_mode_asks_before_every_network_tool(tool: str) -> None:
 
 @pytest.mark.parametrize(
     ("permission_mode", "expected"),
-    [("default", "ask"), ("acceptEdits", "allow"), ("bypassPermissions", "allow"), (None, "allow")],
+    [("default", "ask"), ("acceptEdits", "ask"), ("bypassPermissions", "allow"), (None, "allow")],
 )
-def test_only_the_ask_mode_floors_low_risk_network_reads(
+def test_review_modes_floor_low_risk_network_reads(
     permission_mode: str | None, expected: str
 ) -> None:
     for tool in ("web_fetch", "platform_read", "web_search"):
@@ -123,7 +126,7 @@ def test_resolver_keeps_an_explicit_network_policy() -> None:
     assert resolve_approval_risk_policy(None, permission_mode="").network is None
 
 
-def test_executor_gate_holds_network_calls_in_ask_mode() -> None:
+def test_executor_gate_holds_network_calls_in_review_modes() -> None:
     instruction = build_execution_instruction(
         instruction_id="i", tool_name="web_fetch", caller="host_tool", args={"url": "https://x.io"}
     )
@@ -133,8 +136,12 @@ def test_executor_gate_holds_network_calls_in_ask_mode() -> None:
     review = ExecutionPolicyContext.from_metadata(
         {"enforce_executor_approval": True, "permission_mode": "acceptEdits"}
     )
+    full = ExecutionPolicyContext.from_metadata(
+        {"enforce_executor_approval": True, "permission_mode": "bypassPermissions"}
+    )
     assert evaluate_execution_policy(instruction, context=ask).outcome == GovernanceOutcome.HOLD
-    assert evaluate_execution_policy(instruction, context=review).outcome == GovernanceOutcome.ALLOW
+    assert evaluate_execution_policy(instruction, context=review).outcome == GovernanceOutcome.HOLD
+    assert evaluate_execution_policy(instruction, context=full).outcome == GovernanceOutcome.ALLOW
 
 
 # ── targets and the per-turn refusal memory ──────────────────────────────
@@ -372,11 +379,11 @@ async def test_broker_runs_a_network_read_only_after_approval_in_ask_mode(tmp_pa
 
 
 @pytest.mark.asyncio
-async def test_broker_remembers_a_reviewer_refusal_without_the_floor(tmp_path) -> None:
-    """自动审批: low-risk reads still auto-run, but never to a refused host."""
+async def test_broker_sends_auto_review_network_calls_to_the_reviewer(tmp_path) -> None:
+    """自动审批: every network read is reviewed, and a refused host stays refused."""
 
     calls: list[tuple[str, str]] = []
-    reviewer = _Human(approve=False)
+    reviewer = _Human(answers=[False, True])
     broker = _broker(tmp_path, reviewer, permission_mode="acceptEdits", calls=calls)
 
     refused = await broker.invoke(
@@ -387,7 +394,9 @@ async def test_broker_remembers_a_reviewer_refusal_without_the_floor(tmp_path) -
 
     assert refused["success"] is False and same_host["success"] is False
     assert other_host["success"] is True, other_host
-    assert len(reviewer.requests) == 1
+    # The refused host was not reviewed again; the other site was reviewed
+    # (and approved) before it ran.
+    assert [req.tool_name for req in reviewer.requests] == ["fetch_url", "web_fetch"]
     assert calls == [("web_fetch", "https://example.org")]
 
 
@@ -511,7 +520,7 @@ def test_react_loop_remembers_an_automatic_review_refusal() -> None:
 
     run_react_loop(stack, _intent("acceptEdits"), None, max_iterations=6, thread_id="th-review")
 
-    # fetch_url (medium) went to the reviewer and was refused; the low-risk
-    # reads of the same host never ran and were not reviewed again.
+    # fetch_url went to the reviewer and was refused; the reads of the same
+    # host never ran and were not reviewed again.
     assert len(reviewer.requests) == 1
     assert calls == []

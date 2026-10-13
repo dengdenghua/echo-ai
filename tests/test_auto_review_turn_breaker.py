@@ -582,7 +582,9 @@ def test_loop_network_tools_go_through_automatic_review(tmp_path, pause_controll
     assert web_calls == []
 
 
-def test_interactive_turns_still_auto_run_web_reads(pause_controller) -> None:
+def test_interactive_auto_review_turns_review_web_reads(pause_controller) -> None:
+    # 自动审批 keeps the 询问审批 boundary, so a network read goes to the
+    # reviewer even in an interactive turn (resolve_approval_risk_policy).
     web_calls: list[str] = []
     reviewer = _SequenceReviewer(["deny"])
     stack = _web_stack(reviewer, _ScriptedRouter(list(_WEB_SCRIPT)), web_calls)
@@ -595,8 +597,9 @@ def test_interactive_turns_still_auto_run_web_reads(pause_controller) -> None:
 
     run_react_loop(stack, intent, None, max_iterations=4, thread_id="th-web")
 
-    assert reviewer.requests == []
-    assert web_calls == ["release notes"]
+    assert len(reviewer.requests) == 1
+    assert "web_search" in reviewer.requests[0].messages[-1].content
+    assert web_calls == []
 
 
 @pytest.mark.parametrize(
