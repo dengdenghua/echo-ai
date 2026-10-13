@@ -6910,6 +6910,10 @@ export const jaJP: Translations = {
     tabCustom: "Custom",
     addModel: "モデルを追加",
     noCustomModels: "カスタムモデルなし",
+    openCodeZenEmpty: "OpenCode Zen は未接続です。モデル未選択のときは Zen の無料モデルを使います。接続するとここでほかのモデルを選べます。",
+    openCodeGoEmpty: "OpenCode Go プランは未接続です。接続すると、プランのモデルがここに表示されます。",
+    officialEmpty: "利用できる公式モデルがありません。",
+    connectOpenCode: "OpenCode を接続",
     officialDisabled:
       "公式モデルが無効です。設定で公式モデルサービスを有効にしてください。",
     loginRequired: "ログインが必要です",

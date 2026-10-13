@@ -5990,6 +5990,10 @@ export interface Translations {
     tabCustom: string;
     addModel: string;
     noCustomModels: string;
+    openCodeZenEmpty: string;
+    openCodeGoEmpty: string;
+    officialEmpty: string;
+    connectOpenCode: string;
     officialDisabled: string;
     loginRequired: string;
     enabling: string;

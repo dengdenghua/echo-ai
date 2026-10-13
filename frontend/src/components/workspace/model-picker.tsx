@@ -507,6 +507,16 @@ function PickerRow({
   );
 }
 
+/**
+ * Official rows are named by tier ("极速"); the upstream id tells the user
+ * which model that tier is. Shown as telemetry when the two differ.
+ */
+function officialModelId(model: PickerModel): string | null {
+  if (model.entry_id !== "official") return null;
+  const id = (model.model ?? model.name ?? "").replace(/^official\//, "");
+  return id && id !== model.display_name ? id : null;
+}
+
 export interface ModelPickerProps {
   models: PickerModel[];
   value?: string | null;
@@ -752,6 +762,13 @@ export function ModelPicker({
             <span aria-hidden="true" className="text-muted-foreground">
               {m.entry_id === "opencode-go" ? "Go" : "Zen"}
             </span>
+          ) : officialModelId(m) ? (
+            <span
+              aria-hidden="true"
+              className="block max-w-32 truncate font-mono text-muted-foreground"
+            >
+              {officialModelId(m)}
+            </span>
           ) : undefined
         }
         onSelect={() => handleSelect(selectKey)}
@@ -875,7 +892,7 @@ export function ModelPicker({
               }
               if (event.key === "Enter") event.preventDefault();
             }}
-            className="min-w-0 flex-1 bg-transparent text-xs outline-none placeholder:text-muted-foreground [&::-webkit-search-cancel-button]:hidden [&::-webkit-search-decoration]:hidden"
+            className="min-w-0 flex-1 bg-transparent text-ui-caption outline-none placeholder:text-muted-foreground [&::-webkit-search-cancel-button]:hidden [&::-webkit-search-decoration]:hidden"
           />
         </div>
         {engineSource && (
@@ -986,7 +1003,30 @@ export function ModelPicker({
               )
             ) : flatEntries.length === 0 ? (
               <div className="px-2 py-4 text-center text-ui text-muted-foreground">
-                {t.modelPicker.noCustomModels}
+                {!engineSource
+                  ? t.modelPicker.noCustomModels
+                  : openCodeSource === "official"
+                    ? t.modelPicker.officialEmpty
+                    : openCodeSource === "opencode-go"
+                      ? t.modelPicker.openCodeGoEmpty
+                      : t.modelPicker.openCodeZenEmpty}
+                {engineSource && openCodeSource !== "official" && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setOpen(false);
+                      // Zen and Go connections live in Settings → Models.
+                      window.dispatchEvent(
+                        new CustomEvent("echo:open-settings", {
+                          detail: { tab: "models" },
+                        }),
+                      );
+                    }}
+                    className="mt-2 block w-full rounded-md px-2 py-1.5 text-ui text-foreground hover:bg-accent"
+                  >
+                    {t.modelPicker.connectOpenCode}
+                  </button>
+                )}
               </div>
             ) : (
               <>

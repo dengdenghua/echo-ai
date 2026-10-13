@@ -392,6 +392,63 @@ describe("<ModelPicker />", () => {
     expect(change).toHaveBeenLastCalledWith("private-route");
   });
 
+  it("names the upstream model next to an official tier label", async () => {
+    const user = userEvent.setup();
+    render(
+      withRouter(
+        <ModelPicker
+          engineSource="opencode"
+          onChange={vi.fn()}
+          models={[
+            {
+              name: "official/qwen3.5-flash",
+              model: "official/qwen3.5-flash",
+              entry_id: "official",
+              selection_id: "official/qwen3.5-flash",
+              display_name: "极速",
+            },
+          ]}
+        />,
+      ),
+    );
+    await user.click(screen.getByTestId("model-picker-trigger"));
+    await user.click(
+      screen.getByRole("button", { name: "官方模型", exact: true }),
+    );
+    const row = screen.getByRole("button", { name: "极速", exact: true });
+    expect(within(row).getByText("qwen3.5-flash")).toHaveClass("font-mono");
+  });
+
+  it.each([
+    ["Zen", "还没有连接 OpenCode Zen"],
+    ["Go", "还没有连接 OpenCode Go 套餐"],
+  ])(
+    "explains an empty OpenCode %s tab instead of calling it custom models",
+    async (tab, copy) => {
+      const user = userEvent.setup();
+      render(
+        withRouter(
+          <ModelPicker
+            engineSource="opencode"
+            onChange={vi.fn()}
+            models={[]}
+          />,
+        ),
+      );
+      await user.click(screen.getByTestId("model-picker-trigger"));
+      const menu = await screen.findByTestId("model-picker-menu");
+      await user.click(within(menu).getByRole("button", { name: tab }));
+      expect(within(menu).getByText(new RegExp(copy))).toBeInTheDocument();
+      expect(within(menu).queryByText("没有自定义模型")).toBeNull();
+      expect(
+        within(menu).getByRole("button", { name: "连接 OpenCode" }),
+      ).toBeInTheDocument();
+      expect(within(menu).getByRole("searchbox")).toHaveClass(
+        "text-ui-caption",
+      );
+    },
+  );
+
   it("shows paid OpenCode models after free models without free styling", async () => {
     const user = userEvent.setup();
     render(

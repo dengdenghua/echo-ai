@@ -6946,6 +6946,10 @@ Strategy:
     tabCustom: "Custom",
     addModel: "Add Model",
     noCustomModels: "No custom models",
+    openCodeZenEmpty: "OpenCode Zen is not connected. Without a choice, OpenCode uses a free Zen model; connect it to pick more models here.",
+    openCodeGoEmpty: "No OpenCode Go plan is connected. Connect one and its models are listed here.",
+    officialEmpty: "No official models are available.",
+    connectOpenCode: "Connect OpenCode",
     officialDisabled:
       "Official models disabled. Enable the official model service in config.",
     loginRequired: "Login required",
