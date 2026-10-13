@@ -1020,6 +1020,11 @@ def test_legacy_desktop_package_delegates_and_cannot_publish_old_shell() -> None
     assert "--win --x64 --publish never" in frontend_scripts["electron:build:win"]
     assert "electron-builder" in frontend_scripts["electron:build:win"]
     assert "opencode:prepare:win" in frontend_scripts["electron:build:win"]
+    # pnpm runs Windows scripts through cmd.exe, which reads "../x" as the
+    # command ".." with a "/x" switch. The Windows interpreter path must use
+    # backslashes or the packaging step dies before PyInstaller ever runs.
+    assert frontend_scripts["opencode:prepare:win"].startswith(r"..\.venv\Scripts\python.exe ")
+    assert scripts["opencode:prepare:win"].startswith(r"..\..\.venv\Scripts\python.exe ")
     assert frontend_scripts["codex:prepare:mac"] == ("node ../extras/desktop/prepare-codex-mac.cjs")
     assert "codex:prepare:mac" in frontend_scripts["electron:build:mac"]
     assert "opencode:prepare:mac" in frontend_scripts["electron:build:mac"]

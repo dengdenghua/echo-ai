@@ -30,7 +30,7 @@
     "codex:prepare:win": "node ../extras/desktop/prepare-codex-win.cjs",
     "codex:prepare:mac": "node ../extras/desktop/prepare-codex-mac.cjs",
     "codex:prepare:linux": "node ../extras/desktop/prepare-codex-linux.cjs",
-    "opencode:prepare:win": "../.venv/Scripts/python.exe ../extras/desktop/prepare-opencode.py --platform win32 --arch x64",
+    "opencode:prepare:win": "..\\.venv\\Scripts\\python.exe ../extras/desktop/prepare-opencode.py --platform win32 --arch x64",
     "opencode:prepare:mac": "../.venv/bin/python ../extras/desktop/prepare-opencode.py --platform darwin --arch arm64",
     "opencode:prepare:mac:x64": "../.venv/bin/python ../extras/desktop/prepare-opencode.py --platform darwin --arch x64",
     "opencode:prepare:linux": "../.venv/bin/python ../extras/desktop/prepare-opencode.py --platform linux --arch x64",

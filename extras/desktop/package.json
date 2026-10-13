@@ -10,7 +10,7 @@
     "codex:prepare:win": "node prepare-codex-win.cjs",
     "codex:prepare:mac": "node prepare-codex-mac.cjs",
     "codex:prepare:linux": "node prepare-codex-linux.cjs",
-    "opencode:prepare:win": "../../.venv/Scripts/python.exe prepare-opencode.py --platform win32 --arch x64",
+    "opencode:prepare:win": "..\\..\\.venv\\Scripts\\python.exe prepare-opencode.py --platform win32 --arch x64",
     "opencode:prepare:mac": "../../.venv/bin/python prepare-opencode.py --platform darwin --arch arm64",
     "opencode:prepare:linux": "../../.venv/bin/python prepare-opencode.py --platform linux --arch x64",
     "electron": "pnpm --dir ../../frontend electron",
