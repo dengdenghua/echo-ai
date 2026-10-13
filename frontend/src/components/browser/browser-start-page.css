@@ -6,9 +6,11 @@
   min-height: 240px;
   overflow: hidden;
   container-type: size;
-  background: #030812;
-  color: #fff;
-  font-family: Arial, "Microsoft YaHei", sans-serif;
+  /* The section carries data-echo-theme="graphite": --echo-* resolve to the
+     graphite set in either app scheme. */
+  background: var(--echo-ground);
+  color: var(--echo-ink);
+  font-family: var(--echo-font-sans);
 }
 .browser-start-wallpaper {
   position: absolute;
@@ -34,12 +36,12 @@
   gap: 2px;
   padding: 3px;
   border-radius: 12px;
-  background: #08122266;
-  backdrop-filter: blur(12px);
+  background: var(--echo-glass);
+  backdrop-filter: blur(var(--echo-blur-glass));
 }
 .browser-start-header > .browser-start-icon {
-  background: #08122266;
-  backdrop-filter: blur(12px);
+  background: var(--echo-glass);
+  backdrop-filter: blur(var(--echo-blur-glass));
 }
 .browser-start-icon {
   display: grid;
@@ -54,10 +56,10 @@
 }
 .browser-start-icon:hover,
 .browser-start-weather:hover {
-  background: #ffffff14;
+  background: var(--echo-line);
 }
 .browser-start-page button:focus-visible {
-  outline: 2px solid #fff;
+  outline: 2px solid var(--echo-focus);
   outline-offset: 3px;
 }
 .browser-start-weather {
@@ -72,7 +74,7 @@
   cursor: pointer;
 }
 .browser-start-weather svg {
-  color: #f1cf89;
+  color: var(--echo-ink-muted);
 }
 .browser-start-account {
   display: grid;
@@ -88,8 +90,8 @@
   cursor: pointer;
 }
 .browser-start-account:hover {
-  background: #ffffff14;
-  border-color: #ffffff80;
+  background: var(--echo-line);
+  border-color: var(--echo-line-strong);
 }
 /* Search box, prompt chips and frequent sites share one centred column. */
 .browser-start-main {
@@ -110,20 +112,21 @@
   align-items: center;
   width: 100%;
   height: 46px;
+  border: 1px solid var(--echo-line-strong);
   border-radius: 25px;
-  background: #fff;
-  box-shadow: 0 2px 8px #00000014;
+  background: var(--echo-surface-raised);
+  box-shadow: var(--echo-shadow-raised);
 }
 .browser-start-search-mark {
   flex: 0 0 auto;
   margin-left: 16px;
-  color: #6b5cff;
+  color: var(--echo-ink-muted);
 }
 .browser-start-search-mark + input {
   padding-left: 10px;
 }
 .browser-start-search:focus-within {
-  outline: 2px solid #67bfff;
+  outline: 2px solid var(--echo-focus);
   outline-offset: 3px;
 }
 .browser-start-search input {
@@ -134,15 +137,12 @@
   border-radius: 25px 0 0 25px;
   padding: 0 16px;
   background: transparent;
-  color: #252525;
-  font:
-    400 16px/1.4 Arial,
-    "Microsoft YaHei",
-    sans-serif;
+  color: var(--echo-ink);
+  font: 400 16px/1.4 var(--echo-font-sans);
   outline: 0;
 }
 .browser-start-search input::placeholder {
-  color: #929292;
+  color: var(--echo-ink-faint);
   opacity: 1;
 }
 .browser-start-search > button {
@@ -151,13 +151,14 @@
   align-self: stretch;
   flex: 0 0 70px;
   border-radius: 0 25px 25px 0;
-  background: #007edb;
-  color: #fff;
+  /* Primary actions are monochrome in ECHO. */
+  background: var(--echo-action);
+  color: var(--echo-on-action);
   cursor: pointer;
-  transition: background 0.15s;
+  transition: opacity var(--echo-duration-fast) var(--echo-ease);
 }
 .browser-start-search > button:hover {
-  background: #006fca;
+  opacity: 0.88;
 }
 .browser-start-suggest {
   position: absolute;
@@ -168,10 +169,11 @@
   margin: 0;
   padding: 6px;
   list-style: none;
+  border: 1px solid var(--echo-line);
   border-radius: 16px;
-  background: #fff;
-  color: #252525;
-  box-shadow: 0 12px 32px #0000002e;
+  background: var(--echo-surface-raised);
+  color: var(--echo-ink);
+  box-shadow: var(--echo-shadow-raised);
 }
 .browser-start-suggest-row {
   display: flex;
@@ -179,19 +181,19 @@
   gap: 10px;
   padding: 9px 12px;
   border-radius: 10px;
-  color: #5c6370;
+  color: var(--echo-ink-muted);
   cursor: pointer;
   font-size: 14px;
 }
 .browser-start-suggest-row[data-active="true"] {
-  background: #eef2ff;
-  color: #3b3fd8;
+  background: var(--echo-core-soft);
+  color: var(--echo-ink);
 }
 .browser-start-suggest-label {
   min-width: 0;
   flex: 1;
   overflow: hidden;
-  color: #252525;
+  color: var(--echo-ink);
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -213,10 +215,10 @@
   gap: 6px;
   max-width: 100%;
   padding: 7px 13px;
-  border: 1px solid #ffffff26;
+  border: 1px solid var(--echo-line-strong);
   border-radius: 999px;
-  background: #0a1226a6;
-  color: #e8ecff;
+  background: var(--echo-glass);
+  color: var(--echo-ink);
   cursor: pointer;
   font-size: 13px;
   backdrop-filter: blur(10px);
@@ -225,8 +227,8 @@
     border-color 0.15s;
 }
 .browser-start-prompt:hover {
-  border-color: #ffffff4d;
-  background: #16204acc;
+  border-color: var(--echo-ink-faint);
+  background: var(--echo-surface-raised);
 }
 .browser-start-prompt span {
   overflow: hidden;
@@ -251,12 +253,12 @@
   padding: 10px 4px 8px;
   border-radius: 14px;
   background: transparent;
-  color: #e8ecff;
+  color: var(--echo-ink);
   cursor: pointer;
   transition: background 0.15s;
 }
 .browser-start-site:hover {
-  background: #ffffff14;
+  background: var(--echo-line);
 }
 .browser-start-site-icon {
   position: relative;
@@ -266,7 +268,7 @@
   height: 44px;
   overflow: hidden;
   border-radius: 12px;
-  background: #0a1226b3;
+  background: var(--echo-glass);
   font-size: 17px;
   font-weight: 600;
   backdrop-filter: blur(10px);

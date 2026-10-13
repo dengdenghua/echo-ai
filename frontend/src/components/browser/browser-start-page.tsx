@@ -337,6 +337,7 @@ export function BrowserStartPage({
     <section
       aria-label="浏览器主页"
       className="browser-start-page"
+      data-echo-theme="graphite"
       style={{ display: active ? undefined : "none" }}
     >
       {image.isCosmos ? (

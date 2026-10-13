@@ -63,6 +63,15 @@ it("submits the typed query by Enter and the search button", async () => {
   expect(onSearch).toHaveBeenCalledTimes(2);
 });
 
+it("renders on the ECHO graphite field in either app scheme", () => {
+  renderWithProviders(<Home />, { locale: "zh-CN" });
+  // The stylesheet reads --echo-* tokens, so the section must pin graphite.
+  expect(screen.getByRole("region", { name: "浏览器主页" })).toHaveAttribute(
+    "data-echo-theme",
+    "graphite",
+  );
+});
+
 it("filters and opens an existing app, and retains the desktop manager entry", async () => {
   const user = userEvent.setup();
   renderWithProviders(<Home />, { locale: "zh-CN" });
