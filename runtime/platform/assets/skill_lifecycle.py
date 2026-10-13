@@ -23,7 +23,16 @@ def _download_path(name: str) -> Path:
     return target
 
 
-def _runtime_names(registry, name: str) -> list[str]:
+def _source_index(registry) -> dict[str, list[str]]:
+    """Registry names grouped by package source (``trusted_source`` before ``#``), in registry order."""
+    index: dict[str, list[str]] = {}
+    for n in registry.all_names():
+        source = str(registry.get(n).trusted_source or "").split("#", 1)[0]
+        index.setdefault(source, []).append(n)
+    return index
+
+
+def _runtime_names(registry, name: str, index: dict[str, list[str]] | None = None) -> list[str]:
     if registry is None or not registry.has(name):
         return []
     skill = registry.get(name)
@@ -31,26 +40,30 @@ def _runtime_names(registry, name: str) -> list[str]:
     source = skill.trusted_source
     if source and source.startswith("skill://all_skills/"):
         source = source.split("#", 1)[0]
-        return [
-            n
-            for n in registry.all_names()
-            if registry.get(n).trusted_source.split("#", 1)[0] == source
-        ]
+        return list((index if index is not None else _source_index(registry)).get(source, []))
     return [skill.name]
 
 
-def skill_management_states(registry) -> dict:
+def skill_management_states(registry, rows: list[dict] | None = None) -> dict:
+    """Per-skill toggle/uninstall state; pass ``rows`` to reuse a scan already made.
+
+    Runs on every HUB load over hundreds of skills, so the registry is indexed by source once
+    (instead of a full registry pass per skill) and a skill with no downloaded copy skips the
+    path-safety resolve: it cannot be uninstalled either way.
+    """
     states = {}
-    for row in scan_local_skills():
+    downloads = app_paths().data_dir / "skills"
+    index = _source_index(registry) if registry is not None else None
+    for row in scan_local_skills() if rows is None else rows:
         name = row["name"]
-        try:
-            target = _download_path(name)
-            removable = (target / "SKILL.md").is_file() and any(
-                Path(v["path"]) == target for v in row["variants"]
-            )
-        except ValueError:
-            removable = False
-        names = _runtime_names(registry, name)
+        removable = False
+        if (downloads / name / "SKILL.md").is_file():
+            try:
+                target = _download_path(name)
+                removable = any(Path(v["path"]) == target for v in row["variants"])
+            except ValueError:
+                removable = False
+        names = _runtime_names(registry, name, index)
         states[name] = {
             "enabled": all(registry.is_enabled(n) for n in names) if names else True,
             "can_toggle": bool(names),

@@ -121,3 +121,23 @@ def test_management_route_enforces_auth_and_deployment_and_updates_runtime(env, 
     monkeypatch.setenv("ECHO_DEPLOYMENT_MODE", "commercial")
     assert client.post(url, json={"action": "enable"}).status_code == 403
     assert not registry.is_enabled("creator")
+
+
+def test_states_use_one_source_index_with_the_same_answers(env):
+    """skill_management_states indexes the registry once; answers match the per-skill lookup."""
+    data, builtin, registry = env
+    for name in ("alpha", "beta", "gamma"):
+        package(builtin, name)
+    package(data / "skills", "delta")
+    register_market_skills(registry, all_skills_dir=builtin, verify_tests=False)
+    lifecycle.manage_skill("beta", "disable", registry)
+
+    index = lifecycle._source_index(registry)
+    for name in ("alpha", "beta", "gamma", "delta", "alpha-alias"):
+        assert lifecycle._runtime_names(registry, name, index) == lifecycle._runtime_names(
+            registry, name
+        )
+    states = lifecycle.skill_management_states(registry)
+    assert states["beta"] == {"enabled": False, "can_toggle": True, "can_uninstall": False}
+    assert states["alpha"] == {"enabled": True, "can_toggle": True, "can_uninstall": False}
+    assert states["delta"] == {"enabled": True, "can_toggle": False, "can_uninstall": True}

@@ -820,18 +820,23 @@ def create_agent_world_router(
                 "plugin_states": plugins.plugin_statuses(package_id=package_id),
             }
 
-        from runtime.platform.assets.skill_inventory import public_skill_inventory
+        from runtime.platform.assets.skill_inventory import (
+            public_skill_inventory,
+            scan_local_skills,
+        )
 
         cat = _cloud_catalog("skills")
         plugins = _cloud_catalog("plugins")
-        local_skills = public_skill_inventory()
+        # One scan feeds both the public list and the per-skill states.
+        rows = scan_local_skills()
+        local_skills = public_skill_inventory(rows)
         from runtime.platform.assets.skill_lifecycle import skill_management_states
         from runtime.platform.assets.skill_users import build_skill_users
 
         return {
             "skills": sorted(set(cat.installed_skills()) | {item["name"] for item in local_skills}),
             "local_skills": local_skills,
-            "skill_states": skill_management_states(skill_registry),
+            "skill_states": skill_management_states(skill_registry, rows),
             "skill_users": build_skill_users(_list_local_agents(), skill_registry),
             "plugins": plugins.installed_plugins(),
             "plugin_states": plugins.plugin_statuses(),
