@@ -94,7 +94,7 @@ export function Footer() {
         </div>
         <div className="flex items-center gap-1.5 text-xs text-white/30">
           <span>&copy; {year}</span>
-          <span className="font-semibold text-white/45">Echo · EchoOS</span>
+          <span className="font-semibold text-white/45">ECHO · AI</span>
           <span>· MIT License</span>
         </div>
       </div>

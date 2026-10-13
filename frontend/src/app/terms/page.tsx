@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 const sections = [
   {
     title: "服务范围",
-    body: "Echo 提供本地与云端协同的智能角色平台，用于对话、自动化、知识管理、团队协作和可复用技能编排。底层能力由 EchoOS 提供，具体可用范围会随账号权限、部署环境和已启用的插件而变化。",
+    body: "ECHO AI 提供本地与云端协同的智能角色平台，用于对话、自动化、知识管理、团队协作和可复用技能编排。底层能力由 ECHO OS 提供，具体可用范围会随账号权限、部署环境和已启用的插件而变化。",
   },
   {
     title: "账号与授权",
@@ -39,7 +39,7 @@ export default function TermsPage() {
 
         <article className="bg-card text-card-foreground rounded-2xl border border-border-default px-6 py-7 shadow-[var(--shadow-card)]">
           <p className="text-xs font-medium uppercase text-muted-foreground">
-            Echo · Powered by EchoOS
+            ECHO · AI
           </p>
           <h1 className="mt-2 text-2xl font-semibold">用户协议</h1>
           <p className="mt-3 text-sm leading-6 text-muted-foreground">

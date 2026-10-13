@@ -83,7 +83,7 @@ export default function DevicesPage() {
         <section className="rounded-2xl border p-6 text-sm text-muted-foreground">
           <h2 className="mb-2 font-medium text-foreground">连接第一台设备</h2>
           <p>
-            在手机 Echo 中连接当前服务；使用 Echo OS 时，可从 OS
+            在手机 Echo 中连接当前服务；使用 ECHO OS 时，可从 OS
             的设备连接面板配对。
           </p>
           <p className="mt-2">

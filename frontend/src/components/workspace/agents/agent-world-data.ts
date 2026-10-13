@@ -143,7 +143,7 @@ export function localAgentToWorldAgent(agent: Agent): AgentWorldAgent {
     name: agent.name,
     display_name: displayName,
     description: agent.description || `${displayName} Agent`,
-    author: "EchoOS",
+    author: "ECHO",
     category: toolGroups.length > 0 ? "automation" : "assistant",
     tags: toolGroups,
     icon: agent.icon || "🤖",

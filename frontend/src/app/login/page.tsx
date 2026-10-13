@@ -580,11 +580,11 @@ function LocalLoginForm({
 
 function EchoBrand() {
   return (
-    <div className="echo-login-brand" aria-label="ECHO AGE 回响纪元">
+    <div className="echo-login-brand" aria-label="ECHO AI">
       <EchoOrbGlyph className="echo-login-brand-mark" />
       <span className="echo-login-brand-copy">
-        <strong>ECHO AGE</strong>
-        <small>回响纪元</small>
+        <strong>ECHO</strong>
+        <small>AI</small>
       </span>
     </div>
   );
@@ -977,7 +977,7 @@ export default function LoginPage() {
           </Card>
 
           <p className="echo-login-footer">
-            AN AGE BEGINS · © {new Date().getFullYear()} ECHO AGE
+            AN AGE BEGINS · © {new Date().getFullYear()} ECHO
           </p>
         </section>
       </main>

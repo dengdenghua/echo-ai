@@ -151,7 +151,7 @@ export function useAgentDisplayEvents({
         replayBlocks,
         {
           title,
-          brand: "Echo · EchoOS",
+          brand: "ECHO · AI",
           footer: `${new Date().toLocaleDateString()} · ${t.realtime.replay.footer}`,
         },
         workBlockLabelsFromShape(

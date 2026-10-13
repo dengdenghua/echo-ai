@@ -2233,7 +2233,7 @@ export function CapabilityMarketPanel({
                       {compact
                         ? cap.description_zh || cap.description
                         : isFeaturedView
-                          ? `来自 ${cap.author || "EchoOS"}`
+                          ? `来自 ${cap.author || "ECHO"}`
                           : `${cap.id} · ${AUTH_LABEL[cap.auth_mode] ?? cap.auth_mode}`}
                     </CardDescription>
                     {compact && cap.author ? (

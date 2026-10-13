@@ -22,7 +22,7 @@ const sections = [
   },
   {
     title: "安全措施",
-    body: "Echo 与 EchoOS 会通过权限模式、工具确认、访问边界和运行日志降低误操作风险。你仍应避免在未确认目标的情况下输入密钥、验证码、身份证件、支付信息或其他敏感内容。",
+    body: "ECHO AI 与 ECHO OS 会通过权限模式、工具确认、访问边界和运行日志降低误操作风险。你仍应避免在未确认目标的情况下输入密钥、验证码、身份证件、支付信息或其他敏感内容。",
   },
 ];
 
@@ -39,7 +39,7 @@ export default function PrivacyPage() {
 
         <article className="bg-card text-card-foreground rounded-2xl border border-border-default px-6 py-7 shadow-[var(--shadow-card)]">
           <p className="text-xs font-medium uppercase text-muted-foreground">
-            Echo · Powered by EchoOS
+            ECHO · AI
           </p>
           <h1 className="mt-2 text-2xl font-semibold">隐私政策</h1>
           <p className="mt-3 text-sm leading-6 text-muted-foreground">

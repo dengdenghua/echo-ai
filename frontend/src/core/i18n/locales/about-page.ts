@@ -98,7 +98,7 @@ export const aboutPageEnUS: AboutPageCopy = {
     title: "Agent Skills",
     lead: "Agent Skills are loaded progressively — only what's needed, when it's needed.",
     extend:
-      "Extend EchoOS with your own skill files, or use our built-in library.",
+      "Extend ECHO with your own skill files, or use our built-in library.",
     clickToPlay: "Click to play",
     clickToPause: "Click to pause",
     playPause: "Play / Pause",
@@ -127,7 +127,7 @@ export const aboutPageEnUS: AboutPageCopy = {
   whatsNew: {
     title: "What's New in Echo",
     subtitle:
-      "Echo is evolving into a social, full-stack intelligent character platform powered by EchoOS",
+      "ECHO AI is evolving into a social, full-stack intelligent character platform powered by ECHO OS",
     features: [
       {
         label: "Context Engineering",
@@ -209,7 +209,7 @@ export const aboutPageZhCN: AboutPageCopy = {
   skills: {
     title: "智能体技能",
     lead: "技能按需逐步加载——只在需要时载入需要的部分。",
-    extend: "可以用自己的技能文件扩展 EchoOS，也可以直接使用内置技能库。",
+    extend: "可以用自己的技能文件扩展 ECHO，也可以直接使用内置技能库。",
     clickToPlay: "点击播放",
     clickToPause: "点击暂停",
     playPause: "播放 / 暂停",
@@ -237,7 +237,7 @@ export const aboutPageZhCN: AboutPageCopy = {
   },
   whatsNew: {
     title: "Echo 新功能",
-    subtitle: "Echo 正在成长为一个由 EchoOS 驱动、可社交的全栈智能角色平台",
+    subtitle: "ECHO AI 正在成长为一个由 ECHO OS 驱动、可社交的全栈智能角色平台",
     features: [
       {
         label: "上下文工程",
@@ -320,7 +320,7 @@ export const aboutPageJaJP: AboutPageCopy = {
     title: "エージェントスキル",
     lead: "スキルは段階的に読み込まれます。必要なものを、必要なときだけ。",
     extend:
-      "独自のスキルファイルで EchoOS を拡張することも、内蔵ライブラリを使うこともできます。",
+      "独自のスキルファイルで ECHO を拡張することも、内蔵ライブラリを使うこともできます。",
     clickToPlay: "クリックして再生",
     clickToPause: "クリックして一時停止",
     playPause: "再生 / 一時停止",
@@ -351,7 +351,7 @@ export const aboutPageJaJP: AboutPageCopy = {
   whatsNew: {
     title: "Echo の新機能",
     subtitle:
-      "Echo は EchoOS を基盤とした、ソーシャルでフルスタックな AI キャラクタープラットフォームへと進化しています",
+      "ECHO AI は ECHO OS を基盤とした、ソーシャルでフルスタックな AI キャラクタープラットフォームへと進化しています",
     features: [
       {
         label: "コンテキストエンジニアリング",
@@ -437,7 +437,7 @@ export const aboutPageKoKR: AboutPageCopy = {
     title: "에이전트 스킬",
     lead: "스킬은 필요한 것만, 필요할 때 단계적으로 불러옵니다.",
     extend:
-      "직접 만든 스킬 파일로 EchoOS를 확장하거나 기본 제공 라이브러리를 사용할 수 있습니다.",
+      "직접 만든 스킬 파일로 ECHO를 확장하거나 기본 제공 라이브러리를 사용할 수 있습니다.",
     clickToPlay: "클릭하여 재생",
     clickToPause: "클릭하여 일시정지",
     playPause: "재생 / 일시정지",
@@ -468,7 +468,7 @@ export const aboutPageKoKR: AboutPageCopy = {
   whatsNew: {
     title: "Echo의 새로운 기능",
     subtitle:
-      "Echo는 EchoOS 기반의 소셜 풀스택 지능형 캐릭터 플랫폼으로 진화하고 있습니다",
+      "ECHO AI는 ECHO OS 기반의 소셜 풀스택 지능형 캐릭터 플랫폼으로 진화하고 있습니다",
     features: [
       {
         label: "컨텍스트 엔지니어링",

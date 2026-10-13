@@ -190,7 +190,7 @@ export default function RegisterPage() {
               <span className="text-muted-foreground">即刻开启</span>
             </h1>
             <p className="max-w-md text-lg leading-relaxed text-muted-foreground">
-              注册一个账户，让不同角色在 EchoOS 上协作、学习与进化。
+              注册一个账户，让不同角色在 ECHO 上协作、学习与进化。
             </p>
           </div>
 
@@ -331,7 +331,7 @@ export default function RegisterPage() {
           </Card>
 
           <p className="mt-6 text-center text-xs text-muted-foreground">
-            © {new Date().getFullYear()} Echo · Powered by EchoOS
+            © {new Date().getFullYear()} ECHO · AI
           </p>
         </div>
       </div>
