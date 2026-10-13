@@ -52,10 +52,11 @@ def create_system_router(
         """Resolve full Identity for role checks. None when auth disabled."""
         if not require_auth or identity_store is None:
             return None
-        auth = request.headers.get("Authorization") or ""
-        if not auth.lower().startswith("bearer "):
+        from runtime.safety.auth.principal import request_credential
+
+        token = request_credential(request)
+        if not token:
             return None
-        token = auth[7:].strip()
         if jwt_secret and token.count(".") == 2:
             with contextlib.suppress(Exception):
                 identity = identity_store.verify_jwt(

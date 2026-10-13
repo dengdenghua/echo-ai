@@ -192,10 +192,11 @@ def create_config_router(
         when auth is disabled or no valid bearer is present."""
         if not require_auth or identity_store is None:
             return None
-        auth = request.headers.get("Authorization") or ""
-        if not auth.lower().startswith("bearer "):
+        from runtime.safety.auth.principal import request_credential
+
+        token = request_credential(request)
+        if not token:
             return None
-        token = auth[7:].strip()
         if jwt_secret and token.count(".") == 2:
             try:
                 identity = identity_store.verify_jwt(

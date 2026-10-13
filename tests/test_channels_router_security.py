@@ -142,6 +142,29 @@ def test_set_channel_assignment_allows_admin() -> None:
     assert resp.json()["agent_id"] == "legit_agent"
 
 
+def test_admin_session_cookie_passes_the_role_check() -> None:
+    """A browser after restart presents only the HttpOnly session cookie.
+
+    Regression: role checks read only ``Authorization``, so an admin whose
+    tab token was gone got 403 "admin role required" (and meta routes even
+    signed them out) although authentication itself accepted the cookie.
+    """
+    client, keys = _build_app()
+    client.cookies.set("echo_session", keys["alice"])
+    resp = client.post(
+        "/api/channels/test_channel/assistant",
+        json={"agent_id": "legit_agent"},
+    )
+    assert resp.status_code == 200
+
+    client.cookies.set("echo_session", keys["bob"])
+    resp = client.post(
+        "/api/channels/test_channel/assistant",
+        json={"agent_id": "malicious_agent"},
+    )
+    assert resp.status_code == 403
+
+
 def test_delete_channel_assignment_blocks_non_admin() -> None:
     """DELETE /api/channels/{id}/assistant requires admin."""
     client, keys = _build_app()

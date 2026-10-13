@@ -193,15 +193,16 @@ def create_meta_router(
                 headers={"X-Echo-Auth-Expired": "1"},
             )
 
-        auth_header = request.headers.get("Authorization") or ""
-        if not auth_header.lower().startswith("bearer "):
+        from runtime.safety.auth.principal import request_credential
+
+        token = request_credential(request)
+        if not token:
             raise HTTPException(
                 401,
                 "missing Authorization: Bearer <token>",
                 headers={"X-Echo-Auth-Expired": "1"},
             )
 
-        token = auth_header[7:].strip()
         identity = None
         if jwt_secret and token.count(".") == 2:
             with suppress(Exception):

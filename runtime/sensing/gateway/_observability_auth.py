@@ -201,8 +201,9 @@ def _operator_identity(request: Request, ctx: ObservabilityContext) -> tuple[str
     if not ctx.require_auth:
         return str(actor or "local_operator"), None
 
-    auth = request.headers.get("Authorization") or ""
-    token = auth[7:].strip() if auth.lower().startswith("bearer ") else ""
+    from runtime.safety.auth.principal import request_credential
+
+    token = request_credential(request)
     identity = None
     if ctx.identity_store is not None and token:
         if ctx.jwt_secret and token.count(".") == 2:
