@@ -247,18 +247,18 @@ function EnabledStreamingDebugger({
                           {event.name}
                         </span>
                         {event.agentName && (
-                          <span className="shrink-0 rounded bg-primary/10 px-1.5 py-0.5 text-[10px] text-primary">
+                          <span className="shrink-0 rounded bg-primary/10 px-1.5 py-0.5 text-xs text-primary">
                             {event.agentName}
                           </span>
                         )}
                       </div>
-                      <span className="block truncate text-[10px] text-muted-foreground">
+                      <span className="block truncate text-xs text-muted-foreground">
                         {event.id}
                       </span>
                     </div>
                     <span
                       className={cn(
-                        "shrink-0 rounded-full px-2 py-0.5 text-[10px] font-medium",
+                        "shrink-0 rounded-full px-2 py-0.5 text-xs font-medium",
                         event.status === "running" && "bg-core/10 text-core",
                         event.status === "done" && "bg-core/10 text-core",
                         event.status === "error" && "bg-breach/10 text-breach",
@@ -268,7 +268,7 @@ function EnabledStreamingDebugger({
                     >
                       {event.status}
                     </span>
-                    <span className="shrink-0 text-[10px] text-muted-foreground">
+                    <span className="shrink-0 text-xs text-muted-foreground">
                       {new Date(event.startedAt).toLocaleTimeString()}
                     </span>
                   </button>

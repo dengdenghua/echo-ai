@@ -374,7 +374,7 @@ export function ComfyWorkflowEditor({
             setName(event.target.value);
             setState("ready");
           }}
-          className="h-7 w-56 border-white/10 bg-white/5 text-[11px] text-white"
+          className="h-7 w-56 border-white/10 bg-white/5 text-xs text-white"
         />
         <span className="ml-2 rounded bg-white/5 px-2 py-1 text-micro text-zinc-400">
           {Object.keys(workflow).length} 节点 · {edges.length} 连线 · r
@@ -404,7 +404,7 @@ export function ComfyWorkflowEditor({
         {runState ? (
           <span className="mr-2 text-micro text-zinc-400">{runState}</span>
         ) : null}
-        <label className="mr-1 flex h-8 items-center gap-1.5 rounded-md px-2 text-[10px] text-zinc-300 hover:bg-white/5">
+        <label className="mr-1 flex h-8 items-center gap-1.5 rounded-md px-2 text-xs text-zinc-300 hover:bg-white/5">
           <PlusIcon className="size-3.5" />
           <select
             aria-label="添加 ComfyUI 节点"
@@ -425,7 +425,7 @@ export function ComfyWorkflowEditor({
         <Button
           variant="ghost"
           size="sm"
-          className="h-8 gap-1.5 text-[10px] text-zinc-300"
+          className="h-8 gap-1.5 text-xs text-zinc-300"
           onClick={() => void save()}
           disabled={state === "loading" || state === "saving"}
         >
@@ -438,7 +438,7 @@ export function ComfyWorkflowEditor({
         </Button>
         <Button
           size="sm"
-          className="h-8 gap-1.5 bg-violet-500 text-[10px] hover:bg-violet-400"
+          className="h-8 gap-1.5 bg-violet-500 text-xs hover:bg-violet-400"
           onClick={() => void run()}
           disabled={!Object.keys(workflow).length}
         >
@@ -447,7 +447,7 @@ export function ComfyWorkflowEditor({
         <Button
           variant="ghost"
           size="sm"
-          className="h-8 gap-1.5 text-[10px] text-zinc-300"
+          className="h-8 gap-1.5 text-xs text-zinc-300"
           onClick={onOpenNative}
         >
           <ExternalLinkIcon className="size-3.5" /> 原生界面
@@ -506,7 +506,7 @@ export function ComfyWorkflowEditor({
                   onClick={() => setSelectedId(id)}
                 >
                   <div
-                    className="flex h-8 cursor-grab items-center px-2.5 text-[10px] font-semibold active:cursor-grabbing"
+                    className="flex h-8 cursor-grab items-center px-2.5 text-xs font-semibold active:cursor-grabbing"
                     style={{
                       backgroundColor: `${nodeAccent(node.class_type)}cc`,
                     }}
@@ -584,7 +584,7 @@ export function ComfyWorkflowEditor({
                           onChange={(event) =>
                             patchInput(key, [event.target.value, value[1]])
                           }
-                          className="h-8 min-w-0 flex-1 rounded-md border border-white/10 bg-white/5 px-2 text-[10px] outline-none"
+                          className="h-8 min-w-0 flex-1 rounded-md border border-white/10 bg-white/5 px-2 text-xs outline-none"
                         >
                           {Object.keys(workflow)
                             .filter((id) => id !== selectedId)
@@ -622,7 +622,7 @@ export function ComfyWorkflowEditor({
                                 : event.target.value,
                             )
                           }
-                          className="h-8 border-white/10 bg-white/5 text-[10px] text-white"
+                          className="h-8 border-white/10 bg-white/5 text-xs text-white"
                         />
                         {Object.keys(workflow).length > 1 ? (
                           <select
@@ -632,7 +632,7 @@ export function ComfyWorkflowEditor({
                               if (event.target.value)
                                 patchInput(key, [event.target.value, 0]);
                             }}
-                            className="size-8 rounded-md border border-white/10 bg-white/5 text-[10px]"
+                            className="size-8 rounded-md border border-white/10 bg-white/5 text-xs"
                           >
                             <option value="">↗</option>
                             {Object.keys(workflow)
@@ -656,7 +656,7 @@ export function ComfyWorkflowEditor({
               </div>
             </>
           ) : (
-            <div className="grid h-40 place-items-center text-center text-[10px] text-zinc-500">
+            <div className="grid h-40 place-items-center text-center text-xs text-zinc-500">
               选择节点查看和编辑参数
             </div>
           )}

@@ -211,7 +211,7 @@ export function ExecutionEngineBadge({ engine }: { engine: unknown }) {
     engine === "opencode" ? "OpenCode" : engine === "codex" ? "Codex" : "Echo";
   return (
     <span
-      className="mb-1 inline-block rounded border border-border/60 px-1.5 text-[10px] leading-4 text-muted-foreground"
+      className="mb-1 inline-block rounded border border-border/60 px-1.5 text-xs leading-4 text-muted-foreground"
       title={executionEngineCopy(locale).executedBy(name)}
       data-execution-engine={engine}
     >

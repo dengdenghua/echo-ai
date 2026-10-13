@@ -38,7 +38,7 @@ export function MarketCard({
         />
         <div className="pointer-events-none absolute inset-x-0 top-0 h-16 bg-gradient-to-b from-black/35 to-transparent" />
         {category && (
-          <span className="absolute left-2.5 top-2.5 inline-flex items-center gap-1.5 rounded-full border border-white/20 bg-black/40 px-2 py-1 text-[11px] font-medium text-white shadow-sm backdrop-blur-md">
+          <span className="absolute left-2.5 top-2.5 inline-flex items-center gap-1.5 rounded-full border border-white/20 bg-black/40 px-2 py-1 text-xs font-medium text-white shadow-sm backdrop-blur-md">
             <span
               className="size-1.5 rounded-full"
               style={{ backgroundColor: category.color }}
@@ -46,7 +46,7 @@ export function MarketCard({
             {category.label}
           </span>
         )}
-        <span className="absolute bottom-2 left-2.5 inline-flex max-w-[calc(100%-1.25rem)] items-center gap-1 rounded-full bg-black/45 px-2 py-1 text-[10px] text-white/90 backdrop-blur-sm sm:hidden">
+        <span className="absolute bottom-2 left-2.5 inline-flex max-w-[calc(100%-1.25rem)] items-center gap-1 rounded-full bg-black/45 px-2 py-1 text-xs text-white/90 backdrop-blur-sm sm:hidden">
           <span
             className="flex size-3.5 shrink-0 items-center justify-center rounded-full text-micro font-bold text-white"
             style={{ backgroundColor: item.sellerColor }}
@@ -79,9 +79,7 @@ export function MarketCard({
             <span className="text-lg font-bold tracking-tight tabular-nums text-foreground sm:text-xl">
               {item.price}
             </span>
-            <span className="text-[11px] font-medium text-foreground/60">
-              积分
-            </span>
+            <span className="text-xs font-medium text-foreground/60">积分</span>
           </div>
           <button
             type="button"
@@ -106,7 +104,7 @@ export function MarketCard({
             )}
           </button>
         </div>
-        <div className="mt-3 hidden items-center gap-1.5 border-t border-border-subtle pt-2.5 text-[11px] text-muted-foreground sm:flex">
+        <div className="mt-3 hidden items-center gap-1.5 border-t border-border-subtle pt-2.5 text-xs text-muted-foreground sm:flex">
           <span
             className="flex size-3.5 items-center justify-center rounded-full text-micro font-bold text-white"
             style={{ backgroundColor: item.sellerColor }}

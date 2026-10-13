@@ -212,7 +212,7 @@ function ArtifactInlinePreviewCard({
         <span className="min-w-0 flex-1 truncate text-xs font-medium">
           {getFileName(displayPath)}
         </span>
-        <span className="shrink-0 text-[10px] text-muted-foreground uppercase">
+        <span className="shrink-0 text-xs text-muted-foreground uppercase">
           {officeKind ?? language}
         </span>
         <Button

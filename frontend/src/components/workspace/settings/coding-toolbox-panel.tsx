@@ -131,10 +131,10 @@ export function CodingToolboxPanel({ onOpen, compact = false }: CodingToolboxPan
             >
               <div className="flex items-center justify-between gap-2">
                 <Icon className={cn("size-4", item.tone)} aria-hidden="true" />
-                <span className="text-[10px] text-muted-foreground">{item.status}</span>
+                <span className="text-xs text-muted-foreground">{item.status}</span>
               </div>
               <div className="mt-2 text-sm font-medium">{item.label}</div>
-              <div className="mt-1 text-[11px] leading-4 text-muted-foreground">
+              <div className="mt-1 text-xs leading-4 text-muted-foreground">
                 {item.detail}
               </div>
             </button>

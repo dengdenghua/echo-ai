@@ -204,7 +204,7 @@ export function AutomationControlDock({
           <div className="truncate text-xs font-medium text-foreground">
             {target.title}
           </div>
-          <div className="flex min-w-0 items-center gap-1.5 text-[11px] text-muted-foreground">
+          <div className="flex min-w-0 items-center gap-1.5 text-xs text-muted-foreground">
             <span>{connectionLabel}</span>
             <span aria-hidden="true">·</span>
             <span>{stateLabel}</span>
@@ -299,7 +299,7 @@ export function AutomationControlDock({
               {timeline.map((item) => (
                 <div
                   key={item.cursor || item.id}
-                  className="flex items-start gap-2 text-[11px] text-muted-foreground"
+                  className="flex items-start gap-2 text-xs text-muted-foreground"
                 >
                   <span className="w-10 shrink-0 tabular-nums">
                     {timeLabel(item.at)}
@@ -318,7 +318,7 @@ export function AutomationControlDock({
               ))}
             </div>
           ) : (
-            <div className="text-[11px] text-muted-foreground">
+            <div className="text-xs text-muted-foreground">
               {t.chatInputBox.automationNoEvidence}
             </div>
           )}

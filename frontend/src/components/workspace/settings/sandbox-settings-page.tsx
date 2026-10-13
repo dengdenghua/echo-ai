@@ -353,7 +353,7 @@ export default function SandboxSettingsPage() {
                 {PRESET_EGRESS_DOMAINS.map((domain) => (
                   <span
                     key={domain}
-                    className="rounded bg-muted/40 px-1.5 py-0.5 font-mono text-[11px] text-muted-foreground"
+                    className="rounded bg-muted/40 px-1.5 py-0.5 font-mono text-xs text-muted-foreground"
                   >
                     {domain}
                   </span>

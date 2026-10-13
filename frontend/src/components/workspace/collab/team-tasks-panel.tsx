@@ -244,7 +244,7 @@ export function TeamTasksPanel({
               <span>{t.agentWorkbenchPages.reference.plans}</span>
               {(team?.members.length ?? 0) > 1 ? (
                 <span
-                  className="inline-flex items-center gap-1 rounded-full border border-success/25 bg-success/10 px-1.5 py-0.5 text-[10px] font-medium text-success"
+                  className="inline-flex items-center gap-1 rounded-full border border-success/25 bg-success/10 px-1.5 py-0.5 text-xs font-medium text-success"
                   title="群主会根据实际结果动态调整成员分工、执行顺序与复核方式"
                   data-testid="adaptive-orchestration-badge"
                 >

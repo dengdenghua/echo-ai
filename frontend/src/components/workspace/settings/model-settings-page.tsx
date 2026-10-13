@@ -3393,7 +3393,7 @@ function EditModelForm({
               </div>
               {visionLocked && (
                 <span
-                  className="text-[11px] leading-tight text-muted-foreground"
+                  className="text-xs leading-tight text-muted-foreground"
                   role="status"
                 >
                   {t.settings.model.visionNotSupported}
@@ -3999,7 +3999,7 @@ function AddModelForm({
               </div>
               {visionLocked && (
                 <span
-                  className="text-[11px] leading-tight text-muted-foreground"
+                  className="text-xs leading-tight text-muted-foreground"
                   role="status"
                 >
                   {t.settings.model.visionNotSupported}

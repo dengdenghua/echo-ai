@@ -539,7 +539,7 @@ export function ProjectOsTab({
               <Badge
                 variant="outline"
                 className={cn(
-                  "h-5 shrink-0 px-1.5 text-[10px]",
+                  "h-5 shrink-0 px-1.5 text-xs",
                   STATUS_TONE[project.status],
                 )}
               >
@@ -547,7 +547,7 @@ export function ProjectOsTab({
               </Badge>
             </div>
             {projectGoal && projectGoal !== projectName ? (
-              <p className="mt-1 line-clamp-2 text-[11px] leading-relaxed text-muted-foreground">
+              <p className="mt-1 line-clamp-2 text-xs leading-relaxed text-muted-foreground">
                 {projectGoal}
               </p>
             ) : null}
@@ -555,7 +555,7 @@ export function ProjectOsTab({
         </div>
         <div
           className={cn(
-            "flex items-center gap-2 text-[10px] text-muted-foreground",
+            "flex items-center gap-2 text-xs text-muted-foreground",
             titleRepeatsConversation ? "mt-1.5" : "mt-2.5",
           )}
         >
@@ -602,7 +602,7 @@ export function ProjectOsTab({
                 data-testid={`project-workbench-tab-${id}`}
                 onClick={() => setActiveTab(id)}
                 className={cn(
-                  "relative flex h-10 min-w-[3.35rem] flex-1 items-center justify-center gap-1 px-1.5 text-[11px] font-medium transition-colors focus-visible:z-10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring",
+                  "relative flex h-10 min-w-[3.35rem] flex-1 items-center justify-center gap-1 px-1.5 text-xs font-medium transition-colors focus-visible:z-10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring",
                   selected
                     ? "text-primary"
                     : "text-muted-foreground hover:bg-muted/45 hover:text-foreground",

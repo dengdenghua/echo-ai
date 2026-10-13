@@ -253,7 +253,7 @@ export function GroupMemberAvatarStack({
             <button
               key={`${member.name}-${idx}`}
               type="button"
-              className="relative inline-flex size-5 shrink-0 items-center justify-center overflow-hidden rounded-full border border-background bg-muted text-[10px] font-semibold text-muted-foreground transition-transform hover:z-10 hover:scale-125 hover:border-primary/60 focus:outline-none focus:ring-1 focus:ring-primary"
+              className="relative inline-flex size-5 shrink-0 items-center justify-center overflow-hidden rounded-full border border-background bg-muted text-xs font-semibold text-muted-foreground transition-transform hover:z-10 hover:scale-125 hover:border-primary/60 focus:outline-none focus:ring-1 focus:ring-primary"
               title={member.kind === "human" ? `提及 ${name}` : `${name} · 点击查看并行进程，右键 @ 成员`}
               aria-label={member.kind === "human" ? `提及 ${name}` : `查看 ${name} 并行进程（右键 @ 提及）`}
               onClick={(e) => {
@@ -308,7 +308,7 @@ export function GroupMemberAvatarStack({
               </button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="start" className="w-52 p-1 text-xs">
-              <div className="px-2 py-1 text-[10px] font-medium text-muted-foreground">
+              <div className="px-2 py-1 text-xs font-medium text-muted-foreground">
                 更多群成员（左键查看进程，右键 @ 提及）
               </div>
               {overflowMembers.map((member, idx) => {
@@ -351,7 +351,7 @@ export function GroupMemberAvatarStack({
                     }}
                   >
                     <span className="truncate font-medium">{name}</span>
-                    <span className="text-[10px] text-muted-foreground">{member.kind === "human" ? "提及成员" : "查看进程"}</span>
+                    <span className="text-xs text-muted-foreground">{member.kind === "human" ? "提及成员" : "查看进程"}</span>
                   </DropdownMenuItem>
                 );
               })}

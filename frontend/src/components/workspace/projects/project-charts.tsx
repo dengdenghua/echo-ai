@@ -193,7 +193,7 @@ export function ProjectProgressBars({
                   />
                   <span className="truncate font-medium">{row.name}</span>
                   {row.overdue > 0 && (
-                    <span className="shrink-0 rounded bg-warning/15 px-1 py-px text-[10px] tabular-nums text-warning">
+                    <span className="shrink-0 rounded bg-warning/15 px-1 py-px text-xs tabular-nums text-warning">
                       逾期 {row.overdue}
                     </span>
                   )}
@@ -216,7 +216,7 @@ export function ProjectProgressBars({
                     style={{ width: `${value}%` }}
                   />
                 </div>
-                <span className="w-16 shrink-0 text-right text-[10px] tabular-nums text-muted-foreground">
+                <span className="w-16 shrink-0 text-right text-xs tabular-nums text-muted-foreground">
                   {row.doneTasks}/{row.totalTasks} 任务
                 </span>
               </div>
@@ -274,7 +274,7 @@ export function EstimateStack({
                 title={`剩余估时 ${row.remainingEstimate}d`}
               />
             </div>
-            <div className="flex items-center justify-between text-[10px] text-muted-foreground">
+            <div className="flex items-center justify-between text-xs text-muted-foreground">
               <span>共 {row.totalEstimate}d</span>
               <span className="tabular-nums">{pct(row.progress)}%</span>
             </div>

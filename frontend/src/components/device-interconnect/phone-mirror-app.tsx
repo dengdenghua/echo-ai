@@ -534,7 +534,7 @@ export function PhoneMirrorApp({ deviceId, deviceName, onClose }: Props) {
               {error}
             </p>
           )}
-          <p className="text-[11px] text-slate-400">
+          <p className="text-xs text-slate-400">
             点击操作 · 拖动画面滑动 · 画面随手机方向变化
           </p>
         </section>
@@ -564,7 +564,7 @@ export function PhoneMirrorApp({ deviceId, deviceName, onClose }: Props) {
             >
               <FileUp size={24} />
               <span>选择文件或拖到这里</span>
-              <span className="text-[10px] text-slate-400">
+              <span className="text-xs text-slate-400">
                 单文件最大 100 MiB · 校验后完成
               </span>
               <input
@@ -613,7 +613,7 @@ export function PhoneMirrorApp({ deviceId, deviceName, onClose }: Props) {
                   <p className="truncate text-xs" title={file.name}>
                     {file.name}
                   </p>
-                  <p className="mt-1 text-[10px] text-slate-400">
+                  <p className="mt-1 text-xs text-slate-400">
                     {sizeLabel(file.size)}
                   </p>
                 </div>

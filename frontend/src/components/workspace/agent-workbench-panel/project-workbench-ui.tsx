@@ -24,9 +24,7 @@ export function SectionTitle({
         {title}
       </h4>
       {meta ? (
-        <span className="shrink-0 text-[10px] text-muted-foreground">
-          {meta}
-        </span>
+        <span className="shrink-0 text-xs text-muted-foreground">{meta}</span>
       ) : null}
     </div>
   );
@@ -87,7 +85,7 @@ export function MetricCard({
         {icon}
       </span>
       <span className="min-w-0">
-        <span className="block truncate text-[10px] text-muted-foreground">
+        <span className="block truncate text-xs text-muted-foreground">
           {label}
         </span>
         <span className="mt-0.5 block truncate text-sm font-semibold">

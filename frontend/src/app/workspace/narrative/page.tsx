@@ -130,7 +130,7 @@ function CandidateBadge({ compact = false }: { compact?: boolean }) {
     <span
       className={cn(
         "inline-flex items-center gap-1 rounded-full border border-amber-400/20 bg-amber-400/8 font-medium text-amber-700 dark:text-amber-300",
-        compact ? "px-2 py-0.5 text-[10px]" : "px-2.5 py-1 text-xs",
+        compact ? "px-2 py-0.5 text-xs" : "px-2.5 py-1 text-xs",
       )}
     >
       <CircleDotIcon className={compact ? "size-2.5" : "size-3"} />
@@ -1098,7 +1098,7 @@ export default function NarrativePage() {
                 ) : (
                   volumes.map((volume) => (
                     <div key={volume.id} className="mb-3">
-                      <div className="px-2 py-1.5 text-[11px] font-medium uppercase tracking-[0.14em] text-muted-foreground">
+                      <div className="px-2 py-1.5 text-xs font-medium text-muted-foreground">
                         {volume.title}
                       </div>
                       <div className="space-y-1">
@@ -1588,7 +1588,7 @@ export default function NarrativePage() {
         />
       ) : null}
 
-      <div className="pointer-events-none fixed bottom-3 left-1/2 z-30 hidden -translate-x-1/2 items-center gap-2 rounded-full border border-border/70 bg-background/85 px-3 py-1.5 text-[11px] text-muted-foreground shadow-lg backdrop-blur md:flex">
+      <div className="pointer-events-none fixed bottom-3 left-1/2 z-30 hidden -translate-x-1/2 items-center gap-2 rounded-full border border-border/70 bg-background/85 px-3 py-1.5 text-xs text-muted-foreground shadow-lg backdrop-blur md:flex">
         <span
           className={cn(
             "size-1.5 rounded-full",

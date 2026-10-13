@@ -125,7 +125,7 @@ function PublicShareView({ share }: { share: PublicThreadShare }) {
           <div className="flex min-w-0 items-center">
             <EchoLockup product="AI" wordmarkClassName="h-5" />
           </div>
-          <span className="shrink-0 rounded-full border border-border-default bg-muted/50 px-2.5 py-1 text-[11px] font-medium text-muted-foreground">
+          <span className="shrink-0 rounded-full border border-border-default bg-muted/50 px-2.5 py-1 text-xs font-medium text-muted-foreground">
             公开分享 · 只读
           </span>
         </div>

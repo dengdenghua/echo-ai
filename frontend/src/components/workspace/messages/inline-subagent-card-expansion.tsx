@@ -112,7 +112,7 @@ export function InlineSubagentCardExpansion({
       {/* 顶部第一视角身份徽章与状态 */}
       <div className="mb-2 flex items-center justify-between gap-2 border-b border-border/40 pb-1.5">
         <div className="flex min-w-0 items-center gap-1.5 font-medium text-foreground/80">
-          <span className="shrink-0 rounded bg-primary/10 px-1.5 py-0.5 text-[10px] font-semibold text-primary">
+          <span className="shrink-0 rounded bg-primary/10 px-1.5 py-0.5 text-xs font-semibold text-primary">
             我的第一视角 · 并列协作者
           </span>
           <span className="text-muted-foreground">|</span>
@@ -120,7 +120,7 @@ export function InlineSubagentCardExpansion({
             {agent.name || "并列协作者"}
           </span>
         </div>
-        <div className="flex shrink-0 items-center gap-2 text-[10px] text-muted-foreground/80">
+        <div className="flex shrink-0 items-center gap-2 text-xs text-muted-foreground/80">
           {agent.filesTouchedCount > 0 && (
             <span>修改了 {agent.filesTouchedCount} 个文件</span>
           )}
@@ -133,7 +133,7 @@ export function InlineSubagentCardExpansion({
       {/* 任务描述与阶段成果 */}
       <div className="space-y-1.5 leading-relaxed">
         {agent.task && (
-          <div className="rounded bg-muted/40 px-2 py-1 text-[11px] text-foreground/80">
+          <div className="rounded bg-muted/40 px-2 py-1 text-xs text-foreground/80">
             <span className="font-medium text-foreground/90">任务目标：</span>
             {agent.task}
           </div>

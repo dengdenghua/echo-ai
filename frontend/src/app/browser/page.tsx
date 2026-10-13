@@ -696,10 +696,10 @@ function BrowserShell() {
                   <span className="grid size-6 place-items-center rounded-md bg-emerald-500/10 text-emerald-600">
                     <ServerIcon className="size-3.5" />
                   </span>
-                  <span className="text-[11px] font-semibold">
+                  <span className="text-xs font-semibold">
                     {t.browserPreviewPanel.localPreviewMode}
                   </span>
-                  <span className="flex items-center gap-1 text-[10px] text-muted-foreground">
+                  <span className="flex items-center gap-1 text-xs text-muted-foreground">
                     <span className="size-1.5 rounded-full bg-core" />
                     {t.browserPreviewPanel.localPreviewRunning(previewPort)}
                   </span>
@@ -717,7 +717,7 @@ function BrowserShell() {
                         type="button"
                         onClick={() => patchTab(activeTab.id, { device })}
                         className={cn(
-                          "flex h-7 items-center gap-1.5 rounded-md px-2 text-[10px] text-muted-foreground transition-colors hover:text-foreground",
+                          "flex h-7 items-center gap-1.5 rounded-md px-2 text-xs text-muted-foreground transition-colors hover:text-foreground",
                           activeDevice === device &&
                             "bg-foreground text-background shadow-sm hover:text-background",
                         )}

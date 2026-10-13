@@ -71,7 +71,7 @@ export function ProjectTimeline({
 
   return (
     <div className="space-y-3">
-      <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-muted-foreground">
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
         {LEGEND.map((item) => (
           <span key={item.health} className="inline-flex items-center gap-1">
             <span
@@ -90,7 +90,7 @@ export function ProjectTimeline({
         <div className="min-w-[22rem] overflow-hidden rounded-lg border">
           {/* 刻度表头 */}
           <div className="flex border-b bg-muted/30">
-            <div className="w-24 shrink-0 border-r px-2 py-1.5 text-[11px] text-muted-foreground sm:w-36 md:w-44">
+            <div className="w-24 shrink-0 border-r px-2 py-1.5 text-xs text-muted-foreground sm:w-36 md:w-44">
               里程碑
             </div>
             <div className="relative h-7 flex-1">
@@ -127,7 +127,7 @@ export function ProjectTimeline({
                     className={`size-2 shrink-0 rounded-full ${HEALTH_DOT[bar.health]}`}
                   />
                   <span
-                    className="truncate text-[11px] font-medium"
+                    className="truncate text-xs font-medium"
                     title={bar.name}
                   >
                     {bar.name}
@@ -181,7 +181,7 @@ export function ProjectTimeline({
 
       {layout.unscheduled.length > 0 && (
         <div className="rounded-lg border border-dashed px-3 py-2.5">
-          <div className="mb-1.5 flex items-center gap-1.5 text-[11px] font-medium text-muted-foreground">
+          <div className="mb-1.5 flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
             <CalendarRangeIcon className="size-3" />
             未排期 · {layout.unscheduled.length}
           </div>
@@ -190,7 +190,7 @@ export function ProjectTimeline({
               <Badge
                 key={item.id}
                 variant="outline"
-                className="gap-1 text-[10px] font-normal"
+                className="gap-1 text-xs font-normal"
               >
                 <span
                   className={`size-1.5 rounded-full ${HEALTH_DOT[item.health]}`}
@@ -205,7 +205,7 @@ export function ProjectTimeline({
         </div>
       )}
 
-      <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-muted-foreground">
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
         <span>
           跨度 {Math.max(1, Math.round(layout.spanMs / (24 * 60 * 60 * 1000)))} 天
         </span>

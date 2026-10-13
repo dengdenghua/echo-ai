@@ -291,4 +291,26 @@ describe("type size floor", () => {
     scanDir(srcDir);
     expect(hits).toEqual([]);
   }, 120_000);
+
+  // 396 hard-coded 10/11px sizes became `text-xs` (12px) on 2026-10-13.
+  // The ones left are numerals in tiny count badges, kbd hints, zoom/angle
+  // readouts and mono telemetry. Anything that can hold Chinese or prose
+  // uses text-xs or larger; this ratchet only goes down.
+  const BASELINE_10_11PX = 27;
+  it("keeps 10–11px text to numerals, kbd hints and mono telemetry", () => {
+    const srcDir = join(root, "src");
+    const re = /\btext-\[(?:10|11)(?:\.\d+)?px\]/g;
+    let total = 0;
+    function scanDir(dir: string) {
+      for (const entry of readdirSync(dir, { withFileTypes: true })) {
+        const full = join(dir, entry.name);
+        if (entry.isDirectory()) scanDir(full);
+        else if (/\.tsx?$/.test(entry.name) && !/\.test\./.test(entry.name)) {
+          total += (readFileSync(full, "utf8").match(re) ?? []).length;
+        }
+      }
+    }
+    scanDir(srcDir);
+    expect(total).toBeLessThanOrEqual(BASELINE_10_11PX);
+  }, 120_000);
 });

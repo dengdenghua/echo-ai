@@ -106,7 +106,7 @@ export function EvolutionGovernancePanel() {
               role="alert"
               className="mt-3 flex flex-wrap items-center justify-between gap-2 rounded-lg border border-destructive/25 bg-destructive/5 px-3 py-2"
             >
-              <span className="text-[11px] text-destructive">
+              <span className="text-xs text-destructive">
                 保护状态暂时无法加载；现有设置没有改变。
               </span>
               <Button
@@ -123,7 +123,7 @@ export function EvolutionGovernancePanel() {
               </Button>
             </div>
           ) : (
-            <div className="mt-3 rounded-lg bg-muted/45 px-3 py-2 text-[11px] text-muted-foreground">
+            <div className="mt-3 rounded-lg bg-muted/45 px-3 py-2 text-xs text-muted-foreground">
               {shadow.data?.enabled
                 ? shadow.data.automatic_enabled
                   ? "已授权手动复核；风险采样已开启，但普通任务不会双跑。"
@@ -134,7 +134,7 @@ export function EvolutionGovernancePanel() {
             </div>
           )}
           {setShadow.error ? (
-            <p role="alert" className="mt-2 text-[11px] text-destructive">
+            <p role="alert" className="mt-2 text-xs text-destructive">
               保护设置未保存，请稍后重试。
             </p>
           ) : null}

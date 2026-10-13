@@ -316,6 +316,12 @@
      stay so existing call sites keep compiling; they are registered with
      tailwind-merge in ``lib/utils.ts``. No line-height is paired on
      purpose: leading keeps inheriting from the surrounding text. */
+  /* text-xs is 0.75rem in Tailwind: 11.25px at the default 15px root and
+     9.4px under the ultradense density. Lift it to the same floor (0.8rem
+     is 12px at 15px); line height keeps Tailwind's 1/0.75 ratio. Sub-12px
+     text stays only for numerals in tiny badges, kbd hints and mono
+     telemetry (ratchet in styles/theme-a11y-contract.test.ts). */
+  --text-xs: max(12px, 0.8rem);
   --text-micro: 12px;
   --text-mini: 12px;
   /* Dialog descriptions / compact buttons: a hair above the floor. */

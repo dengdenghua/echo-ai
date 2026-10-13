@@ -33,7 +33,7 @@ export function StoreInstallButton({ url }: { url: string | undefined }) {
       disabled={installing}
       onClick={() => void install()}
       title={`从${EXTENSION_STORE_NAME[page.store]}安装这个扩展`}
-      className="flex h-6 shrink-0 items-center gap-1 rounded-full bg-primary/10 px-2 text-[11px] font-medium text-primary transition-colors hover:bg-primary/15 disabled:opacity-60"
+      className="flex h-6 shrink-0 items-center gap-1 rounded-full bg-primary/10 px-2 text-xs font-medium text-primary transition-colors hover:bg-primary/15 disabled:opacity-60"
     >
       {installing ? (
         <Loader2Icon className="size-3 animate-spin" />

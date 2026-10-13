@@ -270,15 +270,15 @@ export function TaskDeliveryReview({
                 本轮交付
               </span>
               {isDocOnly ? (
-                <span className="rounded-md border border-border-default/60 bg-muted/70 px-1.5 py-0.5 font-mono text-[11px] font-medium text-muted-foreground">
+                <span className="rounded-md border border-border-default/60 bg-muted/70 px-1.5 py-0.5 font-mono text-xs font-medium text-muted-foreground">
                   文档/报告
                 </span>
               ) : failures > 0 ? (
-                <span className="rounded-md border border-destructive/20 bg-destructive/10 px-1.5 py-0.5 font-mono text-[11px] font-medium text-destructive">
+                <span className="rounded-md border border-destructive/20 bg-destructive/10 px-1.5 py-0.5 font-mono text-xs font-medium text-destructive">
                   存在未通过项
                 </span>
               ) : evidence.checks.length > 0 ? (
-                <span className="rounded-md border border-success/20 bg-success/10 px-1.5 py-0.5 font-mono text-[11px] font-medium text-success">
+                <span className="rounded-md border border-success/20 bg-success/10 px-1.5 py-0.5 font-mono text-xs font-medium text-success">
                   验证已通过
                 </span>
               ) : null}

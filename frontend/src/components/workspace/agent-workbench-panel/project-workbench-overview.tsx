@@ -90,7 +90,7 @@ export function OverviewTab({
           <h4 className="mt-3 text-sm font-semibold text-foreground">
             从第一个里程碑开始
           </h4>
-          <p className="mt-1.5 text-[11px] leading-relaxed text-muted-foreground">
+          <p className="mt-1.5 text-xs leading-relaxed text-muted-foreground">
             在群聊中明确项目计划，或打开管理页创建里程碑和事项；后续进展会自动汇总到这里。
           </p>
           <div className="mt-4 flex flex-wrap gap-2">
@@ -104,7 +104,7 @@ export function OverviewTab({
                     type="button"
                     size="sm"
                     variant={index === 0 ? "default" : "outline"}
-                    className="h-8 rounded-lg px-2.5 text-[11px]"
+                    className="h-8 rounded-lg px-2.5 text-xs"
                     disabled={!!pendingAction}
                     onClick={() => onAction(spec, key)}
                   >
@@ -120,7 +120,7 @@ export function OverviewTab({
                 );
               })
             ) : (
-              <Button asChild size="sm" className="h-8 rounded-lg text-[11px]">
+              <Button asChild size="sm" className="h-8 rounded-lg text-xs">
                 <Link to="/workspace/projects">
                   打开项目管理
                   <ArrowRightIcon className="size-3" />
@@ -138,7 +138,7 @@ export function OverviewTab({
       <section className="rounded-xl border border-border-default bg-card/70 p-3 shadow-[var(--shadow-xs)]">
         <div className="flex items-end justify-between gap-3">
           <div>
-            <div className="text-[11px] font-medium text-muted-foreground">
+            <div className="text-xs font-medium text-muted-foreground">
               交付进度
             </div>
             <div className="mt-0.5 text-2xl font-semibold tracking-tight">
@@ -148,7 +148,7 @@ export function OverviewTab({
               </span>
             </div>
           </div>
-          <div className="text-right text-[10px] leading-relaxed text-muted-foreground">
+          <div className="text-right text-xs leading-relaxed text-muted-foreground">
             <div>
               {doneTasks}/{totalTasks} 个事项完成
             </div>
@@ -162,7 +162,7 @@ export function OverviewTab({
           aria-label={`项目交付进度 ${overallProgress}%`}
           className="mt-2.5 h-1.5 rounded-full"
         />
-        <p className="mt-2 text-[10px] text-muted-foreground">
+        <p className="mt-2 text-xs text-muted-foreground">
           按全部里程碑平均计算，未开始阶段也计入。
           {nextActions.some((action) => action.type === "owner_acceptance")
             ? "交付待你验收，通过后才推进后续阶段。"
@@ -237,11 +237,11 @@ export function OverviewTab({
                   key={decision.id}
                   className="rounded-lg border border-core/30 bg-core/[0.045] px-2.5 py-2"
                 >
-                  <h5 className="text-[11px] font-medium leading-relaxed text-foreground">
+                  <h5 className="text-xs font-medium leading-relaxed text-foreground">
                     {decision.title}
                   </h5>
                   {decision.body ? (
-                    <p className="mt-1 line-clamp-3 text-[10px] leading-relaxed text-muted-foreground">
+                    <p className="mt-1 line-clamp-3 text-xs leading-relaxed text-muted-foreground">
                       {decision.body}
                     </p>
                   ) : null}
@@ -275,7 +275,7 @@ export function OverviewTab({
                   type="button"
                   size="sm"
                   variant={index === 0 ? "default" : "outline"}
-                  className="h-7 rounded-md px-2 text-[11px]"
+                  className="h-7 rounded-md px-2 text-xs"
                   disabled={!!pendingAction}
                   onClick={() => onAction(spec, key)}
                 >
@@ -334,12 +334,12 @@ export function OverviewTab({
                   {action.priority}
                 </Badge>
                 <span className="min-w-0 flex-1">
-                  <span className="block truncate text-[11px] font-medium">
+                  <span className="block truncate text-xs font-medium">
                     {action.type === "owner_acceptance"
                       ? "审阅交付物并验收"
                       : action.task}
                   </span>
-                  <span className="mt-0.5 block truncate text-[10px] text-muted-foreground">
+                  <span className="mt-0.5 block truncate text-xs text-muted-foreground">
                     {action.milestone || "未关联里程碑"}
                     {action.due_at ? ` · ${fmtDate(action.due_at)} 截止` : ""}
                   </span>
@@ -353,7 +353,7 @@ export function OverviewTab({
         <div className="rounded-xl border border-dashed border-border-default bg-muted/25 px-3 py-4 text-center">
           <CircleDotDashedIcon className="mx-auto size-5 text-muted-foreground" />
           <div className="mt-2 text-xs font-medium">项目正在等待拆解</div>
-          <p className="mt-1 text-[11px] leading-relaxed text-muted-foreground">
+          <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
             开始推进后，这里会出现里程碑、下一步事项和风险提醒。
           </p>
         </div>
@@ -370,7 +370,7 @@ export function OverviewTab({
             {blockers.map((blocker, index) => (
               <div
                 key={`blocker:${index}`}
-                className="flex items-start gap-2 rounded-lg border border-breach/30 bg-breach/[0.06] px-2.5 py-2 text-[11px] text-breach"
+                className="flex items-start gap-2 rounded-lg border border-breach/30 bg-breach/[0.06] px-2.5 py-2 text-xs text-breach"
               >
                 <XCircleIcon className="mt-px size-3.5 shrink-0" />
                 <span className="min-w-0 flex-1">{blocker}</span>
@@ -379,7 +379,7 @@ export function OverviewTab({
             {risks.slice(0, 4).map((risk, index) => (
               <div
                 key={`risk:${risk.task_id ?? risk.milestone ?? index}`}
-                className="flex items-start gap-2 rounded-lg border border-warning/30 bg-warning/[0.06] px-2.5 py-2 text-[11px] text-warning"
+                className="flex items-start gap-2 rounded-lg border border-warning/30 bg-warning/[0.06] px-2.5 py-2 text-xs text-warning"
               >
                 <AlertTriangleIcon className="mt-px size-3.5 shrink-0" />
                 <span className="min-w-0 flex-1">{safeRiskDetail(risk)}</span>
@@ -413,7 +413,7 @@ export function OverviewTab({
               {retro.recommendations.map((recommendation, index) => (
                 <li
                   key={`${recommendation}:${index}`}
-                  className="flex items-start gap-1.5 text-[11px] leading-relaxed text-muted-foreground"
+                  className="flex items-start gap-1.5 text-xs leading-relaxed text-muted-foreground"
                 >
                   <ArrowRightIcon className="mt-0.5 size-3 shrink-0 text-core" />
                   <span>{recommendation}</span>

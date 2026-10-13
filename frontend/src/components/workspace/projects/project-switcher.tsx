@@ -53,7 +53,7 @@ function StatusChip({ row }: { row: ProjectRow }) {
     return (
       <Badge
         variant="outline"
-        className="shrink-0 gap-0.5 border-warning/30 bg-warning/15 text-[10px] text-warning"
+        className="shrink-0 gap-0.5 border-warning/30 bg-warning/15 text-xs text-warning"
       >
         <TimerIcon className="size-2.5" />
         {row.overdue}
@@ -64,7 +64,7 @@ function StatusChip({ row }: { row: ProjectRow }) {
     return (
       <Badge
         variant="outline"
-        className="shrink-0 gap-0.5 border-warning/30 bg-warning/15 text-[10px] text-warning"
+        className="shrink-0 gap-0.5 border-warning/30 bg-warning/15 text-xs text-warning"
       >
         <AlertTriangleIcon className="size-2.5" />
         {row.risks}
@@ -92,7 +92,7 @@ export function ProjectSwitcher({
       aria-label="项目列表"
     >
       <div className="shrink-0 space-y-2 px-3 py-2.5">
-        <div className="flex items-center justify-between text-[11px] text-muted-foreground">
+        <div className="flex items-center justify-between text-xs text-muted-foreground">
           <span>
             项目（{visible.length}/{rows.length}）
           </span>
@@ -123,7 +123,7 @@ export function ProjectSwitcher({
               type="button"
               aria-pressed={filter === item.value}
               onClick={() => onFilterChange(item.value)}
-              className={`shrink-0 rounded-full px-2 py-0.5 text-[11px] transition-colors ${
+              className={`shrink-0 rounded-full px-2 py-0.5 text-xs transition-colors ${
                 filter === item.value
                   ? "bg-foreground text-background"
                   : "bg-muted/60 text-muted-foreground hover:bg-muted"
@@ -137,7 +137,7 @@ export function ProjectSwitcher({
 
       <div className="flex min-h-0 flex-1 gap-1.5 overflow-x-auto px-3 pb-2.5 md:flex-col md:gap-1 md:overflow-y-auto md:px-2 md:pt-1">
         {visible.length === 0 && (
-          <div className="px-1 py-3 text-[11px] text-muted-foreground">
+          <div className="px-1 py-3 text-xs text-muted-foreground">
             {rows.length === 0
               ? "还没有项目。"
               : "没有匹配的项目 —— 换个关键词或清空筛选。"}
@@ -189,14 +189,14 @@ export function ProjectSwitcher({
               </div>
 
               <div className="mt-1 flex items-center justify-between gap-1.5">
-                <span className="truncate text-[10px] text-muted-foreground">
+                <span className="truncate text-xs text-muted-foreground">
                   {row.readable
                     ? `${row.doneTasks}/${row.totalTasks} 任务 · 剩 ${row.remainingEstimate}d`
                     : row.goal || "尚未获取进度"}
                 </span>
                 <Badge
                   variant="outline"
-                  className={`hidden shrink-0 text-[10px] md:inline-flex ${STATUS_TONE[row.status] ?? ""}`}
+                  className={`hidden shrink-0 text-xs md:inline-flex ${STATUS_TONE[row.status] ?? ""}`}
                 >
                   {statusLabel(row.status)}
                 </Badge>

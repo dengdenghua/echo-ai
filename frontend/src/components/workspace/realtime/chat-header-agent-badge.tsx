@@ -66,7 +66,7 @@ export function ChatHeaderAgentBadge({
               <span
                 key={collab.agent_id}
                 className={cn(
-                  "flex size-5 shrink-0 items-center justify-center overflow-hidden rounded-full border-2 border-background bg-muted text-[10px] font-semibold text-muted-foreground",
+                  "flex size-5 shrink-0 items-center justify-center overflow-hidden rounded-full border-2 border-background bg-muted text-xs font-semibold text-muted-foreground",
                   index === 0 && "z-30",
                   index === 1 && "z-20",
                   index === 2 && "z-10",

@@ -98,7 +98,7 @@ export function ReachControl() {
           {status.channels.map((channel) => (
             <span
               className={cn(
-                "rounded-full border px-2 py-0.5 text-[11px]",
+                "rounded-full border px-2 py-0.5 text-xs",
                 channel.available
                   ? "border-success/30 text-success"
                   : "border-destructive/30 text-destructive",

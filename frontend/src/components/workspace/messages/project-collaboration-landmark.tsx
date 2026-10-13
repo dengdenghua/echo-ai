@@ -112,7 +112,7 @@ export function ProjectCollaborationLandmark({
               ⚡ 规则已纳管
             </span>
           </div>
-          <span className="rounded-full bg-primary/15 px-2 py-0.5 text-[10px] font-medium text-primary">
+          <span className="rounded-full bg-primary/15 px-2 py-0.5 text-xs font-medium text-primary">
             {match.badge}
           </span>
         </div>
@@ -146,7 +146,7 @@ export function ProjectCollaborationLandmark({
             <GitBranchIcon className="size-4 shrink-0" aria-hidden="true" />
             <span className="text-xs">{match.title}</span>
           </div>
-          <span className="rounded-full bg-primary/15 px-2 py-0.5 text-[10px] font-medium text-primary">
+          <span className="rounded-full bg-primary/15 px-2 py-0.5 text-xs font-medium text-primary">
             {match.badge}
           </span>
         </div>
@@ -191,7 +191,7 @@ export function ProjectCollaborationLandmark({
               🧬 进化证据已归档
             </span>
           </div>
-          <span className="rounded-full bg-primary/15 px-2 py-0.5 text-[10px] font-medium text-primary">
+          <span className="rounded-full bg-primary/15 px-2 py-0.5 text-xs font-medium text-primary">
             {match.badge}
           </span>
         </div>
@@ -224,7 +224,7 @@ export function ProjectCollaborationLandmark({
           <Share2Icon className="size-4 shrink-0" aria-hidden="true" />
           <span className="text-xs">{match.title}</span>
         </div>
-        <span className="rounded-full bg-primary/15 px-2 py-0.5 text-[10px] font-medium text-primary">
+        <span className="rounded-full bg-primary/15 px-2 py-0.5 text-xs font-medium text-primary">
           {match.badge}
         </span>
       </div>

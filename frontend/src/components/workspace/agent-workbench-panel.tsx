@@ -1056,7 +1056,7 @@ function FileListRow({
         {name}
       </span>
       {isCurrentTurn && (
-        <span className="inline-flex shrink-0 items-center gap-0.5 rounded-full bg-accent/15 px-1.5 py-0.5 text-[10px] font-medium text-accent">
+        <span className="inline-flex shrink-0 items-center gap-0.5 rounded-full bg-accent/15 px-1.5 py-0.5 text-xs font-medium text-accent">
           <SparklesIcon className="size-2.5" />
           本轮
         </span>
@@ -1112,7 +1112,7 @@ export function PreviewPane({
           {getFileName(displayPath)}
         </span>
         {lang && (
-          <span className="shrink-0 text-[10px] text-muted-foreground uppercase">
+          <span className="shrink-0 text-xs text-muted-foreground uppercase">
             {lang}
           </span>
         )}

@@ -91,7 +91,7 @@ export function ProjectGroupHeaderBadge({
         aria-label={`${copy.openWorkbench}：${safeName}`}
         title={`${copy.openWorkbench}：${safeName}${activeMilestone ? ` · 当前里程碑：${activeMilestone.name}${typeof activeMilestone.progress === "number" ? ` (${activeMilestone.progress}%)` : ""}` : ""}${decisionsCount ? ` · 已沉淀 ${decisionsCount} 条核心决议` : ""}`}
         className={cn(
-          "inline-flex h-7 min-w-0 items-center gap-1.5 rounded-l-md px-2 text-[11px] font-medium transition-colors hover:bg-primary/10",
+          "inline-flex h-7 min-w-0 items-center gap-1.5 rounded-l-md px-2 text-xs font-medium transition-colors hover:bg-primary/10",
           activeMilestone ? "max-w-72" : "max-w-52",
         )}
       >
@@ -134,7 +134,7 @@ export function ProjectGroupHeaderBadge({
         <button
           type="button"
           onClick={() => setShowDecisionsModal(true)}
-          className="hidden sm:inline-flex h-7 shrink-0 items-center gap-0.5 border-l border-primary/15 px-2 text-[10px] text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
+          className="hidden sm:inline-flex h-7 shrink-0 items-center gap-0.5 border-l border-primary/15 px-2 text-xs text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
           title={`${decisionsCount} 条已沉淀项目决议（点击查看详情）`}
         >
           🏛️ {decisionsCount}

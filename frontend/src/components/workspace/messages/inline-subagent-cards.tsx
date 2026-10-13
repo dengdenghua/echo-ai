@@ -1108,7 +1108,7 @@ function KimiStyleSubagentCard({
         <span className="min-w-0 flex-1 truncate text-sm font-medium text-foreground">
           {agent.name}
         </span>
-        <span className="shrink-0 rounded border border-border/50 bg-background/50 px-1 py-0.2 text-[10px] text-muted-foreground">
+        <span className="shrink-0 rounded border border-border/50 bg-background/50 px-1 py-0.2 text-xs text-muted-foreground">
           我的协作者
         </span>
         <span

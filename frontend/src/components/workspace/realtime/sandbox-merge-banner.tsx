@@ -84,15 +84,15 @@ export function SandboxMergeBanner({
           <div className="min-w-0">
             <div className="flex items-center gap-1.5 font-medium">
               <span className="font-semibold">方案推演沙盒模式</span>
-              <span className="text-[10px] rounded bg-background px-1 py-0.2 text-muted-foreground">
+              <span className="text-xs rounded bg-background px-1 py-0.2 text-muted-foreground">
                 协作者：{agentName}
               </span>
-              <span className="text-[10px] rounded bg-primary/15 px-1 py-0.2 font-medium text-primary flex items-center gap-0.5">
+              <span className="text-xs rounded bg-primary/15 px-1 py-0.2 font-medium text-primary flex items-center gap-0.5">
                 <DnaIcon className="size-2.5" />
                 双螺旋复核中
               </span>
             </div>
-            <p className="truncate text-[11px] text-muted-foreground">
+            <p className="truncate text-xs text-muted-foreground">
               当前在隔离分支展开 POC 概念验证，过程产出不污染项目主干；合并时自动归档自进化记忆。
             </p>
           </div>

@@ -564,7 +564,7 @@ function MediaAssetCard({
           </div>
         )}
         {!isImage ? (
-          <span className="absolute bottom-2 left-2 rounded-md bg-black/65 px-2 py-1 text-[10px] font-medium text-white">
+          <span className="absolute bottom-2 left-2 rounded-md bg-black/65 px-2 py-1 text-xs font-medium text-white">
             点击预览
           </span>
         ) : null}
@@ -573,7 +573,7 @@ function MediaAssetCard({
         <div className="truncate text-xs font-medium" title={asset.name}>
           {asset.name}
         </div>
-        <div className="mt-1 flex items-center justify-between gap-2 text-[10px] text-muted-foreground">
+        <div className="mt-1 flex items-center justify-between gap-2 text-xs text-muted-foreground">
           <span className="truncate">{formatDate(asset.mtime_ns)}</span>
           <span className="shrink-0">{formatBytes(asset.size)}</span>
         </div>

@@ -226,12 +226,12 @@ export function InspectOverlay({
                   <span className="text-xs font-medium">
                     {t.livePreview.aiEditTitle}
                   </span>
-                  <code className="truncate rounded bg-muted px-1.5 py-0.5 text-[10px] text-muted-foreground">
+                  <code className="truncate rounded bg-muted px-1.5 py-0.5 text-xs text-muted-foreground">
                     {selected.selector || selected.tagName}
                   </code>
                 </div>
                 {selected.textContent && (
-                  <p className="mt-1 truncate text-[11px] text-muted-foreground">
+                  <p className="mt-1 truncate text-xs text-muted-foreground">
                     {selected.textContent}
                   </p>
                 )}

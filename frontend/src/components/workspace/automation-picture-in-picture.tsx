@@ -393,7 +393,7 @@ export function AutomationPictureInPicture({
         />
         <div className="min-w-0 flex-1">
           <div className="truncate text-xs font-medium">{target.title}</div>
-          <div className="flex items-center gap-1.5 text-[10px] text-muted-foreground">
+          <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
             <span
               className={cn(
                 "size-1.5 rounded-full",
@@ -465,17 +465,17 @@ export function AutomationPictureInPicture({
           </div>
         )}
         {frame?.matched === false ? (
-          <span className="absolute bottom-2 left-2 rounded-md bg-black/65 px-2 py-1 text-[10px] text-white/80">
+          <span className="absolute bottom-2 left-2 rounded-md bg-black/65 px-2 py-1 text-xs text-white/80">
             {frame.sourceName || target.title}
           </span>
         ) : null}
         {error ? (
-          <div className="absolute inset-x-2 bottom-2 rounded-lg bg-black/72 px-2.5 py-1.5 text-[10px] text-white/85 backdrop-blur">
+          <div className="absolute inset-x-2 bottom-2 rounded-lg bg-black/72 px-2.5 py-1.5 text-xs text-white/85 backdrop-blur">
             {error}
           </div>
         ) : null}
         {capturedAt && !error ? (
-          <span className="absolute bottom-2 left-2 rounded bg-black/60 px-1.5 py-0.5 text-[10px] text-white/80">
+          <span className="absolute bottom-2 left-2 rounded bg-black/60 px-1.5 py-0.5 text-xs text-white/80">
             {new Date(capturedAt).toLocaleTimeString()}
           </span>
         ) : null}

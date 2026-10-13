@@ -1190,7 +1190,7 @@ export function DirectorStage({
           variant="ghost"
           size="sm"
           className={cn(
-            "h-8 gap-1.5 text-[11px]",
+            "h-8 gap-1.5 text-xs",
             sceneOpen &&
               "bg-foreground text-background hover:bg-foreground hover:text-background",
           )}
@@ -1202,14 +1202,14 @@ export function DirectorStage({
         <Button
           variant="ghost"
           size="sm"
-          className="h-8 bg-foreground text-[11px] text-background hover:bg-foreground hover:text-background"
+          className="h-8 bg-foreground text-xs text-background hover:bg-foreground hover:text-background"
         >
           导演视角
         </Button>
         <Button
           variant="ghost"
           size="sm"
-          className="h-8 text-[11px] text-muted-foreground"
+          className="h-8 text-xs text-muted-foreground"
         >
           机位视角
         </Button>
@@ -1261,7 +1261,7 @@ export function DirectorStage({
         <Button
           variant="ghost"
           size="sm"
-          className="h-8 gap-1.5 text-[11px]"
+          className="h-8 gap-1.5 text-xs"
           onClick={exportFrame}
         >
           <DownloadIcon className="size-3.5" />
@@ -1270,7 +1270,7 @@ export function DirectorStage({
         <Button
           variant="ghost"
           size="sm"
-          className="h-8 text-[11px] text-muted-foreground"
+          className="h-8 text-xs text-muted-foreground"
           disabled
         >
           导出运镜视频
@@ -1278,7 +1278,7 @@ export function DirectorStage({
         <Button
           variant="ghost"
           size="sm"
-          className="h-8 gap-1.5 text-[11px]"
+          className="h-8 gap-1.5 text-xs"
           onClick={onClose}
         >
           <XIcon className="size-3.5" />
@@ -1293,12 +1293,9 @@ export function DirectorStage({
               <span className="flex-1" />
               <ChevronLeftIcon className="size-3.5 text-muted-foreground" />
             </div>
-            <Input
-              className="mt-3 h-8 text-[10px]"
-              placeholder="搜索场景内容"
-            />
+            <Input className="mt-3 h-8 text-xs" placeholder="搜索场景内容" />
             <div className="mt-4 text-micro text-muted-foreground">相机　1</div>
-            <button className="mt-1 flex w-full items-center gap-2 rounded-lg px-2 py-2 text-[11px] hover:bg-muted">
+            <button className="mt-1 flex w-full items-center gap-2 rounded-lg px-2 py-2 text-xs hover:bg-muted">
               <CameraIcon className="size-3.5" />
               机位1
             </button>
@@ -1306,7 +1303,7 @@ export function DirectorStage({
             <button
               onClick={() => setSelected("character")}
               className={cn(
-                "mt-1 flex w-full items-center gap-2 rounded-lg px-2 py-2 text-[11px]",
+                "mt-1 flex w-full items-center gap-2 rounded-lg px-2 py-2 text-xs",
                 selected === "character" ? "bg-muted" : "hover:bg-muted",
               )}
             >
@@ -1326,7 +1323,7 @@ export function DirectorStage({
                       setSelectedPropId(prop.id);
                     }}
                     className={cn(
-                      "mt-1 flex w-full items-center gap-2 rounded-lg px-2 py-2 text-[11px]",
+                      "mt-1 flex w-full items-center gap-2 rounded-lg px-2 py-2 text-xs",
                       selected === "prop" && selectedPropId === prop.id
                         ? "bg-muted"
                         : "hover:bg-muted",
@@ -1354,7 +1351,7 @@ export function DirectorStage({
                       setSelectedModelId(model.id);
                     }}
                     className={cn(
-                      "mt-1 flex w-full items-center gap-2 rounded-lg px-2 py-2 text-[11px]",
+                      "mt-1 flex w-full items-center gap-2 rounded-lg px-2 py-2 text-xs",
                       selected === "model" && selectedModelId === model.id
                         ? "bg-muted"
                         : "hover:bg-muted",
@@ -1441,7 +1438,7 @@ export function DirectorStage({
                   <CirclePlayIcon className="size-3.5" />
                 )}
               </Button>
-              <span className="text-[10px] text-muted-foreground">
+              <span className="text-xs text-muted-foreground">
                 {playheadSec.toFixed(1)}s / {durationSec.toFixed(1)}s
               </span>
               <input
@@ -1464,7 +1461,7 @@ export function DirectorStage({
               <Button
                 variant="outline"
                 size="sm"
-                className="h-7 gap-1 text-[10px]"
+                className="h-7 gap-1 text-xs"
                 onClick={addCameraPath}
                 disabled={saveState === "loading" || hasCameraPath}
               >
@@ -1474,23 +1471,19 @@ export function DirectorStage({
               <Button
                 variant="outline"
                 size="sm"
-                className="h-7 gap-1 text-[10px]"
+                className="h-7 gap-1 text-xs"
                 onClick={addCharacterAnimation}
               >
                 <PlusIcon className="size-3" />
                 角色动画
               </Button>
-              <Button
-                variant="ghost"
-                size="sm"
-                className="h-7 gap-1 text-[10px]"
-              >
+              <Button variant="ghost" size="sm" className="h-7 gap-1 text-xs">
                 <VideoIcon className="size-3" />
                 手机运镜
               </Button>
             </div>
             {hasPath ? (
-              <div className="h-[189px] overflow-auto px-4 py-3 text-[10px]">
+              <div className="h-[189px] overflow-auto px-4 py-3 text-xs">
                 <div
                   style={{ width: `${Math.max(100, timelineZoom)}%` }}
                   className="min-w-full"
@@ -1555,7 +1548,7 @@ export function DirectorStage({
                 </div>
               </div>
             ) : (
-              <div className="grid h-[189px] place-items-center text-[10px] text-muted-foreground">
+              <div className="grid h-[189px] place-items-center text-xs text-muted-foreground">
                 <div className="text-center">
                   <FootprintsIcon className="mx-auto size-5 opacity-50" />
                   <p className="mt-2">点击“添加路径”创建运镜片段</p>
@@ -1568,7 +1561,7 @@ export function DirectorStage({
           {selected === "scene" ? (
             <>
               <h3 className="text-sm font-semibold">3D场景</h3>
-              <label className="mt-5 block text-[10px] text-muted-foreground">
+              <label className="mt-5 block text-xs text-muted-foreground">
                 场景缩放
               </label>
               <input
@@ -1580,7 +1573,7 @@ export function DirectorStage({
                 className="mt-2 w-full accent-foreground"
               />
               <div className="mt-1 text-right text-[10px]">{sceneScale}%</div>
-              <label className="mt-4 block text-[10px] text-muted-foreground">
+              <label className="mt-4 block text-xs text-muted-foreground">
                 场景平移
               </label>
               <div className="mt-2 grid grid-cols-3 gap-2">
@@ -1602,12 +1595,12 @@ export function DirectorStage({
                           [axis]: Number(event.target.value),
                         }))
                       }
-                      className="h-8 min-w-0 flex-1 bg-transparent text-[10px] outline-none"
+                      className="h-8 min-w-0 flex-1 bg-transparent text-xs outline-none"
                     />
                   </label>
                 ))}
               </div>
-              <label className="mt-4 block text-[10px] text-muted-foreground">
+              <label className="mt-4 block text-xs text-muted-foreground">
                 场景旋转
               </label>
               <div className="mt-2 grid grid-cols-3 gap-2">
@@ -1629,12 +1622,12 @@ export function DirectorStage({
                           [axis]: Number(event.target.value),
                         }))
                       }
-                      className="h-8 min-w-0 flex-1 bg-transparent text-[10px] outline-none"
+                      className="h-8 min-w-0 flex-1 bg-transparent text-xs outline-none"
                     />
                   </label>
                 ))}
               </div>
-              <label className="mt-5 block text-[10px] text-muted-foreground">
+              <label className="mt-5 block text-xs text-muted-foreground">
                 天空颜色
               </label>
               <div className="mt-2 flex items-center gap-2 rounded-lg border p-2">
@@ -1646,11 +1639,11 @@ export function DirectorStage({
                 />
                 <span className="text-[11px]">{sky.toUpperCase()}</span>
               </div>
-              <label className="mt-5 block text-[10px] text-muted-foreground">
+              <label className="mt-5 block text-xs text-muted-foreground">
                 背景图片
               </label>
               <div className="mt-2 flex items-center gap-2 rounded-lg border px-3 py-2">
-                <span className="min-w-0 flex-1 truncate text-[10px]">
+                <span className="min-w-0 flex-1 truncate text-xs">
                   {backgroundImageName || "无"}
                 </span>
                 {backgroundImage ? (
@@ -1690,10 +1683,10 @@ export function DirectorStage({
                   />
                 </label>
               </div>
-              <label className="mt-5 block text-[10px] text-muted-foreground">
+              <label className="mt-5 block text-xs text-muted-foreground">
                 背景模式
               </label>
-              <div className="mt-2 flex rounded-lg bg-muted p-1 text-[10px]">
+              <div className="mt-2 flex rounded-lg bg-muted p-1 text-xs">
                 <button
                   onClick={() => setBackgroundMode("panorama")}
                   className={cn(
@@ -1719,7 +1712,7 @@ export function DirectorStage({
               </div>
               {backgroundMode === "panorama" ? (
                 <>
-                  <label className="mt-4 block text-[10px] text-muted-foreground">
+                  <label className="mt-4 block text-xs text-muted-foreground">
                     水平旋转
                   </label>
                   <div className="mt-2 flex items-center gap-3">
@@ -1737,7 +1730,7 @@ export function DirectorStage({
                       {horizontalRotation}°
                     </span>
                   </div>
-                  <label className="mt-4 block text-[10px] text-muted-foreground">
+                  <label className="mt-4 block text-xs text-muted-foreground">
                     球形半径
                   </label>
                   <div className="mt-2 flex items-center gap-3">
@@ -1758,9 +1751,7 @@ export function DirectorStage({
                 </>
               ) : null}
               <div className="mt-5 flex items-center border-t border-border-subtle pt-4">
-                <span className="text-[10px] text-muted-foreground">
-                  角色标签
-                </span>
+                <span className="text-xs text-muted-foreground">角色标签</span>
                 <button
                   type="button"
                   role="switch"
@@ -1783,7 +1774,7 @@ export function DirectorStage({
           ) : selected === "character" ? (
             <>
               <h3 className="text-sm font-semibold">角色A</h3>
-              <label className="mt-5 block text-[10px] text-muted-foreground">
+              <label className="mt-5 block text-xs text-muted-foreground">
                 角色素体
               </label>
               <div className="mt-2 grid grid-cols-3 gap-1">
@@ -1808,7 +1799,7 @@ export function DirectorStage({
                   </button>
                 ))}
               </div>
-              <label className="mt-5 block text-[10px] text-muted-foreground">
+              <label className="mt-5 block text-xs text-muted-foreground">
                 姿态 · {POSES.length}
               </label>
               <div className="mt-2 grid grid-cols-3 gap-1">
@@ -1827,7 +1818,7 @@ export function DirectorStage({
                   </button>
                 ))}
               </div>
-              <label className="mt-5 block text-[10px] text-muted-foreground">
+              <label className="mt-5 block text-xs text-muted-foreground">
                 位置
               </label>
               <div className="mt-2 grid grid-cols-3 gap-1">
@@ -1849,7 +1840,7 @@ export function DirectorStage({
                           [axis]: Number(event.target.value),
                         }))
                       }
-                      className="h-8 min-w-0 flex-1 bg-transparent text-[10px] outline-none"
+                      className="h-8 min-w-0 flex-1 bg-transparent text-xs outline-none"
                     />
                   </label>
                 ))}
@@ -1867,10 +1858,10 @@ export function DirectorStage({
               return (
                 <>
                   <h3 className="text-sm font-semibold">{prop.name}</h3>
-                  <p className="mt-1 text-[10px] text-muted-foreground">
+                  <p className="mt-1 text-xs text-muted-foreground">
                     场景道具 · {prop.assetId}
                   </p>
-                  <div className="mt-5 space-y-2 text-[10px]">
+                  <div className="mt-5 space-y-2 text-xs">
                     <div className="flex items-center rounded-lg border px-3 py-2.5">
                       <span className="text-muted-foreground">形状</span>
                       <span className="ml-auto">{prop.shape}</span>
@@ -1909,7 +1900,7 @@ export function DirectorStage({
               return (
                 <>
                   <h3 className="text-sm font-semibold">{model.name}</h3>
-                  <p className="mt-1 text-[10px] text-muted-foreground">
+                  <p className="mt-1 text-xs text-muted-foreground">
                     智能体生成的安全声明式模型 · {model.parts.length} 个部件
                   </p>
                   <div className="mt-4 space-y-1.5">
@@ -1922,7 +1913,7 @@ export function DirectorStage({
                           className="size-3 rounded-sm border"
                           style={{ backgroundColor: part.color }}
                         />
-                        <span className="min-w-0 flex-1 truncate text-[10px]">
+                        <span className="min-w-0 flex-1 truncate text-xs">
                           {part.name}
                         </span>
                         <span className="text-micro text-muted-foreground">

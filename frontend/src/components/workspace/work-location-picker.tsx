@@ -171,7 +171,7 @@ export function LocationAction({
 
 export function LocationLabel({ children }: { children: ReactNode }) {
   return (
-    <DropdownMenuLabel className="px-2 pb-0.5 pt-1.5 text-[11px] font-medium text-muted-foreground/80">
+    <DropdownMenuLabel className="px-2 pb-0.5 pt-1.5 text-xs font-medium text-muted-foreground/80">
       {children}
     </DropdownMenuLabel>
   );

@@ -398,7 +398,7 @@ function ReasoningEffortSetting({
         </span>
       </div>
       {mapped && (
-        <div className="mb-1 px-1 text-[11px] text-muted-foreground">
+        <div className="mb-1 px-1 text-xs text-muted-foreground">
           {t.inputBox.reasoningEffortMapped(
             reasoningEffortLabel(rawCurrent, t),
             reasoningEffortLabel(effective, t),
@@ -799,10 +799,10 @@ export function ModelPicker({
         {selectedDisplayLabel}
       </span>
       {selected?.entry_id === "opencode-go" && (
-        <span className="text-[10px] text-muted-foreground">Go</span>
+        <span className="text-xs text-muted-foreground">Go</span>
       )}
       {selectedIsFree ? (
-        <span className="flex shrink-0 items-center gap-1 text-[10px] font-medium leading-none text-core">
+        <span className="flex shrink-0 items-center gap-1 text-xs font-medium leading-none text-core">
           <span className="size-1.5 rounded-full bg-core" aria-hidden="true" />
         </span>
       ) : null}

@@ -194,7 +194,7 @@ export function CoworkRoomMessageActions({
         <DropdownMenuItem disabled>
           <Icon />
           {label}
-          <span className="ml-auto text-[10px]">需里程碑</span>
+          <span className="ml-auto text-xs">需里程碑</span>
         </DropdownMenuItem>
       );
     }
@@ -213,7 +213,7 @@ export function CoworkRoomMessageActions({
             >
               <span className="min-w-0 flex-1 truncate">{milestone.name}</span>
               {milestone.status ? (
-                <span className="text-[10px] text-muted-foreground">
+                <span className="text-xs text-muted-foreground">
                   {milestone.status}
                 </span>
               ) : null}
@@ -304,7 +304,7 @@ export function CoworkRoomMessageActions({
         <span
           role="alert"
           title={error}
-          className="max-w-40 truncate text-[10px] text-destructive"
+          className="max-w-40 truncate text-xs text-destructive"
         >
           {error}
         </span>

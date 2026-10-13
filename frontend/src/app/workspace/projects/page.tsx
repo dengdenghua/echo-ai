@@ -363,16 +363,16 @@ export default function ProjectsPage() {
                             <LayersIcon className="size-4 text-muted-foreground" />
                             项目总览
                           </span>
-                          <span className="flex flex-wrap items-center gap-1.5 text-[11px] font-normal text-muted-foreground">
-                            <Badge variant="outline" className="text-[10px]">
+                          <span className="flex flex-wrap items-center gap-1.5 text-xs font-normal text-muted-foreground">
+                            <Badge variant="outline" className="text-xs">
                               {totals.projects} 个项目
                             </Badge>
-                            <Badge variant="outline" className="text-[10px]">
+                            <Badge variant="outline" className="text-xs">
                               {totals.doneTasks}/{totals.tasks} 任务
                             </Badge>
                             <Badge
                               variant="outline"
-                              className={`text-[10px] ${
+                              className={`text-xs ${
                                 totals.overdue > 0
                                   ? "border-warning/30 bg-warning/15 text-warning"
                                   : ""
@@ -382,7 +382,7 @@ export default function ProjectsPage() {
                             </Badge>
                             <Badge
                               variant="outline"
-                              className={`text-[10px] ${
+                              className={`text-xs ${
                                 totals.atRisk > 0
                                   ? "border-warning/30 bg-warning/15 text-warning"
                                   : ""
@@ -390,13 +390,13 @@ export default function ProjectsPage() {
                             >
                               风险里程碑 {totals.atRisk}
                             </Badge>
-                            <Badge variant="outline" className="text-[10px]">
+                            <Badge variant="outline" className="text-xs">
                               剩余估时 {totals.remainingEstimate}d
                             </Badge>
                             {totals.unreadable > 0 && (
                               <Badge
                                 variant="outline"
-                                className="border-breach/30 bg-breach/15 text-[10px] text-breach"
+                                className="border-breach/30 bg-breach/15 text-xs text-breach"
                               >
                                 {totals.unreadable} 个读取失败
                               </Badge>
@@ -604,7 +604,7 @@ export default function ProjectsPage() {
                               <CardTitle className="flex items-center justify-between gap-2 text-sm">
                                 <span>里程碑健康度</span>
                                 {pm.milestones.length > 0 && (
-                                  <span className="text-[11px] font-normal text-muted-foreground">
+                                  <span className="text-xs font-normal text-muted-foreground">
                                     共 {pm.milestones.length} 个 · 剩余估时{" "}
                                     {pm.remaining_estimate}d
                                   </span>
@@ -620,7 +620,7 @@ export default function ProjectsPage() {
                               {pm.milestones.length > 0 && (
                                 <div className="grid gap-3 lg:grid-cols-[auto_minmax(0,1fr)]">
                                   <div className="rounded-lg border bg-card/50 p-3 lg:w-52">
-                                    <div className="mb-1 text-[11px] font-medium text-muted-foreground">
+                                    <div className="mb-1 text-xs font-medium text-muted-foreground">
                                       健康度分布
                                     </div>
                                     <HealthDonut
@@ -647,7 +647,7 @@ export default function ProjectsPage() {
                                             </span>
                                             <Badge
                                               variant="outline"
-                                              className={`gap-1 text-[10px] ${HEALTH_TONE[m.health] ?? ""}`}
+                                              className={`gap-1 text-xs ${HEALTH_TONE[m.health] ?? ""}`}
                                             >
                                               {healthIcon(m.health)}
                                               {HEALTH_LABEL[m.health] ??
@@ -655,7 +655,7 @@ export default function ProjectsPage() {
                                             </Badge>
                                             <Badge
                                               variant="outline"
-                                              className={`text-[10px] ${PRIORITY_TONE[m.priority] ?? ""}`}
+                                              className={`text-xs ${PRIORITY_TONE[m.priority] ?? ""}`}
                                             >
                                               优先级 {m.priority}
                                             </Badge>
@@ -704,7 +704,7 @@ export default function ProjectsPage() {
                                                 <div className="text-xs leading-relaxed text-warning">
                                                   {o.goal}
                                                 </div>
-                                                <div className="mt-1 flex items-center gap-1 text-[11px] text-warning">
+                                                <div className="mt-1 flex items-center gap-1 text-xs text-warning">
                                                   <CalendarRangeIcon className="size-3" />
                                                   截止 {fmtDate(o.due_at)} ·
                                                   已逾期
@@ -781,7 +781,7 @@ export default function ProjectsPage() {
                                   >
                                     <Badge
                                       variant="outline"
-                                      className={`mt-0.5 shrink-0 text-[10px] ${PRIORITY_TONE[a.priority] ?? ""}`}
+                                      className={`mt-0.5 shrink-0 text-xs ${PRIORITY_TONE[a.priority] ?? ""}`}
                                     >
                                       {a.priority}
                                     </Badge>
@@ -839,7 +839,7 @@ export default function ProjectsPage() {
                               <CardHeader className="pb-2">
                                 <CardTitle className="flex items-center justify-between gap-2 text-sm">
                                   <span>里程碑估时</span>
-                                  <span className="text-[11px] font-normal text-muted-foreground">
+                                  <span className="text-xs font-normal text-muted-foreground">
                                     已完成 / 剩余
                                   </span>
                                 </CardTitle>

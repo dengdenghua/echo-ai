@@ -162,7 +162,7 @@ export function AgentCard({
                 {talentTags.map((tag) => (
                   <span
                     key={tag}
-                    className="max-w-32 truncate rounded-md bg-muted/60 px-2 py-0.5 text-[11px] font-normal text-muted-foreground"
+                    className="max-w-32 truncate rounded-md bg-muted/60 px-2 py-0.5 text-xs font-normal text-muted-foreground"
                   >
                     {tag}
                   </span>

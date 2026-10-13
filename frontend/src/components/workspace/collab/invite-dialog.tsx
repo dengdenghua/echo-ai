@@ -557,7 +557,7 @@ export function InviteDialog({
                               : ""}
                           </div>
                           {request.actor_id ? (
-                            <div className="mt-0.5 truncate font-mono text-[11px] text-muted-foreground/80">
+                            <div className="mt-0.5 truncate font-mono text-xs text-muted-foreground/80">
                               {request.actor_id}
                             </div>
                           ) : null}

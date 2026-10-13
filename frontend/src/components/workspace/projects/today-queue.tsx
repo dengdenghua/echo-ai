@@ -65,7 +65,7 @@ function TodayGroup({
           {spec.title}
           <span className="tabular-nums">· {spec.items.length}</span>
         </span>
-        <span className="text-[11px] text-muted-foreground">{spec.hint}</span>
+        <span className="text-xs text-muted-foreground">{spec.hint}</span>
       </div>
       <div className="space-y-1.5">
         {spec.items.map((item) => (
@@ -75,7 +75,7 @@ function TodayGroup({
           >
             <Badge
               variant="outline"
-              className={`mt-0.5 shrink-0 text-[10px] ${PRIORITY_TONE[item.priority] ?? ""}`}
+              className={`mt-0.5 shrink-0 text-xs ${PRIORITY_TONE[item.priority] ?? ""}`}
             >
               {item.priority}
             </Badge>
@@ -83,7 +83,7 @@ function TodayGroup({
               <div className="truncate text-xs font-medium" title={item.title}>
                 {item.title}
               </div>
-              <div className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[11px] text-muted-foreground">
+              <div className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-xs text-muted-foreground">
                 <span className="inline-flex items-center gap-1">
                   <span className="max-w-[9rem] truncate font-medium text-foreground/70">
                     {item.projectName}
@@ -101,7 +101,7 @@ function TodayGroup({
                   </span>
                 )}
                 {item.scope === "milestone" && (
-                  <span className="rounded bg-muted px-1 py-px text-[10px]">
+                  <span className="rounded bg-muted px-1 py-px text-xs">
                     里程碑级
                   </span>
                 )}
@@ -111,7 +111,7 @@ function TodayGroup({
               type="button"
               variant="outline"
               size="sm"
-              className="h-7 shrink-0 gap-1 px-2 text-[11px]"
+              className="h-7 shrink-0 gap-1 px-2 text-xs"
               aria-label={`去处理：${item.title}`}
               onClick={() => onSelectProject(item.projectId)}
             >
@@ -179,14 +179,14 @@ export function TodayQueuePanel({
             </span>
             <div>
               <div className="text-sm font-semibold">今天要处理</div>
-              <div className="text-[11px] text-muted-foreground">
+              <div className="text-xs text-muted-foreground">
                 跨全部项目的逾期、今日到期与风险项
               </div>
             </div>
           </div>
           {queue.total > 0 && (
-            <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
-              <Badge variant="outline" className="text-[10px]">
+            <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+              <Badge variant="outline" className="text-xs">
                 共 {queue.total} 条
               </Badge>
             </div>
@@ -211,7 +211,7 @@ export function TodayQueuePanel({
         )}
 
         {hiddenTotal > 0 && (
-          <div className="text-[11px] text-muted-foreground">
+          <div className="text-xs text-muted-foreground">
             每条项目最多聚合 20 条逾期、10 条待办，另有 {hiddenTotal} 条未在此展开，
             进入项目查看完整清单。
           </div>

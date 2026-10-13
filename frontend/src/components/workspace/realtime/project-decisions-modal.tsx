@@ -97,7 +97,7 @@ export function ProjectDecisionsModal({
           </DialogDescription>
 
           {decisions.length > 0 && (
-            <div className="mt-2 flex items-center justify-between rounded-md bg-muted/60 border border-border px-2.5 py-1.5 text-[11px] text-muted-foreground">
+            <div className="mt-2 flex items-center justify-between rounded-md bg-muted/60 border border-border px-2.5 py-1.5 text-xs text-muted-foreground">
               <div className="flex items-center gap-1.5 min-w-0">
                 <ZapIcon className="size-3.5 shrink-0 text-core" />
                 <span className="truncate">
@@ -149,7 +149,7 @@ export function ProjectDecisionsModal({
                 >
                   <div className="flex items-center justify-between gap-2">
                     <div className="flex items-center gap-1.5 font-medium text-foreground">
-                      <span className="shrink-0 rounded bg-muted px-1.5 py-0.5 text-[10px] font-semibold text-muted-foreground">
+                      <span className="shrink-0 rounded bg-muted px-1.5 py-0.5 text-xs font-semibold text-muted-foreground">
                         #{index + 1}
                       </span>
                       <span className="font-semibold">{item.title || "技术决策"}</span>
@@ -158,7 +158,7 @@ export function ProjectDecisionsModal({
                         已纳管为规则
                       </span>
                       {item.actor && (
-                        <span className="text-[10px] text-muted-foreground">
+                        <span className="text-xs text-muted-foreground">
                           · {item.actor}
                         </span>
                       )}
@@ -166,7 +166,7 @@ export function ProjectDecisionsModal({
                     <button
                       type="button"
                       onClick={() => handleCopySingle(item, index)}
-                      className="inline-flex items-center gap-1 text-[11px] text-muted-foreground hover:text-foreground transition-colors"
+                      className="inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors"
                       title="复制单条决议"
                     >
                       {isCopied ? (
@@ -185,7 +185,7 @@ export function ProjectDecisionsModal({
                   )}
 
                   {item.created_at && (
-                    <div className="text-[10px] text-muted-foreground text-right">
+                    <div className="text-xs text-muted-foreground text-right">
                       固化时间：{item.created_at}
                     </div>
                   )}

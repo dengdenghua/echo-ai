@@ -862,7 +862,7 @@ export function ConnectDialog({
                   placeholder={modelProvider.base_url}
                   className="h-9 text-sm"
                 />
-                <p className="text-[11px] text-muted-foreground">
+                <p className="text-xs text-muted-foreground">
                   留空使用默认地址；自托管服务请填写以 /v1 结尾的地址。
                 </p>
               </div>
@@ -876,7 +876,7 @@ export function ConnectDialog({
                   {modelProvider.free_models.map((model) => (
                     <code
                       key={model}
-                      className="rounded bg-background px-1.5 py-0.5 text-[11px] text-muted-foreground"
+                      className="rounded bg-background px-1.5 py-0.5 text-xs text-muted-foreground"
                     >
                       {model}
                     </code>
@@ -885,7 +885,7 @@ export function ConnectDialog({
               </div>
             ) : null}
             {(modelProvider.privacy_notices_zh ?? []).length > 0 ? (
-              <div className="rounded-md border border-warning/30 bg-warning/5 px-2.5 py-2 text-[11px] leading-5 text-warning">
+              <div className="rounded-md border border-warning/30 bg-warning/5 px-2.5 py-2 text-xs leading-5 text-warning">
                 {(modelProvider.privacy_notices_zh ?? []).map((notice) => (
                   <p key={notice}>• {notice}</p>
                 ))}
@@ -893,7 +893,7 @@ export function ConnectDialog({
             ) : null}
             {capability.permission_review_required &&
             modelProviderPermissions.length > 0 ? (
-              <div className="rounded-md border border-border-default px-2.5 py-2 text-[11px] leading-5">
+              <div className="rounded-md border border-border-default px-2.5 py-2 text-xs leading-5">
                 <p className="font-medium text-foreground">
                   连接时将确认以下权限
                 </p>
@@ -1114,7 +1114,7 @@ function OAuthAppDialog({
             <div className="font-medium text-foreground">
               回调地址(注册 App 时填写)
             </div>
-            <code className="mt-0.5 block break-all text-[11px] text-muted-foreground">
+            <code className="mt-0.5 block break-all text-xs text-muted-foreground">
               {redirectUri}
             </code>
           </div>
@@ -1266,7 +1266,7 @@ function PermissionReviewDialog({
                       className="flex items-center justify-between gap-3 rounded-md border border-border-subtle px-2.5 py-2"
                     >
                       <span>{PERMISSION_LABELS[permission] ?? permission}</span>
-                      <code className="text-[10px] text-muted-foreground">
+                      <code className="text-xs text-muted-foreground">
                         {permission}
                       </code>
                     </div>
@@ -2241,11 +2241,11 @@ export function CapabilityMarketPanel({
                           : `${cap.id} · ${AUTH_LABEL[cap.auth_mode] ?? cap.auth_mode}`}
                     </CardDescription>
                     {compact && cap.author ? (
-                      <p className="truncate text-[11px] text-muted-foreground">
+                      <p className="truncate text-xs text-muted-foreground">
                         来自 {cap.author}
                       </p>
                     ) : null}
-                    {cap.ownership_label && <p className="text-[11px] text-muted-foreground">{cap.ownership_label}</p>}
+                    {cap.ownership_label && <p className="text-xs text-muted-foreground">{cap.ownership_label}</p>}
                   </div>
                 </CardHeader>
                 <div
@@ -2256,21 +2256,21 @@ export function CapabilityMarketPanel({
                 >
                   <Badge
                     className={cn(
-                      "border-transparent text-[11px]",
+                      "border-transparent text-xs",
                       typeMeta.badge,
                     )}
                   >
                     {typeMeta.label}
                   </Badge>
                   {isPlugin ? (
-                    <Badge className="border-transparent bg-sky-500/10 text-[11px] text-sky-600 dark:text-sky-300">
+                    <Badge className="border-transparent bg-sky-500/10 text-xs text-sky-600 dark:text-sky-300">
                       Codex
                     </Badge>
                   ) : null}
                   {isCodexMarketplace && cap.marketplace_name ? (
                     <Badge
                       variant="outline"
-                      className="text-[11px] font-normal text-muted-foreground"
+                      className="text-xs font-normal text-muted-foreground"
                     >
                       {cap.marketplace_name}
                     </Badge>
@@ -2278,7 +2278,7 @@ export function CapabilityMarketPanel({
                   {!isFeaturedView &&
                     (cap.oauth_supported || cap.has_cli_auth) && (
                       <Badge
-                        className="border-transparent bg-sky-500/15 text-[11px] text-sky-600 dark:text-sky-400"
+                        className="border-transparent bg-sky-500/15 text-xs text-sky-600 dark:text-sky-400"
                         title="支持跳转网页登录授权,无需手动填 token"
                       >
                         🔗 网页登录
@@ -2287,7 +2287,7 @@ export function CapabilityMarketPanel({
                   {!isFeaturedView ? (
                     <Badge
                       variant="outline"
-                      className="text-[11px] font-normal text-muted-foreground"
+                      className="text-xs font-normal text-muted-foreground"
                     >
                       技能 ×{cap.skill_count}
                     </Badge>
@@ -2295,7 +2295,7 @@ export function CapabilityMarketPanel({
                   {!isFeaturedView && cap.mcp_servers.length > 0 && (
                     <Badge
                       variant="outline"
-                      className="text-[11px] font-normal text-muted-foreground"
+                      className="text-xs font-normal text-muted-foreground"
                     >
                       MCP ×{cap.mcp_servers.length}
                     </Badge>
@@ -2303,7 +2303,7 @@ export function CapabilityMarketPanel({
                   {cap.installed && (
                     <Badge
                       className={cn(
-                        "border-transparent text-[11px]",
+                        "border-transparent text-xs",
                         cap.enabled && (!needsConnection || connected)
                           ? "bg-emerald-500/15 text-emerald-600 dark:text-emerald-400"
                           : "bg-amber-500/15 text-amber-600 dark:text-amber-400",
@@ -2325,7 +2325,7 @@ export function CapabilityMarketPanel({
                     </Badge>
                   )}
                   {cap.permission_review_required ? (
-                    <Badge className="border-transparent bg-amber-500/15 text-[11px] text-amber-700 dark:text-amber-300">
+                    <Badge className="border-transparent bg-amber-500/15 text-xs text-amber-700 dark:text-amber-300">
                       待确认权限
                     </Badge>
                   ) : null}
@@ -2341,7 +2341,7 @@ export function CapabilityMarketPanel({
                     {cap.description_zh || cap.description}
                   </p>
                   {cap.author && !isFeaturedView ? (
-                    <p className="mt-0.5 text-[11px] text-muted-foreground">
+                    <p className="mt-0.5 text-xs text-muted-foreground">
                       作者:{cap.author}
                     </p>
                   ) : null}

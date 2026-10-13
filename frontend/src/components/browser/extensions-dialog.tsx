@@ -150,7 +150,7 @@ export function ExtensionsDialog({
                       </p>
                     ) : null}
                     <p
-                      className="truncate text-[11px] text-muted-foreground"
+                      className="truncate text-xs text-muted-foreground"
                       title={extension.path}
                     >
                       {sourceLabel(extension)}

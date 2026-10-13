@@ -83,7 +83,7 @@ export function PasswordOfferBubble() {
           <XIcon className="size-3.5" />
         </button>
       </div>
-      <p className="mt-2 text-[11px] leading-4 text-muted-foreground">
+      <p className="mt-2 text-xs leading-4 text-muted-foreground">
         密码由系统加密保存，只留在这台电脑上。
       </p>
       <div className="mt-3 flex items-center gap-2">

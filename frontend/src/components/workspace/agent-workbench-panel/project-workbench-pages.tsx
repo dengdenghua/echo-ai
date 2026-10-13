@@ -103,7 +103,7 @@ export function MilestonesTab({ milestones }: { milestones: MilestoneView[] }) {
                 </Badge>
               </div>
               {milestone.goal ? (
-                <p className="mt-1 line-clamp-2 text-[10px] leading-relaxed text-muted-foreground">
+                <p className="mt-1 line-clamp-2 text-xs leading-relaxed text-muted-foreground">
                   {milestone.goal}
                 </p>
               ) : null}
@@ -115,11 +115,11 @@ export function MilestonesTab({ milestones }: { milestones: MilestoneView[] }) {
               aria-label={`${milestone.name}进度 ${milestone.progressPercent}%`}
               className="h-1.5 rounded-full"
             />
-            <span className="w-8 shrink-0 text-right text-[10px] font-medium text-muted-foreground">
+            <span className="w-8 shrink-0 text-right text-xs font-medium text-muted-foreground">
               {milestone.progressPercent}%
             </span>
           </div>
-          <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-[10px] text-muted-foreground">
+          <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
             <span>
               {milestone.total > 0
                 ? `${milestone.done}/${milestone.total} 个事项`
@@ -149,7 +149,7 @@ export function MilestonesTab({ milestones }: { milestones: MilestoneView[] }) {
                   .map((criterion, criterionIndex) => (
                     <li
                       key={`${criterion}:${criterionIndex}`}
-                      className="flex items-start gap-1.5 text-[10px] leading-relaxed text-muted-foreground"
+                      className="flex items-start gap-1.5 text-xs leading-relaxed text-muted-foreground"
                     >
                       <CheckCircle2Icon className="mt-0.5 size-3 shrink-0 text-core" />
                       <span>{criterion}</span>
@@ -207,7 +207,7 @@ export function TasksTab({
               aria-pressed={filter === item.id}
               onClick={() => onFilter(item.id)}
               className={cn(
-                "inline-flex h-7 shrink-0 items-center gap-1 rounded-md px-2 text-[10px] font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+                "inline-flex h-7 shrink-0 items-center gap-1 rounded-md px-2 text-xs font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
                 filter === item.id
                   ? "bg-foreground/10 text-foreground"
                   : "text-muted-foreground hover:bg-muted/55 hover:text-foreground",
@@ -292,7 +292,7 @@ export function TasksTab({
                         <span>{fmtDate(task.due_at)} 截止</span>
                       ) : null}
                     </div>
-                    <div className="mt-2 flex items-center gap-1.5 text-[10px] text-muted-foreground">
+                    <div className="mt-2 flex items-center gap-1.5 text-xs text-muted-foreground">
                       {task.assigned_agent &&
                       !HUMAN_TEAM_MODES.has(task.team_mode) ? (
                         <BotIcon className="size-3" />
@@ -331,7 +331,7 @@ export function TasksTab({
                       ) : null}
                     </div>
                     {(task.acceptance_criteria?.length ?? 0) > 0 ? (
-                      <div className="mt-2 line-clamp-2 text-[10px] leading-relaxed text-muted-foreground">
+                      <div className="mt-2 line-clamp-2 text-xs leading-relaxed text-muted-foreground">
                         完成标准：{task.acceptance_criteria.join("；")}
                       </div>
                     ) : null}
@@ -421,7 +421,7 @@ export function AssetsTab({
                 ) : null}
               </div>
               {asset.summary ? (
-                <p className="mt-1 line-clamp-2 text-[10px] leading-relaxed text-muted-foreground">
+                <p className="mt-1 line-clamp-2 text-xs leading-relaxed text-muted-foreground">
                   {asset.summary}
                 </p>
               ) : null}
@@ -500,7 +500,7 @@ export function MembersTab({
             type="button"
             variant="outline"
             size="sm"
-            className="h-7 shrink-0 gap-1.5 rounded-lg px-2 text-[10px]"
+            className="h-7 shrink-0 gap-1.5 rounded-lg px-2 text-xs"
             onClick={() => void onInvitePeople()}
           >
             <UserPlusIcon className="size-3.5" />
@@ -589,7 +589,7 @@ export function MembersTab({
                   </Badge>
                 ) : null}
               </div>
-              <div className="mt-0.5 truncate text-[10px] text-muted-foreground">
+              <div className="mt-0.5 truncate text-xs text-muted-foreground">
                 {member.role}
                 {member.status ? ` · ${member.status}` : ""}
               </div>

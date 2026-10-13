@@ -221,12 +221,12 @@ export function WorkspaceContextMenu({
               </DropdownMenuItem>
             )}
             {summary?.diffError && (
-              <p className="px-2 py-1 text-[11px] text-muted-foreground">
+              <p className="px-2 py-1 text-xs text-muted-foreground">
                 {t.workspaceNote.diffUnavailable}
               </p>
             )}
             {!!summary?.untrackedFiles && (
-              <p className="px-2 py-1 text-[11px] text-muted-foreground">
+              <p className="px-2 py-1 text-xs text-muted-foreground">
                 {t.workspaceNote.trackedOnly}
               </p>
             )}

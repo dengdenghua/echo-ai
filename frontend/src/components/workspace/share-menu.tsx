@@ -402,7 +402,7 @@ function ShareChannelItem({
       >
         {icon}
       </span>
-      <span className="w-full truncate text-[11px] leading-4 text-muted-foreground">
+      <span className="w-full truncate text-xs leading-4 text-muted-foreground">
         {label}
       </span>
     </DropdownMenuItem>

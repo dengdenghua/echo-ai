@@ -135,7 +135,7 @@ export function MemberProfilePopover({
               <p className="truncate text-base font-semibold text-foreground">
                 {name}
               </p>
-              <div className="mt-1.5 flex flex-wrap items-center gap-1.5 text-[11px]">
+              <div className="mt-1.5 flex flex-wrap items-center gap-1.5 text-xs">
                 <span className="rounded-md bg-primary/10 px-1.5 py-0.5 font-medium text-primary">
                   {roleLabel}
                 </span>

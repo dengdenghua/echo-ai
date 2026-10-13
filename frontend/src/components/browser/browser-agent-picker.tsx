@@ -91,7 +91,7 @@ export function BrowserAgentPicker({
                   >
                     {agent.display_name || agent.name}
                   </span>
-                  <span className="block truncate text-[11px] text-muted-foreground">
+                  <span className="block truncate text-xs text-muted-foreground">
                     {t.sidebar.agentRoleSummary[agent.name] ||
                       agent.description}
                   </span>

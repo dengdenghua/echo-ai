@@ -39,7 +39,7 @@ function RecoverTransfer({ job }: { job: PhoneTransfer }) {
       ) : (
         <button onClick={() => recover()}>重新下载</button>
       )}
-      <p className="text-[10px] text-muted-foreground">
+      <p className="text-xs text-muted-foreground">
         {job.upload
           ? "校验原文件后，从手机已确认的位置继续。"
           : "将从头下载并重新校验文件。"}
@@ -88,7 +88,7 @@ export function PhoneTransferList({ deviceId }: { deviceId?: string }) {
           className="rounded-xl border border-border-subtle bg-card p-3 text-foreground"
         >
           <p className="truncate font-medium">{job.name}</p>
-          <p className="mt-1 break-all text-[10px]">
+          <p className="mt-1 break-all text-xs">
             {job.upload
               ? `此电脑 → ${job.deviceId}`
               : `${job.deviceId} → 此电脑下载`}
@@ -169,7 +169,7 @@ export function PhoneTransferList({ deviceId }: { deviceId?: string }) {
               <RecoverTransfer job={job} />
             ) : (
               job.state === "running" && (
-                <p className="text-[10px] text-muted-foreground">
+                <p className="text-xs text-muted-foreground">
                   其他窗口正在传输；关闭原页面后，约 45 秒可在这里恢复。
                 </p>
               )

@@ -1770,7 +1770,7 @@ function ProjectGroupTrigger({
         className="max-w-72 break-words"
       >
         <span className="block font-medium">{displayName}</span>
-        <span className="mt-0.5 block text-[11px] text-muted-foreground">
+        <span className="mt-0.5 block text-xs text-muted-foreground">
           {generatedWorkspace
             ? "此任务自动创建的文件空间"
             : hasBoundFolder

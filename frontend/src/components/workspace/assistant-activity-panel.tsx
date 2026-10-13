@@ -184,7 +184,7 @@ export function AssistantActivityPanel({
             )}
           </div>
           {activity.data && (
-            <p className="text-[10px] text-muted-foreground" aria-live="polite">
+            <p className="text-xs text-muted-foreground" aria-live="polite">
               {terms.length > 0 && copy.matches(visible.length)}
               {copy.counts(items.length)}
             </p>
@@ -323,7 +323,7 @@ function ActivityRow({
             <span>{source}</span>
             <Badge
               variant="outline"
-              className="max-w-full whitespace-normal break-all text-[10px]"
+              className="max-w-full whitespace-normal break-all text-xs"
               title={item.status}
             >
               {activityStatusLabel(item.status, copy)}
@@ -357,7 +357,7 @@ function ActivityRow({
         {updated ? (
           <time
             dateTime={item.updated_at}
-            className="text-[10px] text-muted-foreground"
+            className="text-xs text-muted-foreground"
           >
             {copy.updated}
             {updated}
