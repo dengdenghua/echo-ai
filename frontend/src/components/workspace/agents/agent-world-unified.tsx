@@ -1,4 +1,3 @@
-import { MailIcon } from "lucide-react";
 import { agentCreationRoute } from "@/core/agents/creation-route";
 /* Implementation note. */
 import { DepartmentScenarios } from "./department-scenarios";
@@ -14,25 +13,17 @@ import {
 import { useQueryClient } from "@tanstack/react-query";
 import {
   AlertCircleIcon,
-  BookOpenIcon,
   BotIcon,
-  CompassIcon,
-  FolderKanbanIcon,
-  type LayoutGridIcon,
   ChevronDownIcon,
   CloudDownloadIcon,
-  DnaIcon,
   CirclePauseIcon,
   Loader2Icon,
   MoreHorizontalIcon,
   PanelLeftIcon,
   PlusIcon,
   PuzzleIcon,
-  PaletteIcon,
-  RadioIcon,
   SearchIcon,
   StoreIcon,
-  TrendingUpIcon,
   Trash2Icon,
   PowerIcon,
   RefreshCwIcon,
@@ -107,8 +98,8 @@ import {
 import {
   WORKBENCH_BUILTIN_APPS,
   type WorkbenchBuiltinApp,
-  type WorkbenchBuiltinIcon,
 } from "@/core/workbench/apps";
+import { WORKBENCH_APP_ICONS } from "@/components/workspace/module-icons";
 
 import { AgentCard } from "./agent-card";
 import { AgentWorldCard } from "./agent-world-card";
@@ -150,17 +141,6 @@ const ECHO_CHARACTER_DISPLAY_NAMES = new Set([
   "shion",
   "zero",
 ]);
-
-const BUILTIN_APP_ICONS = {
-  projects: FolderKanbanIcon,
-  trading: TrendingUpIcon,
-  design: PaletteIcon,
-  narrative: BookOpenIcon,
-  evolution: DnaIcon,
-  intelligence: RadioIcon,
-  community: CompassIcon,
-  mail: MailIcon,
-} satisfies Record<WorkbenchBuiltinIcon, typeof LayoutGridIcon>;
 
 function normalizeAgentNameKey(value: string): string {
   return value
@@ -1796,7 +1776,7 @@ export function AgentWorldUnified() {
                   )}
                   <div className="grid gap-x-8 sm:grid-cols-2">
                     {matchingApps.map((app) => {
-                      const Icon = BUILTIN_APP_ICONS[app.icon];
+                      const Icon = WORKBENCH_APP_ICONS[app.icon];
                       const isInSidebar = enabledModuleIdSet.has(app.moduleId);
                       const isCore = app.delivery === "core";
                       const packageStatus = app.packageId

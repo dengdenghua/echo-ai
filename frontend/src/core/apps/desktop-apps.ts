@@ -1,19 +1,17 @@
-import { MailIcon } from "lucide-react";
 import {
   AppWindowIcon,
   FileImageIcon,
-  FileTextIcon,
   FilmIcon,
   FolderIcon,
   GlobeIcon,
   MonitorIcon,
   MonitorSmartphoneIcon,
   SettingsIcon,
-  SparklesIcon,
   TerminalSquareIcon,
   type LucideIcon,
 } from "lucide-react";
 
+import { WORKBENCH_APP_ICONS } from "@/components/workspace/module-icons";
 import {
   WORKBENCH_BUILTIN_APPS,
   type WorkbenchBuiltinApp,
@@ -36,24 +34,13 @@ export interface DesktopApp {
   placement: DesktopAppPlacement;
 }
 
-const WORKBENCH_ICONS: Record<WorkbenchBuiltinApp["icon"], LucideIcon> = {
-  projects: FolderIcon,
-  trading: SparklesIcon,
-  design: FileImageIcon,
-  narrative: FileTextIcon,
-  evolution: SparklesIcon,
-  intelligence: GlobeIcon,
-  community: AppWindowIcon,
-  mail: MailIcon,
-};
-
 function workbenchDesktopApp(app: WorkbenchBuiltinApp): DesktopApp {
   return {
     id: `workbench:${app.id}`,
     name: app.name,
     subtitle: app.description,
     route: app.workspaceRoute,
-    icon: WORKBENCH_ICONS[app.icon],
+    icon: WORKBENCH_APP_ICONS[app.icon],
     placement: "workbench",
   };
 }

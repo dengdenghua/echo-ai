@@ -48,10 +48,6 @@ import {
   Minimize2,
   Maximize2,
   CompassIcon,
-  SquareKanbanIcon,
-  CandlestickChartIcon,
-  DnaIcon,
-  RssIcon,
   type LucideIcon,
 } from "lucide-react";
 
@@ -71,8 +67,8 @@ import {
   WORKBENCH_BUILTIN_APPS,
   setWorkspaceWebShortcut,
   useWorkspaceWebShortcuts,
-  type WorkbenchBuiltinIcon,
 } from "@/core/workbench/apps";
+import { WORKBENCH_APP_ICONS } from "@/components/workspace/module-icons";
 import { useActiveAgentId } from "@/core/agents/active";
 import { useEnabledModuleIds } from "@/core/modules/enabled-modules";
 import { useWorkbenchAvailabilitySync } from "@/core/workbench/availability";
@@ -161,22 +157,11 @@ interface EditWidgetState {
   size: Widget["size"];
 }
 
-const BUILTIN_ICON_MAP: Record<WorkbenchBuiltinIcon, LucideIcon> = {
-  projects: SquareKanbanIcon,
-  trading: CandlestickChartIcon,
-  design: PaletteIcon,
-  narrative: BookOpenIcon,
-  evolution: DnaIcon,
-  intelligence: RssIcon,
-  community: CompassIcon,
-  mail: MailIcon,
-};
-
 const WORKSPACE_DESKTOP_APPS: BrowserDesktopApp[] = WORKBENCH_BUILTIN_APPS.map(
   (app) => ({
     name: app.name,
     url: app.launchUrl,
-    icon: BUILTIN_ICON_MAP[app.icon],
+    icon: WORKBENCH_APP_ICONS[app.icon],
     description: app.description,
     category: "workspace",
     workspaceRoute: app.workspaceRoute,

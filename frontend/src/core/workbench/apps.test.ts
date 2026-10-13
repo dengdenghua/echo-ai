@@ -40,7 +40,7 @@ describe("built-in workbench apps", () => {
       resolve("src/components/browser/webview-tab.tsx"),
       "utf8",
     );
-    // The sidebar and the phone drawer share one module icon map.
+    // Every surface that draws a workbench app reads one shared icon map.
     const sidebar = readFileSync(
       resolve("src/components/workspace/module-icons.ts"),
       "utf8",
@@ -50,9 +50,9 @@ describe("built-in workbench apps", () => {
       "utf8",
     );
 
-    expect(browserHome).toContain("narrative: BookOpenIcon");
     expect(sidebar).toContain("narrative: BookOpenIcon");
-    expect(hub).toContain("narrative: BookOpenIcon");
+    expect(browserHome).toContain("WORKBENCH_APP_ICONS[app.icon]");
+    expect(hub).toContain("WORKBENCH_APP_ICONS[app.icon]");
     expect(browserTab).toContain("<RemoteWorkbenchSurface");
     expect(browserTab).not.toContain(
       'import("@/app/workspace/narrative/page")',
