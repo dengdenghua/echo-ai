@@ -35,6 +35,7 @@ from ._channels_persist import (
     _MAX_ASSIGNMENTS,  # noqa: F401 — re-exported for backward compat (tests read them)
     _MAX_PAIRINGS_PER_CHANNEL,  # noqa: F401 — re-exported for backward compat (tests read them)
     _MAX_STATE_FILE_BYTES,  # noqa: F401 — re-exported for backward compat (tests read them)
+    _default_channel_state_path,
     _load_state,
     _pairings,
     _sanitize_credentials_body,
@@ -143,7 +144,7 @@ def create_channels_router(
         manager = LocalChannelManager()
 
     if state_path is None:
-        state_path = os.environ.get("ECHO_CHANNEL_STATE") or "data/channel_state.json"
+        state_path = os.environ.get("ECHO_CHANNEL_STATE") or _default_channel_state_path()
     _state_file: Path | None = Path(state_path) if state_path else None
     _creds_file: Path | None = (
         _state_file.with_name(

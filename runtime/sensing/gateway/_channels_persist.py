@@ -235,6 +235,58 @@ def _clean_credentials_map(raw: Any) -> dict[str, dict[str, Any]]:
     return out
 
 
+_CHANNEL_STATE_NAME = "channel_state.json"
+_CHANNEL_CREDENTIALS_NAME = "channel_state.credentials.json"
+_CREDENTIAL_KEY_NAME = ".credential_key"
+
+
+def _default_channel_state_path() -> Path:
+    """Channel state lives in this instance's data directory.
+
+    It used to be ``data/channel_state.json`` relative to the working
+    directory. An instance with its own ``ECHO_HOME`` (a fresh install, a
+    test instance) then read the source checkout's channel credentials and
+    started polling those bots, and a packaged app wrote next to its
+    executable. A data directory inside the launch directory (the
+    checkout's own dev instance) adopts the legacy state once, so channels
+    configured there keep working.
+    """
+    from runtime.platform.process.paths import app_paths
+
+    target = app_paths().data_dir / _CHANNEL_STATE_NAME
+    _adopt_legacy_channel_state(Path.cwd() / "data", target.parent)
+    return target
+
+
+def _adopt_legacy_channel_state(legacy_dir: Path, data_dir: Path) -> None:
+    import shutil
+
+    try:
+        legacy_dir = legacy_dir.resolve()
+        data_dir = data_dir.resolve()
+        if legacy_dir == data_dir or not data_dir.is_relative_to(legacy_dir.parent):
+            return
+        names = (_CHANNEL_STATE_NAME, _CHANNEL_CREDENTIALS_NAME)
+        if any((data_dir / name).exists() for name in names):
+            return
+        legacy = [name for name in names if (legacy_dir / name).is_file()]
+        if not legacy:
+            return
+        # Encrypted credentials need the key they were sealed with; never
+        # overwrite a key this instance already uses for something else.
+        key = legacy_dir / _CREDENTIAL_KEY_NAME
+        if _CHANNEL_CREDENTIALS_NAME in legacy and (data_dir / _CREDENTIAL_KEY_NAME).exists():
+            legacy.remove(_CHANNEL_CREDENTIALS_NAME)
+        elif _CHANNEL_CREDENTIALS_NAME in legacy and key.is_file():
+            legacy.append(_CREDENTIAL_KEY_NAME)
+        data_dir.mkdir(parents=True, exist_ok=True)
+        for name in legacy:
+            shutil.copy2(legacy_dir / name, data_dir / name)
+        logger.info("adopted legacy channel state from %s", legacy_dir)
+    except OSError as exc:
+        logger.warning("legacy channel state not adopted: %s", exc)
+
+
 def _load_state(manager: Any, state_file: Path | None) -> None:
     if state_file is None or not state_file.exists():
         return
