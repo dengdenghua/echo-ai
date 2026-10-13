@@ -49,6 +49,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Suspense, lazy } from "react";
 import { getSettingsUxCopy } from "./settings-ux-copy";
+import { StreamingDebugSetting } from "./streaming-debug-setting";
 import AppearanceSettingsPage from "./appearance-settings-page";
 import { CodingToolboxPanel } from "./coding-toolbox-panel";
 import type { SettingsSection } from "./settings-sections";
@@ -1124,6 +1125,10 @@ export function SettingsDialog(props: SettingsDialogProps) {
                   >
                     {settingsUxCopy.observability.openDashboard}
                   </Button>
+                  <StreamingDebugSetting
+                    title={settingsUxCopy.observability.debugTitle}
+                    description={settingsUxCopy.observability.debugDescription}
+                  />
                 </section>
               )}
               {hasSettingsResults && activeSection === "about" && (

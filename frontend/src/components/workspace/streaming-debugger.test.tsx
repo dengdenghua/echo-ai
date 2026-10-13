@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { act, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -72,5 +72,30 @@ describe("<StreamingDebugger />", () => {
 
     expect(screen.queryByText("tool-running")).not.toBeInTheDocument();
     expect(screen.getByText("tool-failed")).toBeInTheDocument();
+  });
+
+  it("stays hidden in dev builds once the debug setting is turned off", () => {
+    vi.stubEnv("DEV", true);
+    window.localStorage.setItem("echo:debug:streaming", "0");
+
+    const { container } = render(
+      <StreamingDebugger events={[event("running", "running")]} />,
+    );
+
+    expect(container).toBeEmptyDOMElement();
+    expect(screen.queryByTitle("流式调试面板 (Ctrl+Shift+D)")).toBeNull();
+  });
+
+  it("follows the settings toggle without a reload", async () => {
+    const { setStreamingDebugEnabled } =
+      await import("@/core/observability/streaming-debug-flag");
+    render(<StreamingDebugger events={[event("running", "running")]} />);
+    expect(screen.queryByTitle("流式调试面板 (Ctrl+Shift+D)")).toBeNull();
+
+    act(() => setStreamingDebugEnabled(true));
+
+    expect(
+      screen.getByTitle("流式调试面板 (Ctrl+Shift+D)"),
+    ).toBeInTheDocument();
   });
 });

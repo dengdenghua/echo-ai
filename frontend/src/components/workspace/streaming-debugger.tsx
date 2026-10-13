@@ -10,6 +10,7 @@ import {
 import { toast } from "sonner";
 
 import type { LiveToolEvent } from "./live-tool-timeline";
+import { useStreamingDebugEnabled } from "@/core/observability/streaming-debug-flag";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -23,10 +24,8 @@ interface StreamingDebuggerProps {
  * 流式事件调试面板
  *
  * 开发者工具，用于实时追踪和调试流式事件流。
- * 仅在开发环境或通过 localStorage flag 启用。
- *
- * 启用方式:
- * localStorage.setItem('echo:debug:streaming', '1')
+ * 开发构建默认显示（可关闭），正式构建默认隐藏；在 设置 → 可观测性 中切换，
+ * 或 localStorage.setItem('echo:debug:streaming', '1' | '0')。
  *
  * 功能:
  * - 实时事件列表
@@ -42,13 +41,11 @@ export function StreamingDebugger({
   events,
   className,
 }: StreamingDebuggerProps) {
-  // Keep the disabled production path hook-free: streaming event arrays change
+  // Keep the disabled path free of event work: streaming event arrays change
   // frequently, so even memoized derivations would still rescan them on every
-  // parent render if the gate lived below the hooks.
-  const enabled =
-    import.meta.env.DEV ||
-    (typeof window !== "undefined" &&
-      window.localStorage.getItem("echo:debug:streaming") === "1");
+  // parent render if the gate lived below them. The flag hook never reads
+  // `events`.
+  const enabled = useStreamingDebugEnabled();
 
   if (!enabled) return null;
 
