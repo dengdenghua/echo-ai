@@ -36,6 +36,9 @@ vi.mock("@/providers/AuthProvider", () => ({
   useAuth: () => ({
     user: { user_id: "actor-a", actor_id: "actor-a", username: "Alice" },
   }),
+  useOptionalAuth: () => ({
+    user: { user_id: "actor-a", actor_id: "actor-a", username: "Alice" },
+  }),
 }));
 
 // MixSettingsSection fetches its own /api/mix-config + model list on mount.

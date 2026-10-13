@@ -1,6 +1,9 @@
 import { useState } from "react";
 import { Users, Radio } from "lucide-react";
 
+import { canManageInstanceSettings } from "@/core/auth/control-plane-access";
+import { useOptionalAuth } from "@/providers/AuthProvider";
+
 import { EchoModelHotspotSettings } from "./echo-model-hotspot";
 import { TeamGatewaySettings } from "./team-gateway-settings";
 
@@ -10,6 +13,13 @@ export function ModelSharingSettings({
   onConnected: () => void;
 }) {
   const [mode, setMode] = useState<"personal" | "team">("personal");
+  const auth = useOptionalAuth();
+  // The team gateway is configured by this computer's administrator; for
+  // anyone else its endpoints answer 403, so do not call them at all.
+  const canManageTeam = canManageInstanceSettings(
+    auth?.authStatus ?? null,
+    auth?.user ?? null,
+  );
   return (
     <section
       aria-label="模型共享"
@@ -52,7 +62,13 @@ export function ModelSharingSettings({
         <EchoModelHotspotSettings embedded onConnected={onConnected} />
       </div>
       <div hidden={mode !== "team"}>
-        <TeamGatewaySettings embedded onConnected={onConnected} />
+        {canManageTeam ? (
+          <TeamGatewaySettings embedded onConnected={onConnected} />
+        ) : (
+          <p className="rounded-lg border border-dashed px-3 py-4 text-sm text-muted-foreground">
+            团队模型由这台电脑的管理员配置。需要使用时，请让管理员在设置里连接团队网关。
+          </p>
+        )}
       </div>
     </section>
   );

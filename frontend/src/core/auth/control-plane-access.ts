@@ -18,6 +18,16 @@ export function canAccessOperatorControlPlane(
   return roles.has("admin") || roles.has("operator");
 }
 
+/** Instance-wide settings guarded by the server's ``admin`` role. */
+export function canManageInstanceSettings(
+  authStatus: AuthStatus | null,
+  user: User | null,
+): boolean {
+  if (authStatus?.enabled === false) return true;
+  if (!authStatus?.enabled || !user) return false;
+  return (user.roles ?? []).includes("admin");
+}
+
 /** Cross-tenant process-global controls require an admin and a durable scope. */
 export function canAccessGlobalControlPlane(
   authStatus: AuthStatus | null,
