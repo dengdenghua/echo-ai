@@ -44,7 +44,7 @@ runtime/safety/recovery/gepa_bridge.py	1025
 runtime/safety/sandboxing/sandbox.py	1288
 runtime/sensing/gateway/_realtime_react_stream_drive.py	1141
 runtime/sensing/gateway/_team_stream_group_fanout.py	1794
-runtime/sensing/gateway/agent_world_router.py	1282
+runtime/sensing/gateway/agent_world_router.py	1287
 runtime/sensing/gateway/design_studio_router.py	1558
 runtime/sensing/gateway/realtime_event_bridge.py	1516
 runtime/sensing/gateway/realtime_turn_input.py	1110

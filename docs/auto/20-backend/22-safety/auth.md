@@ -171,6 +171,7 @@ tier: "core"
 | func | `def set_session_cookie(response, request, token, max_age)` | Persist a browser session without exposing the JWT to JavaScript. |
 | func | `def clear_session_cookie(response, request)` | Expire the browser session cookie using the same transport policy. |
 | class | `class CurrentPrincipal` | Verified request identity used by authorization decisions. |
+| func | `def request_credential(request)` | The bearer token, WebSocket bearer or session cookie a request presents. |
 | func | `def resolve_principal(request, identity_store, require_auth, jwt_secret, jwt_issuer, jwt_audience, jwt_leeway_seconds)` | Resolve a principal from a known API key or a registered JWT subject. |
 | func | `def require_roles(request, identity_store, require_auth, allowed_roles, jwt_secret, jwt_issuer, jwt_audience, jwt_leeway_seconds)` | Require one of *allowed_roles* when shared authentication is active. |
 | func | `def require_operator(request, identity_store, require_auth, jwt_secret, jwt_issuer, jwt_audience, jwt_leeway_seconds)` | Require an ``operator`` or ``admin`` role for control-plane changes. |
@@ -248,7 +249,7 @@ tier: "core"
 
 ## Who imports this
 
-**213** file(s) reference this package:
+**218** file(s) reference this package:
 
 - **`runtime/adapters/`** · 6 file(s)
   - `runtime/adapters/integrations/local_auth/router.py`
@@ -305,13 +306,13 @@ tier: "core"
   - `runtime/safety/evolution/fitness.py`
   - `runtime/safety/evolution/proposal_ledger.py`
   - _… and 17 more_
-- **`runtime/sensing/`** · 95 file(s)
+- **`runtime/sensing/`** · 100 file(s)
   - `runtime/sensing/gateway/_agent_trace_router_stores.py`
+  - `runtime/sensing/gateway/_agents_endpoints.py`
   - `runtime/sensing/gateway/_config_endpoints.py`
   - `runtime/sensing/gateway/_config_endpoints_codex.py`
   - `runtime/sensing/gateway/_config_endpoints_local_models.py`
-  - `runtime/sensing/gateway/_config_endpoints_models.py`
-  - _… and 90 more_
+  - _… and 95 more_
 - **`runtime/tentacle/`** · 3 file(s)
   - `runtime/tentacle/coordinator.py`
   - `runtime/tentacle/dashboard.py`

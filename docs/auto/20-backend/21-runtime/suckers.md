@@ -713,7 +713,7 @@ Suckers = skill pool.
 
 | Kind | Symbol | Doc |
 | --- | --- | --- |
-| func | `def register_visual_skills(registry)` |  |
+| func | `def register_visual_skills(registry)` | Register the visual skills that are not registered yet. |
 
 ### `web_skills.py`
 
