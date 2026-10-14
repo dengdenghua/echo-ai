@@ -8626,10 +8626,10 @@ Strategy:
   },
 
   hero: {
-    releaseBadge: "ECHO AI 2.0 released",
+    releaseBadge: "ECHO AI preview",
     withEcho: "with Echo",
     heroDescription:
-      "An open-source SuperAgent harness that researches, codes, and creates. With the help of sandboxes, memories, tools, skills and subagents, it handles different levels of tasks that could take minutes to hours.",
+      "An open-source agent runtime that researches, codes, and creates. With sandboxes, memory, tools, skills and subagents, it handles tasks that take minutes to hours.",
     getStarted: "Get Started",
     starOnGitHub: "Star on GitHub",
     rotatingWords: [

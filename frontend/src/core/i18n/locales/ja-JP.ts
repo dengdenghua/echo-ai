@@ -8596,10 +8596,10 @@ export const jaJP: Translations = {
   },
 
   hero: {
-    releaseBadge: "ECHO AI 2.0 リリース",
+    releaseBadge: "ECHO AI プレビュー版",
     withEcho: "Echo と一緒に",
     heroDescription:
-      "オープンソースの SuperAgent フレームワーク。研究、コーディング、創作ができます。サンドボックス、メモリ、ツール、スキル、サブ Agent の助けを借りて、数分から数時間の様々なレベルのタスクを処理します。",
+      "オープンソースの Agent ランタイム。研究、コーディング、創作ができます。サンドボックス、メモリ、ツール、スキル、サブ Agent を使い、数分から数時間かかるタスクを処理します。",
     getStarted: "はじめる",
     starOnGitHub: "GitHub でスター",
     rotatingWords: [

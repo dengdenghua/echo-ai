@@ -8205,10 +8205,10 @@ export const zhCN: Translations = {
   },
 
   hero: {
-    releaseBadge: "ECHO AI 2.0 已发布",
+    releaseBadge: "ECHO AI 预览版",
     withEcho: "与 Echo 一起",
     heroDescription:
-      "一个开源的 SuperAgent 框架，能做研究、写代码、产内容。借助沙箱、记忆、工具、技能和子智能体，它可以处理从几分钟到几小时不等的不同层级任务。",
+      "开源的智能体运行时，能做研究、写代码、产内容。借助沙箱、记忆、工具、技能和子智能体，处理从几分钟到几小时的各类任务。",
     getStarted: "开始使用",
     starOnGitHub: "在 GitHub 上标星",
     rotatingWords: [

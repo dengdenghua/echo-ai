@@ -8488,10 +8488,10 @@ export const koKR: Translations = {
   },
 
   hero: {
-    releaseBadge: "ECHO AI 2.0 출시",
+    releaseBadge: "ECHO AI 프리뷰",
     withEcho: "Echo와 함께",
     heroDescription:
-      "오픈소스 SuperAgent 프레임워크로 연구, 코딩, 콘텐츠 생성을 수행합니다. 샌드박스, 메모리, 도구, 스킬, 서브 Agent를 활용해 몇 분에서 몇 시간까지 다양한 작업을 처리합니다.",
+      "오픈소스 에이전트 런타임으로 연구, 코딩, 콘텐츠 제작을 수행합니다. 샌드박스, 메모리, 도구, 스킬, 서브 Agent로 몇 분에서 몇 시간 걸리는 작업을 처리합니다.",
     getStarted: "시작하기",
     starOnGitHub: "GitHub에서 스타",
     rotatingWords: [
