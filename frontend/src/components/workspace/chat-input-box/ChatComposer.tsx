@@ -1003,7 +1003,7 @@ export function ChatComposer({
         file.type.toLowerCase().startsWith("image/"),
       );
       if (arr.length === 0) return;
-      const sourceLabel = options?.sourceLabel?.trim() || "图片";
+      const sourceLabel = options?.sourceLabel?.trim() || composerActionsCopy(locale).imageAttachment;
       // Being in the composer *is* being uploaded: start the transfer now so
       // the chip can show real progress and send can wait on it.
       attachmentUploads.start(
@@ -1039,7 +1039,7 @@ export function ChatComposer({
         return next;
       });
     },
-    [attachmentUploads],
+    [attachmentUploads, locale],
   );
   const removePendingImage = useCallback((index: number) => {
     setPendingImages((current) => {
@@ -1184,7 +1184,7 @@ export function ChatComposer({
     void Promise.all(
       queued.map(async (entry) => ({
         file: await dataUrlToFile(entry.dataUrl, entry.filename),
-        sourceLabel: entry.sourceLabel?.trim() || "浏览器截图",
+        sourceLabel: entry.sourceLabel?.trim() || composerActionsCopy(locale).browserScreenshot,
       })),
     ).then((entries) => {
       if (cancelled || composerThreadScopeRef.current !== threadScope) {
@@ -1197,13 +1197,13 @@ export function ChatComposer({
       addPendingImages(files, {
         sourceLabel:
           entries.find((entry) => entry.file instanceof File)?.sourceLabel ||
-          "浏览器截图",
+          composerActionsCopy(locale).browserScreenshot,
       });
     });
     return () => {
       cancelled = true;
     };
-  }, [addPendingImages, threadId]);
+  }, [addPendingImages, locale, threadId]);
   // Same recovery path for failed image-only sends: if the turn never
   // started, hand the images back to the composer so the user doesn't
   // have to paste or pick the screenshot again. We also expose the
@@ -1223,7 +1223,7 @@ export function ChatComposer({
           : "";
       if (images.length > 0) {
         addPendingImages(images, {
-          sourceLabel: detail?.sourceLabel?.trim() || "浏览器截图",
+          sourceLabel: detail?.sourceLabel?.trim() || composerActionsCopy(locale).browserScreenshot,
         });
       }
       if (contextText) {
@@ -1249,7 +1249,7 @@ export function ChatComposer({
         handler as EventListener,
       );
     };
-  }, [addPendingImages, threadId]);
+  }, [addPendingImages, locale, threadId]);
   const handlePasteImages = useCallback(
     (event: React.ClipboardEvent<HTMLTextAreaElement>) => {
       const items = event.clipboardData?.items;
@@ -2029,13 +2029,13 @@ export function ChatComposer({
               className="flex size-[42px] shrink-0 items-center justify-center rounded-lg text-muted-foreground outline-none transition-colors hover:bg-muted/60 hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring/35 sm:size-8"
               title={
                 activeLongTaskMode === "goal"
-                  ? "Goal 模式 · 点击退出"
-                  : "里程碑模式 · 点击退出"
+                  ? composerActionsCopy(locale).goalModeExit
+                  : composerActionsCopy(locale).milestoneModeExit
               }
               aria-label={
                 activeLongTaskMode === "goal"
-                  ? "Goal 模式 · 点击退出"
-                  : "里程碑模式 · 点击退出"
+                  ? composerActionsCopy(locale).goalModeExit
+                  : composerActionsCopy(locale).milestoneModeExit
               }
             >
               {activeLongTaskMode === "goal" ? (

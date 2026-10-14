@@ -35,6 +35,7 @@ describe("sent project commands", () => {
         content={"🏛️ [项目决策固化] 采纳微服务拆分方案\n详细架构文档已就绪"}
         renderBody={(body) => <p>{body}</p>}
       />,
+      { locale: "zh-CN" },
     );
     expect(screen.getByTestId("landmark-decision-card")).toBeInTheDocument();
     expect(screen.getByText("项目核心决策固化")).toBeInTheDocument();
@@ -47,6 +48,7 @@ describe("sent project commands", () => {
         content={"🌱 【方案推演沙盒】针对并列协作者方案开启推演"}
         renderBody={(body) => <p>{body}</p>}
       />,
+      { locale: "zh-CN" },
     );
     expect(screen.getByTestId("landmark-sandbox-card")).toBeInTheDocument();
     expect(screen.getByText("方案推演沙盒")).toBeInTheDocument();

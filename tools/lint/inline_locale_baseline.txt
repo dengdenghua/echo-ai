@@ -14,15 +14,14 @@ frontend/src/components/workspace/messages/media-reference.tsx	9
 frontend/src/components/workspace/reasoning-effort-picker.tsx	9
 frontend/src/components/workspace/messages/linked-file-reference.tsx	8
 frontend/src/components/workspace/settings/settings-dialog.tsx	8
-frontend/src/components/workspace/workdir-selector.tsx	7
+frontend/src/components/workspace/workdir-selector.tsx	4
 frontend/src/components/workspace/settings/automation-security-settings-page.tsx	5
 frontend/src/components/workspace/settings/conversation-settings-page.tsx	5
 frontend/src/components/workspace/settings/notification-settings-page.tsx	5
 frontend/src/core/utils/datetime.ts	4
 frontend/src/components/browser/weather.ts	3
-frontend/src/components/workspace/coder-engine-control.tsx	2
 frontend/src/components/workspace/settings/personal-space-settings-page.tsx	3
-frontend/src/components/workspace/model-picker.tsx	2
+frontend/src/components/workspace/model-picker.tsx	1
 frontend/src/components/workspace/settings/model-settings-page.tsx	2
 frontend/src/components/workspace/settings/privacy-settings-page.tsx	2
 frontend/src/components/workspace/settings/settings-resilience.ts	2

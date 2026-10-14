@@ -1,6 +1,7 @@
 import { SendHorizontalIcon } from "lucide-react";
 import type { Locale } from "@/core/i18n";
 import { useI18n } from "@/core/i18n/hooks";
+import { composerActionsCopy } from "@/core/i18n/locales/composer-actions";
 
 const groupCopy: Record<Locale, { label: string; title: string }> = {
   "en-US": {
@@ -37,17 +38,18 @@ export function StreamingSendActions({
 }) {
   const { locale } = useI18n();
   const copy = groupCopy[locale];
+  const actions = composerActionsCopy(locale);
   return (
     <>
       {!group && (
         <button
           type="button"
-          title="当前回复结束后执行；附件请在任务结束后发送"
+          title={actions.queueLaterHint}
           disabled={busy || blocked || hasAttachments}
-          className="shrink-0 rounded-md px-2 py-1 text-xs text-muted-foreground hover:bg-muted disabled:opacity-50"
+          className="flex h-[42px] shrink-0 items-center rounded-lg px-2.5 text-xs text-muted-foreground transition-colors hover:bg-muted hover:text-foreground disabled:opacity-50 sm:h-8"
           onClick={onQueueLater}
         >
-          稍后执行
+          {actions.queueLater}
         </button>
       )}
       <button
@@ -61,11 +63,11 @@ export function StreamingSendActions({
             ? blockedLabel
             : group
               ? copy.title
-              : "现在补充，不中断当前操作"
+              : actions.steerNowHint
         }
-        aria-label={group ? copy.label : "现在补充"}
+        aria-label={group ? copy.label : actions.steerNow}
       >
-        <SendHorizontalIcon className="size-3.5" />
+        <SendHorizontalIcon className="size-3.5" aria-hidden="true" />
       </button>
     </>
   );

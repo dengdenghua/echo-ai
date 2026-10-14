@@ -79,6 +79,7 @@ export function ExecutionEnginePicker({
   codexCapabilityChecks,
   opencodeCapabilityChecks,
   disabled,
+  checking = false,
 }: {
   value: ExecutionEnginePreference;
   /** Engine selected by Auto for this turn. The picker remains on Auto, while
@@ -92,6 +93,8 @@ export function ExecutionEnginePicker({
   codexCapabilityChecks?: EngineCapabilityChecks;
   opencodeCapabilityChecks?: EngineCapabilityChecks;
   disabled?: boolean;
+  /** Readiness is still loading: no warning dot or reason until it is known. */
+  checking?: boolean;
 }) {
   const { locale } = useI18n();
   const copy = executionEngineCopy(locale);
@@ -119,8 +122,9 @@ export function ExecutionEnginePicker({
     ? (reasonTexts[unavailableReason ?? "configuration_unavailable"] ??
       copy.reasons.configuration_unavailable)
     : null;
-  const selectedUnavailable =
-    value === "codex"
+  const selectedUnavailable = checking
+    ? null
+    : value === "codex"
       ? unavailable
       : value === "opencode" && !opencodeAvailable
         ? opencodeUnavailableReason || copy.opencodeCheckSetup
@@ -159,7 +163,7 @@ export function ExecutionEnginePicker({
           aria-label={`${title}: ${labels[value]}${selectedUnavailable ? copy.unavailableSuffix(selectedUnavailable) : ""}`}
           title={triggerTitle}
           data-testid="execution-engine-trigger"
-          className="relative flex size-8 shrink-0 items-center justify-center rounded-lg text-muted-foreground outline-none transition hover:bg-muted/60 hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring/30 disabled:opacity-50"
+          className="relative flex size-[42px] shrink-0 items-center justify-center rounded-lg text-muted-foreground outline-none transition hover:bg-muted/60 sm:size-8 hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring/30 disabled:opacity-50"
         >
           {visibleEngine === "opencode" ? (
             <OpenCodeIcon className="size-3.5 shrink-0" />

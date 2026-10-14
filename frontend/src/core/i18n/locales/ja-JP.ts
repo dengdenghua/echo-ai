@@ -115,7 +115,7 @@ export const jaJP: Translations = {
 
   // Input Box
   inputBox: {
-    placeholder: "今日はどのようなご用件ですか？",
+    placeholder: "やりたいことを入力 — @ でファイル参照、/ でスキル",
     mode: "モード",
     flashMode: "チャット",
     flashModeDescription: "高速応答",
@@ -1142,7 +1142,7 @@ export const jaJP: Translations = {
       legacyOnDemandAttachments:
         "旧役割の会話では直接実行しません。新しいタスクで添付ファイルを追加し直して送信してください。",
       placeholderCode: "修正、デバッグ、検証するプロジェクトタスクを記述...",
-      placeholderNew: "実装、生成、デバッグ、検証するタスクを記述...",
+      placeholderNew: "やりたいことを入力 — @ でファイル参照、/ でスキル",
       placeholderEcho: "そのまま話す：進捗確認、タスク委任、購読の要約...",
     },
     recorder: {

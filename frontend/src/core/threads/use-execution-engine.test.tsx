@@ -100,7 +100,7 @@ describe("per-task engine preference", () => {
       expect(result.current.opencodeAvailable).toBe(true);
       expect(result.current.codexAvailable).toBe(true);
       expect(result.current.codexUnavailableReason).toBeNull();
-      expect(result.current.opencodeUnavailableReason).not.toContain("团队");
+      expect(result.current.opencodeUnavailableReason ?? "").not.toContain("团队");
       // Topology planning now uses the selected external engine too.
       rerender({ orchestrated: true, nativeTopology: true });
       expect(result.current.opencodeAvailable).toBe(true);

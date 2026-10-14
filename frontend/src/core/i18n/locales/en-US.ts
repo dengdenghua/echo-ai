@@ -115,7 +115,7 @@ export const enUS: Translations = {
 
   // Input Box
   inputBox: {
-    placeholder: "How can I assist you today?",
+    placeholder: "Describe what you need — @ to cite a file, / for skills",
     mode: "Mode",
     flashMode: "Chat",
     flashModeDescription: "Fast response",
@@ -1160,8 +1160,7 @@ export const enUS: Translations = {
         "Legacy role chats no longer execute directly. A new task is open; reattach the files before sending.",
       placeholderCode:
         "Describe the project task to modify, debug, or verify...",
-      placeholderNew:
-        "Describe the task to implement, generate, debug, or verify...",
+      placeholderNew: "Describe what you need — @ to cite a file, / for skills",
       placeholderEcho:
         "Just say it: check progress, delegate a task, summarize subscriptions...",
     },

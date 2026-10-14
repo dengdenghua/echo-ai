@@ -647,7 +647,7 @@ describe("<ChatInputBox /> cowork materials", () => {
 
     expect(screen.getByTestId("chat-composer-input")).toHaveAttribute(
       "aria-label",
-      "How can I assist you today?",
+      "Describe what you need — @ to cite a file, / for skills",
     );
   });
 
@@ -746,7 +746,7 @@ describe("<ChatInputBox /> cowork materials", () => {
     );
     expect(screen.getByTestId("composer-long-task-indicator")).toHaveAttribute(
       "aria-label",
-      "Goal 模式 · 点击退出",
+      "Goal mode · click to leave",
     );
     expect(screen.getByTestId("composer-long-task-indicator")).toHaveClass(
       "text-muted-foreground",
@@ -824,7 +824,7 @@ describe("<ChatInputBox /> cowork materials", () => {
     );
     expect(screen.getByTestId("composer-long-task-indicator")).toHaveAttribute(
       "aria-label",
-      "里程碑模式 · 点击退出",
+      "Milestone mode · click to leave",
     );
     expect(screen.getByTestId("composer-command-prefix")).toHaveTextContent(
       "Milestone",

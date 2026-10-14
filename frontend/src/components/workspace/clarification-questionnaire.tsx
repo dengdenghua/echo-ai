@@ -10,6 +10,7 @@ import { useEffect, useId, useState } from "react";
 
 import { Button } from "@/components/ui/button";
 import { useI18n } from "@/core/i18n/hooks";
+import { questionnaireCopy } from "@/core/i18n/locales/questionnaire";
 import { cn } from "@/lib/utils";
 
 const QUESTIONNAIRE_TYPE = "clarification_questionnaire";
@@ -333,7 +334,8 @@ export function ClarificationQuestionnaire({
   payload: ClarificationQuestionnairePayload;
   sourceMessageId?: string;
 }) {
-  const { t } = useI18n();
+  const { t, locale } = useI18n();
+  const copy = questionnaireCopy(locale);
   const formId = useId();
   const [answers, setAnswers] = useState<Record<string, string[]>>({});
   const [notes, setNotes] = useState<Record<string, string>>({});
@@ -361,9 +363,9 @@ export function ClarificationQuestionnaire({
       .filter((o) => answers[q.id]?.includes(o.value))
       .map((o) => o.label);
     if (answers[q.id]?.includes("__undecided"))
-      labels.push("还没想好，请给我建议");
+      labels.push(copy.undecidedAnswer);
     if (notes[q.id]?.trim()) labels.push(notes[q.id]!.trim());
-    return labels.join("；") || "暂未回答";
+    return labels.join(copy.answerSeparator) || copy.unanswered;
   };
   const submit = () => {
     if (!hasAnswer || submitted) return;
@@ -385,10 +387,10 @@ export function ClarificationQuestionnaire({
         <div className="flex items-center justify-between gap-2">
           <p role="status" className="text-sm text-muted-foreground">
             {review
-              ? "确认回答"
+              ? copy.confirmAnswers
               : showAll
-                ? "查看全部问题"
-                : `第 ${step + 1} / ${payload.questions.length} 题`}
+                ? copy.allQuestions
+                : copy.stepOf(step + 1, payload.questions.length)}
           </p>
           <Button
             type="button"
@@ -399,7 +401,7 @@ export function ClarificationQuestionnaire({
               setShowAll(!showAll);
             }}
           >
-            {showAll ? "逐题填写" : "查看全部"}
+            {showAll ? copy.oneByOne : copy.viewAll}
           </Button>
         </div>
       )}
@@ -415,14 +417,14 @@ export function ClarificationQuestionnaire({
                   type="button"
                   size="sm"
                   variant="ghost"
-                  aria-label={`修改第 ${index + 1} 题`}
+                  aria-label={copy.editQuestion(index + 1)}
                   onClick={() => {
                     setStep(index);
                     setReview(false);
                     setShowAll(false);
                   }}
                 >
-                  修改
+                  {copy.edit}
                 </Button>
               </div>
               <p className="mt-2 whitespace-pre-wrap text-muted-foreground">
@@ -438,12 +440,12 @@ export function ClarificationQuestionnaire({
               <fieldset key={q.id} className="space-y-2">
                 <legend className="mb-2 text-sm font-medium leading-6">
                   {index + 1}. {q.title}
-                  {q.options.length > 0 ? (q.multiple ? "（可多选）" : "（单选）") : "（填写）"}
+                  {q.options.length > 0 ? (q.multiple ? copy.multipleHint : copy.singleHint) : copy.freeTextHint}
                 </legend>
                 <div className="flex flex-wrap gap-2">
                   {[
                     ...q.options,
-                    { value: "__undecided", label: "还没想好，让 AI 建议" },
+                    { value: "__undecided", label: copy.undecidedOption },
                   ].map((o) => (
                     <label
                       key={o.value}
@@ -478,7 +480,7 @@ export function ClarificationQuestionnaire({
                   ))}
                 </div>
                 <textarea
-                  aria-label={`补充回答：${q.title}`}
+                  aria-label={copy.noteFor(q.title)}
                   placeholder={t.conversation.clarificationOtherPlaceholder}
                   rows={2}
                   value={notes[q.id] ?? ""}
@@ -493,7 +495,7 @@ export function ClarificationQuestionnaire({
       )}
       <div className="flex flex-wrap items-center justify-between gap-3 border-t pt-3">
         <p className="text-xs text-muted-foreground">
-          可先回答一部分，也可直接在对话中补充。不会自动提交或立项。
+          {copy.footerHint}
         </p>
         <div className="flex flex-wrap gap-2">
           {paged && !showAll && (step > 0 || review) && (
@@ -505,7 +507,7 @@ export function ClarificationQuestionnaire({
                 else setStep(step - 1);
               }}
             >
-              上一步
+              {copy.back}
             </Button>
           )}
           {paged && !review ? (
@@ -521,7 +523,7 @@ export function ClarificationQuestionnaire({
                     else setStep(step + 1);
                   }}
                 >
-                  暂不确定
+                  {copy.notSure}
                 </Button>
               )}
               <Button
@@ -533,13 +535,13 @@ export function ClarificationQuestionnaire({
                 }}
               >
                 {showAll || step === payload.questions.length - 1
-                  ? "预览回答"
-                  : "下一步"}
+                  ? copy.preview
+                  : copy.next}
               </Button>
             </>
           ) : (
             <Button type="button" disabled={!hasAnswer} onClick={submit}>
-              提交回答
+              {copy.submit}
             </Button>
           )}
         </div>
@@ -557,12 +559,12 @@ export function ClarificationQuestionnaire({
       <div className="flex flex-wrap items-center justify-between gap-2">
         <h3 className="flex items-center gap-2 text-sm font-medium">
           <MessageSquareTextIcon className="size-4" />
-          {payload.title ?? "完善需求"}
+          {payload.title ?? copy.defaultTitle}
         </h3>
         {!submitted && (
           <div className="flex gap-2">
             <Button size="sm" variant="ghost" onClick={() => setModal(true)}>
-              {paged ? "开始 / 继续填写" : "放大填写"}
+              {paged ? copy.startOrContinue : copy.openLarge}
             </Button>
             {!paged && (
               <Button
@@ -570,7 +572,7 @@ export function ClarificationQuestionnaire({
                 variant="ghost"
                 onClick={() => setExpanded(!expanded)}
               >
-                {expanded ? "收起" : "继续填写"}
+                {expanded ? copy.collapse : copy.continueFilling}
               </Button>
             )}
           </div>
@@ -578,12 +580,11 @@ export function ClarificationQuestionnaire({
       </div>
       {submitted ? (
         <p role="status" className="text-sm text-muted-foreground">
-          回答已提交
+          {copy.submitted}
         </p>
       ) : paged ? (
         <p className="text-sm text-muted-foreground">
-          共 {payload.questions.length} 题 ·
-          逐题填写，最后统一确认。关闭后保留草稿。
+          {copy.pagedSummary(payload.questions.length)}
         </p>
       ) : (
         expanded && !modal && form
@@ -591,11 +592,11 @@ export function ClarificationQuestionnaire({
       <Dialog open={modal} onOpenChange={setModal}>
         <DialogContent className="max-h-[85vh] overflow-y-auto sm:max-w-2xl">
           <DialogHeader>
-            <DialogTitle>{payload.title ?? "完善需求"}</DialogTitle>
+            <DialogTitle>{payload.title ?? copy.defaultTitle}</DialogTitle>
             <DialogDescription className="text-xs text-muted-foreground">
               {paged
-                ? `共 ${payload.questions.length} 题 · 逐题填写需求`
-                : "请核对或修改需求问卷"}
+                ? copy.dialogPaged(payload.questions.length)
+                : copy.dialogSingle}
             </DialogDescription>
           </DialogHeader>
           {form}

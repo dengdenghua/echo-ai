@@ -115,7 +115,7 @@ export const koKR: Translations = {
 
   // Input Box
   inputBox: {
-    placeholder: "오늘 무엇을 도와드릴까요?",
+    placeholder: "원하는 작업을 입력하세요 — @ 파일 참조, / 스킬",
     mode: "모드",
     flashMode: "채팅",
     flashModeDescription: "빠른 응답",
@@ -1135,7 +1135,7 @@ export const koKR: Translations = {
       legacyOnDemandAttachments:
         "이전 역할 대화에서는 더 이상 직접 실행하지 않습니다. 새 작업에서 파일을 다시 첨부한 뒤 전송하세요.",
       placeholderCode: "수정, 디버그 또는 검증할 프로젝트 작업을 설명하세요...",
-      placeholderNew: "구현, 생성, 디버그 또는 검증할 작업을 설명하세요...",
+      placeholderNew: "원하는 작업을 입력하세요 — @ 파일 참조, / 스킬",
       placeholderEcho: "그냥 말하세요: 진행 확인, 작업 위임, 구독 요약...",
     },
     recorder: {

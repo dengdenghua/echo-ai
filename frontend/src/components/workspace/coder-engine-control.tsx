@@ -30,6 +30,7 @@ import {
 } from "@/core/coder/api";
 import { useI18n } from "@/core/i18n/hooks";
 import { cn } from "@/lib/utils";
+import { moveTabFocusWithin } from "@/lib/menu-tab-focus";
 import { useAuth } from "@/providers/AuthProvider";
 import type { ReasoningEffort } from "@/core/threads";
 import {
@@ -349,22 +350,28 @@ export function CoderEngineControl({
               type="button"
               data-testid="coder-engine-trigger"
               aria-label={fullProfileLabel}
-              className="inline-flex min-w-0 max-w-32 items-center gap-1 rounded-lg border border-transparent bg-transparent px-2 py-1 text-xs text-muted-foreground outline-none transition hover:border-border-default hover:bg-muted/60 hover:text-foreground data-[state=open]:bg-muted data-[state=open]:text-foreground"
+              className="inline-flex h-[42px] min-w-0 max-w-32 items-center gap-1 rounded-lg border border-transparent bg-transparent px-2 text-xs sm:h-8 text-muted-foreground outline-none transition hover:border-border-default hover:bg-muted/60 hover:text-foreground data-[state=open]:bg-muted data-[state=open]:text-foreground"
               disabled={disabled}
             >
-              {profileQuery.isLoading ? (
-                <Loader2Icon className="size-3 animate-spin" />
-              ) : null}
-              <span
-                className={cn(
-                  "truncate",
-                  !nativeAccountSelected &&
-                    isFreePickerModel(activeSystemModel) &&
-                    "text-core",
-                )}
-              >
-                {compactLabel}
-              </span>
+              {/* A quiet placeholder while the profile loads: a spinner beside a
+                  generic "Coder 模型" read like a stuck control. */}
+              {profileQuery.isLoading && !nativeKernel ? (
+                <span
+                  aria-hidden="true"
+                  className="h-3 w-16 animate-pulse rounded bg-muted"
+                />
+              ) : (
+                <span
+                  className={cn(
+                    "truncate",
+                    !nativeAccountSelected &&
+                      isFreePickerModel(activeSystemModel) &&
+                      "text-core",
+                  )}
+                >
+                  {compactLabel}
+                </span>
+              )}
               <ChevronDownIcon className="size-3 opacity-60" />
             </button>
           </DropdownMenuTrigger>
@@ -378,6 +385,7 @@ export function CoderEngineControl({
         side="top"
         sideOffset={6}
         className="w-72 p-1.5"
+        onKeyDown={moveTabFocusWithin}
       >
         {profileQuery.isError ? (
           <div className="space-y-2 rounded-lg border border-destructive/20 bg-destructive/[0.04] p-2 text-xs text-destructive">
@@ -430,9 +438,7 @@ export function CoderEngineControl({
                 <>
                   {visibleSystemModels.length === 0 && (
                     <p className="px-2 py-3 text-xs text-muted-foreground">
-                      {locale === "zh-CN"
-                        ? "暂无可用模型，请在下方添加自定义模型。"
-                        : "No models available. Add a custom model below."}
+                      {copy.noModelsAddBelow}
                     </p>
                   )}
                   {visibleSystemModels.map((model, index) => {
@@ -532,7 +538,7 @@ export function CoderEngineControl({
                 <button
                   type="button"
                   onClick={openModelSettings}
-                  className="flex h-9 w-full items-center gap-2 rounded-md px-2 text-left text-xs text-muted-foreground hover:bg-muted/60 hover:text-foreground"
+                  className="flex h-8 w-full items-center gap-2 rounded-md px-2 text-left text-xs text-muted-foreground hover:bg-muted/60 hover:text-foreground"
                 >
                   <UserRoundIcon className="size-3.5" />
                   {copy.signInToChoose}
@@ -617,7 +623,7 @@ export function CoderEngineControl({
           className="mt-1 flex h-7 w-full items-center justify-center gap-1.5 rounded-md border-t border-border px-2 pt-1 text-xs text-muted-foreground transition hover:text-foreground"
         >
           <KeyRoundIcon className="size-3.5" />
-          {locale === "zh-CN" ? "添加自定义模型" : "Add custom model"}
+          {copy.addCustomModel}
         </button>
       </DropdownMenuContent>
     </DropdownMenu>

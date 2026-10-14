@@ -15,6 +15,7 @@ import {
   shortenPath,
   WorkLocationIcon,
 } from "@/components/workspace/work-location-picker";
+import { DropdownMenuItem } from "@/components/ui/dropdown-menu";
 import type { WorkLocation } from "@/core/execution/work-location";
 import { useI18n } from "@/core/i18n/hooks";
 import { sessionStatusCopy } from "@/core/i18n/locales/session-status";
@@ -172,14 +173,18 @@ export function SessionContextSection({
         </p>
       ) : null}
       {onCompressContext ? (
-        <button
-          type="button"
+        // A menu item, so arrow keys reach it; it keeps the menu open so the
+        // progress stays in view.
+        <DropdownMenuItem
           data-testid="session-status-compress"
-          onClick={() => void onCompressContext()}
+          onSelect={(event) => {
+            event.preventDefault();
+            void onCompressContext();
+          }}
           disabled={isCompressingContext || tooFewTurns || contextTokens <= 0}
           aria-busy={isCompressingContext}
           title={tooFewTurns ? undefined : copy.compressHint}
-          className="mt-2.5 flex h-8 w-full items-center justify-center gap-2 rounded-lg border border-border-default text-xs font-medium text-foreground transition-colors hover:bg-muted disabled:cursor-default disabled:opacity-60"
+          className="mt-2.5 h-8 w-full justify-center rounded-lg border border-border-default text-xs font-medium text-foreground hover:bg-muted focus:bg-muted data-[disabled]:opacity-60"
         >
           {isCompressingContext ? (
             <Loader2Icon className="size-3.5 animate-spin" aria-hidden="true" />
@@ -187,7 +192,7 @@ export function SessionContextSection({
             <MinimizeIcon className="size-3.5" aria-hidden="true" />
           )}
           {isCompressingContext ? copy.compressing(elapsed) : copy.compress}
-        </button>
+        </DropdownMenuItem>
       ) : null}
       {onCompressContext && tooFewTurns && !isCompressingContext ? (
         <p className="mt-1.5 text-center text-xs text-muted-foreground">

@@ -16,10 +16,12 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { useI18n } from "@/core/i18n/hooks";
+import { coderEngineCopy } from "@/core/i18n/locales/coder-engine";
 import type { Translations } from "@/core/i18n/locales/types";
 import { DEFAULT_CONTEXT_WINDOW_TOKENS } from "@/core/models/context-window";
 import type { ReasoningEffort } from "@/core/threads";
 import { cn } from "@/lib/utils";
+import { moveTabFocusWithin } from "@/lib/menu-tab-focus";
 
 /** Minimal slice of the backend model shape used by the picker. */
 export interface PickerModel {
@@ -281,7 +283,7 @@ export function ModelContextSetting({
               )}
             >
               <span className="truncate">{profileLabel}</span>
-              <span className="shrink-0 tabular-nums text-[11px] opacity-70">
+              <span className="shrink-0 tabular-nums text-xs text-muted-foreground">
                 {formatted}
               </span>
             </button>
@@ -761,7 +763,7 @@ export function ModelPicker({
       type="button"
       data-testid="model-picker-trigger"
       className={cn(
-        "inline-flex h-8 min-w-0 items-center gap-1 rounded-lg border border-transparent",
+        "inline-flex h-[42px] min-w-0 items-center gap-1 rounded-lg border border-transparent sm:h-8",
         "bg-transparent px-1.5 py-1 text-ui text-muted-foreground transition outline-none",
         "hover:border-border-default hover:bg-muted/60 hover:text-foreground",
         "data-[state=open]:bg-muted data-[state=open]:text-foreground",
@@ -829,6 +831,7 @@ export function ModelPicker({
         side="top"
         sideOffset={6}
         className="w-72 p-1.5"
+        onKeyDown={moveTabFocusWithin}
         onFocus={(event) => {
           if (event.target === event.currentTarget) searchRef.current?.focus();
         }}
@@ -899,7 +902,7 @@ export function ModelPicker({
           </div>
         )}
         {engineSource && openCodeSource !== "custom" && (
-          <div className="my-1 flex gap-1 px-1" aria-label="OpenCode 服务">
+          <div className="my-1 flex gap-1 px-1" aria-label={coderEngineCopy(locale).opencodeService}>
             {(["opencode-zen", "opencode-go"] as const).map((source) => (
               <button
                 key={source}
@@ -910,7 +913,7 @@ export function ModelPicker({
                   setShowOlder(false);
                 }}
                 className={cn(
-                  "h-6 flex-1 rounded-md text-xs",
+                  "h-7 flex-1 rounded-md text-xs",
                   openCodeSource === source
                     ? "bg-muted font-medium text-foreground"
                     : "text-muted-foreground hover:bg-muted/50",
@@ -1048,7 +1051,7 @@ export function ModelPicker({
                 )}
               >
                 <PlusIcon className="size-3.5" />
-                {locale === "zh-CN" ? "添加自定义模型" : "Add custom model"}
+                {coderEngineCopy(locale).addCustomModel}
               </button>
             </div>
           )}

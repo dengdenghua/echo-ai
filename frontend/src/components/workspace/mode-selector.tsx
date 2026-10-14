@@ -27,6 +27,7 @@ import { toast } from "sonner";
 import { authHeaders } from "@/core/auth/api";
 import { getBackendBaseURL } from "@/core/config";
 import { useI18n } from "@/core/i18n/hooks";
+import { composerActionsCopy } from "@/core/i18n/locales/composer-actions";
 import { swallow } from "@/core/utils/log";
 import { cn } from "@/lib/utils";
 
@@ -198,7 +199,7 @@ export function ModeSelector({
   onManualOverrideChange,
   className,
 }: ModeSelectorProps) {
-  const { t } = useI18n();
+  const { t, locale } = useI18n();
   const [detection, setDetection] = useState<DetectResponse | null>(null);
   const [detecting, setDetecting] = useState(false);
   const [switching, setSwitching] = useState(false);
@@ -383,12 +384,13 @@ export function ModeSelector({
         setManualOverride(previousManualOverride);
         onManualOverrideChange?.(previousManualOverride);
         onModeChange(previousMode);
-        toast.error("切换模式失败，已还原");
+        toast.error(composerActionsCopy(locale).modeSwitchFailed);
       } finally {
         setSwitching(false);
       }
     },
     [
+      locale,
       mode,
       onManualOverrideChange,
       onModeChange,
@@ -516,7 +518,7 @@ export function ModeSelector({
         <ActiveIcon className={cn("size-3.5", busy && "animate-spin")} />
         <span className="max-w-[72px] truncate">{activeLabel}</span>
         {!chromeless && detection && isManualOverride && (
-          <span className="text-ui opacity-50">
+          <span className="text-ui text-muted-foreground">
             {t.modes.manualOverrideShort}
           </span>
         )}
@@ -587,7 +589,7 @@ export function ModeSelector({
                             {labelOverrides?.[option.name]?.trim() ||
                               option.label}
                           </span>
-                          <span className="truncate text-ui opacity-70">
+                          <span className="truncate text-ui text-muted-foreground">
                             {option.desc}
                           </span>
                         </div>

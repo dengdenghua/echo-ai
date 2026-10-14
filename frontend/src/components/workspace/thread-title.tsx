@@ -63,8 +63,9 @@ export function ThreadTitle({
     <FlipDisplay
       uniqueKey={threadId}
       className={cn(
-        "max-w-[min(48vw,38rem)] truncate text-sm font-medium",
-        isPlaceholder ? "text-foreground/65" : "text-foreground/80",
+        // The flip animation wraps the text in a block, so it truncates too.
+        "max-w-[min(48vw,38rem)] truncate text-sm font-medium [&>div]:truncate",
+        isPlaceholder ? "text-muted-foreground" : "text-foreground/80",
         className,
       )}
     >

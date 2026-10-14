@@ -3,6 +3,8 @@ import { useEffect, useMemo, useState } from "react";
 
 import { Button } from "@/components/ui/button";
 import { useI18n } from "@/core/i18n/hooks";
+import { clarificationCopy } from "@/core/i18n/locales/clarification";
+import { isIMEComposing } from "@/lib/ime";
 import { cn } from "@/lib/utils";
 import {
   ClarificationQuestionnaire,
@@ -111,7 +113,8 @@ export function ClarificationChoiceCard({
   messageId?: string;
   className?: string;
 }) {
-  const { t } = useI18n();
+  const { t, locale } = useI18n();
+  const copy = clarificationCopy(locale);
   const questionnaire = useMemo(
     () => extractClarificationQuestionnaire(content),
     [content],
@@ -162,7 +165,7 @@ export function ClarificationChoiceCard({
         <span>{t.conversation.clarificationChoose}</span>
         <span className="inline-flex items-center gap-1">
           <Clock3Icon className="size-3.5" />
-          请选择后提交，不会自动代答
+          {copy.waitsForYou}
         </span>
       </div>
       <div className="grid gap-2 sm:grid-cols-2">
@@ -197,9 +200,11 @@ export function ClarificationChoiceCard({
           disabled={submitted}
           onChange={(event) => setOtherText(event.target.value)}
           onKeyDown={(event) => {
-            if (event.key === "Enter") submitOther();
+            // Enter that confirms an IME candidate must not send half a word.
+            if (event.key === "Enter" && !isIMEComposing(event)) submitOther();
           }}
           placeholder={t.conversation.clarificationOtherPlaceholder}
+          aria-label={t.conversation.clarificationOtherPlaceholder}
           className="h-9 w-full rounded-md border border-border bg-background px-3 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary"
         />
         <Button
@@ -207,9 +212,11 @@ export function ClarificationChoiceCard({
           size="sm"
           disabled={submitted || !otherText.trim()}
           onClick={submitOther}
+          aria-label={copy.sendOther}
+          title={copy.sendOther}
           className="size-9 shrink-0 p-0"
         >
-          <SendIcon className="size-4" />
+          <SendIcon className="size-4" aria-hidden="true" />
         </Button>
       </div>
     </div>

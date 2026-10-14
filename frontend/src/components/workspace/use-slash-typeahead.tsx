@@ -8,6 +8,7 @@ import {
 } from "react";
 
 import type { SlashCommand } from "@/core/slash-commands/api";
+import { isIMEComposing } from "@/lib/ime";
 import { SlashCommandPicker } from "./slash-command-picker";
 
 export interface UseSlashTypeaheadArgs {
@@ -58,6 +59,9 @@ export function useSlashTypeahead({
   const handleKeyDown = useCallback(
     (e: KeyboardEvent<HTMLTextAreaElement>): boolean => {
       if (!slashOpen || slashMatches.length === 0) return false;
+      // While an IME is composing (e.g. typing "/技能"), arrows and Enter
+      // belong to its candidate list, not to the command menu.
+      if (isIMEComposing(e)) return false;
       if (e.key === "ArrowDown") {
         e.preventDefault();
         setSlashIdx((i) => (i + 1) % slashMatches.length);

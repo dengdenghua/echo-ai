@@ -36,6 +36,8 @@ import type { ThreadCollaborationRosterEntry } from "@/core/collaboration/thread
 import type { CollaborationSession, CoworkRoomEntityRef } from "@/core/cowork";
 import type { WorkLocation } from "@/core/execution/work-location";
 import type { useExecutionEngine } from "@/core/threads/use-execution-engine";
+import { useI18n } from "@/core/i18n/hooks";
+import { chatHeaderCopy } from "@/core/i18n/locales/chat-header";
 import { cn } from "@/lib/utils";
 
 import type { CollaborationProfile } from "./collaboration-roster-utils";
@@ -48,15 +50,6 @@ import type {
 } from "./realtime-page-types";
 import type { ConversationUserInput } from "./realtime-turn-utils";
 
-const CHANNEL_DISPLAY_NAMES: Record<string, string> = {
-  wechat: "微信",
-  dingtalk: "钉钉",
-  feishu: "飞书",
-  wecom: "企业微信",
-  telegram: "Telegram",
-  slack: "Slack",
-  discord: "Discord",
-};
 
 export interface RealtimeChatHeaderProps {
   threadId: string;
@@ -152,9 +145,10 @@ export function RealtimeChatHeader({
   showAutomationPanel,
   toggleAutomationPanel,
 }: RealtimeChatHeaderProps) {
+  const headerCopy = chatHeaderCopy(useI18n().locale);
   const headerTitle = !isEchoAssistant ? (
     <div className="flex min-w-0 items-center gap-2">
-    {privateConversation && <span className="shrink-0 rounded bg-muted px-2 py-0.5 text-xs text-muted-foreground">与 {perspectiveDisplayAgent?.display_name || mainPerspectiveAgentId} 私聊</span>}
+    {privateConversation && <span className="shrink-0 rounded bg-muted px-2 py-0.5 text-xs text-muted-foreground">{headerCopy.privateChatWith(perspectiveDisplayAgent?.display_name || mainPerspectiveAgentId)}</span>}
     <ThreadTitle
       threadId={threadId}
       thread={thread}
@@ -316,6 +310,7 @@ function RealtimeEchoAssistantHeader({
   showAutomationPanel: boolean;
   toggleAutomationPanel: () => void;
 }) {
+  const headerCopy = chatHeaderCopy(useI18n().locale);
   const headerAgentIdentity = (
     <ChatHeaderAgentBadge
       agent={perspectiveDisplayAgent}
@@ -335,17 +330,18 @@ function RealtimeEchoAssistantHeader({
   ) : null;
   return (
     <>
-      <SidebarTrigger className="size-9 shrink-0 md:hidden" />
+      <SidebarTrigger className="size-[42px] shrink-0 md:hidden" />
       {headerAgentIdentity}
       <div className="flex min-w-0 flex-1 items-center gap-2">
         {connectedChannels.length > 0 && (
           <div className="flex shrink-0 items-center gap-1">
             <span className="size-1.5 rounded-full bg-core" />
             <span className="text-mini text-muted-foreground">
-              已连接:{" "}
-              {connectedChannels
-                .map((c) => CHANNEL_DISPLAY_NAMES[c] || c)
-                .join("、")}
+              {headerCopy.connectedChannels(
+                connectedChannels.map(
+                  (channel) => headerCopy.channelNames[channel] ?? channel,
+                ),
+              )}
             </span>
           </div>
         )}
@@ -359,13 +355,13 @@ function RealtimeEchoAssistantHeader({
         <AssistantActivityTrigger />
         <Button
           type="button"
-          aria-label="自动化与订阅"
-          title="自动化与订阅"
+          aria-label={headerCopy.automationAndSubscriptions}
+          title={headerCopy.automationAndSubscriptions}
           onClick={toggleAutomationPanel}
           className={cn(
             "flex size-[42px] items-center justify-center rounded-lg border shadow-none transition-all duration-base focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/30 sm:size-8",
             showAutomationPanel
-              ? "border-transparent bg-transparent text-foreground/82 hover:border-border-default hover:bg-muted/55 hover:text-foreground"
+              ? "border-transparent bg-transparent text-foreground hover:border-border-default hover:bg-muted/55 hover:text-foreground"
               : "border-transparent bg-transparent text-muted-foreground hover:border-border-default hover:bg-muted/55 hover:text-foreground",
           )}
         >

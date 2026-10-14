@@ -102,18 +102,24 @@ export function PermissionIndicator({
             className={cn(
               "flex items-center gap-1.5 text-ui font-medium transition-colors duration-base disabled:cursor-not-allowed disabled:opacity-50",
               isBypassMode
-                ? "h-8 rounded-lg px-1.5 text-muted-foreground hover:bg-muted/55 hover:text-foreground"
+                ? "h-[42px] rounded-lg px-1.5 text-muted-foreground hover:bg-muted/55 hover:text-foreground sm:h-8"
                 : compact
-                  ? "h-8 rounded-lg px-1.5 text-muted-foreground hover:bg-muted/55 hover:text-foreground"
-                  : cn("h-8 rounded-lg px-2.5", PERMISSION_TRIGGER_TONE),
+                  ? "h-[42px] rounded-lg px-1.5 text-muted-foreground hover:bg-muted/55 hover:text-foreground sm:h-8"
+                  : cn("h-[42px] min-w-[42px] justify-center rounded-lg px-2.5 sm:h-8 sm:min-w-0", PERMISSION_TRIGGER_TONE),
               className,
             )}
             title={`${controlLabel}: ${current.description}`}
             aria-label={`${controlLabel}: ${current.label}`}
           >
             <CurrentIcon aria-hidden="true" className={cn("size-3.5 shrink-0", isBypassMode ? "text-warning" : "opacity-75")} />
-            <span>{current.label}</span>
-            <ChevronDownIcon className="size-3 opacity-35" />
+            {/* Phones keep the composer toolbar on one row: the icon carries the
+                mode (named for screen readers), except the full-access warning. */}
+            <span className={cn(!isBypassMode && "max-sm:hidden")}>
+              {current.label}
+            </span>
+            <ChevronDownIcon
+              className={cn("size-3 opacity-35", !isBypassMode && "max-sm:hidden")}
+            />
           </button>
         </DropdownMenuTrigger>
         <DropdownMenuContent

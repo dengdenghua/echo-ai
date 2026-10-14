@@ -296,7 +296,7 @@ describe("type size floor", () => {
   // The ones left are numerals in tiny count badges, kbd hints, zoom/angle
   // readouts and mono telemetry. Anything that can hold Chinese or prose
   // uses text-xs or larger; this ratchet only goes down.
-  const BASELINE_10_11PX = 27;
+  const BASELINE_10_11PX = 23;
   it("keeps 10–11px text to numerals, kbd hints and mono telemetry", () => {
     const srcDir = join(root, "src");
     const re = /\btext-\[(?:10|11)(?:\.\d+)?px\]/g;

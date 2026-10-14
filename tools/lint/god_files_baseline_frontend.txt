@@ -49,14 +49,14 @@ frontend/src/components/workspace/messages/message-list-item.tsx	1336
 frontend/src/components/workspace/messages/message-list.process-trace.test.tsx	3251
 frontend/src/components/workspace/messages/message-output-summary.test.tsx	1218
 frontend/src/components/workspace/messages/message-output-summary.tsx	1233
-frontend/src/components/workspace/model-picker.tsx	1081
+frontend/src/components/workspace/model-picker.tsx	1062
 frontend/src/components/workspace/settings/memory-settings-page.tsx	1334
 frontend/src/components/workspace/settings/model-settings-page.test.tsx	1297
 frontend/src/components/workspace/settings/model-settings-page.tsx	4333
 frontend/src/components/workspace/settings/privacy-settings-page.tsx	1178
 frontend/src/components/workspace/settings/settings-dialog.tsx	1238
 frontend/src/components/workspace/swarm-run-overview.tsx	1136
-frontend/src/components/workspace/workdir-selector.tsx	1300
+frontend/src/components/workspace/workdir-selector.tsx	1298
 frontend/src/components/workspace/workspace-sidebar.tsx	2792
 frontend/src/core/agent-trace/api.ts	2063
 frontend/src/core/agents/agent-world-api.ts	1391

@@ -35,7 +35,7 @@ describe("ClarificationChoiceCard · clarification affordances", () => {
         type: "clarification_questionnaire", questions: Array.from({length: 4}, (_, index) => ({
           id: `q${index}`, title: `问题${index + 1}`, options: ["方案甲", "方案乙"],
         })),
-      })} />);
+      })} />, { locale: "zh-CN" });
       fireEvent.click(screen.getByRole("button", { name: "开始 / 继续填写" }));
       expect(screen.getByRole("status")).toHaveTextContent("第 1 / 4 题");
       expect(screen.queryByLabelText("补充回答：问题2")).not.toBeInTheDocument();
@@ -72,7 +72,7 @@ describe("ClarificationChoiceCard · clarification affordances", () => {
           { id: "features", title: "功能？", multiple: true, options: ["温控", "监测"] },
           { id: "budget", title: "预算？", options: [] },
         ],
-      })} />);
+      })} />, { locale: "zh-CN" });
       fireEvent.click(screen.getByRole("checkbox", { name: "温控" }));
       fireEvent.click(screen.getByRole("checkbox", { name: "监测" }));
       expect(screen.getByRole("checkbox", { name: "温控" })).toBeChecked();
@@ -113,7 +113,7 @@ describe("ClarificationChoiceCard · clarification affordances", () => {
       );
       const input = screen.getByPlaceholderText(/Other/i);
       fireEvent.change(input, { target: { value: "A one-page summary" } });
-      fireEvent.click(screen.getByRole("button", { name: "提交回答" }));
+      fireEvent.click(screen.getByRole("button", { name: "Submit answers" }));
       expect(quickReply).toHaveBeenCalledWith(
         expect.objectContaining({ text: expect.stringContaining("A one-page summary") }),
       );
@@ -151,4 +151,3 @@ describe("ClarificationChoiceCard · clarification affordances", () => {
     expect(screen.getByPlaceholderText(/Other/i)).toBeInTheDocument();
   });
 });
-

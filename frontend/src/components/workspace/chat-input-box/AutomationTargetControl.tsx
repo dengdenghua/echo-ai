@@ -143,7 +143,9 @@ export function AutomationTargetControl({
             event.preventDefault();
             void refresh();
           }}
-          aria-label={t.chatInputBox.loadingAutomationTargets}
+          // The menu also refreshes on open, so keyboard users get fresh targets.
+          aria-label={loading ? t.chatInputBox.loadingAutomationTargets : t.workLocation.refresh}
+          title={t.workLocation.refresh}
         >
           {loading ? (
             <Loader2Icon className="size-3.5 animate-spin" />
@@ -237,7 +239,7 @@ export function AutomationTargetControl({
           data-testid="automation-target-trigger"
           disabled={disabled}
           className={cn(
-            "inline-flex h-7 min-w-0 max-w-48 items-center gap-1.5 rounded-md px-2 text-xs transition-colors",
+            "inline-flex h-8 min-w-0 max-w-48 items-center gap-1.5 rounded-lg px-2 text-xs transition-colors",
             value
               ? "border border-primary/15 bg-primary/8 font-medium text-primary hover:bg-primary/12"
               : "text-muted-foreground hover:bg-muted/60 hover:text-foreground",

@@ -10,6 +10,10 @@ export interface WorkLocationCopy {
   notMounted: string;
   unavailableLocation: string;
   openFolder: string;
+  refresh: string;
+  connectSharedDirectory: string;
+  attachSharedSpace: string;
+  sharedDirectoryHint: string;
 
   dialogTitle: string;
   connectionType: string;
@@ -69,6 +73,11 @@ export const workLocationEnUS: WorkLocationCopy = {
   notMounted: "Workspace is not mounted here",
   unavailableLocation: "This location is no longer available",
   openFolder: "Open folder…",
+  refresh: "Refresh",
+  connectSharedDirectory: "Connect shared directory",
+  attachSharedSpace: "Attach shared space / sync",
+  sharedDirectoryHint:
+    "Select a directory to open it as a project, or attach one for two-way sync with the current project.",
 
   dialogTitle: "Add connection",
   connectionType: "Connection type",
@@ -139,6 +148,11 @@ export const workLocationZhCN: WorkLocationCopy = {
   notMounted: "共享空间未挂载到本机",
   unavailableLocation: "这个位置已不可用，请换一个",
   openFolder: "打开文件夹…",
+  refresh: "刷新",
+  connectSharedDirectory: "接入共享目录",
+  attachSharedSpace: "追加共享空间 / 同步",
+  sharedDirectoryHint:
+    "选择目录可直接作为项目打开；追加共享空间会保留当前项目，用于双向同步。",
 
   dialogTitle: "添加连接",
   connectionType: "连接方式",
@@ -205,6 +219,11 @@ export const workLocationJaJP: WorkLocationCopy = {
   unavailableLocation:
     "この場所は利用できなくなりました。別の場所を選んでください",
   openFolder: "フォルダーを開く…",
+  refresh: "更新",
+  connectSharedDirectory: "共有ディレクトリを接続",
+  attachSharedSpace: "共有スペースを追加 / 同期",
+  sharedDirectoryHint:
+    "ディレクトリを選ぶとそのままプロジェクトとして開けます。共有スペースを追加すると現在のプロジェクトを残したまま双方向に同期します。",
 
   dialogTitle: "接続を追加",
   connectionType: "接続方法",
@@ -281,6 +300,11 @@ export const workLocationKoKR: WorkLocationCopy = {
   unavailableLocation:
     "이 위치는 더 이상 사용할 수 없습니다. 다른 위치를 선택하세요",
   openFolder: "폴더 열기…",
+  refresh: "새로고침",
+  connectSharedDirectory: "공유 디렉터리 연결",
+  attachSharedSpace: "공유 공간 추가 / 동기화",
+  sharedDirectoryHint:
+    "디렉터리를 고르면 바로 프로젝트로 열 수 있습니다. 공유 공간을 추가하면 현재 프로젝트를 유지한 채 양방향으로 동기화합니다.",
 
   dialogTitle: "연결 추가",
   connectionType: "연결 방식",

@@ -7,6 +7,7 @@ import {
   FolderOpenIcon,
   HardDriveIcon,
   Loader2Icon,
+  RefreshCwIcon,
   ServerIcon,
   TerminalIcon,
   type LucideIcon,
@@ -950,8 +951,9 @@ export function WorkDirSelector({
                         onClick={() => applyWorkDir(nextPath)}
                         className="rounded-md px-2 py-1 text-xs text-primary transition-colors hover:bg-primary/10"
                         title={t.codeMode.chooseWorkspaceFolder}
+                        aria-label={t.codeMode.chooseWorkspaceFolder}
                       >
-                        ✓
+                        <CheckIcon className="size-3.5" aria-hidden="true" />
                       </button>
                     </div>
                   );
@@ -987,11 +989,12 @@ export function WorkDirSelector({
             onClick={() => void loadRemoteWorkspaces()}
             disabled={remoteLoading}
             className="rounded-md p-1 text-muted-foreground transition-colors hover:bg-muted/60 hover:text-foreground disabled:opacity-50"
-            title={trRemote.searchPlaceholder}
-            aria-label={trRemote.searchPlaceholder}
+            title={t.workLocation.refresh}
+            aria-label={t.workLocation.refresh}
           >
-            <Loader2Icon
+            <RefreshCwIcon
               className={cn("size-3", remoteLoading && "animate-spin")}
+              aria-hidden="true"
             />
           </button>
         </div>
@@ -1004,14 +1007,14 @@ export function WorkDirSelector({
 
         <div className="mb-2 flex flex-wrap gap-2 text-xs">
           <button type="button" className="rounded-md border px-2 py-1.5" onClick={() => { setShowMenu(false); setMountOpen(true); }}>
-            {locale.startsWith("zh") ? "接入共享目录" : "Connect shared directory"}
+            {t.workLocation.connectSharedDirectory}
           </button>
           {threadId && threadId !== "new" && <button type="button" className="rounded-md border px-2 py-1.5" onClick={() => { setShowMenu(false); setSharedOpen(true); }}>
-            {locale.startsWith("zh") ? "追加共享空间 / 同步" : "Attach shared space / sync"}
+            {t.workLocation.attachSharedSpace}
           </button>}
         </div>
         <p className="mb-2 text-xs text-muted-foreground">
-          {locale.startsWith("zh") ? "选择目录可直接作为项目打开；追加共享空间会保留当前项目，用于双向同步。" : "Select a directory to open it as a project, or attach one for two-way sync with the current project."}
+          {t.workLocation.sharedDirectoryHint}
         </p>
 
         {remoteLoading && remoteWorkspaces.length === 0 ? (

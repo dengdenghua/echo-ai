@@ -142,11 +142,9 @@ export function useExecutionEngine({
     codexCapabilityChecks: profile.data?.capability_checks,
     opencodeCapabilityChecks: opencode.data?.capability_checks,
     opencodeAvailable: opencode.data?.available === true,
-    opencodeUnavailableReason:
-      opencode.data?.reason ??
-      (opencode.isPending
-        ? "正在检查 OpenCode 配置"
-        : "暂时无法读取 OpenCode 配置"),
+    opencodeUnavailableReason: opencode.data?.reason ?? null,
+    /** Readiness is still loading — not a failure, so nothing is flagged yet. */
+    engineChecking: profile.isPending || opencode.isPending,
     codexUnavailableReason:
       profile.data?.execution_unavailable_reason ??
       (profile.isError

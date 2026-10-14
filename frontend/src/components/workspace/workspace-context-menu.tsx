@@ -42,6 +42,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { RoutedWebLink } from "@/components/ui/routed-web-link";
 import { useI18n } from "@/core/i18n/hooks";
+import { cn } from "@/lib/utils";
 import {
   isPrivateAgentGroundingSource,
   type GroundingSource,
@@ -174,15 +175,26 @@ export function WorkspaceContextMenu({
           data-slot="workspace-context-trigger"
           aria-label={menuTitle}
           title={context ? `${menuTitle} · ${usage.summary}` : menuTitle}
-          className="flex size-[42px] shrink-0 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted/60 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring data-[state=open]:bg-muted/70 data-[state=open]:text-foreground sm:size-8"
+          className="flex h-[42px] min-w-[42px] shrink-0 items-center justify-center gap-1 rounded-lg px-1.5 text-muted-foreground transition-colors hover:bg-muted/60 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring data-[state=open]:bg-muted/70 data-[state=open]:text-foreground sm:h-8 sm:min-w-8"
         >
           {context ? (
-            <span className={ringColorClass(usage.progress)}>
+            <span
+              className={cn(
+                "flex items-center gap-1",
+                ringColorClass(usage.progress),
+              )}
+            >
               <ContextRing
                 progress={usage.progress}
                 compressing={context.isCompressingContext}
                 trackClassName="opacity-45"
               />
+              {/* The number appears once there is something to count. */}
+              {usage.percentage >= 1 ? (
+                <span className="font-mono text-xs tabular-nums">
+                  {usage.percentage}%
+                </span>
+              ) : null}
             </span>
           ) : (
             <ListFilterIcon className="size-4" />

@@ -1100,8 +1100,8 @@ export const zhCN: Translations = {
       legacyOnDemandAttachments:
         "历史角色会话不再直接执行；已打开新任务，请重新添加附件后发送。",
       placeholderCode: "描述要修改、排查、重构或验证的代码任务...",
-      placeholderNew: "描述任务，@ 引用文件，/ 调用技能...",
-      placeholderEcho: "今天帮你做些什么？ @ 引用对话文件，/ 调用技能与指令",
+      placeholderNew: "说说需求，@ 引用文件，/ 调用技能",
+      placeholderEcho: "今天帮你做些什么？@ 引用文件，/ 调用技能",
     },
     recorder: {
       defaultName: "对话回放学习",

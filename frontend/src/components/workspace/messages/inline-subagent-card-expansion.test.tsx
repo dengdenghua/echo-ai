@@ -42,6 +42,7 @@ describe("<InlineSubagentCardExpansion />", () => {
         isOpen={false}
         onOpenWorkbench={vi.fn()}
       />,
+      { locale: "zh-CN" },
     );
     expect(container.firstChild).toBeNull();
   });
@@ -53,6 +54,7 @@ describe("<InlineSubagentCardExpansion />", () => {
         isOpen={true}
         onOpenWorkbench={vi.fn()}
       />,
+      { locale: "zh-CN" },
     );
 
     expect(screen.getByText("我的第一视角 · 并列协作者")).toBeInTheDocument();
@@ -73,6 +75,7 @@ describe("<InlineSubagentCardExpansion />", () => {
         isOpen={true}
         onOpenWorkbench={vi.fn()}
       />,
+      { locale: "zh-CN" },
     );
 
     const publishBtn = screen.getByRole("button", { name: /同步至群公共/ });
@@ -100,6 +103,7 @@ describe("<InlineSubagentCardExpansion />", () => {
         isOpen={true}
         onOpenWorkbench={vi.fn()}
       />,
+      { locale: "zh-CN" },
     );
 
     const followupBtn = screen.getByRole("button", { name: /定向追问/ });
@@ -125,6 +129,7 @@ describe("<InlineSubagentCardExpansion />", () => {
         isOpen={true}
         onOpenWorkbench={vi.fn()}
       />,
+      { locale: "zh-CN" },
     );
 
     const decisionBtn = screen.getByRole("button", { name: /固化为决策/ });
@@ -149,6 +154,7 @@ describe("<InlineSubagentCardExpansion />", () => {
         isOpen={true}
         onOpenWorkbench={vi.fn()}
       />,
+      { locale: "zh-CN" },
     );
 
     const sandboxBtn = screen.getByRole("button", { name: /推演沙盒/ });
@@ -171,12 +177,45 @@ describe("<InlineSubagentCardExpansion />", () => {
         onOpenWorkbench={vi.fn()}
         onForkSandbox={onForkSandbox}
       />,
+      { locale: "zh-CN" },
     );
 
     const sandboxBtn = screen.getByRole("button", { name: /推演沙盒/ });
     fireEvent.click(sandboxBtn);
 
     expect(onForkSandbox).toHaveBeenCalledOnce();
+  });
+
+  it("follows the UI language without changing the stored decision marker", () => {
+    const emitSpy = vi.spyOn(eventBus, "emit");
+
+    renderWithProviders(
+      <InlineSubagentCardExpansion
+        agent={mockAgent}
+        isOpen={true}
+        onOpenWorkbench={vi.fn()}
+      />,
+    );
+
+    expect(
+      screen.getByText("My view · Parallel collaborator"),
+    ).toBeInTheDocument();
+    expect(screen.getByText("4 files changed")).toBeInTheDocument();
+    expect(screen.getByText("2 iterations")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Record as decision" }));
+
+    expect(emitSpy).toHaveBeenCalledWith(
+      "composer:insert-mention",
+      expect.objectContaining({
+        text: expect.stringMatching(
+          /^🏛️ \[项目决策固化\] Adopted the deliverable from collaborator 架构规划专家:/,
+        ),
+        submit: true,
+      }),
+    );
+    expect(screen.getByText("Recorded as decision")).toBeInTheDocument();
+
+    emitSpy.mockRestore();
   });
 
   it("clicking '在大屏工作台查看完整流' calls onOpenWorkbench callback", () => {
@@ -188,6 +227,7 @@ describe("<InlineSubagentCardExpansion />", () => {
         isOpen={true}
         onOpenWorkbench={onOpenWorkbench}
       />,
+      { locale: "zh-CN" },
     );
 
     const openBtn = screen.getByRole("button", {

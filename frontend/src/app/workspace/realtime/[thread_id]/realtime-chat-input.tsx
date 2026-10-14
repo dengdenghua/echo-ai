@@ -12,6 +12,8 @@ import {
 import type { AutomationTarget } from "@/core/computer/api";
 import type { DesignCanvasAgentContext } from "@/core/design/mode-bridge";
 import type { useThreadWorkLocation } from "@/core/execution/work-location";
+import { useI18n } from "@/core/i18n/hooks";
+import { composerActionsCopy } from "@/core/i18n/locales/composer-actions";
 import { normalizePermissionMode } from "@/core/permissions";
 import type { useExecutionEngine } from "@/core/threads/use-execution-engine";
 
@@ -140,6 +142,7 @@ export function RealtimeChatInput({
   handleRetryTask,
   ...forwarded
 }: RealtimeChatInputProps) {
+  const composerCopy = composerActionsCopy(useI18n().locale);
   return (
     <ChatInputBox
       {...forwarded}
@@ -237,7 +240,7 @@ export function RealtimeChatInput({
         settings.context.permission_mode,
       )}
       allowAgentModes={!embeddedDesignChat}
-      onResume={!thread.isLoading && !isStopping && (thread.lastTurnStatus === "interrupted" || thread.lastTurnStatus === "failed") ? () => handleRetryTask("继续当前任务：保留此前完成的工作，先检查中断位置和现有结果，从未完成部分继续，不要重复已成功的操作。") : undefined}
+      onResume={!thread.isLoading && !isStopping && (thread.lastTurnStatus === "interrupted" || thread.lastTurnStatus === "failed") ? () => handleRetryTask(composerCopy.resumePrompt) : undefined}
       isStopping={isStopping}
       autoFocus={isNewThread}
       defaultValue={composerSeed}
@@ -290,6 +293,7 @@ function RealtimeExecutionEngineControl({
         executionSelection.codexUnavailableReason
       }
       disabled={disabled}
+      checking={executionSelection.engineChecking}
     />
   );
 }
@@ -331,17 +335,17 @@ function DesignCanvasContextStatus({
 }: {
   embeddedDesignContext: DesignCanvasAgentContext | null;
 }) {
+  const copy = composerActionsCopy(useI18n().locale);
   return (
     <span
       data-testid="design-canvas-context-status"
       className="whitespace-nowrap text-xs text-core"
     >
       {embeddedDesignContext
-        ? embeddedDesignContext.selected_node_ids
-            .length > 0
-          ? `已连接画布 · 已选 ${embeddedDesignContext.selected_node_ids.length}`
-          : "已连接画布"
-        : "正在连接画布…"}
+        ? embeddedDesignContext.selected_node_ids.length > 0
+          ? copy.canvasSelected(embeddedDesignContext.selected_node_ids.length)
+          : copy.canvasConnected
+        : copy.canvasConnecting}
     </span>
   );
 }

@@ -182,7 +182,7 @@ describe("WorkspaceContextMenu status sections", () => {
         "older turns auto-compact at about 90%",
       );
       const button = screen.getByTestId("session-status-compress");
-      expect(button).toBeDisabled();
+      expect(button).toHaveAttribute("data-disabled");
       expect(button).toHaveTextContent("Compressing… 0s");
       act(() => {
         vi.advanceTimersByTime(3_000);
@@ -239,7 +239,7 @@ describe("WorkspaceContextMenu status sections", () => {
     const { user, trigger, onCompressContext } = setupStatus({ turnCount: 3 });
     await user.click(trigger);
     const button = screen.getByTestId("session-status-compress");
-    expect(button).toBeDisabled();
+    expect(button).toHaveAttribute("data-disabled");
     expect(screen.getByTestId("session-status-context")).toHaveTextContent(
       "Available after 12 turns",
     );
@@ -263,5 +263,14 @@ describe("WorkspaceContextMenu status sections", () => {
       "Session status · 60K / 100K (60%)",
     );
     expect(trigger.querySelector("svg")).not.toBeNull();
+  });
+  it("reaches 压缩上下文 with the arrow keys and keeps the menu open", async () => {
+    const { user, trigger, onCompressContext } = setupStatus();
+    await user.click(trigger);
+    await user.keyboard("{ArrowDown}");
+    expect(screen.getByTestId("session-status-compress")).toHaveFocus();
+    await user.keyboard("{Enter}");
+    expect(onCompressContext).toHaveBeenCalledOnce();
+    expect(screen.getByRole("menu")).toBeInTheDocument();
   });
 });

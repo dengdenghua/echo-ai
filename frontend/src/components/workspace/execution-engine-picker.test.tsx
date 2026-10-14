@@ -223,3 +223,18 @@ it("does not invent an engine receipt for legacy or malformed history", () => {
   rerender(<ExecutionEngineBadge engine="codex" />);
   expect(screen.getByTitle("Executed by Codex")).toBeVisible();
 });
+
+it("does not flag an engine as broken while its readiness is still loading", () => {
+  renderWithProviders(
+    <ExecutionEnginePicker
+      value="codex"
+      onChange={vi.fn()}
+      codexAvailable={false}
+      unavailableReason="checking"
+      checking
+    />,
+  );
+  const trigger = screen.getByTestId("execution-engine-trigger");
+  expect(trigger).toHaveAttribute("aria-label", "Execution engine: Codex");
+  expect(trigger.querySelector(".bg-destructive")).toBeNull();
+});

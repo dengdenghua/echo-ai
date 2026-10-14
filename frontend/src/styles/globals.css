@@ -1926,7 +1926,8 @@
     transform: none;
   }
   .workspace-start-heading {
-    height: 80px;
+    /* Grows with the starter chips instead of spilling under the composer. */
+    min-height: 80px;
     max-width: 720px;
     padding: 0;
     justify-content: flex-start;
