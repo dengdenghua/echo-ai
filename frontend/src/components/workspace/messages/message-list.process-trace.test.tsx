@@ -1214,7 +1214,7 @@ describe("MessageList process trace lifecycle", () => {
     });
 
     expect(screen.getByText("Eve")).toBeInTheDocument();
-    expect(screen.getByText("队长")).toBeInTheDocument();
+    expect(screen.getByText("Lead")).toBeInTheDocument();
     // The roster avatar_url is honoured, but withAgentAvatarVersion() rewrites
     // the runtime id to its canonical persona id (general -> eve) so one agent
     // never serves two avatar URLs.
@@ -1249,7 +1249,7 @@ describe("MessageList process trace lifecycle", () => {
     });
 
     const avatar = screen.getByRole("button", {
-      name: "Luna · 查看成员信息",
+      name: "Luna · view member profile",
     });
     fireEvent.pointerDown(avatar, { button: 0, ctrlKey: false });
 

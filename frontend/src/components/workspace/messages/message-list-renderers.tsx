@@ -10,6 +10,7 @@ import { builtinPersonaDisplayName } from "@/core/agents/persona-display";
 import { withAgentAvatarVersion } from "@/core/agents/avatar";
 import { isAIMessage, type AIMessage, type Message } from "@/core/api/types";
 import type { BaseStream } from "@/core/api/use-stream-types";
+import { memberCardCopy } from "@/core/i18n/locales/member-card";
 import type { Translations } from "@/core/i18n/locales/types";
 import {
   extractContentFromMessage,
@@ -58,6 +59,7 @@ import { SubtaskCard } from "./subtask-card";
 
 export interface GroupRendererContext {
   t: Translations;
+  locale: string;
   showSenderName: boolean;
   thread: BaseStream<AgentThreadState>;
   settings: LocalSettings;
@@ -81,6 +83,7 @@ export interface GroupRendererContext {
 
 export function createGroupRenderers({
   t,
+  locale,
   showSenderName,
   thread,
   settings,
@@ -133,6 +136,7 @@ export function createGroupRenderers({
     const displayName =
       builtinPersonaDisplayName(agentName) || agentName || t.message.assistant;
     const capabilitySummary = summarizeAgentCapabilities(agentToolGroups);
+    const member = memberCardCopy(locale);
     // In a team room, label each agent's message with its name (and 队长
     // badge) so the thread reads like a group chat — you can see who's
     // speaking, not just an anonymous avatar.
@@ -141,20 +145,20 @@ export function createGroupRenderers({
       <div key={key} className="flex w-full items-start gap-3">
         <MemberProfilePopover
           name={displayName}
-          roleLabel={agentRole === "tl" ? "队长" : "协作成员"}
-          presenceLabel="参与对话"
-          summary={agentDescription || "正在参与当前协作。"}
+          roleLabel={agentRole === "tl" ? member.teamLead : member.member}
+          presenceLabel={member.presence}
+          summary={agentDescription || member.summaryFallback}
           details={[
-            ...(agentModel ? [{ label: "模型", value: agentModel }] : []),
+            ...(agentModel ? [{ label: member.model, value: agentModel }] : []),
             ...(capabilitySummary
-              ? [{ label: "擅长", value: capabilitySummary }]
+              ? [{ label: member.strengths, value: capabilitySummary }]
               : []),
           ]}
           trigger={
             <button
               type="button"
               className="mt-1 shrink-0 rounded-md outline-none transition-transform hover:scale-105 focus-visible:ring-2 focus-visible:ring-ring"
-              aria-label={`${displayName} · 查看成员信息`}
+              aria-label={member.viewProfile(displayName)}
             >
               <AgentAvatar
                 agentDisplayName={displayName}
@@ -178,7 +182,7 @@ export function createGroupRenderers({
               </span>
               {agentRole === "tl" && (
                 <span className="rounded-md border border-border bg-muted/60 px-1.5 py-0 text-xs leading-4 font-medium text-muted-foreground">
-                  队长
+                  {member.teamLead}
                 </span>
               )}
               {replyTo && (
@@ -186,7 +190,7 @@ export function createGroupRenderers({
                   className="rounded-md border border-primary/30 bg-primary/10 px-1.5 py-0 text-xs leading-4 font-medium text-primary"
                   title={replyTo}
                 >
-                  ↪ 回应 @{replyTo}
+                  {member.replyTo(replyTo)}
                 </span>
               )}
               {headerMeta ? (

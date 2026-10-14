@@ -319,6 +319,7 @@ export function MessageList({
 
   const { renderAssistantFrame, renderGroupContent } = createGroupRenderers({
     t,
+    locale,
     showSenderName,
     thread,
     settings,
