@@ -38,7 +38,6 @@ import { FileReferenceScope } from "@/core/navigation/file-reference";
 import { AutomationPreviewHost } from "@/components/workspace/automation-preview-host";
 import { PlanPanel } from "@/components/workspace/plan-panel";
 import { StreamingDebugger } from "@/components/workspace/streaming-debugger";
-import { ContextCompressionIndicator } from "@/components/workspace/context-compression-indicator";
 import { TeamWelcomeCard } from "@/components/workspace/team-welcome-card";
 import {
   usePlanActionHandler,
@@ -963,6 +962,7 @@ function RealtimePageContent({
     maxContextTokens,
     contextTokens,
     contextSegments,
+    modelLabel,
     handleCompressContext,
   } = useContextWindow({
     threadId,
@@ -1624,6 +1624,7 @@ function RealtimePageContent({
                         maxContextTokens={maxContextTokens}
                         isCompressingContext={isCompressingContext}
                         onCompressContext={handleCompressContext}
+                        onOpenContextDetails={() => selectAgentWorkbenchTab("session")}
                         contextSegments={contextSegments}
                         onModelChange={handleModelChange}
                         onModelSwitchNotice={handleModelSwitchNotice}
@@ -1714,6 +1715,11 @@ function RealtimePageContent({
                       maxContextTokens={maxContextTokens}
                       isCompressingContext={isCompressingContext}
                       handleCompressContext={handleCompressContext}
+                      contextSegments={contextSegments}
+                      workLocation={workLocation}
+                      statusFolder={effectiveWorkDir}
+                      executionEngine={selectedExecutionEngine}
+                      modelLabel={modelLabel}
                       collaborationRosterSeats={collaborationRosterSeats}
                       isGroupConversation={isGroupConversation}
                       collaborationTeamName={collaborationTeamName}
@@ -1758,13 +1764,6 @@ function RealtimePageContent({
 
         {/* 流式调试面板 */}
         <StreamingDebugger events={allToolEvents} />
-
-        {/* 上下文压缩进度指示器 */}
-        <ContextCompressionIndicator
-          isCompressing={isCompressingContext}
-          contextTokens={contextTokens}
-          maxContextTokens={maxContextTokens}
-        />
         </FileReferenceScope.Provider>
       </ThreadProviders>
     </SubtasksProvider>

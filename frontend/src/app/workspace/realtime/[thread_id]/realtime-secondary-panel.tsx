@@ -1,4 +1,4 @@
-import { memo, type ComponentProps } from "react";
+import { memo, useMemo, type ComponentProps } from "react";
 import { XIcon } from "lucide-react";
 
 import {
@@ -13,11 +13,15 @@ import type {
   AgentWorkbenchProcessEventKind,
   AgentWorkbenchProcessEventSnapshot,
 } from "@/components/workspace/agent-workbench-events";
+import { SessionStatusPage } from "@/components/workspace/agent-workbench-panel/session-status-page";
+import type { ContextWindowSegment } from "@/components/workspace/chat-input-box/context-usage-details";
 import { AutomationSubscriptionPanel } from "@/components/workspace/automation/automation-subscription-panel";
 import { DeepResearchHistoryPanel } from "@/components/workspace/deep-research-history-panel";
 import { DeepResearchPanel } from "@/components/workspace/deep-research-panel";
 import { TeachRepeatPanel } from "@/components/workspace/teach-repeat-panel";
 import type { Agent } from "@/core/agents";
+import type { WorkLocation } from "@/core/execution/work-location";
+import type { ExecutionEngine } from "@/core/realtime/execution-policy";
 import type { ResearchJob } from "@/core/research/api";
 
 import type {
@@ -193,6 +197,12 @@ export interface RealtimeWorkbenchSurfaceProps {
   maxContextTokens: number;
   isCompressingContext: boolean;
   handleCompressContext: () => Promise<void>;
+  contextSegments: ContextWindowSegment[];
+  /** Environment rows of the 状态 tab. */
+  workLocation: WorkLocation;
+  statusFolder: string;
+  executionEngine: ExecutionEngine;
+  modelLabel: string | null;
   collaborationRosterSeats: WorkbenchRosterSeat[];
   isGroupConversation: boolean;
   collaborationTeamName: string;
@@ -240,6 +250,11 @@ export function RealtimeWorkbenchSurface({
   maxContextTokens,
   isCompressingContext,
   handleCompressContext,
+  contextSegments,
+  workLocation,
+  statusFolder,
+  executionEngine,
+  modelLabel,
   collaborationRosterSeats,
   isGroupConversation,
   collaborationTeamName,
@@ -251,6 +266,35 @@ export function RealtimeWorkbenchSurface({
   selectAgentWorkbenchTab,
   openWorkbenchArtifact,
 }: RealtimeWorkbenchSurfaceProps) {
+  // Memoized so the memo'd workbench is not re-rendered by a fresh element.
+  const sessionStatusPage = useMemo(
+    () => (
+      <SessionStatusPage
+        workLocation={workLocation}
+        workDir={statusFolder}
+        engine={executionEngine}
+        modelLabel={modelLabel}
+        contextTokens={contextTokens}
+        maxContextTokens={maxContextTokens}
+        contextSegments={contextSegments}
+        isCompressingContext={isCompressingContext}
+        onCompressContext={handleCompressContext}
+        onOpenArtifact={openWorkbenchArtifact}
+      />
+    ),
+    [
+      contextSegments,
+      contextTokens,
+      executionEngine,
+      handleCompressContext,
+      isCompressingContext,
+      maxContextTokens,
+      modelLabel,
+      openWorkbenchArtifact,
+      statusFolder,
+      workLocation,
+    ],
+  );
   return (
     <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
       <div className="flex min-h-0 flex-1">
@@ -336,6 +380,7 @@ export function RealtimeWorkbenchSurface({
           onClose={closeAgentWorkbenchPanel}
           onSelectTab={selectAgentWorkbenchTab}
           onOpenArtifact={openWorkbenchArtifact}
+          sessionStatusPage={sessionStatusPage}
         />
       </div>
     </div>

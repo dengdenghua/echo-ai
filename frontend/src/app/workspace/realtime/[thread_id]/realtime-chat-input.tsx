@@ -47,6 +47,7 @@ type ForwardedChatInputProps = Pick<
   | "maxContextTokens"
   | "isCompressingContext"
   | "onCompressContext"
+  | "onOpenContextDetails"
   | "contextSegments"
   | "onModelChange"
   | "onModelSwitchNotice"

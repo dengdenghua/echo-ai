@@ -120,6 +120,8 @@ export interface ChatInputBoxProps {
   isCompressingContext?: boolean;
   /** 压缩回调 */
   onCompressContext?: () => void | Promise<void>;
+  /** Opens the side panel's 状态 tab; the ring then links there. */
+  onOpenContextDetails?: () => void;
   /** Optional source categories shown in the Claude-style context popover. */
   contextSegments?: ContextWindowSegment[];
   allowAgentModes?: boolean;
@@ -612,6 +614,7 @@ function ChatInputBoxImpl(props: ChatInputBoxProps) {
                 maxContextTokens={props.maxContextTokens}
                 isCompressingContext={props.isCompressingContext}
                 onCompressContext={props.onCompressContext}
+                onOpenDetails={props.onOpenContextDetails}
                 segments={props.contextSegments}
               />
             ) : null}

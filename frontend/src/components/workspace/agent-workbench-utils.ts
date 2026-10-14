@@ -82,7 +82,8 @@ export type AgentWorkbenchTabId =
   | "browser"
   | "workspace"
   | "design"
-  | "project";
+  | "project"
+  | "session";
 
 export type JsonRecord = Record<string, unknown>;
 

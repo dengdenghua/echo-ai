@@ -1,48 +1,31 @@
 import {
-  ArrowLeftIcon,
   ChevronRightIcon,
-  DownloadIcon,
   FolderKanbanIcon,
+  GaugeIcon,
   GlobeIcon,
   PackageIcon,
   PanelsTopLeftIcon,
-  SparklesIcon,
   TerminalIcon,
 } from "lucide-react";
 import {
   memo,
-  Suspense,
   useCallback,
   useEffect,
   useMemo,
   useRef,
   useState,
-  lazy,
+  type ReactNode,
 } from "react";
 
 import { useI18n } from "@/core/i18n/hooks";
+import { sessionStatusCopy } from "@/core/i18n/locales/session-status";
 import { useQuery } from "@tanstack/react-query";
 import { coordinationRequest, type CoordinationSnapshot } from "@/core/cowork/coordination";
 import { mergeCoordinatedAgents } from "./agent-workbench-panel/coordinated-agents";
-import {
-  artifactDisplayPath,
-  normalizeWorkspaceArtifactRef,
-  urlOfArtifact,
-} from "@/core/artifacts/utils";
-import { useArtifactContent } from "@/core/artifacts/hooks";
 import type { OutlineRound } from "@/core/threads/progress-outline";
 import type { GroundingSource } from "@/core/realtime/items";
 import { TerminalPanel } from "@/components/workspace/terminal-panel";
 import { ToolEffectDetailPanel } from "@/components/workspace/tool-effect-detail-panel";
-import { useArtifacts } from "@/components/workspace/artifacts/context";
-import {
-  HtmlPreview,
-  OfficePreview,
-} from "@/components/workspace/artifacts/artifact-file-detail";
-import { officeArtifactKind } from "@/components/workspace/artifacts/office-edit";
-import { ArtifactLink } from "@/components/workspace/citations/artifact-link";
-import { checkCodeFile, getFileIcon, getFileName } from "@/core/utils/files";
-import { useStreamdownPlugins } from "@/core/streamdown";
 import type {
   AgentWorkbenchEventView,
   AgentWorkbenchFocusAgentSnapshot,
@@ -54,8 +37,7 @@ import { cn } from "@/lib/utils";
 import { CoworkSearchMenu } from "./cowork-collab-bar";
 import { CollaborationDeliveryRecovery } from "./collaboration-delivery-recovery";
 import type { ExtractedCodeBlocks } from "@/lib/extract-code-blocks";
-import type { StreamdownProps } from "streamdown";
-import type { AgentWorkbenchTabId, DiffEntry } from "./agent-workbench-utils";
+import type { AgentWorkbenchTabId } from "./agent-workbench-utils";
 import { useAgentWorkbenchI18n } from "./use-agent-workbench-i18n";
 import { AgentDiffPage } from "./agent-workbench-pages";
 import { useAgentWorkbenchSnapshot } from "./agent-workbench-snapshot";
@@ -78,6 +60,7 @@ import {
 } from "./agent-workbench-panel/project-os-tab";
 import type { WorkbenchRosterSeat } from "./agent-workbench-panel/helpers";
 import { useWorkbenchSelection } from "./agent-workbench-panel/use-workbench-selection";
+import { ArtifactInlinePreviewEmbedded } from "./agent-workbench-panel/artifact-inline-preview";
 import { WorkbenchSnapshotCache } from "@/core/cache/workbench-snapshot-cache";
 import { workspacePresetForAgent } from "@/core/workspace/workspace-presets";
 
@@ -85,6 +68,7 @@ import { workspacePresetForAgent } from "@/core/workspace/workspace-presets";
 export { hasAgentWorkbenchContent, __testing } from "./agent-workbench-utils";
 export type { AgentWorkbenchTabId } from "./agent-workbench-utils";
 export { workspaceFocusTabFromEvents } from "./agent-workbench-utils";
+export { PreviewPane } from "./agent-workbench-panel/artifact-inline-preview";
 export type { WorkbenchRosterSeat } from "./agent-workbench-panel/helpers";
 
 function AgentWorkbenchPanelImpl({
@@ -133,6 +117,7 @@ function AgentWorkbenchPanelImpl({
   showMachineRosterRail = true,
   showDeliveryRecovery = false,
   hideMainOverview = false,
+  sessionStatusPage,
 }: {
   activeTab?: AgentWorkbenchTabId;
   /** Chat owns task progress; the header menu owns sources. */
@@ -219,8 +204,10 @@ function AgentWorkbenchPanelImpl({
   showMachineRosterRail?: boolean;
   /** Group-only reliable delivery monitor. Solo chats do not poll this API. */
   showDeliveryRecovery?: boolean;
+  /** The 状态 tab (environment, context, outputs); the tab exists only with it. */
+  sessionStatusPage?: ReactNode;
 }) {
-  const { t } = useI18n();
+  const { t, locale } = useI18n();
   const { deriveAgentTiles, workbenchStatus } = useAgentWorkbenchI18n();
 
   // IndexedDB 缓存实例（跨刷新持久化）
@@ -442,6 +429,7 @@ function AgentWorkbenchPanelImpl({
         "project",
         "diff",
         "terminal",
+        "session",
       ]),
   );
   // Browser tab source: while the run streams, the inline srcDoc blocks are
@@ -533,6 +521,7 @@ function AgentWorkbenchPanelImpl({
       (projectOsQuery.isLoading || projectOsQuery.isError));
   const mergeProjectHome = projectTabVisible && workspacePresetForAgent(personaId).workbench === "office";
   const isDevelopmentWorkbench = workspacePresetForAgent(personaId).workbench === "development";
+  const hasSessionStatus = Boolean(sessionStatusPage);
   const normalizedActiveTab:
     | "agent"
     | "diff"
@@ -540,14 +529,15 @@ function AgentWorkbenchPanelImpl({
     | "browser"
     | "artifacts"
     | "workspace"
-    | "project" =
+    | "project"
+    | "session" =
     requestedActiveTab === "workspace" && mergeProjectHome
       ? "project"
       : requestedActiveTab === "subagents" ||
     requestedActiveTab === "plan" ||
     requestedActiveTab === "design"
       ? "agent"
-      : requestedActiveTab === "project" && !projectTabVisible
+      : (requestedActiveTab === "project" && !projectTabVisible) || (requestedActiveTab === "session" && !hasSessionStatus)
         ? "agent"
         : requestedActiveTab;
   const effectiveActiveTab =
@@ -600,8 +590,9 @@ function AgentWorkbenchPanelImpl({
             },
           ]
         : []),
+      ...(hasSessionStatus ? [{ id: "session" as const, label: sessionStatusCopy(locale).tab, Icon: GaugeIcon }] : []),
     ],
-    [t.agentWorkbenchPages, t.conversation, projectTabVisible, personaId, mergeProjectHome, isDevelopmentWorkbench],
+    [t.agentWorkbenchPages, t.conversation, projectTabVisible, personaId, mergeProjectHome, isDevelopmentWorkbench, hasSessionStatus, locale],
   );
 
   // Auto-open a tab if it becomes the effective active tab
@@ -721,6 +712,7 @@ function AgentWorkbenchPanelImpl({
         inferredWorkDir={inferredWorkDir}
         browserTabPage={browserTabPage}
         personaWorkbenchPage={personaWorkbenchPage}
+        sessionStatusPage={sessionStatusPage}
         isLoading={isLoading}
         className={className}
         machineRail={machineRail}
@@ -790,6 +782,8 @@ function AgentWorkbenchPanelImpl({
       browserTabPage
     ) : effectiveActiveTab === "workspace" ? (
       personaWorkbenchPage
+    ) : effectiveActiveTab === "session" ? (
+      sessionStatusPage
     ) : effectiveActiveTab === "artifacts" && threadId ? (
       // Reuses the outer ArtifactsProvider (page-level) so the artifact list
       // synced from the backend stays visible. Wrapping in a fresh provider
@@ -881,300 +875,6 @@ function AgentWorkbenchPanelImpl({
       {effectiveActiveTab === "project" || effectiveActiveTab === "workspace"
         ? null
         : machineRail}
-    </div>
-  );
-}
-
-const LazyStreamdown = lazy(
-  () => import("@/components/ai-elements/streamdown-host"),
-);
-
-/**
- * Two-state artifact panel for the workbench's "产物" tab.
- *
- * State 1 – List view (default):
- *   A single flat list of all artifacts. Current-turn files appear first
- *   with a ✨ "本轮" badge; history files follow without grouping headers.
- *
- * State 2 – Preview view:
- *   Full-bleed preview of the selected file with a back button in the
- *   header to return to the list. This mirrors the drawer's ArtifactPanel
- *   / ArtifactFileDetail two-state pattern so the two surfaces feel
- *   consistent.
- */
-function ArtifactInlinePreviewEmbedded({
-  threadId,
-  currentTurnEntries = [],
-  runBlocked,
-  runSettled,
-  isLoading,
-}: {
-  threadId: string;
-  currentTurnEntries?: DiffEntry[];
-  runBlocked?: boolean;
-  runSettled?: boolean;
-  isLoading?: boolean;
-}) {
-  const {
-    artifacts,
-    selectedArtifact: externalSelected,
-    select,
-  } = useArtifacts();
-  const { t } = useI18n();
-  const streamdownPlugins = useStreamdownPlugins();
-
-  const currentTurnRefs = useMemo(() => {
-    const seen = new Set<string>();
-    const refs: string[] = [];
-    for (const entry of currentTurnEntries) {
-      const ref = normalizeWorkspaceArtifactRef(entry.path, threadId);
-      if (seen.has(ref)) continue;
-      seen.add(ref);
-      refs.push(ref);
-    }
-    return refs;
-  }, [currentTurnEntries, threadId]);
-
-  const currentTurnSet = useMemo(
-    () => new Set(currentTurnRefs),
-    [currentTurnRefs],
-  );
-
-  // Single flat list: current-turn first (in their natural order), then history.
-  const allFiles = useMemo(() => {
-    const cur: string[] = [];
-    const hist: string[] = [];
-    for (const f of artifacts ?? []) {
-      if (currentTurnSet.has(f)) cur.push(f);
-      else hist.push(f);
-    }
-    return [...cur, ...hist];
-  }, [artifacts, currentTurnSet]);
-
-  // Preview state: which file is being viewed full-screen. `null` = list view.
-  const [previewing, setPreviewing] = useState<string | null>(null);
-
-  // When an external selection arrives (e.g. clicking a filename in chat),
-  // jump straight to the preview view for that file.
-  useEffect(() => {
-    if (externalSelected && allFiles.includes(externalSelected)) {
-      setPreviewing(externalSelected);
-      // Also sync the shared context so the drawer stays in sync.
-      select(externalSelected);
-    }
-  }, [externalSelected, allFiles, select]);
-
-  const handleSelect = useCallback(
-    (path: string) => {
-      setPreviewing(path);
-      select(path);
-    },
-    [select],
-  );
-
-  const handleBack = useCallback(() => {
-    setPreviewing(null);
-  }, []);
-
-  if (allFiles.length === 0) {
-    const detail = runBlocked
-      ? t.streaming.blockedOnUser
-      : isLoading
-        ? t.agentWorkbenchPanel.agentStatusRunning
-        : runSettled
-          ? t.livePreview.emptyHint
-          : t.agentWorkbenchPanel.agentStatusPending;
-    return (
-      <div className="flex flex-1 items-center justify-center p-6">
-        <div className="flex max-w-xs flex-col items-center text-center">
-          <div className="mb-3 flex size-10 items-center justify-center rounded-xl border border-border-subtle bg-muted/45">
-            <PackageIcon className="size-4 text-muted-foreground" />
-          </div>
-          <p className="text-sm font-medium text-foreground">
-            {t.conversation.noPreviewArtifacts}
-          </p>
-          <p className="mt-1 text-xs leading-5 text-muted-foreground">
-            {detail}
-          </p>
-        </div>
-      </div>
-    );
-  }
-
-  // ── Preview view ──
-  if (previewing) {
-    return (
-      <PreviewPane
-        filepath={previewing}
-        threadId={threadId}
-        streamdownPlugins={streamdownPlugins}
-        onBack={handleBack}
-      />
-    );
-  }
-
-  // ── List view ──
-  return (
-    <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
-      <div className="flex-1 overflow-y-auto">
-        {allFiles.map((f) => (
-          <FileListRow
-            key={f}
-            filepath={f}
-            isCurrentTurn={currentTurnSet.has(f)}
-            onSelect={handleSelect}
-          />
-        ))}
-      </div>
-    </div>
-  );
-}
-
-/* ─────────────────────── List row ─────────────────────── */
-
-function FileListRow({
-  filepath,
-  isCurrentTurn = false,
-  onSelect,
-}: {
-  filepath: string;
-  isCurrentTurn?: boolean;
-  onSelect: (path: string) => void;
-}) {
-  const displayPath = artifactDisplayPath(filepath);
-  const name = getFileName(displayPath);
-  return (
-    <button
-      type="button"
-      onClick={() => onSelect(filepath)}
-      className="flex w-full items-center gap-2 px-3 py-2 text-left transition-colors hover:bg-muted/50"
-    >
-      <span className="flex size-5 shrink-0 items-center justify-center text-muted-foreground">
-        {getFileIcon(displayPath, "size-3.5")}
-      </span>
-      <span className="min-w-0 flex-1 truncate text-xs text-foreground">
-        {name}
-      </span>
-      {isCurrentTurn && (
-        <span className="inline-flex shrink-0 items-center gap-0.5 rounded-full bg-accent/15 px-1.5 py-0.5 text-xs font-medium text-accent">
-          <SparklesIcon className="size-2.5" />
-          本轮
-        </span>
-      )}
-    </button>
-  );
-}
-
-/* ─────────────────────── Preview pane (full-screen) ─────────────────────── */
-
-export function PreviewPane({
-  filepath,
-  threadId,
-  streamdownPlugins,
-  onBack,
-}: {
-  filepath: string;
-  threadId: string;
-  streamdownPlugins: Pick<StreamdownProps, "remarkPlugins" | "rehypePlugins">;
-  onBack: () => void;
-}) {
-  const { t } = useI18n();
-  const displayPath = artifactDisplayPath(filepath);
-  const isWriteFile = filepath.startsWith("write-file:");
-  const { content, url, isLoading, refetch } = useArtifactContent({
-    filepath,
-    threadId,
-    enabled: !isWriteFile,
-  });
-  const effectiveContent = isWriteFile ? "" : (content ?? "");
-
-  const lang = checkCodeFile(displayPath).language;
-  const isHtml = lang === "html";
-  const isMarkdown = lang === "markdown";
-  const officeKind = officeArtifactKind(displayPath);
-
-  return (
-    <div className="flex min-h-0 size-full flex-col">
-      {/* Header with back button */}
-      <div className="flex shrink-0 items-center gap-2 border-b border-border-subtle bg-muted/30 px-2 py-1.5">
-        <button
-          type="button"
-          onClick={onBack}
-          className="flex size-6 shrink-0 items-center justify-center rounded text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
-          aria-label={t.common.back}
-        >
-          <ArrowLeftIcon className="size-3.5" />
-        </button>
-        <span className="flex size-5 shrink-0 items-center justify-center">
-          {getFileIcon(displayPath, "size-3")}
-        </span>
-        <span className="min-w-0 flex-1 truncate text-xs font-medium">
-          {getFileName(displayPath)}
-        </span>
-        {lang && (
-          <span className="shrink-0 text-xs text-muted-foreground uppercase">
-            {lang}
-          </span>
-        )}
-        <a
-          href={urlOfArtifact({ filepath, threadId, download: true })}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="rounded p-1 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
-          aria-label={t.common.download}
-        >
-          <DownloadIcon className="size-3" />
-        </a>
-      </div>
-
-      {/* Content */}
-      <div className="relative min-h-0 flex-1 overflow-hidden">
-        {isLoading && (
-          <div className="absolute inset-0 z-10 flex items-center justify-center bg-background/60 text-xs text-muted-foreground">
-            {t.common.loading}…
-          </div>
-        )}
-        {officeKind ? (
-          <OfficePreview
-            displayPath={displayPath}
-            filepath={filepath}
-            isMock={false}
-            kind={officeKind}
-            threadId={threadId}
-          />
-        ) : isMarkdown ? (
-          <div className="size-full overflow-auto px-4 py-3">
-            <Suspense
-              fallback={
-                <div className="size-full whitespace-pre-wrap break-words py-2 text-sm text-muted-foreground">
-                  {effectiveContent}
-                </div>
-              }
-            >
-              <LazyStreamdown
-                className="size-full"
-                {...streamdownPlugins}
-                components={{ a: ArtifactLink }}
-              >
-                {effectiveContent}
-              </LazyStreamdown>
-            </Suspense>
-          </div>
-        ) : isHtml ? (
-          <HtmlPreview
-            artifactRef={filepath}
-            content={effectiveContent}
-            filepath={displayPath}
-            onSaved={() => void refetch()}
-            threadId={threadId}
-            url={url}
-          />
-        ) : (
-          <div className="flex size-full items-center justify-center p-4 text-xs text-muted-foreground">
-            此文件类型暂不支持预览
-          </div>
-        )}
-      </div>
     </div>
   );
 }

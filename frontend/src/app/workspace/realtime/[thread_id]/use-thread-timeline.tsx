@@ -15,6 +15,8 @@ import type { MessageListTimelineEntry } from "@/components/workspace/messages";
 import { ModelSwitchTimelineEntry } from "@/components/workspace/messages/model-switch-timeline-entry";
 import type { Message } from "@/core/api/types";
 import type { CoworkRoomEntityRef } from "@/core/cowork";
+import { useI18n } from "@/core/i18n/hooks";
+import { sessionStatusCopy } from "@/core/i18n/locales/session-status";
 import { resolveModelContextWindow } from "@/core/models/context-window";
 import type { useModels } from "@/core/models/hooks";
 import {
@@ -185,13 +187,28 @@ export function useContextWindow({
     );
   }, [models, modelName]);
   const maxContextTokens = useMemo(() => resolveModelContextWindow(selectedModel), [selectedModel]);
-  const contextTokens = useMemo(() => estimateCurrentContextTokens(thread.messages), [thread.messages]);
   const contextSegments = useThreadContextSegments(isNewThread ? null : threadId, thread.messages, thread.lastTurnStatus, t);
+  // The visible-message estimate misses the system prompt and tools; a
+  // measured breakdown counts them, so the total never trails its own bar.
+  const contextTokens = useMemo(
+    () =>
+      Math.max(
+        estimateCurrentContextTokens(thread.messages),
+        contextSegments.reduce((sum, segment) => sum + segment.tokens, 0),
+      ),
+    [contextSegments, thread.messages],
+  );
+  // "auto" (or nothing) routes per turn, so no single model name is true.
+  const modelLabel =
+    !modelName || modelName === "auto"
+      ? null
+      : (models.find((model) => model.selection_id === modelName || model.name === modelName || model.id === modelName)?.display_name ?? modelName);
   const compactThread = (thread as typeof thread & CompactableThread).compact;
+  const compressCopy = sessionStatusCopy(useI18n().locale);
   const handleCompressContext = useCallback(async () => {
     if (!compactThread || isCompressingContext) {
       if (!compactThread) {
-        toast.error("Context compression is not available for this thread");
+        toast.error(compressCopy.compressUnavailable);
       }
       return;
     }
@@ -206,8 +223,8 @@ export function useContextWindow({
       }
       const kept =
         result.keepRecent != null && result.turnCount != null
-          ? `Only ${result.turnCount} turns; keeping the latest ${result.keepRecent}.`
-          : "Nothing to compress yet.";
+          ? compressCopy.tooFewTurns(result.turnCount, result.keepRecent)
+          : compressCopy.nothingToCompress;
       toast.message(
         t.contextCompressor?.compressContext ?? "Compress context",
         {
@@ -219,17 +236,18 @@ export function useContextWindow({
       );
     } catch (err) {
       toast.error(
-        err instanceof Error ? err.message : "Failed to compress context",
+        err instanceof Error ? err.message : compressCopy.compressFailed,
       );
     } finally {
       setIsCompressingContext(false);
     }
-  }, [compactThread, isCompressingContext, t.contextCompressor]);
+  }, [compactThread, compressCopy, isCompressingContext, t.contextCompressor]);
   return {
     isCompressingContext,
     maxContextTokens,
     contextTokens,
     contextSegments,
+    modelLabel,
     handleCompressContext,
   };
 }

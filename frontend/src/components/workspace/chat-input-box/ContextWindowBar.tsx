@@ -1,7 +1,8 @@
 import { useState } from "react";
-import { Loader2Icon } from "lucide-react";
+import { Loader2Icon, PanelRightOpenIcon } from "lucide-react";
 
 import { useI18n } from "@/core/i18n/hooks";
+import { sessionStatusCopy } from "@/core/i18n/locales/session-status";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -9,28 +10,23 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { cn } from "@/lib/utils";
 
-export interface ContextWindowSegment {
-  label: string;
-  tokens: number;
-  color: string;
-}
+import {
+  ContextUsageDetails,
+  contextUsage,
+  type ContextWindowSegment,
+} from "./context-usage-details";
+
+export type { ContextWindowSegment } from "./context-usage-details";
 
 interface ContextWindowBarProps {
   contextTokens?: number;
   maxContextTokens?: number;
   isCompressingContext?: boolean;
   onCompressContext?: () => void | Promise<void>;
+  /** Opens the side panel's 状态 tab, which owns compression where the page
+   * has one; the popover then links there instead of compressing itself. */
+  onOpenDetails?: () => void;
   segments?: ContextWindowSegment[];
-}
-
-function compactTokenCount(value: number): string {
-  if (value >= 1_000_000) {
-    return `${Number((value / 1_000_000).toFixed(1))}M`;
-  }
-  if (value >= 1_000) {
-    return `${Number((value / 1_000).toFixed(1))}K`;
-  }
-  return value.toLocaleString();
 }
 
 function ringColorClass(progress: number): string {
@@ -45,26 +41,21 @@ export function ContextWindowBar({
   maxContextTokens = 128_000,
   isCompressingContext = false,
   onCompressContext,
+  onOpenDetails,
   segments = [],
 }: ContextWindowBarProps) {
-  const { t } = useI18n();
-  const [hoveredLabel, setHoveredLabel] = useState<string | null>(null);
-  const progress =
-    maxContextTokens > 0 && contextTokens > 0
-      ? Math.min(contextTokens / maxContextTokens, 1)
-      : 0;
-  const percentage = Math.round(progress * 100);
-  const remainingTokens = Math.max(0, maxContextTokens - contextTokens);
-  const summary = `${compactTokenCount(contextTokens)} / ${compactTokenCount(
+  const { t, locale } = useI18n();
+  const [open, setOpen] = useState(false);
+  const { progress, percentage, summary } = contextUsage(
+    contextTokens,
     maxContextTokens,
-  )} (${percentage}%)`;
+  );
   const circumference = 2 * Math.PI * 7;
   const strokeLength = circumference * progress;
   const colorClass = ringColorClass(progress);
-  const freeLabel = t.contextWindow.freeSpace ?? "Free space";
 
   return (
-    <DropdownMenu>
+    <DropdownMenu open={open} onOpenChange={setOpen}>
       <DropdownMenuTrigger asChild>
         <button
           type="button"
@@ -115,93 +106,31 @@ export function ContextWindowBar({
         sideOffset={8}
         className="w-[22rem] rounded-xl border-border-default p-3"
       >
-        <div className="flex items-center justify-between gap-3 text-xs">
-          <span className="font-medium text-foreground">
-            {t.contextWindow.title}
-          </span>
-          <span className="font-mono tabular-nums text-muted-foreground">
-            {summary}
-          </span>
-        </div>
-        <div className="mt-2 flex h-2 overflow-hidden rounded-full bg-muted/80 p-0.5 gap-0.5">
-          {segments.length > 0 ? (
-            segments.map((segment) => {
-              const segPct = maxContextTokens > 0 ? (segment.tokens / maxContextTokens) * 100 : 0;
-              if (segPct <= 0) return null;
-              const isHovered = hoveredLabel === segment.label;
-              return (
-                <div
-                  key={segment.label}
-                  className={cn(
-                    "h-full rounded-full transition-all duration-200",
-                    segment.color,
-                    hoveredLabel && !isHovered ? "opacity-35 scale-y-90" : "opacity-100",
-                    isHovered && "ring-1 ring-foreground/40 shadow-xs scale-y-110",
-                  )}
-                  style={{ width: `${Math.max(segPct, 0.6)}%` }}
-                  title={`${segment.label}: ${compactTokenCount(segment.tokens)} (${Math.round(segPct * 10) / 10}%)`}
-                />
-              );
-            })
-          ) : (
-            <div
-              className="h-full rounded-full bg-foreground/25 transition-[width]"
-              style={{ width: `${percentage}%` }}
-            />
-          )}
-        </div>
-        <div className="mt-3 space-y-1 text-xs">
-          {segments.map((segment) => {
-            const isHovered = hoveredLabel === segment.label;
-            return (
-              <div
-                key={segment.label}
-                onMouseEnter={() => setHoveredLabel(segment.label)}
-                onMouseLeave={() => setHoveredLabel(null)}
-                className={cn(
-                  "flex items-center justify-between gap-3 rounded-md px-1.5 py-0.5 transition-colors cursor-default",
-                  isHovered ? "bg-muted/70" : "hover:bg-muted/40",
-                )}
-              >
-                <span className="flex min-w-0 items-center gap-2">
-                  <span
-                    className={cn(
-                      "size-2 shrink-0 rounded-full transition-transform",
-                      segment.color,
-                      isHovered && "scale-125 ring-1 ring-foreground/30",
-                    )}
-                    aria-hidden="true"
-                  />
-                  <span className={cn("truncate transition-colors", isHovered && "text-foreground font-medium")}>
-                    {segment.label}
-                  </span>
-                </span>
-                <span className="shrink-0 font-mono tabular-nums text-muted-foreground">
-                  {compactTokenCount(segment.tokens)}
-                  {maxContextTokens > 0
-                    ? ` (${Math.round((segment.tokens / maxContextTokens) * 1000) / 10}%)`
-                    : ""}
-                </span>
-              </div>
-            );
-          })}
-          <div className="flex items-center justify-between gap-3 text-muted-foreground">
-            <span className="flex min-w-0 items-center gap-2">
-              <span
-                className="size-2 shrink-0 rounded-full bg-muted-foreground/30"
+        <ContextUsageDetails
+          contextTokens={contextTokens}
+          maxContextTokens={maxContextTokens}
+          segments={segments}
+        />
+        {onOpenDetails ? (
+          <button
+            type="button"
+            onClick={() => {
+              setOpen(false);
+              onOpenDetails();
+            }}
+            className="mt-3 flex h-8 w-full items-center justify-center gap-2 rounded-lg bg-muted text-xs text-muted-foreground transition-colors hover:bg-muted/80 hover:text-foreground"
+          >
+            {isCompressingContext ? (
+              <Loader2Icon
+                className="size-3.5 animate-spin"
                 aria-hidden="true"
               />
-              <span className="truncate">{freeLabel}</span>
-            </span>
-            <span className="font-mono tabular-nums">
-              {compactTokenCount(remainingTokens)}
-              {maxContextTokens > 0
-                ? ` (${Math.round((remainingTokens / maxContextTokens) * 1000) / 10}%)`
-                : ""}
-            </span>
-          </div>
-        </div>
-        {onCompressContext ? (
+            ) : (
+              <PanelRightOpenIcon className="size-3.5" aria-hidden="true" />
+            )}
+            {sessionStatusCopy(locale).openInPanel}
+          </button>
+        ) : onCompressContext ? (
           <button
             type="button"
             onClick={() => void onCompressContext()}
