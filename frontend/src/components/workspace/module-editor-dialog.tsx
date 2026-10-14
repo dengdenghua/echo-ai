@@ -8,7 +8,7 @@
  * 未显示的入口对应 chunk 自然不会被请求。远端加载是另一条更重的路径
  * （见 docs/architecture/blocks.md §2）。
  */
-import { CheckIcon, CloudDownloadIcon, PlusIcon } from "lucide-react";
+import { CheckIcon, CloudDownloadIcon, LockIcon, PlusIcon } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { WebShortcutEditor } from "./web-shortcut-editor";
 
@@ -36,6 +36,7 @@ import { useActiveAgentId } from "@/core/agents/active";
 import { DEFAULT_PRIMARY_AGENT_ID } from "@/core/agents/persona-policy";
 import { workspacePresetForAgent } from "@/core/workspace/workspace-presets";
 import { stringAt } from "@/core/utils/guards";
+import { useCanManageWorkbenches } from "@/core/workbench/workbench-permissions";
 
 export function ModuleEditorDialog({
   open,
@@ -51,6 +52,8 @@ export function ModuleEditorDialog({
   const enabled = new Set(enabledIds);
   const unavailable = new Set(useUnavailableModuleIds());
   const navigate = useNavigate();
+  // Missing apps are machine-wide packages that only the admin installs.
+  const canInstall = useCanManageWorkbenches();
 
   const label = (key: string) => stringAt(t.sidebar, key) ?? key;
 
@@ -84,6 +87,9 @@ export function ModuleEditorDialog({
               pinnedLabel={t.sidebar.modulePinned}
               notInstalledLabel={t.sidebar.notInstalledBadge}
               installLabel={t.sidebar.moduleInstallAction}
+              installByAdminLabel={
+                canInstall ? null : t.sidebar.moduleInstallByAdmin
+              }
               onInstall={(to) => {
                 onOpenChange(false);
                 void navigate(to);
@@ -105,6 +111,7 @@ function ModuleGroupSection({
   pinnedLabel,
   notInstalledLabel,
   installLabel,
+  installByAdminLabel,
   onInstall,
 }: {
   group: ModuleGroup;
@@ -115,6 +122,8 @@ function ModuleGroupSection({
   pinnedLabel: string;
   notInstalledLabel: string;
   installLabel: string;
+  /** Set when this account cannot install; replaces the install button. */
+  installByAdminLabel: string | null;
   onInstall: (to: string) => void;
 }) {
   const modules = MODULE_CATALOG.filter((m) => m.group === group);
@@ -140,15 +149,22 @@ function ModuleGroupSection({
                       · {notInstalledLabel}
                     </span>
                   </span>
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    className="h-7 shrink-0 gap-1 px-2 text-xs"
-                    onClick={() => onInstall(m.to)}
-                  >
-                    <CloudDownloadIcon className="size-3.5" />
-                    {installLabel}
-                  </Button>
+                  {installByAdminLabel ? (
+                    <span className="flex h-7 shrink-0 items-center gap-1 px-2 text-xs text-muted-foreground">
+                      <LockIcon className="size-3.5" aria-hidden="true" />
+                      {installByAdminLabel}
+                    </span>
+                  ) : (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="h-7 shrink-0 gap-1 px-2 text-xs"
+                      onClick={() => onInstall(m.to)}
+                    >
+                      <CloudDownloadIcon className="size-3.5" />
+                      {installLabel}
+                    </Button>
+                  )}
                 </div>
               </li>
             );

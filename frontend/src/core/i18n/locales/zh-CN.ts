@@ -2005,6 +2005,7 @@ export const zhCN: Translations = {
     settingsTooltip: "设置",
     notInstalledBadge: "未安装",
     moduleInstallAction: "去安装",
+    moduleInstallByAdmin: "由管理员安装",
     activeRoleLine: (name: string) => `角色：${name}`,
     accountMenuLabel: (account: string, role: string) => `${account}，当前角色 ${role}`,
     accountFallback: "我的账户",

@@ -6,6 +6,8 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { SidebarProvider } from "@/components/ui/sidebar";
 import { renderWithProviders } from "@/test/harness";
 import type * as AgentsApiModule from "@/core/agents/api";
+import type { AuthStatus, User } from "@/core/auth/types";
+import type * as AuthProviderModule from "@/providers/AuthProvider";
 import * as enabledModules from "@/core/modules/enabled-modules";
 
 const listLocalAgentsMock = vi.hoisted(() => vi.fn());
@@ -24,6 +26,20 @@ const agentWorldApiMocks = vi.hoisted(() => ({
 }));
 
 vi.mock("@/core/agents/agent-world-api", () => agentWorldApiMocks);
+
+// ``undefined`` means "no auth shell" (the server decides); a test that needs
+// an ordinary signed-in account sets it.
+const authState = vi.hoisted(() => {
+  const state: {
+    current: { authStatus: AuthStatus | null; user: User | null } | undefined;
+  } = { current: undefined };
+  return state;
+});
+
+vi.mock("@/providers/AuthProvider", async (importOriginal) => ({
+  ...(await importOriginal<typeof AuthProviderModule>()),
+  useOptionalAuth: () => authState.current,
+}));
 
 vi.mock("@/core/backend/readiness", () => ({
   waitForBackendAvailability: (...args: unknown[]) =>
@@ -92,6 +108,7 @@ import {
 } from "./agent-world-unified";
 
 beforeEach(() => {
+  authState.current = undefined;
   listLocalAgentsMock.mockReset();
   listLocalAgentsMock.mockResolvedValue([]);
   listRegistryRolesMock.mockReset();
@@ -530,6 +547,41 @@ describe("HUB market shell", () => {
     expect(
       screen.getByRole("menuitem", { name: "回退上个版本" }),
     ).toBeVisible();
+  });
+
+  it("does not offer machine-wide installs to an ordinary account", async () => {
+    const user = userEvent.setup();
+    authState.current = {
+      authStatus: {
+        enabled: true,
+        jwt_available: true,
+        allow_registration: false,
+        exempt_paths: [],
+      },
+      user: { user_id: "local:reader", username: "reader", roles: ["user"] },
+    };
+
+    renderWithProviders(
+      <SidebarProvider>
+        <AgentWorldUnified />
+      </SidebarProvider>,
+      {
+        initialRoute: "/workspace/agents?surface=chat&tab=plugins",
+        locale: "zh-CN",
+      },
+    );
+
+    expect((await screen.findAllByText("由管理员安装")).length).toBeGreaterThan(
+      0,
+    );
+    expect(screen.queryAllByRole("button", { name: /^安装/ })).toHaveLength(0);
+    // The row opens the app's own page, which explains who installs it.
+    await user.click(
+      screen.getByRole("button", {
+        name: "设计画布 · 视觉创作、素材编排与设计工作流",
+      }),
+    );
+    expect(agentWorldApiMocks.installCloudPlugin).not.toHaveBeenCalled();
   });
 
   it("opens installed app management without changing it, then reinstalls explicitly", async () => {

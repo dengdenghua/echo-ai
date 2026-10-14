@@ -8,6 +8,10 @@ import {
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { MemoryRouter, useLocation } from "react-router-dom";
 
+import { EchoAPIError } from "@/core/api/request";
+import type { AuthStatus, User } from "@/core/auth/types";
+import type * as AuthProviderModule from "@/providers/AuthProvider";
+
 import { WORKBENCH_BUILTIN_APPS } from "./apps";
 import { RemoteWorkbenchSurface } from "./remote-surface";
 
@@ -20,6 +24,30 @@ const apiMocks = vi.hoisted(() => ({
 }));
 
 vi.mock("@/core/agents/agent-world-api", () => apiMocks);
+
+// ``undefined`` is "no auth shell": the surface keeps offering actions and the
+// server decides. Tests that need a signed-in account set it explicitly.
+const authState = vi.hoisted(() => {
+  const state: {
+    current: { authStatus: AuthStatus | null; user: User | null } | undefined;
+  } = { current: undefined };
+  return state;
+});
+
+vi.mock("@/providers/AuthProvider", async (importOriginal) => ({
+  ...(await importOriginal<typeof AuthProviderModule>()),
+  useOptionalAuth: () => authState.current,
+}));
+
+const READER = {
+  authStatus: {
+    enabled: true,
+    jwt_available: true,
+    allow_registration: false,
+    exempt_paths: [],
+  },
+  user: { user_id: "local:reader", username: "reader", roles: ["user"] },
+};
 
 vi.mock("@/core/config", () => ({
   getBackendBaseURL: () => "http://localhost:8000",
@@ -75,6 +103,7 @@ function manifestResponse() {
 
 describe("RemoteWorkbenchSurface", () => {
   beforeEach(() => {
+    authState.current = undefined;
     vi.stubGlobal(
       "fetch",
       vi.fn().mockImplementation(async () => manifestResponse()),
@@ -359,6 +388,70 @@ describe("RemoteWorkbenchSurface", () => {
     expect(screen.queryByText(/digest mismatch/)).not.toBeInTheDocument();
     expect(
       screen.getByRole("button", { name: "前往重新安装" }),
+    ).toBeInTheDocument();
+  });
+
+  it("tells an ordinary account that the admin installs a missing app", async () => {
+    authState.current = READER;
+    apiMocks.installCloudPlugin.mockReset();
+    apiMocks.fetchWorkbenchInstalled.mockReset().mockResolvedValue({
+      plugins: [],
+      plugin_states: {},
+    });
+
+    renderSurface();
+    expect(
+      await screen.findByRole("heading", { name: "叙事工坊尚未安装" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(/工作台由本机管理员安装和管理/),
+    ).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "安装" })).toBeNull();
+    expect(apiMocks.installCloudPlugin).not.toHaveBeenCalled();
+  });
+
+  it("does not offer enable to an ordinary account", async () => {
+    authState.current = READER;
+    apiMocks.fetchWorkbenchInstalled.mockReset().mockResolvedValue({
+      plugins: ["narrative_studio"],
+      plugin_states: {
+        narrative_studio: {
+          installed: true,
+          enabled: false,
+          lifecycle_state: "disabled",
+        },
+      },
+    });
+
+    renderSurface();
+    expect(
+      await screen.findByRole("heading", { name: "叙事工坊已停用" }),
+    ).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "启用应用" })).toBeNull();
+    expect(screen.getByText(/需要时请联系管理员/)).toBeInTheDocument();
+  });
+
+  it("shows the server's sentence when an install is refused", async () => {
+    apiMocks.fetchWorkbenchInstalled.mockReset().mockResolvedValue({
+      plugins: [],
+      plugin_states: {},
+    });
+    apiMocks.installCloudPlugin
+      .mockReset()
+      .mockRejectedValueOnce(
+        new EchoAPIError(
+          "云插件安装失败: HTTP 403",
+          403,
+          "只有管理员可以安装或移除工作台，请联系本机管理员。",
+        ),
+      );
+
+    renderSurface();
+    fireEvent.click(await screen.findByRole("button", { name: "安装" }));
+    expect(
+      await screen.findByText(
+        "安装失败：只有管理员可以安装或移除工作台，请联系本机管理员。",
+      ),
     ).toBeInTheDocument();
   });
 

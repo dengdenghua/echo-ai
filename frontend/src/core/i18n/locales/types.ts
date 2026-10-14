@@ -1828,6 +1828,8 @@ export interface Translations {
     settingsTooltip: string;
     notInstalledBadge: string;
     moduleInstallAction: string;
+    /** Shown instead of the install action to accounts without the admin role. */
+    moduleInstallByAdmin: string;
     activeRoleLine: (name: string) => string;
     accountMenuLabel: (account: string, role: string) => string;
     accountFallback: string;

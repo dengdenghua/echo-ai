@@ -2079,6 +2079,7 @@ export const jaJP: Translations = {
     settingsTooltip: "設定",
     notInstalledBadge: "未インストール",
     moduleInstallAction: "インストール",
+    moduleInstallByAdmin: "管理者がインストール",
     activeRoleLine: (name: string) => `ロール：${name}`,
     accountMenuLabel: (account: string, role: string) => `${account}、現在のロール ${role}`,
     accountFallback: "マイアカウント",

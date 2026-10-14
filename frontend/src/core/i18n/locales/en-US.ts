@@ -2101,6 +2101,7 @@ export const enUS: Translations = {
     settingsTooltip: "Settings",
     notInstalledBadge: "Not installed",
     moduleInstallAction: "Install",
+    moduleInstallByAdmin: "Installed by an admin",
     activeRoleLine: (name: string) => `Role: ${name}`,
     accountMenuLabel: (account: string, role: string) => `${account}, current role ${role}`,
     accountFallback: "My account",

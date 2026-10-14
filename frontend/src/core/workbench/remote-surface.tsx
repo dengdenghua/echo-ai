@@ -2,6 +2,7 @@ import {
   AlertTriangleIcon,
   CloudDownloadIcon,
   Loader2Icon,
+  LockIcon,
   PowerIcon,
   RefreshCwIcon,
 } from "lucide-react";
@@ -17,7 +18,12 @@ import {
   setCloudPluginEnabled,
   setRuntimePluginEnabled,
 } from "@/core/agents/agent-world-api";
-import { EchoAPIError, apiGet, type ApiFailure } from "@/core/api/request";
+import {
+  EchoAPIError,
+  apiGet,
+  isApiErrorStatus,
+  type ApiFailure,
+} from "@/core/api/request";
 import { getBackendBaseURL } from "@/core/config";
 import { useActiveAgentId } from "@/core/agents/active";
 import {
@@ -26,6 +32,11 @@ import {
 } from "@/core/modules/enabled-modules";
 
 import type { WorkbenchBuiltinApp } from "./apps";
+import {
+  WORKBENCH_ADMIN_ONLY_HINT,
+  useCanManageWorkbenches,
+  workbenchActionErrorMessage,
+} from "./workbench-permissions";
 
 export interface RemoteWorkbenchManifest {
   schema: "echo.workbench_app.v1";
@@ -173,6 +184,7 @@ function SurfaceState({
   retry,
   enable,
   install,
+  adminOnly = false,
   actionBusy = false,
 }: {
   app: WorkbenchBuiltinApp;
@@ -181,6 +193,8 @@ function SurfaceState({
   enable?: () => void;
   /** Install in place, so a missing app is one click away instead of a detour. */
   install?: () => void;
+  /** This account cannot install, enable or repair machine-wide packages. */
+  adminOnly?: boolean;
   actionBusy?: boolean;
 }) {
   const navigate = useNavigate();
@@ -195,6 +209,38 @@ function SurfaceState({
           <Loader2Icon className="size-5 animate-spin" />
           正在验证并加载{app.name}…
         </div>
+      </div>
+    );
+  }
+  // A missing or stopped app waits for the admin; say so instead of offering
+  // a button the server would refuse.
+  const waitsForAdmin =
+    adminOnly && (issue.kind === "missing" || issue.kind === "disabled");
+  if (waitsForAdmin) {
+    return (
+      <div className="flex size-full min-h-80 items-center justify-center p-5">
+        <section className="w-full max-w-md rounded-2xl border border-border/70 bg-card/75 p-6 text-center shadow-sm">
+          <div className="mx-auto grid size-11 place-items-center rounded-2xl bg-muted text-muted-foreground">
+            <LockIcon className="size-5" />
+          </div>
+          <h1 className="mt-4 text-base font-semibold">
+            {issue.kind === "missing"
+              ? `${app.name}尚未安装`
+              : `${app.name}已停用`}
+          </h1>
+          <p className="mt-2 text-sm leading-6 text-muted-foreground">
+            {issue.kind === "missing"
+              ? `${app.description || app.name}。`
+              : "应用仍保留在本机，但当前没有运行。"}
+            {WORKBENCH_ADMIN_ONLY_HINT}
+          </p>
+          <div className="mt-5 flex flex-wrap justify-center gap-2">
+            <Button variant="outline" size="sm" onClick={retry}>
+              <RefreshCwIcon className="mr-1.5 size-3.5" />
+              重新检查
+            </Button>
+          </div>
+        </section>
       </div>
     );
   }
@@ -259,7 +305,8 @@ function SurfaceState({
             {install ? null : <CloudDownloadIcon className="mr-1.5 size-3.5" />}
             {install
               ? "在应用中心查看"
-              : issue.kind === "corrupt" || issue.kind === "incompatible"
+              : !adminOnly &&
+                  (issue.kind === "corrupt" || issue.kind === "incompatible")
                 ? "前往重新安装"
                 : "前往应用中心"}
           </Button>
@@ -288,6 +335,7 @@ export function RemoteWorkbenchSurface({
   const [actionBusy, setActionBusy] = useState(false);
   const [attempt, setAttempt] = useState(0);
   const activeAgentId = useActiveAgentId();
+  const canManage = useCanManageWorkbenches();
   const packageId = app.packageId;
   const effectiveHostPath =
     hostPath ?? `${location.pathname}${location.search}${location.hash}`;
@@ -427,7 +475,13 @@ export function RemoteWorkbenchSurface({
           ? await setCloudPluginEnabled(app.cloudId, true)
           : await setRuntimePluginEnabled(app.runtimePlugin as string, true);
       } catch (cloudError) {
-        if (!app.runtimePlugin || !app.cloudId) throw cloudError;
+        // A refusal is final; the runtime fallback would only refuse again.
+        if (
+          !app.runtimePlugin ||
+          !app.cloudId ||
+          isApiErrorStatus(cloudError, 403)
+        )
+          throw cloudError;
         // Compatibility fallback while older local backends are upgraded.
         status = await setRuntimePluginEnabled(app.runtimePlugin, true);
       }
@@ -438,7 +492,7 @@ export function RemoteWorkbenchSurface({
     } catch (enableError) {
       setIssue({
         kind: "unknown",
-        message: `启用失败：${enableError instanceof Error ? enableError.message : String(enableError)}`,
+        message: `启用失败：${workbenchActionErrorMessage(enableError)}`,
       });
     } finally {
       setActionBusy(false);
@@ -459,7 +513,7 @@ export function RemoteWorkbenchSurface({
     } catch (installError) {
       setIssue({
         kind: "unknown",
-        message: `安装失败：${installError instanceof Error ? installError.message : String(installError)}`,
+        message: `安装失败：${workbenchActionErrorMessage(installError)}`,
       });
     } finally {
       setActionBusy(false);
@@ -531,10 +585,15 @@ export function RemoteWorkbenchSurface({
         app={app}
         issue={issue || undefined}
         retry={issue ? () => setAttempt((value) => value + 1) : undefined}
-        enable={issue?.kind === "disabled" ? enableRuntime : undefined}
-        install={
-          issue?.kind === "missing" && app.cloudId ? installApp : undefined
+        enable={
+          issue?.kind === "disabled" && canManage ? enableRuntime : undefined
         }
+        install={
+          issue?.kind === "missing" && app.cloudId && canManage
+            ? installApp
+            : undefined
+        }
+        adminOnly={!canManage}
         actionBusy={actionBusy}
       />
     );

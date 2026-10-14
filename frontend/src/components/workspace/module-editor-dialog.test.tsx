@@ -4,10 +4,37 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { ModuleEditorDialog } from "./module-editor-dialog";
 import { renderWithProviders } from "@/test/harness";
+import type { AuthStatus, User } from "@/core/auth/types";
 import {
   resetModuleStateCache,
+  setModuleAvailable,
   setModuleStateProvider,
 } from "@/core/modules/enabled-modules";
+import type * as AuthProviderModule from "@/providers/AuthProvider";
+
+const authState = vi.hoisted(() => {
+  const state: {
+    current: { authStatus: AuthStatus | null; user: User | null } | undefined;
+  } = { current: undefined };
+  return state;
+});
+
+vi.mock("@/providers/AuthProvider", async (importOriginal) => ({
+  ...(await importOriginal<typeof AuthProviderModule>()),
+  useOptionalAuth: () => authState.current,
+}));
+
+function signedInAs(roles: string[]) {
+  authState.current = {
+    authStatus: {
+      enabled: true,
+      jwt_available: true,
+      allow_registration: false,
+      exempt_paths: [],
+    },
+    user: { user_id: "local:someone", username: "someone", roles },
+  };
+}
 
 function memoryProvider(initial: string[] = []) {
   let disabled = [...initial];
@@ -28,8 +55,30 @@ function memoryProvider(initial: string[] = []) {
 
 describe("ModuleEditorDialog", () => {
   beforeEach(() => {
+    authState.current = undefined;
     setModuleStateProvider(memoryProvider());
     resetModuleStateCache();
+  });
+
+  it("sends the admin to install a missing app", () => {
+    signedInAs(["user", "admin"]);
+    setModuleAvailable("narrative", false);
+    renderWithProviders(<ModuleEditorDialog open onOpenChange={vi.fn()} />, {
+      locale: "zh-CN",
+    });
+
+    expect(screen.getByRole("button", { name: "去安装" })).toBeInTheDocument();
+  });
+
+  it("tells an ordinary account that the admin installs a missing app", () => {
+    signedInAs(["user", "local"]);
+    setModuleAvailable("narrative", false);
+    renderWithProviders(<ModuleEditorDialog open onOpenChange={vi.fn()} />, {
+      locale: "zh-CN",
+    });
+
+    expect(screen.getByText("由管理员安装")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "去安装" })).toBeNull();
   });
 
   it("renders group headings and module cards", () => {

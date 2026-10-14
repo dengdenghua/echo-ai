@@ -2063,6 +2063,7 @@ export const koKR: Translations = {
     settingsTooltip: "설정",
     notInstalledBadge: "미설치",
     moduleInstallAction: "설치",
+    moduleInstallByAdmin: "관리자가 설치",
     activeRoleLine: (name: string) => `역할: ${name}`,
     accountMenuLabel: (account: string, role: string) => `${account}, 현재 역할 ${role}`,
     accountFallback: "내 계정",
