@@ -44,7 +44,7 @@ graph LR
   core -- 60 --> platform
   platform -- 56 --> execution
   platform -- 56 --> safety
-  sensing -- 53 --> projectos
+  sensing -- 54 --> projectos
   sensing -- 45 --> core
   execution -- 40 --> memory
   sensing -- 38 --> adapters
@@ -60,10 +60,10 @@ graph LR
   safety -- 15 --> execution
   core -- 14 --> memory
   safety -- 14 --> adapters
+  adapters -- 13 --> platform
+  platform -- 13 --> adapters
   platform -- 13 --> core
   projectos -- 13 --> safety
-  adapters -- 12 --> platform
-  platform -- 12 --> adapters
   adapters -- 11 --> safety
   memory -- 10 --> execution
   tentacle -- 10 --> platform
