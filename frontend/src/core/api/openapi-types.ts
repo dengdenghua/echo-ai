@@ -20636,8 +20636,12 @@ export interface components {
         PlanBody: {
             /** Ai Budget Usd */
             ai_budget_usd?: number | null;
+            /** Category */
+            category?: string | null;
             /** Goal */
             goal: string;
+            /** Icon */
+            icon?: string | null;
             /** Name */
             name: string;
         };
@@ -20776,8 +20780,12 @@ export interface components {
         ProjectGroupBody: {
             /** Ai Budget Usd */
             ai_budget_usd?: number | null;
+            /** Category */
+            category?: string | null;
             /** Goal */
             goal?: string | null;
+            /** Icon */
+            icon?: string | null;
             /** Initial Agents */
             initial_agents?: components["schemas"]["ProjectGroupAgentBody"][];
             /** Name */
