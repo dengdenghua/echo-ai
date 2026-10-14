@@ -1,7 +1,19 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { taskWorkspaceRoute } from "@/core/router/task-workspace-route";
 import { worktreeCopy } from "@/core/i18n/locales/worktrees";
+import { sessionStatusCopy } from "@/core/i18n/locales/session-status";
+import { registerSessionStatusMenu } from "@/core/realtime/session-status-menu";
+import { artifactDisplayPath } from "@/core/artifacts/utils";
+import { getFileIcon, getFileName } from "@/core/utils/files";
+import { useOptionalArtifacts } from "./artifacts/context";
+import { contextUsage } from "./chat-input-box/context-usage-details";
+import {
+  SessionContextSection,
+  SessionEnvironmentRows,
+  type SessionContextStatus,
+  type SessionEnvironment,
+} from "./session-status-sections";
 import { WorktreeDialog } from "./worktree-dialog";
 import {
   FileDiffIcon,
@@ -48,9 +60,17 @@ export interface WorkspaceContextMenuProps {
   groundingSources?: GroundingSource[];
   onOpenDiff: () => void;
   onOpenFile: (path: string) => void;
+  /** Where the conversation runs; rows lead the 环境 section. */
+  environment?: SessionEnvironment;
+  /** Context usage and manual compression. While given, the composer's
+   * context ring links here instead of compressing by itself. */
+  context?: SessionContextStatus;
 }
 
-/** A transient header menu; it never restores the old floating-card state. */
+/**
+ * The chat header's status menu (三横): 环境, 上下文, 产出 and 来源. A transient
+ * menu; it never restores the old floating-card state.
+ */
 export function WorkspaceContextMenu({
   workDir,
   events,
@@ -58,9 +78,21 @@ export function WorkspaceContextMenu({
   groundingSources = [],
   onOpenDiff,
   onOpenFile,
+  environment,
+  context,
 }: WorkspaceContextMenuProps) {
   const { t, locale } = useI18n();
+  const copy = sessionStatusCopy(locale);
   const [open, setOpen] = useState(false);
+  const outputs = useOptionalArtifacts()?.artifacts ?? [];
+  const ownsCompression = Boolean(context?.onCompressContext);
+  useEffect(
+    () =>
+      ownsCompression
+        ? registerSessionStatusMenu(() => setOpen(true))
+        : undefined,
+    [ownsCompression],
+  );
   const [worktreesOpen, setWorktreesOpen] = useState(false);
   const navigate = useNavigate();
   const { summary, error, isLoading, refresh } = useGitSummary(workDir, {
@@ -109,6 +141,9 @@ export function WorkspaceContextMenu({
   );
   const format = (value: number) => value.toLocaleString(locale);
   const rowClass = "min-h-8 gap-2.5 rounded-lg px-2 text-xs";
+  const sectionLabelClass =
+    "px-2 pb-1 pt-4 text-xs font-normal text-muted-foreground first:pt-0.5";
+  const menuTitle = context || environment ? copy.menuTitle : t.workspaceNote.menuTitle;
 
   return (
     <>
@@ -123,8 +158,8 @@ export function WorkspaceContextMenu({
         <button
           type="button"
           data-slot="workspace-context-trigger"
-          aria-label={t.workspaceNote.menuTitle}
-          title={t.workspaceNote.menuTitle}
+          aria-label={menuTitle}
+          title={menuTitle}
           className="flex size-[42px] shrink-0 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted/60 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring data-[state=open]:bg-muted/70 data-[state=open]:text-foreground sm:size-8"
         >
           <ListFilterIcon className="size-4" />
@@ -135,14 +170,17 @@ export function WorkspaceContextMenu({
         side="bottom"
         sideOffset={10}
         collisionPadding={12}
-        aria-label={t.workspaceNote.menuTitle}
-        className="max-h-[min(28rem,var(--radix-dropdown-menu-content-available-height))] w-[300px] max-w-[calc(100vw-24px)] rounded-2xl border-border-subtle bg-popover p-3 shadow-[0_4px_20px_rgb(0_0_0/0.08)] dark:shadow-[0_4px_20px_rgb(0_0_0/0.3)]"
+        aria-label={menuTitle}
+        className="max-h-[min(40rem,var(--radix-dropdown-menu-content-available-height))] w-[340px] max-w-[calc(100vw-24px)] rounded-2xl border-border-subtle bg-popover p-3 shadow-[0_4px_20px_rgb(0_0_0/0.08)] dark:shadow-[0_4px_20px_rgb(0_0_0/0.3)]"
       >
+        {(environment || workDir) && (
+          <DropdownMenuLabel className={sectionLabelClass}>
+            {environment ? copy.environment : t.workspaceNote.environmentSection}
+          </DropdownMenuLabel>
+        )}
+        {environment && <SessionEnvironmentRows environment={environment} />}
         {workDir && (
           <>
-            <DropdownMenuLabel className="px-2 pb-1 pt-0.5 text-xs font-normal text-muted-foreground">
-              {t.workspaceNote.environmentSection}
-            </DropdownMenuLabel>
             {hasRepository && summary && (
               <DropdownMenuItem className={rowClass} onSelect={() => setWorktreesOpen(true)}>
                 <GitForkIcon className="size-3.5" />
@@ -171,7 +209,8 @@ export function WorkspaceContextMenu({
                 </span>
               </DropdownMenuItem>
             )}
-            <div
+            {/* 工作位置 already says 本地; only a worktree adds something. */}
+            {(!environment || summary?.worktree) && <div
               className="flex min-h-8 items-center gap-2.5 px-2 text-xs"
               title={workDir}
             >
@@ -185,7 +224,7 @@ export function WorkspaceContextMenu({
                   ? t.workspaceNote.worktreeEnv
                   : t.workspaceNote.localEnv}
               </span>
-            </div>
+            </div>}
             {hasRepository && summary && (
               <div
                 className="flex min-h-8 items-center gap-2.5 rounded-lg bg-muted/55 px-2 text-xs"
@@ -232,9 +271,49 @@ export function WorkspaceContextMenu({
             )}
           </>
         )}
-        <DropdownMenuLabel
-          className={`px-2 pb-1 text-xs font-normal text-muted-foreground ${workDir ? "pt-5" : "pt-0.5"}`}
-        >
+        {context && (
+          <>
+            <DropdownMenuLabel className={`${sectionLabelClass} flex items-center justify-between gap-3`}>
+              {copy.context}
+              <span className="font-mono tabular-nums">
+                {contextUsage(context.contextTokens, context.maxContextTokens).summary}
+              </span>
+            </DropdownMenuLabel>
+            <SessionContextSection status={context} />
+          </>
+        )}
+        {(context || environment) && (
+          <>
+            <DropdownMenuLabel className={sectionLabelClass}>
+              {copy.outputs}
+              {outputs.length > 0 ? (
+                <span className="ml-1.5 font-mono tabular-nums">{outputs.length}</span>
+              ) : null}
+            </DropdownMenuLabel>
+            {outputs.length === 0 && (
+              <p className="px-2 py-1.5 text-xs text-muted-foreground">
+                {copy.noOutputs}
+              </p>
+            )}
+            {outputs.map((file) => {
+              const displayPath = artifactDisplayPath(file);
+              return (
+                <DropdownMenuItem
+                  key={file}
+                  className={rowClass}
+                  title={displayPath}
+                  onSelect={() => onOpenFile(file)}
+                >
+                  <span className="flex size-3.5 shrink-0 items-center justify-center text-muted-foreground">
+                    {getFileIcon(displayPath, "size-3.5")}
+                  </span>
+                  <span className="truncate">{getFileName(displayPath)}</span>
+                </DropdownMenuItem>
+              );
+            })}
+          </>
+        )}
+        <DropdownMenuLabel className={sectionLabelClass}>
           {t.workspaceNote.sourcesTitle}
         </DropdownMenuLabel>
         {sources.length === 0 && (

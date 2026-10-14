@@ -1,10 +1,17 @@
-import { screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 
 import { renderWithProviders } from "@/test/harness";
 import { useGitSummary } from "@/core/workspace/use-git-summary";
 import { WorkspaceContextMenu } from "./workspace-context-menu";
+import type { SessionContextStatus } from "./session-status-sections";
+
+const artifactsState = vi.hoisted(() => ({ artifacts: [] as string[] }));
+
+vi.mock("./artifacts/context", () => ({
+  useOptionalArtifacts: () => artifactsState,
+}));
 
 vi.mock("@/core/workspace/use-git-summary", () => ({
   useGitSummary: vi.fn(() => ({
@@ -89,4 +96,121 @@ it("opens an observed file directly without reopening the retired overview", asy
   await user.click(screen.getByRole("button", {name: "Environment and sources"}));
   await user.click(screen.getByRole("menuitem", {name: "research.md"}));
   expect(onOpenFile).toHaveBeenCalledWith("docs/research.md");
+});
+
+describe("WorkspaceContextMenu status sections", () => {
+  function setupStatus(context: Partial<SessionContextStatus> = {}) {
+    const onOpenFile = vi.fn();
+    const onCompressContext = vi.fn();
+    renderWithProviders(
+      <WorkspaceContextMenu
+        workDir={null}
+        events={[]}
+        onOpenDiff={vi.fn()}
+        onOpenFile={onOpenFile}
+        environment={{
+          workLocation: { kind: "local" },
+          folder: "E:/projects/demo-app",
+          engine: "opencode",
+          modelLabel: "GPT-5.5",
+        }}
+        context={{
+          contextTokens: 20_000,
+          maxContextTokens: 100_000,
+          contextSegments: [
+            { label: "Messages", tokens: 12_000, color: "bg-primary" },
+            { label: "System prompt", tokens: 8_000, color: "bg-warning" },
+          ],
+          isCompressingContext: false,
+          onCompressContext,
+          modelLabel: "GPT-5.5",
+          ...context,
+        }}
+      />,
+      { locale: "en-US" },
+    );
+    return {
+      user: userEvent.setup(),
+      trigger: screen.getByRole("button", { name: "Session status" }),
+      onOpenFile,
+      onCompressContext,
+    };
+  }
+
+  it("shows the environment, the context breakdown and compresses in place", async () => {
+    const { user, trigger, onCompressContext } = setupStatus();
+    await user.click(trigger);
+    const menu = screen.getByRole("menu");
+    for (const text of [
+      "Environment",
+      "Local",
+      "E:/projects/demo-app",
+      "OpenCode",
+      "GPT-5.5",
+    ]) {
+      expect(menu).toHaveTextContent(text);
+    }
+    const context = screen.getByTestId("session-status-context");
+    expect(menu).toHaveTextContent("Context20K / 100K (20%)");
+    expect(context).toHaveTextContent("System prompt");
+    expect(context).toHaveTextContent("Free space");
+    expect(context).not.toHaveTextContent("auto-compact");
+    await user.click(screen.getByTestId("session-status-compress"));
+    expect(onCompressContext).toHaveBeenCalledOnce();
+    // Compressing keeps the menu open so its progress stays visible.
+    expect(screen.getByRole("menu")).toBeInTheDocument();
+  });
+
+  it("warns near auto-compaction and counts compression seconds", () => {
+    vi.useFakeTimers();
+    try {
+      setupStatus({
+        contextTokens: 80_000,
+        contextSegments: [],
+        isCompressingContext: true,
+      });
+      const trigger = screen.getByRole("button", { name: "Session status" });
+      fireEvent.pointerDown(trigger, { button: 0, ctrlKey: false });
+      fireEvent.click(trigger);
+      const context = screen.getByTestId("session-status-context");
+      expect(context).toHaveTextContent(
+        "older turns auto-compact at about 90%",
+      );
+      const button = screen.getByTestId("session-status-compress");
+      expect(button).toBeDisabled();
+      expect(button).toHaveTextContent("Compressing… 0s");
+      act(() => {
+        vi.advanceTimersByTime(3_000);
+      });
+      expect(button).toHaveTextContent("Compressing… 3s");
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("lists produced files and opens the one chosen", async () => {
+    artifactsState.artifacts = [
+      "/mnt/user-data/outputs/report.md",
+      "/mnt/user-data/outputs/chart.png",
+    ];
+    try {
+      const { user, trigger, onOpenFile } = setupStatus();
+      await user.click(trigger);
+      expect(screen.getByText("Outputs")).toBeInTheDocument();
+      await user.click(screen.getByRole("menuitem", { name: "chart.png" }));
+      expect(onOpenFile).toHaveBeenCalledWith(
+        "/mnt/user-data/outputs/chart.png",
+      );
+    } finally {
+      artifactsState.artifacts = [];
+    }
+  });
+
+  it("says so when nothing has been produced", async () => {
+    const { user, trigger } = setupStatus();
+    await user.click(trigger);
+    expect(screen.getByRole("menu")).toHaveTextContent(
+      "No files produced in this conversation yet.",
+    );
+  });
 });

@@ -12,6 +12,7 @@ import {
   dedupeCoworkRoomMessages,
 } from "@/components/workspace/collab";
 import type { MessageListTimelineEntry } from "@/components/workspace/messages";
+import type { SessionContextStatus } from "@/components/workspace/session-status-sections";
 import { ModelSwitchTimelineEntry } from "@/components/workspace/messages/model-switch-timeline-entry";
 import type { Message } from "@/core/api/types";
 import type { CoworkRoomEntityRef } from "@/core/cowork";
@@ -242,12 +243,24 @@ export function useContextWindow({
       setIsCompressingContext(false);
     }
   }, [compactThread, compressCopy, isCompressingContext, t.contextCompressor]);
+  // The header status menu's 上下文 section, as one stable object.
+  const sessionContext = useMemo<SessionContextStatus>(
+    () => ({
+      contextTokens,
+      maxContextTokens,
+      contextSegments,
+      isCompressingContext,
+      onCompressContext: handleCompressContext,
+      modelLabel,
+    }),
+    [contextSegments, contextTokens, handleCompressContext, isCompressingContext, maxContextTokens, modelLabel],
+  );
   return {
     isCompressingContext,
     maxContextTokens,
     contextTokens,
     contextSegments,
-    modelLabel,
+    sessionContext,
     handleCompressContext,
   };
 }

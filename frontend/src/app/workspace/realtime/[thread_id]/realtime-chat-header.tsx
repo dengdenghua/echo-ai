@@ -27,6 +27,7 @@ import { AssistantActivityTrigger } from "@/components/workspace/assistant-activ
 import { ShareMenu } from "@/components/workspace/share-menu";
 import type { TeamMode } from "@/components/workspace/team-mode-picker";
 import { ThreadTitle } from "@/components/workspace/thread-title";
+import type { SessionContextStatus } from "@/components/workspace/session-status-sections";
 import { WorkspaceContextMenu } from "@/components/workspace/workspace-context-menu";
 import { Button } from "@/components/ui/button";
 import { SidebarTrigger } from "@/components/ui/sidebar";
@@ -34,6 +35,8 @@ import type { Agent } from "@/core/agents";
 import type { ChannelName } from "@/core/channels/api";
 import type { ThreadCollaborationRosterEntry } from "@/core/collaboration/thread-collaboration";
 import type { CollaborationSession, CoworkRoomEntityRef } from "@/core/cowork";
+import type { WorkLocation } from "@/core/execution/work-location";
+import type { ExecutionEngine } from "@/core/realtime/execution-policy";
 import { cn } from "@/lib/utils";
 
 import type { CollaborationProfile } from "./collaboration-roster-utils";
@@ -94,6 +97,10 @@ export interface RealtimeChatHeaderProps {
   lastTurnUserInput: ConversationUserInput | null;
   onOpenDiff: () => void;
   openWorkbenchArtifact: (path: string) => void;
+  /** The status menu's 环境 rows and 上下文 section. */
+  workLocation: WorkLocation;
+  executionEngine: ExecutionEngine;
+  sessionContext: SessionContextStatus;
   connectedChannels: ChannelName[];
   showAutomationPanel: boolean;
   toggleAutomationPanel: () => void;
@@ -139,6 +146,9 @@ export function RealtimeChatHeader({
   lastTurnUserInput,
   onOpenDiff,
   openWorkbenchArtifact,
+  workLocation,
+  executionEngine,
+  sessionContext,
   connectedChannels,
   showAutomationPanel,
   toggleAutomationPanel,
@@ -199,7 +209,13 @@ export function RealtimeChatHeader({
       groundingSources={thread.values.latest_grounding ?? []}
       onOpenDiff={onOpenDiff}
       onOpenFile={openWorkbenchArtifact}
-
+      environment={{
+        workLocation,
+        folder: effectiveWorkDir,
+        engine: executionEngine,
+        modelLabel: sessionContext.modelLabel,
+      }}
+      context={sessionContext}
     />
   ) : null;
   const headerActions = !isEchoAssistant ? (

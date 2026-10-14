@@ -23,7 +23,6 @@ export function EmptyShellView({
   inferredWorkDir,
   browserTabPage,
   personaWorkbenchPage,
-  sessionStatusPage,
   isLoading,
   className,
   machineRail,
@@ -46,8 +45,7 @@ export function EmptyShellView({
     | "artifacts"
     | "workspace"
     | "design"
-    | "project"
-    | "session";
+    | "project";
   onTabClick: (tabId: AgentWorkbenchTabId) => void;
   onTabClose: (tabId: AgentWorkbenchTabId) => void;
   onClose?: () => void;
@@ -56,7 +54,6 @@ export function EmptyShellView({
   inferredWorkDir?: string;
   browserTabPage: ReactNode;
   personaWorkbenchPage: ReactNode;
-  sessionStatusPage?: ReactNode;
   isLoading?: boolean;
   className?: string;
   machineRail: ReactNode;
@@ -75,8 +72,6 @@ export function EmptyShellView({
       browserTabPage
     ) : effectiveActiveTab === "workspace" ? (
       personaWorkbenchPage
-    ) : effectiveActiveTab === "session" && sessionStatusPage ? (
-      sessionStatusPage
     ) : effectiveActiveTab === "artifacts" ? (
       <WorkbenchEmptyPage
         title={t.conversation.artifactsTitle}

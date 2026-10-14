@@ -1,7 +1,6 @@
 import {
   ChevronRightIcon,
   FolderKanbanIcon,
-  GaugeIcon,
   GlobeIcon,
   PackageIcon,
   PanelsTopLeftIcon,
@@ -14,11 +13,9 @@ import {
   useMemo,
   useRef,
   useState,
-  type ReactNode,
 } from "react";
 
 import { useI18n } from "@/core/i18n/hooks";
-import { sessionStatusCopy } from "@/core/i18n/locales/session-status";
 import { useQuery } from "@tanstack/react-query";
 import { coordinationRequest, type CoordinationSnapshot } from "@/core/cowork/coordination";
 import { mergeCoordinatedAgents } from "./agent-workbench-panel/coordinated-agents";
@@ -117,7 +114,6 @@ function AgentWorkbenchPanelImpl({
   showMachineRosterRail = true,
   showDeliveryRecovery = false,
   hideMainOverview = false,
-  sessionStatusPage,
 }: {
   activeTab?: AgentWorkbenchTabId;
   /** Chat owns task progress; the header menu owns sources. */
@@ -204,10 +200,8 @@ function AgentWorkbenchPanelImpl({
   showMachineRosterRail?: boolean;
   /** Group-only reliable delivery monitor. Solo chats do not poll this API. */
   showDeliveryRecovery?: boolean;
-  /** The 状态 tab (environment, context, outputs); the tab exists only with it. */
-  sessionStatusPage?: ReactNode;
 }) {
-  const { t, locale } = useI18n();
+  const { t } = useI18n();
   const { deriveAgentTiles, workbenchStatus } = useAgentWorkbenchI18n();
 
   // IndexedDB 缓存实例（跨刷新持久化）
@@ -429,7 +423,6 @@ function AgentWorkbenchPanelImpl({
         "project",
         "diff",
         "terminal",
-        "session",
       ]),
   );
   // Browser tab source: while the run streams, the inline srcDoc blocks are
@@ -521,7 +514,6 @@ function AgentWorkbenchPanelImpl({
       (projectOsQuery.isLoading || projectOsQuery.isError));
   const mergeProjectHome = projectTabVisible && workspacePresetForAgent(personaId).workbench === "office";
   const isDevelopmentWorkbench = workspacePresetForAgent(personaId).workbench === "development";
-  const hasSessionStatus = Boolean(sessionStatusPage);
   const normalizedActiveTab:
     | "agent"
     | "diff"
@@ -529,15 +521,14 @@ function AgentWorkbenchPanelImpl({
     | "browser"
     | "artifacts"
     | "workspace"
-    | "project"
-    | "session" =
+    | "project" =
     requestedActiveTab === "workspace" && mergeProjectHome
       ? "project"
       : requestedActiveTab === "subagents" ||
     requestedActiveTab === "plan" ||
     requestedActiveTab === "design"
       ? "agent"
-      : (requestedActiveTab === "project" && !projectTabVisible) || (requestedActiveTab === "session" && !hasSessionStatus)
+      : requestedActiveTab === "project" && !projectTabVisible
         ? "agent"
         : requestedActiveTab;
   const effectiveActiveTab =
@@ -590,9 +581,8 @@ function AgentWorkbenchPanelImpl({
             },
           ]
         : []),
-      ...(hasSessionStatus ? [{ id: "session" as const, label: sessionStatusCopy(locale).tab, Icon: GaugeIcon }] : []),
     ],
-    [t.agentWorkbenchPages, t.conversation, projectTabVisible, personaId, mergeProjectHome, isDevelopmentWorkbench, hasSessionStatus, locale],
+    [t.agentWorkbenchPages, t.conversation, projectTabVisible, personaId, mergeProjectHome, isDevelopmentWorkbench],
   );
 
   // Auto-open a tab if it becomes the effective active tab
@@ -712,7 +702,6 @@ function AgentWorkbenchPanelImpl({
         inferredWorkDir={inferredWorkDir}
         browserTabPage={browserTabPage}
         personaWorkbenchPage={personaWorkbenchPage}
-        sessionStatusPage={sessionStatusPage}
         isLoading={isLoading}
         className={className}
         machineRail={machineRail}
@@ -782,8 +771,6 @@ function AgentWorkbenchPanelImpl({
       browserTabPage
     ) : effectiveActiveTab === "workspace" ? (
       personaWorkbenchPage
-    ) : effectiveActiveTab === "session" ? (
-      sessionStatusPage
     ) : effectiveActiveTab === "artifacts" && threadId ? (
       // Reuses the outer ArtifactsProvider (page-level) so the artifact list
       // synced from the backend stays visible. Wrapping in a fresh provider

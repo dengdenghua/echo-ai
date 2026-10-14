@@ -1,7 +1,8 @@
 /**
  * How full the model context is: the total, a bar split by what fills it
  * (messages, system prompt, tools, skills, memory …) and the space left.
- * Shared by the composer's context ring and the session panel's 上下文 card.
+ * Shared by the composer's context ring and the header status menu's 上下文
+ * section, whose heading carries the total instead.
  */
 import { useState } from "react";
 
@@ -50,12 +51,13 @@ export function ContextUsageDetails({
   contextTokens,
   maxContextTokens,
   segments,
-  showTitle = true,
+  showHeader = true,
 }: {
   contextTokens: number;
   maxContextTokens: number;
   segments: ContextWindowSegment[];
-  showTitle?: boolean;
+  /** The title and total row; off where the caller's heading shows them. */
+  showHeader?: boolean;
 }) {
   const { t } = useI18n();
   const [hoveredLabel, setHoveredLabel] = useState<string | null>(null);
@@ -66,17 +68,17 @@ export function ContextUsageDetails({
   const freeLabel = t.contextWindow.freeSpace ?? "Free space";
   return (
     <>
-      <div className="flex items-center justify-between gap-3 text-xs">
-        {showTitle ? (
+      {showHeader ? (
+        <div className="mb-2 flex items-center justify-between gap-3 text-xs">
           <span className="font-medium text-foreground">
             {t.contextWindow.title}
           </span>
-        ) : null}
-        <span className="ml-auto font-mono tabular-nums text-muted-foreground">
-          {summary}
-        </span>
-      </div>
-      <div className="mt-2 flex h-2 gap-0.5 overflow-hidden rounded-full bg-muted/80 p-0.5">
+          <span className="font-mono tabular-nums text-muted-foreground">
+            {summary}
+          </span>
+        </div>
+      ) : null}
+      <div className="flex h-2 gap-0.5 overflow-hidden rounded-full bg-muted/80 p-0.5">
         {segments.length > 0 ? (
           segments.map((segment) => {
             const segPct =

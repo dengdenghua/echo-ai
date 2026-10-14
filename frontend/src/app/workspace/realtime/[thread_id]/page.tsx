@@ -962,7 +962,7 @@ function RealtimePageContent({
     maxContextTokens,
     contextTokens,
     contextSegments,
-    modelLabel,
+    sessionContext,
     handleCompressContext,
   } = useContextWindow({
     threadId,
@@ -1439,6 +1439,9 @@ function RealtimePageContent({
                     lastTurnUserInput={lastTurnUserInput}
                     onOpenDiff={handleOpenDiff}
                     openWorkbenchArtifact={openWorkbenchArtifact}
+                    workLocation={workLocation}
+                    executionEngine={selectedExecutionEngine}
+                    sessionContext={sessionContext}
                     connectedChannels={connectedChannels}
                     showAutomationPanel={showAutomationPanel}
                     toggleAutomationPanel={toggleAutomationPanel}
@@ -1624,7 +1627,6 @@ function RealtimePageContent({
                         maxContextTokens={maxContextTokens}
                         isCompressingContext={isCompressingContext}
                         onCompressContext={handleCompressContext}
-                        onOpenContextDetails={() => selectAgentWorkbenchTab("session")}
                         contextSegments={contextSegments}
                         onModelChange={handleModelChange}
                         onModelSwitchNotice={handleModelSwitchNotice}
@@ -1715,11 +1717,6 @@ function RealtimePageContent({
                       maxContextTokens={maxContextTokens}
                       isCompressingContext={isCompressingContext}
                       handleCompressContext={handleCompressContext}
-                      contextSegments={contextSegments}
-                      workLocation={workLocation}
-                      statusFolder={effectiveWorkDir}
-                      executionEngine={selectedExecutionEngine}
-                      modelLabel={modelLabel}
                       collaborationRosterSeats={collaborationRosterSeats}
                       isGroupConversation={isGroupConversation}
                       collaborationTeamName={collaborationTeamName}

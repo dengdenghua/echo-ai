@@ -1,8 +1,9 @@
-import { useState } from "react";
-import { Loader2Icon, PanelRightOpenIcon } from "lucide-react";
+import { useRef, useState } from "react";
+import { ListFilterIcon, Loader2Icon } from "lucide-react";
 
 import { useI18n } from "@/core/i18n/hooks";
 import { sessionStatusCopy } from "@/core/i18n/locales/session-status";
+import { useSessionStatusMenuOpener } from "@/core/realtime/session-status-menu";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -22,10 +23,9 @@ interface ContextWindowBarProps {
   contextTokens?: number;
   maxContextTokens?: number;
   isCompressingContext?: boolean;
+  /** Used only where no header status menu is mounted; where one is, the
+   * popover links there and the menu compresses. */
   onCompressContext?: () => void | Promise<void>;
-  /** Opens the side panel's 状态 tab, which owns compression where the page
-   * has one; the popover then links there instead of compressing itself. */
-  onOpenDetails?: () => void;
   segments?: ContextWindowSegment[];
 }
 
@@ -41,11 +41,14 @@ export function ContextWindowBar({
   maxContextTokens = 128_000,
   isCompressingContext = false,
   onCompressContext,
-  onOpenDetails,
   segments = [],
 }: ContextWindowBarProps) {
   const { t, locale } = useI18n();
   const [open, setOpen] = useState(false);
+  const openStatusMenu = useSessionStatusMenuOpener();
+  // Handing over to the status menu: keep focus from snapping back to the
+  // ring, which would dismiss the menu as it opens.
+  const handingOff = useRef(false);
   const { progress, percentage, summary } = contextUsage(
     contextTokens,
     maxContextTokens,
@@ -105,18 +108,24 @@ export function ContextWindowBar({
         side="top"
         sideOffset={8}
         className="w-[22rem] rounded-xl border-border-default p-3"
+        onCloseAutoFocus={(event) => {
+          if (!handingOff.current) return;
+          handingOff.current = false;
+          event.preventDefault();
+        }}
       >
         <ContextUsageDetails
           contextTokens={contextTokens}
           maxContextTokens={maxContextTokens}
           segments={segments}
         />
-        {onOpenDetails ? (
+        {openStatusMenu ? (
           <button
             type="button"
             onClick={() => {
+              handingOff.current = true;
               setOpen(false);
-              onOpenDetails();
+              window.setTimeout(openStatusMenu, 0);
             }}
             className="mt-3 flex h-8 w-full items-center justify-center gap-2 rounded-lg bg-muted text-xs text-muted-foreground transition-colors hover:bg-muted/80 hover:text-foreground"
           >
@@ -126,7 +135,7 @@ export function ContextWindowBar({
                 aria-hidden="true"
               />
             ) : (
-              <PanelRightOpenIcon className="size-3.5" aria-hidden="true" />
+              <ListFilterIcon className="size-3.5" aria-hidden="true" />
             )}
             {sessionStatusCopy(locale).openInPanel}
           </button>

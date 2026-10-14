@@ -1,6 +1,7 @@
-import { fireEvent, screen } from "@testing-library/react";
+import { fireEvent, screen, waitFor } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 
+import { registerSessionStatusMenu } from "@/core/realtime/session-status-menu";
 import { renderWithProviders } from "@/test/harness";
 
 import { ContextWindowBar } from "./ContextWindowBar";
@@ -26,28 +27,32 @@ describe("ContextWindowBar", () => {
     expect(onCompressContext).toHaveBeenCalledTimes(1);
   });
 
-  it("hands compression to the side panel when one is available", async () => {
+  it("hands compression to the header status menu when one is mounted", async () => {
     const onCompressContext = vi.fn();
-    const onOpenDetails = vi.fn();
-    renderWithProviders(
-      <ContextWindowBar
-        contextTokens={50_000}
-        maxContextTokens={100_000}
-        onCompressContext={onCompressContext}
-        onOpenDetails={onOpenDetails}
-      />,
-    );
-    openPopover();
-    expect(await screen.findByText("Free space")).toBeInTheDocument();
-    expect(
-      screen.queryByRole("button", { name: "Compress" }),
-    ).not.toBeInTheDocument();
-    fireEvent.click(
-      screen.getByRole("button", {
-        name: "View and compress in the side panel",
-      }),
-    );
-    expect(onOpenDetails).toHaveBeenCalledTimes(1);
-    expect(onCompressContext).not.toHaveBeenCalled();
+    const openMenu = vi.fn();
+    const unregister = registerSessionStatusMenu(openMenu);
+    try {
+      renderWithProviders(
+        <ContextWindowBar
+          contextTokens={50_000}
+          maxContextTokens={100_000}
+          onCompressContext={onCompressContext}
+        />,
+      );
+      openPopover();
+      expect(await screen.findByText("Free space")).toBeInTheDocument();
+      expect(
+        screen.queryByRole("button", { name: "Compress" }),
+      ).not.toBeInTheDocument();
+      fireEvent.click(
+        screen.getByRole("button", {
+          name: "View and compress in the status panel",
+        }),
+      );
+      await waitFor(() => expect(openMenu).toHaveBeenCalledTimes(1));
+      expect(onCompressContext).not.toHaveBeenCalled();
+    } finally {
+      unregister();
+    }
   });
 });

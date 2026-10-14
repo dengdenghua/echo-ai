@@ -1,12 +1,14 @@
 /**
- * Copy for the workbench's 状态 tab: where this conversation runs, how full
- * the model context is, and what it has produced
- * (components/workspace/agent-workbench-panel/session-status-page.tsx), and
- * the toasts of a manual compression (use-thread-timeline.tsx).
+ * Copy for the chat header's status menu: where this conversation runs, how
+ * full the model context is, and what it has produced
+ * (components/workspace/workspace-context-menu.tsx and
+ * session-status-sections.tsx), plus the toasts of a manual compression
+ * (use-thread-timeline.tsx).
  */
 
 export interface SessionStatusCopy {
-  tab: string;
+  /** The header trigger's name; the menu spans all of these sections. */
+  menuTitle: string;
   environment: string;
   location: string;
   folder: string;
@@ -26,12 +28,12 @@ export interface SessionStatusCopy {
   autoCompactSoon: string;
   outputs: string;
   noOutputs: string;
-  /** The composer ring's link to this tab. */
+  /** The composer ring's link to the header menu. */
   openInPanel: string;
 }
 
 const zhCN: SessionStatusCopy = {
-  tab: "状态",
+  menuTitle: "会话状态",
   environment: "环境",
   location: "工作位置",
   folder: "文件夹",
@@ -51,11 +53,11 @@ const zhCN: SessionStatusCopy = {
   autoCompactSoon: "接近上限：用量到约 90% 时会自动压缩较早的对话。",
   outputs: "产出",
   noOutputs: "这次对话还没有产出文件。",
-  openInPanel: "在右侧查看与压缩",
+  openInPanel: "在状态面板查看与压缩",
 };
 
 const enUS: SessionStatusCopy = {
-  tab: "Status",
+  menuTitle: "Session status",
   environment: "Environment",
   location: "Work location",
   folder: "Folder",
@@ -76,11 +78,11 @@ const enUS: SessionStatusCopy = {
   autoCompactSoon: "Close to the limit: older turns auto-compact at about 90%.",
   outputs: "Outputs",
   noOutputs: "No files produced in this conversation yet.",
-  openInPanel: "View and compress in the side panel",
+  openInPanel: "View and compress in the status panel",
 };
 
 const jaJP: SessionStatusCopy = {
-  tab: "ステータス",
+  menuTitle: "セッションの状態",
   environment: "環境",
   location: "作業場所",
   folder: "フォルダ",
@@ -101,11 +103,11 @@ const jaJP: SessionStatusCopy = {
     "上限が近づいています：約 90% で古いやり取りを自動圧縮します。",
   outputs: "成果物",
   noOutputs: "この会話ではまだファイルが作成されていません。",
-  openInPanel: "サイドパネルで確認・圧縮",
+  openInPanel: "ステータスパネルで確認・圧縮",
 };
 
 const koKR: SessionStatusCopy = {
-  tab: "상태",
+  menuTitle: "세션 상태",
   environment: "환경",
   location: "작업 위치",
   folder: "폴더",
@@ -126,7 +128,7 @@ const koKR: SessionStatusCopy = {
     "한도에 가까워졌습니다: 약 90%에서 이전 대화를 자동 압축합니다.",
   outputs: "산출물",
   noOutputs: "이 대화에서 아직 만든 파일이 없습니다.",
-  openInPanel: "사이드 패널에서 보기·압축",
+  openInPanel: "상태 패널에서 보기·압축",
 };
 
 export function sessionStatusCopy(locale: string): SessionStatusCopy {
