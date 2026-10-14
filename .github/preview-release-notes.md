@@ -8,6 +8,10 @@
 
 ### 安装前须知
 
+- **两种安装包，选一个。** `Echo-Setup-<版本>-….exe` / `Echo-Setup-Linux-<版本>-….AppImage`
+  是标准版，不带 Codex / OpenCode 执行引擎，用到时在 HUB「应用」的执行引擎里下载（先从
+  ai.echo-age.com 下载，失败改用官方源，校验值一致才安装）。带 `Offline` 的是完整离线版，自带
+  两个引擎，适合不能下载的电脑。
 - **安装包没有代码签名。** Windows 会弹出 SmartScreen 提示“Windows 已保护你的电脑”。请先用附件
   `SHA256SUMS` 核对文件（PowerShell：`Get-FileHash .\Echo-Setup-*.exe`），确认一致后点“更多信息” →
   “仍要运行”。Linux AppImage 先用 `sha256sum -c SHA256SUMS --ignore-missing` 核对，再
@@ -21,6 +25,11 @@
 
 ### Before you install
 
+- **Two installers; pick one.** `Echo-Setup-<version>-….exe` / `Echo-Setup-Linux-<version>-….AppImage`
+  is the standard build without the Codex / OpenCode execution engines; download them under
+  HUB Apps · Execution engines when you need them (from ai.echo-age.com, or the official source
+  if that fails; installed only when the checksum matches). The `Offline` build bundles both
+  engines for computers that cannot download them.
 - **The installers are not code-signed.** Windows SmartScreen will show "Windows protected your
   PC". Check the file against the attached `SHA256SUMS` first (PowerShell:
   `Get-FileHash .\Echo-Setup-*.exe`), then choose **More info → Run anyway**. On Linux, verify

@@ -85,7 +85,7 @@ GHCR 推送和 cosign 签名使用工作流自带的 `GITHUB_TOKEN` 与 OIDC，�
 2. 推送到 `main`，等待同一提交上的 `ci.yml`、`runtime-security-contract.yml`、`build-win.yml`（已签名）全部成功。
 3. 在同一提交上手动运行 `behavioral-evidence.yml` 并等待成功。
 4. `git tag vX.Y.Z <该提交> && git push origin vX.Y.Z`，`release.yml` 开始运行。
-5. `release.yml` 依次：核对版本 → 下载证据并跑 `make production-readiness` → 复核 Windows 签名 → 构建 wheel/sdist → 推送并签名 GHCR 镜像 → 发布到 PyPI → 创建 **草稿** GitHub Release（附 Windows 安装包与 `SHA256SUMS`）。
+5. `release.yml` 依次：核对版本 → 下载证据并跑 `make production-readiness` → 复核 Windows 签名 → 构建 wheel/sdist → 推送并签名 GHCR 镜像 → 发布到 PyPI → 创建 **草稿** GitHub Release（附 Windows 标准版与完整离线版安装包，以及两者共用的 `SHA256SUMS`）。
 6. 检查草稿内容后手动发布。
 
 ## 本地构建（不发布）
@@ -93,8 +93,13 @@ GHCR 推送和 cosign 签名使用工作流自带的 `GITHUB_TOKEN` 与 OIDC，�
 ```bash
 uv build --no-sources --out-dir dist                  # wheel + sdist
 cd frontend && pnpm build                             # frontend/dist
-pnpm electron:build:win -c.win.forceCodeSigning=false # 未签名的 Windows 安装包
+pnpm electron:build:win -c.win.forceCodeSigning=false # 未签名的标准版 Windows 安装包
+pnpm electron:build:win:offline -c.win.forceCodeSigning=false # 未签名的完整离线版
 ```
+
+标准版不带 Codex / OpenCode，用户在 HUB「应用」里按需下载（先 ai.echo-age.com，再官方源）。
+发布新的引擎版本前，先用 `uv run python scripts/publish_engine_mirror.py --out <目录>`
+生成镜像目录并上传到服务器的 `/var/www/echo/marketplace/engines/`。
 
 Windows 安装包还需要先在 `extras/desktop` 运行 `pnpm backend:build:win`（PyInstaller 后端），
 脚本里的 `pnpm` 必须在 PATH 上。

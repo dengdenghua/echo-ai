@@ -365,6 +365,132 @@ jobs:
             -LiteralPath (Join-Path $releaseAssets "windows-release-verification.json") `
             -Encoding utf8
 
+      - name: Download same-SHA signed standard installer
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          name: Echo-Setup-Standard-Windows-${{ github.sha }}
+          path: ${{ runner.temp }}\echo-windows-standard
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          run-id: ${{ env.WINDOWS_BUILD_RUN_ID }}
+
+      - name: Download same-SHA signed standard unpacked application
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          name: Echo-Portable-Standard-Windows-${{ github.sha }}
+          path: ${{ runner.temp }}\echo-windows-standard\win-unpacked
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          run-id: ${{ env.WINDOWS_BUILD_RUN_ID }}
+
+      # The standard installer carries no engines (people install them from
+      # HUB 应用), so its proof covers three files: installer, app, backend.
+      - name: Verify the standard installer's checksum, Authenticode and contents
+        shell: pwsh
+        run: |
+          $root = (Resolve-Path (Join-Path $env:RUNNER_TEMP "echo-windows-standard")).Path
+          $releaseAssets = Join-Path $env:RUNNER_TEMP "echo-windows-release-assets"
+          $installerCandidates = @(
+            Get-ChildItem -LiteralPath $root -File -Filter "Echo-Setup-*.exe"
+          )
+          if ($installerCandidates.Count -ne 1) {
+            throw "Expected exactly one downloaded standard installer, found $($installerCandidates.Count)"
+          }
+          $installer = $installerCandidates[0]
+          if (-not $installer.Name.Contains($env:GITHUB_SHA) -or $installer.Name.Contains("Offline")) {
+            throw "Downloaded standard installer name is wrong: $($installer.Name)"
+          }
+          foreach ($engine in @("codex", "opencode")) {
+            if (Test-Path -LiteralPath (Join-Path $root "win-unpacked/resources/$engine")) {
+              throw "The standard installer must not bundle $engine"
+            }
+          }
+
+          $checksumLines = @(Get-Content -LiteralPath (Join-Path $root "SHA256SUMS") | Where-Object { $_.Trim() })
+          if ($checksumLines.Count -ne 1) {
+            throw "The standard SHA256SUMS must contain exactly one installer checksum"
+          }
+          $checksumMatch = [regex]::Match($checksumLines[0], '^([0-9a-fA-F]{64}) \*(.+)$')
+          if (-not $checksumMatch.Success -or $checksumMatch.Groups[2].Value -ne $installer.Name) {
+            throw "The standard SHA256SUMS does not name the downloaded installer"
+          }
+          $installerHash = (Get-FileHash -LiteralPath $installer.FullName -Algorithm SHA256).Hash.ToLowerInvariant()
+          if ($installerHash -ne $checksumMatch.Groups[1].Value.ToLowerInvariant()) {
+            throw "Standard installer SHA-256 does not match its SHA256SUMS"
+          }
+
+          $buildProof = Get-Content -LiteralPath (Join-Path $root "windows-signing-proof.json") -Raw | ConvertFrom-Json
+          if ($buildProof.schema -ne "echo.windows_signing_proof.v1" -or
+              $buildProof.sourceRevision -ne $env:GITHUB_SHA -or
+              $buildProof.timestampServer -ne "http://timestamp.digicert.com") {
+            throw "The standard Windows signing proof does not match this release"
+          }
+          $proofFiles = @($buildProof.files)
+          if ($proofFiles.Count -ne 3) {
+            throw "The standard signing proof must cover the installer, app and backend"
+          }
+
+          # The offline installer was verified first; both must share its signer.
+          $offlineVerification = Get-Content -LiteralPath (Join-Path $releaseAssets "windows-release-verification.json") -Raw | ConvertFrom-Json
+          $expectedSignerThumbprint = @($offlineVerification.files)[0].signerThumbprint
+          $expectedPublisher = @($offlineVerification.files)[0].publisher
+
+          $signedFiles = [ordered]@{}
+          $signedFiles[$installer.Name] = $installer.FullName
+          $signedFiles["win-unpacked/Echo.exe"] = Join-Path $root "win-unpacked/Echo.exe"
+          $signedFiles["win-unpacked/resources/backend/echo-backend.exe"] = `
+            Join-Path $root "win-unpacked/resources/backend/echo-backend.exe"
+          $verifiedFiles = @()
+          foreach ($entry in $signedFiles.GetEnumerator()) {
+            $path = [string]$entry.Value
+            if (-not (Test-Path -LiteralPath $path -PathType Leaf)) {
+              throw "Downloaded standard release file is missing: $path"
+            }
+            $sha256 = (Get-FileHash -LiteralPath $path -Algorithm SHA256).Hash.ToLowerInvariant()
+            $proofEntry = @($proofFiles | Where-Object { $_.path -eq $entry.Key })
+            if ($proofEntry.Count -ne 1 -or $proofEntry[0].sha256 -ne $sha256) {
+              throw "Standard build signing proof hash mismatch for $($entry.Key)"
+            }
+            $signature = Get-AuthenticodeSignature -LiteralPath $path
+            if ($signature.Status -ne [System.Management.Automation.SignatureStatus]::Valid) {
+              throw "Authenticode signature is not Valid for $($entry.Key): $($signature.Status)"
+            }
+            if ($null -eq $signature.SignerCertificate -or $null -eq $signature.TimeStamperCertificate) {
+              throw "Signer or trusted RFC3161 timestamp is missing for $($entry.Key)"
+            }
+            $publisher = [string]$signature.SignerCertificate.Subject
+            if ($signature.SignerCertificate.Thumbprint -ne $expectedSignerThumbprint -or
+                $publisher -ne $expectedPublisher) {
+              throw "The standard installer is not signed like the offline one: $($entry.Key)"
+            }
+            if ($proofEntry[0].signerThumbprint -ne $signature.SignerCertificate.Thumbprint -or
+                $proofEntry[0].publisher -ne $publisher -or
+                $proofEntry[0].timestampThumbprint -ne $signature.TimeStamperCertificate.Thumbprint -or
+                $proofEntry[0].timestampSubject -ne $signature.TimeStamperCertificate.Subject) {
+              throw "Signing identity changed after the Windows build for $($entry.Key)"
+            }
+            $verifiedFiles += [ordered]@{
+              path = [string]$entry.Key
+              sha256 = $sha256
+              authenticodeStatus = [string]$signature.Status
+              signerThumbprint = $signature.SignerCertificate.Thumbprint
+              publisher = $publisher
+              timestampThumbprint = $signature.TimeStamperCertificate.Thumbprint
+              timestampSubject = [string]$signature.TimeStamperCertificate.Subject
+            }
+          }
+
+          # One SHA256SUMS for the release: the offline line, then this one.
+          Copy-Item -LiteralPath $installer.FullName -Destination $releaseAssets
+          Add-Content -LiteralPath (Join-Path $releaseAssets "SHA256SUMS") -Value $checksumLines[0] -Encoding ascii
+          [ordered]@{
+            schema = "echo.windows_release_verification.v1"
+            sourceRevision = $env:GITHUB_SHA
+            sourceWorkflowRunId = $env:WINDOWS_BUILD_RUN_ID
+            verifiedAt = (Get-Date).ToUniversalTime().ToString("o")
+            files = $verifiedFiles
+          } | ConvertTo-Json -Depth 6 | Set-Content `
+            -LiteralPath (Join-Path $releaseAssets "windows-standard-release-verification.json") `
+            -Encoding utf8
+
       - name: Upload verified Windows release assets
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:

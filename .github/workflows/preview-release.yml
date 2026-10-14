@@ -271,12 +271,27 @@ jobs:
           name: Echo-Setup-Windows-${{ github.sha }}-UNSIGNED
           path: preview-inputs/windows
 
+      # The standard installers carry no engines (people install them from
+      # HUB 应用); the ones above are the full offline builds.
+      - name: Download unsigned standard Windows installer
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          name: Echo-Setup-Standard-Windows-${{ github.sha }}-UNSIGNED
+          path: preview-inputs/windows-standard
+
       - name: Download Linux AppImage
         if: ${{ needs.linux.result == 'success' }}
         uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
         with:
           name: Echo-Setup-Linux-${{ github.sha }}
           path: preview-inputs/linux
+
+      - name: Download standard Linux AppImage
+        if: ${{ needs.linux.result == 'success' }}
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          name: Echo-Setup-Standard-Linux-${{ github.sha }}
+          path: preview-inputs/linux-standard
 
       - name: Download Python distribution
         uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
@@ -289,15 +304,20 @@ jobs:
           set -euo pipefail
           shopt -s nullglob
           mkdir -p preview-assets
-          windows=(preview-inputs/windows/Echo-Setup-*.exe)
-          test "${#windows[@]}" -eq 1
-          installers=("${windows[0]}")
-          if [[ -d preview-inputs/linux ]]; then
-            (cd preview-inputs/linux && sha256sum -c SHA256SUMS)
-            linux=(preview-inputs/linux/Echo-Setup-Linux-*.AppImage)
-            test "${#linux[@]}" -eq 1
-            installers+=("${linux[0]}")
-          fi
+          installers=()
+          for dir in preview-inputs/windows preview-inputs/windows-standard; do
+            windows=("${dir}"/Echo-Setup-*.exe)
+            test "${#windows[@]}" -eq 1
+            installers+=("${windows[0]}")
+          done
+          for dir in preview-inputs/linux preview-inputs/linux-standard; do
+            if [[ -d "${dir}" ]]; then
+              (cd "${dir}" && sha256sum -c SHA256SUMS)
+              linux=("${dir}"/Echo-Setup-Linux-*.AppImage)
+              test "${#linux[@]}" -eq 1
+              installers+=("${linux[0]}")
+            fi
+          done
           for installer in "${installers[@]}"; do
             [[ "$(basename "${installer}")" == *"${GITHUB_SHA}"* ]] || {
               echo "Installer filename is not bound to GITHUB_SHA: ${installer}" >&2

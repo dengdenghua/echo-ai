@@ -166,9 +166,11 @@ jobs:
           tests/test_desktop_config_packaging.py
           -q
 
+      # The full offline AppImage (packaging/desktop/build-offline.yml) bundles
+      # the pinned engines; the standard one follows below.
       - name: Build canonical Electron AppImage
         working-directory: frontend
-        run: pnpm electron:build:linux
+        run: pnpm electron:build:linux:offline
 
       - name: Verify packaged backend and engines are present and runnable
         run: |
@@ -262,11 +264,81 @@ jobs:
           echo "$(sha256sum "$appimage" | awk '{print $1}') *$appimage" > SHA256SUMS
           cat SHA256SUMS
 
-      - name: List release artifacts
-        working-directory: frontend/release
+      # The standard AppImage: the same app and backend without the Codex /
+      # OpenCode engines, which people install from HUB 应用 on demand.
+      - name: Build standard Electron AppImage
+        working-directory: frontend
+        run: pnpm exec electron-builder --config ../packaging/desktop/build.yml --linux --x64 --publish never -c.directories.output=release-standard
+
+      - name: Verify the standard AppImage ships no engines and starts
         run: |
-          ls -R .
-          du -h Echo-Setup-Linux-*.AppImage
+          set -euo pipefail
+          appimage=$(ls "$PWD/frontend/release-standard/"Echo-Setup-Linux-*.AppImage)
+          case "$appimage" in
+            *Offline*) echo "The standard AppImage carries the offline name: $appimage"; exit 1 ;;
+            *"$GITHUB_SHA"*) ;;
+            *) echo "AppImage filename is not bound to GITHUB_SHA: $appimage"; exit 1 ;;
+          esac
+
+          extract_dir="$(mktemp -d)/squashfs-root"
+          (cd "$(dirname "$extract_dir")" && "$appimage" --appimage-extract >/dev/null)
+          resources="$extract_dir/resources"
+          backend="$resources/backend/echo-backend"
+          test -f "$backend" || { echo "Standard backend is missing: $backend"; exit 1; }
+          for engine in codex opencode; do
+            test ! -e "$resources/$engine" || { echo "The standard AppImage must not bundle $engine"; exit 1; }
+          done
+
+          smoke_root="$(mktemp -d)"
+          backend_port=18767
+          config="$smoke_root/config.yaml"
+          node -e 'const m=require(process.argv[1]);m.ensureDesktopConfigFile({bundledPath:process.argv[2],targetPath:process.argv[3]});m.ensureDesktopResources({bundledRoot:process.argv[4],targetRoot:process.argv[5]});' \
+            "$PWD/frontend/electron/desktop-config.cjs" \
+            "$resources/config.desktop.yaml" \
+            "$config" "$resources" "$smoke_root/resources"
+
+          # What the packaged app gives a backend with no bundled engines.
+          env -u ECHO_CODEX_EXECUTABLE -u ECHO_OPENCODE_BIN \
+          ECHO_DESKTOP=1 \
+          ECHO_DATA_DIR="$smoke_root/data" \
+          ECHO_RESOURCES_DIR="$smoke_root/resources" \
+          ECHO_ENGINES_DIR="$smoke_root/engines" \
+          ECHO_ENGINES_STRICT=1 \
+          ECHO_ENGINES_BUNDLED= \
+           "$backend" serve --config "$config" --host 127.0.0.1 --port "$backend_port" \
+            >"$smoke_root/backend.stdout.log" 2>"$smoke_root/backend.stderr.log" &
+          backend_pid=$!
+          ready=0
+          deadline=$(( SECONDS + 90 ))
+          while [ $SECONDS -lt $deadline ] && kill -0 "$backend_pid" 2>/dev/null; do
+            if curl -fsS "http://127.0.0.1:$backend_port/readyz" >/dev/null 2>&1; then
+              ready=1
+              break
+            fi
+            sleep 0.5
+          done
+          kill "$backend_pid" 2>/dev/null || true
+          wait "$backend_pid" 2>/dev/null || true
+          if [ "$ready" -ne 1 ]; then
+            echo "--- backend stdout ---"; cat "$smoke_root/backend.stdout.log" 2>/dev/null || true
+            echo "--- backend stderr ---"; cat "$smoke_root/backend.stderr.log" 2>/dev/null || true
+            echo "Standard backend did not reach /readyz without bundled engines"
+            exit 1
+          fi
+
+      - name: Create standard commit-bound checksum
+        working-directory: frontend/release-standard
+        run: |
+          set -euo pipefail
+          appimage=$(ls Echo-Setup-Linux-*.AppImage)
+          echo "$(sha256sum "$appimage" | awk '{print $1}') *$appimage" > SHA256SUMS
+          cat SHA256SUMS
+
+      - name: List release artifacts
+        working-directory: frontend
+        run: |
+          ls -R release release-standard
+          du -h release/Echo-Setup-Linux-*.AppImage release-standard/Echo-Setup-Linux-*.AppImage
 
       - name: Upload AppImage
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
@@ -285,5 +357,17 @@ jobs:
         with:
           name: Echo-Portable-Linux-${{ github.sha }}
           path: frontend/release/linux-unpacked/**
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Upload standard AppImage
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: Echo-Setup-Standard-Linux-${{ github.sha }}
+          path: |
+            frontend/release-standard/Echo-Setup-Linux-*.AppImage
+            frontend/release-standard/SHA256SUMS
+            frontend/release-standard/*.blockmap
+            frontend/release-standard/*.yml
           if-no-files-found: error
           retention-days: 30

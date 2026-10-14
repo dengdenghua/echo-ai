@@ -26,6 +26,7 @@ DESKTOP_PROTOCOL = ROOT / "frontend/electron/desktop-protocol.cjs"
 BACKEND_RUNTIME = ROOT / "frontend/electron/backend-runtime.cjs"
 OPENCODE_LOCK = ROOT / "frontend/electron/opencode-runtime-lock.json"
 BUILD_CONFIG = ROOT / "packaging/desktop/build.yml"
+OFFLINE_BUILD_CONFIG = ROOT / "packaging/desktop/build-offline.yml"
 WINDOWS_WORKFLOW = ROOT / ".github/workflows/build-win.yml"
 LINUX_WORKFLOW = ROOT / ".github/workflows/build-linux.yml"
 RELEASE_WORKFLOW = ROOT / ".github/workflows/release.yml"
@@ -373,22 +374,30 @@ def test_desktop_backend_routes_mutable_state_to_user_data() -> None:
     assert build["electronLanguages"] == ["en-US", "zh-CN", "ja", "ko"]
     assert "!node_modules/**/*" in build["files"]
     assert build["win"]["signExts"] == [".exe"]
+    # The standard installer ships no engines; HUB 应用 installs them.
     assert build["win"]["extraResources"] == [
         {
             "from": "../extras/desktop/build/backend/echo-backend.exe",
             "to": "backend/echo-backend.exe",
         },
-        {
-            "from": "../extras/desktop/build/codex",
-            "to": "codex",
-            "filter": ["**/*"],
-        },
-        {
-            "from": "../extras/desktop/build/opencode",
-            "to": "opencode",
-            "filter": ["**/*"],
-        },
     ]
+    for platform in ("mac", "linux"):
+        assert [item["to"] for item in build[platform]["extraResources"]] == [
+            "backend/echo-backend"
+        ]
+    # The full offline installer is build.yml plus the pinned engines
+    # (electron-builder appends a child's extraResources to the parent's).
+    offline = yaml.safe_load(OFFLINE_BUILD_CONFIG.read_text(encoding="utf-8"))
+    assert offline["extends"] == "../packaging/desktop/build.yml"
+    assert set(offline) == {"extends", "mac", "win", "linux"}
+    for platform in ("mac", "win", "linux"):
+        assert offline[platform]["extraResources"] == [
+            {"from": "../extras/desktop/build/codex", "to": "codex", "filter": ["**/*"]},
+            {"from": "../extras/desktop/build/opencode", "to": "opencode", "filter": ["**/*"]},
+        ]
+        assert "Offline" in offline[platform]["artifactName"]
+    assert offline["win"]["artifactName"].startswith("${productName}-Setup-Offline-")
+    assert "${env.GITHUB_SHA}" in offline["win"]["artifactName"]
     agents = next(item for item in build["extraResources"] if item["to"] == "agents")
     for excluded in (
         "!**/sessions/**",
@@ -814,14 +823,14 @@ def test_windows_workflow_builds_and_smokes_canonical_offline_shell() -> None:
     assert "tests/test_desktop_config_packaging.py" in contracts
     electron = steps["Build canonical Electron EXE"]
     assert electron["working-directory"] == "frontend"
-    assert electron["run"] == "pnpm electron:build:win"
+    assert electron["run"] == "pnpm electron:build:win:offline"
     assert electron["if"] == "env.HAS_WINDOWS_SIGNING == 'true'"
     # Without the certificate the build still runs, unsigned, instead of
     # failing on forceCodeSigning; it never sees the signing secrets.
     unsigned = steps["Build unsigned Electron EXE (not releasable)"]
     assert unsigned["if"] == "env.HAS_WINDOWS_SIGNING != 'true'"
     assert unsigned["working-directory"] == "frontend"
-    assert unsigned["run"] == "pnpm electron:build:win -c.win.forceCodeSigning=false"
+    assert unsigned["run"] == "pnpm electron:build:win:offline -c.win.forceCodeSigning=false"
     assert "CSC_LINK" not in unsigned.get("env", {})
     assert "CSC_KEY_PASSWORD" not in unsigned.get("env", {})
     assert "-UNSIGNED" in steps["Upload EXE installer"]["with"]["name"]
@@ -881,6 +890,41 @@ def test_windows_workflow_builds_and_smokes_canonical_offline_shell() -> None:
         "Verify packaged backend and engines are present and runnable"
     ) < step_names.index("Upload EXE installer")
 
+    # The standard installer: same app and backend, no engines, own output dir.
+    standard = steps["Build standard Electron EXE"]
+    assert standard["if"] == "env.HAS_WINDOWS_SIGNING == 'true'"
+    assert "--config ../packaging/desktop/build.yml --win --x64" in standard["run"]
+    assert "-c.directories.output=release-standard" in standard["run"]
+    unsigned_standard = steps["Build unsigned standard Electron EXE (not releasable)"]
+    assert unsigned_standard["if"] == "env.HAS_WINDOWS_SIGNING != 'true'"
+    assert "-c.win.forceCodeSigning=false" in unsigned_standard["run"]
+    assert "CSC_LINK" not in unsigned_standard.get("env", {})
+    standard_smoke = steps["Verify the standard installer ships no engines and starts"]["run"]
+    assert "frontend/release-standard/win-unpacked/resources" in standard_smoke
+    assert 'foreach ($engine in @("codex", "opencode"))' in standard_smoke
+    assert "Remove-Item Env:ECHO_CODEX_EXECUTABLE" in standard_smoke
+    assert '$env:ECHO_ENGINES_STRICT = "1"' in standard_smoke
+    assert "/readyz" in standard_smoke
+    standard_proof = steps["Verify standard installer Authenticode and create its checksums"]
+    assert standard_proof["if"] == "env.HAS_WINDOWS_SIGNING == 'true'"
+    assert '"win-unpacked/resources/backend/echo-backend.exe"' in standard_proof["run"]
+    assert "resources/codex" not in standard_proof["run"]
+    assert "ECHO_WINDOWS_SIGNER_THUMBPRINT" in standard_proof["run"]
+    standard_upload = steps["Upload standard EXE installer"]["with"]
+    assert standard_upload["name"].startswith("Echo-Setup-Standard-Windows-${{ github.sha }}")
+    assert "-UNSIGNED" in standard_upload["name"]
+    assert "frontend/release-standard/Echo-Setup-*.exe" in standard_upload["path"]
+    assert (
+        steps["Upload standard portable (unpacked)"]["with"]["path"]
+        == "frontend/release-standard/win-unpacked/**"
+    )
+    assert step_names.index(
+        "Verify Authenticode signatures and create commit-bound checksums"
+    ) < step_names.index("Build standard Electron EXE")
+    assert step_names.index(
+        "Verify the standard installer ships no engines and starts"
+    ) < step_names.index("Upload standard EXE installer")
+
 
 def test_release_reverifies_every_packaged_codex_executable_identity() -> None:
     source = RELEASE_WORKFLOW.read_text(encoding="utf-8")
@@ -893,6 +937,26 @@ def test_release_reverifies_every_packaged_codex_executable_identity() -> None:
     assert '"win-unpacked/resources/opencode/opencode.exe"' in source
     assert "$proofEntry[0].publisher -ne $publisher" in source
     assert "$proofEntry[0].timestampSubject" in source
+
+    # The standard installer (no engines) is re-verified too: three files,
+    # the same signer as the offline one, and one shared SHA256SUMS.
+    workflow = yaml.safe_load(source)
+    steps = {
+        step.get("name"): step
+        for step in workflow["jobs"]["windows-release-proof"]["steps"]
+        if step.get("name")
+    }
+    assert (
+        steps["Download same-SHA signed standard installer"]["with"]["name"]
+        == "Echo-Setup-Standard-Windows-${{ github.sha }}"
+    )
+    standard = steps["Verify the standard installer's checksum, Authenticode and contents"]["run"]
+    assert "$proofFiles.Count -ne 3" in standard
+    assert "The standard installer must not bundle $engine" in standard
+    assert (
+        "$expectedSignerThumbprint = @($offlineVerification.files)[0].signerThumbprint" in standard
+    )
+    assert 'Add-Content -LiteralPath (Join-Path $releaseAssets "SHA256SUMS")' in standard
 
 
 def test_windows_backend_builder_uses_only_the_locked_uv_interpreter() -> None:
@@ -1043,27 +1107,37 @@ def test_legacy_desktop_package_delegates_and_cannot_publish_old_shell() -> None
 
     frontend_scripts = json.loads(FRONTEND_PACKAGE.read_text(encoding="utf-8"))["scripts"]
     assert frontend_scripts["codex:prepare:win"] == ("node ../extras/desktop/prepare-codex-win.cjs")
-    assert frontend_scripts["electron:build:win"].startswith(
+    assert frontend_scripts["electron:build:win"] == (
+        "pnpm build && electron-builder --config ../packaging/desktop/build.yml"
+        " --win --x64 --publish never"
+    )
+    assert frontend_scripts["electron:build:win:offline"].startswith(
         "pnpm build && pnpm codex:prepare:win && pnpm opencode:prepare:win && electron-builder"
     )
-    assert "--win --x64 --publish never" in frontend_scripts["electron:build:win"]
-    assert "electron-builder" in frontend_scripts["electron:build:win"]
-    assert "opencode:prepare:win" in frontend_scripts["electron:build:win"]
+    assert (
+        "build-offline.yml --win --x64 --publish never"
+        in (frontend_scripts["electron:build:win:offline"])
+    )
+    for name, script in frontend_scripts.items():
+        if name.startswith("electron:build:"):
+            offline = name.endswith(":offline")
+            assert ("prepare" in script) is offline, name
+            assert ("build-offline.yml" in script) is offline, name
     # pnpm runs Windows scripts through cmd.exe, which reads "../x" as the
     # command ".." with a "/x" switch. The Windows interpreter path must use
     # backslashes or the packaging step dies before PyInstaller ever runs.
     assert frontend_scripts["opencode:prepare:win"].startswith(r"..\.venv\Scripts\python.exe ")
     assert scripts["opencode:prepare:win"].startswith(r"..\..\.venv\Scripts\python.exe ")
     assert frontend_scripts["codex:prepare:mac"] == ("node ../extras/desktop/prepare-codex-mac.cjs")
-    assert "codex:prepare:mac" in frontend_scripts["electron:build:mac"]
-    assert "opencode:prepare:mac" in frontend_scripts["electron:build:mac"]
+    assert "codex:prepare:mac" in frontend_scripts["electron:build:mac:offline"]
+    assert "opencode:prepare:mac" in frontend_scripts["electron:build:mac:offline"]
     assert "--mac --arm64 --publish never" in frontend_scripts["electron:build:mac"]
     assert "electron-builder" in frontend_scripts["electron:build:mac"]
     assert frontend_scripts["codex:prepare:linux"] == (
         "node ../extras/desktop/prepare-codex-linux.cjs"
     )
-    assert "codex:prepare:linux" in frontend_scripts["electron:build:linux"]
-    assert "opencode:prepare:linux" in frontend_scripts["electron:build:linux"]
+    assert "codex:prepare:linux" in frontend_scripts["electron:build:linux:offline"]
+    assert "opencode:prepare:linux" in frontend_scripts["electron:build:linux:offline"]
     assert "--linux --x64 --publish never" in frontend_scripts["electron:build:linux"]
     assert "electron-builder" in frontend_scripts["electron:build:linux"]
 
@@ -1132,7 +1206,18 @@ def test_linux_workflow_builds_and_smokes_canonical_linux_shell() -> None:
 
     electron = steps["Build canonical Electron AppImage"]
     assert electron["working-directory"] == "frontend"
-    assert electron["run"] == "pnpm electron:build:linux"
+    assert electron["run"] == "pnpm electron:build:linux:offline"
+    standard = steps["Build standard Electron AppImage"]["run"]
+    assert "--config ../packaging/desktop/build.yml --linux --x64" in standard
+    assert "-c.directories.output=release-standard" in standard
+    standard_smoke = steps["Verify the standard AppImage ships no engines and starts"]["run"]
+    assert "for engine in codex opencode; do" in standard_smoke
+    assert "env -u ECHO_CODEX_EXECUTABLE -u ECHO_OPENCODE_BIN" in standard_smoke
+    assert "ECHO_ENGINES_STRICT=1" in standard_smoke
+    assert "/readyz" in standard_smoke
+    assert steps["Upload standard AppImage"]["with"]["name"] == (
+        "Echo-Setup-Standard-Linux-${{ github.sha }}"
+    )
 
     smoke = steps["Verify packaged backend and engines are present and runnable"]["run"]
     # electron-builder names the AppImage after build.yml's productName; a
@@ -1267,6 +1352,8 @@ def test_linux_resources_are_declared_in_build_config() -> None:
 
     assert "AppImage" in segment
     assert "extras/desktop/build/backend/echo-backend" in segment
-    assert "extras/desktop/build/codex" in segment
-    assert "to: codex" in segment
+    assert "extras/desktop/build/codex" not in segment
+    offline = OFFLINE_BUILD_CONFIG.read_text(encoding="utf-8").split("linux:", 1)[1]
+    assert "extras/desktop/build/codex" in offline
+    assert "to: codex" in offline
     assert "GITHUB_SHA" in segment

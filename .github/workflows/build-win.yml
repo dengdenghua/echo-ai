@@ -296,6 +296,8 @@ jobs:
         working-directory: frontend
         run: pnpm build
 
+      # The full offline installer (packaging/desktop/build-offline.yml) bundles
+      # the pinned engines verified above; the standard one follows below.
       - name: Build canonical Electron EXE
         if: env.HAS_WINDOWS_SIGNING == 'true'
         working-directory: frontend
@@ -304,7 +306,7 @@ jobs:
           # deliberately not job-wide, so setup and dependency actions cannot read them.
           CSC_LINK: ${{ secrets.WINDOWS_CODE_SIGNING_CERTIFICATE_BASE64 }}
           CSC_KEY_PASSWORD: ${{ secrets.WINDOWS_CODE_SIGNING_CERTIFICATE_PASSWORD }}
-        run: pnpm electron:build:win
+        run: pnpm electron:build:win:offline
 
       - name: Build unsigned Electron EXE (not releasable)
         # build.yml sets win.forceCodeSigning, which makes electron-builder fail
@@ -315,7 +317,7 @@ jobs:
         working-directory: frontend
         env:
           CSC_IDENTITY_AUTO_DISCOVERY: "false"
-        run: pnpm electron:build:win -c.win.forceCodeSigning=false
+        run: pnpm electron:build:win:offline -c.win.forceCodeSigning=false
 
       - name: Verify packaged backend and engines are present and runnable
         shell: pwsh
@@ -551,11 +553,177 @@ jobs:
             -LiteralPath (Join-Path $releaseRoot "windows-signing-proof.json") `
             -Encoding utf8
 
-      - name: List release artifacts
-        working-directory: frontend/release
+      # The standard installer is the same app and backend without the Codex /
+      # OpenCode engines, which people install from HUB 应用 on demand. It reuses
+      # the backend and frontend built above and writes to release-standard/.
+      - name: Build standard Electron EXE
+        if: env.HAS_WINDOWS_SIGNING == 'true'
+        working-directory: frontend
+        env:
+          CSC_LINK: ${{ secrets.WINDOWS_CODE_SIGNING_CERTIFICATE_BASE64 }}
+          CSC_KEY_PASSWORD: ${{ secrets.WINDOWS_CODE_SIGNING_CERTIFICATE_PASSWORD }}
+        run: pnpm exec electron-builder --config ../packaging/desktop/build.yml --win --x64 --publish never -c.directories.output=release-standard
+
+      - name: Build unsigned standard Electron EXE (not releasable)
+        if: env.HAS_WINDOWS_SIGNING != 'true'
+        working-directory: frontend
+        env:
+          CSC_IDENTITY_AUTO_DISCOVERY: "false"
+        run: pnpm exec electron-builder --config ../packaging/desktop/build.yml --win --x64 --publish never -c.directories.output=release-standard -c.win.forceCodeSigning=false
+
+      - name: Verify the standard installer ships no engines and starts
+        shell: pwsh
         run: |
-          Get-ChildItem -Recurse | Select-Object FullName, Length
-          Get-ChildItem -File | ForEach-Object { "{0:N1} MB`t{1}" -f ($_.Length / 1MB), $_.Name }
+          $resources = Join-Path $PWD "frontend/release-standard/win-unpacked/resources"
+          $backend = Join-Path $resources "backend/echo-backend.exe"
+          if (-not (Test-Path -LiteralPath $backend -PathType Leaf)) {
+            throw "Standard backend is missing: $backend"
+          }
+          foreach ($engine in @("codex", "opencode")) {
+            if (Test-Path -LiteralPath (Join-Path $resources $engine)) {
+              throw "The standard installer must not bundle $engine"
+            }
+          }
+
+          $smokeRoot = Join-Path $env:RUNNER_TEMP "echo-standard-backend-smoke"
+          $config = Join-Path $smokeRoot "config.yaml"
+          $mutableResources = Join-Path $smokeRoot "resources"
+          New-Item -ItemType Directory -Force -Path $smokeRoot | Out-Null
+          node -e 'const m=require(process.argv[1]);m.ensureDesktopConfigFile({bundledPath:process.argv[2],targetPath:process.argv[3]});m.ensureDesktopResources({bundledRoot:process.argv[4],targetRoot:process.argv[5]});' `
+            (Join-Path $PWD "frontend/electron/desktop-config.cjs") `
+            (Join-Path $resources "config.desktop.yaml") `
+            $config $resources $mutableResources
+          if ($LASTEXITCODE -ne 0) {
+            throw "Desktop first-launch materialization failed"
+          }
+
+          # What the packaged app gives a backend with no bundled engines.
+          Remove-Item Env:ECHO_CODEX_EXECUTABLE -ErrorAction SilentlyContinue
+          Remove-Item Env:ECHO_OPENCODE_BIN -ErrorAction SilentlyContinue
+          $env:ECHO_DESKTOP = "1"
+          $env:ECHO_DATA_DIR = Join-Path $smokeRoot "data"
+          $env:ECHO_RESOURCES_DIR = $mutableResources
+          $env:ECHO_ENGINES_DIR = Join-Path $smokeRoot "engines"
+          $env:ECHO_ENGINES_STRICT = "1"
+          $env:ECHO_ENGINES_BUNDLED = ""
+          $stdout = Join-Path $smokeRoot "backend.stdout.log"
+          $stderr = Join-Path $smokeRoot "backend.stderr.log"
+          $port = 18766
+          $backendProcess = Start-Process -FilePath $backend `
+            -ArgumentList @("serve", "--config", $config, "--host", "127.0.0.1", "--port", "$port") `
+            -RedirectStandardOutput $stdout -RedirectStandardError $stderr `
+            -NoNewWindow -PassThru
+          $ready = $false
+          try {
+            $deadline = (Get-Date).AddSeconds(90)
+            while ((Get-Date) -lt $deadline -and -not $backendProcess.HasExited) {
+              try {
+                $response = Invoke-WebRequest "http://127.0.0.1:$port/readyz" `
+                  -UseBasicParsing -TimeoutSec 2
+                if ($response.StatusCode -eq 200) {
+                  $ready = $true
+                  break
+                }
+              } catch {
+                # The standard backend is still starting; retry until the deadline.
+              }
+              Start-Sleep -Milliseconds 500
+            }
+            if (-not $ready) {
+              if (Test-Path $stdout) { Get-Content $stdout -Tail 200 }
+              if (Test-Path $stderr) { Get-Content $stderr -Tail 200 }
+              throw "Standard backend did not reach /readyz without bundled engines"
+            }
+          } finally {
+            if (-not $backendProcess.HasExited) {
+              Stop-Process -Id $backendProcess.Id -Force
+              Wait-Process -Id $backendProcess.Id -ErrorAction SilentlyContinue
+            }
+          }
+
+      - name: Verify standard installer Authenticode and create its checksums
+        if: env.HAS_WINDOWS_SIGNING == 'true'
+        shell: pwsh
+        run: |
+          $releaseRoot = (Resolve-Path "frontend/release-standard").Path
+          $installerCandidates = @(
+            Get-ChildItem -LiteralPath $releaseRoot -File -Filter "Echo-Setup-*.exe"
+          )
+          if ($installerCandidates.Count -ne 1) {
+            throw "Expected exactly one standard Echo installer, found $($installerCandidates.Count)"
+          }
+          $installer = $installerCandidates[0]
+          if (-not $installer.Name.Contains($env:GITHUB_SHA) -or $installer.Name.Contains("Offline")) {
+            throw "Standard installer filename is not the GITHUB_SHA-bound standard name: $($installer.Name)"
+          }
+
+          # No engines, so three signed files: installer, app and backend.
+          $signedFiles = [ordered]@{}
+          $signedFiles[$installer.Name] = $installer.FullName
+          $signedFiles["win-unpacked/Echo.exe"] = Join-Path $releaseRoot "win-unpacked/Echo.exe"
+          $signedFiles["win-unpacked/resources/backend/echo-backend.exe"] = `
+            Join-Path $releaseRoot "win-unpacked/resources/backend/echo-backend.exe"
+
+          if ([string]::IsNullOrWhiteSpace($env:ECHO_WINDOWS_SIGNER_THUMBPRINT) -or
+              [string]::IsNullOrWhiteSpace($env:ECHO_WINDOWS_SIGNER_SUBJECT_BASE64)) {
+            throw "Validated Windows signing publisher identity is missing"
+          }
+          $protectedPublisher = [Text.Encoding]::UTF8.GetString(
+            [Convert]::FromBase64String($env:ECHO_WINDOWS_SIGNER_SUBJECT_BASE64)
+          )
+          $installerChecksumLine = $null
+          $proofFiles = @()
+          foreach ($entry in $signedFiles.GetEnumerator()) {
+            $path = [string]$entry.Value
+            if (-not (Test-Path -LiteralPath $path -PathType Leaf)) {
+              throw "Signed standard release file is missing: $path"
+            }
+            $signature = Get-AuthenticodeSignature -LiteralPath $path
+            if ($signature.Status -ne [System.Management.Automation.SignatureStatus]::Valid) {
+              throw "Authenticode signature is not Valid for $($entry.Key): $($signature.Status)"
+            }
+            if ($null -eq $signature.SignerCertificate -or $null -eq $signature.TimeStamperCertificate) {
+              throw "Signer or trusted RFC3161 timestamp is missing for $($entry.Key)"
+            }
+            $publisher = [string]$signature.SignerCertificate.Subject
+            if ($signature.SignerCertificate.Thumbprint -ne $env:ECHO_WINDOWS_SIGNER_THUMBPRINT -or
+                $publisher -ne $protectedPublisher) {
+              throw "Authenticode publisher does not match the protected build identity for $($entry.Key)"
+            }
+            $sha256 = (Get-FileHash -LiteralPath $path -Algorithm SHA256).Hash.ToLowerInvariant()
+            if ($entry.Key -eq $installer.Name) {
+              $installerChecksumLine = "$sha256 *$($entry.Key)"
+            }
+            $proofFiles += [ordered]@{
+              path = [string]$entry.Key
+              sha256 = $sha256
+              authenticodeStatus = [string]$signature.Status
+              signerThumbprint = $signature.SignerCertificate.Thumbprint
+              publisher = $publisher
+              timestampThumbprint = $signature.TimeStamperCertificate.Thumbprint
+              timestampSubject = [string]$signature.TimeStamperCertificate.Subject
+            }
+          }
+          $installerChecksumLine | Set-Content `
+            -LiteralPath (Join-Path $releaseRoot "SHA256SUMS") `
+            -Encoding ascii
+          [ordered]@{
+            schema = "echo.windows_signing_proof.v1"
+            sourceRevision = $env:GITHUB_SHA
+            timestampServer = $env:ECHO_WINDOWS_TIMESTAMP_URL
+            generatedAt = (Get-Date).ToUniversalTime().ToString("o")
+            files = $proofFiles
+          } | ConvertTo-Json -Depth 6 | Set-Content `
+            -LiteralPath (Join-Path $releaseRoot "windows-signing-proof.json") `
+            -Encoding utf8
+
+      - name: List release artifacts
+        working-directory: frontend
+        run: |
+          foreach ($dir in @("release", "release-standard")) {
+            Get-ChildItem -LiteralPath $dir -Recurse | Select-Object FullName, Length
+            Get-ChildItem -LiteralPath $dir -File | ForEach-Object { "{0:N1} MB`t{1}" -f ($_.Length / 1MB), $_.Name }
+          }
 
       - name: Upload EXE installer
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
@@ -575,5 +743,26 @@ jobs:
         with:
           name: Echo-Portable-Windows-${{ github.sha }}${{ env.HAS_WINDOWS_SIGNING != 'true' && '-UNSIGNED' || '' }}
           path: frontend/release/win-unpacked/**
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Upload standard EXE installer
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: Echo-Setup-Standard-Windows-${{ github.sha }}${{ env.HAS_WINDOWS_SIGNING != 'true' && '-UNSIGNED' || '' }}
+          path: |
+            frontend/release-standard/Echo-Setup-*.exe
+            frontend/release-standard/SHA256SUMS
+            frontend/release-standard/windows-signing-proof.json
+            frontend/release-standard/*.blockmap
+            frontend/release-standard/*.yml
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Upload standard portable (unpacked)
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: Echo-Portable-Standard-Windows-${{ github.sha }}${{ env.HAS_WINDOWS_SIGNING != 'true' && '-UNSIGNED' || '' }}
+          path: frontend/release-standard/win-unpacked/**
           if-no-files-found: error
           retention-days: 30

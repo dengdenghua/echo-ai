@@ -1,9 +1,28 @@
 # Desktop build bridge (legacy shell retired)
 
-`frontend/electron/` is the only supported Electron shell and
-`packaging/desktop/build.yml` is the only release configuration. The former
+`frontend/electron/` is the only supported Electron shell. The former
 `extras/desktop/electron/` implementation remains only as archived source; no
 package script or CI workflow publishes it.
+
+## Two installers
+
+| Installer        | Config                                   | Engines                                   | Script                         |
+| ---------------- | ---------------------------------------- | ----------------------------------------- | ------------------------------ |
+| Standard         | `packaging/desktop/build.yml`            | none; installed from HUB 应用 on demand   | `electron:build:<platform>`         |
+| Full offline     | `packaging/desktop/build-offline.yml`    | pinned Codex and OpenCode bundled         | `electron:build:<platform>:offline` |
+
+`build-offline.yml` extends `build.yml` and only appends the engine
+`extraResources` (electron-builder concatenates a child's arrays with the
+parent's) and the `Offline` artifact names. CI builds both from one backend.
+
+The standard installer's store downloads the same pinned archives the offline
+build bundles (`runtime/execution/engine_packages/lock.py`): first from
+`https://ai.echo-age.com/marketplace/engines/<engine>/<version>/<asset>`, then
+from the official source (npm for Codex, GitHub Releases for OpenCode). Both
+must match the pinned size and digest before anything is unpacked into
+`userData/engines`. Populate the mirror with
+`uv run python scripts/publish_engine_mirror.py --out <dir>` and upload `<dir>`
+to the server's `/var/www/echo/marketplace/engines/`.
 
 This directory retains the platform-specific PyInstaller helpers and Codex
 runtime preparation scripts used by the canonical shell. Each preparation
@@ -28,12 +47,12 @@ pnpm --dir frontend install --frozen-lockfile
 uv sync --locked --python 3.11.9 --extra desktop-core --extra desktop-build
 $env:PYTHON_EXE = (Resolve-Path ".venv\Scripts\python.exe").Path
 pnpm --dir extras/desktop backend:build:win
-pnpm --dir frontend codex:prepare:win
 pnpm --dir frontend build
 $env:GITHUB_SHA = (git rev-parse HEAD)
 $env:CSC_LINK = "<base64 PKCS#12 code-signing certificate>"
 $env:CSC_KEY_PASSWORD = "<certificate password>"
-pnpm --dir frontend electron:build:win
+pnpm --dir frontend electron:build:win           # standard
+pnpm --dir frontend electron:build:win:offline   # full offline (prepares the engines)
 ```
 
 Do not put those values in the repository or a shell profile. Formal builds use
@@ -50,11 +69,12 @@ For compatibility, `pnpm --dir extras/desktop electron:build:win` delegates to
 those canonical frontend build scripts after generating the backend. It never
 invokes the retired Electron entry point.
 
-The Windows x64 installer is self-contained at runtime: packaged mode starts only
-`resources/backend/echo-backend.exe` and passes the absolute bundled
-`resources/codex/bin/codex.exe` path to that backend. Missing executables fail
-closed; the application does not fall back to system Python/uv/Codex, PATH, or
-download dependencies on first launch. CI runs the bundled Codex App Server
+Packaged mode starts only `resources/backend/echo-backend.exe`. The offline
+installer passes the absolute bundled `resources/codex/bin/codex.exe` (and
+OpenCode) path to that backend; a bundle that is present but incomplete or
+altered fails closed. Without a bundle the backend uses store installs from
+`userData/engines`. Either way it never falls back to system Python/uv/Codex or
+PATH, and nothing is downloaded until someone installs an engine. CI runs the bundled Codex App Server
 help command, starts the backend from `win-unpacked`, and requires `/readyz`
 before uploading artifacts. The prepared runtime also contains the exact Codex
 0.162.0 LICENSE/NOTICE, component-specific `cargo-about 0.9.2` reports for the

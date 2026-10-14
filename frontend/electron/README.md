@@ -81,20 +81,24 @@ Echo 兼容的 API 子集，尚未实现 Chrome 的用户手势授权与多窗�
 
 ## 打包(electron-builder)
 
-- 唯一发布壳是 `frontend/electron/`，配置为 `packaging/desktop/build.yml`；
-  `extras/desktop/electron/` 已退役，不得直接产出安装包。
+- 唯一发布壳是 `frontend/electron/`；`extras/desktop/electron/` 已退役，不得直接产出安装包。
+- 两种安装包：标准版用 `packaging/desktop/build.yml`（`pnpm electron:build:win`），不带
+  Codex / OpenCode，用户在 HUB「应用」的执行引擎里按需安装到 `userData/engines`；
+  完整离线版用 `build-offline.yml`（`pnpm electron:build:win:offline`），在标准版基础上
+  追加锁定的引擎。
 - 当前生产打包仅支持 Windows x64。CI 先用 PyInstaller 生成
   `extras/desktop/build/backend/echo-backend.exe`，再从 pnpm 锁定的官方
   `@openai/codex@0.162.0` Windows 平台包生成 `extras/desktop/build/codex/`，
-  最后从 `frontend/` 执行 `pnpm electron:build:win`。macOS/Linux 在拥有对应的
+  最后从 `frontend/` 执行 `pnpm electron:build:win:offline`（标准版不需要准备引擎）。macOS/Linux 在拥有对应的
   随包后端前明确拒绝发布。
 - 正式构建只从受保护的 `windows-code-signing` Environment 注入 base64 PKCS#12 与密码；
   缺任一 secret、证书无私钥/Code Signing EKU、签名或可信 RFC3161 时间戳无效都会停止。
   安装器文件名和两个 GitHub artifact 名均携带完整 `github.sha`，并生成
   `SHA256SUMS` 与逐文件签名证明。
-- 打包模式只启动 `resources/backend/echo-backend.exe`，并只允许后端使用
-  Electron 注入的绝对路径 `resources/codex/bin/codex.exe`。任一文件缺失时首启
-  fail-closed，不回退到系统 Python/uv/Codex/PATH，不在运行时下载依赖。
+- 打包模式只启动 `resources/backend/echo-backend.exe`。离线版只允许后端使用
+  Electron 注入的绝对路径 `resources/codex/bin/codex.exe` 与随包 OpenCode，随包引擎
+  不完整或被改动时首启 fail-closed；标准版改用商店安装在 `userData/engines` 的引擎。
+  两者都不回退到系统 Python/uv/Codex/PATH，也不在启动时下载；引擎只在用户点「安装」时下载。
 - 随包能力在 PyInstaller 构建时固定；不在用户设备上在线安装可选依赖。
 - 首启会把 agents/prompts/protocols/skills.lock 种入 `userData/resources`。后续版本只补
   不存在的路径，不覆盖同名的用户安装/修改内容；需要采用新版内置资源时，先备份
@@ -106,8 +110,8 @@ Echo 兼容的 API 子集，尚未实现 Chrome 的用户手势授权与多窗�
 
 - `electron-builder` / `electron-updater` / `@openai/codex` 已由
   `frontend/package.json` 和 `frontend/pnpm-lock.yaml` 锁定。打包时
-  `config.desktop.yaml`、只读资源、Windows 后端与 Codex 原生运行时由 build.yml 的
-  `extraResources` 放入应用。
+  `config.desktop.yaml`、只读资源和后端由 build.yml 的 `extraResources` 放入应用，
+  离线版的引擎由 build-offline.yml 追加。
 - `webview` 标签已启用(workspace 内嵌浏览器依赖它)。
 - 安全基线:contextIsolation 开、nodeIntegration 关、主窗口只允许固定应用入口导航。
   HTTP(S)/mailto 外链交给系统浏览器;应用源内的新窗口使用无 preload、sandbox 开启的
