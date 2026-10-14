@@ -1,6 +1,6 @@
 {
   "assertions": {
-    "src/app/browser/page.tsx": 10,
+    "src/app/browser/page.tsx": 9,
     "src/app/workspace/channels/page.tsx": 2,
     "src/app/workspace/community/page.tsx": 1,
     "src/app/workspace/design/canvas-model.ts": 4,

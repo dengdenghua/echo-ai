@@ -96,6 +96,8 @@ class PageTranslateSegment(BaseModel):
 class PageTranslateRequest(BaseModel):
     target: Literal["zh-CN", "en-US", "ja-JP", "ko-KR"] = "zh-CN"
     segments: list[PageTranslateSegment] = Field(min_length=1, max_length=MAX_SEGMENTS)
+    # The reader's pick in the translate panel; empty means the value tier.
+    model: str | None = Field(default=None, max_length=200)
 
 
 class PageTranslation(BaseModel):
@@ -386,7 +388,8 @@ def create_page_translate_router(
         model_router, _ = native_model_services(stack)
         if model_router is None:
             raise HTTPException(503, "翻译服务未就绪，请稍后重试。")
-        model = (resolve_tier_model("value") or "auto").strip() or "auto"
+        model = (body.model or "").strip() or (resolve_tier_model("value") or "auto").strip()
+        model = model or "auto"
         token = current_actor.set(actor)
         try:
             translations, hits = await asyncio.to_thread(

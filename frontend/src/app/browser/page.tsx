@@ -49,7 +49,7 @@ import {
   type BrowserOpenUrlAck,
   BROWSER_OPEN_URL_REQUEST_EVENT,
 } from "@/components/browser/browser-store";
-import { requestBrowserAssistantAsk } from "@/components/browser/assistant-ask";
+import { useSelectionActions } from "@/components/browser/use-selection-actions";
 import { BookmarksBar } from "@/components/browser/bookmarks-bar";
 import {
   BROWSER_FIND_EVENT,
@@ -318,27 +318,7 @@ function BrowserShell() {
     [],
   );
 
-  // Right-click on selected text in a page (desktop app): explain or
-  // translate it right away, or start a question about it.
-  useEffect(() => {
-    if (!window.echo) return;
-    const off = window.echo.on("browser:ask-selection", (...args) => {
-      const payload = args[0] as
-        | { text?: string; action?: "explain" | "translate" | "ask" }
-        | undefined;
-      const quote = payload?.text?.trim();
-      if (!quote) return;
-      setCopilotOpen(true);
-      if (payload?.action === "ask") {
-        requestBrowserAssistantAsk(`关于这段内容：\n「${quote}」\n`, "draft");
-      } else if (payload?.action === "translate") {
-        requestBrowserAssistantAsk(`把这段翻译成中文：\n「${quote}」`);
-      } else {
-        requestBrowserAssistantAsk(`解释这段内容：\n「${quote}」`);
-      }
-    });
-    return () => off();
-  }, [setCopilotOpen]);
+  useSelectionActions(setCopilotOpen);
 
   useEffect(() => {
     try {

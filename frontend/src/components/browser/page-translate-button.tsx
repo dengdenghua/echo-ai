@@ -8,11 +8,14 @@ import {
   pageTranslation,
   pageTranslationSupported,
   setAlwaysTranslated,
+  setTranslationModel,
   siteOrigin,
+  translationModel,
   usePageTranslation,
 } from "@/core/browser/page-translation";
 import type { PageLanguageGuess } from "@/core/browser/page-translator";
 import { useI18n } from "@/core/i18n/hooks";
+import { useModels } from "@/core/models/hooks";
 import { cn } from "@/lib/utils";
 
 type View = "translated" | "bilingual" | "original";
@@ -170,12 +173,59 @@ export function PageTranslateButton({
             <span>{tr.alwaysSite}</span>
             <Switch checked={always} onCheckedChange={toggleAlways} />
           </label>
+          <TranslationModelPicker used={state.model} />
           <p className="mt-3 text-micro leading-4 text-muted-foreground">
             {tr.privacy}
           </p>
         </div>
       ) : null}
     </div>
+  );
+}
+
+/** The model that translates pages for this reader; automatic follows the
+ * server's value tier. Only configured models are offered: virtual presets
+ * such as Echo Mix cannot be called directly. */
+function TranslationModelPicker({ used }: { used: string | null }) {
+  const { t } = useI18n();
+  const tr = t.browser.pageTranslate;
+  const { models } = useModels();
+  const [choice, setChoice] = useState(translationModel);
+  const options = models
+    .filter((model) => Boolean(model.entry_id))
+    .map((model) => ({
+      value: model.selection_id ?? model.model ?? model.id,
+      label:
+        model.source_display_name &&
+        model.source_display_name !== model.display_name
+          ? `${model.display_name} · ${model.source_display_name}`
+          : model.display_name,
+    }));
+  // A remembered pick that is not (or no longer) listed still shows.
+  if (choice && !options.some((option) => option.value === choice)) {
+    options.unshift({ value: choice, label: choice });
+  }
+  return (
+    <label className="mt-3 flex items-center justify-between gap-3 text-xs">
+      <span className="shrink-0">{tr.model}</span>
+      <select
+        value={choice}
+        onChange={(event) => {
+          setChoice(event.target.value);
+          setTranslationModel(event.target.value);
+        }}
+        className="min-w-0 max-w-[190px] truncate rounded-md border border-border-default bg-background px-2 py-1 text-xs text-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
+      >
+        <option value="">
+          {used && !choice ? tr.modelAutoUsing(used) : tr.modelAuto}
+        </option>
+        {options.map((option) => (
+          <option key={option.value} value={option.value}>
+            {option.label}
+          </option>
+        ))}
+      </select>
+    </label>
   );
 }
 

@@ -1225,6 +1225,8 @@ function showBrowserContextMenu(contents, params) {
       mainWindow?.webContents.send("browser:ask-selection", {
         text: selection.slice(0, 4000),
         action,
+        // The tab the selection is in, so a translation can show there.
+        webContentsId: contents.id,
       });
     template.push(
       { label: "AI 解释", click: () => ask("explain") },

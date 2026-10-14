@@ -213,6 +213,32 @@ describe("page translator", () => {
     expect(chinese.batch).toEqual([]);
   });
 
+  test("shows a translation card under the selection and closes it on Escape", () => {
+    document.body.innerHTML = `<p id="p">Select this sentence.</p>`;
+    const range = document.createRange();
+    range.selectNodeContents(document.getElementById("p")!);
+    window.getSelection()!.removeAllRanges();
+    window.getSelection()!.addRange(range);
+    const labels = {
+      title: "译文",
+      copy: "复制",
+      copied: "已复制",
+      close: "关闭",
+    };
+    const t = translator();
+
+    t.bubble("loading", "正在翻译…", labels);
+    const host = document.querySelector("echo-tr-bubble")!;
+    expect(host.shadowRoot!.textContent).toContain("正在翻译…");
+
+    t.bubble("text", "选中这句话。", labels);
+    expect(document.querySelectorAll("echo-tr-bubble")).toHaveLength(1);
+    expect(host.shadowRoot!.textContent).toContain("选中这句话。");
+
+    document.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape" }));
+    expect(document.querySelector("echo-tr-bubble")).toBeNull();
+  });
+
   test("a paragraph the page rewrites goes back in the queue", async () => {
     document.body.innerHTML = `<p id="p">Loading results</p>`;
     const t = translator();

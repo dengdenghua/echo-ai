@@ -59,6 +59,15 @@ export interface PageTranslatorPump {
   batch: PageTranslationSegment[];
 }
 
+export type PageBubbleKind = "loading" | "text" | "error";
+
+export interface PageBubbleLabels {
+  title: string;
+  copy: string;
+  copied: string;
+  close: string;
+}
+
 export interface PageTranslatorApi {
   detect: (target: PageTranslationTarget) => PageLanguageGuess;
   start: (
@@ -81,6 +90,13 @@ export interface PageTranslatorApi {
   setMode: (mode: PageTranslationMode) => PageTranslatorStatus;
   status: () => PageTranslatorStatus;
   reset: () => void;
+  /** A translation card under the current selection: "loading" opens it
+   * there, the other kinds fill the open card. */
+  bubble: (
+    kind: PageBubbleKind,
+    text: string,
+    labels: PageBubbleLabels,
+  ) => void;
 }
 
 declare global {
@@ -412,6 +428,119 @@ export function installPageTranslator(): PageTranslatorApi {
     segment.bilingual.textContent = translated.join("");
   }
 
+  // The selection card lives in a shadow root so page CSS cannot
+  // reach it; styles are set through CSSOM, which page CSP does not block.
+  let bubbleHost: HTMLElement | null = null;
+  let bubbleBody: HTMLElement | null = null;
+  let bubbleCopy: HTMLElement | null = null;
+
+  function onBubbleOutside(event: MouseEvent) {
+    if (bubbleHost && !event.composedPath().includes(bubbleHost)) {
+      closeBubble();
+    }
+  }
+
+  function onBubbleKey(event: KeyboardEvent) {
+    if (event.key === "Escape") closeBubble();
+  }
+
+  function closeBubble() {
+    bubbleHost?.remove();
+    bubbleHost = null;
+    bubbleBody = null;
+    bubbleCopy = null;
+    document.removeEventListener("mousedown", onBubbleOutside, true);
+    document.removeEventListener("keydown", onBubbleKey, true);
+  }
+
+  function openBubble(labels: PageBubbleLabels) {
+    closeBubble();
+    const dark = window.matchMedia?.("(prefers-color-scheme: dark)").matches;
+    const selection = window.getSelection();
+    const range =
+      selection && selection.rangeCount > 0 ? selection.getRangeAt(0) : null;
+    // No range (or no layout) means no anchor: the card sits near the top.
+    const rect =
+      range && typeof range.getBoundingClientRect === "function"
+        ? range.getBoundingClientRect()
+        : null;
+    const host = document.createElement("echo-tr-bubble");
+    host.setAttribute("translate", "no");
+    const width = Math.min(380, window.innerWidth - 24);
+    Object.assign(host.style, {
+      position: "absolute",
+      zIndex: "2147483647",
+      width: `${width}px`,
+      top: `${(rect && rect.height ? rect.bottom : 80) + window.scrollY + 8}px`,
+      left: `${Math.max(12, Math.min((rect ? rect.left : (window.innerWidth - width) / 2) + window.scrollX, window.scrollX + window.innerWidth - width - 12))}px`,
+    });
+    const root = host.attachShadow({ mode: "open" });
+    const card = document.createElement("div");
+    Object.assign(card.style, {
+      boxSizing: "border-box",
+      padding: "10px 12px",
+      borderRadius: "10px",
+      border: `1px solid ${dark ? "rgba(242,243,245,0.14)" : "rgba(10,12,16,0.12)"}`,
+      background: dark ? "#1b1e24" : "#ffffff",
+      color: dark ? "#f2f3f5" : "#111317",
+      boxShadow: "0 8px 24px rgba(10,12,16,0.16)",
+      font: "13px/1.6 system-ui, -apple-system, 'Segoe UI', 'Microsoft YaHei', sans-serif",
+    });
+    const head = document.createElement("div");
+    Object.assign(head.style, {
+      display: "flex",
+      alignItems: "center",
+      gap: "8px",
+      marginBottom: "4px",
+      fontSize: "12px",
+      opacity: "0.64",
+    });
+    const title = document.createElement("span");
+    title.textContent = labels.title;
+    title.style.flex = "1";
+    const button = (label: string) => {
+      const element = document.createElement("button");
+      element.type = "button";
+      element.textContent = label;
+      Object.assign(element.style, {
+        all: "unset",
+        cursor: "pointer",
+        padding: "0 4px",
+        borderRadius: "6px",
+        color: "inherit",
+        font: "inherit",
+      });
+      return element;
+    };
+    const copy = button(labels.copy);
+    copy.addEventListener("click", () => {
+      void navigator.clipboard
+        ?.writeText(bubbleBody?.textContent || "")
+        .then(() => {
+          copy.textContent = labels.copied;
+        });
+    });
+    const close = button("✕");
+    close.setAttribute("aria-label", labels.close);
+    close.addEventListener("click", closeBubble);
+    head.append(title, copy, close);
+    const body = document.createElement("div");
+    Object.assign(body.style, {
+      whiteSpace: "pre-wrap",
+      overflowWrap: "anywhere",
+      maxHeight: "40vh",
+      overflowY: "auto",
+    });
+    card.append(head, body);
+    root.append(card);
+    document.documentElement.append(host);
+    bubbleHost = host;
+    bubbleBody = body;
+    bubbleCopy = copy;
+    document.addEventListener("mousedown", onBubbleOutside, true);
+    document.addEventListener("keydown", onBubbleKey, true);
+  }
+
   function status(): PageTranslatorStatus {
     let done = 0;
     let pending = 0;
@@ -614,7 +743,16 @@ export function installPageTranslator(): PageTranslatorApi {
       observer?.disconnect();
       mutations?.disconnect();
       if (rescanTimer !== null) clearTimeout(rescanTimer);
+      closeBubble();
       globalThis.__echoPageTranslator = undefined;
+    },
+    bubble(kind, text, labels) {
+      if (kind === "loading" || !bubbleBody) openBubble(labels);
+      if (!bubbleBody) return;
+      bubbleBody.textContent = text;
+      bubbleBody.style.opacity = kind === "text" ? "1" : "0.7";
+      bubbleBody.style.color = kind === "error" ? "#c2410c" : "inherit";
+      if (bubbleCopy) bubbleCopy.style.display = kind === "text" ? "" : "none";
     },
   };
   globalThis.__echoPageTranslator = api;

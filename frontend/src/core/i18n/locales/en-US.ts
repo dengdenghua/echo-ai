@@ -5140,6 +5140,14 @@ Strategy:
       translating: "Translating…",
       skipped: (count) =>
         `${count} paragraph${count === 1 ? "" : "s"} could not be translated`,
+      model: "Model",
+      modelAuto: "Automatic (value tier)",
+      modelAutoUsing: (model) => `Automatic (now: ${model})`,
+      selectionTitle: "Translation",
+      copy: "Copy",
+      copied: "Copied",
+      close: "Close",
+      selectionFailed: "Could not translate this text. Try again.",
       alwaysSite: "Always translate this site",
       retry: "Retry",
       privacy:

@@ -119,6 +119,32 @@ describe("page translation sessions", () => {
     expect(document.getElementById("next")!.textContent).toMatch(/^«A brand/);
   });
 
+  test("translates a selection into a card in the page", async () => {
+    const range = document.createRange();
+    range.selectNodeContents(document.getElementById("one")!);
+    window.getSelection()!.removeAllRanges();
+    window.getSelection()!.addRange(range);
+
+    pageTranslation.translateSelection(7, "Hello there", "zh-CN", {
+      title: "译文",
+      copy: "复制",
+      copied: "已复制",
+      close: "关闭",
+      translating: "正在翻译…",
+      failed: "没能翻译",
+    });
+    await settle(0);
+
+    expect(mocks.apiPost).toHaveBeenCalledWith("/api/browser/translate", {
+      body: expect.objectContaining({
+        target: "zh-CN",
+        segments: [{ id: "selection", pieces: ["Hello there"], kinds: [""] }],
+      }),
+    });
+    const host = document.querySelector("echo-tr-bubble")!;
+    expect(host.shadowRoot!.textContent).toContain("«Hello there»");
+  });
+
   test("stops on a failure and says why", async () => {
     mocks.apiPost.mockRejectedValue(
       new EchoAPIError(

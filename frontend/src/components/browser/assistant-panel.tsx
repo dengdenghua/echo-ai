@@ -57,6 +57,7 @@ import {
   recordBrowserAgentAudit,
   setBrowserAgentPermission,
 } from "@/core/browser/agent-permissions";
+import { translateTabInPlace } from "@/core/browser/page-translation";
 import {
   DropdownMenu,
   DropdownMenuCheckboxItem,
@@ -86,6 +87,7 @@ import {
   takeBrowserAssistantAsk,
 } from "./assistant-ask";
 import { useBrowserStore } from "./browser-store";
+import { QuickAction } from "./assistant-quick-action";
 import { useAssistantPresentation } from "./assistant-surface";
 
 import type { WebviewTabHandle } from "./webview-tab";
@@ -1276,9 +1278,14 @@ export function AssistantPanel({
           <QuickAction
             icon={LanguagesIcon}
             label={t.browser.assistant.translateToChinese}
-            onClick={() =>
-              askWithPage(t.browser.assistant.translateToChinesePrompt)
-            }
+            onClick={() => {
+              // Desktop: translate in place, like the address-bar button.
+              const handle =
+                (activeTab ? getTabHandle?.(activeTab.id) : null) ??
+                webviewHandle;
+              if (translateTabInPlace(activeTab, handle, locale)) return;
+              askWithPage(t.browser.assistant.translateToChinesePrompt);
+            }}
             disabled={busy}
           />
         </div>
@@ -1779,32 +1786,6 @@ function describePendingAction(pending: PendingConfirmation): string {
           : "";
   const reasonText = reasons.length ? ` · risk=${reasons.join(", ")}` : "";
   return `${target}${input}${reasonText}`;
-}
-
-function QuickAction({
-  icon: Icon,
-  label,
-  onClick,
-  disabled,
-}: {
-  icon: typeof FileTextIcon;
-  label: string;
-  onClick: () => void;
-  disabled?: boolean;
-}) {
-  return (
-    <button
-      onClick={onClick}
-      disabled={disabled}
-      className={cn(
-        "flex items-center gap-1 rounded-full px-2.5 py-1 text-mini text-foreground disabled:opacity-50",
-        "bg-white/10",
-      )}
-    >
-      <Icon className="size-3" />
-      {label}
-    </button>
-  );
 }
 
 function buildResearchBrief(

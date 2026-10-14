@@ -4352,6 +4352,14 @@ export interface Translations {
       original: string;
       translating: string;
       skipped: (count: number) => string;
+      model: string;
+      modelAuto: string;
+      modelAutoUsing: (model: string) => string;
+      selectionTitle: string;
+      copy: string;
+      copied: string;
+      close: string;
+      selectionFailed: string;
       alwaysSite: string;
       retry: string;
       privacy: string;

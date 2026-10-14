@@ -244,3 +244,21 @@ def test_route_translates_into_the_readers_language(monkeypatch):
     assert len(router.requests) == 2
     assert "Simplified Chinese" in router.requests[1].messages[0].content
     assert unknown.status_code == 422
+
+
+def test_route_uses_the_readers_model_choice(monkeypatch):
+    router = _Router(lambda request: _reply({"1": "你好"}))
+    client = _client(router, monkeypatch)
+
+    picked = client.post(
+        "/api/browser/translate",
+        json={"model": "deepseek-chat", "segments": [{"id": "1", "pieces": ["Hi"]}]},
+    )
+    default = client.post(
+        "/api/browser/translate",
+        json={"model": "  ", "segments": [{"id": "1", "pieces": ["Hey"]}]},
+    )
+
+    assert picked.json()["model"] == "deepseek-chat"
+    assert router.requests[0].model == "deepseek-chat"
+    assert default.json()["model"] == "value-model"

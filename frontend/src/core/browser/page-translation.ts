@@ -7,6 +7,8 @@ import {
   PAGE_TRANSLATOR_MISSING,
   pageTranslatorCall,
   pageTranslatorInstall,
+  type PageBubbleKind,
+  type PageBubbleLabels,
   type PageLanguageGuess,
   type PageTranslationMode,
   type PageTranslationResult,
@@ -37,6 +39,8 @@ export interface PageTranslationState {
   /** A request is out. */
   busy: boolean;
   error: string | null;
+  /** The model that translated the last batch, as the server reports it. */
+  model: string | null;
 }
 
 const BATCH_SEGMENTS = 20;
@@ -45,6 +49,7 @@ const MAX_PARALLEL = 2;
 const PUMP_BUSY_MS = 400;
 const PUMP_IDLE_MS = 1500;
 const ALWAYS_KEY = "echo.browser.translate.alwaysSites";
+const MODEL_KEY = "echo.browser.translate.model";
 
 const IDLE: PageTranslationState = {
   language: null,
@@ -53,6 +58,7 @@ const IDLE: PageTranslationState = {
   progress: null,
   busy: false,
   error: null,
+  model: null,
 };
 
 type Exec = (webContentsId: number, code: string) => Promise<unknown>;
@@ -108,6 +114,25 @@ export function setAlwaysTranslated(url: string | undefined, on: boolean) {
   emit();
 }
 
+/** The reader's translation model; "" follows the server's value tier. */
+export function translationModel(): string {
+  try {
+    return localStorage.getItem(MODEL_KEY) ?? "";
+  } catch {
+    return "";
+  }
+}
+
+export function setTranslationModel(model: string) {
+  try {
+    if (model) localStorage.setItem(MODEL_KEY, model);
+    else localStorage.removeItem(MODEL_KEY);
+  } catch {
+    // Browser storage is a convenience; the choice just is not remembered.
+  }
+  emit();
+}
+
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null;
 }
@@ -136,6 +161,66 @@ function isPump(value: unknown): value is PageTranslatorPump {
     isLanguage(value.language) &&
     Array.isArray(value.batch)
   );
+}
+
+/** Runs `call` against the page's translator, installing it on a new
+ * document, and checks the shape of what the other world sent back. */
+async function runInPage<T>(
+  exec: Exec,
+  webContentsId: number,
+  call: string,
+  is: (value: unknown) => value is T,
+): Promise<T | null> {
+  let result = await exec(webContentsId, pageTranslatorCall(call));
+  if (result === PAGE_TRANSLATOR_MISSING) {
+    result = await exec(webContentsId, pageTranslatorInstall(call));
+  }
+  return is(result) ? result : null;
+}
+
+const anything = (_value: unknown): _value is unknown => true;
+
+export interface SelectionLabels extends PageBubbleLabels {
+  translating: string;
+  failed: string;
+}
+
+/** Translate selected text into a card under the selection (desktop app). */
+async function translateSelection(
+  webContentsId: number,
+  text: string,
+  target: PageTranslationTarget,
+  labels: SelectionLabels,
+) {
+  const exec = isolatedExec();
+  if (!exec) return;
+  const card: PageBubbleLabels = {
+    title: labels.title,
+    copy: labels.copy,
+    copied: labels.copied,
+    close: labels.close,
+  };
+  const show = (kind: PageBubbleKind, body: string) =>
+    runInPage(
+      exec,
+      webContentsId,
+      `bubble(${JSON.stringify(kind)}, ${JSON.stringify(body)}, ${JSON.stringify(card)})`,
+      anything,
+    );
+  try {
+    await show("loading", labels.translating);
+    const response = await apiPost("/api/browser/translate", {
+      body: {
+        target,
+        segments: [{ id: "selection", pieces: [text], kinds: [""] }],
+        model: translationModel() || null,
+      },
+    });
+    const translated = response.translations[0]?.pieces.join("").trim() ?? "";
+    await show(translated ? "text" : "error", translated || labels.failed);
+  } catch (error) {
+    await show("error", errorMessage(error)).catch(() => undefined);
+  }
 }
 
 function errorMessage(error: unknown): string {
@@ -170,12 +255,7 @@ class TabTranslation {
     is: (value: unknown) => value is T,
   ): Promise<T | null> {
     if (this.webContentsId === null) return null;
-    const id = this.webContentsId;
-    let result = await this.exec(id, pageTranslatorCall(call));
-    if (result === PAGE_TRANSLATOR_MISSING) {
-      result = await this.exec(id, pageTranslatorInstall(call));
-    }
-    return is(result) ? result : null;
+    return runInPage(this.exec, this.webContentsId, call, is);
   }
 
   /** The page in this tab finished loading (or the tab came forward). */
@@ -302,8 +382,13 @@ class TabTranslation {
   private async send(doc: string, batch: PageTranslationSegment[]) {
     try {
       const response = await apiPost("/api/browser/translate", {
-        body: { target: this.target, segments: batch },
+        body: {
+          target: this.target,
+          segments: batch,
+          model: translationModel() || null,
+        },
       });
+      this.update({ model: response.model ?? null });
       const translations: PageTranslationResult[] = response.translations;
       const answered = new Set(translations.map((item) => item.id));
       const missing = batch
@@ -387,6 +472,14 @@ export const pageTranslation = {
   retry(tabId: string) {
     sessions.get(tabId)?.retry();
   },
+  translateSelection(
+    webContentsId: number,
+    text: string,
+    target: PageTranslationTarget,
+    labels: SelectionLabels,
+  ) {
+    void translateSelection(webContentsId, text, target, labels);
+  },
   /** The tab closed: stop its pump. */
   forget(tabId: string) {
     sessions.get(tabId)?.close();
@@ -397,6 +490,22 @@ export const pageTranslation = {
     return (tabId && sessions.get(tabId)?.state) || IDLE;
   },
 };
+
+/** Translate a browser tab in place when the desktop shell can; false when
+ * it cannot (web build, internal page), so the caller can fall back. */
+export function translateTabInPlace(
+  tab: { id: string; url?: string } | null | undefined,
+  handle: { getWebContentsId: () => number | null } | null | undefined,
+  target: PageTranslationTarget,
+): boolean {
+  const webContentsId = handle?.getWebContentsId() ?? null;
+  if (!tab || webContentsId === null || !pageTranslationSupported()) {
+    return false;
+  }
+  if (!siteOrigin(tab.url)) return false;
+  pageTranslation.translate(tab.id, webContentsId, "translated", target);
+  return true;
+}
 
 /** Live translation state for one tab. */
 export function usePageTranslation(
