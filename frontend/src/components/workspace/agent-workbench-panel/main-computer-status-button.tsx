@@ -50,6 +50,7 @@ export function MainComputerStatusButton({
           <MonitorIcon className={iconClassName} />
           {runState !== "done" && (
             <span
+              aria-hidden="true"
               className={cn(
                 "absolute top-0.5 right-0.5 size-1.5 rounded-full ring-2 ring-background",
                 agentRunStatusLightClass(runState),
@@ -63,12 +64,22 @@ export function MainComputerStatusButton({
         <div className="font-medium">
           {t.agentWorkbenchPanel.currentConversation}
         </div>
-        <div className="mt-0.5 text-xs opacity-80">
-          {t.agentWorkbenchPanel.currentConversation}
-          {" · "}
+        {/* The dot's colour is the run state; say it in words here. */}
+        <div className="mt-0.5 flex items-center gap-1.5 text-xs opacity-85">
+          {runState !== "done" && (
+            <span
+              aria-hidden="true"
+              className={cn(
+                "size-1.5 shrink-0 rounded-full",
+                agentRunStatusLightClass(runState),
+              )}
+            />
+          )}
           {label}
         </div>
-        <div className="mt-1 text-xs opacity-75">{title}</div>
+        {title && title !== label ? (
+          <div className="mt-1 text-xs opacity-70">{title}</div>
+        ) : null}
       </TooltipContent>
     </Tooltip>
   );

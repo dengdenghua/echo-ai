@@ -136,6 +136,9 @@ export function useExecutionEngine({
       opencodeMissing,
     }),
     codexAvailable,
+    /** The model Codex turns run on, as the composer's Codex control shows it. */
+    codexModel:
+      profile.data?.selected_model || profile.data?.effective_model || null,
     codexCapabilityChecks: profile.data?.capability_checks,
     opencodeCapabilityChecks: opencode.data?.capability_checks,
     opencodeAvailable: opencode.data?.available === true,

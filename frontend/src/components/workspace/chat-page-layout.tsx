@@ -257,7 +257,9 @@ export function ChatPageLayout({
 
   useEffect(() => {
     const update = () => {
-      setIsNarrowViewport(window.innerWidth < 768);
+      // Only phones get the bottom sheet; a narrow desktop window keeps the
+      // right-hand drawer so the panel sits beside the conversation.
+      setIsNarrowViewport(window.innerWidth < 640);
     };
     update();
     window.addEventListener("resize", update);
@@ -825,7 +827,7 @@ export function ChatPageLayout({
           aria-hidden="true"
           onClick={onSecondaryClose}
           className={cn(
-            "absolute inset-0 z-40 bg-black/30",
+            "absolute inset-0 z-40 bg-black/15",
             onSecondaryClose && "cursor-pointer",
           )}
         />
@@ -838,7 +840,7 @@ export function ChatPageLayout({
             aria-hidden="true"
             onClick={onSecondaryClose}
             className={cn(
-              "fixed inset-0 z-40 bg-black/40",
+              "fixed inset-0 z-40 bg-black/25",
               onSecondaryClose && "cursor-pointer",
             )}
           />

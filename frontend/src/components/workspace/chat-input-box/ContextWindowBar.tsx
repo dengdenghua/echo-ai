@@ -12,8 +12,10 @@ import {
 import { cn } from "@/lib/utils";
 
 import {
+  ContextRing,
   ContextUsageDetails,
   contextUsage,
+  ringColorClass,
   type ContextWindowSegment,
 } from "./context-usage-details";
 
@@ -29,12 +31,9 @@ interface ContextWindowBarProps {
   segments?: ContextWindowSegment[];
 }
 
-function ringColorClass(progress: number): string {
-  if (progress >= 0.95) return "text-destructive";
-  if (progress >= 0.8) return "text-warning";
-  if (progress >= 0.5) return "text-primary";
-  return "text-muted-foreground";
-}
+/** With the header status menu on the page the ring is a duplicate, so it
+ * only shows up once the window is filling. */
+const SHOW_BESIDE_MENU_PERCENT = 50;
 
 export function ContextWindowBar({
   contextTokens = 0,
@@ -53,9 +52,15 @@ export function ContextWindowBar({
     contextTokens,
     maxContextTokens,
   );
-  const circumference = 2 * Math.PI * 7;
-  const strokeLength = circumference * progress;
   const colorClass = ringColorClass(progress);
+  if (
+    openStatusMenu &&
+    !open &&
+    !isCompressingContext &&
+    percentage < SHOW_BESIDE_MENU_PERCENT
+  ) {
+    return null;
+  }
 
   return (
     <DropdownMenu open={open} onOpenChange={setOpen}>
@@ -73,33 +78,7 @@ export function ContextWindowBar({
           aria-valuemax={100}
           aria-valuenow={percentage}
         >
-          <svg aria-hidden viewBox="0 0 18 18" className="size-4 -rotate-90">
-            <circle
-              cx="9"
-              cy="9"
-              r="7"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
-              className="opacity-20"
-            />
-            {progress > 0 ? (
-              <circle
-                cx="9"
-                cy="9"
-                r="7"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2"
-                strokeLinecap="round"
-                strokeDasharray={`${strokeLength} ${circumference}`}
-                className={cn(
-                  "transition-[stroke-dasharray] duration-slow",
-                  isCompressingContext && "animate-pulse",
-                )}
-              />
-            ) : null}
-          </svg>
+          <ContextRing progress={progress} compressing={isCompressingContext} />
           <span className="sr-only">{summary}</span>
         </button>
       </DropdownMenuTrigger>

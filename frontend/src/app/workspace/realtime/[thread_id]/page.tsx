@@ -1419,7 +1419,6 @@ function RealtimePageContent({
                         onOpenResearchHistory={openResearchHistoryPanel}
                       />
                     }
-                    activeRightPanel={activeRightPanel}
                     recorderPluginEnabled={recorderPluginEnabled}
                     recIsRecording={recIsRecording}
                     setRecOverlayOpen={setRecOverlayOpen}
@@ -1439,8 +1438,9 @@ function RealtimePageContent({
                     lastTurnUserInput={lastTurnUserInput}
                     onOpenDiff={handleOpenDiff}
                     openWorkbenchArtifact={openWorkbenchArtifact}
+                    openArtifactsPanel={openArtifactsPanel}
                     workLocation={workLocation}
-                    executionEngine={selectedExecutionEngine}
+                    executionSelection={executionSelection}
                     sessionContext={sessionContext}
                     connectedChannels={connectedChannels}
                     showAutomationPanel={showAutomationPanel}

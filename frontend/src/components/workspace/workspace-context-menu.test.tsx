@@ -102,12 +102,14 @@ describe("WorkspaceContextMenu status sections", () => {
   function setupStatus(context: Partial<SessionContextStatus> = {}) {
     const onOpenFile = vi.fn();
     const onCompressContext = vi.fn();
+    const onOpenAllOutputs = vi.fn();
     renderWithProviders(
       <WorkspaceContextMenu
         workDir={null}
         events={[]}
         onOpenDiff={vi.fn()}
         onOpenFile={onOpenFile}
+        onOpenAllOutputs={onOpenAllOutputs}
         environment={{
           workLocation: { kind: "local" },
           folder: "E:/projects/demo-app",
@@ -124,6 +126,8 @@ describe("WorkspaceContextMenu status sections", () => {
           isCompressingContext: false,
           onCompressContext,
           modelLabel: "GPT-5.5",
+          turnCount: 20,
+          measured: true,
           ...context,
         }}
       />,
@@ -134,6 +138,7 @@ describe("WorkspaceContextMenu status sections", () => {
       trigger: screen.getByRole("button", { name: "Session status" }),
       onOpenFile,
       onCompressContext,
+      onOpenAllOutputs,
     };
   }
 
@@ -212,5 +217,51 @@ describe("WorkspaceContextMenu status sections", () => {
     expect(screen.getByRole("menu")).toHaveTextContent(
       "No files produced in this conversation yet.",
     );
+  });
+  it("caps the outputs list and links to all of them", async () => {
+    artifactsState.artifacts = Array.from(
+      { length: 7 },
+      (_, index) => `/mnt/user-data/outputs/file-${index + 1}.md`,
+    );
+    try {
+      const { user, trigger, onOpenAllOutputs } = setupStatus();
+      await user.click(trigger);
+      expect(screen.getByRole("menuitem", { name: "file-5.md" })).toBeInTheDocument();
+      expect(screen.queryByRole("menuitem", { name: "file-6.md" })).toBeNull();
+      await user.click(screen.getByRole("menuitem", { name: "View all 7" }));
+      expect(onOpenAllOutputs).toHaveBeenCalledOnce();
+    } finally {
+      artifactsState.artifacts = [];
+    }
+  });
+
+  it("explains why a short thread cannot be compressed yet", async () => {
+    const { user, trigger, onCompressContext } = setupStatus({ turnCount: 3 });
+    await user.click(trigger);
+    const button = screen.getByTestId("session-status-compress");
+    expect(button).toBeDisabled();
+    expect(screen.getByTestId("session-status-context")).toHaveTextContent(
+      "Available after 12 turns",
+    );
+    await user.click(button);
+    expect(onCompressContext).not.toHaveBeenCalled();
+  });
+
+  it("marks an estimated total and hides an empty sources section", async () => {
+    const { user, trigger } = setupStatus({ measured: false });
+    await user.click(trigger);
+    expect(screen.getByText("est.")).toBeInTheDocument();
+    expect(screen.queryByText("Sources")).toBeNull();
+    expect(screen.queryByText("No sources")).toBeNull();
+  });
+
+  it("shows context usage on the trigger itself", () => {
+    setupStatus({ contextTokens: 60_000 });
+    const trigger = screen.getByRole("button", { name: "Session status" });
+    expect(trigger).toHaveAttribute(
+      "title",
+      "Session status · 60K / 100K (60%)",
+    );
+    expect(trigger.querySelector("svg")).not.toBeNull();
   });
 });

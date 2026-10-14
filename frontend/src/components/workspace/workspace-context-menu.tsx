@@ -7,7 +7,14 @@ import { registerSessionStatusMenu } from "@/core/realtime/session-status-menu";
 import { artifactDisplayPath } from "@/core/artifacts/utils";
 import { getFileIcon, getFileName } from "@/core/utils/files";
 import { useOptionalArtifacts } from "./artifacts/context";
-import { contextUsage } from "./chat-input-box/context-usage-details";
+import {
+  ContextRing,
+  contextUsage,
+  ringColorClass,
+} from "./chat-input-box/context-usage-details";
+
+/** The menu lists the first few outputs; the 产物 tab has them all. */
+const OUTPUTS_SHOWN = 5;
 import {
   SessionContextSection,
   SessionEnvironmentRows,
@@ -60,6 +67,8 @@ export interface WorkspaceContextMenuProps {
   groundingSources?: GroundingSource[];
   onOpenDiff: () => void;
   onOpenFile: (path: string) => void;
+  /** Opens the workbench's 产物 tab with every output. */
+  onOpenAllOutputs?: () => void;
   /** Where the conversation runs; rows lead the 环境 section. */
   environment?: SessionEnvironment;
   /** Context usage and manual compression. While given, the composer's
@@ -80,6 +89,7 @@ export function WorkspaceContextMenu({
   onOpenFile,
   environment,
   context,
+  onOpenAllOutputs,
 }: WorkspaceContextMenuProps) {
   const { t, locale } = useI18n();
   const copy = sessionStatusCopy(locale);
@@ -144,6 +154,10 @@ export function WorkspaceContextMenu({
   const sectionLabelClass =
     "px-2 pb-1 pt-4 text-xs font-normal text-muted-foreground first:pt-0.5";
   const menuTitle = context || environment ? copy.menuTitle : t.workspaceNote.menuTitle;
+  const usage = contextUsage(
+    context?.contextTokens ?? 0,
+    context?.maxContextTokens ?? 0,
+  );
 
   return (
     <>
@@ -159,10 +173,20 @@ export function WorkspaceContextMenu({
           type="button"
           data-slot="workspace-context-trigger"
           aria-label={menuTitle}
-          title={menuTitle}
+          title={context ? `${menuTitle} · ${usage.summary}` : menuTitle}
           className="flex size-[42px] shrink-0 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted/60 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring data-[state=open]:bg-muted/70 data-[state=open]:text-foreground sm:size-8"
         >
-          <ListFilterIcon className="size-4" />
+          {context ? (
+            <span className={ringColorClass(usage.progress)}>
+              <ContextRing
+                progress={usage.progress}
+                compressing={context.isCompressingContext}
+                trackClassName="opacity-45"
+              />
+            </span>
+          ) : (
+            <ListFilterIcon className="size-4" />
+          )}
         </button>
       </DropdownMenuTrigger>
       <DropdownMenuContent
@@ -275,8 +299,16 @@ export function WorkspaceContextMenu({
           <>
             <DropdownMenuLabel className={`${sectionLabelClass} flex items-center justify-between gap-3`}>
               {copy.context}
-              <span className="font-mono tabular-nums">
-                {contextUsage(context.contextTokens, context.maxContextTokens).summary}
+              <span className="flex items-center gap-1.5">
+                {!context.measured && (
+                  <span
+                    title={copy.estimatedHint}
+                    className="rounded border border-border-default px-1 text-xs leading-4"
+                  >
+                    {copy.estimated}
+                  </span>
+                )}
+                <span className="font-mono tabular-nums">{usage.summary}</span>
               </span>
             </DropdownMenuLabel>
             <SessionContextSection status={context} />
@@ -295,7 +327,7 @@ export function WorkspaceContextMenu({
                 {copy.noOutputs}
               </p>
             )}
-            {outputs.map((file) => {
+            {outputs.slice(0, OUTPUTS_SHOWN).map((file) => {
               const displayPath = artifactDisplayPath(file);
               return (
                 <DropdownMenuItem
@@ -311,12 +343,24 @@ export function WorkspaceContextMenu({
                 </DropdownMenuItem>
               );
             })}
+            {outputs.length > OUTPUTS_SHOWN && onOpenAllOutputs && (
+              <DropdownMenuItem
+                className={`${rowClass} text-muted-foreground`}
+                onSelect={onOpenAllOutputs}
+              >
+                <span className="size-3.5 shrink-0" aria-hidden="true" />
+                <span>{copy.viewAllOutputs(outputs.length)}</span>
+              </DropdownMenuItem>
+            )}
           </>
         )}
+        {/* With the status sections above, an empty 来源 is just noise. */}
+        {(sources.length > 0 || !(context || environment)) && (
         <DropdownMenuLabel className={sectionLabelClass}>
           {t.workspaceNote.sourcesTitle}
         </DropdownMenuLabel>
-        {sources.length === 0 && (
+        )}
+        {sources.length === 0 && !(context || environment) && (
           <p className="px-2 py-2 text-xs text-muted-foreground">
             {t.agentWorkbenchPages.noSources}
           </p>

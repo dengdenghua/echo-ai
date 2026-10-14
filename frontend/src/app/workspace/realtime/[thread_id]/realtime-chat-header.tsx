@@ -14,7 +14,6 @@ import { ChatHeaderRecButton } from "@/components/workspace/realtime/chat-header
 import { executionRoster } from "@/components/workspace/realtime/execution-roster";
 import { ProjectGroupHeaderBadge } from "@/components/workspace/realtime/project-group-header-badge";
 import { PromoteGroupToProjectDialog } from "@/components/workspace/realtime/promote-group-to-project-dialog";
-import type { RightPanelPage } from "@/components/workspace/realtime/right-panel-menu";
 import {
   RealtimeChatHeaderActions,
   RealtimeChatHeaderMemberSurface,
@@ -36,7 +35,7 @@ import type { ChannelName } from "@/core/channels/api";
 import type { ThreadCollaborationRosterEntry } from "@/core/collaboration/thread-collaboration";
 import type { CollaborationSession, CoworkRoomEntityRef } from "@/core/cowork";
 import type { WorkLocation } from "@/core/execution/work-location";
-import type { ExecutionEngine } from "@/core/realtime/execution-policy";
+import type { useExecutionEngine } from "@/core/threads/use-execution-engine";
 import { cn } from "@/lib/utils";
 
 import type { CollaborationProfile } from "./collaboration-roster-utils";
@@ -75,9 +74,8 @@ export interface RealtimeChatHeaderProps {
   /** AI member picker, already gated on who may manage this conversation. */
   headerMemberControl: ReactNode;
   headerProjectStatus: ReactNode;
-  /** The right-panel menu; hidden while a right-hand surface is open. */
+  /** The right-panel toggle; it stays put while the panel is open. */
   rightPanelMenu: ReactNode;
-  activeRightPanel: RightPanelPage | null;
   recorderPluginEnabled: boolean;
   recIsRecording: boolean;
   setRecOverlayOpen: StateSetter<boolean>;
@@ -97,9 +95,10 @@ export interface RealtimeChatHeaderProps {
   lastTurnUserInput: ConversationUserInput | null;
   onOpenDiff: () => void;
   openWorkbenchArtifact: (path: string) => void;
+  openArtifactsPanel: () => void;
   /** The status menu's 环境 rows and 上下文 section. */
   workLocation: WorkLocation;
-  executionEngine: ExecutionEngine;
+  executionSelection: Pick<ReturnType<typeof useExecutionEngine>, "engine" | "codexModel">;
   sessionContext: SessionContextStatus;
   connectedChannels: ChannelName[];
   showAutomationPanel: boolean;
@@ -126,7 +125,6 @@ export function RealtimeChatHeader({
   headerMemberControl,
   headerProjectStatus,
   rightPanelMenu,
-  activeRightPanel,
   recorderPluginEnabled,
   recIsRecording,
   setRecOverlayOpen,
@@ -146,8 +144,9 @@ export function RealtimeChatHeader({
   lastTurnUserInput,
   onOpenDiff,
   openWorkbenchArtifact,
+  openArtifactsPanel,
   workLocation,
-  executionEngine,
+  executionSelection,
   sessionContext,
   connectedChannels,
   showAutomationPanel,
@@ -195,8 +194,8 @@ export function RealtimeChatHeader({
             replayBlocks.length > 0 ? handleExportReplay : undefined,
         }
       : undefined;
-  // Open surfaces own their close control; the chat header only offers reopening.
-  const headerWorkbench = activeRightPanel ? null : rightPanelMenu;
+  // One header button opens and closes the panel, so it never jumps away.
+  const headerWorkbench = rightPanelMenu;
   const headerMemberSurface = !isEchoAssistant ? (
     <RealtimeChatHeaderMemberSurface aiMembers={headerMemberControl} />
   ) : null;
@@ -212,10 +211,15 @@ export function RealtimeChatHeader({
       environment={{
         workLocation,
         folder: effectiveWorkDir,
-        engine: executionEngine,
-        modelLabel: sessionContext.modelLabel,
+        engine: executionSelection.engine,
+        // Codex runs on its own account model, not the conversation's pick.
+        modelLabel:
+          executionSelection.engine === "codex"
+            ? (executionSelection.codexModel ?? sessionContext.modelLabel)
+            : sessionContext.modelLabel,
       }}
       context={sessionContext}
+      onOpenAllOutputs={openArtifactsPanel}
     />
   ) : null;
   const headerActions = !isEchoAssistant ? (

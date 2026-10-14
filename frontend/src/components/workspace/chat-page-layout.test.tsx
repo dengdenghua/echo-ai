@@ -433,7 +433,7 @@ describe("ChatPageLayout", () => {
   test("preserves the mobile workbench drawer behavior", () => {
     Object.defineProperty(window, "innerWidth", {
       configurable: true,
-      value: 767,
+      value: 639,
     });
     // Deliberately wider than a real mobile root so the assertion proves the
     // mobile viewport rule remains independent from the container-fit rule.
@@ -465,6 +465,30 @@ describe("ChatPageLayout", () => {
     ).toHaveFocus();
   });
 
+
+  test("keeps a narrow desktop window on the right-hand drawer", () => {
+    Object.defineProperty(window, "innerWidth", {
+      configurable: true,
+      value: 720,
+    });
+    layoutWidth = 720;
+
+    renderWithProviders(
+      <ChatPageLayout
+        header={<div>Header</div>}
+        messageList={<div>Messages</div>}
+        inputArea={<div>Composer</div>}
+        secondaryPanel={<div>Workbench</div>}
+      />,
+    );
+
+    expect(
+      screen.getByRole("dialog", { name: "Agent workbench" }),
+    ).toHaveAttribute("data-secondary-panel-presentation", "desktop-drawer");
+    expect(
+      document.querySelector('[data-secondary-panel-backdrop="bottom-sheet"]'),
+    ).toBeNull();
+  });
   test("reacts to container-only resizes through ResizeObserver", () => {
     const resizeCallbacks: Array<() => void> = [];
     class MockResizeObserver {

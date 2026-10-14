@@ -23,6 +23,11 @@ import type { ExecutionEngine } from "@/core/realtime/execution-policy";
 /** Usage at which the hint warns that the runtime's ~90% auto-compaction is near. */
 const AUTO_COMPACT_HINT_PERCENT = 75;
 
+/** CompactionPolicy.keep_recent as wired in
+ * runtime/platform/ui/_app_routers_extra.py: these turns always stay verbatim,
+ * so a shorter thread has nothing to fold. */
+export const KEEP_RECENT_TURNS = 12;
+
 const ENGINE_NAMES: Record<ExecutionEngine, string> = {
   echo: "Echo",
   codex: "Codex",
@@ -38,6 +43,10 @@ export interface SessionContextStatus {
   onCompressContext?: () => void | Promise<void>;
   /** ``null`` while the model is chosen per turn (自动). */
   modelLabel: string | null;
+  /** User turns so far; compression needs more than KEEP_RECENT_TURNS. */
+  turnCount: number;
+  /** The total comes from the measured request, not a text estimate. */
+  measured: boolean;
 }
 
 export interface SessionEnvironment {
@@ -144,8 +153,10 @@ export function SessionContextSection({
     contextSegments,
     isCompressingContext,
     onCompressContext,
+    turnCount,
   } = status;
   const elapsed = useElapsedSeconds(isCompressingContext);
+  const tooFewTurns = turnCount <= KEEP_RECENT_TURNS;
   const { percentage } = contextUsage(contextTokens, maxContextTokens);
   return (
     <div className="px-2" data-testid="session-status-context">
@@ -165,9 +176,9 @@ export function SessionContextSection({
           type="button"
           data-testid="session-status-compress"
           onClick={() => void onCompressContext()}
-          disabled={isCompressingContext || contextTokens <= 0}
+          disabled={isCompressingContext || tooFewTurns || contextTokens <= 0}
           aria-busy={isCompressingContext}
-          title={copy.compressHint}
+          title={tooFewTurns ? undefined : copy.compressHint}
           className="mt-2.5 flex h-8 w-full items-center justify-center gap-2 rounded-lg border border-border-default text-xs font-medium text-foreground transition-colors hover:bg-muted disabled:cursor-default disabled:opacity-60"
         >
           {isCompressingContext ? (
@@ -177,6 +188,11 @@ export function SessionContextSection({
           )}
           {isCompressingContext ? copy.compressing(elapsed) : copy.compress}
         </button>
+      ) : null}
+      {onCompressContext && tooFewTurns && !isCompressingContext ? (
+        <p className="mt-1.5 text-center text-xs text-muted-foreground">
+          {copy.compressAfterTurns(KEEP_RECENT_TURNS)}
+        </p>
       ) : null}
     </div>
   );

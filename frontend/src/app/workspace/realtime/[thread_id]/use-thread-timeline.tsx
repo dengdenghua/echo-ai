@@ -188,7 +188,8 @@ export function useContextWindow({
     );
   }, [models, modelName]);
   const maxContextTokens = useMemo(() => resolveModelContextWindow(selectedModel), [selectedModel]);
-  const contextSegments = useThreadContextSegments(isNewThread ? null : threadId, thread.messages, thread.lastTurnStatus, t);
+  const { segments: contextSegments, measured: contextMeasured } = useThreadContextSegments(isNewThread ? null : threadId, thread.messages, thread.lastTurnStatus, t);
+  const turnCount = useMemo(() => thread.messages.filter((message) => message.type === "human").length, [thread.messages]);
   // The visible-message estimate misses the system prompt and tools; a
   // measured breakdown counts them, so the total never trails its own bar.
   const contextTokens = useMemo(
@@ -252,8 +253,10 @@ export function useContextWindow({
       isCompressingContext,
       onCompressContext: handleCompressContext,
       modelLabel,
+      turnCount,
+      measured: contextMeasured,
     }),
-    [contextSegments, contextTokens, handleCompressContext, isCompressingContext, maxContextTokens, modelLabel],
+    [contextMeasured, contextSegments, contextTokens, handleCompressContext, isCompressingContext, maxContextTokens, modelLabel, turnCount],
   );
   return {
     isCompressingContext,

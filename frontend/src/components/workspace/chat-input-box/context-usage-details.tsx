@@ -41,6 +41,63 @@ export function contextUsage(contextTokens: number, maxContextTokens: number) {
   };
 }
 
+/** The ring's tint: calm until the window fills up. */
+export function ringColorClass(progress: number): string {
+  if (progress >= 0.95) return "text-destructive";
+  if (progress >= 0.8) return "text-warning";
+  if (progress >= 0.5) return "text-primary";
+  return "text-muted-foreground";
+}
+
+/** A progress ring in the current text colour; it pulses while compressing. */
+export function ContextRing({
+  progress,
+  compressing = false,
+  className,
+  trackClassName = "opacity-20",
+}: {
+  progress: number;
+  compressing?: boolean;
+  className?: string;
+  /** A header button needs a firmer track to read as a control at 0%. */
+  trackClassName?: string;
+}) {
+  const circumference = 2 * Math.PI * 7;
+  return (
+    <svg
+      aria-hidden
+      viewBox="0 0 18 18"
+      className={cn("size-4 -rotate-90", className)}
+    >
+      <circle
+        cx="9"
+        cy="9"
+        r="7"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="2"
+        className={trackClassName}
+      />
+      {progress > 0 ? (
+        <circle
+          cx="9"
+          cy="9"
+          r="7"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="2"
+          strokeLinecap="round"
+          strokeDasharray={`${circumference * progress} ${circumference}`}
+          className={cn(
+            "transition-[stroke-dasharray] duration-slow",
+            compressing && "animate-pulse",
+          )}
+        />
+      ) : null}
+    </svg>
+  );
+}
+
 function share(tokens: number, maxContextTokens: number): string {
   return maxContextTokens > 0
     ? ` (${Math.round((tokens / maxContextTokens) * 1000) / 10}%)`

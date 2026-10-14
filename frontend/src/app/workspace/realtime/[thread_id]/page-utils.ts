@@ -323,7 +323,7 @@ export function useThreadContextSegments(
   const { breakdown: measuredContext } = useContextBreakdown(threadId, {
     refreshKey: `${messages.length}:${lastTurnStatus ?? ""}`,
   });
-  return useMemo(
+  const segments = useMemo(
     () =>
       (measuredContext?.segments ?? breakdownContextSegments(messages)).map(
         (segment) => ({
@@ -334,6 +334,9 @@ export function useThreadContextSegments(
       ),
     [measuredContext, messages, t],
   );
+  // Only the Echo engine records the real outgoing request; every other
+  // source is a text estimate.
+  return { segments, measured: measuredContext?.source === "request" };
 }
 
 export function recordFromUnknown(value: unknown): Record<string, unknown> | null {
@@ -418,4 +421,3 @@ export function resolveActiveProjectMilestone(
         : 0;
   return { id: target.id, name: target.name, status: target.status, progress };
 }
-

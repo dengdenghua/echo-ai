@@ -19,6 +19,12 @@ export interface SessionStatusCopy {
   compress: string;
   compressing: (seconds: number) => string;
   compressHint: string;
+  /** The runtime always keeps the latest ``keep`` turns verbatim. */
+  compressAfterTurns: (keep: number) => string;
+  /** The total is a character estimate, not the measured request. */
+  estimated: string;
+  estimatedHint: string;
+  viewAllOutputs: (count: number) => string;
   compressUnavailable: string;
   compressFailed: string;
   /** The runtime keeps the latest ``keep`` turns verbatim, so a short thread has nothing to fold. */
@@ -45,6 +51,11 @@ const zhCN: SessionStatusCopy = {
   compressing: (seconds) => `正在压缩… ${seconds}s`,
   compressHint:
     "把较早的对话折叠成摘要，最近几轮保持原样。压缩期间可以继续浏览对话。",
+  compressAfterTurns: (keep) =>
+    `超过 ${keep} 轮后可压缩，最近 ${keep} 轮始终保留原文`,
+  estimated: "估算",
+  estimatedHint: "当前引擎不回报实际请求大小，用量按对话字数估算。",
+  viewAllOutputs: (count) => `查看全部 ${count} 个`,
   compressUnavailable: "这个对话暂不支持压缩上下文。",
   compressFailed: "压缩上下文失败",
   tooFewTurns: (turns, keep) =>
@@ -69,6 +80,12 @@ const enUS: SessionStatusCopy = {
   compressing: (seconds) => `Compressing… ${seconds}s`,
   compressHint:
     "Folds older turns into a summary and keeps the latest ones as they are. You can keep reading while it runs.",
+  compressAfterTurns: (keep) =>
+    `Available after ${keep} turns; the latest ${keep} always stay as they are.`,
+  estimated: "est.",
+  estimatedHint:
+    "This engine does not report the real request size, so usage is estimated from the text.",
+  viewAllOutputs: (count) => `View all ${count}`,
   compressUnavailable:
     "Context compression is not available for this conversation.",
   compressFailed: "Failed to compress context",
@@ -94,6 +111,12 @@ const jaJP: SessionStatusCopy = {
   compressing: (seconds) => `圧縮中… ${seconds}s`,
   compressHint:
     "古いやり取りを要約にまとめ、直近の数ターンはそのまま残します。圧縮中も会話を閲覧できます。",
+  compressAfterTurns: (keep) =>
+    `${keep} ターンを超えると圧縮できます。直近 ${keep} ターンは常にそのまま残ります。`,
+  estimated: "推定",
+  estimatedHint:
+    "このエンジンは実際のリクエストサイズを報告しないため、使用量はテキスト量から推定しています。",
+  viewAllOutputs: (count) => `すべて表示（${count}）`,
   compressUnavailable: "この会話ではコンテキストを圧縮できません。",
   compressFailed: "コンテキストの圧縮に失敗しました",
   tooFewTurns: (turns, keep) =>
@@ -119,6 +142,12 @@ const koKR: SessionStatusCopy = {
   compressing: (seconds) => `압축 중… ${seconds}s`,
   compressHint:
     "이전 대화를 요약으로 접고 최근 몇 턴은 그대로 둡니다. 압축 중에도 대화를 볼 수 있습니다.",
+  compressAfterTurns: (keep) =>
+    `${keep}턴을 넘으면 압축할 수 있습니다. 최근 ${keep}턴은 항상 그대로 둡니다.`,
+  estimated: "추정",
+  estimatedHint:
+    "이 엔진은 실제 요청 크기를 알려 주지 않아 사용량을 텍스트 양으로 추정합니다.",
+  viewAllOutputs: (count) => `모두 보기 (${count})`,
   compressUnavailable: "이 대화에서는 컨텍스트를 압축할 수 없습니다.",
   compressFailed: "컨텍스트 압축에 실패했습니다",
   tooFewTurns: (turns, keep) =>

@@ -55,4 +55,22 @@ describe("ContextWindowBar", () => {
       unregister();
     }
   });
+
+  it("steps aside for the header menu until the window is filling", () => {
+    const unregister = registerSessionStatusMenu(vi.fn());
+    try {
+      const { rerender } = renderWithProviders(
+        <ContextWindowBar contextTokens={20_000} maxContextTokens={100_000} />,
+      );
+      expect(screen.queryByTestId("chat-context-window-trigger")).toBeNull();
+      rerender(
+        <ContextWindowBar contextTokens={60_000} maxContextTokens={100_000} />,
+      );
+      expect(
+        screen.getByTestId("chat-context-window-trigger"),
+      ).toBeInTheDocument();
+    } finally {
+      unregister();
+    }
+  });
 });
