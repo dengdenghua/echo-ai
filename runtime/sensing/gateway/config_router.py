@@ -192,7 +192,7 @@ def create_config_router(
         when auth is disabled or no valid bearer is present."""
         if not require_auth or identity_store is None:
             return None
-        from runtime.safety.auth.principal import request_credential
+        from runtime.safety.auth.credential import request_credential
 
         token = request_credential(request)
         if not token:

@@ -224,7 +224,7 @@ def _operator_identity(request: Request, ctx: ObservabilityContext) -> tuple[str
     if not ctx.require_auth:
         return str(actor or "local_operator"), None
 
-    from runtime.safety.auth.principal import request_credential
+    from runtime.safety.auth.credential import request_credential
 
     token = request_credential(request)
     identity = None

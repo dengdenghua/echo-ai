@@ -107,16 +107,6 @@ def _request_token(request: Any) -> str:
     return str(cookies.get(SESSION_COOKIE_NAME) or "").strip()
 
 
-def request_credential(request: Any) -> str:
-    """The bearer token, WebSocket bearer or session cookie a request presents.
-
-    Role checks must read the same credential as authentication: a browser
-    whose tab-scoped token is gone (after a restart) authenticates with the
-    HttpOnly session cookie alone.
-    """
-    return _request_token(request)
-
-
 def _request_id(request: Any) -> str:
     headers = getattr(request, "headers", {}) or {}
     candidate = str(headers.get("X-Request-ID") or "").strip()
@@ -272,7 +262,6 @@ __all__ = [
     "authentication_error",
     "clear_session_cookie",
     "require_operator",
-    "request_credential",
     "require_roles",
     "resolve_principal",
     "set_session_cookie",

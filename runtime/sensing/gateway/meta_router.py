@@ -193,7 +193,7 @@ def create_meta_router(
                 headers={"X-Echo-Auth-Expired": "1"},
             )
 
-        from runtime.safety.auth.principal import request_credential
+        from runtime.safety.auth.credential import request_credential
 
         token = request_credential(request)
         if not token:

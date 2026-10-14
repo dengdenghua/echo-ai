@@ -54,6 +54,7 @@ tier: "core"
 | `adaptive_immunity.py` | Adaptive immunity — the immunity protocol's behavioural-anomaly tier. |
 | `arg_guard.py` | Strip model-controllable privilege escalation before dispatch. |
 | `attack_memory.py` | Antibody memory — the immunity protocol's Memory tier. |
+| `credential.py` | The credential a request presents, for role checks outside ``resolve_principal``. |
 | `file_safety.py` | — |
 | `identity.py` | — |
 | `internal_token.py` | Internal, same-process service token for agent→gateway calls. |
@@ -93,6 +94,12 @@ tier: "core"
 | --- | --- | --- |
 | class | `class AttackPattern` |  |
 | class | `class AttackMemory` | Thread-safe antibody store with sliding-window crystallization. |
+
+### `credential.py`
+
+| Kind | Symbol | Doc |
+| --- | --- | --- |
+| func | `def request_credential(request)` | The bearer token, WebSocket bearer or session cookie a request presents. |
 
 ### `file_safety.py`
 
@@ -171,7 +178,6 @@ tier: "core"
 | func | `def set_session_cookie(response, request, token, max_age)` | Persist a browser session without exposing the JWT to JavaScript. |
 | func | `def clear_session_cookie(response, request)` | Expire the browser session cookie using the same transport policy. |
 | class | `class CurrentPrincipal` | Verified request identity used by authorization decisions. |
-| func | `def request_credential(request)` | The bearer token, WebSocket bearer or session cookie a request presents. |
 | func | `def resolve_principal(request, identity_store, require_auth, jwt_secret, jwt_issuer, jwt_audience, jwt_leeway_seconds)` | Resolve a principal from a known API key or a registered JWT subject. |
 | func | `def require_roles(request, identity_store, require_auth, allowed_roles, jwt_secret, jwt_issuer, jwt_audience, jwt_leeway_seconds)` | Require one of *allowed_roles* when shared authentication is active. |
 | func | `def require_operator(request, identity_store, require_auth, jwt_secret, jwt_issuer, jwt_audience, jwt_leeway_seconds)` | Require an ``operator`` or ``admin`` role for control-plane changes. |

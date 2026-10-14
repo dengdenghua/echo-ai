@@ -52,7 +52,7 @@ def create_system_router(
         """Resolve full Identity for role checks. None when auth disabled."""
         if not require_auth or identity_store is None:
             return None
-        from runtime.safety.auth.principal import request_credential
+        from runtime.safety.auth.credential import request_credential
 
         token = request_credential(request)
         if not token:

@@ -105,7 +105,7 @@ def _build_endpoints(ctx: _AgentsCtx) -> None:
         """
         if not require_auth or identity_store is None:
             return None
-        from runtime.safety.auth.principal import request_credential
+        from runtime.safety.auth.credential import request_credential
 
         token = request_credential(request)
         if not token:
