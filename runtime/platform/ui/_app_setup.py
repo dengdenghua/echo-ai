@@ -215,11 +215,10 @@ def setup_app(
         from runtime.safety.auth.identity import DurableIdentityStore
 
         cocoloop_identity_store = DurableIdentityStore(app_paths().identity_store_path)
-    if (
-        local_auth_config is not None
-        and getattr(local_auth_config, "enabled", False)
-        and getattr(local_auth_config, "allow_any_username", False)
-    ):
+    from runtime.adapters.integrations.local_auth.config import development_login_enabled
+
+    # Outside development any-username is ignored (owner account / desktop).
+    if development_login_enabled(local_auth_config) and local_auth_config.allow_any_username:
         logging.getLogger(__name__).warning(
             "local auth allow_any_username=true accepts arbitrary usernames; "
             "use only for trusted local development"

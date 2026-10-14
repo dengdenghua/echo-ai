@@ -190,7 +190,8 @@ def test_desktop_owner_login_requires_the_shell_token(
     "env,token,overrides",
     [
         ({}, None, {}),
-        ({"ECHO_DESKTOP": None}, _DESKTOP_OWNER_TOKEN, {}),
+        # Without ECHO_DESKTOP the config is a self-hosted owner account; see
+        # test_local_auth_owner_account.py for why the token stays refused.
         ({"ECHO_DEPLOYMENT_MODE": "shared"}, _DESKTOP_OWNER_TOKEN, {}),
         ({}, _DESKTOP_OWNER_TOKEN, {"jwt_secret": None}),
         ({}, "too-short", {}),

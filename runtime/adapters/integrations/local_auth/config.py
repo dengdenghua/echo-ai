@@ -89,11 +89,49 @@ def desktop_owner_login_enabled(config: Any) -> bool:
     )
 
 
+def owner_account_candidate(config: Any) -> bool:
+    """A self-hosted passwordless config: one owner account, set up on first run.
+
+    Outside development and the desktop shell, passwordless ``local_auth``
+    no longer signs anyone in by name. Whoever holds the console setup code
+    sets the owner's password once; the owner then signs in with it, from
+    this machine or the local network only (see ``owner.py``).
+    """
+    return bool(
+        config is not None
+        and getattr(config, "enabled", False)
+        and not getattr(config, "users", {})
+        and not getattr(config, "password_only_username", None)
+        and os.getenv("ECHO_ENV", "").strip().lower() != "development"
+        and os.getenv("ECHO_DESKTOP", "").strip() != "1"
+        and os.getenv("ECHO_DEPLOYMENT_MODE", "local").strip().lower() == "local"
+    )
+
+
+def owner_account_enabled(config: Any) -> bool:
+    return owner_account_candidate(config) and _has_strong_jwt_secret(config)
+
+
+def network_bind_authenticated(config: Any, deployment_mode: str) -> bool:
+    """Whether ``local_auth`` makes a non-loopback ``serve`` bind safe.
+
+    Password accounts do, and so does the owner account (a setup code, then
+    a password). Development's sign-in-by-name never does.
+    """
+    if config is None or not getattr(config, "enabled", False):
+        return False
+    if getattr(config, "password_required", False):
+        return True
+    return deployment_mode == "local" and owner_account_candidate(config)
+
+
 def local_login_enabled(config: Any) -> bool:
     """Allow configured password accounts in deployments, never dev shortcuts."""
     if config is None or not getattr(config, "enabled", False):
         return False
     if development_login_enabled(config) or desktop_owner_login_enabled(config):
+        return True
+    if owner_account_enabled(config):
         return True
     if getattr(config, "password_only_username", None) or not getattr(config, "users", {}):
         return False
@@ -103,7 +141,9 @@ def local_login_enabled(config: Any) -> bool:
 def interactive_local_login_enabled(config: Any) -> bool:
     """Whether a login form can sign in; the desktop owner token is shell-only."""
     return local_login_enabled(config) and (
-        development_login_enabled(config) or bool(getattr(config, "users", {}))
+        development_login_enabled(config)
+        or owner_account_enabled(config)
+        or bool(getattr(config, "users", {}))
     )
 
 

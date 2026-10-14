@@ -576,6 +576,7 @@ def run_serve(
     import sys
 
     from runtime.adapters.integrations.local_auth import config as local_auth
+    from runtime.adapters.integrations.local_auth import owner as owner_account
     from runtime.adapters.scheduler import BackgroundRunner
     from runtime.cli_core import _Colors
     from runtime.cli_serve_env import apply_tentacle_ws_port_override
@@ -600,16 +601,13 @@ def run_serve(
         .strip()
         .lower()
     )
-    # Passwordless local_auth (allow_any_username / a bare username allowlist)
-    # hands anyone who can reach the port a JWT, so it does not make a
-    # network bind safe; only OCT or password-backed local_auth does.
+    # Development's sign-in by name hands anyone who can reach the port a
+    # JWT, so it never makes a network bind safe; OCT, password accounts and
+    # the self-hosted owner account (setup code, then password) do.
     local_auth_cfg = getattr(cfg, "local_auth", None)
     bind_auth = bool(
         getattr(getattr(cfg, "oct", None), "enabled", False)
-        or (
-            getattr(local_auth_cfg, "enabled", False)
-            and getattr(local_auth_cfg, "password_required", False)
-        )
+        or local_auth.network_bind_authenticated(local_auth_cfg, deployment_mode)
     )
     bind_error = _insecure_bind_error(
         host=host,
@@ -654,6 +652,7 @@ def run_serve(
     )
     allow_local_workspace_access = effective_deployment_mode == "local" and _is_loopback_host(host)
     local_auth.install_desktop_owner_token(desktop_owner_token, allow_local_workspace_access)
+    cfg = owner_account.with_owner_jwt_secret(cfg)
 
     # Startup execution-health canary: probe whether a sandboxed command can
     # run in THIS process environment. When the backend cannot apply its

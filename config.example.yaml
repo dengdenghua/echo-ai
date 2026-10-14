@@ -227,6 +227,14 @@ oct:
 # ─────────────── Local Auth 本地认证 ─────────────
 # 本地用户名登录 · 不依赖第三方服务
 #
+# 不配 users（无密码账户）时，enabled: true 按运行方式分三种：
+#   · 开发实例（ECHO_ENV=development，pnpm dev:full 自动设置）：输入任意用户名即可进入，仅限本机。
+#   · 桌面版（ECHO_DESKTOP=1）：由桌面外壳自动以本机账户登录。
+#   · 自托管（其余 local 部署）：首次运行时控制台打印设置码（也写入 <数据目录>/auth/owner-setup-code.txt），
+#     用设置码在登录页创建本机账户（管理员），之后用密码登录；只接受本机和局域网的请求。
+#     jwt_secret 留空时自动生成并保存在 <数据目录>/auth/。
+# 配了 users 时只接受这些密码账户。
+#
 # enabled:              是否启用
 # allow_any_username:   允许任意用户名（false 时需配合 allowed_usernames 白名单）
 # allowed_usernames:    用户名白名单（仅 allow_any_username=false 时生效）

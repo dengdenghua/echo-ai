@@ -173,7 +173,7 @@ def _register_auth_routes(router: APIRouter, d: MetaRouterDeps) -> None:
         "/api/auth/providers",
         response_model=AuthProvidersResponse,
     )
-    def auth_providers() -> dict[str, Any]:
+    def auth_providers(request: Request) -> dict[str, Any]:
         """Return the list of configured login methods.
 
         The frontend Login page hides tabs whose id isn't in the
@@ -193,10 +193,19 @@ def _register_auth_routes(router: APIRouter, d: MetaRouterDeps) -> None:
             )
         from runtime.adapters.integrations.local_auth.config import (
             interactive_local_login_enabled,
+            owner_account_enabled,
         )
+        from runtime.adapters.integrations.local_auth.owner import owner_login_provider
 
+        owner_entry = (
+            owner_login_provider(request) if owner_account_enabled(local_auth_config) else None
+        )
+        if owner_entry is not None:
+            providers.append(owner_entry)
         # The desktop owner signs in through the shell, never a login form.
-        if interactive_local_login_enabled(local_auth_config):
+        elif interactive_local_login_enabled(local_auth_config) and not owner_account_enabled(
+            local_auth_config
+        ):
             pw_required = bool(getattr(local_auth_config, "users", {}))
             providers.append(
                 {
