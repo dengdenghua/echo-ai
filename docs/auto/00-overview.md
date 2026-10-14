@@ -27,6 +27,6 @@ tier: "core"
 ## 规模
 
 - Python 模块：**1765** 个（runtime/）
-- TSX 组件：**805** 个（frontend/src）
+- TSX 组件：**804** 个（frontend/src）
 - 后端测试：**1288** 个
 

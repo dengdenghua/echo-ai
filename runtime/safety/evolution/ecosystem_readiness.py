@@ -88,15 +88,15 @@ REQUIRED_TOPICS: tuple[ReadinessTopic, ...] = (
     ReadinessTopic(
         id="registry_install_surface",
         title="Verified registry install surface",
-        # The application market is embedded in the Agent workbench rather
-        # than exposed as a standalone route.  Keep this check anchored to the
-        # real user entry point, but follow the current minimal market shell:
-        # registry plugins/skills are presented through AppMarketplacePanel
-        # instead of restoring the old stack of source-specific panels.
+        # The application market is embedded in HUB rather than exposed as a
+        # standalone route.  Keep this check anchored to the real user entry
+        # point: the 应用 tab renders registry plugins through
+        # CapabilityMarketPanel.  (It used to name AppMarketplacePanel, which
+        # HUB never rendered; only a comment kept that check green.)
         path="frontend/src/components/workspace/agents/agent-world-unified.tsx",
         required_terms=(
-            "AppMarketplacePanel",
-            "app-marketplace-panel",
+            "CapabilityMarketPanel",
+            "capability-market-panel",
             'value="applications"',
         ),
     ),
