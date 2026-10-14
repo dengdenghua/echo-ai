@@ -48,6 +48,7 @@ import {
 } from "@/components/workspace/workspace-container";
 import { AgentOperatorPanel } from "@/components/workspace/agent-operator-panel";
 import { RunReviewPanel } from "@/components/workspace/run-review-panel";
+import { OperatorEventsGate } from "@/components/workspace/operator-events-gate";
 import { cn } from "@/lib/utils";
 import { useI18n } from "@/core/i18n/hooks";
 import { useGlobalControlPlaneAccess } from "@/core/auth/use-control-plane-access";
@@ -251,10 +252,9 @@ export default function ObservabilityPage({
                 title={t.observabilityPage.shell.eventsTitle}
                 description={t.observabilityPage.shell.eventsDescription}
               >
-                <RunReviewPanel />
-                <SwarmPanel />
+                <OperatorEventsGate><RunReviewPanel /><SwarmPanel /></OperatorEventsGate>
                 <BlackboardPanel />
-                <JournalPanel />
+                <OperatorEventsGate quiet><JournalPanel /></OperatorEventsGate>
               </PanelGroup>
             </TabsContent>
 
