@@ -24,6 +24,24 @@ const active = (job?: ProjectExecution | null) =>
   !!job && ["queued", "pending", "running"].includes(job.status);
 const failure = "操作失败，请稍后重试。";
 
+// The server names project actions in English; the projects workbench is
+// Chinese, so known actions get their own label and unknown ones keep the
+// server's.
+const ACTION_LABELS: Record<string, string> = {
+  run: "运行",
+  tick: "推进一步",
+  recover: "恢复",
+  recover_and_run: "恢复并运行",
+  inspect: "查看",
+  report: "报告",
+};
+
+export function projectActionLabel(
+  spec: Pick<ExecutionAction, "action" | "label">,
+) {
+  return ACTION_LABELS[spec.action] ?? spec.label;
+}
+
 export function projectExecutionBody(
   spec: ExecutionAction,
   overrides?: Record<string, unknown>,
@@ -102,8 +120,8 @@ export function useProjectExecution({
       });
       toast.success(
         response.status === 202
-          ? `${spec.label} 已提交到后台`
-          : `${spec.label} 已执行`,
+          ? `${projectActionLabel(spec)} 已提交到后台`
+          : `${projectActionLabel(spec)} 已执行`,
       );
       await execution.refetch();
       refreshRef.current();

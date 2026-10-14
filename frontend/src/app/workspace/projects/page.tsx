@@ -93,7 +93,10 @@ import {
 import { TodayQueuePanel } from "@/components/workspace/projects/today-queue";
 import { ProjectSwitcher } from "@/components/workspace/projects/project-switcher";
 import { ProjectTimeline } from "@/components/workspace/projects/project-timeline";
-import { useProjectExecution } from "@/components/workspace/projects/use-project-execution";
+import {
+  projectActionLabel,
+  useProjectExecution,
+} from "@/components/workspace/projects/use-project-execution";
 import { ProjectExecutionStatus } from "@/components/workspace/projects/project-execution-status";
 import {
   EstimateStack,
@@ -519,7 +522,7 @@ export default function ProjectsPage() {
                                   ) : (
                                     <ArrowRightIcon className="size-3.5" />
                                   )}
-                                  {spec.label}
+                                  {projectActionLabel(spec)}
                                 </Button>
                               ))}
                             </div>

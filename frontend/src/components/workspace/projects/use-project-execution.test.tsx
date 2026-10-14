@@ -4,6 +4,7 @@ import { beforeEach, expect, it, vi } from "vitest";
 import { renderWithProviders } from "@/test/harness";
 import { ProjectExecutionStatus } from "./project-execution-status";
 import {
+  projectActionLabel,
   projectExecutionBody,
   useProjectExecution,
 } from "./use-project-execution";
@@ -117,6 +118,18 @@ it("uses background execution for run and recover-and-run while preserving contr
   });
 });
 
+it("names known project actions in Chinese and keeps unknown server labels", () => {
+  expect(projectActionLabel({ action: "tick", label: "Tick" })).toBe(
+    "推进一步",
+  );
+  expect(projectActionLabel({ action: "recover_and_run", label: "x" })).toBe(
+    "恢复并运行",
+  );
+  expect(projectActionLabel({ action: "custom", label: "Custom" })).toBe(
+    "Custom",
+  );
+});
+
 it("restores durable state after remount and reports accepted requests as queued", async () => {
   let job = {
     task_id: "task",
@@ -142,9 +155,9 @@ it("restores durable state after remount and reports accepted requests as queued
   expect(await screen.findByText("后台执行中")).toBeInTheDocument();
   fireEvent.click(screen.getByText("Run"));
   await waitFor(() =>
-    expect(mocks.success).toHaveBeenCalledWith("Run project 已提交到后台"),
+    expect(mocks.success).toHaveBeenCalledWith("运行 已提交到后台"),
   );
-  expect(mocks.success).not.toHaveBeenCalledWith("Run project 已执行");
+  expect(mocks.success).not.toHaveBeenCalledWith("运行 已执行");
   expect(mocks.fetch).toHaveBeenCalledWith(
     "/api/projects/P-1/run",
     expect.objectContaining({ body: JSON.stringify({ background: true }) }),

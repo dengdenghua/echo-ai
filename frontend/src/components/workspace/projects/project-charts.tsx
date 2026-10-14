@@ -33,7 +33,10 @@ export function HealthDonut({
   size = 104,
   thickness = 12,
 }: HealthDonutProps) {
-  const total = DONUT_ORDER.reduce((sum, health) => sum + (counts[health] ?? 0), 0);
+  const total = DONUT_ORDER.reduce(
+    (sum, health) => sum + (counts[health] ?? 0),
+    0,
+  );
   const radius = (size - thickness) / 2;
   const circumference = 2 * Math.PI * radius;
   const center = size / 2;
@@ -68,7 +71,7 @@ export function HealthDonut({
             cy={center}
             r={radius}
             fill="none"
-            stroke="#e5e7eb"
+            className="stroke-muted"
             strokeWidth={thickness}
           />
           {segments.map((segment) => (
@@ -92,7 +95,7 @@ export function HealthDonut({
             dominantBaseline="middle"
             fontSize={size * 0.24}
             fontWeight={600}
-            fill="#111827"
+            className="fill-foreground"
           >
             {total}
           </text>
@@ -101,8 +104,8 @@ export function HealthDonut({
             y={center + size * 0.16}
             textAnchor="middle"
             dominantBaseline="middle"
-            fontSize={size * 0.11}
-            fill="#6b7280"
+            fontSize={Math.max(12, size * 0.11)}
+            className="fill-muted-foreground"
           >
             {caption}
           </text>
@@ -230,11 +233,7 @@ export function ProjectProgressBars({
 
 // ─── 里程碑估时堆叠条 ────────────────────────────────────────────────
 
-export function EstimateStack({
-  rows,
-}: {
-  rows: readonly EstimateRow[];
-}) {
+export function EstimateStack({ rows }: { rows: readonly EstimateRow[] }) {
   if (rows.length === 0) {
     return <div className="text-xs text-muted-foreground">暂无估算数据。</div>;
   }

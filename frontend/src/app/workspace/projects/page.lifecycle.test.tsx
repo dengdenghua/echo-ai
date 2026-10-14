@@ -334,7 +334,7 @@ describe("ProjectsPage governance", () => {
 
     renderWithProviders(<ProjectsPage />, { locale: "zh-CN" });
 
-    const run = await screen.findByRole("button", { name: "Run project" });
+    const run = await screen.findByRole("button", { name: "运行" });
     expect(run).toBeDisabled();
     expect(run).toHaveAttribute(
       "title",
@@ -365,9 +365,7 @@ describe("ProjectsPage governance", () => {
     route(governance({ blocked_reason: "phase_authorization" }));
 
     renderWithProviders(<ProjectsPage />, { locale: "zh-CN" });
-    expect(
-      await screen.findByRole("button", { name: "Run project" }),
-    ).toBeDisabled();
+    expect(await screen.findByRole("button", { name: "运行" })).toBeDisabled();
     await user.click(screen.getByRole("button", { name: "授权本阶段" }));
     const dialog = await screen.findByRole("dialog");
     await user.click(
@@ -418,9 +416,7 @@ describe("ProjectsPage governance", () => {
 
     renderWithProviders(<ProjectsPage />, { locale: "zh-CN" });
 
-    expect(
-      await screen.findByRole("button", { name: "Run project" }),
-    ).toBeEnabled();
+    expect(await screen.findByRole("button", { name: "运行" })).toBeEnabled();
     expect(
       screen.queryByRole("region", { name: "项目审批" }),
     ).not.toBeInTheDocument();
