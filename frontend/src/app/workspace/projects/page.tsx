@@ -632,7 +632,7 @@ export default function ProjectsPage() {
                             <CardContent className="space-y-3">
                               {pm.milestones.length === 0 && (
                                 <div className="text-sm text-muted-foreground">
-                                  还没有里程碑 —— 先执行 Run 让引擎拆解计划。
+                                  还没有里程碑 —— 先点「运行」让引擎拆解计划。
                                 </div>
                               )}
                               {pm.milestones.length > 0 && (
@@ -750,7 +750,7 @@ export default function ProjectsPage() {
                               </CardHeader>
                               <CardContent className="space-y-2">
                                 {pm.risks.length === 0 && (
-                                  <EmptyHint text="暂无风险。下次 Run 前检查里程碑依赖与指派，可以提前暴露阻塞。" />
+                                  <EmptyHint text="暂无风险。下次运行前检查里程碑依赖与指派，可以提前暴露阻塞。" />
                                 )}
                                 {pm.risks.map((r, i) => {
                                   const traceId = traceIdFromDetail(r.detail);
@@ -790,7 +790,7 @@ export default function ProjectsPage() {
                               </CardHeader>
                               <CardContent className="space-y-2">
                                 {pm.next_actions.length === 0 && (
-                                  <EmptyHint text="当前没有就绪任务。执行 Run 让引擎推进，或到项目群里补充任务描述。" />
+                                  <EmptyHint text="当前没有就绪任务。点「运行」让引擎推进，或到项目群里补充任务描述。" />
                                 )}
                                 {pm.next_actions.map((a) => (
                                   <div

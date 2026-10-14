@@ -63,7 +63,7 @@ export function ProjectTimeline({
   if (layout.bars.length === 0 && layout.unscheduled.length === 0) {
     return (
       <div className="rounded-lg border border-dashed px-3 py-4 text-xs text-muted-foreground">
-        还没有可排期的里程碑 —— 执行 Run 让引擎拆解计划后，这里会按计划开始 /
+        还没有可排期的里程碑 —— 点「运行」让引擎拆解计划后，这里会按计划开始 /
         截止日期铺出时间轴。
       </div>
     );
@@ -153,7 +153,10 @@ export function ProjectTimeline({
                     className={`absolute top-1/2 h-5 -translate-y-1/2 overflow-hidden rounded ${HEALTH_BAR_TRACK[bar.health]} ${
                       onSelectMilestone ? "cursor-pointer" : "cursor-default"
                     }`}
-                    style={{ left: `${bar.leftPct}%`, width: `${bar.widthPct}%` }}
+                    style={{
+                      left: `${bar.leftPct}%`,
+                      width: `${bar.widthPct}%`,
+                    }}
                     title={label}
                     aria-label={`${label}，进度 ${Math.round(bar.progress * 100)}%`}
                     onClick={() => onSelectMilestone?.(bar.id)}
@@ -166,7 +169,9 @@ export function ProjectTimeline({
                   {bar.overdueCount > 0 && (
                     <span
                       className="absolute top-1/2 flex -translate-y-1/2 items-center gap-0.5 rounded bg-warning/15 px-1 py-px text-[10px] tabular-nums text-warning"
-                      style={{ left: `calc(${bar.leftPct + bar.widthPct}% + 4px)` }}
+                      style={{
+                        left: `calc(${bar.leftPct + bar.widthPct}% + 4px)`,
+                      }}
                     >
                       <TimerIcon className="size-2.5" />
                       {bar.overdueCount}
@@ -207,7 +212,8 @@ export function ProjectTimeline({
 
       <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
         <span>
-          跨度 {Math.max(1, Math.round(layout.spanMs / (24 * 60 * 60 * 1000)))} 天
+          跨度 {Math.max(1, Math.round(layout.spanMs / (24 * 60 * 60 * 1000)))}{" "}
+          天
         </span>
         {layout.bars.length > 0 && (
           <span className="inline-flex items-center gap-1">
