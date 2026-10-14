@@ -13,6 +13,7 @@ const mocks = vi.hoisted(() => ({
   fetchUnifiedAssets: vi.fn(),
   streamInstallCloudSkill: vi.fn(),
   manageCloudSkill: vi.fn(),
+  listSkills: vi.fn(),
   toast: { success: vi.fn(), error: vi.fn() },
 }));
 
@@ -23,6 +24,8 @@ vi.mock("@/core/agents/agent-world-api", () => ({
   streamInstallCloudSkill: mocks.streamInstallCloudSkill,
   manageCloudSkill: mocks.manageCloudSkill,
 }));
+
+vi.mock("@/core/skills/api", () => ({ listSkills: mocks.listSkills }));
 
 vi.mock("sonner", () => ({ toast: mocks.toast }));
 
@@ -499,6 +502,7 @@ describe("CloudSkillsPanel", () => {
       ],
     });
     mocks.fetchCloudInstalled.mockResolvedValue({ skills: [], plugins: [] });
+    mocks.listSkills.mockResolvedValue([]);
     mocks.fetchUnifiedAssets.mockResolvedValue({
       total: 2,
       summary: { counts: { skill: 2 } },
@@ -584,6 +588,65 @@ describe("CloudSkillsPanel", () => {
     expect(screen.getAllByText("writing")).toHaveLength(1);
     const card = screen.getByText("local only").closest('[role="listitem"]');
     expect(within(card!).getByRole("button", { name: /^使用 / })).toBeEnabled();
+    // The live inventory answers for itself: no request to the asset index.
+    expect(mocks.fetchUnifiedAssets).not.toHaveBeenCalled();
+  });
+
+  it("shows the catalog before installed status arrives and holds installs until then", async () => {
+    let answer: (value: unknown) => void = () => undefined;
+    mocks.fetchCloudInstalled.mockReturnValue(
+      new Promise((resolve) => {
+        answer = resolve;
+      }),
+    );
+    renderWithProviders(<CloudSkillsPanel />, { locale: "zh-CN" });
+    const row = (await screen.findByText("research")).closest(
+      '[role="listitem"]',
+    )!;
+    expect(screen.getByText("正在核对已安装的技能…")).toBeVisible();
+    expect(within(row).getByRole("button", { name: "安装" })).toBeDisabled();
+
+    answer({
+      skills: [],
+      plugins: [],
+      local_skills: [
+        { id: "writing", name: "writing", kind: "skill", source: "builtin" },
+      ],
+    });
+    await waitFor(() =>
+      expect(
+        screen.queryByText("正在核对已安装的技能…"),
+      ).not.toBeInTheDocument(),
+    );
+    expect(within(row).getByRole("button", { name: "安装" })).toBeEnabled();
+    expect(screen.getByText("已安装 1 · 当前目录 2")).toBeVisible();
+  });
+
+  it("falls back to the runtime registry when installed status fails and the asset index is unbuilt", async () => {
+    mocks.fetchCloudInstalled.mockRejectedValue(new Error("timed out"));
+    mocks.fetchUnifiedAssets.mockRejectedValue(
+      new Error("Unified assets failed: HTTP 404"),
+    );
+    mocks.listSkills.mockResolvedValue([
+      { name: "writing", description: "写作", enabled: true, category: "x" },
+      { name: "pdf", description: "PDF 处理", enabled: true, category: "x" },
+      {
+        name: "android.tap",
+        description: "点按",
+        enabled: true,
+        category: "x",
+      },
+    ]);
+    renderWithProviders(<CloudSkillsPanel />, { locale: "zh-CN" });
+    expect(
+      await screen.findByText(
+        "暂时读不到安装状态，列表里的“已安装”标记可能不全。",
+      ),
+    ).toBeVisible();
+    expect(screen.getByText("已安装 2 · 当前目录 3")).toBeVisible();
+    expect(screen.getByText("pdf")).toBeVisible();
+    expect(screen.queryByText("android.tap")).not.toBeInTheDocument();
+    expect(screen.queryByText(/HTTP 404/)).not.toBeInTheDocument();
   });
 
   it("matches cloud package aliases to existing local names", async () => {

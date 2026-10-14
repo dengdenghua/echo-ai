@@ -291,8 +291,13 @@ export async function manageCloudSkill(
   });
 }
 
+// Installed status scans local skills, roles and plugin health and can take
+// several seconds; bound it so callers always leave their pending state.
+const CLOUD_INSTALLED_TIMEOUT_MS = 30_000;
+
 export async function fetchCloudInstalled(): Promise<CloudInstalledStatus> {
   return looseBody(await apiGet("/api/agent-market/cloud/installed", {
+    signal: AbortSignal.timeout(CLOUD_INSTALLED_TIMEOUT_MS),
     errorMessage: httpStatus("Cloud installed status failed"),
   }), guards.isCloudInstalledStatus);
 }

@@ -11,7 +11,7 @@ import { useNavigate } from "react-router-dom";
 import { serializeComposerDraft } from "@/core/threads/composer-capability-refs";
 import { SkillIcon } from "./skill-icon";
 import { AgentAvatar } from "@/components/workspace/agent-avatar";
-import { SKILL_CATEGORIES, skillCategories } from "./skill-categories";
+import { SKILL_CATEGORIES } from "./skill-categories";
 import { toast } from "sonner";
 
 import { Badge } from "@/components/ui/badge";
@@ -28,7 +28,6 @@ import {
 import {
   fetchCloudInstalled,
   fetchCloudSkills,
-  fetchUnifiedAssets,
   streamInstallCloudSkill,
   manageCloudSkill,
   type CloudInstalledStatus,
@@ -37,83 +36,18 @@ import {
   type CloudSkillsResponse,
   type UnifiedAsset,
 } from "@/core/agents/agent-world-api";
+import {
+  SKILL_NAMES,
+  authorLabel,
+  entryCategories,
+  loadFallbackLocalSkills,
+  localSkillAliases,
+  normalizeSkillName,
+  sourceLabel,
+  type SkillEntry,
+} from "./cloud-skills-data";
 
 const PAGE_SIZE = 40;
-const SKILL_NAMES: Record<string, string> = {
-  "academic-paper-expert": "学术论文助手",
-  "ad-copywriter": "广告文案",
-  "ad-creative": "广告创意",
-  "agent-generator": "智能体生成器",
-  "skill-creator": "技能创建器",
-  "plugin-creator": "插件创建器",
-  "agent-visual-kit": "智能体视觉设计",
-  "agnes-image-generate": "AI 图像生成",
-  "agnes-video-generate": "AI 视频生成",
-  "agnes-video-poll": "视频生成进度查询",
-  "api-and-interface-design": "API 与接口设计",
-  "api-doc-gen": "API 文档生成",
-  "api-shape-explorer": "API 方案探索",
-  "auto-hypothesis-test": "统计假设检验",
-  "auto-stat-test": "自动统计检验",
-  "backend-building": "后端开发",
-};
-
-function normalizeSkillName(value: string) {
-  return value
-    .trim()
-    .toLowerCase()
-    .replace(/[^a-z0-9_-]+/g, "-");
-}
-
-function localSkillAliases(asset: UnifiedAsset) {
-  return [asset.id, asset.name, asset.name_zh]
-    .filter((value): value is string => Boolean(value?.trim()))
-    .map(normalizeSkillName);
-}
-
-interface SkillEntry {
-  key: string;
-  name: string;
-  description: string;
-  version?: string;
-  author?: string;
-  source?: string;
-  cloud: CloudSkillItem | null;
-  local: UnifiedAsset | null;
-}
-
-function entryCategories(entry: SkillEntry): string[] {
-  const name = entry.cloud?.original_name || entry.name;
-  return ["skill-creator", "plugin-creator", "agent-generator"].includes(name)
-    ? ["开发工具"]
-    : skillCategories(entry.cloud?.tags);
-}
-
-function sourceLabel(source?: string) {
-  const labels: Record<string, string> = {
-    builtin: "系统内置",
-    local: "本地技能",
-    imported: "本地导入",
-    echo: "echo",
-    "echo-repository": "echo",
-    openai: "OpenAI 官方",
-    anthropic: "Anthropic 官方",
-    vercel: "Vercel 官方",
-    "minimax-design": "MiniMax Design",
-    "skills.sh": "Skills.sh 社区",
-  };
-  return source?.trim() ? labels[source] || source : "未提供";
-}
-
-function authorLabel(author?: string, source?: string) {
-  if (
-    ["echo", "echo-repository", "echo"].includes(source ?? "") ||
-    /^(echo-ai|echo|echo)$/i.test(author?.trim() ?? "")
-  )
-    return "echo";
-  return author?.trim() || "未提供";
-}
-
 export function CloudSkillsPanel({
   searchQuery = "",
   onClearSearch,
@@ -147,6 +81,10 @@ export function CloudSkillsPanel({
     Record<string, CloudSkillInstallProgress>
   >({});
   const [loading, setLoading] = useState(true);
+  // Installed status arrives after the catalog; until then an install
+  // button would guess. ``installedError`` keeps a failed check honest.
+  const [installedPending, setInstalledPending] = useState(true);
+  const [installedError, setInstalledError] = useState(false);
   const [cloudError, setCloudError] = useState<string | null>(null);
   const [detail, setDetail] = useState<SkillEntry | null>(null);
 
@@ -157,12 +95,15 @@ export function CloudSkillsPanel({
   const load = useCallback(async () => {
     setLoading(true);
     setCloudError(null);
-    const [cloudResult, installedResult, localResult] =
-      await Promise.allSettled([
-        fetchCloudSkills({ limit: 500 }),
-        fetchCloudInstalled(),
-        fetchUnifiedAssets({ kind: "skill", limit: 500, offset: 0 }),
-      ]);
+    setInstalledPending(true);
+    // The catalog answers in milliseconds; installed status scans local
+    // skills and roles and can take seconds. Show the catalog first and fill
+    // in what is installed when that answer arrives.
+    // Settle it right away so an early failure is never an unhandled rejection.
+    const installedRequest = Promise.allSettled([fetchCloudInstalled()]);
+    const [cloudResult] = await Promise.allSettled([
+      fetchCloudSkills({ limit: 500 }),
+    ]);
 
     if (cloudResult.status === "fulfilled") {
       setCloudSkills(cloudResult.value.items);
@@ -174,6 +115,13 @@ export function CloudSkillsPanel({
           : String(cloudResult.reason),
       );
     }
+    setLoading(false);
+
+    const [installedResult] = await installedRequest;
+    const liveLocalSkills =
+      installedResult.status === "fulfilled"
+        ? installedResult.value.local_skills
+        : undefined;
     setInstalledNames(
       new Set(
         installedResult.status === "fulfilled"
@@ -191,15 +139,9 @@ export function CloudSkillsPanel({
         ? installedResult.value.skill_users
         : undefined,
     );
-    setLocalSkills(
-      installedResult.status === "fulfilled" &&
-        installedResult.value.local_skills
-        ? installedResult.value.local_skills
-        : localResult.status === "fulfilled"
-          ? localResult.value.items
-          : [],
-    );
-    setLoading(false);
+    setLocalSkills(liveLocalSkills ?? (await loadFallbackLocalSkills()));
+    setInstalledError(installedResult.status === "rejected");
+    setInstalledPending(false);
   }, []);
 
   useEffect(() => {
@@ -573,6 +515,15 @@ export function CloudSkillsPanel({
           云端目录同步失败，仍可查看本地与其他来源的技能：{cloudError}
         </div>
       ) : null}
+      {installedPending && !loading ? (
+        <p role="status" className="text-xs text-muted-foreground">
+          正在核对已安装的技能…
+        </p>
+      ) : installedError ? (
+        <p role="status" className="text-xs text-muted-foreground">
+          暂时读不到安装状态，列表里的“已安装”标记可能不全。
+        </p>
+      ) : null}
 
       {loading && entries.length === 0 ? (
         <div className="grid gap-x-6 sm:grid-cols-2">
@@ -691,7 +642,7 @@ export function CloudSkillsPanel({
                           size="sm"
                           variant="ghost"
                           className="h-8 shrink-0 gap-1 px-2.5 text-xs"
-                          disabled={Boolean(installing)}
+                          disabled={Boolean(installing) || installedPending}
                           onClick={() =>
                             variants.length > 1
                               ? setDetail(entry)
@@ -1069,7 +1020,9 @@ export function CloudSkillsPanel({
               {!detail.cloud?.catalog_only &&
                 isInstalled(detail) &&
                 stateFor(detail)?.enabled !== false && (
-                  <Button onClick={() => handleUseSkill(detail)}>使用技能</Button>
+                  <Button onClick={() => handleUseSkill(detail)}>
+                    使用技能
+                  </Button>
                 )}
               {!isInstalled(detail) &&
                 detail.cloud &&
