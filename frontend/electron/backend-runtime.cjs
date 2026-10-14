@@ -474,6 +474,38 @@ function requirePackagedCodexExecutable() {
   return requirePackagedCodexBundle();
 }
 
+function bundledEngine(name) {
+  try {
+    fs.lstatSync(path.join(resourcesPath(), name));
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+// The standard installer ships no engines: the HUB store installs the pinned
+// Codex/OpenCode into userData/engines on demand
+// (runtime/execution/engine_packages). The full offline installer bundles
+// them, and a bundle that is present must verify or the app refuses to start.
+// Either way the backend never inherits a host PATH or host-chosen engine.
+function packagedEngineEnv(env) {
+  delete env.ECHO_CODEX_EXECUTABLE;
+  delete env.ECHO_OPENCODE_BIN;
+  env.ECHO_ENGINES_DIR = path.join(app.getPath("userData"), "engines");
+  env.ECHO_ENGINES_STRICT = "1";
+  const bundled = [];
+  if (bundledEngine("codex")) {
+    env.ECHO_CODEX_EXECUTABLE = requirePackagedCodexExecutable();
+    bundled.push("codex");
+  }
+  if (bundledEngine("opencode")) {
+    env.ECHO_OPENCODE_BIN = requirePackagedOpenCode(resourcesPath());
+    bundled.push("opencode");
+  }
+  env.ECHO_ENGINES_BUNDLED = bundled.join(",");
+  return env;
+}
+
 function developmentUvCmd() {
   if (app.isPackaged) {
     throw new Error("packaged desktop builds must not invoke uv");
@@ -661,7 +693,8 @@ async function loginDesktopOwner(backendBaseURL, { displayName } = {}) {
 
 // Start a fixed bundled executable in packaged mode.  The unpackaged smoke
 // path may use the development venv, but there is intentionally no packaged
-// fallback to Python, uv, PATH, or the network.
+// fallback to Python, uv or PATH, and nothing is downloaded at startup:
+// engines come from the bundle or from an install the person starts.
 async function spawnBackend(configPath, onProgress) {
   if (backendChild) return backendChild;
   const packaged = Boolean(app.isPackaged);
@@ -687,12 +720,7 @@ async function spawnBackend(configPath, onProgress) {
   const executable = packaged
     ? requirePackagedBackendExecutable()
     : pythonExe();
-  if (packaged) {
-    // This absolute, verified resource path is the only Codex executable the
-    // packaged backend may resolve. Never inherit a host PATH installation.
-    env.ECHO_CODEX_EXECUTABLE = requirePackagedCodexExecutable();
-    env.ECHO_OPENCODE_BIN = requirePackagedOpenCode(resourcesPath());
-  }
+  if (packaged) packagedEngineEnv(env);
   const args = packaged
     ? [
         "serve",
@@ -757,4 +785,5 @@ module.exports = {
   packagedCodexExecutable,
   requirePackagedCodexBundle,
   requirePackagedCodexExecutable,
+  packagedEngineEnv,
 };

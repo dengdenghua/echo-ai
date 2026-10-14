@@ -446,8 +446,15 @@ def test_packaged_desktop_backend_has_no_uv_python_or_network_fallback() -> None
     assert '"echo-codex-bundle.json"' in source
     assert "required.expectedSha256 || sourceHash" in source
     assert "refusing PATH/network fallback" in source
-    assert "env.ECHO_CODEX_EXECUTABLE = requirePackagedCodexExecutable();" in spawn
-    assert "env.ECHO_OPENCODE_BIN = requirePackagedOpenCode(resourcesPath());" in spawn
+    engines = source[
+        source.index("function packagedEngineEnv") : source.index("function developmentUvCmd")
+    ]
+    assert "if (packaged) packagedEngineEnv(env);" in spawn
+    assert "delete env.ECHO_CODEX_EXECUTABLE;" in engines
+    assert "delete env.ECHO_OPENCODE_BIN;" in engines
+    assert 'env.ECHO_ENGINES_STRICT = "1";' in engines
+    assert "env.ECHO_CODEX_EXECUTABLE = requirePackagedCodexExecutable();" in engines
+    assert "env.ECHO_OPENCODE_BIN = requirePackagedOpenCode(resourcesPath());" in engines
 
 
 def test_packaged_runtime_rejects_missing_backend_before_any_spawn(
@@ -503,10 +510,14 @@ const runtime = require(process.argv[1]);
     assert "refusing system/runtime fallback" in payload["message"]
 
 
-def test_packaged_runtime_rejects_missing_codex_before_any_spawn(tmp_path: Path) -> None:
+def test_standard_installer_starts_without_engines_and_ignores_host_ones(
+    tmp_path: Path,
+) -> None:
+    """No bundled engines: the store installs them into userData/engines later."""
+
     node = shutil.which("node")
     if node is None:
-        pytest.skip("Node.js is required for the packaged Codex contract")
+        pytest.skip("Node.js is required for the packaged engine contract")
     resources = tmp_path / "packaged-resources"
     user_data = tmp_path / "user-data"
     backend_name = "echo-backend.exe" if os.name == "nt" else "echo-backend"
@@ -516,25 +527,34 @@ def test_packaged_runtime_rejects_missing_codex_before_any_spawn(tmp_path: Path)
     script = r"""
 const Module = require("module");
 const originalLoad = Module._load;
-let spawnCalls = 0;
+let captured = null;
 Module._load = function(request, parent, isMain) {
   if (request === "electron") {
     return { app: { isPackaged: true, getPath: () => process.argv[3] } };
   }
   if (request === "child_process") {
-    return { spawn: () => { spawnCalls += 1; throw new Error("unexpected spawn"); } };
+    return { spawn: (command, args, options) => {
+      const env = options.env;
+      captured = {
+        codex: env.ECHO_CODEX_EXECUTABLE ?? null,
+        opencode: env.ECHO_OPENCODE_BIN ?? null,
+        enginesDir: env.ECHO_ENGINES_DIR,
+        strict: env.ECHO_ENGINES_STRICT,
+        bundled: env.ECHO_ENGINES_BUNDLED,
+      };
+      return { on: () => {} };
+    } };
   }
   return originalLoad.call(this, request, parent, isMain);
 };
 Object.defineProperty(process, "resourcesPath", { value: process.argv[2] });
+process.env.ECHO_CODEX_EXECUTABLE = "host-path-codex";
+process.env.ECHO_OPENCODE_BIN = "host-path-opencode";
+process.env.ECHO_ENGINES_STRICT = "0";
 const runtime = require(process.argv[1]);
 (async () => {
-  try {
-    await runtime.spawnBackend("ignored-config.yaml");
-    process.exitCode = 2;
-  } catch (error) {
-    process.stdout.write(JSON.stringify({ message: error.message, spawnCalls }));
-  }
+  await runtime.spawnBackend("ignored-config.yaml");
+  process.stdout.write(JSON.stringify(captured));
 })();
 """
     result = subprocess.run(
@@ -545,9 +565,11 @@ const runtime = require(process.argv[1]);
     )
     payload = json.loads(result.stdout)
 
-    assert payload["spawnCalls"] == 0
-    assert "packaged Codex executable is missing" in payload["message"]
-    assert "refusing PATH/network fallback" in payload["message"]
+    assert payload["codex"] is None
+    assert payload["opencode"] is None
+    assert Path(payload["enginesDir"]) == user_data / "engines"
+    assert payload["strict"] == "1"
+    assert payload["bundled"] == ""
 
 
 @pytest.mark.parametrize(
@@ -697,7 +719,8 @@ Module._load = function(request, parent, isMain) {
   if (request === "child_process") {
     return { spawn: (command, args, options) => {
       captured = { command, args, codex: options.env.ECHO_CODEX_EXECUTABLE,
-        opencode: options.env.ECHO_OPENCODE_BIN };
+        opencode: options.env.ECHO_OPENCODE_BIN,
+        bundled: options.env.ECHO_ENGINES_BUNDLED };
       return { on: () => {} };
     } };
   }
@@ -731,6 +754,8 @@ const runtime = require(process.argv[1]);
     assert payload["opencode"] == str(bundled_opencode)
     assert Path(payload["opencode"]).is_absolute()
     assert payload["opencode"] != "host-path-opencode"
+    # The full offline installer: the store shows both as bundled.
+    assert payload["bundled"] == "codex,opencode"
 
 
 def test_windows_workflow_builds_and_smokes_canonical_offline_shell() -> None:
