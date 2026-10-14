@@ -13,7 +13,7 @@ frontend/src/app/workspace/narrative/api.ts	1480
 frontend/src/app/workspace/narrative/page.tsx	1602
 frontend/src/app/workspace/narrative/studio-panels.tsx	1173
 frontend/src/app/workspace/observability/page.tsx	1856
-frontend/src/app/workspace/realtime/[thread_id]/page.tsx	1772
+frontend/src/app/workspace/realtime/[thread_id]/page.tsx	1768
 frontend/src/app/workspace/reflex/gepa-panel.tsx	1795
 frontend/src/app/workspace/storage/page.tsx	3291
 frontend/src/components/browser/assistant-panel.tsx	1868
@@ -35,7 +35,7 @@ frontend/src/components/workspace/artifacts/artifact-file-detail.tsx	1330
 frontend/src/components/workspace/browser-preview-panel.tsx	2358
 frontend/src/components/workspace/channel-credential-dialog.tsx	1070
 frontend/src/components/workspace/chat-input-box.test.tsx	2319
-frontend/src/components/workspace/chat-input-box/ChatComposer.tsx	2236
+frontend/src/components/workspace/chat-input-box/ChatComposer.tsx	2221
 frontend/src/components/workspace/coder-engine-control.test.tsx	1262
 frontend/src/components/workspace/collab/collab-provider.tsx	1329
 frontend/src/components/workspace/evolution-control-panel/index.tsx	1444
@@ -48,7 +48,7 @@ frontend/src/components/workspace/messages/message-group.tsx	3350
 frontend/src/components/workspace/messages/message-list-item.tsx	1509
 frontend/src/components/workspace/messages/message-list.process-trace.test.tsx	3251
 frontend/src/components/workspace/messages/message-output-summary.test.tsx	1218
-frontend/src/components/workspace/messages/message-output-summary.tsx	1251
+frontend/src/components/workspace/messages/message-output-summary.tsx	1233
 frontend/src/components/workspace/model-picker.tsx	1081
 frontend/src/components/workspace/settings/memory-settings-page.tsx	1334
 frontend/src/components/workspace/settings/model-settings-page.test.tsx	1297

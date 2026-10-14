@@ -44,6 +44,7 @@ import {
   rememberLastComposerTarget,
 } from "@/core/composer-image-inbox";
 import { useI18n } from "@/core/i18n/hooks";
+import { composerActionsCopy } from "@/core/i18n/locales/composer-actions";
 import { useModels } from "@/core/models/hooks";
 import { usePlugins } from "@/core/plugins/hooks";
 import { useSkills } from "@/core/skills/hooks";
@@ -158,7 +159,7 @@ export function ChatComposer({
   isUploading = false,
   className,
 }: ChatInputBoxProps) {
-  const { t } = useI18n();
+  const { t, locale } = useI18n();
   const { models } = useModels();
   // Async attachment work must never outlive the conversation that started
   // it. Replace the scope during the route commit so abandoned concurrent
@@ -2061,7 +2062,8 @@ export function ChatComposer({
           </div>
           <div
             data-testid="composer-runtime-controls"
-            className="flex min-w-0 max-w-[min(58vw,20rem)] items-center"
+            // Engine and model read as one segmented control: two "自动"s side by side looked like duplicates.
+            className={cn("flex min-w-0 max-w-[min(58vw,20rem)] items-center", executionEngineControl && "rounded-lg border border-border-default/70 bg-muted/25")}
           >
             {executionEngineControl}
             {executionEngineControl ? (
@@ -2170,10 +2172,9 @@ export function ChatComposer({
               data-testid="chat-resume-button"
               onClick={onResume}
               disabled={isBusy || submissionBlocked || isStopping}
-              className="flex size-[42px] items-center justify-center rounded-lg bg-foreground text-background disabled:opacity-50 sm:size-8"
-              aria-label="继续执行"
-              title="继续当前任务，保留已有上下文；不会恢复已结束的终端进程"
-            ><PlayIcon className="size-3.5" /></button>
+              className="flex h-[42px] items-center gap-1.5 rounded-lg bg-foreground px-3 text-xs font-medium text-background transition-all duration-base hover:bg-foreground/90 active:scale-95 disabled:opacity-50 sm:h-8 sm:px-2.5"
+              title={composerActionsCopy(locale).resumeHint}
+            ><PlayIcon className="size-3" fill="currentColor" aria-hidden="true" />{composerActionsCopy(locale).resume}</button>
           ) : (
             <button
               type="button"

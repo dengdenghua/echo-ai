@@ -267,13 +267,23 @@ export function ExecutionEngineBadge({ engine }: { engine: unknown }) {
     return null;
   const name =
     engine === "opencode" ? "OpenCode" : engine === "codex" ? "Codex" : "Echo";
+  const Icon =
+    engine === "opencode"
+      ? OpenCodeIcon
+      : engine === "codex"
+        ? CodexIcon
+        : SparklesIcon;
+  const copy = executionEngineCopy(locale);
+  // A quiet meta line with the engine's mark: as a bordered chip beside the
+  // avatar it read like the speaker's name.
   return (
     <span
-      className="mb-1 inline-block rounded border border-border/60 px-1.5 text-xs leading-4 text-muted-foreground"
-      title={executionEngineCopy(locale).executedBy(name)}
+      className="mb-1 inline-flex items-center gap-1 text-xs leading-4 text-muted-foreground"
+      title={copy.executedBy(name)}
       data-execution-engine={engine}
     >
-      {name}
+      <Icon className="size-3 shrink-0" />
+      {copy.engineBadge(name)}
     </span>
   );
 }

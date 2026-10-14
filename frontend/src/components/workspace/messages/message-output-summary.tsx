@@ -12,7 +12,6 @@ import {
   normalizeWorkspaceArtifactRef,
 } from "@/core/artifacts/utils";
 import { getBackendBaseURL } from "@/core/config";
-import { emitOpenSettings } from "@/core/events/event-bus";
 import { useI18n } from "@/core/i18n/hooks";
 import {
   stripInternalToolProtocol,
@@ -36,7 +35,6 @@ import {
   FilesIcon,
   LinkIcon,
   Loader2Icon,
-  Settings2Icon,
   WandSparklesIcon,
   XCircleIcon,
 } from "lucide-react";
@@ -48,6 +46,7 @@ import { emitOpenAgentWorkbench } from "../agent-workbench-events";
 import { isInternalWorkingFilePath } from "../agent-workbench-utils";
 import { RoutedWebLink } from "@/components/ui/routed-web-link";
 import { TaskConnectionRecovery, taskConnectionIssue } from "./task-connection-recovery";
+import { hasModelPreparationIssue, isNoModelFailure, ModelSetupActions } from "./model-setup-actions";
 
 type OutputArtifact = {
   path: string;
@@ -540,13 +539,8 @@ export function MessageOutputSummary({
   const { select, setOpen } = useArtifacts();
   const scanMessages = turnMessages ?? messages;
   const connectionIssue = useMemo(() => taskConnectionIssue(scanMessages), [scanMessages]);
-  const modelPreparationIssue = useMemo(() => scanMessages.some((message) => {
-    const info = asRecord(asRecord(message.additional_kwargs?.error)?.info);
-    return info?.code === "execution_unavailable" &&
-      (info.engine === "codex" || info.engine === "opencode") &&
-      ["account_required", "account_unavailable", "model_incompatible",
-        "configuration_unavailable", "executable_unavailable", "not_installed", "disabled", "unavailable"].includes(String(info.reason));
-  }), [scanMessages]);
+  const modelPreparationIssue = useMemo(() => hasModelPreparationIssue(scanMessages), [scanMessages]);
+  const noModel = isNoModelFailure(failure);
   const summary = useMemo(() => summarizeOutputs(scanMessages), [scanMessages]);
   // Error details frequently contain failed proxy endpoints. They are
   // diagnostics, not user-facing results, so a failed turn must never expose
@@ -574,6 +568,7 @@ export function MessageOutputSummary({
   // Network loss, an environment block, and a "needs your input" hand-off are
   // not agent failures — render them as amber/warning, not destructive red.
   const isWarningFailure =
+    noModel ||
     failure?.kind === "auth" ||
     failure?.kind === "capability" ||
     failure?.kind === "network" ||
@@ -769,19 +764,8 @@ export function MessageOutputSummary({
           )}
           {isFailure &&
             !isResolvedFailure &&
-            (failure?.kind === "auth" || failure?.kind === "rate-limit" || modelPreparationIssue) && (
-              <button
-                type="button"
-                onClick={() => emitOpenSettings("models")}
-                title={t.streaming.openModelSettings}
-                className={cn(
-                  "inline-flex h-7 shrink-0 items-center gap-1 rounded-md border px-2 text-xs font-medium transition-colors",
-                  "border-warning/35 bg-warning/[0.08] text-warning hover:border-warning/55 hover:bg-warning/15",
-                )}
-              >
-                <Settings2Icon className="size-3" />
-                {t.streaming.openModelSettings}
-              </button>
+            (failure?.kind === "auth" || failure?.kind === "rate-limit" || modelPreparationIssue || noModel) && (
+              <ModelSetupActions noModel={noModel} indent />
             )}
           {isFailure &&
             !isResolvedFailure &&
@@ -822,7 +806,7 @@ export function MessageOutputSummary({
             )}
           {isFailure &&
             !isResolvedFailure &&
-            failure?.kind !== "auth" &&
+            failure?.kind !== "auth" && !noModel &&
             !connectionIssue &&
             (failure?.kind !== "environment" || !onAuthorizeNetwork) &&
             originalPrompt && (

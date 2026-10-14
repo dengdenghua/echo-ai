@@ -520,12 +520,8 @@ export function ModeSelector({
             {t.modes.manualOverrideShort}
           </span>
         )}
-        {codeModeUnlocked ? (
-          <span
-            className="size-1.5 rounded-full bg-core transition-all duration-base"
-            aria-hidden="true"
-          />
-        ) : (
+        {/* Only the exception is marked: a read-only workspace shows a lock. */}
+        {codeModeUnlocked ? null : (
           <span
             className="inline-flex shrink-0 text-warning"
             title={readOnlyHint}

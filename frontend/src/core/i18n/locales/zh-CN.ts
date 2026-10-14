@@ -114,7 +114,7 @@ export const zhCN: Translations = {
 
   // Input Box
   inputBox: {
-    placeholder: "@ 引用对话文件，/ 调用技能与指令，直接说需求...",
+    placeholder: "说说需求，@ 引用文件，/ 调用技能",
     mode: "模式",
     flashMode: "对话",
     flashModeDescription: "快速响应",

@@ -1,4 +1,5 @@
 import { EchoAPIError } from "../api/client";
+import { turnFailureCopy } from "../i18n/locales/turn-failure";
 
 export function threadDeleteErrorMessage(error: unknown): string {
   if (!(error instanceof EchoAPIError))
@@ -32,20 +33,31 @@ export function threadDeleteErrorMessage(error: unknown): string {
   return "删除未完成，请稍后重试。对话已保留。";
 }
 
-/** Translate known execution failures, including wrappers in saved history. */
-export function publicExecutionErrorMessage(message: string): string {
+/** A desktop without an Echo account, OpenCode or a custom model. */
+export function isNoModelConfigured(message: string): boolean {
+  return /no LLM model configured/i.test(message);
+}
+
+/**
+ * Translate known execution failures, including wrappers in saved history.
+ * ``locale`` defaults to Chinese for callers that have no locale at hand.
+ */
+export function publicExecutionErrorMessage(
+  message: string,
+  locale = "zh-CN",
+): string {
+  const copy = turnFailureCopy(locale);
   if (/model is unavailable|model_unavailable|model_not_found/i.test(message)) {
-    return "所选模型当前不可用，请在输入框选择其他模型后重试。";
+    return copy.modelUnavailable;
   }
   if (/free tier can only be used in opencode/i.test(message)) {
-    return "当前 Zen 免费模型仅支持 OpenCode 引擎，请在输入框切换引擎后重试。";
+    return copy.freeTierNeedsOpencode;
   }
-  if (/no LLM model configured/i.test(message)) {
-    // A desktop without an Echo account or OpenCode has no model to run on.
-    return "还没有可用的模型：登录 Echo 账号使用官方模型，或在执行引擎菜单里安装 OpenCode 使用免费模型，也可以在设置里添加自己的模型。";
+  if (isNoModelConfigured(message)) {
+    return copy.noModel;
   }
   if (message.includes("Responses tool catalog is too large")) {
-    return "当前任务加载的工具过多，已超过执行接口上限。请减少启用的插件或工具后重试。";
+    return copy.toolCatalogTooLarge;
   }
   return message;
 }

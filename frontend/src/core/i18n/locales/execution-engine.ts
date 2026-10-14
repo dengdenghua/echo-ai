@@ -33,6 +33,8 @@ export interface ExecutionEngineCopy {
   opencodeDescription: string;
   codexDescription: string;
   executedBy: (engine: string) => string;
+  /** The quiet label under an answer, so an engine never reads as a name. */
+  engineBadge: (engine: string) => string;
   /** Freshness of the engine's last real chat call (engineVerificationLabel). */
   verification: { verified: string; failed: string; configured: string };
   /** A sent message the selected engine could not start (turn error
@@ -71,6 +73,7 @@ const zhCN: ExecutionEngineCopy = {
   opencodeDescription: "使用 OpenCode 身份，支持官方免费模型",
   codexDescription: "使用 Codex 身份执行当前任务",
   executedBy: (engine) => `实际执行引擎：${engine}`,
+  engineBadge: (engine) => `${engine} 引擎`,
   verification: {
     verified: "最近会话调用通过",
     failed: "最近会话调用失败，可重试",
@@ -127,6 +130,7 @@ const enUS: ExecutionEngineCopy = {
     "Use the OpenCode identity with official free or connected Zen models",
   codexDescription: "Run this task with the Codex identity",
   executedBy: (engine) => `Executed by ${engine}`,
+  engineBadge: (engine) => `${engine} engine`,
   verification: {
     verified: "Recent session call verified",
     failed: "Recent session call failed; retry available",
@@ -188,6 +192,7 @@ const jaJP: ExecutionEngineCopy = {
   opencodeDescription: "OpenCode の ID で実行します。公式の無料モデルに対応",
   codexDescription: "このタスクを Codex の ID で実行します",
   executedBy: (engine) => `実行エンジン：${engine}`,
+  engineBadge: (engine) => `${engine} エンジン`,
   verification: {
     verified: "最近のセッション呼び出しは成功しました",
     failed: "最近のセッション呼び出しは失敗しました。再試行できます",
@@ -248,6 +253,7 @@ const koKR: ExecutionEngineCopy = {
   opencodeDescription: "OpenCode ID로 실행하며 공식 무료 모델을 지원합니다",
   codexDescription: "이 작업을 Codex ID로 실행합니다",
   executedBy: (engine) => `실행 엔진: ${engine}`,
+  engineBadge: (engine) => `${engine} 엔진`,
   verification: {
     verified: "최근 세션 호출 성공",
     failed: "최근 세션 호출 실패, 다시 시도할 수 있음",

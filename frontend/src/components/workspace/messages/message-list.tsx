@@ -12,7 +12,7 @@ import {
 } from "@/components/ai-elements/conversation";
 import { useLocalSettings } from "@/core/settings";
 import { useI18n } from "@/core/i18n/hooks";
-import { emitOpenSettings } from "@/core/events/event-bus";
+import { ModelSetupActions } from "./model-setup-actions";
 import { groupMessages, isSettledAssistantAnswer } from "@/core/messages/utils";
 import { useRehypeSplitWordsIntoSpans } from "@/core/rehype";
 import type { AgentThreadState } from "@/core/threads";
@@ -291,6 +291,7 @@ export function MessageList({
     failureReceipt,
     isNetworkError,
     isWarningFailure,
+    noModelFailure,
     failureHeaderText,
     errorBannerText,
     verificationAuditNotice,
@@ -810,16 +811,11 @@ export function MessageList({
                     </div>
                   )}
                 {(failureReceipt?.kind === "auth" ||
-                  failureReceipt?.kind === "rate-limit") && (
+                  failureReceipt?.kind === "rate-limit" ||
+                  noModelFailure) && (
                   <div className="mt-2 flex flex-wrap items-center gap-2">
-                    <button
-                      type="button"
-                      onClick={() => emitOpenSettings("models")}
-                      className="rounded-md border border-warning/80 bg-warning/10 px-2.5 py-1 text-xs font-medium text-warning transition-colors hover:bg-warning/20 dark:border-warning/60"
-                    >
-                      {t.streaming.openModelSettings}
-                    </button>
-                    {failureReceipt.kind === "rate-limit" &&
+                    <ModelSetupActions noModel={noModelFailure} />
+                    {failureReceipt?.kind === "rate-limit" &&
                       fallbackRetryPrompt &&
                       onRetryTask &&
                       !latestOutboundDeliveryFailed && (
@@ -846,6 +842,7 @@ export function MessageList({
                 {(failureReceipt?.kind === "capability" ||
                   failureReceipt?.kind === "network" ||
                   failureReceipt?.kind === "error") &&
+                  !noModelFailure &&
                   fallbackRetryPrompt &&
                   onRetryTask &&
                   !latestOutboundDeliveryFailed && (

@@ -19,6 +19,8 @@ import {
 } from "@/core/messages/utils";
 import type { AgentThreadState } from "@/core/threads";
 import { publicExecutionErrorMessage } from "@/core/threads/errors";
+import { turnFailureCopy } from "@/core/i18n/locales/turn-failure";
+import { isNoModelFailure } from "./model-setup-actions";
 
 import {
   failureKind,
@@ -137,7 +139,7 @@ export function useTurnFailure({
             failure.detail,
           )
             ? t.streaming.sidecarCleanupBlocked
-            : publicExecutionErrorMessage(message),
+            : publicExecutionErrorMessage(message, locale),
       };
     },
     [
@@ -188,7 +190,10 @@ export function useTurnFailure({
   const isBackpressureError = failureReceipt?.kind === "backpressure";
   // Environment blocks and "needs your input" hand-offs are not agent
   // failures — render them amber, not destructive red.
+  // No model at all is a setup step, not a task failure.
+  const noModelFailure = isNoModelFailure(failureReceipt);
   const isWarningFailure =
+    noModelFailure ||
     isNetworkError ||
     failureReceipt?.kind === "auth" ||
     failureReceipt?.kind === "capability" ||
@@ -196,8 +201,9 @@ export function useTurnFailure({
     isBackpressureError ||
     failureReceipt?.kind === "environment" ||
     failureReceipt?.kind === "blocked";
-  const failureHeaderText =
-    failureReceipt?.kind === "blocked"
+  const failureHeaderText = noModelFailure
+    ? turnFailureCopy(locale).noModelTitle
+    : failureReceipt?.kind === "blocked"
       ? t.streaming.blockedOnUser
       : failureReceipt?.kind === "environment"
         ? t.streaming.environmentBlocked
@@ -292,6 +298,7 @@ export function useTurnFailure({
     failureReceipt,
     isNetworkError,
     isWarningFailure,
+    noModelFailure,
     failureHeaderText,
     errorBannerText,
     verificationAuditNotice,
