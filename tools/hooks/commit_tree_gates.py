@@ -21,12 +21,12 @@ Usage::
     python tools/hooks/commit_tree_gates.py                     # pre-commit
     python tools/hooks/commit_tree_gates.py --push FROM_SHA TO_SHA
     python tools/hooks/commit_tree_gates.py --all [--push-gates]  # current index
-    python tools/hooks/commit_tree_gates.py --fix-docs PATH...  # see below
+    python tools/hooks/commit_tree_gates.py --fix-docs [PATH...]  # see below
 
-``--fix-docs`` regenerates docs/auto for HEAD plus the working-tree state of
-PATH... (what ``git commit -- PATH...`` would commit) and writes only the
-changed pages into this checkout, so other sessions' uncommitted code does
-not leak into the generated docs. Commit them with those paths.
+``--fix-docs`` regenerates docs/auto for what ``git commit -- PATH...`` would
+commit (HEAD alone without paths) and writes only the changed pages into this
+checkout, so other sessions' uncommitted code does not leak into the
+generated docs. Commit them together with those paths.
 """
 
 from __future__ import annotations
@@ -263,7 +263,8 @@ def tree_with_paths(paths: list[str]) -> str:
     with tempfile.TemporaryDirectory() as tmp:
         env = {**os.environ, "GIT_INDEX_FILE": str(Path(tmp) / "index")}
         git("read-tree", "HEAD", env=env)
-        git("add", "-A", "--", *paths, env=env)
+        if paths:  # never a bare `git add -A`
+            git("add", "-A", "--", *paths, env=env)
         return git("write-tree", env=env).strip()
 
 
@@ -341,14 +342,14 @@ def main() -> int:
     parser.add_argument("--push", nargs=2, metavar=("FROM", "TO"), help="pre-push range")
     parser.add_argument("--all", action="store_true", help="run every gate, changed or not")
     parser.add_argument("--push-gates", action="store_true", help="include push-only gates")
-    parser.add_argument("--fix-docs", nargs="+", metavar="PATH", help="regenerate docs/auto")
+    parser.add_argument("--fix-docs", nargs="*", metavar="PATH", help="regenerate docs/auto")
     args = parser.parse_args()
     if hasattr(sys.stdout, "reconfigure"):
         sys.stdout.reconfigure(encoding="utf-8", errors="replace")
 
     state = Path(git("rev-parse", "--absolute-git-dir").strip()) / "echo-tree-gates"
     state.mkdir(exist_ok=True)
-    if args.fix_docs:
+    if args.fix_docs is not None:
         tree = tree_with_paths(args.fix_docs)
         with SnapshotLock(state / "lock"):
             return fix_docs(state, tree)
