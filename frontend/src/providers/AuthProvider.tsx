@@ -17,6 +17,8 @@ import {
   getToken,
   getUser as getStoredUser,
   login as loginApi,
+  setupOwnerAccount,
+  type OwnerSetupRequest,
   logout as logoutApi,
   refreshToken,
   register as registerApi,
@@ -30,6 +32,7 @@ import { swallow } from "@/core/utils/log";
 import type {
   AuthStatus,
   LoginRequest,
+  LoginResponse,
   RegisterRequest,
   User,
 } from "@/core/auth/types";
@@ -136,6 +139,8 @@ interface AuthContextType {
   user: User | null;
   isAuthenticated: boolean;
   login: (request: LoginRequest) => Promise<void>;
+  /** Create a self-hosted install's owner account and sign it in. */
+  setupOwner: (request: OwnerSetupRequest) => Promise<void>;
   emailLogin: (email: string, code: string) => Promise<void>;
   /** Sign the desktop owner in through the Electron shell. */
   desktopLogin: () => Promise<void>;
@@ -298,9 +303,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     [queryClient],
   );
 
-  const login = useCallback(
-    async (request: LoginRequest) => {
-      const response = await loginApi(request);
+  const startLocalSession = useCallback(
+    (response: LoginResponse) => {
       if (response.user) {
         const normalized = normalizeUserIdentity(response.user);
         if (response.access_token)
@@ -309,6 +313,20 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       }
     },
     [startSession],
+  );
+
+  const login = useCallback(
+    async (request: LoginRequest) => {
+      startLocalSession(await loginApi(request));
+    },
+    [startLocalSession],
+  );
+
+  const setupOwner = useCallback(
+    async (request: OwnerSetupRequest) => {
+      startLocalSession(await setupOwnerAccount(request));
+    },
+    [startLocalSession],
   );
 
   const emailLogin = useCallback(
@@ -395,6 +413,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       user,
       isAuthenticated,
       login,
+      setupOwner,
       emailLogin,
       desktopLogin,
       guestLogin,
@@ -411,6 +430,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       user,
       isAuthenticated,
       login,
+      setupOwner,
       emailLogin,
       desktopLogin,
       guestLogin,

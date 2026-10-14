@@ -153,6 +153,12 @@ export interface AuthProviderInfo {
   allow_any_username?: boolean;
   password_required?: boolean;
   password_only_username?: string | null;
+  /** Self-hosted install: one owner account, created on first run. */
+  owner_account?: boolean;
+  owner_setup_required?: boolean;
+  owner_username?: string | null;
+  /** Where the setup code is stored; reported to this machine only. */
+  setup_code_path?: string;
   endpoint?: string;
   endpoint_send?: string;
   endpoint_verify?: string;
@@ -195,22 +201,43 @@ export async function getAuthProviders(): Promise<string[]> {
 export async function login(request: LoginRequest): Promise<LoginResponse> {
   const body: Record<string, unknown> = { username: request.username };
   if (request.password) body.password = request.password;
-  const res = await fetch(`${getBackendBaseURL()}/api/auth/local/login`, {
+  return postLocalSession("/api/auth/local/login", body, request.username);
+}
+
+export interface OwnerSetupRequest {
+  username: string;
+  password: string;
+  setup_code: string;
+}
+
+/** First run of a self-hosted install: create the owner and sign in. */
+export async function setupOwnerAccount(
+  request: OwnerSetupRequest,
+): Promise<LoginResponse> {
+  return postLocalSession(
+    "/api/auth/local/owner/setup",
+    { ...request },
+    request.username,
+  );
+}
+
+async function postLocalSession(
+  path: string,
+  body: Record<string, unknown>,
+  username: string,
+): Promise<LoginResponse> {
+  const res = await fetch(`${getBackendBaseURL()}${path}`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(body),
   });
   if (!res.ok) {
-    const err = looseBody(
-      await res.json().catch(() => ({})),
-      hasDetailMessage,
-    );
+    const err = looseBody(await res.json().catch(() => ({})), hasDetailMessage);
     throw new Error(err.detail ?? `Login failed: ${res.statusText}`);
   }
   const data = looseBody(await res.json(), isLoginResponse);
   if (data.access_token && data.user) {
-    const fallbackIdentity =
-      data.user.mobile || data.user.username || request.username;
+    const fallbackIdentity = data.user.mobile || data.user.username || username;
     _writeToken(data.access_token, {
       ...data.user,
       user_id: data.user.user_id || data.user.actor_id || fallbackIdentity,
@@ -240,7 +267,10 @@ export async function desktopOwnerLogin(): Promise<User | null> {
   if (!hasDesktopOwnerLogin()) return null;
   const result = await window.echo!.auth!.desktopOwnerLogin();
   if (!result.ok) {
-    if (result.reason === "rejected" || result.reason === "backend-unreachable") {
+    if (
+      result.reason === "rejected" ||
+      result.reason === "backend-unreachable"
+    ) {
       throw new Error(result.detail ?? "本机登录失败，请重试");
     }
     return null;
@@ -249,8 +279,7 @@ export async function desktopOwnerLogin(): Promise<User | null> {
   const user: User = {
     user_id: actorId || "local:owner",
     ...(actorId ? { actor_id: actorId } : {}),
-    username:
-      result.user?.display_name || result.user?.username || "owner",
+    username: result.user?.display_name || result.user?.username || "owner",
     provider: result.user?.provider ?? "local",
   };
   _writeToken(result.access_token, user);
@@ -264,10 +293,7 @@ export async function register(request: RegisterRequest): Promise<User> {
     body: JSON.stringify(request),
   });
   if (!res.ok) {
-    const err = looseBody(
-      await res.json().catch(() => ({})),
-      hasDetailMessage,
-    );
+    const err = looseBody(await res.json().catch(() => ({})), hasDetailMessage);
     throw new Error(err.detail ?? `Registration failed: ${res.statusText}`);
   }
   return looseBody(await res.json(), isUser);
@@ -289,7 +315,8 @@ export async function logout(): Promise<void> {
   });
   // An expired/invalid session is already rejected by the server. Other
   // failures must not pretend that server-side revocation succeeded.
-  if (!response.ok && response.status !== 401) throw new Error("退出登录失败，请重试");
+  if (!response.ok && response.status !== 401)
+    throw new Error("退出登录失败，请重试");
   clearAuth();
 }
 

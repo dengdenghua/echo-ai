@@ -43,6 +43,7 @@ import { toast } from "sonner";
 
 import "./login.css";
 import { EchoAgeField } from "./components/EchoAgeField";
+import { DesktopOwnerLogin, OwnerAccountForm } from "./local-account-login";
 import {
   loginErrorMessage,
   normalizeEmailVerificationCode,
@@ -152,7 +153,9 @@ function EmailLoginForm({ returnTo }: { returnTo: string }) {
       const message =
         err instanceof OctApiError && err.status === 503
           ? t.auth.errors.gatewayNotEnabled
-          : loginErrorMessage(err, (e) => octErrorMessage(e, t.auth.errors.sendFailed));
+          : loginErrorMessage(err, (e) =>
+              octErrorMessage(e, t.auth.errors.sendFailed),
+            );
       setSendStatus({ kind: "error", message });
       if (err instanceof OctApiError && err.status === 503) {
         toast.error(message);
@@ -460,7 +463,9 @@ function LocalLoginForm({
           </div>
           <div className="space-y-2.5">
             <Label htmlFor="local-username" className="text-sm font-medium">
-              {passwordRequired ? t.registerPage.usernameLabel : "访客用户名 / 昵称"}
+              {passwordRequired
+                ? t.registerPage.usernameLabel
+                : "访客用户名 / 昵称"}
             </Label>
             <div className="relative">
               <UserCircle2Icon className="pointer-events-none absolute left-4 top-1/2 size-[18px] -translate-y-1/2 text-muted-foreground" />
@@ -501,9 +506,7 @@ function LocalLoginForm({
           <code className="rounded bg-muted px-1.5 py-0.5 font-mono text-foreground">
             {passwordOnlyUsername}
           </code>
-          <span className="ml-2 text-muted-foreground">
-            仅输入密码即可登录
-          </span>
+          <span className="ml-2 text-muted-foreground">仅输入密码即可登录</span>
         </div>
       )}
       {passwordRequired && (
@@ -587,49 +590,6 @@ function EchoBrand() {
       wordmarkClassName="echo-login-brand-wordmark"
       productClassName="echo-login-brand-product"
     />
-  );
-}
-
-/** The desktop shell signs its owner in automatically; this brings them back
- * after an explicit logout or a failed automatic attempt. */
-function DesktopOwnerLogin() {
-  const { desktopLogin } = useAuth();
-  const [pending, setPending] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-
-  const signIn = async () => {
-    setPending(true);
-    setError(null);
-    try {
-      await desktopLogin();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "本机登录失败，请重试");
-    } finally {
-      setPending(false);
-    }
-  };
-
-  return (
-    <div className="mb-5 space-y-3">
-      <Button
-        className="relative h-12 w-full justify-center gap-3 rounded-xl text-sm font-medium"
-        disabled={pending}
-        onClick={() => void signIn()}
-      >
-        <UserCircle2Icon className="size-5" />
-        以本机账户继续
-      </Button>
-      {error && (
-        <p role="alert" className="text-sm text-destructive">
-          {error}
-        </p>
-      )}
-      <div className="flex items-center gap-3 pt-2 text-xs text-muted-foreground">
-        <span className="h-px flex-1 bg-border" />
-        或使用 ECHO 账户登录
-        <span className="h-px flex-1 bg-border" />
-      </div>
-    </div>
   );
 }
 
@@ -848,42 +808,46 @@ export default function LoginPage() {
               {!backendUnavailable && hasDesktopOwnerLogin() && (
                 <DesktopOwnerLogin />
               )}
-              {!backendUnavailable && providersReady && (socialProviders.google || socialProviders.github) && (
-                <div className="mb-5 space-y-3">
-                  {(["google", "github"] as const)
-                    .filter((provider) => socialProviders[provider])
-                    .map((provider) => (
-                      <Button
-                        key={provider}
-                        variant="outline"
-                        className="relative h-12 w-full justify-center gap-3 rounded-xl text-sm font-medium transition-colors hover:bg-accent"
-                        onClick={() => {
-                          window.location.assign(
-                            `${getBackendBaseURL()}/api/auth/social/${provider}/start?return_to=${encodeURIComponent(returnTo)}`,
-                          );
-                        }}
-                      >
-                        {provider === "github" ? (
-                          <GithubIcon className="size-5" />
-                        ) : (
-                          <GoogleIcon className="size-5" />
-                        )}
-                        使用 {provider === "google" ? "Google" : "GitHub"}{" "}
-                        账号继续
-                      </Button>
-                    ))}
-                  {new URLSearchParams(location.search).has("social_error") && (
-                    <p role="alert" className="text-sm text-destructive">
-                      第三方登录未完成，请重试或使用邮箱登录。
-                    </p>
-                  )}
-                  <div className="flex items-center gap-3 pt-2 text-xs text-muted-foreground">
-                    <span className="h-px flex-1 bg-border" />
-                    或使用账号登录
-                    <span className="h-px flex-1 bg-border" />
+              {!backendUnavailable &&
+                providersReady &&
+                (socialProviders.google || socialProviders.github) && (
+                  <div className="mb-5 space-y-3">
+                    {(["google", "github"] as const)
+                      .filter((provider) => socialProviders[provider])
+                      .map((provider) => (
+                        <Button
+                          key={provider}
+                          variant="outline"
+                          className="relative h-12 w-full justify-center gap-3 rounded-xl text-sm font-medium transition-colors hover:bg-accent"
+                          onClick={() => {
+                            window.location.assign(
+                              `${getBackendBaseURL()}/api/auth/social/${provider}/start?return_to=${encodeURIComponent(returnTo)}`,
+                            );
+                          }}
+                        >
+                          {provider === "github" ? (
+                            <GithubIcon className="size-5" />
+                          ) : (
+                            <GoogleIcon className="size-5" />
+                          )}
+                          使用 {provider === "google" ? "Google" : "GitHub"}{" "}
+                          账号继续
+                        </Button>
+                      ))}
+                    {new URLSearchParams(location.search).has(
+                      "social_error",
+                    ) && (
+                      <p role="alert" className="text-sm text-destructive">
+                        第三方登录未完成，请重试或使用邮箱登录。
+                      </p>
+                    )}
+                    <div className="flex items-center gap-3 pt-2 text-xs text-muted-foreground">
+                      <span className="h-px flex-1 bg-border" />
+                      或使用账号登录
+                      <span className="h-px flex-1 bg-border" />
+                    </div>
                   </div>
-                </div>
-              )}
+                )}
               {backendUnavailable ? (
                 <ErrorState
                   className="min-h-40 rounded-xl border border-destructive/20 bg-destructive/5"
@@ -901,7 +865,8 @@ export default function LoginPage() {
                 <Tabs
                   defaultValue={
                     !localProvider.password_required ||
-                    localProvider.password_only_username
+                    localProvider.password_only_username ||
+                    localProvider.owner_account
                       ? "local"
                       : "email"
                   }
@@ -926,15 +891,22 @@ export default function LoginPage() {
                     </TabsTrigger>
                   </TabsList>
                   <TabsContent value="local" className="mt-0">
-                    <LocalLoginForm
-                      passwordOnlyUsername={
-                        localProvider.password_only_username
-                      }
-                      passwordRequired={
-                        localProvider.password_required === true
-                      }
-                      returnTo={returnTo}
-                    />
+                    {localProvider.owner_account ? (
+                      <OwnerAccountForm
+                        provider={localProvider}
+                        returnTo={returnTo}
+                      />
+                    ) : (
+                      <LocalLoginForm
+                        passwordOnlyUsername={
+                          localProvider.password_only_username
+                        }
+                        passwordRequired={
+                          localProvider.password_required === true
+                        }
+                        returnTo={returnTo}
+                      />
+                    )}
                   </TabsContent>
                   <TabsContent value="email" className="mt-0">
                     <EmailLoginForm returnTo={returnTo} />
@@ -942,6 +914,11 @@ export default function LoginPage() {
                 </Tabs>
               ) : hasOct ? (
                 <EmailLoginForm returnTo={returnTo} />
+              ) : localProvider?.owner_account ? (
+                <OwnerAccountForm
+                  provider={localProvider}
+                  returnTo={returnTo}
+                />
               ) : localProvider ? (
                 <LocalLoginForm
                   passwordOnlyUsername={localProvider.password_only_username}
