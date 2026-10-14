@@ -94,7 +94,7 @@
   display: flex;
   justify-content: space-between;
   align-items: center;
-  font-size: 11px;
+  font-size: max(12px, 0.8rem);
   color: var(--muted-foreground);
   padding: 24px 12px 8px;
 }
@@ -192,7 +192,7 @@
   align-items: center;
   justify-content: space-between;
   padding: 14px 18px;
-  font-size: 11px;
+  font-size: max(12px, 0.8rem);
   color: var(--muted-foreground);
 }
 .mail-list-meta button {
@@ -247,7 +247,7 @@
   margin-left: auto;
   white-space: nowrap;
   color: var(--muted-foreground);
-  font-size: 10px;
+  font-size: max(12px, 0.8rem);
 }
 .mail-row > span {
   overflow: hidden;
@@ -258,7 +258,7 @@
   display: flex;
   gap: 8px;
   color: var(--muted-foreground);
-  font-size: 10px;
+  font-size: max(12px, 0.8rem);
 }
 .mail-row small svg {
   margin-left: auto;
@@ -323,7 +323,7 @@
 .mail-envelope {
   display: grid;
   gap: 7px;
-  font-size: 11px;
+  font-size: max(12px, 0.8rem);
   color: var(--muted-foreground);
   margin-bottom: 32px;
   overflow-wrap: anywhere;
@@ -420,7 +420,7 @@
   display: flex;
   gap: 30px;
   margin-top: 28px;
-  font-size: 11px;
+  font-size: max(12px, 0.8rem);
 }
 .mail-features span {
   display: flex;
