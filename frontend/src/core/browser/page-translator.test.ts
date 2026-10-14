@@ -239,6 +239,73 @@ describe("page translator", () => {
     expect(document.querySelector("echo-tr-bubble")).toBeNull();
   });
 
+  test("translates the title, placeholders and image descriptions", () => {
+    document.title = "Release notes for the new version";
+    document.body.innerHTML = `
+      <p>The new version ships faster startup.</p>
+      <input id="search" placeholder="Search the documentation" />
+      <img id="pic" alt="A red bicycle by the lake" src="x.png" />
+      <button id="tip" title="Opens the settings page"><svg></svg></button>
+      <a id="link" href="#" title="Machine translation">Machine translation</a>`;
+    const t = translator();
+    const { doc } = t.start("translated", "zh-CN");
+
+    const batch = t.take(20, 3000);
+    expect(batch.map((segment) => segment.pieces[0])).toEqual(
+      expect.arrayContaining([
+        "Release notes for the new version",
+        "Search the documentation",
+        "A red bicycle by the lake",
+        "Opens the settings page",
+      ]),
+    );
+    // A link's tooltip repeats its words and is left alone.
+    expect(
+      batch.filter((segment) => segment.pieces[0] === "Machine translation"),
+    ).toHaveLength(1);
+    t.apply(doc, zh(batch));
+
+    expect(document.title).toBe("«Release notes for the new version»");
+    expect(document.getElementById("search")!.getAttribute("placeholder")).toBe(
+      "«Search the documentation»",
+    );
+    expect(document.getElementById("pic")!.getAttribute("alt")).toBe(
+      "«A red bicycle by the lake»",
+    );
+    // Attributes have no room for a second line, so bilingual keeps them
+    // translated; the original view restores them.
+    t.setMode("bilingual");
+    expect(document.getElementById("tip")!.getAttribute("title")).toBe(
+      "«Opens the settings page»",
+    );
+    t.setMode("original");
+    expect(document.title).toBe("Release notes for the new version");
+    expect(document.getElementById("search")!.getAttribute("placeholder")).toBe(
+      "Search the documentation",
+    );
+    document.title = "";
+  });
+
+  test("reaches into same-origin frames", () => {
+    document.body.innerHTML = `<p>Outer paragraph in English.</p><iframe id="f"></iframe>`;
+    const frame = document.getElementById("f") as HTMLIFrameElement;
+    frame.contentDocument!.body.innerHTML =
+      "<p id='inner'>A paragraph inside the frame.</p>";
+    const t = translator();
+    const { doc } = t.start("translated", "zh-CN");
+
+    const batch = t.take(20, 3000);
+    expect(batch.map((segment) => segment.pieces.join(""))).toContain(
+      "A paragraph inside the frame.",
+    );
+    t.apply(doc, zh(batch));
+
+    const inner = frame.contentDocument!.getElementById("inner")!;
+    expect(inner.textContent).toBe("«A paragraph inside the frame.»");
+    t.setMode("original");
+    expect(inner.textContent).toBe("A paragraph inside the frame.");
+  });
+
   test("a paragraph the page rewrites goes back in the queue", async () => {
     document.body.innerHTML = `<p id="p">Loading results</p>`;
     const t = translator();

@@ -110,6 +110,11 @@ export function installPageTranslator(): PageTranslatorApi {
   const isText = (node: Node): node is Text => node.nodeType === Node.TEXT_NODE;
   const isElement = (node: Node): node is Element =>
     node.nodeType === Node.ELEMENT_NODE;
+  const isDocument = (value: unknown): value is Document =>
+    typeof value === "object" &&
+    value !== null &&
+    "nodeType" in value &&
+    value.nodeType === Node.DOCUMENT_NODE;
 
   const SKIP = new Set([
     "script",
@@ -143,8 +148,15 @@ export function installPageTranslator(): PageTranslatorApi {
   const MAX_ATTEMPTS = 2;
 
   type State = "pending" | "inflight" | "done" | "failed";
+  // Where a segment's text lives: text nodes, one attribute (placeholder,
+  // alt, title) of `block`, or the document title.
+  type Slot =
+    | { type: "text" }
+    | { type: "attr"; name: string }
+    | { type: "title" };
   interface Segment {
     id: string;
+    slot: Slot;
     block: Element;
     nodes: Text[];
     originals: string[];
@@ -162,6 +174,9 @@ export function installPageTranslator(): PageTranslatorApi {
   // inherit it instead of waiting for a change that may never come.
   const blockVisible = new WeakMap<Element, boolean>();
   const claimed = new WeakSet<Text>();
+  const claimedAttributes = new WeakMap<Element, Set<string>>();
+  const framesSeen = new WeakSet<Element>();
+  const ATTRIBUTES = ["placeholder", "alt", "title"];
   const written = new WeakMap<Text, string>();
   const skipCache = new WeakMap<Element, boolean>();
   const displayCache = new WeakMap<Element, string>();
@@ -258,7 +273,8 @@ export function installPageTranslator(): PageTranslatorApi {
   function displayOf(element: Element): string {
     let value = displayCache.get(element);
     if (value === undefined) {
-      value = getComputedStyle(element).display || "inline";
+      const view = element.ownerDocument.defaultView || window;
+      value = view.getComputedStyle(element).display || "inline";
       displayCache.set(element, value);
     }
     return value;
@@ -268,7 +284,7 @@ export function installPageTranslator(): PageTranslatorApi {
     let current: Element = element;
     while (
       current.parentElement &&
-      current !== document.body &&
+      current !== current.ownerDocument.body &&
       (displayOf(current) === "inline" || displayOf(current) === "contents")
     ) {
       current = current.parentElement;
@@ -335,6 +351,7 @@ export function installPageTranslator(): PageTranslatorApi {
       if (!foreignText(text)) continue;
       const segment: Segment = {
         id: String(nextId++),
+        slot: { type: "text" },
         block,
         nodes: chunk,
         originals: chunk.map((node) => node.data),
@@ -361,7 +378,8 @@ export function installPageTranslator(): PageTranslatorApi {
     if (!document.body) return;
     const start =
       root.nodeType === Node.TEXT_NODE ? root.parentNode || root : root;
-    const walker = document.createTreeWalker(start, NodeFilter.SHOW_TEXT);
+    const owner = start.ownerDocument || document;
+    const walker = owner.createTreeWalker(start, NodeFilter.SHOW_TEXT);
     const groups = new Map<Element, Text[]>();
     for (let text = walker.nextNode(); text; text = walker.nextNode()) {
       if (!isText(text) || claimed.has(text) || !text.data.trim()) continue;
@@ -373,6 +391,87 @@ export function installPageTranslator(): PageTranslatorApi {
       else groups.set(block, [text]);
     }
     for (const [block, nodes] of groups) register(block, nodes);
+  }
+
+  function track(segment: Segment) {
+    segments.set(segment.id, segment);
+    const list = byBlock.get(segment.block);
+    if (list) {
+      list.push(segment);
+    } else {
+      byBlock.set(segment.block, [segment]);
+      if (segment.slot.type !== "title") observer?.observe(segment.block);
+    }
+  }
+
+  function single(block: Element, slot: Slot, text: string): Segment {
+    return {
+      id: String(nextId++),
+      slot,
+      block,
+      nodes: [],
+      originals: [text],
+      kinds: [""],
+      translated: null,
+      state: "pending",
+      attempts: 0,
+      visible: slot.type === "title" || (blockVisible.get(block) ?? !observer),
+      bilingual: null,
+    };
+  }
+
+  /** Placeholders, image descriptions and tooltips under `root`. They are
+   * translated when their element comes near the screen, like paragraphs. */
+  function registerAttributes(root: Element) {
+    const elements = [
+      root,
+      ...root.querySelectorAll("[placeholder],[alt],[title]"),
+    ];
+    for (const element of elements) {
+      if (
+        skipped(element.parentElement) ||
+        element.getAttribute("translate") === "no" ||
+        element.classList.contains("notranslate")
+      ) {
+        continue;
+      }
+      for (const name of ATTRIBUTES) {
+        const value = (element.getAttribute(name) || "").trim();
+        if (!value || !foreignText(value)) continue;
+        // A tooltip on something with its own words (most links) repeats
+        // them; only icon-only controls need theirs translated.
+        if (name === "title" && (element.textContent || "").trim()) continue;
+        const done = claimedAttributes.get(element) || new Set<string>();
+        if (done.has(name)) continue;
+        done.add(name);
+        claimedAttributes.set(element, done);
+        track(single(element, { type: "attr", name }, value));
+      }
+    }
+  }
+
+  /** Same-origin frames: their documents are scanned and watched like the
+   * page. Cross-origin frames cannot be reached from here. */
+  function watchFrames(root: ParentNode) {
+    for (const frame of root.querySelectorAll("iframe, frame")) {
+      if (framesSeen.has(frame)) continue;
+      framesSeen.add(frame);
+      const attach = () => {
+        let inner: unknown = null;
+        try {
+          inner = "contentDocument" in frame ? frame.contentDocument : null;
+        } catch {
+          inner = null;
+        }
+        if (!isDocument(inner) || !inner.body) return;
+        scan(inner.body);
+        registerAttributes(inner.body);
+        watchFrames(inner);
+        observeDocument(inner);
+      };
+      attach();
+      frame.addEventListener("load", attach);
+    }
   }
 
   function write(node: Text, value: string) {
@@ -388,6 +487,20 @@ export function installPageTranslator(): PageTranslatorApi {
 
   function render(segment: Segment) {
     const translated = segment.translated;
+    if (segment.slot.type !== "text") {
+      // Attributes and the title have no room for a second line: they read
+      // translated in both translated and bilingual views.
+      const value =
+        translated && mode !== "original"
+          ? translated.join("")
+          : (segment.originals[0] ?? "");
+      if (segment.slot.type === "title") {
+        if (document.title !== value) document.title = value;
+      } else if (segment.block.getAttribute(segment.slot.name) !== value) {
+        segment.block.setAttribute(segment.slot.name, value);
+      }
+      return;
+    }
     const original = segment.originals.join("");
     const view =
       !translated || mode === "original"
@@ -410,7 +523,7 @@ export function installPageTranslator(): PageTranslatorApi {
       return;
     }
     if (!segment.bilingual) {
-      const line = document.createElement("echo-tr");
+      const line = segment.block.ownerDocument.createElement("echo-tr");
       line.setAttribute("translate", "no");
       line.setAttribute("lang", target);
       line.style.display = "block";
@@ -587,7 +700,12 @@ export function installPageTranslator(): PageTranslatorApi {
     const roots = [...dirty];
     dirty.clear();
     for (const root of roots) {
-      if (root.isConnected) scan(root);
+      if (!root.isConnected) continue;
+      scan(root);
+      if (isElement(root)) {
+        registerAttributes(root);
+        watchFrames(root);
+      }
     }
   }
 
@@ -624,12 +742,17 @@ export function installPageTranslator(): PageTranslatorApi {
           rescanTimer = setTimeout(flushDirty, 400);
         }
       });
-      mutations.observe(document.body, {
-        childList: true,
-        characterData: true,
-        subtree: true,
-      });
+      observeDocument(document);
     }
+  }
+
+  function observeDocument(owner: Document) {
+    if (!mutations || !owner.body) return;
+    mutations.observe(owner.body, {
+      childList: true,
+      characterData: true,
+      subtree: true,
+    });
   }
 
   const api: PageTranslatorApi = {
@@ -664,6 +787,12 @@ export function installPageTranslator(): PageTranslatorApi {
         started = true;
         watch();
         scan(document.body);
+        registerAttributes(document.body);
+        watchFrames(document);
+        if (document.title && foreignText(document.title)) {
+          const title = { type: "title" } as const;
+          track(single(document.documentElement, title, document.title));
+        }
       }
       for (const segment of segments.values()) render(segment);
       return status();
