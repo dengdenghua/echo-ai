@@ -36,7 +36,10 @@ it("explains a missing storage service without polling an uninstalled process", 
     locale: "zh-CN",
     initialRoute: "/workspace/storage?library=computer",
   });
-  expect(await screen.findByText(/未找到 echo-storage/)).toBeInTheDocument();
+  expect(
+    await screen.findByText(/还没有安装本地知识库服务（echo-storage）/),
+  ).toBeInTheDocument();
+  expect(screen.queryByText(/ECHO_STORAGE_CMD/)).toBeNull();
   expect(startNASService).toHaveBeenCalledOnce();
   expect(getNASManifest).toHaveBeenCalledOnce();
   expect(
