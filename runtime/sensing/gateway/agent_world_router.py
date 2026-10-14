@@ -346,14 +346,9 @@ def create_agent_world_router(
         )  # AUTH-OK: actor-agnostic; shared catalog; mutations require _admin_dep
 
     def _admin_dep(request: Request) -> None:
-        """Protect shared mutations while allowing the trusted local desktop.
+        """Agent and skill installs: admin-only, but open to any account on the local desktop.
 
-        The desktop server already computes this posture from the explicit
-        ``execution.deployment_mode=local`` + loopback bind contract.  Reuse
-        it here so the legacy cloud catalog has the same local lifecycle
-        semantics as ``/api/capabilities``.  The default remains admin-only,
-        which preserves the shared/server security boundary for direct router
-        users and deployments that do not opt into the local posture.
+        Workbenches and cloud plugins are machine-wide and use ``_plugin_admin_dep`` instead.
         """
         if allow_local_user_plugin_lifecycle:
             return
@@ -369,6 +364,11 @@ def create_agent_world_router(
             jwt_audience=jwt_audience,
         )
 
+    from ._workbench_admin import workbench_admin_dependency
+
+    _plugin_admin_dep = workbench_admin_dependency(
+        identity_store, require_auth, jwt_secret, jwt_issuer, jwt_audience
+    )
     router = APIRouter(tags=["agent-market"], dependencies=[Depends(_auth_dep)])
 
     @router.get("/api/agent-market/store")
@@ -946,7 +946,7 @@ def create_agent_world_router(
 
     @router.post(
         "/api/agent-market/cloud/plugins/{plugin_id}/install",
-        dependencies=[Depends(_admin_dep)],
+        dependencies=[Depends(_plugin_admin_dep)],
     )
     def api_agent_market_cloud_plugin_install(
         plugin_id: str,
@@ -1128,7 +1128,7 @@ def create_agent_world_router(
 
     @router.post(
         "/api/agent-market/cloud/plugins/{plugin_id}/rollback",
-        dependencies=[Depends(_admin_dep)],
+        dependencies=[Depends(_plugin_admin_dep)],
     )
     def api_agent_market_cloud_plugin_rollback(
         plugin_id: str,
@@ -1175,7 +1175,7 @@ def create_agent_world_router(
 
     @router.post(
         "/api/agent-market/cloud/plugins/{plugin_id}/{action}",
-        dependencies=[Depends(_admin_dep)],
+        dependencies=[Depends(_plugin_admin_dep)],
     )
     def api_agent_market_cloud_plugin_activation(
         plugin_id: str,
@@ -1212,7 +1212,7 @@ def create_agent_world_router(
 
     @router.delete(
         "/api/agent-market/cloud/plugins/{plugin_id}/install",
-        dependencies=[Depends(_admin_dep)],
+        dependencies=[Depends(_plugin_admin_dep)],
     )
     def api_agent_market_cloud_plugin_uninstall(
         plugin_id: str,

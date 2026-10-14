@@ -194,6 +194,7 @@ tier: "standard"
 | `_tool_bridge_scoring.py` | Per-turn quality scoring + auto-evolution tick helpers. |
 | `_tool_bridge_session.py` | Session metadata + browser operation guidance helpers. |
 | `_untrusted_content.py` | Response hardening for user/agent-generated files served inline. |
+| `_workbench_admin.py` | Admin gate for machine-wide workbench and cloud plugin lifecycle changes. |
 | `_workspace_file_updates.py` | Read-only hints for authorized workspace readers, without paths or content. |
 | `a2a_router.py` | A2A (Agent-to-Agent) remote agent registry + relay router. |
 | `a2a_server.py` | Official A2A v1 inbound server mounted on the Echo runtime. |
@@ -952,6 +953,13 @@ tier: "standard"
 | func | `def guess_media_type(path)` | Mirror Starlette's ``FileResponse`` guess so headers match the body. |
 | func | `def untrusted_content_headers(media_type, allow_scripts, download)` | Headers for serving untrusted file bytes from the app origin. |
 | func | `def untrusted_file_response(path, filename, download, media_type, allow_scripts, headers, **kwargs)` | ``FileResponse`` for user/agent-generated content with sandbox headers. |
+
+### `_workbench_admin.py`
+
+| Kind | Symbol | Doc |
+| --- | --- | --- |
+| func | `def require_workbench_admin(request, identity_store, require_auth, jwt_secret, jwt_issuer, jwt_audience)` | Require the ``admin`` role, answering a refusal with a sentence people can act on. |
+| func | `def workbench_admin_dependency(identity_store, require_auth, jwt_secret, jwt_issuer, jwt_audience)` | A FastAPI dependency bound to one router's auth configuration. |
 
 ### `_workspace_file_updates.py`
 
