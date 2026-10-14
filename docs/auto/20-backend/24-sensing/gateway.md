@@ -250,6 +250,7 @@ tier: "standard"
 | `deep_research_router.py` | Deep research API router. |
 | `deployments_router.py` | — |
 | `design_studio_router.py` | Local creative-workbench integrations used by the Design canvas. |
+| `engine_packages_router.py` | Execution engines in the store: list, install, uninstall. |
 | `enterprise_assets_router.py` | Agent 消费企业版角色资产库(数字分身归并 C · 消费侧,只读)。 |
 | `evolution_ops/budget.py` | Budget subsystem for evolution operators. |
 | `evolution_ops/curriculum.py` | Curriculum subsystem for evolution operators. |
@@ -1318,6 +1319,16 @@ tier: "standard"
 | Kind | Symbol | Doc |
 | --- | --- | --- |
 | func | `def create_design_studio_router(skill_registry, project_store, identity_store, require_auth, jwt_secret, jwt_issuer, jwt_audience, plugin_node_state_store)` |  |
+
+### `engine_packages_router.py`
+
+| Kind | Symbol | Doc |
+| --- | --- | --- |
+| class | `class EngineInstallJob(BaseModel)` |  |
+| class | `class EngineStatus(BaseModel)` |  |
+| class | `class EngineListResponse(BaseModel)` |  |
+| func | `def create_engine_packages_router(identity_store, require_auth, jwt_secret, jwt_issuer, jwt_audience, installer)` |  |
+| func | `def mount_engine_packages_router(ctx)` | Mount the endpoints on the app being assembled by ``create_app``. |
 
 ### `enterprise_assets_router.py`
 

@@ -4533,6 +4533,217 @@
         "title": "DualHelixShadowSettingsBody",
         "type": "object"
       },
+      "EngineInstallJob": {
+        "properties": {
+          "engine": {
+            "title": "Engine",
+            "type": "string"
+          },
+          "error": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error"
+          },
+          "finished_at": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Finished At"
+          },
+          "received": {
+            "title": "Received",
+            "type": "integer"
+          },
+          "source": {
+            "anyOf": [
+              {
+                "enum": [
+                  "mirror",
+                  "upstream"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Source"
+          },
+          "state": {
+            "enum": [
+              "downloading",
+              "installing",
+              "done",
+              "failed"
+            ],
+            "title": "State",
+            "type": "string"
+          },
+          "total": {
+            "title": "Total",
+            "type": "integer"
+          },
+          "version": {
+            "title": "Version",
+            "type": "string"
+          }
+        },
+        "required": [
+          "engine",
+          "version",
+          "state",
+          "received",
+          "total"
+        ],
+        "title": "EngineInstallJob",
+        "type": "object"
+      },
+      "EngineListResponse": {
+        "properties": {
+          "engines": {
+            "items": {
+              "$ref": "#/components/schemas/EngineStatus"
+            },
+            "title": "Engines",
+            "type": "array"
+          }
+        },
+        "required": [
+          "engines"
+        ],
+        "title": "EngineListResponse",
+        "type": "object"
+      },
+      "EngineStatus": {
+        "properties": {
+          "can_uninstall": {
+            "title": "Can Uninstall",
+            "type": "boolean"
+          },
+          "download_size": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Download Size"
+          },
+          "homepage": {
+            "title": "Homepage",
+            "type": "string"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "installed_size": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Installed Size"
+          },
+          "installed_version": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Installed Version"
+          },
+          "job": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/EngineInstallJob"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "license": {
+            "title": "License",
+            "type": "string"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "source": {
+            "anyOf": [
+              {
+                "enum": [
+                  "bundled",
+                  "installed",
+                  "configured",
+                  "system"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Source"
+          },
+          "state": {
+            "enum": [
+              "ready",
+              "installing",
+              "update_available",
+              "not_installed"
+            ],
+            "title": "State",
+            "type": "string"
+          },
+          "supported": {
+            "title": "Supported",
+            "type": "boolean"
+          },
+          "update_available": {
+            "title": "Update Available",
+            "type": "boolean"
+          },
+          "version": {
+            "title": "Version",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "version",
+          "license",
+          "homepage",
+          "supported",
+          "state",
+          "update_available",
+          "can_uninstall"
+        ],
+        "title": "EngineStatus",
+        "type": "object"
+      },
       "EnsureRoomBody": {
         "properties": {
           "id": {
@@ -32812,6 +33023,111 @@
         "summary": "Preview Creative Skill Files",
         "tags": [
           "design-studio"
+        ]
+      }
+    },
+    "/api/engines": {
+      "get": {
+        "operationId": "list_engines_api_engines_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EngineListResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "List Engines",
+        "tags": [
+          "engines"
+        ]
+      }
+    },
+    "/api/engines/{engine_id}": {
+      "delete": {
+        "operationId": "uninstall_engine_api_engines__engine_id__delete",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "engine_id",
+            "required": true,
+            "schema": {
+              "title": "Engine Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EngineStatus"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Uninstall Engine",
+        "tags": [
+          "engines"
+        ]
+      }
+    },
+    "/api/engines/{engine_id}/install": {
+      "post": {
+        "operationId": "install_engine_api_engines__engine_id__install_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "engine_id",
+            "required": true,
+            "schema": {
+              "title": "Engine Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EngineStatus"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Install Engine",
+        "tags": [
+          "engines"
         ]
       }
     },

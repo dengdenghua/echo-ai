@@ -7476,6 +7476,57 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/engines": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Engines */
+        get: operations["list_engines_api_engines_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/engines/{engine_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Uninstall Engine */
+        delete: operations["uninstall_engine_api_engines__engine_id__delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/engines/{engine_id}/install": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Install Engine */
+        post: operations["install_engine_api_engines__engine_id__install_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/evolution/agent-benchmark": {
         parameters: {
             query?: never;
@@ -19484,6 +19535,66 @@ export interface components {
              * @default false
              */
             enabled: boolean;
+        };
+        /** EngineInstallJob */
+        EngineInstallJob: {
+            /** Engine */
+            engine: string;
+            /** Error */
+            error?: string | null;
+            /** Finished At */
+            finished_at?: number | null;
+            /** Received */
+            received: number;
+            /** Source */
+            source?: ("mirror" | "upstream") | null;
+            /**
+             * State
+             * @enum {string}
+             */
+            state: "downloading" | "installing" | "done" | "failed";
+            /** Total */
+            total: number;
+            /** Version */
+            version: string;
+        };
+        /** EngineListResponse */
+        EngineListResponse: {
+            /** Engines */
+            engines: components["schemas"]["EngineStatus"][];
+        };
+        /** EngineStatus */
+        EngineStatus: {
+            /** Can Uninstall */
+            can_uninstall: boolean;
+            /** Download Size */
+            download_size?: number | null;
+            /** Homepage */
+            homepage: string;
+            /** Id */
+            id: string;
+            /** Installed Size */
+            installed_size?: number | null;
+            /** Installed Version */
+            installed_version?: string | null;
+            job?: components["schemas"]["EngineInstallJob"] | null;
+            /** License */
+            license: string;
+            /** Name */
+            name: string;
+            /** Source */
+            source?: ("bundled" | "installed" | "configured" | "system") | null;
+            /**
+             * State
+             * @enum {string}
+             */
+            state: "ready" | "installing" | "update_available" | "not_installed";
+            /** Supported */
+            supported: boolean;
+            /** Update Available */
+            update_available: boolean;
+            /** Version */
+            version: string;
         };
         /** EnsureRoomBody */
         EnsureRoomBody: {
@@ -36720,6 +36831,88 @@ export interface operations {
                     "application/json": {
                         [key: string]: unknown;
                     };
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_engines_api_engines_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EngineListResponse"];
+                };
+            };
+        };
+    };
+    uninstall_engine_api_engines__engine_id__delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                engine_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EngineStatus"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    install_engine_api_engines__engine_id__install_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                engine_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EngineStatus"];
                 };
             };
             /** @description Validation Error */

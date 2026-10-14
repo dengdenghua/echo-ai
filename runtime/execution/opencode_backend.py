@@ -28,6 +28,11 @@ from typing import Any
 
 import httpx
 
+from runtime.execution.engine_packages.store import (
+    engines_strict,
+    installed_executable,
+    missing_status,
+)
 from runtime.execution.host_mcp_connection import HostMCPConnection
 from runtime.platform.capabilities.tenant_context import use_capability_scope
 from runtime.platform.connectors.credential_store import CredentialStore
@@ -110,6 +115,9 @@ def executable() -> str | None:
     if configured:
         path = Path(configured).expanduser()
         return str(path.resolve()) if path.is_file() else None
+    # The store-installed (pinned) engine; the desktop never looks further.
+    if (installed := installed_executable("opencode")) or engines_strict():
+        return installed
     # The local launcher records its pinned installation here. Discover only
     # this source tree's managed tool directory, never an arbitrary cwd's
     # runtime-paths file or a path outside the managed installation.
@@ -129,19 +137,10 @@ def executable() -> str | None:
                 )
             ):
                 return str(candidate)
-    except (
-        OSError,
-        ValueError,
-    ):  # intentional: Try the bundled engine when the configured path is invalid.
+    except (OSError, ValueError):  # intentional: an invalid record falls through
         pass
-    bundled = (
-        Path(__file__).resolve().parents[2]
-        / "extras"
-        / "desktop"
-        / "build"
-        / "opencode"
-        / ("opencode.exe" if os.name == "nt" else "opencode")
-    )
+    name = "opencode.exe" if os.name == "nt" else "opencode"
+    bundled = Path(__file__).resolve().parents[2] / "extras/desktop/build/opencode" / name
     if bundled.is_file():
         return str(bundled)
     return shutil.which("opencode")
@@ -241,7 +240,7 @@ def inspect_readiness(scope: TenantScope | None) -> dict[str, Any]:
     if os.environ.get("ECHO_DEPLOYMENT_MODE", "local").strip().lower() != "local":
         return {"available": False, "reason": "OpenCode 引擎目前仅支持本地运行。"}
     if not executable():
-        return {"available": False, "reason": "请安装 OpenCode 并配置 ECHO_OPENCODE_BIN。"}
+        return {"available": False, **missing_status("opencode")}
     try:
         resolve_zen_model(None, zen_catalog())
         zen_key(scope)
@@ -779,7 +778,7 @@ async def stream_model(
     """Run a text-only OpenCode model turn without tools or role orchestration."""
     command = executable()
     if not command:
-        raise OpenCodeError("请安装 OpenCode 并配置 ECHO_OPENCODE_BIN。")
+        raise OpenCodeError(missing_status("opencode")["reason"])
     root = state_directory(None, "model")
     async with _warm_text_server(command, root, model_key(None, model), model) as client:
         session_id = await session_for_thread(client, root, recover_missing=bool(fresh_text))

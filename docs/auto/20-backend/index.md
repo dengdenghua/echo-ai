@@ -33,9 +33,9 @@ graph LR
   adapters[adapters]
   platform[platform]
   sensing -- 225 --> platform
-  sensing -- 179 --> safety
-  execution -- 171 --> platform
-  sensing -- 137 --> execution
+  sensing -- 180 --> safety
+  execution -- 172 --> platform
+  sensing -- 138 --> execution
   sensing -- 131 --> memory
   safety -- 102 --> platform
   execution -- 97 --> safety

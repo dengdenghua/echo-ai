@@ -115,6 +115,7 @@ def create_app(
         wire_persistent_subagent_runner,
         wire_stack,
     )
+    from runtime.sensing.gateway.engine_packages_router import mount_engine_packages_router
     from runtime.sensing.gateway.page_translate_router import mount_page_translate_router
 
     ctx = setup_app(
@@ -186,5 +187,6 @@ def create_app(
     mount_routers_a(ctx, journal_path=journal_path)
     mount_routers_b(ctx, journal_path=journal_path)
     mount_page_translate_router(ctx)
+    mount_engine_packages_router(ctx)
     warm_on_startup(ctx.app)
     return ctx.app

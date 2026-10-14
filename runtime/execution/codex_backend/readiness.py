@@ -11,6 +11,7 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
 
+from runtime.execution.engine_packages.store import missing_reason
 from runtime.platform.runtime_policy.feature_flags import resolution
 
 from .command import resolve_codex_app_server_command
@@ -44,7 +45,7 @@ def inspect_codex_readiness(
     try:
         resolve_codex_app_server_command()
     except ConfigurationError:
-        return CodexReadiness(False, "executable_unavailable")
+        return CodexReadiness(False, missing_reason("codex"))
     if not profile.compatible:
         return CodexReadiness(False, "model_incompatible")
     if not tools_available:

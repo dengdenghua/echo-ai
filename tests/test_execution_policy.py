@@ -79,6 +79,9 @@ def test_readiness_explains_unavailable_configuration(configured_codex, monkeypa
     if problem == "disabled":
         monkeypatch.setattr(readiness, "resolution", lambda _name: (False, "env"))
     elif problem == "executable_unavailable":
+        # A configured path that is missing; with nothing configured the
+        # store can install Codex instead (see the next test).
+        monkeypatch.setenv("ECHO_CODEX_EXECUTABLE", "missing-codex")
         command.side_effect = ConfigurationError("missing executable")
     elif problem == "model_incompatible":
         profile = replace(profile, compatible=False)
@@ -91,6 +94,15 @@ def test_readiness_explains_unavailable_configuration(configured_codex, monkeypa
     assert result.reason == problem
     if problem not in {"account_required", "account_unavailable"}:
         auth.assert_not_called()
+
+
+def test_missing_codex_is_installable_when_nothing_is_configured(configured_codex, monkeypatch):
+    profile, command = configured_codex
+    monkeypatch.delenv("ECHO_CODEX_EXECUTABLE", raising=False)
+    monkeypatch.setattr("runtime.execution.engine_packages.lock.platform_key", lambda: "linux-x64")
+    command.side_effect = ConfigurationError("missing executable")
+    result = readiness.inspect_codex_readiness(profile, auth_source=Mock())
+    assert (result.available, result.reason) == (False, "not_installed")
 
 
 @pytest.mark.parametrize(
