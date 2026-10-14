@@ -27,3 +27,13 @@ describe("installation diagnostics", () => {
     ).toContain("重新连接");
   });
 });
+
+it("words a request that timed out as a slow service, not raw browser text", () => {
+  const timeout = new DOMException("signal timed out", "TimeoutError");
+  expect(serviceErrorMessage(timeout)).toBe(
+    "服务响应超时（可能还在启动），请稍后重试。",
+  );
+  expect(serviceErrorMessage(new Error("Request timeout"), false)).toContain(
+    "took too long",
+  );
+});

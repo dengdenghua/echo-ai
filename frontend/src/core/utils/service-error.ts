@@ -43,7 +43,13 @@ export function serviceErrorMessage(error: unknown, chinese = true): string {
     return chinese
       ? "当前服务未提供此功能或内容已下架。请刷新目录并检查服务版本。"
       : "This feature or item is unavailable. Refresh the catalog and check the service version.";
-  if (/50[0234]|failed to fetch|network|timeout|超时/i.test(message))
+  // AbortSignal.timeout() rejects with "signal timed out": usually a backend
+  // still warming up rather than a broken connection.
+  if (/timed out|timeout|超时/i.test(message))
+    return chinese
+      ? "服务响应超时（可能还在启动），请稍后重试。"
+      : "The service took too long to respond (it may still be starting). Try again shortly.";
+  if (/50[0234]|failed to fetch|network/i.test(message))
     return chinese
       ? "服务暂时无法连接，数据尚未读取。请检查连接后重试。"
       : "The service is unavailable; data has not been loaded. Check the connection and retry.";
