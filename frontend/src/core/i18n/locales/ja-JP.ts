@@ -6309,6 +6309,8 @@ export const jaJP: Translations = {
     processing: "処理中",
     ttftLabel: "初回トークン",
     ttftHint: "リクエストから最初のトークン到着までの遅延",
+    resend: "再送信",
+    resendHint: "このターンを止めて、メッセージをもう一度送信します",
   },
 
   // Evolution Dashboard
@@ -7049,6 +7051,9 @@ export const jaJP: Translations = {
     billingUnavailableTitle: "プランを一時的に利用できません",
     billingUnavailableDescription:
       "ECHO アカウントにはログイン済みですが、請求サービスに接続されていません。再試行してアカウント連携とプランを更新してください。",
+    localAccountBillingTitle: "ローカルアカウントにプランは不要です",
+    localAccountBillingDescription:
+      "ECHO AI はそのまま使えます。プランとクレジットは ECHO アカウントに属します。メールでログインすると、ここで確認と購入ができます。",
     subscriptionUnavailable: "サブスクリプション情報を読み込めませんでした。",
     plansUnavailable: "プランを読み込めませんでした。",
     noPlans: "現在購入できるプランはありません。",

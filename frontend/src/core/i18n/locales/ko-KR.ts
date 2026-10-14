@@ -6224,6 +6224,8 @@ export const koKR: Translations = {
     processing: "처리 중",
     ttftLabel: "첫 토큰",
     ttftHint: "요청부터 이 턴의 첫 토큰 도착까지의 지연",
+    resend: "다시 보내기",
+    resendHint: "이번 응답을 멈추고 메시지를 다시 보냅니다",
   },
 
   // Evolution Dashboard
@@ -6956,6 +6958,9 @@ export const koKR: Translations = {
     billingUnavailableTitle: "요금제를 일시적으로 사용할 수 없습니다",
     billingUnavailableDescription:
       "ECHO 계정에는 로그인되어 있지만 결제 서비스가 연결되지 않았습니다. 다시 시도해 계정 연결과 요금제를 새로고침하세요.",
+    localAccountBillingTitle: "로컬 계정은 요금제가 필요 없습니다",
+    localAccountBillingDescription:
+      "ECHO AI를 그대로 사용할 수 있습니다. 요금제와 크레딧은 ECHO 계정에 속하며, 이메일로 로그인하면 여기에서 확인하고 구매할 수 있습니다.",
     subscriptionUnavailable: "구독 정보를 불러올 수 없습니다.",
     plansUnavailable: "요금제를 불러올 수 없습니다.",
     noPlans: "현재 구매 가능한 요금제가 없습니다.",

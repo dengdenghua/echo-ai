@@ -14,22 +14,29 @@ const subscriptionMocks = vi.hoisted(() => ({
   authUser: { user_id: "123", username: "123" } as {
     user_id: string;
     username?: string;
+    provider?: string;
   },
+  authEnabled: true,
+  subscriptionArgs: [] as unknown[],
 }));
 
 vi.mock("@/providers/AuthProvider", () => ({
   useAuth: () => ({
     user: subscriptionMocks.authUser,
+    authStatus: { enabled: subscriptionMocks.authEnabled },
   }),
 }));
 
 vi.mock("@/core/account", () => ({
-  useSubscription: () => ({
-    data: subscriptionMocks.subscription,
-    isLoading: false,
-    isError: false,
-    refetch: subscriptionMocks.refetchSubscription,
-  }),
+  useSubscription: (args: unknown) => {
+    subscriptionMocks.subscriptionArgs.push(args);
+    return {
+      data: subscriptionMocks.subscription,
+      isLoading: false,
+      isError: false,
+      refetch: subscriptionMocks.refetchSubscription,
+    };
+  },
   useCancelSubscription: () => ({
     mutate: subscriptionMocks.cancel,
     isPending: false,
@@ -61,6 +68,8 @@ describe("SubscriptionSettingsPage", () => {
   beforeEach(() => {
     subscriptionMocks.subscription = null;
     subscriptionMocks.authUser = { user_id: "123", username: "123" };
+    subscriptionMocks.authEnabled = true;
+    subscriptionMocks.subscriptionArgs = [];
     vi.clearAllMocks();
   });
 
@@ -102,5 +111,30 @@ describe("SubscriptionSettingsPage", () => {
     expect(dialog).toHaveTextContent("当前权益会保留到已付费周期结束");
     await user.click(screen.getByRole("button", { name: "取消订阅" }));
     expect(subscriptionMocks.cancel).toHaveBeenCalledOnce();
+  });
+
+  it("tells a local account it needs no plan instead of reporting an outage", () => {
+    subscriptionMocks.authUser = {
+      user_id: "local:ada",
+      username: "ada",
+      provider: "local",
+    };
+    renderWithProviders(<SubscriptionSettingsPage />, { locale: "zh-CN" });
+
+    expect(screen.getByText("本机账户无需订阅")).toBeInTheDocument();
+    expect(screen.queryByText("套餐暂时不可用")).toBeNull();
+  });
+
+  it("only asks the no-sign-in compatibility layer for a subscription record", () => {
+    renderWithProviders(<SubscriptionSettingsPage />, { locale: "zh-CN" });
+    expect(subscriptionMocks.subscriptionArgs.at(-1)).toEqual({
+      enabled: false,
+    });
+
+    subscriptionMocks.authEnabled = false;
+    renderWithProviders(<SubscriptionSettingsPage />, { locale: "zh-CN" });
+    expect(subscriptionMocks.subscriptionArgs.at(-1)).toEqual({
+      enabled: true,
+    });
   });
 });

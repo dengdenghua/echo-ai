@@ -36,6 +36,13 @@ import { useAuth } from "@/providers/AuthProvider";
 
 import { resolvePricingAccountLabel } from "./settings-resilience";
 
+/** The /api/account/* subscription and profile records exist only in the
+ * no-sign-in compatibility layer; signed-in plans come from the ECHO account
+ * service below, so asking for them there only produces 404s. */
+function useLocalAccountRecords(): boolean {
+  return useAuth().authStatus?.enabled === false;
+}
+
 export default function SubscriptionSettingsPage() {
   const { t } = useI18n();
   const {
@@ -43,7 +50,7 @@ export default function SubscriptionSettingsPage() {
     isLoading: subscriptionLoading,
     isError: subscriptionError,
     refetch: refetchSubscription,
-  } = useSubscription();
+  } = useSubscription({ enabled: useLocalAccountRecords() });
   const cancelSubscription = useCancelSubscription();
   const [cancelOpen, setCancelOpen] = useState(false);
 
@@ -240,7 +247,7 @@ function OfficialPricingSection() {
   const linked = Boolean(link.data);
   const goodsQuery = useOctGoods(linked);
   const createOrder = useCreateOrder();
-  const { data: profile } = useProfile();
+  const { data: profile } = useProfile({ enabled: useLocalAccountRecords() });
   const accountLabel = resolvePricingAccountLabel({
     profileName: profile?.display_name || profile?.username,
     userName: user?.username,
@@ -280,6 +287,26 @@ function OfficialPricingSection() {
       setPendingId(null);
     }
   };
+
+  // A local account (guest, owner or password account) uses ECHO AI without
+  // a plan; plans and credits belong to an ECHO account signed in by email.
+  if (!linked && !link.isLoading && user?.provider === "local") {
+    return (
+      <div
+        className="rounded-lg border border-dashed bg-muted/30 p-6 text-center space-y-2"
+        data-subscription-pricing
+        role="status"
+      >
+        <UserIcon className="mx-auto size-5 text-muted-foreground" />
+        <p className="text-sm font-medium">
+          {t.subscriptionSettings.localAccountBillingTitle}
+        </p>
+        <p className="mx-auto max-w-lg text-xs leading-relaxed text-muted-foreground">
+          {t.subscriptionSettings.localAccountBillingDescription}
+        </p>
+      </div>
+    );
+  }
 
   // A local login and the official billing link are separate states. Keep the
   // user oriented and provide a recovery action when the bridge is unavailable.

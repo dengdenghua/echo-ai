@@ -5983,6 +5983,8 @@ export const zhCN: Translations = {
     processing: "正在处理",
     ttftLabel: "首字",
     ttftHint: "本回合从请求发出到首个 token 到达的延迟",
+    resend: "重新发送",
+    resendHint: "停止这一轮，把你的消息再发一次",
   },
 
   // Evolution Dashboard
@@ -6677,7 +6679,7 @@ export const zhCN: Translations = {
 
   // Subscription Settings
   subscriptionSettings: {
-    upgradeTitle: "升级您的智能体验",
+    upgradeTitle: "升级你的智能体验",
     upgradeDesc: "一个 7×24 小时全场景个人助理智能体，帮你搞定各种任务",
     currentPlan: "当前计划",
     upgradeNow: "立即升级",
@@ -6688,6 +6690,9 @@ export const zhCN: Translations = {
     billingUnavailableTitle: "套餐暂时不可用",
     billingUnavailableDescription:
       "当前 ECHO 账户已登录，但计费服务尚未连接。请重试刷新账号关联与可购买套餐。",
+    localAccountBillingTitle: "本机账户无需订阅",
+    localAccountBillingDescription:
+      "你可以直接使用 ECHO AI。套餐和积分属于 ECHO 账户，用邮箱登录 ECHO 账户后可以在这里查看和购买。",
     subscriptionUnavailable: "订阅信息暂时无法加载。",
     plansUnavailable: "套餐加载失败。",
     noPlans: "当前暂无可购买的套餐。",

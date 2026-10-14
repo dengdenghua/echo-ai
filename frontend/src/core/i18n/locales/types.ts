@@ -5447,6 +5447,8 @@ export interface Translations {
     processing: string;
     ttftLabel: string;
     ttftHint: string;
+    resend: string;
+    resendHint: string;
   };
 
   // Evolution Dashboard
@@ -6105,6 +6107,8 @@ export interface Translations {
     totalCredits: (total: string) => string;
     billingUnavailableTitle: string;
     billingUnavailableDescription: string;
+    localAccountBillingTitle: string;
+    localAccountBillingDescription: string;
     subscriptionUnavailable: string;
     plansUnavailable: string;
     noPlans: string;

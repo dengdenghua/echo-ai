@@ -6337,6 +6337,8 @@ Strategy:
     processing: "Working",
     ttftLabel: "TTFT",
     ttftHint: "Time from request to the first token of this turn",
+    resend: "Send again",
+    resendHint: "Stop this turn and send your message again",
   },
 
   // Evolution Dashboard
@@ -7083,6 +7085,9 @@ Strategy:
     billingUnavailableTitle: "Plans are temporarily unavailable",
     billingUnavailableDescription:
       "Your ECHO account is signed in, but the billing service is not connected. Retry to refresh the account link and available plans.",
+    localAccountBillingTitle: "No plan needed for this local account",
+    localAccountBillingDescription:
+      "You can use ECHO AI as is. Plans and credits belong to an ECHO account; sign in with your email to see and buy them here.",
     subscriptionUnavailable: "Subscription information could not be loaded.",
     plansUnavailable: "Plans could not be loaded.",
     noPlans: "No purchasable plans are currently available.",
