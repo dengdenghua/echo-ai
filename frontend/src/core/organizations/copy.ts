@@ -10,6 +10,8 @@ const en = {
   member: "Member",
   viewer: "Viewer",
   empty: "No organizations yet.",
+  emptyHint:
+    "Name one above to start: add people and agents, then departments and channels.",
   loading: "Loading…",
   retry: "Retry",
   refresh: "Refresh",
@@ -70,6 +72,7 @@ export const ORG_COPY: Record<Locale, OrgCopy> = {
     member: "成员",
     viewer: "只读成员",
     empty: "暂无组织。",
+    emptyHint: "在上方输入名称创建第一个组织，再添加成员、Agent、部门和频道。",
     loading: "加载中…",
     retry: "重试",
     refresh: "刷新",
@@ -121,6 +124,8 @@ export const ORG_COPY: Record<Locale, OrgCopy> = {
     member: "メンバー",
     viewer: "閲覧者",
     empty: "組織はまだありません。",
+    emptyHint:
+      "上で名前を入力して最初の組織を作成し、メンバー、エージェント、部署、チャンネルを追加します。",
     loading: "読み込み中…",
     retry: "再試行",
     refresh: "更新",
@@ -176,6 +181,8 @@ export const ORG_COPY: Record<Locale, OrgCopy> = {
     member: "멤버",
     viewer: "조회자",
     empty: "아직 조직이 없습니다.",
+    emptyHint:
+      "위에서 이름을 입력해 첫 조직을 만들고 구성원, 에이전트, 부서와 채널을 추가하세요.",
     loading: "불러오는 중…",
     retry: "재시도",
     refresh: "새로 고침",

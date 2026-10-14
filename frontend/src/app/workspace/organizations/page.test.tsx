@@ -95,6 +95,13 @@ beforeEach(() => {
   mocks.create.mockResolvedValue({ id: "new", name: "New", owner_id: "owner" });
 });
 describe("enterprise organization management", () => {
+  it("shows an empty state that says how to start", async () => {
+    mocks.list.mockResolvedValue([]);
+    renderWithProviders(<OrganizationsPage />);
+    expect(await screen.findByText("No organizations yet.")).toBeVisible();
+    expect(screen.getByText(/Name one above to start/)).toBeVisible();
+    expect(screen.queryByRole("navigation")).toBeNull();
+  });
   it("removes deleted department IDs from pending creation drafts", async () => {
     const user = userEvent.setup();
     renderWithProviders(<OrganizationsPage />);

@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
+import { Building2Icon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { OrganizationDetail } from "@/components/organizations/organization-detail";
@@ -48,7 +49,7 @@ function OrganizationWorkspace({
           </header>
           {!!actor ? (
             <form
-              className="flex flex-wrap items-end gap-3"
+              className="workspace-panel flex flex-wrap items-end gap-3 rounded-lg px-5 py-4"
               onSubmit={(event) => {
                 event.preventDefault();
                 if (!name.trim() || action.busy) return;
@@ -59,8 +60,8 @@ function OrganizationWorkspace({
                 });
               }}
             >
-              <label className="min-w-0 max-w-sm flex-1 text-sm">
-                {copy.name}
+              <label className="min-w-0 max-w-sm flex-1 space-y-1.5 text-sm">
+                <span className="block font-medium">{copy.name}</span>
                 <Input
                   required
                   maxLength={256}
@@ -89,15 +90,27 @@ function OrganizationWorkspace({
               </Button>
             </div>
           )}
-          {query.data && !query.error && (
+          {query.data && !query.error && !organizations.length && (
+            <div className="flex min-h-48 flex-col items-center justify-center gap-3 rounded-xl border border-dashed border-border bg-muted/15 px-6 text-center">
+              <div className="grid size-10 place-items-center rounded-xl bg-muted text-muted-foreground">
+                <Building2Icon className="size-5" />
+              </div>
+              <div>
+                <p className="text-sm font-semibold">{copy.empty}</p>
+                {!!actor && (
+                  <p className="mt-1 max-w-sm text-xs leading-5 text-muted-foreground">
+                    {copy.emptyHint}
+                  </p>
+                )}
+              </div>
+            </div>
+          )}
+          {query.data && !query.error && !!organizations.length && (
             <div className="flex min-w-0 flex-col gap-6 md:flex-row">
               <nav
                 aria-label={copy.title}
                 className="w-full shrink-0 space-y-2 md:w-52"
               >
-                {!organizations.length && (
-                  <p className="text-sm text-muted-foreground">{copy.empty}</p>
-                )}
                 {organizations.map((entry) => (
                   <button
                     key={entry.id}
