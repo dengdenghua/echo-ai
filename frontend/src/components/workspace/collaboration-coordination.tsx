@@ -14,6 +14,7 @@ import {
   coordinationRequest,
   type CoordinationSnapshot,
 } from "@/core/cowork/coordination";
+import { unchangedBackoff } from "@/core/utils/poll-backoff";
 
 const statuses: Record<string, string> = {
   pending: "排队中",
@@ -71,7 +72,8 @@ function CoordinationPanel({
     queryKey: key,
     queryFn: () => coordinationRequest<CoordinationSnapshot>(threadId),
     enabled: threadId !== "new",
-    refetchInterval: 5000,
+    // Five seconds while tasks move, up to twenty while nothing changes.
+    refetchInterval: (current) => unchangedBackoff(current, 5000, 20_000),
     refetchIntervalInBackground: false,
   });
   const change = useMutation({

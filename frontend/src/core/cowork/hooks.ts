@@ -29,6 +29,7 @@ import type {
   CoworkState,
   CoworkSearchKind,
 } from "./types";
+import { unchangedBackoff } from "@/core/utils/poll-backoff";
 
 const COWORK_KEY = ["cowork"] as const;
 
@@ -256,8 +257,14 @@ export function useCollabSession(
     // they should not keep waking the backend forever. A linked room, a
     // multi-member session, or an explicitly visible live surface keeps the
     // five-second refresh behavior.
-    refetchInterval: (query) =>
-      enabled ? collabSessionRefetchInterval(query.state.data, opts) : false,
+    // A quiet room is polled less often (up to every 15 s); any change
+    // snaps back to the five-second pace.
+    refetchInterval: (query) => {
+      const base = enabled
+        ? collabSessionRefetchInterval(query.state.data, opts)
+        : false;
+      return base === false ? false : unchangedBackoff(query, base, 15_000);
+    },
     refetchIntervalInBackground: false,
     staleTime: 2000,
   });
