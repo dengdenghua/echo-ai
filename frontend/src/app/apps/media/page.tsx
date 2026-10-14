@@ -356,8 +356,13 @@ export default function MediaAppPage({ kind }: MediaAppPageProps) {
           ) : null}
 
           {error && files.length === 0 ? (
-            <div className="flex min-h-[360px] flex-col items-center justify-center rounded-2xl border border-dashed border-warning/50 bg-warning/5 px-6 text-center">
-              <div className="grid size-12 place-items-center rounded-xl bg-warning/10 text-warning">
+            <div
+              role="status"
+              className="flex min-h-[360px] flex-col items-center justify-center rounded-2xl border border-dashed border-border bg-card px-6 text-center"
+            >
+              {/* An optional service being offline is state, not risk: amber
+                  stays reserved for approval and risk. */}
+              <div className="grid size-12 place-items-center rounded-xl bg-muted text-muted-foreground">
                 {isPhotos ? (
                   <ImageIcon className="size-6" />
                 ) : (

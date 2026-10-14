@@ -74,6 +74,10 @@ describe("MediaAppPage", () => {
     expect(screen.getByRole("button", { name: "重试" })).toBeInTheDocument();
     // Not installed: no second listing round-trip behind the spinner.
     expect(listNASFiles).toHaveBeenCalledTimes(1);
+    // An optional service being offline is state, not risk: no amber.
+    const state = screen.getByRole("status");
+    expect(state).toHaveTextContent("本机媒体服务暂时不可用");
+    expect(state.outerHTML).not.toMatch(/warning/);
   });
 
   test("bounds the start probe and shows the error when it times out", async () => {
