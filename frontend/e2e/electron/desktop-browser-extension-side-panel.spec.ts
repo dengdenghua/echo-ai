@@ -3,6 +3,7 @@ import { test, expect, _electron as electron } from "@playwright/test";
 import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
+import { freeLoopbackPort } from "./fixtures/free-port";
 
 test("extension side panel occupies browser layout inside the main window", async () => {
   test.setTimeout(120_000);
@@ -49,7 +50,7 @@ test("extension side panel occupies browser layout inside the main window", asyn
       ...process.env,
       ECHO_PET_DISABLED: "1",
       ECHO_DESKTOP_BACKEND_ROOT: repo,
-      ECHO_BACKEND_URL: "http://127.0.0.1:18001",
+      ECHO_BACKEND_URL: `http://127.0.0.1:${await freeLoopbackPort()}`,
     },
   });
   try {
@@ -187,8 +188,10 @@ test("extension side panel occupies browser layout inside the main window", asyn
     await expect.poll(badge).toBe("closed");
     await win.locator(`[data-extension-action="${id}"]`).click();
     await expect(panel).toBeVisible();
-    await win.goto("echo-app://app/workspace/settings");
-    await expect(win).toHaveURL(/workspace\/settings/);
+    // Leave the browser for a route that stays put (/workspace/settings
+    // immediately redirects to the chat page and opens a dialog there).
+    await win.goto("echo-app://app/workspace/realtime/new");
+    await expect(win).toHaveURL(/workspace\/realtime\/new/);
     await expect.poll(async () => (await native())?.visible).toBe(false);
     await win.goto("echo-app://app/browser");
     await expect(panel).toBeVisible();

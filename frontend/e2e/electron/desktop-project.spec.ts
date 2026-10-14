@@ -5,11 +5,15 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { promisify } from "node:util";
 import { fileURLToPath } from "node:url";
+import { freeLoopbackPort } from "./fixtures/free-port";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const repo = path.resolve(here, "../../..");
 
 test("desktop initiation approval persists while execution stays gated", async ({}, info) => {
+  // A cold Python backend boot plus the workbench flow overruns one minute.
+  test.setTimeout(150_000);
+  const backendPort = await freeLoopbackPort();
   const profile = await mkdtemp(path.join(tmpdir(), "echo-project-approval-"));
   const app = await electron.launch({
     args: [
@@ -22,7 +26,7 @@ test("desktop initiation approval persists while execution stays gated", async (
       ...process.env,
       ECHO_PET_DISABLED: "1",
       ECHO_DESKTOP_BACKEND_ROOT: repo,
-      ECHO_BACKEND_URL: "http://127.0.0.1:18001",
+      ECHO_BACKEND_URL: `http://127.0.0.1:${backendPort}`,
     },
   });
   try {

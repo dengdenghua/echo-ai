@@ -17,6 +17,7 @@ import { createServer } from "node:http";
 import { tmpdir } from "node:os";
 import { fileURLToPath } from "node:url";
 import path from "node:path";
+import { freeLoopbackPort } from "./fixtures/free-port";
 
 const THIS_DIR = path.dirname(fileURLToPath(import.meta.url));
 const ELECTRON_DIR = path.resolve(THIS_DIR, "..", "..", "electron");
@@ -89,9 +90,7 @@ test("desktop shell boots: window, preload bridge, workbench root", async () => 
     expect(webPreferences.webSecurity).not.toBe(false);
 
     // The desktop organizer IPC round-trips (listItems → {ok, items}).
-    const listing = await win.evaluate(() =>
-      window.echo?.desktop?.listItems(),
-    );
+    const listing = await win.evaluate(() => window.echo?.desktop?.listItems());
     expect(listing.ok).toBe(true);
     expect(Array.isArray(listing.items)).toBe(true);
 
@@ -176,7 +175,9 @@ test("desktop shell boots: window, preload bridge, workbench root", async () => 
 });
 
 test("desktop backend spawns and the renderer reaches it", async () => {
-  const backendPort = 18000;
+  // Booting the Python backend alone can take the whole default minute.
+  test.setTimeout(150_000);
+  const backendPort = await freeLoopbackPort();
   const backendUrl = `http://127.0.0.1:${backendPort}`;
   const userDataDir = await mkdtemp(
     path.join(tmpdir(), "echo-electron-backend-"),
@@ -207,21 +208,20 @@ test("desktop backend spawns and the renderer reaches it", async () => {
     const baseURL = await win.evaluate(() => window.echo?.backendBaseURL);
     expect(baseURL).toBe(backendUrl);
 
-    // Poll /api/health until the Python backend finishes booting.
-    let healthOk = false;
-    for (let i = 0; i < 60; i++) {
-      try {
-        const res = await fetch(`${backendUrl}/api/health`);
-        if (res.ok) {
-          healthOk = true;
-          break;
-        }
-      } catch {
-        // backend still booting — retry
-      }
-      await new Promise((r) => setTimeout(r, 500));
-    }
-    expect(healthOk).toBe(true);
+    // Poll /api/health until the Python backend finishes booting: about 20 s
+    // on an idle machine, well past 30 s while other backends are running.
+    await expect
+      .poll(
+        async () => {
+          try {
+            return (await fetch(`${backendUrl}/api/health`)).ok;
+          } catch {
+            return false; // backend still booting — retry
+          }
+        },
+        { timeout: 90_000, intervals: [500] },
+      )
+      .toBe(true);
 
     // This is the production contract that Node-side polling cannot prove:
     // Chromium fetches native /api and /api/plugins paths from the fixed app
@@ -392,16 +392,13 @@ test("browser profile downloads can pause, resume, and cancel", async () => {
             () => reject(new Error("download event timeout")),
             10_000,
           );
-          const off = window.echo!.on(
-            "browser:download-event",
-            (...args) => {
-              const payload = args[0] as { id?: string; state?: string };
-              if (!payload?.id || payload.state !== "progressing") return;
-              window.clearTimeout(timeout);
-              off();
-              resolve(payload.id);
-            },
-          );
+          const off = window.echo!.on("browser:download-event", (...args) => {
+            const payload = args[0] as { id?: string; state?: string };
+            if (!payload?.id || payload.state !== "progressing") return;
+            window.clearTimeout(timeout);
+            off();
+            resolve(payload.id);
+          });
           const webview = document.createElement("webview");
           webview.setAttribute("partition", "persist:echo-browser");
           webview.setAttribute("src", pageUrl);
