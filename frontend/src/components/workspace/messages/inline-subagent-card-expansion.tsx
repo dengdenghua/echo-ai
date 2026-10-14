@@ -11,8 +11,18 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { eventBus } from "@/core/events/event-bus";
+import { useI18n } from "@/core/i18n/hooks";
+import { projectCollabCopy } from "@/core/i18n/locales/project-collab";
 import { cn } from "@/lib/utils";
 import type { InlineSubagentInfo } from "./inline-subagent-cards";
+import {
+  BROADCAST_DELIVERY_PREFIX,
+  BROADCAST_DELIVERY_SUFFIX,
+  BROADCAST_PROGRESS_PREFIX,
+  BROADCAST_PROGRESS_SUFFIX,
+  DECISION_MARKER,
+  SANDBOX_MARKER,
+} from "./project-collaboration-landmark";
 
 export interface InlineSubagentCardExpansionProps {
   agent: InlineSubagentInfo;
@@ -31,6 +41,9 @@ export function InlineSubagentCardExpansion({
   onRecordDecision,
   className,
 }: InlineSubagentCardExpansionProps) {
+  const { locale } = useI18n();
+  const collabCopy = projectCollabCopy(locale);
+  const copy = collabCopy.expansion;
   const navigate = useNavigate();
   const routeParams = useParams();
   const currentThreadId = routeParams.threadId ?? routeParams.thread_id;
@@ -41,16 +54,18 @@ export function InlineSubagentCardExpansion({
 
   const handlePublishToRoom = () => {
     const summary = (agent.summary || agent.task || agent.error || "").trim();
-    const name = agent.name || "并列协作者";
+    const name = agent.name || collabCopy.collaboratorFallback;
+    // The broadcast header is protocol (see project-collaboration-landmark);
+    // the landmark card shows it localized.
     const text = summary
-      ? `📢 来自并列协作者【${name}】的阶段交付：\n\n${summary}`
-      : `📢 并列协作者【${name}】正在推进：\n${agent.task || ""}`;
+      ? `${BROADCAST_DELIVERY_PREFIX}${name}${BROADCAST_DELIVERY_SUFFIX}\n\n${summary}`
+      : `${BROADCAST_PROGRESS_PREFIX}${name}${BROADCAST_PROGRESS_SUFFIX}\n${agent.task || ""}`;
     eventBus.emit("composer:insert-mention", {
       text,
       submit: true,
     });
     setPublished(true);
-    toast.success(`已将【${name}】的工作成果同步发布至群公共`);
+    toast.success(copy.publishedToast(name));
   };
 
   const handleRecordDecision = () => {
@@ -60,20 +75,20 @@ export function InlineSubagentCardExpansion({
       return;
     }
     const summary = (agent.summary || agent.task || agent.error || "").trim();
-    const name = agent.name || "并列协作者";
+    const name = agent.name || collabCopy.collaboratorFallback;
     const text = summary
-      ? `🏛️ [项目决策固化] 采纳并列协作者【${name}】交付成果：\n\n${summary}`
-      : `🏛️ [项目决策固化] 确立并列协作者【${name}】推进目标：\n${agent.task || ""}`;
+      ? `${DECISION_MARKER} ${copy.decisionAdopted(name)}\n\n${summary}`
+      : `${DECISION_MARKER} ${copy.decisionGoal(name)}\n${agent.task || ""}`;
     eventBus.emit("composer:insert-mention", {
       text,
       submit: true,
     });
     setDecisionRecorded(true);
-    toast.success(`已将【${name}】的成果固化为长项目核心决策`);
+    toast.success(copy.decisionToast(name));
   };
 
   const handleForkSandbox = () => {
-    const name = agent.name || "并列协作者";
+    const name = agent.name || collabCopy.collaboratorFallback;
     if (onForkSandbox) {
       onForkSandbox();
       return;
@@ -83,13 +98,13 @@ export function InlineSubagentCardExpansion({
     if (agent.task || agent.summary) {
       params.set(
         "prompt",
-        `【方案推演沙盒】\n针对前序长项目任务展开独立概念验证（POC）与方案推演：\n${agent.task || agent.summary}\n\n`,
+        `${SANDBOX_MARKER}\n${copy.sandboxPromptIntro}\n${agent.task || agent.summary}\n\n`,
       );
     }
     params.set("sandbox", "true");
     if (currentThreadId) params.set("parent_thread_id", currentThreadId);
     void navigate(`/workspace/realtime/new?${params.toString()}`);
-    toast.info(`已为【${name}】开辟独立的方案推演沙盒`);
+    toast.info(copy.sandboxToast(name));
   };
 
   const handleDirectFollowup = () => {
@@ -98,7 +113,7 @@ export function InlineSubagentCardExpansion({
       text: `@${targetName} `,
       submit: false,
     });
-    toast.info(`已将针对【${targetName}】的对话装填入主输入框`);
+    toast.info(copy.followUpToast(targetName));
   };
 
   return (
@@ -113,19 +128,19 @@ export function InlineSubagentCardExpansion({
       <div className="mb-2 flex items-center justify-between gap-2 border-b border-border/40 pb-1.5">
         <div className="flex min-w-0 items-center gap-1.5 font-medium text-foreground/80">
           <span className="shrink-0 rounded bg-primary/10 px-1.5 py-0.5 text-xs font-semibold text-primary">
-            我的第一视角 · 并列协作者
+            {copy.perspectiveBadge}
           </span>
           <span className="text-muted-foreground">|</span>
           <span className="truncate text-xs text-foreground/90">
-            {agent.name || "并列协作者"}
+            {agent.name || collabCopy.collaboratorFallback}
           </span>
         </div>
         <div className="flex shrink-0 items-center gap-2 text-xs text-muted-foreground/80">
           {agent.filesTouchedCount > 0 && (
-            <span>修改了 {agent.filesTouchedCount} 个文件</span>
+            <span>{copy.filesTouched(agent.filesTouchedCount)}</span>
           )}
           {agent.iterationCount && agent.iterationCount > 0 ? (
-            <span>{agent.iterationCount} 轮迭代</span>
+            <span>{copy.iterations(agent.iterationCount)}</span>
           ) : null}
         </div>
       </div>
@@ -134,14 +149,16 @@ export function InlineSubagentCardExpansion({
       <div className="space-y-1.5 leading-relaxed">
         {agent.task && (
           <div className="rounded bg-muted/40 px-2 py-1 text-xs text-foreground/80">
-            <span className="font-medium text-foreground/90">任务目标：</span>
+            <span className="font-medium text-foreground/90">
+              {copy.taskGoal}
+            </span>
             {agent.task}
           </div>
         )}
 
         {agent.error ? (
           <div className="rounded border border-destructive/20 bg-destructive/10 p-2 text-destructive">
-            <span className="font-medium">遇到错误：</span>
+            <span className="font-medium">{copy.errorLabel}</span>
             <p className="mt-0.5 whitespace-pre-wrap">{agent.error}</p>
           </div>
         ) : agent.summary ? (
@@ -154,7 +171,7 @@ export function InlineSubagentCardExpansion({
         ) : (
           <div className="flex items-center gap-1.5 py-1 text-muted-foreground">
             <Loader2Icon className="size-3.5 animate-spin" />
-            <span>并列协作者正在后台并行推进中，随时可查看执行画面或发送指令…</span>
+            <span>{copy.working}</span>
           </div>
         )}
       </div>
@@ -172,14 +189,14 @@ export function InlineSubagentCardExpansion({
                 ? "border-core/30 bg-core/10 text-core"
                 : "border-primary/30 bg-primary/10 text-primary hover:bg-primary/20",
             )}
-            title="将该并列协作者产出的阶段性结果，一键发布到全群公共主对话中"
+            title={copy.publishHint}
           >
             {published ? (
               <CheckIcon className="size-3" />
             ) : (
               <Share2Icon className="size-3" />
             )}
-            <span>{published ? "已同步至群公共" : "同步至群公共"}</span>
+            <span>{published ? copy.published : copy.publish}</span>
           </button>
 
           <button
@@ -192,30 +209,32 @@ export function InlineSubagentCardExpansion({
                 ? "border-core/30 bg-core/10 text-core"
                 : "border-border/60 bg-background/80 text-foreground/80 hover:bg-muted hover:text-foreground",
             )}
-            title="将该并列协作者的交付成果作为长项目的核心决策固化沉淀到 Project OS 事实库"
+            title={copy.decisionHint}
           >
             <BookmarkIcon className="size-3" />
-            <span>{decisionRecorded ? "已固化为决策" : "固化为决策"}</span>
+            <span>
+              {decisionRecorded ? copy.decisionRecorded : copy.recordDecision}
+            </span>
           </button>
 
           <button
             type="button"
             onClick={handleForkSandbox}
             className="inline-flex items-center gap-1 rounded border border-border/60 bg-background/80 px-2 py-1 text-xs font-medium text-foreground/80 transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
-            title="开辟独立推演沙盒，进行多方案 POC 隔离验证，避免污染长项目主干"
+            title={copy.sandboxHint}
           >
             <GitBranchIcon className="size-3" />
-            <span>推演沙盒</span>
+            <span>{copy.sandbox}</span>
           </button>
 
           <button
             type="button"
             onClick={handleDirectFollowup}
             className="inline-flex items-center gap-1 rounded border border-border/50 bg-background/80 px-2 py-1 text-xs font-medium text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
-            title="在主输入框定向 @该协作者 发起追问"
+            title={copy.followUpHint}
           >
             <MessageSquareIcon className="size-3" />
-            <span>定向追问</span>
+            <span>{copy.followUp}</span>
           </button>
         </div>
 
@@ -223,9 +242,9 @@ export function InlineSubagentCardExpansion({
           type="button"
           onClick={onOpenWorkbench}
           className="inline-flex items-center gap-1 text-xs font-medium text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
-          title="在右侧工作台大屏查看完整的工具调用流与执行画面"
+          title={copy.openWorkbenchHint}
         >
-          <span>在大屏工作台查看完整流</span>
+          <span>{copy.openWorkbench}</span>
           <ExternalLinkIcon className="size-3" />
         </button>
       </div>

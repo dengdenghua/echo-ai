@@ -11,6 +11,8 @@ import {
   type useEnsureCollabRoom,
 } from "@/core/cowork";
 import type { ThreadCollaborationRosterEntry } from "@/core/collaboration/thread-collaboration";
+import { useI18n } from "@/core/i18n/hooks";
+import { realtimeRoomCopy } from "@/core/i18n/locales/realtime-room";
 
 import {
   firstString,
@@ -255,6 +257,7 @@ export function useCollaborationParticipant({
   user: Parameters<typeof currentActorId>[0];
   t: RealtimeTranslations;
 }) {
+  const roomCopy = realtimeRoomCopy(useI18n().locale);
   const collaborationTeamName =
     boundProjectQuery.data?.project.name ||
     firstString(threadIdentityQuery.data?.values?.title, initialPrompt) ||
@@ -316,7 +319,7 @@ export function useCollaborationParticipant({
     firstString(
       realtimeRoomParticipant?.display_name,
       realtimeRoomParticipant?.name,
-    ) || "我";
+    ) || roomCopy.selfName;
   return {
     collaborationTeamName,
     currentInviteActor,
@@ -370,6 +373,7 @@ export function useHumanInviteRoom({
   pathname,
   search,
 }: HumanInviteRoomInput) {
+  const roomCopy = realtimeRoomCopy(useI18n().locale);
   const collaborationRoomMemberPayload = useMemo(
     () =>
       visibleCollaborationRoster.map((agent) => ({
@@ -403,7 +407,7 @@ export function useHumanInviteRoom({
     humanInviteRoomId || collabSessionQuery.data?.room_id || "";
   const ensureHumanInviteRoom = useCallback(async () => {
     if (isNewThread || !threadId || threadId === "new") {
-      throw new Error("请先发送一条消息，再邀请真人加入群聊");
+      throw new Error(roomCopy.inviteNeedsFirstMessage);
     }
     const response = await ensureCollabRoomMutation.mutateAsync({
       threadId,
@@ -418,7 +422,7 @@ export function useHumanInviteRoom({
     const roomId =
       response.session.room_id ||
       (typeof response.room.id === "string" ? response.room.id : "");
-    if (!roomId) throw new Error("群聊房间创建失败，请重试");
+    if (!roomId) throw new Error(roomCopy.inviteRoomFailed);
     setHumanInviteRoomId(roomId);
     return roomId;
   }, [
@@ -427,6 +431,7 @@ export function useHumanInviteRoom({
     effectiveAgentId,
     ensureCollabRoomMutation,
     isNewThread,
+    roomCopy,
     setHumanInviteRoomId,
     teamModeIntent,
     threadId,
@@ -436,9 +441,11 @@ export function useHumanInviteRoom({
       await ensureHumanInviteRoom();
       setHumanInviteDialogOpen(true);
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "无法创建邀请链接");
+      toast.error(
+        error instanceof Error ? error.message : roomCopy.inviteLinkFailed,
+      );
     }
-  }, [ensureHumanInviteRoom, setHumanInviteDialogOpen]);
+  }, [ensureHumanInviteRoom, roomCopy, setHumanInviteDialogOpen]);
   const humanInviteRouteOpenedRef = useRef<string | null>(null);
   useEffect(() => {
     if (

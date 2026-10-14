@@ -21,6 +21,7 @@ vi.mock("./markdown-content", () => ({
 
 vi.mock("@/core/i18n/hooks", () => ({
   useI18n: () => ({
+    locale: "en-US",
     t: {
       common: {
         more: "More",

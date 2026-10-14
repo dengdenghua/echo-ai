@@ -30,16 +30,20 @@ test("isolated HTML renders, interacts, blocks host access and reports late erro
     const {default: React} = await import('/node_modules/.vite/deps/react.js');
     const {default: {createRoot}} = await import('/node_modules/.vite/deps/react-dom_client.js');
     const {InlineVisual} = await import('/src/components/workspace/messages/inline-visual.tsx');
-    window.renderVisual = (code, complete = true) => root.render(React.createElement(InlineVisual, {
+    const {I18nProvider} = await import('/src/core/i18n/context.tsx');
+    const {loadTranslations} = await import('/src/core/i18n/translations.ts');
+    // InlineVisual reads its copy from the locale, so it needs the provider;
+    // the provider prefers the locale cookie over initialLocale.
+    document.cookie = 'locale=zh-CN; path=/';
+    const chinese = await loadTranslations('zh-CN');
+    window.renderVisual = (code, complete = true) => root.render(React.createElement(I18nProvider, {initialLocale:'zh-CN', initialTranslations:chinese}, React.createElement(InlineVisual, {
       title: 'Interactive example', format: 'html', code, complete,
       receipt: complete ? {kind:'echo.visual.v1', visual_id:'example', receipt_token:'browser-test-token', thread_id:'task'} : null
-    }));
+    })));
     const root = createRoot(document.getElementById('root'));
     window.renderMermaid = async () => {
       await import('/src/styles/globals.css');
       const {MermaidBlock} = await import('/src/components/workspace/messages/mermaid-block.tsx');
-      const {I18nProvider} = await import('/src/core/i18n/context.tsx');
-      const {loadTranslations} = await import('/src/core/i18n/translations.ts');
       const translations = await loadTranslations('zh-CN');
       root.render(React.createElement(I18nProvider, {initialLocale:'zh-CN', initialTranslations:translations}, React.createElement(MermaidBlock, {code:'flowchart LR; A[需求] --> B[实现] --> C[验证]'})));
     };
@@ -113,10 +117,10 @@ test("isolated HTML renders, interacts, blocks host access and reports late erro
   await expect(diagram).toBeVisible();
   await expect(diagram).toContainText("需求");
   await expect(
-    page.getByRole("button", { name: "Zoom in", exact: true }),
+    page.getByRole("button", { name: "放大", exact: true }),
   ).toBeVisible();
   const originalWidth = (await diagram.boundingBox())!.width;
-  await page.getByRole("button", { name: "Zoom in", exact: true }).click();
+  await page.getByRole("button", { name: "放大", exact: true }).click();
   await expect(page.getByText("125%", { exact: true })).toBeVisible();
   expect((await diagram.boundingBox())!.width).toBeGreaterThan(originalWidth);
   await page.getByRole("button", { name: "适应宽度" }).click();

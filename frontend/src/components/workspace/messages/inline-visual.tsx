@@ -4,6 +4,11 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import type { AIMessage, Message } from "@/core/api/types";
 import { jsonAuthHeaders } from "@/core/auth/api";
 import { getBackendBaseURL } from "@/core/config";
+import { useI18n } from "@/core/i18n/hooks";
+import {
+  inlineVisualCopy,
+  type InlineVisualStatus,
+} from "@/core/i18n/locales/inline-visual";
 import { dispatchQuickReply } from "@/core/messages/quick-reply";
 import { findToolCallResult } from "@/core/messages/utils";
 
@@ -134,16 +139,23 @@ export function InlineVisual({
   receipt: VisualReceipt | null;
   complete: boolean;
 }) {
+  const { locale } = useI18n();
+  const copy = inlineVisualCopy(locale);
   const frame = useRef<HTMLIFrameElement>(null);
   // A fresh channel per render input, so a reply from the previous iframe
   // document can never be mistaken for the current one.
   // eslint-disable-next-line react-hooks/exhaustive-deps -- deps are the trigger, not inputs
   const channel = useMemo(() => crypto.randomUUID(), [code, complete]);
   const [height, setHeight] = useState(360);
-  const [status, setStatus] = useState("等待浏览器渲染");
+  const [status, setStatus] = useState<InlineVisualStatus>("waiting");
   const [detail, setDetail] = useState("");
+  // Local delivery failure of the receipt; shown only when the frame itself
+  // reported no error detail.
+  const [receiptNotSynced, setReceiptNotSynced] = useState(false);
   const [showSource, setShowSource] = useState(false);
-  const [action, setAction] = useState("");
+  const [action, setAction] = useState<
+    "submitted" | "inputUnavailable" | null
+  >(null);
   const srcDoc = useMemo(
     () => buildVisualDocument(code, format, channel, complete),
     [code, format, channel, complete],
@@ -152,8 +164,9 @@ export function InlineVisual({
   const token = receipt?.receipt_token;
 
   useEffect(() => {
-    setStatus(complete ? "等待浏览器渲染" : "生成中 · 静态预览");
+    setStatus(complete ? "waiting" : "streaming");
     setDetail("");
+    setReceiptNotSynced(false);
     let failed = false;
     let rendered = false;
     let active = true;
@@ -177,7 +190,7 @@ export function InlineVisual({
       if (type === "rendered" && rendered) return;
       rendered = true;
       failed = type === "error";
-      setStatus(failed ? "渲染出错" : "浏览器已渲染");
+      setStatus(failed ? "error" : "rendered");
       const error = failed
         ? String(message ?? "Render failed").slice(0, 1000)
         : "";
@@ -200,18 +213,14 @@ export function InlineVisual({
           if (!response.ok) throw new Error("Receipt unavailable");
         })
         .catch(() => {
-          if (active)
-            setDetail(
-              (previous) =>
-                previous || "本地显示状态未同步；智能体尚未收到回执。",
-            );
+          if (active) setReceiptNotSynced(true);
         });
     };
     window.addEventListener("message", listener);
     const timer = window.setTimeout(() => {
       if (active)
         setStatus((previous) =>
-          previous === "等待浏览器渲染" ? "尚未收到浏览器回执" : previous,
+          previous === "waiting" ? "noReceipt" : previous,
         );
     }, 10000);
     return () => {
@@ -225,12 +234,16 @@ export function InlineVisual({
   const request = (save: boolean) => {
     if (!receipt?.thread_id) return;
     const text = save
-      ? `请把可视化 ${receipt.visual_id}（${title}）保存为当前任务工作区的 ${format === "svg" ? "SVG 和 HTML" : "HTML"} 产物，沿用产物预览和版本管理，并给出文件链接。`
-      : `请修复可视化 ${receipt.visual_id}（${title}）。浏览器报错：${detail || status}。修正后重新 show_visual。`;
+      ? copy.saveRequest(receipt.visual_id, title, format === "svg")
+      : copy.fixRequest(
+          receipt.visual_id,
+          title,
+          detail || copy.status[status],
+        );
     setAction(
       dispatchQuickReply({ threadId: receipt.thread_id, text })
-        ? "已提交到当前任务"
-        : "当前任务输入不可用，请复制源码保存。",
+        ? "submitted"
+        : "inputUnavailable",
     );
   };
 
@@ -242,13 +255,15 @@ export function InlineVisual({
     >
       <header className="flex flex-wrap items-center gap-2 border-b bg-muted/30 px-3 py-2 text-xs">
         <strong className="mr-auto font-medium text-foreground">{title}</strong>
-        <span role="status" className="text-muted-foreground">{status}</span>
+        <span role="status" className="text-muted-foreground">
+          {copy.status[status]}
+        </span>
         <button
           type="button"
           className="rounded px-2 py-0.5 text-muted-foreground transition-colors hover:bg-accent hover:text-accent-foreground"
           onClick={() => setShowSource((value) => !value)}
         >
-          {showSource ? "查看图形" : "查看源码"}
+          {showSource ? copy.viewVisual : copy.viewSource}
         </button>
         {receipt?.thread_id && (
           <button
@@ -256,27 +271,27 @@ export function InlineVisual({
             className="rounded px-2 py-0.5 text-muted-foreground transition-colors hover:bg-accent hover:text-accent-foreground"
             onClick={() => request(true)}
           >
-            保存为产物
+            {copy.saveAsArtifact}
           </button>
         )}
-        {status === "渲染出错" && receipt?.thread_id && (
+        {status === "error" && receipt?.thread_id && (
           <button
             type="button"
             className="rounded px-2 py-0.5 text-destructive transition-colors hover:bg-destructive/10"
             onClick={() => request(false)}
           >
-            请求修复
+            {copy.requestFix}
           </button>
         )}
       </header>
-      {detail && (
+      {(detail || receiptNotSynced) && (
         <p className="px-3 py-1.5 text-xs text-destructive" role="alert">
-          {detail}
+          {detail || copy.receiptNotSynced}
         </p>
       )}
       {action && (
         <p className="px-3 py-1 text-xs text-muted-foreground" role="status">
-          {action}
+          {copy[action]}
         </p>
       )}
       <iframe
@@ -298,6 +313,8 @@ export function InlineVisual({
 }
 
 export function InlineVisualMessages({ messages }: { messages: Message[] }) {
+  const { locale } = useI18n();
+  const defaultTitle = inlineVisualCopy(locale).defaultTitle;
   const visuals: React.ReactNode[] = [];
   const seen = new Set<string>();
   for (const message of messages) {
@@ -321,7 +338,9 @@ export function InlineVisualMessages({ messages }: { messages: Message[] }) {
       visuals.push(
         <InlineVisual
           key={call.id}
-          title={typeof title === "string" ? title.slice(0, 160) : "可视化"}
+          title={
+            typeof title === "string" ? title.slice(0, 160) : defaultTitle
+          }
           code={code}
           format={String(format)}
           receipt={receipt}

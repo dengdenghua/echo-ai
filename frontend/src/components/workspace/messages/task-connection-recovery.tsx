@@ -1,6 +1,7 @@
 import { useState } from "react";
 import type { Message } from "@/core/api/types";
 import { useI18n } from "@/core/i18n/hooks";
+import { conversationNoticesCopy } from "@/core/i18n/locales/conversation-notices";
 import { RoleConnections } from "../agents/role-connections";
 
 export interface TaskConnectionIssue {
@@ -45,7 +46,7 @@ export function TaskConnectionRecovery({
   onContinue?: () => void;
 }) {
   const { locale } = useI18n();
-  const zh = locale.startsWith("zh");
+  const copy = conversationNoticesCopy(locale);
   const [open, setOpen] = useState(false);
   const [configured, setConfigured] = useState(false);
   return (
@@ -56,7 +57,7 @@ export function TaskConnectionRecovery({
         aria-expanded={open}
         onClick={() => setOpen(!open)}
       >
-        {zh ? "修复所需连接" : "Repair required connections"}
+        {copy.repairConnections}
       </button>
       {open && (
         <RoleConnections
@@ -79,13 +80,7 @@ export function TaskConnectionRecovery({
             }
           }}
         >
-          {busy
-            ? zh
-              ? "正在继续…"
-              : "Continuing…"
-            : zh
-              ? "继续当前任务"
-              : "Continue this task"}
+          {busy ? copy.continuing : copy.continueTask}
         </button>
       )}
     </div>

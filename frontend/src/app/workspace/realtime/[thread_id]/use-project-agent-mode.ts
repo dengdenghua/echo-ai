@@ -17,6 +17,8 @@ import {
   DESIGN_MODE_CHANGE_MESSAGE,
   designWorkspaceRoute,
 } from "@/core/design/mode-bridge";
+import { useI18n } from "@/core/i18n/hooks";
+import { realtimeRoomCopy } from "@/core/i18n/locales/realtime-room";
 
 import { modeLabelFor } from "./page-utils";
 import type {
@@ -191,6 +193,7 @@ export function useProjectAgentModeHandlers({
   setModeManualOverride,
   setModeIntentSuggestion,
 }: ProjectAgentModeHandlersInput) {
+  const roomCopy = realtimeRoomCopy(useI18n().locale);
   // A restored Design preference uses the same home as an explicit mode switch.
   // Embedded chats must stay here so the Design host can render its conversation.
   useEffect(() => {
@@ -231,7 +234,7 @@ export function useProjectAgentModeHandlers({
         setProjectAgentMode(previousMode);
         setModeManualOverride(previousManualOverride);
         setModeIntentSuggestion({ mode, label });
-        toast.error("切换模式失败，已还原");
+        toast.error(roomCopy.modeSwitchFailed);
         throw error;
       }
     },
@@ -244,6 +247,7 @@ export function useProjectAgentModeHandlers({
       modeManualOverride,
       navigate,
       projectAgentMode,
+      roomCopy,
       setModeIntentSuggestion,
       setModeManualOverride,
       setProjectAgentMode,

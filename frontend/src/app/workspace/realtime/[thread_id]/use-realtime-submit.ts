@@ -10,6 +10,8 @@ import { groupTaskStrategyAfterSubmit } from "@/core/collaboration/group-task-st
 import { writeTaskCollaboratorPreset } from "@/core/collaboration/task-collaborator-preset";
 import type { CoworkRoomMessage } from "@/core/cowork";
 import type { Message } from "@/core/api/types";
+import { useI18n } from "@/core/i18n/hooks";
+import { realtimeRoomCopy } from "@/core/i18n/locales/realtime-room";
 import { classifyModeIntent } from "@/core/modes/intent-classifier";
 import type { PermissionMode } from "@/core/permissions";
 import { taskWorkspaceRoute } from "@/core/router/task-workspace-route";
@@ -86,6 +88,7 @@ export function useRealtimeSubmit({
   setGroupTaskStrategy,
   setReplyTarget,
 }: RealtimeSubmitInput) {
+  const roomCopy = realtimeRoomCopy(useI18n().locale);
   return useCallback(
     (message: {
       text: string;
@@ -164,9 +167,7 @@ export function useRealtimeSubmit({
         isThreadStale(threadIdentityQuery.data?.updated_at, autoNewSessionHours)
       ) {
         writePendingNewSession(message.text);
-        toast.info(
-          `已为你开启新会话（距上次对话已超过 ${autoNewSessionHours} 小时）`,
-        );
+        toast.info(roomCopy.autoNewSession(autoNewSessionHours));
         void navigate(
           taskWorkspaceRoute({ agentId: activeAgentId, prompt: message.text }),
           { replace: false },
@@ -220,6 +221,7 @@ export function useRealtimeSubmit({
       projectAgentMode,
       sendMessage,
       t,
+      roomCopy,
       messages,
       readyForMutations,
       canWriteConversation,

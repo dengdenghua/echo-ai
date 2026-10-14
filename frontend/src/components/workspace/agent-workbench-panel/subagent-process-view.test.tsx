@@ -4,6 +4,7 @@ import { describe, expect, it, vi, beforeEach } from "vitest";
 
 import { renderWithProviders } from "@/test/harness";
 import { eventBus } from "@/core/events/event-bus";
+import { subagentViewCopy } from "@/core/i18n/locales/subagent-view";
 import { SubagentProcessView } from "./subagent-process-view";
 import type { AgentTile } from "../agent-workbench-utils";
 import type { WorkBlock } from "../work-blocks";
@@ -19,6 +20,8 @@ vi.mock("react-router-dom", async (importOriginal) => {
     useNavigate: () => mocks.navigate,
   };
 });
+
+const copy = subagentViewCopy("en-US");
 
 describe("<SubagentProcessView /> interaction enhancements", () => {
   beforeEach(() => {
@@ -74,9 +77,9 @@ describe("<SubagentProcessView /> interaction enhancements", () => {
       />,
     );
 
-    expect(screen.getByRole("button", { name: "私聊", exact: true })).toBeEnabled();
-    expect(screen.getByRole("button", { name: "分享到群聊", exact: true })).toBeEnabled();
-    expect(screen.getByRole("button", { name: "返回总览" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: copy.privateChat, exact: true })).toBeEnabled();
+    expect(screen.getByRole("button", { name: copy.shareToGroup, exact: true })).toBeEnabled();
+    expect(screen.getByRole("button", { name: copy.backToOverview })).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "更多操作" })).not.toBeInTheDocument();
     expect(screen.queryByText(/固化|沙盒|独立会话|群聊草稿/)).not.toBeInTheDocument();
   });
@@ -127,7 +130,7 @@ describe("<SubagentProcessView /> interaction enhancements", () => {
 
   it("shares only the actual reply as a reviewable group draft", async () => {
     const emitSpy = vi.spyOn(eventBus, "emit");
-    renderWithProviders(<SubagentProcessView agent={mockAgent} blocks={mockBlocks} onOpenMain={vi.fn()} />);
+    renderWithProviders(<SubagentProcessView agent={mockAgent} blocks={mockBlocks} onOpenMain={vi.fn()} />, { locale: "zh-CN" });
     await userEvent.click(screen.getByRole("button", { name: "分享到群聊" }));
     expect(emitSpy).toHaveBeenCalledWith("composer:insert-mention", {
       text: `规划专家 的回复：\n\n${mockAgent.resultSummary}`,
@@ -136,11 +139,26 @@ describe("<SubagentProcessView /> interaction enhancements", () => {
     emitSpy.mockRestore();
   });
 
+  it("follows the UI language for the share draft and follow-up bar", async () => {
+    const emitSpy = vi.spyOn(eventBus, "emit");
+    renderWithProviders(<SubagentProcessView agent={mockAgent} blocks={mockBlocks} onOpenMain={vi.fn()} />);
+    expect(screen.getByRole("textbox", { name: copy.privateChatLabel("规划专家") })).toHaveAttribute(
+      "placeholder",
+      copy.privateChatPlaceholder("规划专家"),
+    );
+    await userEvent.click(screen.getByRole("button", { name: copy.shareToGroup }));
+    expect(emitSpy).toHaveBeenCalledWith("composer:insert-mention", {
+      text: copy.sharedReply("规划专家", mockAgent.resultSummary ?? ""),
+      submit: false,
+    });
+    emitSpy.mockRestore();
+  });
+
   it("opens a private draft without publishing anything to the group", () => {
     const emitSpy = vi.spyOn(eventBus, "emit");
     renderWithProviders(<SubagentProcessView agent={mockAgent} blocks={mockBlocks} onOpenMain={vi.fn()} />);
-    fireEvent.change(screen.getByRole("textbox", { name: "与 规划专家 私聊" }), { target: { value: "请将方案细化到文件级别" } });
-    fireEvent.click(screen.getByRole("button", { name: "私聊", exact: true }));
+    fireEvent.change(screen.getByRole("textbox", { name: copy.privateChatLabel("规划专家") }), { target: { value: "请将方案细化到文件级别" } });
+    fireEvent.click(screen.getByRole("button", { name: copy.privateChat, exact: true }));
     expect(emitSpy).not.toHaveBeenCalled();
     const params = new URL(mocks.navigate.mock.calls[0][0], "http://localhost").searchParams;
     expect(params.get("agent")).toBe("planner-agent");
@@ -151,7 +169,7 @@ describe("<SubagentProcessView /> interaction enhancements", () => {
 
   it("allows starting a private chat before typing", async () => {
     renderWithProviders(<SubagentProcessView agent={mockAgent} blocks={[]} onOpenMain={vi.fn()} />);
-    await userEvent.click(screen.getByRole("button", { name: "私聊", exact: true }));
+    await userEvent.click(screen.getByRole("button", { name: copy.privateChat, exact: true }));
     const params = new URL(mocks.navigate.mock.calls[0][0], "http://localhost").searchParams;
     expect(params.get("private")).toBe("1");
     expect(params.has("prompt")).toBe(false);
@@ -159,6 +177,6 @@ describe("<SubagentProcessView /> interaction enhancements", () => {
 
   it("does not present a task brief or an error as a shareable reply", () => {
     renderWithProviders(<SubagentProcessView agent={{...mockAgent, resultSummary: undefined, status: "error", error: "执行失败"}} blocks={[]} onOpenMain={vi.fn()} />);
-    expect(screen.getByRole("button", { name: "分享到群聊" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: copy.shareToGroup })).toBeDisabled();
   });
 });

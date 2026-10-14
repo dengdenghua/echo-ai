@@ -15,6 +15,7 @@ import {
 } from "lucide-react";
 import { PersonaGlyph } from "@/components/brand/persona-glyph";
 import { useI18n } from "@/core/i18n/hooks";
+import { subagentPanelCopy } from "@/core/i18n/locales/subagent-panel";
 import type { Subtask } from "@/core/tasks/types";
 
 interface SubagentDetailsPanelProps {
@@ -51,7 +52,8 @@ export function SubagentDetailsPanel({
   open,
   onOpenChange,
 }: SubagentDetailsPanelProps) {
-  const { t } = useI18n();
+  const { locale, t } = useI18n();
+  const copy = subagentPanelCopy(locale);
 
   if (!task) return null;
 
@@ -107,7 +109,9 @@ export function SubagentDetailsPanel({
                   {isRunning && (
                     <Loader2Icon className="size-4 animate-spin text-primary" />
                   )}
-                  <span className="text-xs text-muted-foreground">Status</span>
+                  <span className="text-xs text-muted-foreground">
+                    {copy.status}
+                  </span>
                 </div>
                 <div className="mt-1 font-semibold">
                   {isCompleted && t.subagents.completed}
@@ -170,7 +174,7 @@ export function SubagentDetailsPanel({
                 <div className="rounded-lg border border-border bg-muted/30 p-3">
                   <div className="flex items-center gap-2">
                     <span className="text-xs text-muted-foreground">
-                      Tokens
+                      {copy.tokens}
                     </span>
                   </div>
                   <div className="mt-1 font-semibold">
@@ -184,7 +188,9 @@ export function SubagentDetailsPanel({
           {/* 任务描述 */}
           {task.prompt && (
             <div>
-              <h3 className="mb-2 text-sm font-semibold">Task Description</h3>
+              <h3 className="mb-2 text-sm font-semibold">
+                {copy.taskDescription}
+              </h3>
               <div className="whitespace-pre-wrap rounded-lg border border-border bg-muted/20 p-4 text-sm">
                 {task.prompt}
               </div>
@@ -214,7 +220,7 @@ export function SubagentDetailsPanel({
           {/* 执行结果 */}
           {task.result && (
             <div>
-              <h3 className="mb-2 text-sm font-semibold">Result</h3>
+              <h3 className="mb-2 text-sm font-semibold">{copy.result}</h3>
               <div className="whitespace-pre-wrap rounded-lg border border-border bg-muted/20 p-4 text-sm">
                 {task.result}
               </div>
@@ -236,7 +242,7 @@ export function SubagentDetailsPanel({
           {/* 技能标签 */}
           {task.skills && task.skills.length > 0 && (
             <div>
-              <h3 className="mb-2 text-sm font-semibold">Skills</h3>
+              <h3 className="mb-2 text-sm font-semibold">{copy.skills}</h3>
               <div className="flex flex-wrap gap-2">
                 {task.skills.map((skill, index) => (
                   <span

@@ -12,6 +12,8 @@ import { Welcome } from "@/components/workspace/welcome";
 import type { Agent } from "@/core/agents";
 import type { AutomationTarget } from "@/core/computer/api";
 import type { CollaborationSession, CoworkRoomMessage } from "@/core/cowork";
+import { useI18n } from "@/core/i18n/hooks";
+import { realtimeRoomCopy } from "@/core/i18n/locales/realtime-room";
 import type { Team } from "@/core/teams/api";
 import { cn } from "@/lib/utils";
 
@@ -91,6 +93,8 @@ export function RealtimeComposerArea({
   handleSubmit,
   chatInput,
 }: RealtimeComposerAreaProps) {
+  const { locale } = useI18n();
+  const nameSeparator = realtimeRoomCopy(locale).nameSeparator;
   return (
     <div
       data-composer-start={isNewThread || undefined}
@@ -110,7 +114,7 @@ export function RealtimeComposerArea({
             membershipNotice={membershipNotice}
             setMembershipNotice={setMembershipNotice}
             selectedCollaboratorCount={selectedCollaborators.length}
-            selectedCollaboratorNames={selectedCollaborators.map(agent => agent.display_name || agent.name).join("、")}
+            selectedCollaboratorNames={selectedCollaborators.map(agent => agent.display_name || agent.name).join(nameSeparator)}
             welcomeTeamId={welcomeTeamId}
             handleWelcomeTeamLoaded={handleWelcomeTeamLoaded}
             perspectiveDisplayAgent={perspectiveDisplayAgent}
@@ -188,17 +192,19 @@ const RealtimeComposerPreamble = memo(function RealtimeComposerPreamble({
   membershipNotice: string;
   setMembershipNotice: StateSetter<string>;
   selectedCollaboratorCount: number;
-  /** Display names of the selected collaborators, joined with 「、」. */
+  /** Display names of the selected collaborators, joined with the locale's list separator. */
   selectedCollaboratorNames: string;
   welcomeTeamId: string | null;
   handleWelcomeTeamLoaded: (team: Team) => void;
   perspectiveDisplayAgent: Agent | null;
   mainPerspectiveAgentId: string;
 }) {
+  const { locale } = useI18n();
+  const copy = realtimeRoomCopy(locale);
   return (
     <>
-      {membershipNotice ? <div role="status" className="mb-2 flex items-center gap-2 rounded-lg border p-3 text-xs text-muted-foreground"><span className="flex-1">{membershipNotice}</span><button aria-label="关闭入群提示" onClick={() => setMembershipNotice("")}>×</button></div> : null}
-      {isNewThread && selectedCollaboratorCount > 0 && !welcomeTeamId ? <div className="mb-3 rounded-lg border p-3 text-sm"><p>团队已就绪 · {selectedCollaboratorNames}</p><p className="mt-1 text-xs text-muted-foreground">发送第一条消息后保存群聊。你想和团队一起做什么？</p></div> : null}
+      {membershipNotice ? <div role="status" className="mb-2 flex items-center gap-2 rounded-lg border p-3 text-xs text-muted-foreground"><span className="flex-1">{membershipNotice}</span><button type="button" aria-label={copy.dismissJoinNotice} title={copy.dismissJoinNotice} className="-m-1 inline-flex size-7 shrink-0 items-center justify-center rounded text-muted-foreground hover:bg-muted hover:text-foreground" onClick={() => setMembershipNotice("")}><XIcon className="size-3.5" aria-hidden="true" /></button></div> : null}
+      {isNewThread && selectedCollaboratorCount > 0 && !welcomeTeamId ? <div className="mb-3 rounded-lg border p-3 text-sm"><p>{copy.teamReady(selectedCollaboratorNames)}</p><p className="mt-1 text-xs text-muted-foreground">{copy.teamReadyHint}</p></div> : null}
       {isNewThread ? (
         <div data-composer-welcome="true">
           {welcomeTeamId ? <TeamWelcomeCard teamId={welcomeTeamId} onLoaded={handleWelcomeTeamLoaded} /> : <Welcome
@@ -220,19 +226,22 @@ const RealtimeReplyTargetBar = memo(function RealtimeReplyTargetBar({
   replyTarget: CoworkRoomMessage;
   setReplyTarget: StateSetter<CoworkRoomMessage | null>;
 }) {
+  const { locale } = useI18n();
+  const copy = realtimeRoomCopy(locale);
   return (
     <div className="mb-2 flex items-center gap-2 rounded-lg border border-primary/20 bg-primary/[0.04] px-3 py-2 text-xs">
       <span className="min-w-0 flex-1 truncate text-muted-foreground">
-        回复 {replyTarget.display_name || "协作成员"}：
+        {copy.replyingTo(replyTarget.display_name || copy.replyFallbackName)}
         {replyTarget.text}
       </span>
       <button
         type="button"
-        className="shrink-0 rounded p-1 text-muted-foreground hover:bg-muted hover:text-foreground"
-        aria-label="取消回复"
+        className="-my-1 inline-flex size-7 shrink-0 items-center justify-center rounded text-muted-foreground hover:bg-muted hover:text-foreground"
+        aria-label={copy.cancelReply}
+        title={copy.cancelReply}
         onClick={() => setReplyTarget(null)}
       >
-        <XIcon className="size-3.5" />
+        <XIcon className="size-3.5" aria-hidden="true" />
       </button>
     </div>
   );

@@ -1,9 +1,16 @@
 import type { ChatStatus } from "ai";
-import { memo, useCallback, useMemo, type ReactNode } from "react";
+import {
+  memo,
+  useCallback,
+  useMemo,
+  type KeyboardEvent as ReactKeyboardEvent,
+  type ReactNode,
+} from "react";
 
 import { getBackendBaseURL } from "@/core/config";
 import { withAgentAvatarVersion } from "@/core/agents/avatar";
 import { useI18n } from "@/core/i18n/hooks";
+import { memberAvatarsCopy } from "@/core/i18n/locales/member-avatars";
 import type { Agent } from "@/core/agents/types";
 import {
   normalizePermissionMode,
@@ -200,11 +207,25 @@ export interface GroupMemberAvatarStackProps {
   className?: string;
 }
 
+/** 28px hit area around a 20px avatar; the negative margins keep the visual
+ * layout (avatar size, row height and spacing) unchanged. */
+const MEMBER_AVATAR_HIT_AREA =
+  "group/avatar relative -my-1 inline-flex size-7 shrink-0 items-center justify-center rounded-full hover:z-10 focus:outline-none focus-visible:z-10";
+const MEMBER_AVATAR_FACE =
+  "inline-flex size-5 shrink-0 items-center justify-center overflow-hidden rounded-full border border-background bg-muted font-semibold text-muted-foreground transition-transform group-hover/avatar:scale-125 group-focus-visible/avatar:ring-1 group-focus-visible/avatar:ring-primary";
+
+/** Keyboard path to @-mention a member (mouse users can also right-click). */
+function isMentionShortcut(event: ReactKeyboardEvent): boolean {
+  return event.key === "Enter" && event.shiftKey;
+}
+
 export function GroupMemberAvatarStack({
   members,
   className,
 }: GroupMemberAvatarStackProps) {
+  const { locale } = useI18n();
   if (!members || members.length === 0) return null;
+  const copy = memberAvatarsCopy(locale);
 
   const shouldCompress = members.length > 10;
   const maxVisible = 10;
@@ -214,10 +235,18 @@ export function GroupMemberAvatarStack({
 
   const overflowTitle =
     overflowCount > 0
-      ? `更多群成员 (${overflowCount}): ${overflowMembers
-          .map((m) => m.display_name?.trim() || m.name)
-          .join(", ")}`
+      ? copy.overflowTitle(
+          overflowCount,
+          overflowMembers
+            .map((m) => m.display_name?.trim() || m.name)
+            .join(copy.nameSeparator),
+        )
       : undefined;
+
+  const mentionWithNotice = (mentionText: string, name: string) => {
+    eventBus.emit("composer:insert-mention", { text: mentionText });
+    toast.success(copy.mentionInserted(name));
+  };
 
   return (
     <div
@@ -226,7 +255,7 @@ export function GroupMemberAvatarStack({
         "inline-flex items-center gap-1.5 rounded-full bg-muted/30 px-2 py-0.5 text-xs text-muted-foreground",
         className,
       )}
-      title="群聊成员 · 点击 AI 查看进程，点击真人或右键头像提及"
+      title={copy.stackTitle}
     >
       <UsersIcon
         className="size-3 shrink-0 text-muted-foreground"
@@ -234,8 +263,9 @@ export function GroupMemberAvatarStack({
       />
       <div
         className={cn(
-          "flex items-center",
-          shouldCompress ? "-space-x-1" : "gap-1",
+          "-mx-1 flex items-center",
+          // Pitch matches the old 20px avatars: gap-1 → 24px, -space-x-1 → 16px.
+          shouldCompress ? "-space-x-3" : "-space-x-1",
         )}
       >
         {visibleMembers.map((member, idx) => {
@@ -253,9 +283,16 @@ export function GroupMemberAvatarStack({
             <button
               key={`${member.name}-${idx}`}
               type="button"
-              className="relative inline-flex size-5 shrink-0 items-center justify-center overflow-hidden rounded-full border border-background bg-muted text-xs font-semibold text-muted-foreground transition-transform hover:z-10 hover:scale-125 hover:border-primary/60 focus:outline-none focus:ring-1 focus:ring-primary"
-              title={member.kind === "human" ? `提及 ${name}` : `${name} · 点击查看并行进程，右键 @ 成员`}
-              aria-label={member.kind === "human" ? `提及 ${name}` : `查看 ${name} 并行进程（右键 @ 提及）`}
+              className={MEMBER_AVATAR_HIT_AREA}
+              title={member.kind === "human" ? copy.mentionMember(name) : copy.agentTitle(name)}
+              aria-label={member.kind === "human" ? copy.mentionMember(name) : copy.agentAria(name)}
+              aria-keyshortcuts={member.kind === "human" ? undefined : "Shift+Enter"}
+              onKeyDown={(e) => {
+                if (!isMentionShortcut(e)) return;
+                // Enter would otherwise click (open the process view).
+                e.preventDefault();
+                mentionWithNotice(mentionText, name);
+              }}
               onClick={(e) => {
                 e.preventDefault();
                 if (member.kind === "human") {
@@ -275,23 +312,29 @@ export function GroupMemberAvatarStack({
                   tab: "agent",
                   view: "screen",
                 });
-                toast.info(`正在打开【${name}】的并行进程执行画面`);
+                toast.info(copy.openingProcess(name));
               }}
               onContextMenu={(e) => {
                 e.preventDefault();
-                eventBus.emit("composer:insert-mention", { text: mentionText });
-                toast.success(`已在输入框 @ ${name}`);
+                mentionWithNotice(mentionText, name);
               }}
             >
-              {avatarUrl ? (
-                <img
-                  src={avatarUrl}
-                  alt={name}
-                  className="size-full object-cover"
-                />
-              ) : (
-                <span>{initial}</span>
-              )}
+              <span
+                className={cn(
+                  MEMBER_AVATAR_FACE,
+                  "text-xs group-hover/avatar:border-primary/60",
+                )}
+              >
+                {avatarUrl ? (
+                  <img
+                    src={avatarUrl}
+                    alt={name}
+                    className="size-full object-cover"
+                  />
+                ) : (
+                  <span>{initial}</span>
+                )}
+              </span>
             </button>
           );
         })}
@@ -300,16 +343,18 @@ export function GroupMemberAvatarStack({
             <DropdownMenuTrigger asChild>
               <button
                 type="button"
-                className="relative inline-flex size-5 shrink-0 items-center justify-center rounded-full border border-background bg-muted text-micro font-semibold text-muted-foreground transition-transform hover:z-10 hover:scale-125 focus:outline-none focus:ring-1 focus:ring-primary"
+                className={MEMBER_AVATAR_HIT_AREA}
                 title={overflowTitle}
-                aria-label={`更多 ${overflowCount} 位群成员（点击查看，右键 @ 提及）`}
+                aria-label={copy.overflowAria(overflowCount)}
               >
-                +{overflowCount}
+                <span className={cn(MEMBER_AVATAR_FACE, "text-micro")}>
+                  +{overflowCount}
+                </span>
               </button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="start" className="w-52 p-1 text-xs">
               <div className="px-2 py-1 text-xs font-medium text-muted-foreground">
-                更多群成员（左键查看进程，右键 @ 提及）
+                {copy.overflowHeading}
               </div>
               {overflowMembers.map((member, idx) => {
                 const name = member.display_name?.trim() || member.name;
@@ -324,6 +369,13 @@ export function GroupMemberAvatarStack({
                   <DropdownMenuItem
                     key={`${member.name}-${idx}`}
                     className="flex cursor-pointer items-center justify-between gap-2 px-2 py-1.5"
+                    aria-keyshortcuts={member.kind === "human" ? undefined : "Shift+Enter"}
+                    onKeyDown={(e) => {
+                      if (!isMentionShortcut(e)) return;
+                      // Handled here, so the menu item does not also select.
+                      e.preventDefault();
+                      mentionWithNotice(mentionText, name);
+                    }}
                     onClick={() => {
                       if (member.kind === "human") {
                         eventBus.emit("composer:insert-mention", { text: mentionText });
@@ -342,16 +394,15 @@ export function GroupMemberAvatarStack({
                         tab: "agent",
                         view: "screen",
                       });
-                      toast.info(`正在打开【${name}】的并行进程执行画面`);
+                      toast.info(copy.openingProcess(name));
                     }}
                     onContextMenu={(e) => {
                       e.preventDefault();
-                      eventBus.emit("composer:insert-mention", { text: mentionText });
-                      toast.success(`已在输入框 @ ${name}`);
+                      mentionWithNotice(mentionText, name);
                     }}
                   >
                     <span className="truncate font-medium">{name}</span>
-                    <span className="text-xs text-muted-foreground">{member.kind === "human" ? "提及成员" : "查看进程"}</span>
+                    <span className="text-xs text-muted-foreground">{member.kind === "human" ? copy.overflowMentionAction : copy.overflowViewProcess}</span>
                   </DropdownMenuItem>
                 );
               })}

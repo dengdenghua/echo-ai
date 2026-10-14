@@ -25,7 +25,7 @@ describe("realtime cowork response-mode persistence contract", () => {
 
   test("a failed save can retry the same signature and visibly rolls back", () => {
     expect(rosterSyncSource).toContain("lastCoworkSyncSignatureRef.current = null;");
-    expect(rosterSyncSource).toContain('toast.error("AI 成员保存失败，请重试")');
+    expect(rosterSyncSource).toContain("toast.error(roomCopy.membersSaveFailed)");
   });
 
   test("uses the mutation's group-state cache as the authoritative mode source", () => {

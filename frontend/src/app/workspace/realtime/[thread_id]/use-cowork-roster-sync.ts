@@ -7,6 +7,8 @@ import {
 } from "@/components/workspace/team-mode-picker";
 import type { Agent } from "@/core/agents";
 import { buildCoworkSelectionSyncPlan, type useReplaceCoworkRoster } from "@/core/cowork";
+import { useI18n } from "@/core/i18n/hooks";
+import { realtimeRoomCopy } from "@/core/i18n/locales/realtime-room";
 
 import type {
   BoundProjectQuery,
@@ -63,6 +65,7 @@ export function useCoworkRosterSync({
   setTeamModeIntent,
 }: CoworkRosterSyncInput) {
   const [membershipNotice, setMembershipNotice] = useState("");
+  const roomCopy = realtimeRoomCopy(useI18n().locale);
   useEffect(() => {
     if (isNewThread || !threadId || threadId === "new") return;
     // Project membership decides whether the lead agent must remain in the
@@ -133,7 +136,7 @@ export function useCoworkRosterSync({
           const joined = selectedCollaboratorIds.filter(id => !persistedCollaboratorIds.includes(id));
           if (joined.length) {
             const names = joined.map(id => allTaskCollaboratorAgents.find(agent => agent.name === id)?.display_name || id);
-            setMembershipNotice(`${names.join("、")} 已加入群聊。欢迎！你想和团队一起做什么？`);
+            setMembershipNotice(roomCopy.membersJoined(names.join(roomCopy.nameSeparator)));
           }
 
           collaboratorSelectionTouchedRef.current = false;
@@ -154,7 +157,7 @@ export function useCoworkRosterSync({
               ? normalizeTeamResponseMode(savedCollaborationMode)
               : "chat",
           );
-          toast.error("AI 成员保存失败，请重试");
+          toast.error(roomCopy.membersSaveFailed);
         },
       },
     );
@@ -176,6 +179,7 @@ export function useCoworkRosterSync({
     persistedCollaboratorIds,
     replaceCoworkRosterMutation,
     responseModeIntentTouchedRef,
+    roomCopy,
     savedCollaborationMode,
     selectedCollaboratorIds,
     setSelectedCollaboratorIds,

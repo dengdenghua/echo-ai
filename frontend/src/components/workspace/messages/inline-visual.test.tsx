@@ -1,11 +1,6 @@
-import {
-  act,
-  fireEvent,
-  render,
-  screen,
-  waitFor,
-} from "@testing-library/react";
+import { act, fireEvent, screen, waitFor } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { renderWithProviders } from "@/test/harness";
 import {
   buildVisualDocument,
   InlineVisual,
@@ -79,7 +74,9 @@ describe("inline visuals", () => {
         content: JSON.stringify(receipt),
       },
     ] as Message[];
-    const view = render(<InlineVisualMessages messages={messages} />);
+    const view = renderWithProviders(
+      <InlineVisualMessages messages={messages} />,
+    );
     expect(screen.getByTitle("Example")).toHaveAttribute(
       "sandbox",
       "allow-scripts",
@@ -98,7 +95,7 @@ describe("inline visuals", () => {
   it("ignores forged frame messages, reports paint then late errors, clamps height", async () => {
     const fetcher = vi.fn().mockResolvedValue({ ok: true });
     vi.stubGlobal("fetch", fetcher);
-    render(
+    renderWithProviders(
       <InlineVisual
         title="Example"
         code="<p>Hello</p>"
@@ -128,13 +125,58 @@ describe("inline visuals", () => {
     expect(frame.style.height).toBe("1200px");
     send("rendered", "");
     await waitFor(() => expect(fetcher).toHaveBeenCalledTimes(1));
-    expect(screen.getByText("浏览器已渲染")).toBeInTheDocument();
+    expect(screen.getByText("Rendered in browser")).toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Request a fix" }),
+    ).not.toBeInTheDocument();
     send("error", "broken script");
     await waitFor(() => expect(fetcher).toHaveBeenCalledTimes(2));
     expect(screen.getByRole("alert")).toHaveTextContent("broken script");
+    expect(screen.getByText("Render error")).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Request a fix" }),
+    ).toBeInTheDocument();
     send("rendered", "");
     expect(fetcher).toHaveBeenCalledTimes(2);
-    fireEvent.click(screen.getByText("查看源码"));
+    fireEvent.click(screen.getByText("View source"));
     expect(screen.getByText("<p>Hello</p>")).toBeInTheDocument();
+  });
+
+  it("follows the UI language for status and the fix request", () => {
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ ok: true }));
+    const sent: string[] = [];
+    const quickReply = (event: Event) => {
+      event.preventDefault();
+      sent.push(String((event as CustomEvent<{ text: unknown }>).detail.text));
+    };
+    window.addEventListener("echo:quick-reply", quickReply);
+    renderWithProviders(
+      <InlineVisual
+        title="示例"
+        code="<p>Hello</p>"
+        format="html"
+        complete
+        receipt={receipt}
+      />,
+      { locale: "zh-CN" },
+    );
+    const frame = screen.getByTitle("示例") as HTMLIFrameElement;
+    const channel = /channel: "([^"]+)"/.exec(frame.srcdoc)![1];
+    expect(screen.getByText("等待浏览器渲染")).toBeInTheDocument();
+    act(() => {
+      window.dispatchEvent(
+        new MessageEvent("message", {
+          source: frame.contentWindow,
+          data: { channel, type: "error", detail: "broken script" },
+        }),
+      );
+    });
+    expect(screen.getByText("渲染出错")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "请求修复" }));
+    window.removeEventListener("echo:quick-reply", quickReply);
+    expect(sent).toEqual([
+      "请修复可视化 example（示例）。浏览器报错：broken script。修正后重新 show_visual。",
+    ]);
+    expect(screen.getByText("已提交到当前任务")).toBeInTheDocument();
   });
 });

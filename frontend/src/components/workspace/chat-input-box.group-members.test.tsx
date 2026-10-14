@@ -1,6 +1,7 @@
 import { fireEvent, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 
+import { memberAvatarsCopy } from "@/core/i18n/locales/member-avatars";
 import { renderWithProviders } from "@/test/harness";
 import { ChatInputBox, GroupMemberAvatarStack } from "./chat-input-box";
 import type { MentionMemberInput } from "./mention-autocomplete";
@@ -13,6 +14,8 @@ vi.mock("@/core/uploads/api", () => ({
 vi.mock("@/core/models/hooks", () => ({
   useModels: () => ({ models: [] }),
 }));
+
+const copy = memberAvatarsCopy("en-US");
 
 describe("GroupMemberAvatarStack & Input Box Group Members", () => {
   const mockMembers: MentionMemberInput[] = [
@@ -31,25 +34,25 @@ describe("GroupMemberAvatarStack & Input Box Group Members", () => {
     expect(stack).toBeInTheDocument();
 
     expect(
-      screen.getByRole("button", { name: "查看 组长 并行进程（右键 @ 提及）" }),
+      screen.getByRole("button", { name: copy.agentAria("组长") }),
     ).toBeInTheDocument();
     expect(
-      screen.getByRole("button", { name: "查看 工程师 并行进程（右键 @ 提及）" }),
+      screen.getByRole("button", { name: copy.agentAria("工程师") }),
     ).toBeInTheDocument();
     expect(
-      screen.getByRole("button", { name: "查看 设计师 并行进程（右键 @ 提及）" }),
+      screen.getByRole("button", { name: copy.agentAria("设计师") }),
     ).toBeInTheDocument();
     expect(
-      screen.getByRole("button", { name: "查看 测试员 并行进程（右键 @ 提及）" }),
+      screen.getByRole("button", { name: copy.agentAria("测试员") }),
     ).toBeInTheDocument();
     expect(
-      screen.getByRole("button", { name: "查看 审查员 并行进程（右键 @ 提及）" }),
+      screen.getByRole("button", { name: copy.agentAria("审查员") }),
     ).toBeInTheDocument();
     expect(
-      screen.getByRole("button", { name: "查看 实习生 并行进程（右键 @ 提及）" }),
+      screen.getByRole("button", { name: copy.agentAria("实习生") }),
     ).toBeInTheDocument();
     expect(
-      screen.getByRole("button", { name: "查看 产品经理 并行进程（右键 @ 提及）" }),
+      screen.getByRole("button", { name: copy.agentAria("产品经理") }),
     ).toBeInTheDocument();
 
     expect(screen.queryByText(/^\+/)).toBeNull();
@@ -108,7 +111,7 @@ describe("GroupMemberAvatarStack & Input Box Group Members", () => {
     );
 
     const leaderButton = screen.getByRole("button", {
-      name: "查看 组长 并行进程（右键 @ 提及）",
+      name: copy.agentAria("组长"),
     });
     fireEvent.click(leaderButton);
 
@@ -128,7 +131,7 @@ describe("GroupMemberAvatarStack & Input Box Group Members", () => {
       <ChatInputBox mode="react" threadId="human-member-test" isGroupConversation
         mentionMembers={[{ name: "owner", display_name: "群主", mention_value: "群主", kind: "human" }]} />,
     );
-    fireEvent.click(screen.getByRole("button", { name: "提及 群主" }));
+    fireEvent.click(screen.getByRole("button", { name: copy.mentionMember("群主") }));
     expect((screen.getByRole("textbox") as HTMLTextAreaElement).value).toContain("@群主");
     expect(focusSpy).not.toHaveBeenCalled();
     window.removeEventListener("echo:agent-workbench-focus", focusSpy);
@@ -146,11 +149,59 @@ describe("GroupMemberAvatarStack & Input Box Group Members", () => {
     );
 
     const leaderButton = screen.getByRole("button", {
-      name: "查看 组长 并行进程（右键 @ 提及）",
+      name: copy.agentAria("组长"),
     });
     fireEvent.contextMenu(leaderButton);
 
     const textarea = screen.getByRole("textbox") as HTMLTextAreaElement;
     expect(textarea.value).toContain("@agent:leader");
+  });
+
+  it("Shift+Enter on an AI avatar @-mentions it instead of opening its process", () => {
+    const focusSpy = vi.fn();
+    window.addEventListener("echo:agent-workbench-focus", focusSpy);
+    renderWithProviders(
+      <ChatInputBox
+        mode="react"
+        threadId="group-thread-4"
+        isGroupConversation={true}
+        mentionMembers={mockMembers}
+      />,
+    );
+
+    const leaderButton = screen.getByRole("button", {
+      name: copy.agentAria("组长"),
+    });
+    expect(leaderButton).toHaveAttribute("aria-keyshortcuts", "Shift+Enter");
+    fireEvent.keyDown(leaderButton, { key: "Enter", shiftKey: true });
+
+    const textarea = screen.getByRole("textbox") as HTMLTextAreaElement;
+    expect(textarea.value).toContain("@agent:leader");
+    expect(focusSpy).not.toHaveBeenCalled();
+    window.removeEventListener("echo:agent-workbench-focus", focusSpy);
+  });
+
+  it("gives each 20px avatar a 28px hit area", () => {
+    renderWithProviders(<GroupMemberAvatarStack members={mockMembers} />);
+    const leaderButton = screen.getByRole("button", {
+      name: copy.agentAria("组长"),
+    });
+    expect(leaderButton).toHaveClass("size-7");
+    expect(leaderButton.firstElementChild).toHaveClass("size-5");
+  });
+
+  it("follows the UI language", () => {
+    renderWithProviders(<GroupMemberAvatarStack members={mockMembers} />, {
+      locale: "zh-CN",
+    });
+    expect(
+      screen.getByRole("button", {
+        name: memberAvatarsCopy("zh-CN").agentAria("组长"),
+      }),
+    ).toBeInTheDocument();
+    expect(screen.getByTestId("group-member-avatar-stack")).toHaveAttribute(
+      "title",
+      memberAvatarsCopy("zh-CN").stackTitle,
+    );
   });
 });

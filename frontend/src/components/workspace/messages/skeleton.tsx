@@ -1,4 +1,6 @@
 import { Skeleton } from "@/components/ui/skeleton";
+import { useI18n } from "@/core/i18n/hooks";
+import { conversationNoticesCopy } from "@/core/i18n/locales/conversation-notices";
 
 function SkeletonBar({
   className,
@@ -17,9 +19,10 @@ function SkeletonBar({
 }
 
 export function MessageListSkeleton() {
+  const { locale } = useI18n();
   return (
     <div
-      aria-label="Loading conversation"
+      aria-label={conversationNoticesCopy(locale).loadingConversation}
       className="mx-auto flex w-full max-w-(--conversation-column) flex-col gap-8 px-5 pb-8 pt-10 sm:gap-12 sm:p-8 sm:pt-16"
     >
       <div

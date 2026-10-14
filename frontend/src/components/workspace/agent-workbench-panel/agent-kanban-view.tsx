@@ -268,7 +268,7 @@ function AgentKanbanViewImpl({
               {t.agentWorkbenchPanel.visibilityPanelTitle} ·{" "}
               {t.agentWorkbenchPanel.visibilityPanelAttention}
             </span>
-            <span className="rounded-full bg-warning/10 px-1.5 text-[10px] tabular-nums text-warning">
+            <span className="rounded-full bg-warning/10 px-1.5 text-xs tabular-nums text-warning">
               {actionableVisibilitySteps.length}
             </span>
           </button>

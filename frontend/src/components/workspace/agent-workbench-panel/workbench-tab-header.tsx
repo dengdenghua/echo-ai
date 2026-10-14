@@ -1,4 +1,11 @@
-import { memo, useContext, type ReactNode, type CSSProperties } from "react";
+import {
+  memo,
+  useContext,
+  useRef,
+  type CSSProperties,
+  type KeyboardEvent,
+  type ReactNode,
+} from "react";
 import { WorkbenchHeaderSlot } from "../workbench-header-slot";
 
 import { CheckIcon, LayoutGridIcon, XIcon } from "lucide-react";
@@ -60,6 +67,56 @@ function WorkbenchTabHeaderImpl({
   const { t } = useI18n();
   const setHeaderSlot = useContext(WorkbenchHeaderSlot);
   const { controlsSide } = useElectronTitleBar();
+  const tablistRef = useRef<HTMLDivElement>(null);
+  // Roving tabindex: the selected tab is the single Tab stop of the list (the
+  // first tab when the main computer, not a tab, is selected).
+  const rovingTabId = visibleTabs.some(({ id }) => id === effectiveActiveTab)
+    ? effectiveActiveTab
+    : visibleTabs[0]?.id;
+
+  const tabElements = () =>
+    Array.from(
+      tablistRef.current?.querySelectorAll<HTMLElement>('[role="tab"]') ?? [],
+    );
+
+  // Arrow keys / Home / End move focus only; Enter or Space opens the tab, so
+  // passing over a heavy panel (terminal, browser) does not mount it.
+  const handleTabKeyDown = (
+    event: KeyboardEvent<HTMLButtonElement>,
+    tabId: AgentWorkbenchTabId,
+  ) => {
+    const tabs = tabElements();
+    const index = tabs.indexOf(event.currentTarget);
+    if (index < 0 || tabs.length === 0) return;
+    let target: HTMLElement | undefined;
+    switch (event.key) {
+      case "ArrowRight":
+        target = tabs[(index + 1) % tabs.length];
+        break;
+      case "ArrowLeft":
+        target = tabs[(index - 1 + tabs.length) % tabs.length];
+        break;
+      case "Home":
+        target = tabs[0];
+        break;
+      case "End":
+        target = tabs[tabs.length - 1];
+        break;
+      case "Delete":
+        if (tabId === "workspace") return;
+        event.preventDefault();
+        // Keep focus in the list: the neighbour stays mounted (keyed by id).
+        target = tabs[index + 1] ?? tabs[index - 1];
+        onTabClose(tabId);
+        target?.focus();
+        return;
+      default:
+        return;
+    }
+    event.preventDefault();
+    target?.focus();
+  };
+
   return (
     <header
       data-slot="workbench-tab-header"
@@ -105,8 +162,10 @@ function WorkbenchTabHeaderImpl({
           </div>
         ) : null}
         <div
+          ref={tablistRef}
           role="tablist"
           aria-label={t.agentWorkbench.agentComputer}
+          aria-orientation="horizontal"
           className={cn(
             "min-w-0 items-center gap-1 overflow-x-auto pr-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden",
             visibleTabs.length === 0 && showWorkspaceLabel
@@ -116,9 +175,11 @@ function WorkbenchTabHeaderImpl({
         >
           {visibleTabs.map(({ id, label, Icon }) => {
             const active = id === effectiveActiveTab;
+            const closable = id !== "workspace";
             return (
               <div
                 key={id}
+                role="presentation"
                 className={cn(
                   "group inline-flex h-8 max-w-[11rem] shrink-0 items-center border-b-2 border-transparent text-sm font-medium transition-colors",
                   active
@@ -130,25 +191,31 @@ function WorkbenchTabHeaderImpl({
                   type="button"
                   role="tab"
                   aria-selected={active}
+                  aria-keyshortcuts={closable ? "Delete" : undefined}
+                  tabIndex={id === rovingTabId ? 0 : -1}
                   title={label}
                   onClick={() => onTabClick(id)}
+                  onKeyDown={(event) => handleTabKeyDown(event, id)}
                   className={cn(
-                    "flex h-full min-w-0 items-center gap-1.5 pl-2.5",
-                    id === "workspace" ? "pr-2.5" : "pr-1.5",
+                    "flex h-full min-w-0 items-center gap-1.5 rounded-sm pl-2.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring",
+                    closable ? "pr-1" : "pr-2.5",
                   )}
                 >
-                  <Icon className="size-4 shrink-0" />
+                  <Icon className="size-4 shrink-0" aria-hidden="true" />
                   <span className="truncate">{label}</span>
                 </button>
-                {id !== "workspace" ? (
+                {closable ? (
+                  // A pointer affordance beside the tab, outside the roving tab
+                  // sequence; keyboard users press Delete on the tab instead.
                   <button
                     type="button"
+                    tabIndex={-1}
                     aria-label={t.editorTabs.closeTabAria(label)}
                     title={t.editorTabs.closeTabAria(label)}
                     onClick={() => onTabClose(id)}
-                    className="mr-1 flex size-5 shrink-0 items-center justify-center rounded text-muted-foreground opacity-0 transition-[color,background-color,opacity] hover:bg-muted hover:text-foreground focus-visible:opacity-100 group-hover:opacity-100"
+                    className="mr-0.5 flex size-6 shrink-0 items-center justify-center rounded text-muted-foreground opacity-0 transition-[color,background-color,opacity] hover:bg-muted hover:text-foreground group-focus-within:opacity-100 group-hover:opacity-100"
                   >
-                    <XIcon className="size-3" />
+                    <XIcon className="size-3" aria-hidden="true" />
                   </button>
                 ) : null}
               </div>

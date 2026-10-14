@@ -5,6 +5,7 @@ import {
   OPEN_ARTIFACT_EVENT,
   type OpenArtifactDetail,
 } from "@/core/artifacts/open-artifact";
+import { renderWithProviders } from "@/test/harness";
 
 import { RoutedMessageLink } from "./message-list-item";
 
@@ -27,7 +28,9 @@ it("renders a generated video link as an inline player", () => {
   const href =
     "https://platform-outputs.agnes-ai.space/videos/agnes-video-2.5/task_demo.mp4";
 
-  render(<RoutedMessageLink href={href}>点击观看视频</RoutedMessageLink>);
+  renderWithProviders(
+    <RoutedMessageLink href={href}>点击观看视频</RoutedMessageLink>,
+  );
 
   const player = screen.getByLabelText("点击观看视频");
   expect(player).toBeInstanceOf(HTMLVideoElement);
@@ -37,5 +40,18 @@ it("renders a generated video link as an inline player", () => {
   expect(screen.getByRole("link", { name: "点击观看视频" })).toHaveAttribute(
     "href",
     href,
+  );
+});
+
+it("labels a video link without plain text in the UI language", () => {
+  renderWithProviders(
+    <RoutedMessageLink href="https://example.test/videos/demo.mp4">
+      <strong>demo</strong>
+    </RoutedMessageLink>,
+    { locale: "ja-JP" },
+  );
+
+  expect(screen.getByLabelText("動画プレビュー")).toBeInstanceOf(
+    HTMLVideoElement,
   );
 });

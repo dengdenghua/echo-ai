@@ -18,7 +18,6 @@ frontend/src/components/workspace/workdir-selector.tsx	7
 frontend/src/components/workspace/settings/automation-security-settings-page.tsx	5
 frontend/src/components/workspace/settings/conversation-settings-page.tsx	5
 frontend/src/components/workspace/settings/notification-settings-page.tsx	5
-frontend/src/components/workspace/messages/task-connection-recovery.tsx	4
 frontend/src/core/utils/datetime.ts	4
 frontend/src/components/browser/weather.ts	3
 frontend/src/components/workspace/coder-engine-control.tsx	2

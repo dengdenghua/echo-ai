@@ -1,3 +1,5 @@
+import { useI18n } from "@/core/i18n/hooks";
+import { conversationNoticesCopy } from "@/core/i18n/locales/conversation-notices";
 import { cn } from "@/lib/utils";
 
 export function ModelSwitchTimelineEntry({
@@ -7,6 +9,8 @@ export function ModelSwitchTimelineEntry({
   modelName: string;
   className?: string;
 }) {
+  const { locale } = useI18n();
+  const label = conversationNoticesCopy(locale).modelSwitched(modelName);
   return (
     <div
       className={cn(
@@ -15,12 +19,12 @@ export function ModelSwitchTimelineEntry({
         className,
       )}
       role="status"
-      aria-label={`模型已切换为 ${modelName}`}
+      aria-label={label}
       data-testid="model-switch-timeline-entry"
     >
       <span aria-hidden="true" className="h-px min-w-6 flex-1 bg-border/45" />
       <span className="max-w-[70%] truncate text-xs font-normal text-muted-foreground">
-        模型已切换为 {modelName}
+        {label}
       </span>
       <span aria-hidden="true" className="h-px min-w-6 flex-1 bg-border/45" />
     </div>

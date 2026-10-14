@@ -513,7 +513,7 @@ function AgentIdentityCard({
       )}
       {/* 底部标识 */}
       <div className="flex items-center gap-2 border-t border-border-subtle px-3 py-1.5">
-        <span className="text-sm font-bold tracking-tight text-foreground/50">
+        <span className="text-sm font-bold tracking-tight text-muted-foreground">
           ECHO
         </span>
         {task.skills && task.skills.length > 0 && (

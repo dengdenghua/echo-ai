@@ -13,6 +13,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { copyTextToClipboard } from "@/core/clipboard";
 import { useI18n } from "@/core/i18n/hooks";
+import { mermaidCopy } from "@/core/i18n/locales/mermaid";
 import { swallow } from "@/core/utils/log";
 import { cn } from "@/lib/utils";
 
@@ -43,6 +44,8 @@ export function MermaidBlock({
   isStreaming = false,
   className,
 }: MermaidBlockProps) {
+  const { locale } = useI18n();
+  const copy = mermaidCopy(locale);
   const rootId = useId().replace(/[^a-zA-Z0-9_-]/g, "");
   const containerRef = useRef<HTMLDivElement>(null);
   const [svg, setSvg] = useState("");
@@ -52,7 +55,7 @@ export function MermaidBlock({
       ? document.documentElement.classList.contains("dark")
       : false,
   );
-  const [exportError, setExportError] = useState("");
+  const [exportFailed, setExportFailed] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [bindFunctions, setBindFunctions] = useState<
     ((element: Element) => void) | null
@@ -212,7 +215,7 @@ export function MermaidBlock({
       <div className="flex flex-wrap items-center gap-3 border-b px-3 py-1 text-xs">
         <button
           type="button"
-          aria-label="Zoom out"
+          aria-label={copy.zoomOut}
           onClick={() => setZoom((value) => Math.max(0.5, value - 0.25))}
         >
           −
@@ -220,16 +223,16 @@ export function MermaidBlock({
         <span>{Math.round(zoom * 100)}%</span>
         <button
           type="button"
-          aria-label="Zoom in"
+          aria-label={copy.zoomIn}
           onClick={() => setZoom((value) => Math.min(4, value + 0.25))}
         >
           +
         </button>
         <button type="button" onClick={() => setZoom(1)}>
-          适应宽度
+          {copy.fitWidth}
         </button>
         <button type="button" onClick={() => setDark((value) => !value)}>
-          {dark ? "浅色" : "深色"}
+          {dark ? copy.lightTheme : copy.darkTheme}
         </button>
         <button
           type="button"
@@ -242,18 +245,18 @@ export function MermaidBlock({
         <button
           type="button"
           onClick={() => {
-            setExportError("");
+            setExportFailed(false);
             void downloadMermaidPng(sanitizedSvg).catch(() =>
-              setExportError("PNG 导出失败，可下载 SVG。"),
+              setExportFailed(true),
             );
           }}
         >
           PNG
         </button>
       </div>
-      {exportError && (
+      {exportFailed && (
         <p role="alert" className="px-3 text-xs">
-          {exportError}
+          {copy.pngExportFailed}
         </p>
       )}
       <div
@@ -292,7 +295,7 @@ function MermaidSourceBlock({
   isStreaming: boolean;
   className?: string;
 }) {
-  const { t } = useI18n();
+  const { locale, t } = useI18n();
   return (
     <div
       className={cn(
@@ -307,7 +310,9 @@ function MermaidSourceBlock({
           className="flex items-center gap-2 border-b bg-destructive/5 px-3 py-2 text-xs text-destructive"
         >
           <TriangleAlertIcon className="size-3.5 shrink-0" />
-          <span className="min-w-0 truncate">Mermaid render failed</span>
+          <span className="min-w-0 truncate">
+            {mermaidCopy(locale).renderFailed}
+          </span>
         </div>
       )}
       <pre className="m-0 overflow-auto bg-transparent p-4 text-sm leading-6 whitespace-pre-wrap">
@@ -328,7 +333,8 @@ function MermaidBlockHeader({
   code: string;
   isStreaming?: boolean;
 }) {
-  const { t } = useI18n();
+  const { locale, t } = useI18n();
+  const copySource = mermaidCopy(locale).copySource;
   const [copied, setCopied] = useState(false);
 
   const handleCopy = useCallback(async () => {
@@ -362,8 +368,8 @@ function MermaidBlockHeader({
         type="button"
         variant="ghost"
         size="icon-sm"
-        aria-label="Copy Mermaid source"
-        title="Copy Mermaid source"
+        aria-label={copySource}
+        title={copySource}
         onClick={handleCopy}
       >
         <Icon className="size-3.5" />

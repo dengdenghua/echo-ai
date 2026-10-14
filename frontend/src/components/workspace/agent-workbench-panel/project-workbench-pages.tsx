@@ -74,7 +74,7 @@ export function MilestonesTab({ milestones }: { milestones: MilestoneView[] }) {
           className="rounded-xl border border-border-default bg-card/60 p-3 shadow-[var(--shadow-xs)]"
         >
           <div className="flex min-w-0 items-start gap-2.5">
-            <div className="relative mt-0.5 flex size-6 shrink-0 items-center justify-center rounded-full border border-border-default bg-background text-[10px] font-semibold text-muted-foreground">
+            <div className="relative mt-0.5 flex size-6 shrink-0 items-center justify-center rounded-full border border-border-default bg-background text-xs font-semibold text-muted-foreground">
               {milestone.health === "completed" ? (
                 <CheckCircle2Icon className="size-3.5 text-core" />
               ) : (

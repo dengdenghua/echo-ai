@@ -10,6 +10,7 @@ import { eventBus } from "@/core/events/event-bus";
 
 import type { AIMessage, Message, ToolMessage } from "@/core/api/types";
 import { useI18n } from "@/core/i18n/hooks";
+import { subagentViewCopy } from "@/core/i18n/locales/subagent-view";
 import { cn } from "@/lib/utils";
 import {
   STREAMING_TYPE_PRESETS,
@@ -222,7 +223,8 @@ export function SubagentProcessView({
   onSelectBlock?: (blockId: string) => void;
   summaryOnly?: boolean;
 }) {
-  const { t } = useI18n();
+  const { t, locale } = useI18n();
+  const copy = subagentViewCopy(locale);
   const navigate = useNavigate();
   const [followupText, setFollowupText] = useState("");
 
@@ -237,10 +239,10 @@ export function SubagentProcessView({
   const handleShareToGroup = () => {
     if (!shareableReply) return;
     eventBus.emit("composer:insert-mention", {
-      text: `${memberName} 的回复：\n\n${shareableReply}`,
+      text: copy.sharedReply(memberName, shareableReply),
       submit: false,
     });
-    toast.success("已放入群聊输入框，确认后发送");
+    toast.success(copy.sharedToComposer);
   };
 
   const handlePrivateChat = (event: React.FormEvent) => {
@@ -318,17 +320,17 @@ export function SubagentProcessView({
           <ComputerScopeSwitch
             subLabel={agent.codename ?? agent.name}
             onOpenMain={onOpenMain}
-            mainLabel="返回总览"
+            mainLabel={copy.backToOverview}
             trailingAction={
               <button
                 type="button"
                 onClick={handleShareToGroup}
                 disabled={!shareableReply}
-                title={shareableReply ? "放入群聊输入框，确认后发送" : "有回复后可以分享"}
+                title={shareableReply ? copy.shareToGroupHint : copy.shareUnavailable}
                 className="inline-flex min-h-8 shrink-0 items-center gap-1.5 whitespace-nowrap rounded-md px-2 text-xs text-muted-foreground hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-40"
               >
-                <Share2Icon className="size-3.5" />
-                分享到群聊
+                <Share2Icon className="size-3.5" aria-hidden="true" />
+                {copy.shareToGroup}
               </button>
             }
           />
@@ -359,7 +361,7 @@ export function SubagentProcessView({
               messages.process.length === 0 &&
               !messages.answer ? (
                 <p role="status" className="text-xs text-muted-foreground">
-                  正在处理，稍后会在这里显示进展…
+                  {copy.processing}
                 </p>
               ) : null}
               {messages.answer ? (
@@ -386,19 +388,19 @@ export function SubagentProcessView({
         >
           <input
             type="text"
-            aria-label={`与 ${memberName} 私聊`}
+            aria-label={copy.privateChatLabel(memberName)}
             value={followupText}
             onChange={(e) => setFollowupText(e.target.value)}
-            placeholder={`想问 ${memberName} 什么？`}
+            placeholder={copy.privateChatPlaceholder(memberName)}
             className="min-w-0 flex-[1_1_220px] rounded-md border border-input bg-background/80 px-3 py-1.5 text-xs text-foreground placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-primary"
           />
           <button
             type="submit"
             className="inline-flex min-h-8 shrink-0 items-center gap-1.5 rounded-md bg-primary px-3 py-1.5 text-xs font-medium text-primary-foreground hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
-            title={`打开与 ${memberName} 的单独对话`}
+            title={copy.privateChatTitle(memberName)}
           >
-            <MessageCircleIcon className="size-3.5" />
-            私聊
+            <MessageCircleIcon className="size-3.5" aria-hidden="true" />
+            {copy.privateChat}
           </button>
         </form>
       </div>
@@ -412,12 +414,10 @@ export function SubagentProcessView({
             "absolute bottom-28 right-4 z-10 flex items-center gap-2 rounded-full border border-border-default bg-background px-4 py-2.5 text-sm font-medium shadow-lg transition-all hover:scale-105 hover:shadow-xl",
             "animate-in fade-in slide-in-from-bottom-4 duration-300",
           )}
-          aria-label={t.agentWorkbenchPanel?.scrollToBottom ?? "滚动到底部"}
+          aria-label={t.agentWorkbenchPanel.scrollToBottom}
         >
-          <ArrowDownIcon className="size-4" />
-          <span>
-            {t.agentWorkbenchPanel?.viewLatestProgress ?? "查看最新进展"}
-          </span>
+          <ArrowDownIcon className="size-4" aria-hidden="true" />
+          <span>{t.agentWorkbenchPanel.viewLatestProgress}</span>
         </button>
       )}
     </div>

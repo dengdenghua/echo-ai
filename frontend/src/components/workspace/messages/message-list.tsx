@@ -761,7 +761,7 @@ export function MessageList({
                 <div className="mb-0.5 flex flex-wrap items-center gap-x-2 gap-y-1 font-medium">
                   <span>{failureHeaderText}</span>
                   {!isNetworkError && failedCompletedFileCount > 0 && (
-                    <span className="inline-flex items-center gap-1 rounded-full bg-background/60 px-2 py-0.5 text-xs font-normal text-foreground/70">
+                    <span className="inline-flex items-center gap-1 rounded-full bg-background/60 px-2 py-0.5 text-xs font-normal text-foreground">
                       {t.message.completedChanges} · {failedCompletedFileCount}
                     </span>
                   )}

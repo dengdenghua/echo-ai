@@ -27,6 +27,7 @@ import {
 } from "@/components/workspace/artifacts/artifact-file-detail";
 import { checkCodeFile, getFileIcon, getFileName } from "@/core/utils/files";
 import { useI18n } from "@/core/i18n/hooks";
+import { workbenchArtifactsCopy } from "@/core/i18n/locales/workbench-artifacts";
 import { useArtifactContent } from "@/core/artifacts/hooks";
 import { useArtifacts } from "@/components/workspace/artifacts/context";
 import { officeArtifactKind } from "@/components/workspace/artifacts/office-edit";
@@ -191,6 +192,7 @@ function FileListRow({
   isCurrentTurn?: boolean;
   onSelect: (path: string) => void;
 }) {
+  const { locale } = useI18n();
   const displayPath = artifactDisplayPath(filepath);
   const name = getFileName(displayPath);
   return (
@@ -207,8 +209,8 @@ function FileListRow({
       </span>
       {isCurrentTurn && (
         <span className="inline-flex shrink-0 items-center gap-0.5 rounded-full bg-accent/15 px-1.5 py-0.5 text-xs font-medium text-accent">
-          <SparklesIcon className="size-2.5" />
-          本轮
+          <SparklesIcon className="size-2.5" aria-hidden="true" />
+          {workbenchArtifactsCopy(locale).currentTurn}
         </span>
       )}
     </button>
@@ -228,7 +230,7 @@ export function PreviewPane({
   streamdownPlugins: Pick<StreamdownProps, "remarkPlugins" | "rehypePlugins">;
   onBack: () => void;
 }) {
-  const { t } = useI18n();
+  const { t, locale } = useI18n();
   const displayPath = artifactDisplayPath(filepath);
   const isWriteFile = filepath.startsWith("write-file:");
   const { content, url, isLoading, refetch } = useArtifactContent({
@@ -270,10 +272,11 @@ export function PreviewPane({
           href={urlOfArtifact({ filepath, threadId, download: true })}
           target="_blank"
           rel="noopener noreferrer"
-          className="rounded p-1 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+          className="flex size-6 shrink-0 items-center justify-center rounded text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
           aria-label={t.common.download}
+          title={t.common.download}
         >
-          <DownloadIcon className="size-3" />
+          <DownloadIcon className="size-3" aria-hidden="true" />
         </a>
       </div>
 
@@ -321,7 +324,7 @@ export function PreviewPane({
           />
         ) : (
           <div className="flex size-full items-center justify-center p-4 text-xs text-muted-foreground">
-            此文件类型暂不支持预览
+            {workbenchArtifactsCopy(locale).previewUnsupported}
           </div>
         )}
       </div>

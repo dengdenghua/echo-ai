@@ -356,7 +356,7 @@ function AgentClusterRow({
         </span>
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-2">
-            <span className="shrink-0 font-mono text-[11px] text-muted-foreground">
+            <span className="shrink-0 font-mono text-xs text-muted-foreground">
               {agent.label}
             </span>
             <span className="truncate font-medium text-foreground">
