@@ -13,6 +13,7 @@ from PIL import Image, ImageChops
 from runtime.execution.suckers.registry import SkillRegistry
 from runtime.platform.plugins.bundled import clip_studio
 from runtime.platform.plugins.bundled.clip_studio import ClipStudioPlugin
+from runtime.platform.plugins.bundled.clip_studio.project_store import edit_project, new_project
 from runtime.platform.plugins.bundled.clip_studio.snapshot_renderer import render_project_frames
 from runtime.platform.plugins.plugin_base import ModuleContext
 
@@ -497,6 +498,28 @@ def test_clip_studio_cut_silences_analyzes_real_audio(monkeypatch, tmp_path) -> 
     assert len(project["clips"]) == 2
     assert project["durationSec"] < 2.4
     assert project["clips"][1]["sourceInSec"] > 1.8
+
+
+def test_exact_track_id_wins_over_a_longer_id_it_prefixes() -> None:
+    """track-video-1 must not turn ambiguous when an added track is track-video-1…."""
+    project = new_project("prefix")
+    project["tracks"].append({**project["tracks"][0], "id": "track-video-1f3a9c2e", "clips": []})
+    import_bottom = {
+        "type": "import_media",
+        "path": "red.png",
+        "durationSec": 1,
+        "trackId": "track-video-1",
+        "atSec": 0,
+    }
+    _, result = edit_project(project, [import_bottom])
+    assert result["ok"], result
+    # A unique abbreviation still resolves; an ambiguous one is still refused.
+    _, result = edit_project(project, [{"type": "set_track", "trackId": "track-video-1f3"}])
+    assert result["ok"], result
+    project["tracks"].append({**project["tracks"][0], "id": "track-video-1f39", "clips": []})
+    _, result = edit_project(project, [{"type": "set_track", "trackId": "track-video-1f3"}])
+    assert not result["ok"]
+    assert "ambiguous" in result["results"][-1]["detail"]
 
 
 def test_clip_studio_multilayer_keyframes_and_mp4_export(monkeypatch, tmp_path) -> None:
