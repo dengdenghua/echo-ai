@@ -9311,7 +9311,7 @@ export const zhCN: Translations = {
     service: {
       credentialsExpired: "本地知识库已启动，但连接凭据已失效。正在重新连接…",
       notFound:
-        "未找到 echo-storage，请安装本地知识库服务，或设置 ECHO_STORAGE_CMD 后重试。",
+        "本机还没有安装本地知识库服务（echo-storage）。它是可选服务，不影响对话；安装后点「重新连接」即可使用。",
       startFailed: "本地知识库服务启动失败，请检查后端日志后重试。",
       notConnected: "本地知识库服务仍未连接：{url}",
       networkError: "无法连接到本地知识库服务，请确认服务已启动后重试。",

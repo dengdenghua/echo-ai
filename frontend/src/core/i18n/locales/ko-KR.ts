@@ -9620,7 +9620,7 @@ export const koKR: Translations = {
       credentialsExpired:
         "로컬 지식 베이스가 실행 중이지만 연결 자격 증명이 만료되었습니다. 다시 연결하는 중…",
       notFound:
-        "echo-storage를 찾을 수 없습니다. 로컬 지식 베이스 서비스를 설치하거나 ECHO_STORAGE_CMD를 설정한 후 다시 시도하세요.",
+        "로컬 지식 베이스 서비스(echo-storage)가 설치되어 있지 않습니다. 선택 서비스이며 대화에는 영향이 없습니다. 설치한 뒤 '다시 연결'을 누르세요.",
       startFailed:
         "로컬 지식 베이스 서비스 시작에 실패했습니다. 백엔드 로그를 확인한 후 다시 시도하세요.",
       notConnected: "로컬 지식 베이스 서비스에 아직 연결되지 않았습니다: {url}",

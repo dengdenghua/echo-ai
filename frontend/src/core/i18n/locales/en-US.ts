@@ -9778,7 +9778,7 @@ Strategy:
       credentialsExpired:
         "The local knowledge base is running, but its credentials have expired. Reconnecting…",
       notFound:
-        "echo-storage was not found. Install the local knowledge base service or set ECHO_STORAGE_CMD, then try again.",
+        "The local knowledge base service (echo-storage) is not installed. It is optional and chat works without it; install it, then choose Reconnect.",
       startFailed:
         "The local knowledge base service failed to start. Check the backend logs and try again.",
       notConnected: "Local knowledge base service is still unreachable: {url}",
