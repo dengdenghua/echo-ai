@@ -8,6 +8,7 @@ factory still owns the registration order.
 
 from __future__ import annotations
 
+import logging
 from contextlib import nullcontext
 from typing import Any
 
@@ -30,6 +31,24 @@ from ._projects_models import (
     ProjectGroupBody,
 )
 from ._projects_router_deps import ProjectsDeps
+
+
+def _planning_failure_detail(exc: BaseException) -> str | None:
+    """A sentence for a project whose milestones could not be planned.
+
+    Planning runs on the model router; a fresh install that chats through
+    OpenCode's free model has none configured there yet.
+    """
+    chain: list[BaseException] = []
+    current: BaseException | None = exc
+    while current is not None and len(chain) < 8:
+        chain.append(current)
+        current = current.__cause__ or current.__context__
+    if not any(str(item).startswith("项目规划失败") for item in chain):
+        return None
+    if any("no LLM model configured" in str(item) for item in chain):
+        return "规划项目需要一个可用的模型。请在 设置 → 模型 中添加模型后重试。"
+    return "项目规划失败，请检查执行模型后重试。"
 
 
 def _register_project_creation(router: APIRouter, d: ProjectsDeps) -> None:
@@ -147,9 +166,14 @@ def _register_project_creation(router: APIRouter, d: ProjectsDeps) -> None:
         except ValueError as exc:
             raise _bad_request(exc) from exc
         except RuntimeError as exc:
+            planning = _planning_failure_detail(exc)
+            if planning is not None:
+                raise HTTPException(503, planning) from exc
             status = 503 if "not wired" in str(exc) else 500
+            logging.getLogger(__name__).exception("project group creation failed")
             raise HTTPException(status, "project group creation failed") from exc
         except Exception as exc:  # noqa: BLE001 - keep store internals out of the API
+            logging.getLogger(__name__).exception("project group creation failed")
             raise HTTPException(500, "project group creation failed") from exc
 
         return {
