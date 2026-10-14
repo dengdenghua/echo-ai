@@ -9,6 +9,9 @@
 副本状态默认位于该项目 `.codex-run/echo/data`。
 
 启动网页可用 `Start-Echo.cmd -Web`；开发联调用 `frontend` 下的 `pnpm dev:full`。
+`pnpm dev:full` 默认设置 `ECHO_ENV=development`，登录页提供「访客模式」（任意用户名、仅限本机），
+无需手动设置环境变量。`Start-Echo.cmd -Web` 按自托管方式运行：首次打开登录页时用设置码创建本机账户，
+设置码在后端日志 `.codex-run/backend.err.log` 中，也保存在 `<数据目录>/auth/owner-setup-code.txt`。
 使用 `-BackendPort`、`-FrontendPort`、`-TentaclePort` 或对应
 `GATEWAY_PORT`、`FRONTEND_PORT`、`ECHO_TENTACLE_WS_PORT` 环境变量覆盖端口。
 `ECHO_AGENT_PYTHON` 可指定 Python，`ECHO_AGENT_CONFIG` 可指定配置；

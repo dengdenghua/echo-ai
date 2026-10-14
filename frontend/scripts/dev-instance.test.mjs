@@ -88,6 +88,14 @@ test("explicit ports and independent user state are honoured", () => {
     devSettings(root, kind, { GATEWAY_PORT: "42001", FRONTEND_PORT: "42001" }),
   );
 });
+test("development instances sign in locally without hand-set variables", () => {
+  const settings = devSettings(root, kind, cleanEnv);
+  assert.equal(devEnvironment(settings, cleanEnv).ECHO_ENV, "development");
+  assert.equal(
+    devEnvironment(settings, { ...cleanEnv, ECHO_ENV: "production" }).ECHO_ENV,
+    "production",
+  );
+});
 test("explicit local URLs select their ports without silently retaining another instance", () => {
   const settings = devSettings(root, kind, {
     ECHO_BACKEND_URL: "http://localhost:42004",

@@ -139,6 +139,10 @@ export function devEnvironment(settings, env = process.env) {
   return {
     ...env,
     ...codexEnv,
+    // A development instance on a loopback port: its sign-in is the local
+    // guest login (by name, this machine only). Deployments never set this;
+    // there a passwordless config becomes the first-run owner account.
+    ECHO_ENV: env.ECHO_ENV || "development",
     PYTHONUTF8: "1",
     PYTHONDONTWRITEBYTECODE: "1",
     PYTHONPATH: [settings.root, env.PYTHONPATH].filter(Boolean).join(delimiter),
