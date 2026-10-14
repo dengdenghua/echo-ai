@@ -111,15 +111,25 @@ const STREAM_PHASES: readonly StreamPhase[] = [
   "disconnected",
 ];
 
-/** The live phase of a thread object that may carry ``vitals`` (only the
- * realtime stream does); undefined for other stream implementations. */
-export function streamPhaseOf(thread: object): StreamPhase | undefined {
+function isStreamVitals(value: unknown): value is StreamVitals {
+  return (
+    typeof value === "object" &&
+    value !== null &&
+    "phase" in value &&
+    STREAM_PHASES.some((phase) => phase === value.phase)
+  );
+}
+
+/** The vitals of a thread object that may carry them (only the realtime
+ * stream does); undefined for other stream implementations. */
+export function streamVitalsOf(thread: object): StreamVitals | undefined {
   const vitals = "vitals" in thread ? thread.vitals : undefined;
-  if (typeof vitals !== "object" || vitals === null || !("phase" in vitals)) {
-    return undefined;
-  }
-  const phase = vitals.phase;
-  return STREAM_PHASES.find((candidate) => candidate === phase);
+  return isStreamVitals(vitals) ? vitals : undefined;
+}
+
+/** The live phase of a thread object that may carry ``vitals``. */
+export function streamPhaseOf(thread: object): StreamPhase | undefined {
+  return streamVitalsOf(thread)?.phase;
 }
 
 export function emptyVitalsMarks(): VitalsMarks {
