@@ -35,6 +35,7 @@ import {
   type ApiFailure,
 } from "./client";
 import type { paths } from "./openapi-types";
+import { unbornThreadFailure } from "./unborn-threads";
 
 export type { ApiFailure } from "./client";
 export { EchoAPIError } from "./client";
@@ -298,6 +299,8 @@ async function send(
     init.credentials = options.credentials;
   }
 
+  const unborn = unbornThreadFailure(method, path);
+  if (unborn) throw apiErrorFromFailure(unborn, options.errorMessage?.(unborn));
   const response = await fetch(url, init);
   if (!response.ok) {
     const failure = await readApiFailure(method, path, response);

@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, type RefObject } fro
 import { useQuery } from "@tanstack/react-query";
 
 import { getAPIClient } from "@/core/api";
+import { unbornThreadFailure } from "@/core/api/unborn-threads";
 import { authHeaders } from "@/core/auth/api";
 import { getControlPlaneBaseURL } from "@/core/config";
 import { toHashRouterShellUrl } from "@/core/router/hash-shell-url";
@@ -50,10 +51,13 @@ export function useThreadWorkspace({
       // Realtime/SSE streams share localhost's HTTP/1.1 connection pool. A
       // separate loopback alias keeps this binding lookup from sitting behind
       // those streams and flashing "个人空间" for several seconds.
-      const response = await fetch(
-        `${getControlPlaneBaseURL()}/api/threads/${encodeURIComponent(threadId)}/state`,
-        { headers: authHeaders() },
-      );
+      const path = `/api/threads/${encodeURIComponent(threadId)}/state`;
+      if (unbornThreadFailure("GET", path)) {
+        throw new Error("Thread workspace unavailable (404)");
+      }
+      const response = await fetch(`${getControlPlaneBaseURL()}${path}`, {
+        headers: authHeaders(),
+      });
       if (!response.ok) {
         throw new Error(`Thread workspace unavailable (${response.status})`);
       }

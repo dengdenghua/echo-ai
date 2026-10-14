@@ -4,6 +4,7 @@
 
 import { swallow } from "@/core/utils/log";
 import type { Thread, ThreadState } from "./types";
+import { unbornThreadFailure } from "./unborn-threads";
 
 const warnedStubResponses = new Set<string>();
 
@@ -218,6 +219,8 @@ export class EchoClient {
     if (body !== undefined) {
       init.body = JSON.stringify(body);
     }
+    const unborn = unbornThreadFailure(method, path);
+    if (unborn) throw apiErrorFromFailure(unborn);
     const resp = await fetch(this._resolveUrl(path), init);
     if (!resp.ok) {
       throw apiErrorFromFailure(await readApiFailure(method, path, resp));

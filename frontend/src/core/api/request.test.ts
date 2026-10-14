@@ -13,6 +13,11 @@ import {
   isApiErrorStatus,
   untypedApi,
 } from "./request";
+import {
+  markThreadBorn,
+  markThreadUnborn,
+  unbornThreadFailure,
+} from "./unborn-threads";
 
 const fetchMock = vi.fn();
 
@@ -22,6 +27,35 @@ function jsonResponse(data: unknown, status = 200): Response {
     headers: { "Content-Type": "application/json" },
   });
 }
+
+describe("threads not created yet", () => {
+  beforeEach(() => {
+    fetchMock.mockReset();
+    vi.stubGlobal("fetch", fetchMock);
+  });
+
+  test("answers their reads with a 404 and no request", async () => {
+    markThreadUnborn("echo-assistant-x");
+    try {
+      await expect(
+        apiGet("/api/threads/{thread_id}/outputs", {
+          path: { thread_id: "echo-assistant-x" },
+          query: { area: "final" },
+        }),
+      ).rejects.toMatchObject({ status: 404 });
+      expect(fetchMock).not.toHaveBeenCalled();
+      expect(
+        unbornThreadFailure("GET", "/threads/echo-assistant-x/state"),
+      ).not.toBeNull();
+      expect(unbornThreadFailure("GET", "/api/threads/other/state")).toBeNull();
+    } finally {
+      markThreadBorn("echo-assistant-x");
+    }
+    expect(
+      unbornThreadFailure("GET", "/api/threads/echo-assistant-x"),
+    ).toBeNull();
+  });
+});
 
 describe("typed request layer", () => {
   beforeEach(() => {

@@ -3,6 +3,8 @@ import { Route, Routes, useLocation, useParams } from "react-router-dom";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { EchoAPIError } from "@/core/api/request";
+import { unbornThreadFailure } from "@/core/api/unborn-threads";
+import { eventBus } from "@/core/events";
 import {
   isAssistantThreadId,
   personalAssistantThreadId,
@@ -87,16 +89,38 @@ describe("AssistantThreadAlias", () => {
     ).toBeInTheDocument();
   });
 
-  it("leaves the alias alone when sign-in is off, and other threads always", () => {
+  it("keeps the alias when sign-in is off, and leaves other threads alone", async () => {
     mocks.auth = {
       authStatus: { enabled: false },
       user: { user_id: "anonymous" },
     };
+    mocks.getThread.mockResolvedValue({ thread_id: "echo-assistant" });
     renderAlias();
     expect(
-      screen.getByText("chat echo-assistant?agent=echo"),
+      await screen.findByText("chat echo-assistant?agent=echo"),
     ).toBeInTheDocument();
+
+    mocks.getThread.mockReset();
+    renderAlias("/workspace/realtime/t-abc");
+    expect(screen.getByText("chat t-abc")).toBeInTheDocument();
     expect(mocks.getThread).not.toHaveBeenCalled();
+  });
+
+  it("answers reads of an assistant thread locally until its first run", async () => {
+    mocks.getThread.mockRejectedValue(
+      new EchoAPIError("not found", 404, "thread not found"),
+    );
+    renderAlias();
+    const own = personalAssistantThreadId("local:reader");
+    await screen.findByText(`chat ${own}?agent=echo`);
+
+    expect(
+      unbornThreadFailure("GET", `/api/threads/${own}/state`),
+    ).toMatchObject({ status: 404 });
+    expect(unbornThreadFailure("POST", `/api/threads/${own}/state`)).toBeNull();
+
+    eventBus.emit("thread:run-status", { threadId: own, state: "running" });
+    expect(unbornThreadFailure("GET", `/api/threads/${own}/state`)).toBeNull();
   });
 });
 
