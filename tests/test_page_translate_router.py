@@ -82,7 +82,7 @@ def test_tags_in_page_order_map_straight_back():
     ]
 
 
-def test_reordered_links_keep_the_sentence_fluent():
+def test_reordered_links_keep_the_sentence_fluent_and_their_words():
     # A real reply: Chinese wants "language" before "translate".
     translated = (
         "<b0>机器翻译</b0>是利用计算技术将文本或语音从一种<a4>语言</a4><a2>翻译</a2>成另一种语言。"
@@ -91,10 +91,33 @@ def test_reordered_links_keep_the_sentence_fluent():
     pieces = ptr.map_translation(WIKI_PIECES, WIKI_KINDS, translated)
 
     assert "".join(pieces) == "机器翻译是利用计算技术将文本或语音从一种语言翻译成另一种语言。"
-    # The bold term and one link keep their own words; the other link's word
-    # moved into the sentence and its piece is empty.
-    assert pieces[0] == "机器翻译"
-    assert {pieces[2], pieces[4]} in ({"", "翻译"}, {"", "语言"})
+    # The out-of-order link takes "语言" back where its own stretch of the
+    # sentence says it, so no link is left without a word.
+    assert pieces == [
+        "机器翻译",
+        "是利用计算技术将文本或语音从一种语言",
+        "翻译",
+        "成另一种",
+        "语言",
+        "。",
+    ]
+
+
+def test_a_moved_link_only_matches_whole_latin_words():
+    pieces = ["Read ", "the guide", ", then ", "start", " over."]
+    kinds = ["", "a", "", "a", ""]
+
+    inside = ptr.map_translation(
+        pieces, kinds, "<a3>start</a3> over: read <a1>the guide</a1>, then restart."
+    )
+    whole = ptr.map_translation(
+        pieces, kinds, "<a3>start</a3> over: read <a1>the guide</a1>, then start."
+    )
+
+    # "start" inside "restart" is not a place for the link.
+    assert inside[2:] == [", then restart.", "", ""]
+    assert whole[2:] == [", then ", "start", "."]
+    assert "".join(whole) == "start over: read the guide, then start."
 
 
 def test_missing_tags_and_line_breaks_still_read_whole():

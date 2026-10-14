@@ -190,13 +190,66 @@ def _longest_in_order(order: list[int]) -> set[int]:
     return kept
 
 
+def _wordy(char: str) -> bool:
+    return char.isascii() and char.isalnum()
+
+
+def _find_word(text: str, word: str, start: int) -> int:
+    """First ``word`` in ``text`` from ``start``; Latin words match whole."""
+    position = text.find(word, start)
+    while position >= 0:
+        end = position + len(word)
+        before = text[position - 1] if position > 0 else ""
+        after = text[end] if end < len(text) else ""
+        if not (_wordy(word[0]) and _wordy(before)) and not (_wordy(word[-1]) and _wordy(after)):
+            return position
+        position = text.find(word, position + 1)
+    return -1
+
+
+def _spread(
+    gap: str, members: list[int], kinds: list[str], words: dict[int, str]
+) -> dict[int, str] | None:
+    """Split one region's text over its pieces in page order.
+
+    A link the reply moved out of page order takes its own words back where
+    they occur here, so the sentence reads the same and the link keeps a
+    word to click. Returns None when the split would leave text with no
+    plain piece to hold it.
+    """
+    plan: dict[int, str] = {}
+    cursor = 0
+    holder: int | None = None
+    for index in members:
+        if not kinds[index]:
+            if holder is None:
+                holder = index
+            continue
+        word = words.get(index, "")
+        at = _find_word(gap, word, cursor) if word.strip() else -1
+        if at < 0 or (at > cursor and holder is None):
+            continue
+        if holder is not None:
+            plan[holder] = gap[cursor:at]
+        plan[index] = word
+        cursor = at + len(word)
+        holder = None
+    rest = gap[cursor:]
+    if rest:
+        if holder is None:
+            return None
+        plan[holder] = rest
+    return plan
+
+
 def map_translation(pieces: list[str], kinds: list[str], translated: str) -> list[str]:
     """Spread a tagged translation over the page's text nodes, in page order.
 
     Tags the reply keeps in page order hold their own words. A tag that is
-    missing or out of order loses its words to the surrounding sentence (its
-    piece is left empty), because the page side never reorders elements.
-    Untagged text between kept tags goes to the first plain piece there.
+    missing or out of order has its words flattened into the sentence,
+    because the page side never reorders elements; it then takes them back
+    from its own stretch of the sentence where they occur there, and is
+    left empty only when they do not.
     """
     count = len(pieces)
     tagged = {index for index, kind in enumerate(kinds) if kind}
@@ -208,6 +261,7 @@ def map_translation(pieces: list[str], kinds: list[str], translated: str) -> lis
             seen.add(index)
             found.append((match.start(), match.end(), index, match.group(3)))
     kept = _longest_in_order([index for _, _, index, _ in found])
+    words = {index: content for _, _, index, content in found if index not in kept}
 
     # Rebuild the reply with kept tags as boundaries and every other tag
     # flattened into the text.
@@ -237,6 +291,11 @@ def map_translation(pieces: list[str], kinds: list[str], translated: str) -> lis
         if not gap:
             continue
         low, high = bounds[region], bounds[region + 1]
+        plan = _spread(gap, list(range(low + 1, high)), kinds, words)
+        if plan is not None:
+            for index, text in plan.items():
+                result[index] += text
+            continue
         plain = [i for i in range(low + 1, high) if not kinds[i]]
         others = [i for i in range(low + 1, high) if kinds[i] and i not in kept]
         if plain:
