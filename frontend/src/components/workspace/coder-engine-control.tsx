@@ -129,12 +129,9 @@ export function CoderEngineControl({
   const visibleSystemModels = useMemo(() => {
     const seen = new Set<string>();
     return [...systemModels]
-      .sort(
-        (a, b) =>
-          Number(a.entry_id === "official") - Number(b.entry_id === "official"),
-      )
       .filter((model) => {
         if (!isCoderSystemModel(model)) return false;
+        if (model.entry_id === "official") return false;
         if (["opencode-zen", "opencode-go"].includes(model.entry_id || ""))
           return false;
         if (model.context_profile === "1m") return false;

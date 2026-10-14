@@ -126,30 +126,18 @@ function mockModelSettingsFetch({
 }
 
 describe("ModelSettingsPage · everyday model selection", () => {
-  it("renders official models from the same merged catalog used by the composer", async () => {
-    fetchMock.mockImplementation(async (input: RequestInfo | URL) => {
-      const url = String(input);
-      if (url.includes("/api/oct/openai/v1/models"))
-        return jsonOk({
-          data: [{ id: "qwen", display_name: "极速", multiplier: "1x" }],
-        });
-      return jsonOk({ models: [], default: "" });
-    });
-    const user = userEvent.setup();
-    renderWithProviders(<ModelSettingsPage />, { locale: "zh-CN" });
-    await user.click(
-      await screen.findByText("官方模型", { selector: "summary *" }),
+  it("has no official models section and never asks for the official catalog", async () => {
+    fetchMock.mockImplementation(async () =>
+      jsonOk({ models: [], default: "" }),
     );
-    expect(await screen.findByText("极速")).toBeVisible();
-    // The row shows the catalog's display name and multiplier; the raw route
-    // id ("qwen") is deliberately not surfaced here, matching the composer's
-    // picker, which also renders `display_name || name`.
-    expect(screen.getByText("1x")).toBeVisible();
+    renderWithProviders(<ModelSettingsPage />, { locale: "zh-CN" });
+    await screen.findAllByText(/模型/);
+    expect(screen.queryByText("官方模型")).not.toBeInTheDocument();
     expect(
-      fetchMock.mock.calls.filter(([url]) =>
+      fetchMock.mock.calls.some(([url]) =>
         String(url).includes("/api/oct/openai/v1/models"),
       ),
-    ).toHaveLength(1);
+    ).toBe(false);
   });
   it("persists the exact model route without changing connections or a conversation override", async () => {
     const user = userEvent.setup();

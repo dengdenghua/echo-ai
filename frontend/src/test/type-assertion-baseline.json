@@ -152,7 +152,7 @@
     "src/components/workspace/settings/echo-model-hotspot.tsx": 1,
     "src/components/workspace/settings/memory-settings-page.tsx": 5,
     "src/components/workspace/settings/mix-settings-section.tsx": 1,
-    "src/components/workspace/settings/model-settings-page.tsx": 11,
+    "src/components/workspace/settings/model-settings-page.tsx": 10,
     "src/components/workspace/settings/privacy-settings-page.tsx": 9,
     "src/components/workspace/settings/settings-dialog.tsx": 1,
     "src/components/workspace/settings/settings-sections.ts": 2,

@@ -87,7 +87,7 @@ afterEach(() => {
 });
 
 describe("CoderEngineControl", () => {
-  it("places custom models before official models in the left tab", async () => {
+  it("lists custom models and never an official one in the left tab", async () => {
     const user = userEvent.setup();
     renderWithProviders(
       <CoderEngineControl
@@ -100,12 +100,11 @@ describe("CoderEngineControl", () => {
     );
     await user.click(await screen.findByTestId("coder-engine-trigger"));
     expect(
-      screen
-        .getByRole("button", { name: "我的 API", exact: true })
-        .compareDocumentPosition(
-          screen.getByRole("button", { name: "极速", exact: true }),
-        ) & Node.DOCUMENT_POSITION_FOLLOWING,
-    ).toBeTruthy();
+      screen.getByRole("button", { name: "我的 API", exact: true }),
+    ).toBeVisible();
+    expect(
+      screen.queryByRole("button", { name: "极速", exact: true }),
+    ).not.toBeInTheDocument();
     expect(
       screen.getByRole("button", { name: "Codex", exact: true }),
     ).toBeVisible();
@@ -126,7 +125,7 @@ describe("CoderEngineControl", () => {
       screen.queryByRole("button", { name: "自定义 API" }),
     ).not.toBeInTheDocument();
     expect(
-      screen.getByRole("button", { name: "官方模型", exact: true }),
+      screen.getByRole("button", { name: "系统模型", exact: true }),
     ).toHaveAttribute("aria-pressed", "true");
     expect(
       screen.queryByRole("button", { name: "big-pickle", exact: true }),
@@ -327,7 +326,7 @@ describe("CoderEngineControl", () => {
       ),
     ).toBe(false);
 
-    await user.click(screen.getByText("官方模型"));
+    await user.click(screen.getByText("系统模型"));
     await user.click(screen.getByRole("button", { name: "DeepSeek" }));
     expect(onChange).toHaveBeenLastCalledWith(
       "echo-custom-model:v1:deepseek-selection",
@@ -409,7 +408,7 @@ describe("CoderEngineControl", () => {
     });
     fireEvent.click(screen.getByTestId("coder-engine-trigger"));
 
-    expect(await screen.findByText("官方模型")).toBeInTheDocument();
+    expect(await screen.findByText("系统模型")).toBeInTheDocument();
     expect(
       screen.getByText("Codex", { selector: "button" }),
     ).toBeInTheDocument();

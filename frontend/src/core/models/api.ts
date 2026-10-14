@@ -1,6 +1,15 @@
-import { apiGet, untypedApi } from "@/core/api/request";
+import { apiGet } from "@/core/api/request";
 
 import type { Model } from "./types";
+
+/** Hosted "official" models were removed from the product; drop any row the
+ *  backend still advertises under that route so no picker can select one. */
+function isOfficialModel(model: Model): boolean {
+  return (
+    model.entry_id === "official" ||
+    String(model.name ?? "").startsWith("official/")
+  );
+}
 
 export async function loadModels(): Promise<Model[]> {
   // Use the LLM catalog endpoint, not /api/models — the latter aliases
@@ -12,40 +21,5 @@ export async function loadModels(): Promise<Model[]> {
     errorMessage: (failure) =>
       `Failed to load models: ${failure.status} ${failure.statusText}`,
   })) as { models: Model[] };
-  // Network and HTTP failures both mean "no official catalog"; a malformed
-  // 2xx body still throws, as before.
-  const officialResponse = await untypedApi
-    .fetch("get", "/api/oct/openai/v1/models", {
-      reason:
-        "the oct OpenAI-compat models route is not in the OpenAPI snapshot",
-    })
-    .catch(() => null);
-  const official = officialResponse ? await officialResponse.json() : null;
-  const officialRows: Model[] = Array.isArray(official?.data)
-    ? official.data
-        .filter(
-          (row: { id: string }) => row.id && row.id.toLowerCase() !== "auto",
-        )
-        .map(
-          (row: {
-            id: string;
-            display_name?: string;
-            multiplier?: string;
-            recommended?: boolean;
-          }) => ({
-            id: `official/${row.id}`,
-            name: `official/${row.id}`,
-            model: `official/${row.id}`,
-            selection_id: `official/${row.id}`,
-            entry_id: "official",
-            provider: "oct",
-            display_name: row.display_name || row.id,
-            source_display_name: "官方模型",
-            official: true,
-            multiplier: row.multiplier,
-            recommended: row.recommended,
-          }),
-        )
-    : [];
-  return [...(models ?? []), ...officialRows];
+  return (models ?? []).filter((model) => !isOfficialModel(model));
 }

@@ -292,7 +292,7 @@ export function ModelContextSetting({
   );
 }
 
-interface OfficialMeta {
+interface BuiltInMeta {
   key: string;
   displayName: string;
   id: string;
@@ -302,9 +302,9 @@ interface OfficialMeta {
 
 /**
  * Echo Mix — the built-in mixture-of-agents virtual model. Surfaces in the
- * Official tab when the backend advertises ``echo-mix`` via /api/llm-models.
+ * model list when the backend advertises ``echo-mix`` via /api/llm-models.
  */
-const MIX_META: OfficialMeta = {
+const MIX_META: BuiltInMeta = {
   key: "echo-mix",
   id: "echo-mix",
   displayName: "mix",
@@ -507,16 +507,6 @@ function PickerRow({
   );
 }
 
-/**
- * Official rows are named by tier ("极速"); the upstream id tells the user
- * which model that tier is. Shown as telemetry when the two differ.
- */
-function officialModelId(model: PickerModel): string | null {
-  if (model.entry_id !== "official") return null;
-  const id = (model.model ?? model.name ?? "").replace(/^official\//, "");
-  return id && id !== model.display_name ? id : null;
-}
-
 export interface ModelPickerProps {
   models: PickerModel[];
   value?: string | null;
@@ -557,7 +547,7 @@ export function ModelPicker({
     "en-US": ["Search models or providers", "No matching models"],
   }[locale];
   const [openCodeSource, setOpenCodeSource] = useState<
-    "opencode-zen" | "opencode-go" | "official" | "api"
+    "opencode-zen" | "opencode-go" | "custom"
   >(() =>
     models.some(
       (m) => m.entry_id === "opencode-go" && modelMatchesValue(m, value),
@@ -628,8 +618,8 @@ export function ModelPicker({
     t.modelPicker.autoModelDescription,
   ]);
 
-  const officialMetas = useMemo(() => {
-    // Surface the built-in Mix model in the Official tab only when the
+  const builtInMetas = useMemo(() => {
+    // Surface the built-in Mix model only when the
     // backend actually advertises it (via /api/llm-models).
     const hasMix = models.some(
       (m) => m.name === MIX_META.id || m.model === MIX_META.id,
@@ -640,14 +630,14 @@ export function ModelPicker({
   const selectedMeta = useMemo(() => {
     if (!selected) return null;
     return (
-      officialMetas.find(
+      builtInMetas.find(
         (meta) =>
           meta.id === selected.name ||
           meta.id === selected.model ||
           meta.displayName === selected.display_name,
       ) ?? null
     );
-  }, [officialMetas, selected]);
+  }, [builtInMetas, selected]);
 
   /**
    * One flat list, in the order the backend returned.
@@ -655,7 +645,7 @@ export function ModelPicker({
    * The dropdown used to split Official / Custom across tabs. With a handful
    * of configured endpoints that cost two clicks to reach a neighbouring
    * model and hid the selected row behind whichever tab opened by default.
-   * Unconfigured official rows are dropped here rather than rendered grey —
+   * Unconfigured rows are dropped here rather than rendered grey —
    * they are a settings concern, and a column of unclickable placeholders is
    * the bulk of what made this panel feel heavy.
    *
@@ -668,7 +658,7 @@ export function ModelPicker({
         .filter(
           (model) =>
             !engineSource ||
-            (openCodeSource === "official"
+            (openCodeSource === "custom"
               ? Boolean(
                   model.entry_id &&
                   !["opencode-zen", "opencode-go"].includes(model.entry_id),
@@ -676,11 +666,8 @@ export function ModelPicker({
               : model.entry_id === openCodeSource),
         )
         .sort((a, b) =>
-          engineSource
-            ? openCodeSource === "official"
-              ? Number(a.entry_id === "official") -
-                Number(b.entry_id === "official")
-              : Number(isFreePickerModel(b)) - Number(isFreePickerModel(a))
+          engineSource && openCodeSource !== "custom"
+            ? Number(isFreePickerModel(b)) - Number(isFreePickerModel(a))
             : 0,
         ),
     [models, engineSource, openCodeSource],
@@ -688,7 +675,7 @@ export function ModelPicker({
 
   const releaseGroups = useMemo(
     () =>
-      engineSource && openCodeSource === "official"
+      engineSource && openCodeSource === "custom"
         ? { current: flatEntries, older: [] }
         : partitionModelReleases(flatEntries, value),
     [flatEntries, value, engineSource, openCodeSource],
@@ -762,13 +749,6 @@ export function ModelPicker({
             <span aria-hidden="true" className="text-muted-foreground">
               {m.entry_id === "opencode-go" ? "Go" : "Zen"}
             </span>
-          ) : officialModelId(m) ? (
-            <span
-              aria-hidden="true"
-              className="block max-w-32 truncate font-mono text-muted-foreground"
-            >
-              {officialModelId(m)}
-            </span>
           ) : undefined
         }
         onSelect={() => handleSelect(selectKey)}
@@ -825,15 +805,13 @@ export function ModelPicker({
       onOpenChange={(nextOpen) => {
         if (
           nextOpen &&
-          ["opencode-zen", "opencode-go", "official"].includes(
-            selected?.entry_id || "",
-          )
+          ["opencode-zen", "opencode-go"].includes(selected?.entry_id || "")
         ) {
           setOpenCodeSource(
-            selected!.entry_id as "opencode-zen" | "opencode-go" | "official",
+            selected!.entry_id as "opencode-zen" | "opencode-go",
           );
         } else if (nextOpen && selected?.entry_id) {
-          setOpenCodeSource("official");
+          setOpenCodeSource("custom");
         }
         setOpen(nextOpen);
       }}
@@ -897,12 +875,12 @@ export function ModelPicker({
         </div>
         {engineSource && (
           <div className="grid grid-cols-2 gap-1 rounded-lg bg-muted/45 p-0.5">
-            {(["official", "opencode-zen"] as const).map((source) => (
+            {(["custom", "opencode-zen"] as const).map((source) => (
               <button
                 type="button"
                 key={source}
                 aria-pressed={
-                  (openCodeSource === "official") === (source === "official")
+                  (openCodeSource === "custom") === (source === "custom")
                 }
                 onClick={() => {
                   setOpenCodeSource(source);
@@ -910,17 +888,17 @@ export function ModelPicker({
                 }}
                 className={cn(
                   "h-7 rounded-md text-xs",
-                  (openCodeSource === "official") === (source === "official")
+                  (openCodeSource === "custom") === (source === "custom")
                     ? "bg-background font-medium shadow-sm"
                     : "text-muted-foreground",
                 )}
               >
-                {source === "official" ? "官方模型" : "OpenCode"}
+                {source === "custom" ? t.modelPicker.tabCustom : "OpenCode"}
               </button>
             ))}
           </div>
         )}
-        {engineSource && openCodeSource !== "official" && (
+        {engineSource && openCodeSource !== "custom" && (
           <div className="my-1 flex gap-1 px-1" aria-label="OpenCode 服务">
             {(["opencode-zen", "opencode-go"] as const).map((source) => (
               <button
@@ -1005,12 +983,12 @@ export function ModelPicker({
               <div className="px-2 py-4 text-center text-ui text-muted-foreground">
                 {!engineSource
                   ? t.modelPicker.noCustomModels
-                  : openCodeSource === "official"
-                    ? t.modelPicker.officialEmpty
+                  : openCodeSource === "custom"
+                    ? t.modelPicker.noCustomModels
                     : openCodeSource === "opencode-go"
                       ? t.modelPicker.openCodeGoEmpty
                       : t.modelPicker.openCodeZenEmpty}
-                {engineSource && openCodeSource !== "official" && (
+                {engineSource && openCodeSource !== "custom" && (
                   <button
                     type="button"
                     onClick={() => {

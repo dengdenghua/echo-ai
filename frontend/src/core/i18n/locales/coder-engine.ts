@@ -45,7 +45,7 @@ const COPY = {
     subtitle:
       "Coder 是普通角色；人设、技能和小队规则由 ECHO AI 管理，代码执行由 Codex 引擎完成。",
     sourceTitle: "模型来源",
-    systemSource: "官方模型",
+    systemSource: "系统模型",
     subscriptionSource: "ChatGPT 订阅",
     apiKeySource: "OpenAI API Key（按量）",
     systemDefault: "跟随系统默认",
@@ -146,7 +146,7 @@ const COPY = {
     subtitle:
       "Coder remains a regular role. Echo owns its persona, skills, and team rules; Codex runs the coding work.",
     sourceTitle: "Model source",
-    systemSource: "Official models",
+    systemSource: "System models",
     subscriptionSource: "ChatGPT subscription",
     apiKeySource: "OpenAI API key (metered)",
     systemDefault: "Follow system default",
@@ -253,7 +253,7 @@ const COPY_JA: typeof COPY.en = {
   subtitle:
     "Coderは通常のロールです。ペルソナ、スキル、チームルールはEchoが管理し、コード実行はCodexエンジンが担当します。",
   sourceTitle: "モデルのソース",
-  systemSource: "公式モデル",
+  systemSource: "システムモデル",
   subscriptionSource: "ChatGPTサブスクリプション",
   apiKeySource: "OpenAI APIキー（従量制）",
   systemDefault: "システムのデフォルトに従う",
@@ -357,7 +357,7 @@ const COPY_KO: typeof COPY.en = {
   subtitle:
     "Coder는 일반 역할입니다. 페르소나, 스킬, 팀 규칙은 Echo가 관리하고 코드 실행은 Codex 엔진이 담당합니다.",
   sourceTitle: "모델 출처",
-  systemSource: "공식 모델",
+  systemSource: "시스템 모델",
   subscriptionSource: "ChatGPT 구독",
   apiKeySource: "OpenAI API 키(종량제)",
   systemDefault: "시스템 기본값 따르기",

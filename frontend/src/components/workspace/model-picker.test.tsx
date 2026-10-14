@@ -341,7 +341,7 @@ describe("<ModelPicker />", () => {
     expect(change).not.toHaveBeenCalled();
   });
 
-  it("lets OpenCode select shared official and custom API routes", async () => {
+  it("lets OpenCode select custom API routes, with no official models tab", async () => {
     const user = userEvent.setup();
     const change = vi.fn();
     render(
@@ -350,12 +350,6 @@ describe("<ModelPicker />", () => {
           engineSource="opencode"
           onChange={change}
           models={[
-            {
-              name: "official/qwen",
-              entry_id: "official",
-              selection_id: "official/qwen",
-              display_name: "极速",
-            },
             {
               name: "qwen",
               entry_id: "private-api",
@@ -367,56 +361,16 @@ describe("<ModelPicker />", () => {
       ),
     );
     await user.click(screen.getByTestId("model-picker-trigger"));
-    await user.click(
-      screen.getByRole("button", { name: "官方模型", exact: true }),
-    );
     expect(
-      screen
-        .getByRole("button", { name: "私有 Qwen", exact: true })
-        .compareDocumentPosition(
-          screen.getByRole("button", { name: "极速", exact: true }),
-        ) & Node.DOCUMENT_POSITION_FOLLOWING,
-    ).toBeTruthy();
-    expect(
-      screen.queryByRole("button", { name: "自定义 API", exact: true }),
+      screen.queryByRole("button", { name: "官方模型", exact: true }),
     ).not.toBeInTheDocument();
-    await user.click(screen.getByRole("button", { name: "极速", exact: true }));
-    expect(change).toHaveBeenLastCalledWith("official/qwen");
-    await user.click(screen.getByTestId("model-picker-trigger"));
     await user.click(
-      screen.getByRole("button", { name: "官方模型", exact: true }),
+      screen.getByRole("button", { name: "自定义", exact: true }),
     );
     await user.click(
       screen.getByRole("button", { name: "私有 Qwen", exact: true }),
     );
     expect(change).toHaveBeenLastCalledWith("private-route");
-  });
-
-  it("names the upstream model next to an official tier label", async () => {
-    const user = userEvent.setup();
-    render(
-      withRouter(
-        <ModelPicker
-          engineSource="opencode"
-          onChange={vi.fn()}
-          models={[
-            {
-              name: "official/qwen3.5-flash",
-              model: "official/qwen3.5-flash",
-              entry_id: "official",
-              selection_id: "official/qwen3.5-flash",
-              display_name: "极速",
-            },
-          ]}
-        />,
-      ),
-    );
-    await user.click(screen.getByTestId("model-picker-trigger"));
-    await user.click(
-      screen.getByRole("button", { name: "官方模型", exact: true }),
-    );
-    const row = screen.getByRole("button", { name: "极速", exact: true });
-    expect(within(row).getByText("qwen3.5-flash")).toHaveClass("font-mono");
   });
 
   it.each([

@@ -3,45 +3,24 @@ import { loadModels } from "./api";
 
 afterEach(() => vi.unstubAllGlobals());
 
-it("merges the official service catalog with custom connections using distinct route ids", async () => {
-  vi.stubGlobal(
-    "fetch",
-    vi.fn(async (url: string) => ({
-      ok: true,
-      json: async () =>
-        url.includes("/api/llm-models")
-          ? {
-              models: [
-                { name: "qwen", entry_id: "my-api", selection_id: "api-route" },
-              ],
-            }
-          : {
-              data: [
-                { id: "qwen", display_name: "极速", multiplier: "1x" },
-                { id: "auto" },
-              ],
-            },
-    })),
-  );
+it("lists only the LLM catalog and never asks for the official catalog", async () => {
+  const fetchMock = vi.fn(async () => ({
+    ok: true,
+    json: async () => ({
+      models: [
+        { name: "qwen", entry_id: "my-api", selection_id: "api-route" },
+        { name: "official/qwen", entry_id: "official" },
+      ],
+    }),
+  }));
+  vi.stubGlobal("fetch", fetchMock);
   const models = await loadModels();
-  expect(models).toHaveLength(2);
-  expect(models[0]?.selection_id).toBe("api-route");
-  expect(models[1]).toMatchObject({
-    name: "official/qwen",
-    selection_id: "official/qwen",
-    entry_id: "official",
-    display_name: "极速",
-    official: true,
-  });
-});
-
-it("keeps custom connections usable when the official service is disabled", async () => {
-  vi.stubGlobal(
-    "fetch",
-    vi.fn(async (url: string) => ({
-      ok: url.includes("/api/llm-models"),
-      json: async () => ({ models: [{ name: "api" }] }),
-    })),
-  );
-  expect(await loadModels()).toEqual([{ name: "api" }]);
+  expect(models).toEqual([
+    { name: "qwen", entry_id: "my-api", selection_id: "api-route" },
+  ]);
+  expect(
+    fetchMock.mock.calls.some((call) =>
+      String((call as unknown[])[0]).includes("/api/oct/"),
+    ),
+  ).toBe(false);
 });

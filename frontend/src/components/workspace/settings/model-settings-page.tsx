@@ -702,8 +702,6 @@ const MODEL_SETTINGS_PAGE_COPY: Record<
     codexSubtitle: string;
     visionTitle: string;
     visionSubtitle: string;
-    officialTitle: string;
-    officialSubtitle: string;
     advancedTitle: string;
     advancedSubtitle: string;
     advancedBadge: string;
@@ -759,8 +757,6 @@ const MODEL_SETTINGS_PAGE_COPY: Record<
     codexSubtitle: "登录与管理 ChatGPT / Codex 账号",
     visionTitle: "本地图片理解",
     visionSubtitle: "管理图片与视频检索模型",
-    officialTitle: "官方模型",
-    officialSubtitle: "查看官方托管的模型服务",
     advancedTitle: "高级设置",
     advancedSubtitle: "本地图片理解、自动路由与连接诊断",
     advancedBadge: "高级",
@@ -822,8 +818,6 @@ const MODEL_SETTINGS_PAGE_COPY: Record<
     codexSubtitle: "Sign in and manage your ChatGPT / Codex account",
     visionTitle: "Local image understanding",
     visionSubtitle: "Manage the image and video search model",
-    officialTitle: "Official models",
-    officialSubtitle: "View officially hosted model services",
     advancedTitle: "Advanced settings",
     advancedSubtitle:
       "Local image understanding, routing, and connection diagnostics",
@@ -891,8 +885,6 @@ const MODEL_SETTINGS_PAGE_COPY: Record<
     codexSubtitle: "ChatGPT / Codex アカウントへのログインと管理",
     visionTitle: "ローカル画像理解",
     visionSubtitle: "画像・動画検索モデルの管理",
-    officialTitle: "公式モデル",
-    officialSubtitle: "公式のモデルサービスを確認",
     advancedTitle: "詳細設定",
     advancedSubtitle: "ローカル画像理解、自動ルーティング、接続診断",
     advancedBadge: "上級",
@@ -956,8 +948,6 @@ const MODEL_SETTINGS_PAGE_COPY: Record<
     codexSubtitle: "ChatGPT / Codex 계정 로그인 및 관리",
     visionTitle: "로컬 이미지 이해",
     visionSubtitle: "이미지 및 동영상 검색 모델 관리",
-    officialTitle: "공식 모델",
-    officialSubtitle: "공식 호스팅 모델 서비스 보기",
     advancedTitle: "고급 설정",
     advancedSubtitle: "로컬 이미지 이해, 자동 라우팅 및 연결 진단",
     advancedBadge: "고급",
@@ -2022,14 +2012,6 @@ export default function ModelSettingsPage() {
         />
       </AdvancedDisclosure>
 
-      <AdvancedDisclosure
-        id="model-settings-official"
-        title={pageCopy.officialTitle}
-        description={pageCopy.officialSubtitle}
-      >
-        <OfficialModelsSection />
-      </AdvancedDisclosure>
-
       <details
         className="group rounded-lg border border-border bg-card/40 px-4 py-3"
         open={advancedOpen}
@@ -2814,70 +2796,6 @@ function CompatDiagnosticSummary({
         </details>
       )}
     </div>
-  );
-}
-
-// Share the composer's model catalog and cache, including official route ids.
-function OfficialModelsSection() {
-  const { t } = useI18n();
-  const { models: catalog, isLoading: loading, error } = useModels();
-  const models = catalog
-    .filter((model) => model.official === true)
-    .map((model) => ({
-      id: model.model?.replace(/^official\//, "") || model.name,
-      display_name: model.display_name,
-      multiplier: model.multiplier as string | undefined,
-      recommended: model.recommended === true,
-    }));
-  if (loading) return <p role="status">{t.common.loading}</p>;
-  if (error) return <p role="alert">{String(error)}</p>;
-
-  // Build rows from the backend catalog. Skip the synthetic "auto"
-  // / provider-specific pseudo-models the gateway may advertise.
-  const rows = (models ?? [])
-    .filter((m) => !/^auto$/i.test(m.id))
-    .map((m) => ({ upstream: m }));
-
-  return (
-    <SettingsSection title={t.settings.model.officialModels}>
-      <div className="rounded-lg border border-border divide-y divide-border">
-        {rows.length === 0 && (
-          <div className="px-5 py-8 text-center text-sm text-muted-foreground">
-            {t.settings.model.noOfficialModels}
-          </div>
-        )}
-        {rows.map(({ upstream }) => (
-          <div
-            key={upstream.id}
-            className="flex items-center justify-between px-5 py-4"
-          >
-            <div className="min-w-0 flex-1">
-              <div className="flex items-center gap-2">
-                <span className="text-sm font-medium">
-                  {upstream.display_name || t.settings.model.officialModels}
-                </span>
-                {upstream.recommended && (
-                  <span className="rounded border border-success/40 px-1.5 py-0.5 text-xs font-medium text-success">
-                    {t.modelPicker.recommended}
-                  </span>
-                )}
-              </div>
-            </div>
-            <div className="flex items-center gap-3">
-              <span className="rounded-lg bg-muted px-2 py-0.5 text-xs tabular-nums text-muted-foreground">
-                {upstream.multiplier ?? "1.0x"}
-              </span>
-              <span className="text-xs text-muted-foreground">
-                {t.settings.model.gatewayHosted}
-              </span>
-            </div>
-          </div>
-        ))}
-      </div>
-      <p className="mt-3 text-xs text-muted-foreground">
-        {t.settings.model.officialModelsHint}
-      </p>
-    </SettingsSection>
   );
 }
 
