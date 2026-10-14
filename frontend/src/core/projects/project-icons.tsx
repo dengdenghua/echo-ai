@@ -5,6 +5,7 @@ import {
   PlaneIcon,
   TrendingUpIcon,
   type LucideIcon,
+  type LucideProps,
 } from "lucide-react";
 
 import { cn } from "@/lib/utils";
@@ -48,16 +49,24 @@ export function projectIconId(value: string | null | undefined): ProjectIconId {
 
 export function ProjectIcon({
   icon,
+  fallback,
   className,
-}: {
+  ...props
+}: Omit<LucideProps, "ref"> & {
   icon: string | null | undefined;
-  className?: string;
+  /** Drawn instead of the folder when the project has no stored icon. */
+  fallback?: LucideIcon;
 }) {
-  const Icon = PROJECT_ICONS[projectIconId(icon)];
+  const stored = icon?.trim() ?? "";
+  const id = projectIconId(stored);
+  const showFallback = !stored && fallback !== undefined;
+  const Icon = showFallback ? fallback : PROJECT_ICONS[id];
   return (
     <Icon
       aria-hidden
       strokeWidth={1.5}
+      {...props}
+      data-project-icon={showFallback ? undefined : id}
       className={cn("size-3.5 shrink-0", className)}
     />
   );

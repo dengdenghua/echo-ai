@@ -168,6 +168,8 @@ export interface ProjectFullState {
     created_at: string;
     started_at: string;
     finished_at: string;
+    icon?: string | null;
+    category?: string | null;
   };
   milestones: Array<{
     id: string;

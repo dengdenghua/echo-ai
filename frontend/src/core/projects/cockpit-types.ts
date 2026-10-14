@@ -121,6 +121,8 @@ export interface ProjectFull {
     started_at: string;
     finished_at: string;
     execution_thread_id?: string;
+    icon?: string | null;
+    category?: string | null;
   };
   milestones: Array<Record<string, unknown> & { id: string; name: string }>;
   tasks: Record<string, TaskReadModel[]>;
@@ -138,4 +140,6 @@ export interface ProjectSummary {
   status?: string;
   created_at?: string;
   execution_thread_id?: string;
+  icon?: string | null;
+  category?: string | null;
 }

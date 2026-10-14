@@ -78,6 +78,8 @@ import {
   useEnsureProjectHome,
   usePortfolio,
 } from "@/core/projects/hooks";
+import { projectCategoryLabel } from "@/core/projects/project-categories";
+import { ProjectIcon } from "@/core/projects/project-icons";
 import {
   type ProjectRow,
   type ProjectStatusFilter,
@@ -220,6 +222,10 @@ export default function ProjectsPage() {
   });
 
   const detail = detailQuery.data;
+  const detailCategory = projectCategoryLabel(
+    detail?.project.category,
+    t.createProjectDialog,
+  );
   const runBlock = governanceRunBlock(detail?.governance);
   const pm = detail?.pm ?? null;
   const retro = detail?.retro ?? null;
@@ -432,9 +438,18 @@ export default function ProjectsPage() {
                           <div className="flex flex-wrap items-center justify-between gap-3">
                             <div className="min-w-0">
                               <div className="flex items-center gap-2">
+                                <ProjectIcon
+                                  icon={detail.project.icon}
+                                  className="size-4 text-muted-foreground"
+                                />
                                 <h2 className="text-base font-semibold">
                                   {detail.project.name || detail.project.id}
                                 </h2>
+                                {detailCategory && (
+                                  <Badge variant="outline">
+                                    {detailCategory}
+                                  </Badge>
+                                )}
                                 <Badge
                                   variant="outline"
                                   className={

@@ -29,6 +29,35 @@ describe("ProjectGroupHeaderBadge", () => {
     expect(onOpenWorkbench).toHaveBeenCalledTimes(1);
   });
 
+  it("marks the capability with the project's own icon when it has one", () => {
+    const { container, rerender } = renderWithProviders(
+      <ProjectGroupHeaderBadge
+        name="秋季旅行"
+        status="running"
+        icon="plane"
+        onOpenWorkbench={vi.fn()}
+      />,
+      { locale: "zh-CN" },
+    );
+    const icon = container.querySelector(
+      '[data-slot="project-capability-icon"]',
+    );
+    expect(icon).toHaveAttribute("data-project-icon", "plane");
+
+    rerender(
+      <ProjectGroupHeaderBadge
+        name="秋季旅行"
+        status="running"
+        onOpenWorkbench={vi.fn()}
+      />,
+    );
+    const fallback = container.querySelector(
+      '[data-slot="project-capability-icon"]',
+    );
+    expect(fallback).not.toHaveAttribute("data-project-icon");
+    expect(fallback).toHaveClass("lucide-folder-kanban");
+  });
+
   it("shows detach only to owners and delegates the destructive action", async () => {
     const onDetach = vi.fn();
     const owner = renderWithProviders(

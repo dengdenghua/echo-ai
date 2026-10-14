@@ -20552,6 +20552,8 @@ export interface components {
         };
         /** PageTranslateRequest */
         PageTranslateRequest: {
+            /** Model */
+            model?: string | null;
             /** Segments */
             segments: components["schemas"]["PageTranslateSegment"][];
             /**

@@ -16,6 +16,9 @@ import { AlertTriangleIcon, SearchIcon, TimerIcon } from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
+import { useI18n } from "@/core/i18n/hooks";
+import { projectCategoryLabel } from "@/core/projects/project-categories";
+import { ProjectIcon } from "@/core/projects/project-icons";
 import {
   type ProjectRow,
   type ProjectStatusFilter,
@@ -84,6 +87,7 @@ export function ProjectSwitcher({
   onFilterChange,
   className = "",
 }: ProjectSwitcherProps) {
+  const { t } = useI18n();
   const visible = sortProjectRows(filterProjectRows(rows, query, filter));
 
   return (
@@ -146,6 +150,10 @@ export function ProjectSwitcher({
         {visible.map((row) => {
           const selected = selectedId === row.id;
           const pct = Math.round(row.progress * 100);
+          const category = projectCategoryLabel(
+            row.category,
+            t.createProjectDialog,
+          );
           return (
             <button
               key={row.id}
@@ -171,6 +179,10 @@ export function ProjectSwitcher({
                       title="尚未获取到进度数据"
                     />
                   )}
+                  <ProjectIcon
+                    icon={row.icon}
+                    className="text-muted-foreground"
+                  />
                   <span className="truncate text-xs font-medium">{row.name}</span>
                 </span>
                 <StatusChip row={row} />
@@ -190,6 +202,7 @@ export function ProjectSwitcher({
 
               <div className="mt-1 flex items-center justify-between gap-1.5">
                 <span className="truncate text-xs text-muted-foreground">
+                  {category ? `${category} · ` : ""}
                   {row.readable
                     ? `${row.doneTasks}/${row.totalTasks} 任务 · 剩 ${row.remainingEstimate}d`
                     : row.goal || "尚未获取进度"}

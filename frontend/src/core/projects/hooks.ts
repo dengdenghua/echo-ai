@@ -26,9 +26,10 @@ export interface Project {
   /** Canonical project-group thread. Project OS keeps this in sync when a
    * thread is bound; older projects may not have one until first open. */
   execution_thread_id?: string;
-  // Existing sidebar-only metadata is optional for Project OS projects.
-  icon?: string;
-  category?: string;
+  /** Line-icon id picked at creation (`ProjectIcon`); null on older projects. */
+  icon?: string | null;
+  /** Category picked at creation, e.g. "travel"; null when none was picked. */
+  category?: string | null;
   created_at?: string;
   thread_ids?: string[];
 }
@@ -351,6 +352,8 @@ export function useCreateProject() {
           ...(data.aiBudgetUsd !== undefined
             ? { ai_budget_usd: data.aiBudgetUsd }
             : {}),
+          ...(data.icon?.trim() ? { icon: data.icon.trim() } : {}),
+          ...(data.category?.trim() ? { category: data.category.trim() } : {}),
         },
         errorMessage: failed("Failed to create project"),
       })) as {

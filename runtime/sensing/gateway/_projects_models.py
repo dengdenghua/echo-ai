@@ -8,8 +8,13 @@ from __future__ import annotations
 
 from typing import Annotated, Any
 
-from pydantic import AliasChoices, BaseModel, ConfigDict, Field
+from pydantic import AfterValidator, AliasChoices, BaseModel, ConfigDict, Field
 
+from runtime.projectos.appearance import (
+    PROJECT_CATEGORY_MAX_LENGTH,
+    PROJECT_ICON_PATTERN,
+    normalize_project_category,
+)
 from runtime.projectos.engine import DEFAULT_RUN_MAX_TICKS, HARD_MAX_RUN_TICKS
 
 # Optional AI spending cap in USD for a governed project, across all phases
@@ -17,10 +22,29 @@ from runtime.projectos.engine import DEFAULT_RUN_MAX_TICKS, HARD_MAX_RUN_TICKS
 AiBudgetUsd = Annotated[float | None, Field(ge=0, allow_inf_nan=False)]
 
 
+def _category_label(raw: str | None) -> str | None:
+    value = normalize_project_category(raw)
+    if value is None and raw is not None and raw.strip():
+        raise ValueError("category must be a single-line label")
+    return value
+
+
+# Display metadata picked in the 新建项目 dialog; omitted means none. The icon
+# is a line-icon id (``trending-up``), never an emoji or URL.
+ProjectIconId = Annotated[str | None, Field(pattern=PROJECT_ICON_PATTERN)]
+ProjectCategory = Annotated[
+    str | None,
+    Field(max_length=PROJECT_CATEGORY_MAX_LENGTH),
+    AfterValidator(_category_label),
+]
+
+
 class PlanBody(BaseModel):
     name: str = Field(min_length=1)
     goal: str = Field(min_length=1)
     ai_budget_usd: AiBudgetUsd = None
+    icon: ProjectIconId = None
+    category: ProjectCategory = None
 
 
 class ProjectGroupAgentBody(BaseModel):
@@ -54,6 +78,8 @@ class ProjectGroupBody(BaseModel):
         allow_inf_nan=False,
         validation_alias=AliasChoices("ai_budget_usd", "aiBudgetUsd"),
     )
+    icon: ProjectIconId = None
+    category: ProjectCategory = None
 
 
 class MoveThreadBody(BaseModel):

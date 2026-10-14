@@ -40,6 +40,7 @@ import { Button } from "@/components/ui/button";
 import { authHeaders, jsonAuthHeaders } from "@/core/auth/api";
 import { getBackendBaseURL } from "@/core/config";
 import { THREAD_MAP_QUERY_KEY, fetchThreadMap } from "@/core/projects/hooks";
+import { ProjectIcon } from "@/core/projects/project-icons";
 import { cn } from "@/lib/utils";
 import { type WorkbenchRosterSeat } from "./helpers";
 import type {
@@ -522,7 +523,9 @@ export function ProjectOsTab({
                 : "size-9 rounded-xl",
             )}
           >
-            <FolderKanbanIcon
+            <ProjectIcon
+              icon={project.icon}
+              fallback={FolderKanbanIcon}
               className={titleRepeatsConversation ? "size-3.5" : "size-4.5"}
             />
           </div>

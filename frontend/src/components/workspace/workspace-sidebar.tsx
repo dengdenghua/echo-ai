@@ -14,7 +14,6 @@ import {
   PencilIcon,
   PlusIcon,
   Trash2Icon,
-  SquareKanbanIcon,
   StoreIcon,
   type LucideIcon,
 } from "lucide-react";
@@ -41,6 +40,7 @@ import {
 } from "./settings/settings-sections";
 import { AgentFooter } from "./sidebar-footer";
 import { FileTree } from "./file-tree";
+import { ProjectGroupTrigger } from "./project-group-trigger";
 
 const LazySettingsDialog = lazy(() =>
   import("./settings/settings-dialog").then((module) => ({
@@ -48,11 +48,7 @@ const LazySettingsDialog = lazy(() =>
   })),
 );
 
-import {
-  Collapsible,
-  CollapsibleContent,
-  CollapsibleTrigger,
-} from "@/components/ui/collapsible";
+import { Collapsible, CollapsibleContent } from "@/components/ui/collapsible";
 import {
   Dialog,
   DialogContent,
@@ -115,7 +111,6 @@ import {
   isProjectThreadMode,
   mergeThreadRunStatus,
   projectNameForThread,
-  isGeneratedWorkspaceProject,
   summarizeThreadForSidebar,
   syncThreadAgentSelection,
   activeTeamTaskRoomId,
@@ -343,6 +338,7 @@ type ProjectOsSidebarIndex = {
   projectNames: string[];
   projectNameByThreadId: Map<string, string>;
   projectIdByName: Map<string, string>;
+  projectIconByName: Map<string, string>;
   threads: ThreadSummary[];
 };
 
@@ -366,6 +362,7 @@ function buildProjectOsSidebarIndex(
   const durableThreadIds = new Set<string>();
   const projectNameByThreadId = new Map<string, string>();
   const projectIdByName = new Map<string, string>();
+  const projectIconByName = new Map<string, string>();
   const projectNames: string[] = [];
   const seenProjectNames = new Set<string>();
 
@@ -376,6 +373,7 @@ function buildProjectOsSidebarIndex(
       seenProjectNames.add(projectName);
       projectNames.push(projectName);
       projectIdByName.set(projectName, project.id);
+      if (project.icon) projectIconByName.set(projectName, project.icon);
     }
 
     const mappedThreadIds = Object.entries(threadProjectMap)
@@ -418,6 +416,7 @@ function buildProjectOsSidebarIndex(
     projectNames,
     projectNameByThreadId,
     projectIdByName,
+    projectIconByName,
     // Put durable entries first so the project home cannot fall behind the
     // compact six-thread preview after a reload.
     threads: [
@@ -1078,6 +1077,7 @@ export function WorkspaceSidebar(props: React.ComponentProps<typeof Sidebar>) {
               <ProjectsSection
                 groups={projectOrder}
                 byProject={byProject}
+                projectIcons={projectOsSidebar.projectIconByName}
                 pathname={sidebarPathname}
                 deletableProjects={deletableProjects}
                 deletingProject={deletingProject}
@@ -1671,84 +1671,6 @@ function projectHasBoundFolder(threads: ThreadSummary[]): boolean {
   return threads.some((thread) => Boolean(thread.workspacePath?.trim()));
 }
 
-function ProjectGroupIcon({ hasBoundFolder }: { hasBoundFolder: boolean }) {
-  return hasBoundFolder ? (
-    <FolderIcon
-      data-project-kind="folder"
-      className="size-[18px] shrink-0 opacity-70"
-    />
-  ) : (
-    <SquareKanbanIcon
-      data-project-kind="milestone"
-      className="size-[18px] shrink-0 opacity-70"
-    />
-  );
-}
-
-function ProjectGroupTrigger({
-  project,
-  threadCount,
-  deletable,
-  hasBoundFolder,
-  boundWorkspacePath,
-}: {
-  project: string;
-  threadCount: number;
-  deletable: boolean;
-  hasBoundFolder: boolean;
-  boundWorkspacePath?: string;
-}) {
-  const generatedWorkspace = isGeneratedWorkspaceProject(
-    project,
-    boundWorkspacePath,
-  );
-  const displayName = generatedWorkspace ? "任务文件" : project;
-  return (
-    <Tooltip>
-      <TooltipTrigger asChild>
-        <CollapsibleTrigger
-          className={cn(
-            "flex h-9 w-full items-center gap-2 rounded-lg px-1 text-sm",
-            deletable ? "pr-8" : "pr-1",
-            "text-foreground/85 hover:text-foreground hover:bg-muted/40 transition-colors",
-            "outline-none focus-visible:ring-1 focus-visible:ring-ring/45 focus-visible:ring-inset",
-          )}
-        >
-          <ProjectGroupIcon hasBoundFolder={hasBoundFolder} />
-          <span className="min-w-0 truncate">{displayName}</span>
-          {/* Zero-count badges are noise: hide them instead of dimming to a
-              sub-AA contrast. Full muted-foreground keeps non-zero counts
-              legible in both themes (5.1:1 light / 7.0:1 dark). */}
-          {threadCount > 0 ? (
-            <span
-              className={cn(
-                "ml-auto shrink-0 text-xs text-muted-foreground transition-opacity",
-                deletable && "group-hover/project:opacity-0",
-              )}
-            >
-              {threadCount}
-            </span>
-          ) : null}
-        </CollapsibleTrigger>
-      </TooltipTrigger>
-      <TooltipContent
-        side="right"
-        align="center"
-        className="max-w-72 break-words"
-      >
-        <span className="block font-medium">{displayName}</span>
-        <span className="mt-0.5 block text-xs text-muted-foreground">
-          {generatedWorkspace
-            ? "此任务自动创建的文件空间"
-            : hasBoundFolder
-              ? boundWorkspacePath || "本地目录项目"
-              : "里程碑项目 · 不绑定本地目录"}
-        </span>
-      </TooltipContent>
-    </Tooltip>
-  );
-}
-
 function SidebarTimestamp({
   updatedAt,
   className,
@@ -1770,6 +1692,7 @@ function SidebarTimestamp({
 
 function ProjectGroup({
   project,
+  icon,
   threads,
   pathname,
   deletable,
@@ -1779,6 +1702,7 @@ function ProjectGroup({
   onOpenFiles,
 }: {
   project: string;
+  icon?: string;
   threads: ThreadSummary[];
   pathname: string;
   deletable: boolean;
@@ -1865,6 +1789,7 @@ function ProjectGroup({
             deletable={deletable}
             hasBoundFolder={hasBoundFolder}
             boundWorkspacePath={boundWorkspacePath}
+            icon={icon}
           />
           {deletable && (
             <DropdownMenu>
@@ -2303,6 +2228,7 @@ function SectionHeader({
 function ProjectsSection({
   groups,
   byProject,
+  projectIcons,
   pathname,
   deletableProjects,
   deletingProject,
@@ -2315,6 +2241,7 @@ function ProjectsSection({
 }: {
   groups: string[];
   byProject: Record<string, ThreadSummary[]>;
+  projectIcons: Map<string, string>;
   pathname: string;
   deletableProjects: Set<string>;
   deletingProject: string | null;
@@ -2376,6 +2303,7 @@ function ProjectsSection({
               <ProjectGroup
                 key={project}
                 project={project}
+                icon={projectIcons.get(project)}
                 threads={byProject[project]!}
                 pathname={pathname}
                 deletable={deletableProjects.has(project)}

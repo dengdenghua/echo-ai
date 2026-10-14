@@ -84,7 +84,7 @@ import { CreateProjectDialog } from "./create-project-dialog";
 type ThreadGroup = {
   key: string;
   label: string;
-  icon?: string;
+  icon?: string | null;
   project?: Project;
   threads: AgentThread[];
 };

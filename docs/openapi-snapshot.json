@@ -6929,6 +6929,18 @@
       },
       "PageTranslateRequest": {
         "properties": {
+          "model": {
+            "anyOf": [
+              {
+                "maxLength": 200,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Model"
+          },
           "segments": {
             "items": {
               "$ref": "#/components/schemas/PageTranslateSegment"

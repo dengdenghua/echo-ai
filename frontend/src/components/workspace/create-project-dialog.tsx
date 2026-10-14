@@ -34,6 +34,7 @@ import {
   useCreateProject,
 } from "@/core/projects/hooks";
 import { useI18n } from "@/core/i18n/hooks";
+import { PROJECT_CATEGORY_PRESETS } from "@/core/projects/project-categories";
 import {
   DEFAULT_PROJECT_ICON,
   ProjectIcon,
@@ -54,28 +55,11 @@ export function CreateProjectDialog({
   const { t } = useI18n();
   const navigate = useNavigate();
   const CATEGORY_PRESETS = useMemo(
-    (): { label: string; icon: ProjectIconId; category: string }[] => [
-      {
-        label: t.createProjectDialog.categoryInvest,
-        icon: "trending-up",
-        category: "investment",
-      },
-      {
-        label: t.createProjectDialog.categoryHomework,
-        icon: "notebook-pen",
-        category: "homework",
-      },
-      {
-        label: t.createProjectDialog.categoryWriting,
-        icon: "pen-line",
-        category: "writing",
-      },
-      {
-        label: t.createProjectDialog.categoryTravel,
-        icon: "plane",
-        category: "travel",
-      },
-    ],
+    () =>
+      PROJECT_CATEGORY_PRESETS.map((preset) => ({
+        ...preset,
+        label: t.createProjectDialog[preset.labelKey],
+      })),
     [t],
   );
   const [name, setName] = useState("");

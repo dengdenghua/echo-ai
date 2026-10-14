@@ -15,6 +15,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { useI18n } from "@/core/i18n/hooks";
+import { ProjectIcon } from "@/core/projects/project-icons";
 import { cn } from "@/lib/utils";
 import {
   ProjectDecisionsModal,
@@ -38,6 +39,8 @@ const PROJECT_STATUS_DOT: Record<string, string> = {
 export interface ProjectGroupHeaderBadgeProps {
   name: string;
   status?: string;
+  /** Icon id picked when the project was created; omitted keeps the kanban mark. */
+  icon?: string | null;
   activeMilestone?: {
     id: string;
     name: string;
@@ -55,6 +58,7 @@ export interface ProjectGroupHeaderBadgeProps {
 export function ProjectGroupHeaderBadge({
   name,
   status,
+  icon,
   activeMilestone,
   decisionsCount,
   decisions,
@@ -95,10 +99,11 @@ export function ProjectGroupHeaderBadge({
           activeMilestone ? "max-w-72" : "max-w-52",
         )}
       >
-        <FolderKanbanIcon
+        <ProjectIcon
+          icon={icon}
+          fallback={FolderKanbanIcon}
           data-slot="project-capability-icon"
           className="size-3.5 shrink-0"
-          aria-hidden="true"
         />
         {activeMilestone ? (
           <>

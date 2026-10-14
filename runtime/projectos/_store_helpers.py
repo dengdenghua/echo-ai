@@ -7,6 +7,7 @@ import json
 import re
 from typing import Any
 
+from runtime.projectos.appearance import normalize_project_category, normalize_project_icon
 from runtime.projectos.model import (
     PROJECT_ORIGINS,
     Milestone,
@@ -130,6 +131,8 @@ def _normalize_project(project: Project) -> Project:
         started_at=_text(project.started_at, label="started_at", max_length=64),
         finished_at=_text(project.finished_at, label="finished_at", max_length=64),
         origin=project.origin if project.origin in PROJECT_ORIGINS else "",
+        icon=normalize_project_icon(project.icon),
+        category=normalize_project_category(project.category),
     )
 
 

@@ -62,6 +62,8 @@ def _register_project_creation(router: APIRouter, d: ProjectsDeps) -> None:
                 body.goal,
                 origin=PROJECT_ORIGIN_APP,
                 milestone_spec=governed_milestone_spec([], ai_budget_usd=body.ai_budget_usd),
+                icon=body.icon,
+                category=body.category,
             )
         except ValueError as exc:
             raise _bad_request(exc) from exc
@@ -134,6 +136,8 @@ def _register_project_creation(router: APIRouter, d: ProjectsDeps) -> None:
                     milestone_spec=governed_milestone_spec(
                         agent_ids, ai_budget_usd=body.ai_budget_usd
                     ),
+                    icon=body.icon,
+                    category=body.category,
                 ),
             )
         except (ProjectGroupBindingChanged, ProjectGroupCreationRecoveryPending) as exc:

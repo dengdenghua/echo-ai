@@ -418,6 +418,8 @@ def build_portfolio_entry(
         "started_at": project.started_at,
         "finished_at": project.finished_at,
         "execution_thread_id": project.execution_thread_id,
+        "icon": project.icon,
+        "category": project.category,
         "health": _portfolio_health(milestones_pm),
         "readable": report is not None,
         "progress": report.get("overall_progress", 0.0) if report else 0.0,

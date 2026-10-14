@@ -347,6 +347,68 @@ describe("project home work group", () => {
     expect(mocks.ensureRoom).not.toHaveBeenCalled();
   });
 
+  test("sends the icon and category picked in the dialog with the project group", async () => {
+    vi.mocked(globalThis.fetch).mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          project: {
+            id: "P-trip",
+            name: "旅行计划",
+            icon: "plane",
+            category: "travel",
+          },
+          thread_id: "thread-trip",
+        }),
+        { status: 200, headers: { "Content-Type": "application/json" } },
+      ),
+    );
+    const queryClient = new QueryClient({
+      defaultOptions: { mutations: { retry: false } },
+    });
+    const wrapper = ({ children }: PropsWithChildren) =>
+      createElement(QueryClientProvider, { client: queryClient }, children);
+    const { result } = renderHook(() => useCreateProject(), { wrapper });
+
+    const created = await result.current.mutateAsync({
+      name: "旅行计划",
+      icon: "plane",
+      category: "travel",
+    });
+
+    const [, init] = vi.mocked(globalThis.fetch).mock.calls[0] ?? [];
+    expect(JSON.parse(String(init?.body))).toMatchObject({
+      name: "旅行计划",
+      icon: "plane",
+      category: "travel",
+    });
+    expect(created.project).toMatchObject({
+      icon: "plane",
+      category: "travel",
+    });
+  });
+
+  test("omits an empty icon and category from the create request", async () => {
+    vi.mocked(globalThis.fetch).mockResolvedValue(
+      new Response(
+        JSON.stringify({ project: { id: "P-x", name: "X" }, thread_id: "t-x" }),
+        { status: 200, headers: { "Content-Type": "application/json" } },
+      ),
+    );
+    const queryClient = new QueryClient({
+      defaultOptions: { mutations: { retry: false } },
+    });
+    const wrapper = ({ children }: PropsWithChildren) =>
+      createElement(QueryClientProvider, { client: queryClient }, children);
+    const { result } = renderHook(() => useCreateProject(), { wrapper });
+
+    await result.current.mutateAsync({ name: "X", icon: " ", category: "" });
+
+    const [, init] = vi.mocked(globalThis.fetch).mock.calls[0] ?? [];
+    const body: unknown = JSON.parse(String(init?.body));
+    expect(body).not.toHaveProperty("icon");
+    expect(body).not.toHaveProperty("category");
+  });
+
   test("does not run client-side compensation when project-group creation fails", async () => {
     vi.mocked(globalThis.fetch).mockResolvedValue(
       new Response("creation failed", {

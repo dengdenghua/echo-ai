@@ -484,6 +484,7 @@ export function RealtimeProjectStatusBadge({
   return (
     <ProjectGroupHeaderBadge
       name={boundProjectState.project.name} status={boundProjectState.project.status}
+      icon={boundProjectState.project.icon}
       activeMilestone={resolveActiveProjectMilestone(boundProjectState, defaultProjectMilestoneId)}
       decisionsCount={boundProjectState.decisions?.length} decisions={boundProjectState.decisions}
       onOpenWorkbench={() =>

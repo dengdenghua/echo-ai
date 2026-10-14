@@ -16,6 +16,8 @@ from dataclasses import asdict, dataclass, field
 from math import isfinite
 from typing import Any, Literal, cast
 
+from runtime.projectos.appearance import normalize_project_category, normalize_project_icon
+
 
 def _is_finite_num(value: Any) -> bool:
     try:
@@ -216,6 +218,9 @@ class Project:
     started_at: str = ""  # ISO timestamp (first active milestone)
     finished_at: str = ""  # ISO timestamp (project done)
     origin: str = ""  # planning surface, see PROJECT_ORIGINS; immutable once stored
+    # ── 外观（新建项目时选择；旧项目为 None）─────────
+    icon: str | None = None  # line-icon id, see appearance.normalize_project_icon
+    category: str | None = None  # short label, e.g. "investment"
 
     def to_dict(self) -> dict[str, Any]:
         return asdict(self)
@@ -241,6 +246,8 @@ class Project:
             started_at=str(raw.get("started_at") or ""),
             finished_at=str(raw.get("finished_at") or ""),
             origin=origin if origin in PROJECT_ORIGINS else "",
+            icon=normalize_project_icon(raw.get("icon")),
+            category=normalize_project_category(raw.get("category")),
         )
 
 

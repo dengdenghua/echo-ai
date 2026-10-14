@@ -159,12 +159,15 @@ class ProjectEngine(ProjectInterventionMixin):
         project_id: str | None = None,
         origin: str = "",
         milestone_spec: dict[str, Any] | None = None,
+        icon: str | None = None,
+        category: str | None = None,
     ) -> Project:
         """Turn a one-line goal into a project with generated milestones.
 
         ``origin`` labels the planning surface (see ``PROJECT_ORIGINS``).
         ``milestone_spec`` is laid over every generated phase's spec — the
         governed surfaces use it to attach ``governed_milestone_spec``.
+        ``icon`` / ``category`` are display metadata (see ``appearance``).
         """
         pid = project_id or f"P-{uuid4().hex[:8]}"
         milestones = self._generate(goal)
@@ -185,6 +188,8 @@ class ProjectEngine(ProjectInterventionMixin):
             owner=self.owner_id or "",
             created_at=datetime.now(UTC).isoformat(timespec="seconds"),
             origin=origin,
+            icon=icon,
+            category=category,
         )
         project, _resolved_milestones = self.store.create_project_plan(project, milestones)
         return project
