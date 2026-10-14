@@ -22,10 +22,11 @@ import { fileURLToPath } from "node:url";
 import ts from "typescript";
 import { describe, expect, it } from "vitest";
 
-const FRONTEND_ROOT = path.resolve(
-  path.dirname(fileURLToPath(import.meta.url)),
-  "../..",
-);
+// The commit hook (tools/hooks/commit_tree_gates.py) points this at a
+// checkout of the exact tree being committed instead of the working tree.
+const FRONTEND_ROOT =
+  process.env.ECHO_RATCHET_FRONTEND_ROOT ??
+  path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
 const SRC_ROOT = path.join(FRONTEND_ROOT, "src");
 const BASELINE_PATH = path.join(
   FRONTEND_ROOT,
