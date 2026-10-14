@@ -67,7 +67,17 @@ def test_network_bind_guard_is_fail_closed() -> None:
     assert _insecure_bind_error(host="0.0.0.0", uds="/tmp/echo.sock", require_auth=False) is None
 
 
-def test_serve_refuses_network_bind_without_auth(tmp_path: Path, capsys) -> None:
+@pytest.fixture
+def no_server(monkeypatch):
+    """Fail instead of serving forever if a refused bind is ever accepted."""
+
+    def refuse(*_args, **_kwargs):
+        raise AssertionError("run_serve started a server for a bind it should refuse")
+
+    monkeypatch.setattr("runtime.platform.ui.server_options.run_uvicorn", refuse)
+
+
+def test_serve_refuses_network_bind_without_auth(tmp_path: Path, capsys, no_server) -> None:
     from runtime.cli import run_serve
 
     config = tmp_path / "config.yaml"
@@ -89,9 +99,18 @@ def test_serve_refuses_network_bind_without_auth(tmp_path: Path, capsys) -> None
     assert "security error" in capsys.readouterr().err
 
 
-def test_serve_refuses_network_bind_with_passwordless_local_auth(tmp_path: Path, capsys) -> None:
+def test_serve_refuses_network_bind_with_development_sign_in_by_name(
+    tmp_path: Path, capsys, monkeypatch, no_server
+) -> None:
+    """Development's sign-in by name hands anyone on the network a JWT.
+
+    Outside development the same passwordless config is the self-hosted
+    owner account (setup code, then password), which may bind the LAN; see
+    tests/test_local_auth_owner_account.py.
+    """
     from runtime.cli import run_serve
 
+    monkeypatch.setenv("ECHO_ENV", "development")
     config = tmp_path / "config.yaml"
     config.write_text(
         "name: phase0a\nplanner:\n  type: static\n"
