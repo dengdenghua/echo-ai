@@ -110,7 +110,7 @@ def engines_dir(tmp_path, monkeypatch):
 def _serving(data: bytes, failing: set[str] = frozenset()):
     seen: list[str] = []
 
-    def fetch(url, destination, artifact, progress):
+    def fetch(url, destination, artifact, progress, *, min_rate=None):
         seen.append(url)
         if any(part in url for part in failing):
             raise _SourceFailed("unreachable")
@@ -349,3 +349,68 @@ def test_engine_spec_mirror_layout():
     assert spec.mirror_url(artifact) == (
         "https://ai.echo-age.com/marketplace/engines/codex/1.2.3/codex-0.162.0-win32-x64.tgz"
     )
+
+
+def test_a_slow_mirror_gives_way_to_the_official_source(engines_dir, monkeypatch):
+    """The mirror sits on a 1 Mbps link: never make people wait on it."""
+
+    data = _codex_tarball()
+    _fake_codex(monkeypatch, data)
+    calls: list[tuple[str, float | None]] = []
+
+    def fetch(url, destination, artifact, progress, *, min_rate=None):
+        calls.append((url.split("/")[2], min_rate))
+        if "ai.echo-age.com" in url and min_rate is not None:
+            raise installer_module._SourceTooSlow("0.13 MB/s")
+        if "registry.npmjs.org" in url and fail_upstream:
+            raise _SourceFailed("blocked")
+        destination.write_bytes(data)
+
+    fail_upstream = False
+    job = EngineInstaller(fetch=fetch).install_now("codex")
+    assert (job.state, job.source) == ("done", "upstream")
+    assert calls == [
+        ("ai.echo-age.com", installer_module.MIRROR_MIN_RATE),
+        ("registry.npmjs.org", None),
+    ]
+
+    # Without the official source, the slow mirror still finishes the job.
+    calls.clear()
+    fail_upstream = True
+    job = EngineInstaller(fetch=fetch).install_now("codex")
+    assert (job.state, job.source) == ("done", "mirror")
+    assert calls[-1] == ("ai.echo-age.com", None)
+
+
+def test_download_stops_a_source_slower_than_the_minimum_rate(tmp_path):
+    data = b"x" * 3
+    artifact = EngineArtifact(
+        asset="engine.tgz",
+        upstream="https://github.com/example/engine.tgz",
+        integrity="sha256:" + hashlib.sha256(data).hexdigest(),
+        size=len(data),
+        archive="tar.gz",
+        root="",
+        entrypoint="engine",
+        magic="7f454c46",
+    )
+    url = "https://ai.echo-age.com/marketplace/engines/x/1/engine.tgz"
+    ticks = iter([0.0, 20.0, 40.0, 60.0])
+
+    def chunks(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(200, content=iter([b"x", b"x", b"x"]))
+
+    client = httpx.Client(transport=httpx.MockTransport(chunks))
+    with pytest.raises(installer_module._SourceTooSlow):
+        download(
+            url,
+            tmp_path / "a",
+            artifact,
+            lambda _n: None,
+            client=client,
+            min_rate=1_000_000,
+            clock=lambda: next(ticks),
+        )
+    # The same source at any speed is accepted when nothing faster worked.
+    download(url, tmp_path / "b", artifact, lambda _n: None, client=client)
+    assert (tmp_path / "b").read_bytes() == data

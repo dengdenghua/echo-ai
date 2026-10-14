@@ -1,8 +1,10 @@
 """Install a pinned engine from the store: download, verify, unpack, swap in.
 
-A download tries ai.echo-age.com first and the official source second. Either
-way the bytes must be exactly the pinned archive (size and digest) before any
-of them is unpacked, so a mirror can only be slow or missing, never wrong.
+A download tries ai.echo-age.com first and the official source second; a
+mirror slower than ``MIRROR_MIN_RATE`` gives way to the official source and is
+used at any speed only when that fails. Either way the bytes must be exactly
+the pinned archive (size and digest) before any of them is unpacked, so a
+mirror can only be slow or missing, never wrong.
 Unpacking keeps regular files only, inside the engine directory, and the new
 directory replaces the old one with a rename, so a failed or interrupted
 install leaves the previous engine working.
@@ -48,6 +50,11 @@ _REDIRECTS = frozenset({301, 302, 303, 307, 308})
 _MAX_HOPS = 6
 _CHUNK = 1024 * 1024
 _MAX_UNPACKED = 1024**3
+# The mirror is tried first but runs on a small server link: when it averages
+# under this rate after the window, the official source is tried instead, and
+# the mirror is used at any speed only when that fails too.
+MIRROR_MIN_RATE = 1_000_000
+_RATE_WINDOW = 15.0
 
 
 class EngineInstallError(RuntimeError):
@@ -60,6 +67,10 @@ class EngineInstallError(RuntimeError):
 
 class _SourceFailed(Exception):
     """This source did not deliver the pinned archive; try the next one."""
+
+
+class _SourceTooSlow(_SourceFailed):
+    """This source works but is slower than ``min_rate``; try a faster one first."""
 
 
 @dataclass
@@ -108,11 +119,14 @@ def download(
     progress: Callable[[int], None],
     *,
     client: Any = None,
+    min_rate: float | None = None,
+    clock: Callable[[], float] = time.monotonic,
 ) -> None:
     """Stream ``url`` to ``destination``; fail unless it is the pinned archive.
 
     ``httpx`` honours the system proxy settings, which is how many desktops
-    reach GitHub and npm at all.
+    reach GitHub and npm at all. With ``min_rate`` (bytes per second) a
+    download that averages less after the first seconds stops early.
     """
 
     import httpx
@@ -139,11 +153,19 @@ def download(
                 if response.status_code != 200:
                     raise _SourceFailed(f"HTTP {response.status_code}")
                 received = 0
+                started = clock()
                 with destination.open("wb") as handle:
                     for chunk in response.iter_bytes(_CHUNK):
                         received += len(chunk)
                         if received > artifact.size:
                             raise _SourceFailed("larger than the pinned archive")
+                        elapsed = clock() - started
+                        if (
+                            min_rate is not None
+                            and elapsed >= _RATE_WINDOW
+                            and received < min_rate * elapsed
+                        ):
+                            raise _SourceTooSlow(f"{received / elapsed / 1e6:.2f} MB/s")
                         hasher.update(chunk)
                         handle.write(chunk)
                         progress(received)
@@ -362,19 +384,29 @@ class EngineInstaller:
     def _download(
         self, job: InstallJob, spec: EngineSpec, artifact: EngineArtifact, archive: Path
     ) -> str:
-        for source, url in (("mirror", spec.mirror_url(artifact)), ("upstream", artifact.upstream)):
+        mirror = spec.mirror_url(artifact)
+        attempts: list[tuple[str, str, float | None]] = [
+            ("mirror", mirror, MIRROR_MIN_RATE),
+            ("upstream", artifact.upstream, None),
+        ]
+        for index, (source, url, min_rate) in enumerate(attempts):
             job.source, job.received = source, 0
 
             def progress(received: int) -> None:
                 job.received = received
 
             try:
-                self._fetch(url, archive, artifact, progress)
+                self._fetch(url, archive, artifact, progress, min_rate=min_rate)
                 return url
+            except _SourceTooSlow as exc:
+                _logger.info("engine %s: %s source too slow (%s)", spec.id, source, exc)
+                # A slow mirror still beats no download: last resort, any speed.
+                if index == 0:
+                    attempts.append(("mirror", mirror, None))
             except _SourceFailed as exc:
                 _logger.info("engine %s: %s source failed: %s", spec.id, source, exc)
-                with contextlib.suppress(OSError):
-                    archive.unlink()
+            with contextlib.suppress(OSError):
+                archive.unlink()
         raise EngineInstallError("download_failed")
 
     def uninstall(self, engine_id: str) -> bool:
