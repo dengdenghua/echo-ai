@@ -3,10 +3,8 @@ import { canManageInstanceSettings } from "@/core/auth/control-plane-access";
 import type { AuthStatus, User } from "@/core/auth/types";
 import { useOptionalAuth } from "@/providers/AuthProvider";
 
-/** Shown where an ordinary account would otherwise see 安装 / 移除. */
-export const WORKBENCH_ADMIN_ONLY_LABEL = "由管理员安装";
-
-/** The longer explanation, worded like the server's 403 detail. */
+/** The explanation shown where an ordinary account cannot manage a workbench
+ * (HUB words it per language: core/i18n/locales/hub.ts). */
 export const WORKBENCH_ADMIN_ONLY_HINT =
   "工作台由本机管理员安装和管理，需要时请联系管理员。";
 

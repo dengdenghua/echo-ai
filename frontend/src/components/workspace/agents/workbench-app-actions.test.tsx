@@ -12,6 +12,7 @@ import {
 
 function renderInstallControl(
   overrides: Partial<Parameters<typeof WorkbenchInstallControl>[0]> = {},
+  locale: "zh-CN" | "en-US" = "zh-CN",
 ) {
   const props = {
     appName: "设计画布",
@@ -29,6 +30,7 @@ function renderInstallControl(
     <div className="relative">
       <WorkbenchInstallControl {...props} />
     </div>,
+    { locale },
   );
   return props;
 }
@@ -50,11 +52,19 @@ function renderManageMenu(canManage: boolean) {
     <div className="relative">
       <WorkbenchManageMenu {...props} />
     </div>,
+    { locale: "zh-CN" },
   );
   return props;
 }
 
 describe("WorkbenchInstallControl", () => {
+  it("speaks the reader's language", () => {
+    renderInstallControl({ appName: "Canvas" }, "en-US");
+    expect(
+      screen.getByRole("button", { name: "Install Canvas" }),
+    ).toHaveTextContent("Install");
+  });
+
   it("offers install to the admin", async () => {
     const props = renderInstallControl();
     await userEvent.click(screen.getByRole("button", { name: "安装设计画布" }));
@@ -113,6 +123,7 @@ describe("WorkbenchStatusLine", () => {
     };
     const { rerender } = renderWithProviders(
       <WorkbenchStatusLine canManage {...state} />,
+      { locale: "zh-CN" },
     );
     expect(screen.getByText("已停用 · 点击重新启用")).toBeVisible();
     rerender(<WorkbenchStatusLine canManage={false} {...state} />);

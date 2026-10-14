@@ -30,7 +30,7 @@ frontend/src/components/workspace/agent-workbench-pages.tsx	2085
 frontend/src/components/workspace/agent-workbench-panel.test.tsx	3406
 frontend/src/components/workspace/agent-workbench-panel.tsx	1182
 frontend/src/components/workspace/agents/agent-role-profile-dialog.tsx	1944
-frontend/src/components/workspace/agents/agent-world-unified.tsx	1120
+frontend/src/components/workspace/agents/agent-world-unified.tsx	1042
 frontend/src/components/workspace/agents/arms-editor.tsx	1028
 frontend/src/components/workspace/artifacts/artifact-file-detail.tsx	1330
 frontend/src/components/workspace/browser-preview-panel.tsx	2358

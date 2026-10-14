@@ -22,6 +22,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { swallow } from "@/core/utils/log";
 import { useI18n } from "@/core/i18n/hooks";
+import { hubCopy } from "@/core/i18n/locales/hub";
 import { cn } from "@/lib/utils";
 import { installAgent } from "@/core/agents/agent-world-api";
 import type { AgentWorldAgent } from "@/core/agents/types";
@@ -64,7 +65,8 @@ export function AgentsTab({
   showManagementActions?: boolean;
   sceneOnly?: boolean;
 }) {
-  const { t } = useI18n();
+  const { t, locale } = useI18n();
+  const hub = hubCopy(locale);
   const [installingAll, setInstallingAll] = useState(false);
   const [confirmInstallAll, setConfirmInstallAll] = useState(false);
   const [smartTeamOpen, setSmartTeamOpen] = useState(false);
@@ -95,41 +97,35 @@ export function AgentsTab({
       [
         {
           id: "white-ghost",
-          title: "白幽灵行动组",
-          description: "完整主角团协同，适合复杂任务、跨工具执行与现场决策。",
+          ...hub.agents.scenes["white-ghost"],
           memberIds: ["eve", "kane", "raven", "luna", "shion", "noah", "zero"],
           domains: ["eve", "automation"],
           accent: "from-muted to-background",
         },
         {
           id: "product-lab",
-          title: "产品研发冲刺",
-          description: "从需求拆解、架构实现到桌面验收，组成一支小型交付团队。",
+          ...hub.agents.scenes["product-lab"],
           memberIds: ["kane", "raven", "eve"],
           domains: ["coding", "automation"],
           accent: "from-muted to-background",
         },
         {
           id: "investment-room",
-          title: "投研决策室",
-          description:
-            "聚合市场研究、信息验证与商业判断，形成可执行的投资结论。",
+          ...hub.agents.scenes["investment-room"],
           memberIds: ["noah", "eve", "shion"],
           domains: ["research", "finance"],
           accent: "from-muted to-background",
         },
         {
           id: "growth-studio",
-          title: "品牌增长工作室",
-          description: "把用户洞察、内容创意与商业转化串成一条完整增长链路。",
+          ...hub.agents.scenes["growth-studio"],
           memberIds: ["luna", "eve", "shion"],
           domains: ["creative", "ecommerce"],
           accent: "from-muted to-background",
         },
         {
           id: "automation-cell",
-          title: "自动化执行中枢",
-          description: "代码、桌面和流程三线并行，适合批量操作与长链路任务。",
+          ...hub.agents.scenes["automation-cell"],
           memberIds: ["raven", "kane", "zero"],
           domains: ["automation", "coding"],
           accent: "from-muted to-background",
@@ -149,7 +145,7 @@ export function AgentsTab({
             .filter((agent): agent is AgentWorldAgent => Boolean(agent)),
         }))
         .filter((scenario) => scenario.members.length > 0),
-    [activeCategory, agents],
+    [activeCategory, agents, hub.agents.scenes],
   );
 
   useEffect(() => {
@@ -191,7 +187,7 @@ export function AgentsTab({
   if (loading) {
     if (sceneOnly) {
       return (
-        <section aria-label="正在加载精选场景" className="space-y-2">
+        <section aria-label={hub.agents.scenesLoading} className="space-y-2">
           <Skeleton className="h-4 w-20" />
           <div className="flex gap-3 overflow-hidden">
             {Array.from({ length: 4 }).map((_, i) => (
@@ -231,7 +227,7 @@ export function AgentsTab({
         >
           <span className="flex min-w-0 items-center gap-2 text-ui text-muted-foreground">
             <AlertCircleIcon className="size-3.5 shrink-0" aria-hidden="true" />
-            精选场景暂时不可用
+            {hub.agents.scenesUnavailable}
           </span>
           <Button
             type="button"
@@ -351,7 +347,7 @@ export function AgentsTab({
                 onClick={() => setSmartTeamOpen(true)}
               >
                 <SparklesIcon className="mr-1.5 size-3.5" />
-                智能组队
+                {hub.agents.smartTeam}
               </Button>
               <span className="inline-flex h-8 items-center rounded-lg border border-border bg-background px-2.5">
                 <span className="text-muted-foreground/80">
@@ -440,10 +436,10 @@ export function AgentsTab({
         <>
           <div className="flex items-center justify-between pt-1">
             <h3 className="text-sm font-semibold text-foreground">
-              全部智能体
+              {hub.agents.all}
             </h3>
             <span className="text-ui-caption text-muted-foreground">
-              {visibleAgents.length} 位
+              {hub.agents.count(visibleAgents.length)}
             </span>
           </div>
 

@@ -20,10 +20,8 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
-  DialogClose,
   DialogContent,
   DialogDescription,
-  DialogFooter,
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
@@ -82,6 +80,11 @@ import { A2AAgentsPanel } from "@/components/workspace/a2a-agents-panel";
 import { CloudSkillsPanel } from "@/components/store/cloud-skills-panel";
 import { WorkBuddyCloudStorePanel } from "@/components/store/workbuddy-cloud-store-panel";
 import { SmartTeamDialog } from "./smart-team-dialog";
+import {
+  RestoreWorkbenchDialog,
+  UninstallWorkbenchDialog,
+} from "./workbench-app-dialogs";
+import { hubCopy } from "@/core/i18n/locales/hub";
 import { EngineStoreSection } from "./engine-store-section";
 import {
   WorkbenchInstallControl,
@@ -128,7 +131,8 @@ const AgentRoleProfileDialog = lazy(() =>
 // Types + data + helpers extracted to agent-world-data.ts
 
 export function AgentWorldUnified() {
-  const { t } = useI18n();
+  const { t, locale } = useI18n();
+  const hub = hubCopy(locale);
   const navigate = useNavigate();
   const location = useLocation();
   const queryClient = useQueryClient();
@@ -287,10 +291,10 @@ export function AgentWorldUnified() {
           setRestoreWorkbenchApp(null);
           toast.success(
             result.data?.status === "restored"
-              ? `${app.name}已安装，作品已恢复`
+              ? hub.apps.installedRestored(app.name)
               : result.operation === "update"
-                ? `${app.name}已更新`
-                : `${app.name}已安装`,
+                ? hub.apps.updated(app.name)
+                : hub.apps.installed(app.name),
           );
         } else if (operation === "uninstall") {
           const result = await uninstallCloudPlugin(app.cloudId, {
@@ -313,8 +317,8 @@ export function AgentWorldUnified() {
           setUninstallWorkbenchApp(null);
           toast.success(
             result.data?.status === "trashed"
-              ? `${app.name}已卸载，作品已移入可恢复回收站`
-              : `${app.name}已卸载，作品已保留`,
+              ? hub.apps.uninstalledTrashed(app.name)
+              : hub.apps.uninstalledKept(app.name),
           );
         } else if (operation === "rollback") {
           const packageStatus = workbenchPackageStatuses.get(app.packageId);
@@ -332,8 +336,8 @@ export function AgentWorldUnified() {
           }
           toast.success(
             result.operation === "restored_previous"
-              ? `${app.name}已回退到上一个版本`
-              : `${app.name}的最近安装已撤销`,
+              ? hub.apps.rolledBack(app.name)
+              : hub.apps.installUndone(app.name),
           );
         } else {
           const enabled = operation === "enable";
@@ -352,7 +356,9 @@ export function AgentWorldUnified() {
           }
           setModuleAvailable(app.moduleId, enabled);
           if (enabled) setModuleEnabled(app.moduleId, true, activeAgentId);
-          toast.success(`${app.name}已${enabled ? "启用" : "停用"}`);
+          toast.success(
+            enabled ? hub.apps.enabled(app.name) : hub.apps.disabled(app.name),
+          );
         }
         await refreshWorkbenchPackages();
       } catch (error) {
@@ -367,6 +373,7 @@ export function AgentWorldUnified() {
     },
     [
       activeAgentId,
+      hub.apps,
       installedWorkbenchPackages,
       refreshWorkbenchPackages,
       workbenchPackageStatuses,
@@ -500,10 +507,10 @@ export function AgentWorldUnified() {
 
   const searchPlaceholder =
     activeMarket === "agents"
-      ? "搜索智能体…"
+      ? hub.search.agents
       : activeMarket === "skills"
-        ? "搜索技能名称、用途或标签…"
-        : "搜索应用与插件…";
+        ? hub.search.skills
+        : hub.search.applications;
 
   return (
     <div className="relative flex size-full flex-col px-2 pb-2 pt-[calc(0.5rem+var(--window-titlebar-reserve,0px))] md:px-3">
@@ -539,16 +546,16 @@ export function AgentWorldUnified() {
                   className="mb-0 w-fit justify-start gap-1 overflow-x-auto pr-6 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden md:pr-0"
                 >
                   <TabsTrigger value="agents" className="h-9 px-3 text-ui">
-                    智能体
+                    {hub.tabs.agents}
                   </TabsTrigger>
                   <TabsTrigger
                     value="applications"
                     className="h-9 px-3 text-ui"
                   >
-                    应用
+                    {hub.tabs.applications}
                   </TabsTrigger>
                   <TabsTrigger value="skills" className="h-9 px-3 text-ui">
-                    技能
+                    {hub.tabs.skills}
                   </TabsTrigger>
                 </TabsList>
               </div>
@@ -573,7 +580,7 @@ export function AgentWorldUnified() {
                 {searchQuery && (
                   <button
                     type="button"
-                    aria-label="清空搜索"
+                    aria-label={hub.search.clear}
                     onClick={() => setSearchQuery("")}
                     className="absolute right-1 top-1/2 flex size-7 -translate-y-1/2 items-center justify-center rounded-md text-muted-foreground hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                   >
@@ -584,7 +591,7 @@ export function AgentWorldUnified() {
             </header>
 
             <TabsContent value="agents" className="mt-0">
-              <h2 className="sr-only">智能体</h2>
+              <h2 className="sr-only">{hub.tabs.agents}</h2>
               <div className="mb-2 flex flex-wrap justify-end gap-1.5">
                 <Button
                   size="sm"
@@ -592,7 +599,7 @@ export function AgentWorldUnified() {
                   className="h-8 text-ui text-muted-foreground"
                   onClick={() => setRemoteAgentsOpen(true)}
                 >
-                  连接外部智能体
+                  {hub.agents.connectExternal}
                 </Button>
                 <Button
                   type="button"
@@ -602,7 +609,7 @@ export function AgentWorldUnified() {
                   onClick={() => setHubSmartTeamOpen(true)}
                 >
                   <SparklesIcon className="mr-1.5 size-3.5" />
-                  智能组队
+                  {hub.agents.smartTeam}
                 </Button>
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
@@ -612,7 +619,7 @@ export function AgentWorldUnified() {
                       variant="ghost"
                       className="h-8 shrink-0 rounded-md px-2.5 text-ui text-muted-foreground shadow-none"
                     >
-                      添加
+                      {hub.agents.add}
                       <ChevronDownIcon className="ml-1 size-3.5" />
                     </Button>
                   </DropdownMenuTrigger>
@@ -621,7 +628,7 @@ export function AgentWorldUnified() {
                       onSelect={() => navigate(agentCreationRoute())}
                     >
                       <BotIcon className="size-4" />
-                      创建 AI 成员
+                      {hub.agents.createMember}
                     </DropdownMenuItem>
                   </DropdownMenuContent>
                 </DropdownMenu>
@@ -648,10 +655,9 @@ export function AgentWorldUnified() {
               >
                 <DialogContent className="flex max-h-[85vh] flex-col sm:max-w-3xl">
                   <DialogHeader>
-                    <DialogTitle>外部智能体</DialogTitle>
+                    <DialogTitle>{hub.agents.externalTitle}</DialogTitle>
                     <DialogDescription>
-                      连接运行在其他平台的智能体，让它们参与智能体协作。支持 A2A
-                      协议。
+                      {hub.agents.externalDescription}
                     </DialogDescription>
                   </DialogHeader>
                   <div className="min-h-0 overflow-y-auto">
@@ -676,7 +682,7 @@ export function AgentWorldUnified() {
                     id="remote-role-directory-title"
                     className="text-sm font-semibold text-foreground"
                   >
-                    智能体目录
+                    {hub.agents.directory}
                   </h3>
                 </div>
                 <WorkBuddyCloudStorePanel
@@ -693,35 +699,37 @@ export function AgentWorldUnified() {
             <TabsContent value="applications" className="mt-0 space-y-4">
               <section aria-labelledby="application-library-title">
                 <h2 id="application-library-title" className="sr-only">
-                  应用中心
+                  {hub.apps.center}
                 </h2>
                 <div className="mb-6">
-                  <h3 className="mb-2 text-sm font-semibold">应用</h3>
+                  <h3 className="mb-2 text-sm font-semibold">
+                    {hub.apps.heading}
+                  </h3>
                   {workbenchPackageError ? (
                     <div
                       role="alert"
                       className="mb-3 rounded-lg border border-border bg-muted/40 px-3 py-2 text-ui text-muted-foreground"
                     >
-                      应用安装状态未读取：{workbenchPackageError}
+                      {hub.apps.statusUnread(workbenchPackageError)}
                       <Button
                         size="sm"
                         variant="link"
                         disabled={workbenchPackageLoading}
                         onClick={() => void refreshWorkbenchPackages()}
                       >
-                        重试
+                        {hub.apps.retry}
                       </Button>
                     </div>
                   ) : null}
                   {matchingApps.length === 0 && (
                     <p className="py-4 text-sm text-muted-foreground">
-                      没有与“{searchQuery}”匹配的应用。
+                      {hub.apps.noMatch(searchQuery)}
                       <button
                         type="button"
                         className="ml-2 text-primary underline"
                         onClick={() => setSearchQuery("")}
                       >
-                        清除搜索
+                        {hub.apps.clearSearch}
                       </button>
                     </p>
                   )}
@@ -827,7 +835,7 @@ export function AgentWorldUnified() {
                           </button>
                           {isCore ? (
                             <span className="absolute right-2 top-1/2 -translate-y-1/2 px-2 text-micro font-medium text-muted-foreground">
-                              内置
+                              {hub.apps.builtIn}
                             </span>
                           ) : isInstalled ? (
                             <WorkbenchManageMenu
@@ -892,25 +900,25 @@ export function AgentWorldUnified() {
                     <div>
                       <h3 className="text-sm font-semibold">
                         {pluginDirectoryView === "featured"
-                          ? "推荐插件"
-                          : "插件"}
+                          ? hub.plugins.featuredHeading
+                          : hub.plugins.allHeading}
                       </h3>
                       <p className="mt-1 text-ui text-muted-foreground">
                         {pluginDirectoryView === "featured"
-                          ? "精选内置能力，安装后即可为对话、创作和工程任务补充工具。"
-                          : "插件、连接器与 MCP；安装状态直接显示在各项中。"}
+                          ? hub.plugins.featuredHint
+                          : hub.plugins.allHint}
                       </p>
                     </div>
                     <div
                       role="tablist"
-                      aria-label="插件目录视图"
+                      aria-label={hub.plugins.viewLabel}
                       className="flex w-fit items-center rounded-lg bg-muted/60 p-1"
                     >
                       {(
                         [
-                          ["featured", "推荐"],
-                          ["all", "全部"],
-                          ["installed", "已安装"],
+                          ["featured", hub.plugins.featured],
+                          ["all", hub.plugins.all],
+                          ["installed", hub.plugins.installed],
                         ] as const
                       ).map(([view, label]) => (
                         <button
@@ -948,7 +956,7 @@ export function AgentWorldUnified() {
             <TabsContent value="skills" className="mt-0">
               <section aria-labelledby="skills-library-title">
                 <h2 id="skills-library-title" className="sr-only">
-                  技能
+                  {hub.tabs.skills}
                 </h2>
                 <CloudSkillsPanel
                   searchQuery={searchQuery}
@@ -990,131 +998,45 @@ export function AgentWorldUnified() {
         </Suspense>
       ) : null}
 
-      <Dialog
+      <RestoreWorkbenchDialog
+        appName={restoreWorkbenchApp?.name ?? ""}
         open={Boolean(restoreWorkbenchApp)}
-        onOpenChange={(open) => {
-          if (!open) setRestoreWorkbenchApp(null);
+        onClose={() => setRestoreWorkbenchApp(null)}
+        onFreshInstall={() => {
+          if (restoreWorkbenchApp)
+            void mutateWorkbenchPackage(restoreWorkbenchApp, "install");
         }}
-      >
-        <DialogContent className="max-w-md">
-          <DialogHeader>
-            <DialogTitle>恢复{restoreWorkbenchApp?.name}作品</DialogTitle>
-            <DialogDescription>
-              检测到此前卸载时保存的作品。应用代码会重新下载，作品是否恢复由你决定。
-            </DialogDescription>
-          </DialogHeader>
-          <div className="rounded-xl border border-core/30 bg-core/8 p-3 text-sm">
-            <span className="font-medium text-foreground">
-              可恢复内容已保留
-            </span>
-            <p className="mt-1 text-ui leading-5 text-muted-foreground">
-              恢复操作不会覆盖现有作品；若目标位置已有新数据，系统会安全中止。
-            </p>
-          </div>
-          <DialogFooter>
-            <Button
-              variant="outline"
-              onClick={() => {
-                if (!restoreWorkbenchApp) return;
-                void mutateWorkbenchPackage(restoreWorkbenchApp, "install");
-              }}
-            >
-              全新安装
-            </Button>
-            <Button
-              onClick={() => {
-                if (!restoreWorkbenchApp?.packageId) return;
-                const recovery = workbenchPackageStatuses.get(
-                  restoreWorkbenchApp.packageId,
-                )?.recoveries?.[0];
-                void mutateWorkbenchPackage(restoreWorkbenchApp, "install", {
-                  restoreData: true,
-                  recoveryId: recovery?.recovery_id,
-                });
-              }}
-            >
-              安装并恢复作品
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      <Dialog
+        onRestore={() => {
+          if (!restoreWorkbenchApp?.packageId) return;
+          const recovery = workbenchPackageStatuses.get(
+            restoreWorkbenchApp.packageId,
+          )?.recoveries?.[0];
+          void mutateWorkbenchPackage(restoreWorkbenchApp, "install", {
+            restoreData: true,
+            recoveryId: recovery?.recovery_id,
+          });
+        }}
+      />
+      <UninstallWorkbenchDialog
+        appName={uninstallWorkbenchApp?.name ?? ""}
         open={Boolean(uninstallWorkbenchApp)}
-        onOpenChange={(open) => {
-          if (!open) setUninstallWorkbenchApp(null);
+        policy={uninstallDataPolicy}
+        busy={
+          !uninstallWorkbenchApp ||
+          Boolean(
+            uninstallWorkbenchApp.packageId &&
+            workbenchPackageMutating.has(uninstallWorkbenchApp.packageId),
+          )
+        }
+        onPolicyChange={setUninstallDataPolicy}
+        onClose={() => setUninstallWorkbenchApp(null)}
+        onConfirm={() => {
+          if (!uninstallWorkbenchApp) return;
+          void mutateWorkbenchPackage(uninstallWorkbenchApp, "uninstall", {
+            dataPolicy: uninstallDataPolicy,
+          });
         }}
-      >
-        <DialogContent className="max-w-md">
-          <DialogHeader>
-            <DialogTitle>卸载{uninstallWorkbenchApp?.name}</DialogTitle>
-            <DialogDescription>
-              应用代码、MCP 与应用技能会立即撤销。请选择作品数据的处理方式。
-            </DialogDescription>
-          </DialogHeader>
-          <div className="space-y-2 py-2">
-            <button
-              type="button"
-              onClick={() => setUninstallDataPolicy("keep")}
-              className={cn(
-                "w-full rounded-xl border p-3 text-left transition",
-                uninstallDataPolicy === "keep"
-                  ? "border-primary bg-primary/8"
-                  : "border-border hover:bg-muted/40",
-              )}
-            >
-              <span className="block text-sm font-semibold">
-                保留作品（推荐）
-              </span>
-              <span className="mt-1 block text-ui text-muted-foreground">
-                以后重新安装即可继续使用现有项目。
-              </span>
-            </button>
-            <button
-              type="button"
-              onClick={() => setUninstallDataPolicy("trash")}
-              className={cn(
-                "w-full rounded-xl border p-3 text-left transition",
-                uninstallDataPolicy === "trash"
-                  ? "border-warning bg-warning/8"
-                  : "border-border hover:bg-muted/40",
-              )}
-            >
-              <span className="block text-sm font-semibold">
-                移入可恢复回收站
-              </span>
-              <span className="mt-1 block text-ui text-muted-foreground">
-                不永久删除；重新安装时可以恢复。
-              </span>
-            </button>
-          </div>
-          <DialogFooter>
-            <DialogClose asChild>
-              <Button variant="outline">取消</Button>
-            </DialogClose>
-            <Button
-              variant="destructive"
-              disabled={
-                !uninstallWorkbenchApp ||
-                Boolean(
-                  uninstallWorkbenchApp?.packageId &&
-                  workbenchPackageMutating.has(uninstallWorkbenchApp.packageId),
-                )
-              }
-              onClick={() => {
-                if (!uninstallWorkbenchApp) return;
-                void mutateWorkbenchPackage(
-                  uninstallWorkbenchApp,
-                  "uninstall",
-                  { dataPolicy: uninstallDataPolicy },
-                );
-              }}
-            >
-              确认卸载
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      />
     </div>
   );
 }
