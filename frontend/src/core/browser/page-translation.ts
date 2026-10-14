@@ -108,6 +108,36 @@ export function setAlwaysTranslated(url: string | undefined, on: boolean) {
   emit();
 }
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null;
+}
+
+function isStatus(value: unknown): value is PageTranslatorStatus {
+  return (
+    isRecord(value) &&
+    typeof value.doc === "string" &&
+    typeof value.segments === "number" &&
+    typeof value.done === "number"
+  );
+}
+
+function isLanguage(value: unknown): value is PageLanguageGuess {
+  return (
+    isRecord(value) &&
+    typeof value.lang === "string" &&
+    typeof value.foreign === "boolean"
+  );
+}
+
+function isPump(value: unknown): value is PageTranslatorPump {
+  return (
+    isRecord(value) &&
+    isStatus(value.status) &&
+    isLanguage(value.language) &&
+    Array.isArray(value.batch)
+  );
+}
+
 function errorMessage(error: unknown): string {
   if (error instanceof EchoAPIError || error instanceof Error) {
     return error.message;
@@ -133,12 +163,19 @@ class TabTranslation {
     emit();
   }
 
-  private async call<T>(call: string): Promise<T | null> {
+  /** Runs `call` against the page's translator (installing it on a new
+   * document) and checks the shape of what the other world sent back. */
+  private async call<T>(
+    call: string,
+    is: (value: unknown) => value is T,
+  ): Promise<T | null> {
     if (this.webContentsId === null) return null;
     const id = this.webContentsId;
-    const result = await this.exec(id, pageTranslatorCall(call));
-    if (result !== PAGE_TRANSLATOR_MISSING) return result as T;
-    return (await this.exec(id, pageTranslatorInstall(call))) as T;
+    let result = await this.exec(id, pageTranslatorCall(call));
+    if (result === PAGE_TRANSLATOR_MISSING) {
+      result = await this.exec(id, pageTranslatorInstall(call));
+    }
+    return is(result) ? result : null;
   }
 
   /** The page in this tab finished loading (or the tab came forward). */
@@ -150,8 +187,9 @@ class TabTranslation {
     this.webContentsId = webContentsId;
     this.target = target;
     try {
-      const language = await this.call<PageLanguageGuess>(
+      const language = await this.call(
         `detect(${JSON.stringify(target)})`,
+        isLanguage,
       );
       this.update({ language });
       if (!this.state.active && language?.foreign && isAlwaysTranslated(url)) {
@@ -172,8 +210,9 @@ class TabTranslation {
     this.target = target;
     this.update({ active: true, mode, error: null });
     try {
-      const progress = await this.call<PageTranslatorStatus>(
+      const progress = await this.call(
         `start(${JSON.stringify(mode)}, ${JSON.stringify(target)})`,
+        isStatus,
       );
       this.update({ progress });
     } catch (error) {
@@ -186,9 +225,7 @@ class TabTranslation {
     this.stop();
     this.update({ active: false, error: null });
     try {
-      const progress = await this.call<PageTranslatorStatus>(
-        'setMode("original")',
-      );
+      const progress = await this.call('setMode("original")', isStatus);
       if (progress) this.update({ progress });
     } catch {
       // Already gone.
@@ -233,8 +270,9 @@ class TabTranslation {
   private async pumpOnce() {
     let tick: PageTranslatorPump | null = null;
     try {
-      tick = await this.call<PageTranslatorPump>(
+      tick = await this.call(
         `pump(${JSON.stringify(this.state.mode)}, ${JSON.stringify(this.target)}, ${BATCH_SEGMENTS}, ${BATCH_CHARS})`,
+        isPump,
       );
       this.failures = 0;
     } catch {
@@ -271,18 +309,21 @@ class TabTranslation {
       const missing = batch
         .map((item) => item.id)
         .filter((id) => !answered.has(id));
-      let progress = await this.call<PageTranslatorStatus>(
+      let progress = await this.call(
         `apply(${JSON.stringify(doc)}, ${JSON.stringify(translations)})`,
+        isStatus,
       );
       if (missing.length > 0) {
-        progress = await this.call<PageTranslatorStatus>(
+        progress = await this.call(
           `fail(${JSON.stringify(doc)}, ${JSON.stringify(missing)})`,
+          isStatus,
         );
       }
       if (progress) this.update({ progress });
     } catch (error) {
       await this.call(
         `fail(${JSON.stringify(doc)}, ${JSON.stringify(batch.map((item) => item.id))})`,
+        isStatus,
       ).catch(() => undefined);
       // Stop on a failure instead of hammering the service; the user
       // retries from the translate menu.

@@ -1575,6 +1575,7 @@ tier: "standard"
 | func | `def parse_translations(text)` | ``{id: text}`` from the model's reply; tolerates code fences and prose. |
 | func | `def translate_segments(call, model, segments, target, cache)` | Translate ``segments`` with one model call for the ones not cached. |
 | func | `def create_page_translate_router(stack, identity_store, require_auth, jwt_secret, jwt_issuer, jwt_audience)` |  |
+| func | `def mount_page_translate_router(ctx)` | Mount the endpoint on the app being assembled by ``create_app``. |
 
 ### `parallel_agents_router.py`
 
@@ -2172,7 +2173,7 @@ tier: "standard"
 
 ## Who imports this
 
-**19** file(s) reference this package:
+**20** file(s) reference this package:
 
 - **`runtime/_cli_commands.py/`** · 1 file(s)
   - `runtime/_cli_commands.py`
@@ -2182,13 +2183,13 @@ tier: "standard"
   - `runtime/evals/multi_agent_benchmark.py`
 - **`runtime/kernel/`** · 1 file(s)
   - `runtime/kernel/kernel.py`
-- **`runtime/platform/`** · 14 file(s)
+- **`runtime/platform/`** · 15 file(s)
   - `runtime/platform/plugins/bundled/comfyui_bridge/__init__.py`
   - `runtime/platform/plugins/cloud_expert_store.py`
   - `runtime/platform/ui/_app_agents.py`
   - `runtime/platform/ui/_app_collab.py`
   - `runtime/platform/ui/_app_health.py`
-  - _… and 9 more_
+  - _… and 10 more_
 - **`runtime/projectos/`** · 1 file(s)
   - `runtime/projectos/group_service.py`
 

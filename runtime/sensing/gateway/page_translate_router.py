@@ -405,3 +405,17 @@ def create_page_translate_router(
         return PageTranslateResponse(translations=translations, model=model, cached=hits)
 
     return router
+
+
+def mount_page_translate_router(ctx: Any) -> None:
+    """Mount the endpoint on the app being assembled by ``create_app``."""
+    ctx.app.include_router(
+        create_page_translate_router(
+            stack=ctx.stack,
+            identity_store=ctx.identity_store,
+            require_auth=ctx.require_auth,
+            jwt_secret=ctx.jwt_secret,
+            jwt_issuer=ctx.jwt_issuer,
+            jwt_audience=ctx.jwt_audience,
+        )
+    )

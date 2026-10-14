@@ -83,11 +83,17 @@ export interface PageTranslatorApi {
   reset: () => void;
 }
 
+declare global {
+  // The translator installed in this document's isolated world.
+  var __echoPageTranslator: PageTranslatorApi | undefined;
+}
+
 export function installPageTranslator(): PageTranslatorApi {
-  const KEY = "__echoPageTranslator";
-  const scope = globalThis as unknown as Record<string, PageTranslatorApi>;
-  const existing = scope[KEY];
+  const existing = globalThis.__echoPageTranslator;
   if (existing) return existing;
+  const isText = (node: Node): node is Text => node.nodeType === Node.TEXT_NODE;
+  const isElement = (node: Node): node is Element =>
+    node.nodeType === Node.ELEMENT_NODE;
 
   const SKIP = new Set([
     "script",
@@ -341,9 +347,8 @@ export function installPageTranslator(): PageTranslatorApi {
       root.nodeType === Node.TEXT_NODE ? root.parentNode || root : root;
     const walker = document.createTreeWalker(start, NodeFilter.SHOW_TEXT);
     const groups = new Map<Element, Text[]>();
-    for (let node = walker.nextNode(); node; node = walker.nextNode()) {
-      const text = node as Text;
-      if (claimed.has(text) || !text.data.trim()) continue;
+    for (let text = walker.nextNode(); text; text = walker.nextNode()) {
+      if (!isText(text) || claimed.has(text) || !text.data.trim()) continue;
       const parent = text.parentElement;
       if (!parent || skipped(parent)) continue;
       const block = blockOf(parent);
@@ -475,16 +480,14 @@ export function installPageTranslator(): PageTranslatorApi {
     if (typeof MutationObserver === "function" && document.body) {
       mutations = new MutationObserver((records) => {
         for (const record of records) {
-          const target = record.target as Element;
-          if (target.localName === "echo-tr") continue;
+          const target = record.target;
+          if (isElement(target) && target.localName === "echo-tr") continue;
           if (record.type === "characterData") {
-            refresh(record.target as Text);
+            if (isText(target)) refresh(target);
             continue;
           }
           for (const added of record.addedNodes) {
-            const element =
-              added.nodeType === Node.ELEMENT_NODE ? (added as Element) : null;
-            if (element?.localName === "echo-tr") continue;
+            if (isElement(added) && added.localName === "echo-tr") continue;
             dirty.add(added);
           }
         }
@@ -611,10 +614,10 @@ export function installPageTranslator(): PageTranslatorApi {
       observer?.disconnect();
       mutations?.disconnect();
       if (rescanTimer !== null) clearTimeout(rescanTimer);
-      delete scope[KEY];
+      globalThis.__echoPageTranslator = undefined;
     },
   };
-  scope[KEY] = api;
+  globalThis.__echoPageTranslator = api;
   return api;
 }
 

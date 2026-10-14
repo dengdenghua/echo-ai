@@ -51,7 +51,7 @@ graph LR
   core -- 34 --> safety
   core -- 29 --> execution
   memory -- 26 --> safety
-  platform -- 23 --> sensing
+  platform -- 24 --> sensing
   safety -- 22 --> memory
   execution -- 21 --> core
   platform -- 18 --> memory

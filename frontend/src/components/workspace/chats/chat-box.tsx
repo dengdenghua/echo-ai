@@ -6,7 +6,7 @@ import { getWorkspaceArtifactRefetchInterval } from "@/core/artifacts/polling";
 import { useWorkspaceArtifacts } from "@/core/artifacts/use-workspace-artifacts";
 import { normalizeWorkspaceArtifactRef } from "@/core/artifacts/utils";
 import { isInternalArtifactRef } from "@/core/artifacts/workspace-outputs";
-import type { StreamVitals } from "@/core/realtime/stream-vitals";
+import { streamPhaseOf } from "@/core/realtime/stream-vitals";
 import { cn } from "@/lib/utils";
 
 import { ArtifactPanel, useArtifacts } from "../artifacts";
@@ -51,7 +51,7 @@ const ChatBox: React.FC<{
       enabled: !isNewThread,
       refetchInterval: getWorkspaceArtifactRefetchInterval(
         thread.isLoading,
-        (thread as { vitals?: StreamVitals }).vitals?.phase,
+        streamPhaseOf(thread),
       ),
     },
   );

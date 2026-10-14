@@ -597,19 +597,6 @@ def mount_routers_a(
         )
     )
 
-    from runtime.sensing.gateway.page_translate_router import create_page_translate_router
-
-    app.include_router(
-        create_page_translate_router(
-            stack=stack,
-            identity_store=ctx.identity_store,
-            require_auth=ctx.require_auth,
-            jwt_secret=ctx.jwt_secret,
-            jwt_issuer=ctx.jwt_issuer,
-            jwt_audience=ctx.jwt_audience,
-        )
-    )
-
     from runtime.execution.misc.parallel_runner import create_parallel_task_router
 
     app.include_router(

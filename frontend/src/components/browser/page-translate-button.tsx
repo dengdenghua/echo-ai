@@ -56,7 +56,10 @@ export function PageTranslateButton({
   useEffect(() => {
     if (!open) return;
     const onDown = (event: MouseEvent) => {
-      if (!rootRef.current?.contains(event.target as Node)) setOpen(false);
+      const target = event.target;
+      if (!(target instanceof Node) || !rootRef.current?.contains(target)) {
+        setOpen(false);
+      }
     };
     const onKey = (event: KeyboardEvent) => {
       if (event.key === "Escape") setOpen(false);

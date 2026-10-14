@@ -102,6 +102,26 @@ export const DEFAULT_VITALS_THRESHOLDS: VitalsThresholds = {
 // surface it as a delayed first response without calling the socket stalled.
 export const FIRST_RESPONSE_DELAY_NOTICE_MS = 60_000;
 
+const STREAM_PHASES: readonly StreamPhase[] = [
+  "idle",
+  "streaming",
+  "working",
+  "waiting",
+  "slow",
+  "disconnected",
+];
+
+/** The live phase of a thread object that may carry ``vitals`` (only the
+ * realtime stream does); undefined for other stream implementations. */
+export function streamPhaseOf(thread: object): StreamPhase | undefined {
+  const vitals = "vitals" in thread ? thread.vitals : undefined;
+  if (typeof vitals !== "object" || vitals === null || !("phase" in vitals)) {
+    return undefined;
+  }
+  const phase = vitals.phase;
+  return STREAM_PHASES.find((candidate) => candidate === phase);
+}
+
 export function emptyVitalsMarks(): VitalsMarks {
   return {
     activeTurnId: null,
