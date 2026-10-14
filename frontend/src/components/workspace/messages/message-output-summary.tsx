@@ -545,7 +545,7 @@ export function MessageOutputSummary({
     return info?.code === "execution_unavailable" &&
       (info.engine === "codex" || info.engine === "opencode") &&
       ["account_required", "account_unavailable", "model_incompatible",
-        "configuration_unavailable", "executable_unavailable", "disabled", "unavailable"].includes(String(info.reason));
+        "configuration_unavailable", "executable_unavailable", "not_installed", "disabled", "unavailable"].includes(String(info.reason));
   }), [scanMessages]);
   const summary = useMemo(() => summarizeOutputs(scanMessages), [scanMessages]);
   // Error details frequently contain failed proxy endpoints. They are

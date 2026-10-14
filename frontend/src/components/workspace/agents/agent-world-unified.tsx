@@ -105,6 +105,7 @@ import { A2AAgentsPanel } from "@/components/workspace/a2a-agents-panel";
 import { CloudSkillsPanel } from "@/components/store/cloud-skills-panel";
 import { WorkBuddyCloudStorePanel } from "@/components/store/workbuddy-cloud-store-panel";
 import { SmartTeamDialog } from "./smart-team-dialog";
+import { EngineStoreSection } from "./engine-store-section";
 import {
   WorkbenchInstallControl,
   WorkbenchManageMenu,
@@ -1944,6 +1945,7 @@ export function AgentWorldUnified() {
                     })}
                   </div>
                 </div>
+                <EngineStoreSection />
                 <div>
                   <div className="mb-3 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
                     <div>

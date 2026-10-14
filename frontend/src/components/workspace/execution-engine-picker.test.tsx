@@ -1,13 +1,72 @@
 import { screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { expect, it, vi } from "vitest";
+import { beforeEach, expect, it, vi } from "vitest";
 
+import { apiGet, apiPost } from "@/core/api/request";
+import type * as Request from "@/core/api/request";
 import { renderWithProviders } from "@/test/harness";
 
 import {
   ExecutionEngineBadge,
   ExecutionEnginePicker,
 } from "./execution-engine-picker";
+
+vi.mock("@/core/api/request", async (original) => ({
+  ...(await original<typeof Request>()),
+  apiGet: vi.fn(),
+  apiPost: vi.fn(),
+}));
+
+beforeEach(() => {
+  vi.mocked(apiGet).mockReset().mockResolvedValue({ engines: [] });
+  vi.mocked(apiPost).mockReset();
+});
+
+it("installs a missing engine from the menu instead of selecting it", async () => {
+  const user = userEvent.setup();
+  const onChange = vi.fn();
+  const codex = {
+    id: "codex",
+    name: "Codex",
+    version: "0.162.0",
+    license: "Apache-2.0",
+    homepage: "https://github.com/openai/codex",
+    supported: true,
+    download_size: 165_147_932,
+    state: "not_installed" as const,
+    source: null,
+    installed_version: null,
+    installed_size: null,
+    update_available: false,
+    can_uninstall: false,
+    job: null,
+  };
+  vi.mocked(apiGet).mockResolvedValue({ engines: [codex] });
+  vi.mocked(apiPost).mockResolvedValue({ ...codex, state: "installing" });
+  renderWithProviders(
+    <ExecutionEnginePicker
+      value="opencode"
+      onChange={onChange}
+      codexAvailable={false}
+      unavailableReason="not_installed"
+      opencodeAvailable
+    />,
+  );
+  await user.click(
+    screen.getByRole("button", { name: "Execution engine: OpenCode" }),
+  );
+  const item = await screen.findByRole("menuitem", {
+    name: /Codex.*Not installed · click to install \(about 165 MB\)/,
+  });
+  expect(item).not.toHaveAttribute("aria-disabled", "true");
+  await user.click(item);
+  expect(apiPost).toHaveBeenCalledWith("/api/engines/{engine_id}/install", {
+    path: { engine_id: "codex" },
+  });
+  expect(onChange).not.toHaveBeenCalled();
+  // The menu stays open to show the download.
+  expect(screen.getByRole("menuitem", { name: /Codex/ })).toBeInTheDocument();
+});
 
 it("allows selecting Codex to configure its model when the current model is incompatible", async () => {
   const user = userEvent.setup();

@@ -11,6 +11,7 @@ export type ExecutionEngineReason =
   | "disabled"
   | "tools_unavailable"
   | "executable_unavailable"
+  | "not_installed"
   | "model_incompatible"
   | "account_required"
   | "account_unavailable"
@@ -53,6 +54,7 @@ const zhCN: ExecutionEngineCopy = {
     disabled: "Codex 引擎未启用",
     tools_unavailable: "共享工具尚未就绪",
     executable_unavailable: "需要安装或配置 Codex",
+    not_installed: "Codex 还没安装",
     model_incompatible: "选取后，在输入框选择订阅或 API 模型",
     account_required: "需要在模型设置中连接 Codex 账号",
     account_unavailable: "请检查 Codex 账号设置",
@@ -83,6 +85,8 @@ const zhCN: ExecutionEngineCopy = {
       account_unavailable:
         "Codex 账号凭据暂不可用。点「打开模型设置」重新连接账号。",
       executable_unavailable: "这台电脑上没有可用的 Codex，请检查安装。",
+      not_installed:
+        "这台电脑还没安装 Codex：在执行引擎菜单里点 Codex 安装，或到 HUB「应用」的执行引擎里安装。",
       disabled: "Codex 引擎尚未启用。",
       tools_unavailable: "执行工具尚未就绪，请稍后重试。",
       workspace_required: "Codex 需要一个工作目录，请先选择工作位置。",
@@ -103,6 +107,7 @@ const enUS: ExecutionEngineCopy = {
     disabled: "Codex is disabled",
     tools_unavailable: "Shared tools are not ready",
     executable_unavailable: "Install or configure Codex",
+    not_installed: "Codex is not installed yet",
     model_incompatible:
       "Select this engine, then choose a subscription or API model",
     account_required: "Connect a Codex account in model settings",
@@ -137,6 +142,8 @@ const enUS: ExecutionEngineCopy = {
         "Codex account credentials are unavailable. Open model settings to reconnect the account.",
       executable_unavailable:
         "Codex is not available on this computer. Check the installation.",
+      not_installed:
+        "Codex is not installed on this computer yet. Click Codex in the execution engine menu to install it, or install it under HUB Apps · Execution engines.",
       disabled: "The Codex engine is disabled.",
       tools_unavailable:
         "Execution tools are not ready yet. Try again shortly.",
@@ -162,6 +169,7 @@ const jaJP: ExecutionEngineCopy = {
     disabled: "Codex エンジンは無効です",
     tools_unavailable: "共有ツールの準備ができていません",
     executable_unavailable: "Codex のインストールまたは設定が必要です",
+    not_installed: "Codex はまだインストールされていません",
     model_incompatible:
       "選択後、入力欄でサブスクリプションまたは API モデルを選んでください",
     account_required: "モデル設定で Codex アカウントを接続してください",
@@ -195,6 +203,8 @@ const jaJP: ExecutionEngineCopy = {
         "Codex のアカウント認証情報を利用できません。「モデル設定を開く」から再接続してください。",
       executable_unavailable:
         "このコンピューターで Codex を利用できません。インストールを確認してください。",
+      not_installed:
+        "このコンピューターにはまだ Codex がインストールされていません。実行エンジンのメニューで Codex をクリックするか、HUB の「アプリ」の実行エンジンからインストールしてください。",
       disabled: "Codex エンジンは無効です。",
       tools_unavailable:
         "実行ツールの準備ができていません。しばらくしてから再試行してください。",
@@ -220,6 +230,7 @@ const koKR: ExecutionEngineCopy = {
     disabled: "Codex 엔진이 비활성화되어 있습니다",
     tools_unavailable: "공유 도구가 아직 준비되지 않았습니다",
     executable_unavailable: "Codex를 설치하거나 구성해야 합니다",
+    not_installed: "Codex가 아직 설치되지 않았습니다",
     model_incompatible: "선택한 뒤 입력창에서 구독 또는 API 모델을 고르세요",
     account_required: "모델 설정에서 Codex 계정을 연결하세요",
     account_unavailable: "Codex 계정 설정을 확인하세요",
@@ -252,6 +263,8 @@ const koKR: ExecutionEngineCopy = {
         "Codex 계정 자격 증명을 사용할 수 없습니다. 모델 설정을 열어 다시 연결하세요.",
       executable_unavailable:
         "이 컴퓨터에서 Codex를 사용할 수 없습니다. 설치를 확인하세요.",
+      not_installed:
+        "이 컴퓨터에는 아직 Codex가 설치되지 않았습니다. 실행 엔진 메뉴에서 Codex를 클릭하거나 HUB '앱'의 실행 엔진에서 설치하세요.",
       disabled: "Codex 엔진이 비활성화되어 있습니다.",
       tools_unavailable:
         "실행 도구가 아직 준비되지 않았습니다. 잠시 후 다시 시도하세요.",

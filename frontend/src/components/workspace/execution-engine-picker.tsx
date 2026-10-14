@@ -1,4 +1,5 @@
 import { CheckIcon, SparklesIcon } from "lucide-react";
+import { toast } from "sonner";
 
 import {
   DropdownMenu,
@@ -6,8 +7,20 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import {
+  engineMegabytes,
+  useEngineAction,
+  useEngines,
+  type EngineStatus,
+} from "@/core/engines/api";
+import {
+  engineNeedsInstall,
+  engineStatusLine,
+} from "@/core/engines/status-line";
 import { useI18n } from "@/core/i18n/hooks";
+import { engineStoreCopy } from "@/core/i18n/locales/engine-store";
 import { executionEngineCopy } from "@/core/i18n/locales/execution-engine";
+import { workbenchActionErrorMessage } from "@/core/workbench/workbench-permissions";
 import {
   engineVerificationLabel,
   type EngineCapabilityChecks,
@@ -17,7 +30,7 @@ import type { ExecutionEnginePreference } from "@/core/realtime/execution-policy
 /** Official OpenCode square mark.
  * Source: anomalyco/opencode packages/ui/src/assets/favicon/favicon.svg
  */
-function OpenCodeIcon({ className }: { className?: string }) {
+export function OpenCodeIcon({ className }: { className?: string }) {
   return (
     <svg
       viewBox="0 0 512 512"
@@ -38,7 +51,7 @@ function OpenCodeIcon({ className }: { className?: string }) {
 }
 
 /** Exact light/dark Blossom assets shipped with the official Codex desktop app. */
-function CodexIcon({ className }: { className?: string }) {
+export function CodexIcon({ className }: { className?: string }) {
   return (
     <span className={className} data-testid="codex-logo" aria-hidden="true">
       <img
@@ -92,6 +105,14 @@ export function ExecutionEnginePicker({
     codex: "Codex",
     opencode: "OpenCode",
   };
+  // Auto on Echo's own models (no OpenCode installed yet) reads as "Echo",
+  // not as the legacy native mode a stored preference can select.
+  const resolvedLabel =
+    resolvedEngine === "echo"
+      ? "Echo"
+      : resolvedEngine
+        ? labels[resolvedEngine]
+        : undefined;
   // Reason codes come from the backend; unknown ones read as unavailable.
   const reasonTexts: Partial<Record<string, string>> = copy.reasons;
   const unavailable = !codexAvailable
@@ -105,9 +126,30 @@ export function ExecutionEnginePicker({
         ? opencodeUnavailableReason || copy.opencodeCheckSetup
         : null;
   const visibleEngine = value === "auto" ? resolvedEngine : value;
+  // An engine this computer does not have yet installs right from the menu.
+  const store = engineStoreCopy(locale);
+  const engines = useEngines(!codexAvailable || !opencodeAvailable);
+  const engineAction = useEngineAction();
+  const installable = (
+    engine: "auto" | "codex" | "opencode",
+  ): EngineStatus | undefined => {
+    if (engine === "auto") return undefined;
+    if (engine === "codex" ? codexAvailable : opencodeAvailable)
+      return undefined;
+    const status = engines.data?.engines.find((item) => item.id === engine);
+    return status?.state === "installing" || engineNeedsInstall(status)
+      ? status
+      : undefined;
+  };
+  const installText = (status: EngineStatus) =>
+    status.state === "installing" || status.job?.state === "failed"
+      ? engineStatusLine(status, store).text
+      : status.state === "update_available"
+        ? store.updateAvailable(status.version)
+        : store.menuInstall(engineMegabytes(status.download_size));
   const triggerTitle =
     selectedUnavailable ||
-    `${title}: ${labels[value]}${value === "auto" && resolvedEngine ? ` · ${labels[resolvedEngine]}` : ""}`;
+    `${title}: ${labels[value]}${value === "auto" && resolvedLabel ? ` · ${resolvedLabel}` : ""}`;
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
@@ -150,53 +192,69 @@ export function ExecutionEnginePicker({
             {copy.legacyNotice}
           </p>
         ) : null}
-        {(["auto", "opencode", "codex"] as const).map((engine) => (
-          <DropdownMenuItem
-            key={engine}
-            disabled={
-              (engine === "codex" && !codexSelectable) ||
-              (engine === "opencode" && !opencodeAvailable)
-            }
-            onSelect={() => onChange(engine)}
-            className={`items-start gap-2.5 py-2 ${value === engine ? "bg-accent" : ""}`}
-          >
-            {engine === "auto" ? (
-              <SparklesIcon className="mt-0.5 size-4 shrink-0" />
-            ) : engine === "opencode" ? (
-              <OpenCodeIcon className="mt-0.5 size-4 shrink-0" />
-            ) : (
-              <CodexIcon className="mt-0.5 size-4 shrink-0" />
-            )}
-            <span className="min-w-0 flex-1">
-              <span className="block font-medium">{labels[engine]}</span>
-              <span className="mt-0.5 block text-ui leading-relaxed text-muted-foreground">
-                {engine === "auto"
-                  ? copy.autoDescription(
-                      resolvedEngine ? labels[resolvedEngine] : undefined,
-                    )
-                  : engine === "opencode"
-                    ? !opencodeAvailable
-                      ? opencodeUnavailableReason || copy.opencodeCheckSetup
-                      : copy.opencodeDescription
-                    : (unavailable ?? copy.codexDescription)}
-              </span>
-              {(engine === "codex" && codexAvailable) ||
-              (engine === "opencode" && opencodeAvailable) ? (
+        {(["auto", "opencode", "codex"] as const).map((engine) => {
+          const missing = installable(engine);
+          return (
+            <DropdownMenuItem
+              key={engine}
+              disabled={
+                !missing &&
+                ((engine === "codex" && !codexSelectable) ||
+                  (engine === "opencode" && !opencodeAvailable))
+              }
+              onSelect={(event) => {
+                if (!missing) return onChange(engine);
+                // Stay open so the row can show the download's progress.
+                event.preventDefault();
+                if (missing.state === "installing") return;
+                engineAction.mutate(
+                  { id: missing.id, action: "install" },
+                  {
+                    onError: (error) =>
+                      toast.error(workbenchActionErrorMessage(error)),
+                  },
+                );
+              }}
+              className={`items-start gap-2.5 py-2 ${value === engine ? "bg-accent" : ""}`}
+            >
+              {engine === "auto" ? (
+                <SparklesIcon className="mt-0.5 size-4 shrink-0" />
+              ) : engine === "opencode" ? (
+                <OpenCodeIcon className="mt-0.5 size-4 shrink-0" />
+              ) : (
+                <CodexIcon className="mt-0.5 size-4 shrink-0" />
+              )}
+              <span className="min-w-0 flex-1">
+                <span className="block font-medium">{labels[engine]}</span>
                 <span className="mt-0.5 block text-ui leading-relaxed text-muted-foreground">
-                  {engineVerificationLabel(
-                    engine === "codex"
-                      ? codexCapabilityChecks
-                      : opencodeCapabilityChecks,
-                    locale,
-                  )}
+                  {missing
+                    ? installText(missing)
+                    : engine === "auto"
+                      ? copy.autoDescription(resolvedLabel)
+                      : engine === "opencode"
+                        ? !opencodeAvailable
+                          ? opencodeUnavailableReason || copy.opencodeCheckSetup
+                          : copy.opencodeDescription
+                        : (unavailable ?? copy.codexDescription)}
                 </span>
+                {(engine === "codex" && codexAvailable) ||
+                (engine === "opencode" && opencodeAvailable) ? (
+                  <span className="mt-0.5 block text-ui leading-relaxed text-muted-foreground">
+                    {engineVerificationLabel(
+                      engine === "codex"
+                        ? codexCapabilityChecks
+                        : opencodeCapabilityChecks,
+                      locale,
+                    )}
+                  </span>
+                ) : null}
+              </span>
+              {value === engine ? (
+                <CheckIcon className="mt-0.5 size-4 shrink-0 text-primary" />
               ) : null}
-            </span>
-            {value === engine ? (
-              <CheckIcon className="mt-0.5 size-4 shrink-0 text-primary" />
-            ) : null}
-          </DropdownMenuItem>
-        ))}
+            </DropdownMenuItem>
+          );
+        })}
       </DropdownMenuContent>
     </DropdownMenu>
   );
