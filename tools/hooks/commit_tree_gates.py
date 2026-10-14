@@ -21,17 +21,21 @@ Usage::
     python tools/hooks/commit_tree_gates.py                     # pre-commit
     python tools/hooks/commit_tree_gates.py --push FROM_SHA TO_SHA
     python tools/hooks/commit_tree_gates.py --all [--push-gates]  # current index
-    python tools/hooks/commit_tree_gates.py --fix-docs [PATH...]  # see below
+    python tools/hooks/commit_tree_gates.py --fix-generated [PATH...]
 
-``--fix-docs`` regenerates docs/auto for what ``git commit -- PATH...`` would
-commit (HEAD alone without paths) and writes only the changed pages into this
-checkout, so other sessions' uncommitted code does not leak into the
-generated docs. Commit them together with those paths.
+``--fix-generated`` regenerates docs/auto, docs/openapi-snapshot.json and
+frontend/src/core/api/openapi-types.ts for what ``git commit -- PATH...``
+would commit (HEAD alone without paths) and writes only the files that change
+into this checkout, so other sessions' uncommitted code does not leak into
+them. Commit them together with those paths.
 """
 
 from __future__ import annotations
 
 import argparse
+import difflib
+import importlib.util
+import json
 import os
 import re
 import subprocess
@@ -69,6 +73,9 @@ KERNEL_CHECK = (
     "sys.exit(r['status']!='passed')"
 )
 VITEST = "frontend/node_modules/vitest/vitest.mjs"
+OPENAPI_TS = "frontend/node_modules/openapi-typescript/bin/cli.js"
+OPENAPI_JSON = "docs/openapi-snapshot.json"
+OPENAPI_TYPES = "frontend/src/core/api/openapi-types.ts"
 
 
 @dataclass(frozen=True)
@@ -129,18 +136,13 @@ GATES = (
         cwd="repo",
         env={"ECHO_RATCHET_FRONTEND_ROOT": "{snapshot}/frontend"},
     ),
+    # CI's "OpenAPI schema + TS types contract gate": regenerate both files and
+    # compare bytes (tests/test_openapi_snapshot.py alone ignores model fields).
     Gate(
-        "openapi-snapshot",
-        (
-            "{python}",
-            "-m",
-            "pytest",
-            "tests/test_openapi_snapshot.py",
-            "-q",
-            "-p",
-            "no:cacheprovider",
-        ),
-        r"^(runtime/sensing/gateway/|runtime/platform/ui/|docs/openapi-snapshot\.json$)",
+        "openapi",
+        ("{python}", "{driver}", "--check-openapi", "{snapshot}"),
+        r"^(runtime/|docs/openapi-snapshot\.json$|frontend/src/core/api/openapi-types\.ts$)",
+        cwd="repo",
     ),
     # Whole-tree AST scans of 10-15 s each that rarely trip: before a push only.
     Gate(
@@ -268,9 +270,8 @@ def tree_with_paths(paths: list[str]) -> str:
         return git("write-tree", env=env).strip()
 
 
-def fix_docs(state: Path, tree: str) -> int:
-    """Regenerate docs/auto in the snapshot of ``tree`` and copy the result here."""
-    snapshot = sync_snapshot(state, tree)
+def regenerate_docs(state: Path, snapshot: Path) -> dict[str, bytes | None]:
+    """docs/auto as generated from the snapshot: ``{path: bytes, or None if removed}``."""
     subprocess.run(
         [sys.executable, "scripts/gen_wiki.py"],
         cwd=snapshot,
@@ -287,19 +288,86 @@ def fix_docs(state: Path, tree: str) -> int:
         ":/docs/auto",
         env=snapshot_env(state),
     )
-    written = []
+    changed: dict[str, bytes | None] = {}
     for entry in filter(None, status.split("\0")):
         code, rel = entry[:2], entry[3:]
-        source, target = snapshot / rel, REPO / rel
-        if "D" in code:
+        source = snapshot / rel
+        changed[rel] = None if "D" in code else source.read_bytes()
+        if code == "??":
+            source.unlink()  # keep the snapshot equal to its index
+    manifest = "docs/auto/index.json"
+    if changed.get(manifest) is not None:
+        # Like gen_wiki --check: a new generated_at alone is not a change.
+        def payload(text: str) -> dict:
+            value = json.loads(text)
+            value.pop("generated_at", None)
+            return value
+
+        committed = git("show", f":{manifest}", env=snapshot_env(state))
+        if payload(committed) == payload(changed[manifest].decode("utf-8")):
+            del changed[manifest]
+    return changed
+
+
+def openapi_outputs(snapshot: Path) -> dict[str, bytes]:
+    """The OpenAPI snapshot and TS types exactly as CI regenerates them for this tree."""
+    spec = importlib.util.spec_from_file_location(
+        "echo_openapi_snapshot", snapshot / "tests/test_openapi_snapshot.py"
+    )
+    assert spec and spec.loader
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    schema = json.dumps(
+        module._normalize(module._current_schema()), indent=2, sort_keys=True, ensure_ascii=False
+    )
+    outputs = {OPENAPI_JSON: schema.encode("utf-8")}
+    if (REPO / OPENAPI_TS).is_file():
+        with tempfile.TemporaryDirectory() as tmp:
+            source, target = Path(tmp) / "openapi.json", Path(tmp) / "openapi-types.ts"
+            source.write_bytes(outputs[OPENAPI_JSON])
+            subprocess.run(
+                ["node", str(REPO / OPENAPI_TS), str(source), "-o", str(target)],
+                capture_output=True,
+                check=True,
+            )
+            outputs[OPENAPI_TYPES] = target.read_bytes()
+    return outputs
+
+
+def _lf(data: bytes) -> bytes:
+    return data.replace(b"\r\n", b"\n")
+
+
+def stale_openapi(snapshot: Path) -> dict[str, bytes]:
+    return {
+        rel: data
+        for rel, data in openapi_outputs(snapshot).items()
+        if _lf(data) != _lf((snapshot / rel).read_bytes())
+    }
+
+
+def check_openapi(snapshot: Path) -> int:
+    stale = stale_openapi(snapshot)
+    for rel, data in stale.items():
+        committed = _lf((snapshot / rel).read_bytes()).decode("utf-8", "replace").splitlines()
+        current = _lf(data).decode("utf-8", "replace").splitlines()
+        diff = difflib.unified_diff(committed, current, rel, "regenerated", n=1, lineterm="")
+        print(f"{rel} is stale:", *list(diff)[:40], sep="\n")
+    return 1 if stale else 0
+
+
+def fix_generated(state: Path, tree: str) -> int:
+    """Regenerate every compared artifact for ``tree`` and write the changes here."""
+    snapshot = sync_snapshot(state, tree)
+    changed = {**regenerate_docs(state, snapshot), **stale_openapi(snapshot)}
+    for rel, data in changed.items():
+        target = REPO / rel
+        if data is None:
             target.unlink(missing_ok=True)
         else:
             target.parent.mkdir(parents=True, exist_ok=True)
-            target.write_bytes(source.read_bytes())
-            if code == "??":
-                source.unlink()  # keep the snapshot equal to its index
-        written.append(rel)
-    print("\n".join(written) if written else "docs/auto already matches that tree")
+            target.write_bytes(data)
+    print("\n".join(changed) if changed else "generated files already match that tree")
     return 0
 
 
@@ -316,7 +384,11 @@ def changed_paths(base: str | None, head: str | None) -> dict[str, str]:
 
 def run_gate(gate: Gate, snapshot: Path) -> tuple[Gate, int, str, float]:
     def fill(value: str) -> str:
-        return value.replace("{python}", sys.executable).replace("{snapshot}", str(snapshot))
+        return (
+            value.replace("{python}", sys.executable)
+            .replace("{driver}", str(Path(__file__).resolve()))
+            .replace("{snapshot}", str(snapshot))
+        )
 
     argv = [fill(part) for part in gate.argv]
     if gate.name == "type-assertions" and not (REPO / VITEST).is_file():
@@ -342,17 +414,22 @@ def main() -> int:
     parser.add_argument("--push", nargs=2, metavar=("FROM", "TO"), help="pre-push range")
     parser.add_argument("--all", action="store_true", help="run every gate, changed or not")
     parser.add_argument("--push-gates", action="store_true", help="include push-only gates")
-    parser.add_argument("--fix-docs", nargs="*", metavar="PATH", help="regenerate docs/auto")
+    parser.add_argument(
+        "--fix-generated", nargs="*", metavar="PATH", help="regenerate docs/auto and OpenAPI"
+    )
+    parser.add_argument("--check-openapi", metavar="SNAPSHOT", help=argparse.SUPPRESS)
     args = parser.parse_args()
     if hasattr(sys.stdout, "reconfigure"):
         sys.stdout.reconfigure(encoding="utf-8", errors="replace")
 
+    if args.check_openapi:  # one gate, run by the parent that holds the lock
+        return check_openapi(Path(args.check_openapi))
     state = Path(git("rev-parse", "--absolute-git-dir").strip()) / "echo-tree-gates"
     state.mkdir(exist_ok=True)
-    if args.fix_docs is not None:
-        tree = tree_with_paths(args.fix_docs)
+    if args.fix_generated is not None:
+        tree = tree_with_paths(args.fix_generated)
         with SnapshotLock(state / "lock"):
-            return fix_docs(state, tree)
+            return fix_generated(state, tree)
 
     if args.push:
         base, head = args.push
@@ -399,10 +476,10 @@ def main() -> int:
                 failed += 1
                 tail = output.strip().splitlines()[-60:]
                 print("\n".join(f"    | {line}" for line in tail))
-        if any(code and gate.name == "docs-auto" for gate, code, _, _ in results):
+        if any(code and gate.name in {"docs-auto", "openapi"} for gate, code, _, _ in results):
             print(
-                "tree-gates: regenerate docs/auto for exactly this commit with\n"
-                "  python tools/hooks/commit_tree_gates.py --fix-docs <the paths you commit>"
+                "tree-gates: regenerate the generated files for exactly this commit with\n"
+                "  python tools/hooks/commit_tree_gates.py --fix-generated <the paths you commit>"
             )
         if failed:
             print(
