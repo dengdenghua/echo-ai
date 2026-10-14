@@ -162,6 +162,7 @@ import {
   workspaceWebAppRoute,
 } from "@/core/workbench/apps";
 import { stringAt } from "@/core/utils/guards";
+import { isAssistantThreadId } from "@/core/threads/assistant-thread";
 
 // Surface modes in the left sidebar. Chat and Company are handled by a
 // dedicated two-panel switch so they feel like peer work surfaces instead
@@ -177,9 +178,6 @@ type NavRoute = {
   externalUrl?: string;
   iconUrl?: string;
 };
-/** 助理固定对话线程 id —— 像微信一样共用一个持久会话，不随每次进入新建。
- *  侧边栏据此识别助理对话，避免生成指向自身的"当前任务会话"条目。 */
-const ECHO_THREAD_ID = "echo-assistant";
 
 // Sidebar history needs labels, routing metadata, workspace bindings and
 // avatars, but never full message transcripts or artifacts. Keep metadata
@@ -955,7 +953,7 @@ export function WorkspaceSidebar(props: React.ComponentProps<typeof Sidebar>) {
     const activeId = activeWorkspaceThreadIdFromPathname(sidebarPathname);
     if (!activeId) return null;
     // 助理是固定对话，本身就是一个持久会话，不当作"当前任务"重复置顶。
-    if (activeId === ECHO_THREAD_ID) return null;
+    if (isAssistantThreadId(activeId)) return null;
     return (
       [...projectThreads, ...conversationThreads, ...allHistoryThreads].find(
         (thread) => thread.id === activeId,

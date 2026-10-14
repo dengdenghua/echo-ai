@@ -1,3 +1,8 @@
+import {
+  ASSISTANT_ALIAS_ID,
+  isAssistantThreadId,
+} from "@/core/threads/assistant-thread";
+
 /**
  * Sidebar routing helpers — extracted from `workspace-sidebar.tsx`
  * (P3 decomposition). Pure functions, no React; independently testable.
@@ -104,6 +109,14 @@ export function isNavRouteActive(pathname: string, to: string) {
   const path = routePath(to);
   if (path === PRIMARY_WORKSPACE_ROUTE) {
     return isChatSurfaceRoute(pathname);
+  }
+  // 「助手」 links to an alias that resolves to the account's own thread.
+  if (path === `/workspace/realtime/${ASSISTANT_ALIAS_ID}`) {
+    const threadId = pathname.slice("/workspace/realtime/".length);
+    return (
+      pathname.startsWith("/workspace/realtime/") &&
+      isAssistantThreadId(threadId)
+    );
   }
   return pathname === path || pathname.startsWith(`${path}/`);
 }

@@ -421,7 +421,7 @@ function RealtimePageContent({
   // 同源修正存量数据。
   const effectiveAgentId = isNewThread
     ? activeAgentId
-    : (threadId === "echo-assistant"
+    : (threadId.startsWith("echo-assistant")
         ? "echo"
         : resolvedThreadOwnerAgentId) || activeAgentId;
 

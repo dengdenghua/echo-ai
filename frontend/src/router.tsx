@@ -8,6 +8,7 @@ import {
 } from "react-router-dom";
 
 import { ProtectedRoute } from "@/components/auth/protected-route";
+import { AssistantThreadAlias } from "@/components/workspace/assistant-thread-alias";
 import { BrandTopProgress } from "@/components/brand/brand-progress";
 import { EchoBrandMark } from "@/components/brand/echo-brand-mark";
 import { ErrorBoundary } from "@/components/ui/error-boundary";
@@ -213,7 +214,14 @@ export function AppRouter() {
                   path="realtime"
                   element={<Navigate to="/workspace/realtime/new" replace />}
                 />
-                <Route path="realtime/:threadId" element={<ChatPage />} />
+                <Route
+                  path="realtime/:threadId"
+                  element={
+                    <AssistantThreadAlias>
+                      <ChatPage />
+                    </AssistantThreadAlias>
+                  }
+                />
                 <Route path="team/join" element={<TeamJoinPage />} />
                 <Route path="organizations" element={<OrganizationsPage />} />
                 <Route path="devices" element={<DevicesPage />} />
@@ -230,7 +238,10 @@ export function AppRouter() {
                 <Route
                   path="desktop-organizer"
                   element={
-                    <Navigate to="/workspace/settings?section=desktopAutomation" replace />
+                    <Navigate
+                      to="/workspace/settings?section=desktopAutomation"
+                      replace
+                    />
                   }
                 />
                 <Route
@@ -271,7 +282,10 @@ export function AppRouter() {
                     />
                   }
                 />
-                <Route path="architecture" element={<Navigate to="/workspace/realtime/new" replace />} />
+                <Route
+                  path="architecture"
+                  element={<Navigate to="/workspace/realtime/new" replace />}
+                />
                 <Route path="observability" element={<ObservabilityPage />} />
                 <Route
                   path="intelligence"
@@ -314,13 +328,21 @@ export function AppRouter() {
                 <Route
                   path="reflex"
                   element={
-                    <Navigate to="/workspace/evolution?surface=chat&section=governance&detail=reflex" replace />
+                    <Navigate
+                      to="/workspace/evolution?surface=chat&section=governance&detail=reflex"
+                      replace
+                    />
                   }
                 />
                 <Route path="reflex/edit" element={<ReflexEditorPage />} />
                 <Route
                   path="diagnostics"
-                  element={<Navigate to="/workspace/observability?tab=system" replace />}
+                  element={
+                    <Navigate
+                      to="/workspace/observability?tab=system"
+                      replace
+                    />
+                  }
                 />
               </Route>
             </Route>
