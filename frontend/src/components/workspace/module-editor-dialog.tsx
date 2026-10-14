@@ -15,6 +15,7 @@ import { WebShortcutEditor } from "./web-shortcut-editor";
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
@@ -65,9 +66,9 @@ export function ModuleEditorDialog({
             <DialogTitle className="text-base">
               {t.sidebar.editModules}
             </DialogTitle>
-            <p className="mt-0.5 text-xs text-muted-foreground">
+            <DialogDescription className="mt-0.5 text-xs text-muted-foreground">
               {t.sidebar.editModulesHint} · {preset.direction}
-            </p>
+            </DialogDescription>
           </div>
           <Button size="sm" onClick={() => onOpenChange(false)}>
             {t.sidebar.editModulesDone}

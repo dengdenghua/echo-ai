@@ -90,6 +90,7 @@ export function CreditsCenterDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent
         showCloseButton={false}
+        aria-describedby={undefined}
         className="sm:max-w-md overflow-hidden p-0 gap-0 border-0"
       >
         {/* Header */}
