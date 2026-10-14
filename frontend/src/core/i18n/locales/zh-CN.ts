@@ -6473,6 +6473,7 @@ export const zhCN: Translations = {
     navigate: "导航",
     select: "选择",
     close: "关闭",
+    skillPack: (skills: string) => `技能组：${skills}`,
   },
 
   // Follow-up Suggestions

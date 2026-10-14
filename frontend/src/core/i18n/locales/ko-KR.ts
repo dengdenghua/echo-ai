@@ -6730,6 +6730,7 @@ export const koKR: Translations = {
     navigate: "navigate",
     select: "select",
     close: "close",
+    skillPack: (skills: string) => `스킬 묶음: ${skills}`,
   },
 
   // Follow-up Suggestions

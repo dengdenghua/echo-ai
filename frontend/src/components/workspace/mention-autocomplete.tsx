@@ -255,9 +255,7 @@ function withMemberMentions(
   // WeChat-style: a team @ is for mentioning people, so drop the tool/skill
   // category noise (the "Bundled skills:" packs and bare category rows). Keep
   // people + 本地数据库 + any concrete file/symbol hits the user typed.
-  const peopleFocused = results.filter(
-    (r) => !/^Bundled skills:/.test(String(r.description ?? "")),
-  );
+  const peopleFocused = results.filter((r) => r.type !== "pack");
   results = peopleFocused;
   const existing = new Set(results.map((r) => r.value));
   const matched: MentionItem[] = members
@@ -875,14 +873,16 @@ export function MentionAutocompletePopup({
                   </div>
                   {item.description && (
                     <div className="text-muted-foreground truncate text-xs leading-tight">
-                      {item.description}
+                      {item.type === "pack"
+                        ? t.mentions.skillPack(
+                            item.description.replace(/^Bundled skills:\s*/, ""),
+                          )
+                        : item.description}
                     </div>
                   )}
                 </div>
                 {item.value.endsWith(":") && (
-                  <div className="text-muted-foreground text-xs">
-                    &rsaquo;
-                  </div>
+                  <div className="text-muted-foreground text-xs">&rsaquo;</div>
                 )}
               </button>
             );

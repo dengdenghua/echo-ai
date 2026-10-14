@@ -6858,6 +6858,7 @@ Strategy:
     navigate: "navigate",
     select: "select",
     close: "close",
+    skillPack: (skills: string) => `Bundled skills: ${skills}`,
   },
 
   // Follow-up Suggestions

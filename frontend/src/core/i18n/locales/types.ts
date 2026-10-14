@@ -5896,6 +5896,7 @@ export interface Translations {
     navigate: string;
     select: string;
     close: string;
+    skillPack: (skills: string) => string;
   };
 
   // Follow-up Suggestions

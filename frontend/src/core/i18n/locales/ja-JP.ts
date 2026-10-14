@@ -6821,6 +6821,7 @@ export const jaJP: Translations = {
     navigate: "navigate",
     select: "select",
     close: "close",
+    skillPack: (skills: string) => `スキルパック：${skills}`,
   },
 
   // Follow-up Suggestions
