@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { RotateCcwIcon } from "lucide-react";
+import { useContext, useEffect, useRef, useState } from "react";
 
 import { useI18n } from "@/core/i18n/hooks";
 import {
@@ -11,6 +12,7 @@ import {
 import { cn } from "@/lib/utils";
 
 import type { LiveToolEvent } from "./live-tool-timeline";
+import { ThreadMetaContext } from "./messages/context";
 
 interface PublicThinkingStatusProps {
   isLoading: boolean;
@@ -186,6 +188,15 @@ export function PublicThinkingStatus({
         ? `${label} · ${detail}`
         : label;
   const [announcement, setAnnouncement] = useState("");
+  // A first response stuck for a minute usually means a dead upstream
+  // stream (Codex only retries after five). Offer to stop the turn and send
+  // the message again; the thread page's regenerate handler does both.
+  const threadId = useContext(ThreadMetaContext)?.threadId ?? null;
+  const [resent, setResent] = useState(false);
+  useEffect(() => {
+    if (!firstResponseDelayed) setResent(false);
+  }, [firstResponseDelayed]);
+  const offerResend = firstResponseDelayed && threadId !== null;
   const previousIsLoadingRef = useRef(false);
 
   useEffect(() => {
@@ -224,40 +235,61 @@ export function PublicThinkingStatus({
         </span>
       )}
       {renderVisual && isLoading && phase !== "streaming" && (
-        <span
-          aria-hidden="true"
-          data-phase={phase}
-          data-first-response-delayed={firstResponseDelayed ? "true" : "false"}
-          data-testid="conversation-activity-pulse"
-          className={cn(
-            "my-1.5 ml-11 flex min-w-0 items-center gap-1.5 text-xs leading-4 text-muted-foreground",
-            className,
-          )}
-        >
+        <span className="flex min-w-0 items-center gap-2">
           <span
+            aria-hidden="true"
+            data-phase={phase}
+            data-first-response-delayed={
+              firstResponseDelayed ? "true" : "false"
+            }
+            data-testid="conversation-activity-pulse"
             className={cn(
-              "inline-block size-1.5 shrink-0 rounded-full animate-pulse transition-all duration-base",
-              phase === "slow" || firstResponseDelayed
-                ? "bg-warning ring-2 ring-warning/25"
-                : phase === "disconnected"
-                  ? "bg-destructive ring-2 ring-destructive/25"
-                  : "bg-primary ring-2 ring-primary/20",
+              "my-1.5 ml-11 flex min-w-0 items-center gap-1.5 text-xs leading-4 text-muted-foreground",
+              className,
             )}
-          />
-          <span className="shrink-0">{label}</span>
-          {detail && (
-            <span className="min-w-0 truncate text-muted-foreground">
-              · {detail}
-            </span>
-          )}
-          {elapsed && (
+          >
             <span
-              className="shrink-0 tabular-nums text-muted-foreground"
-              data-testid="conversation-activity-elapsed"
+              className={cn(
+                "inline-block size-1.5 shrink-0 rounded-full animate-pulse transition-all duration-base",
+                phase === "slow" || firstResponseDelayed
+                  ? "bg-warning ring-2 ring-warning/25"
+                  : phase === "disconnected"
+                    ? "bg-destructive ring-2 ring-destructive/25"
+                    : "bg-primary ring-2 ring-primary/20",
+              )}
+            />
+            <span className="shrink-0">{label}</span>
+            {detail && (
+              <span className="min-w-0 truncate text-muted-foreground">
+                · {detail}
+              </span>
+            )}
+            {elapsed && (
+              <span
+                className="shrink-0 tabular-nums text-muted-foreground"
+                data-testid="conversation-activity-elapsed"
+              >
+                · {elapsed}
+              </span>
+            )}
+          </span>
+          {offerResend ? (
+            <button
+              type="button"
+              disabled={resent}
+              title={t.publicThinkingStatus.resendHint}
+              onClick={() => {
+                setResent(true);
+                window.dispatchEvent(
+                  new CustomEvent("echo:regenerate", { detail: { threadId } }),
+                );
+              }}
+              className="inline-flex shrink-0 items-center gap-1 rounded-md px-1.5 py-0.5 text-xs text-foreground transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50"
             >
-              · {elapsed}
-            </span>
-          )}
+              <RotateCcwIcon className="size-3" aria-hidden="true" />
+              {t.publicThinkingStatus.resend}
+            </button>
+          ) : null}
         </span>
       )}
     </>

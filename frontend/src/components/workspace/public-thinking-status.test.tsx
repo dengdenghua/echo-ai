@@ -1,9 +1,10 @@
-import { screen } from "@testing-library/react";
-import { describe, expect, test } from "vitest";
+import { fireEvent, screen } from "@testing-library/react";
+import { describe, expect, test, vi } from "vitest";
 
 import { renderWithProviders } from "@/test/harness";
 
 import type { LiveToolEvent } from "./live-tool-timeline";
+import { ThreadMetaContext } from "./messages/context";
 import { PublicThinkingStatus } from "./public-thinking-status";
 import type { StreamVitals } from "@/core/realtime/stream-vitals";
 
@@ -35,6 +36,50 @@ function vitals(overrides: Partial<StreamVitals> = {}): StreamVitals {
 }
 
 describe("PublicThinkingStatus", () => {
+  test("offers to send again once the first response is a minute late", () => {
+    const heard = vi.fn();
+    window.addEventListener("echo:regenerate", heard);
+    const late = vitals({ phase: "waiting", elapsedMs: 75_000 });
+    const { rerender } = renderWithProviders(
+      <ThreadMetaContext.Provider value={{ threadId: "thread-7" }}>
+        <PublicThinkingStatus isLoading liveToolEvents={[]} vitals={late} />
+      </ThreadMetaContext.Provider>,
+    );
+
+    const resend = screen.getByRole("button", { name: "Send again" });
+    fireEvent.click(resend);
+
+    expect(heard).toHaveBeenCalledTimes(1);
+    expect((heard.mock.calls[0]![0] as CustomEvent).detail).toEqual({
+      threadId: "thread-7",
+    });
+    expect(resend).toBeDisabled();
+
+    rerender(
+      <ThreadMetaContext.Provider value={{ threadId: "thread-7" }}>
+        <PublicThinkingStatus
+          isLoading
+          liveToolEvents={[]}
+          vitals={vitals({ phase: "waiting", elapsedMs: 20_000 })}
+        />
+      </ThreadMetaContext.Provider>,
+    );
+    expect(screen.queryByRole("button", { name: "Send again" })).toBeNull();
+    window.removeEventListener("echo:regenerate", heard);
+  });
+
+  test("does not offer to send again outside a thread", () => {
+    renderWithProviders(
+      <PublicThinkingStatus
+        isLoading
+        liveToolEvents={[]}
+        vitals={vitals({ phase: "waiting", elapsedMs: 75_000 })}
+      />,
+    );
+
+    expect(screen.queryByRole("button", { name: "Send again" })).toBeNull();
+  });
+
   test("keeps the stable live region empty on an initially idle turn", () => {
     renderWithProviders(
       <PublicThinkingStatus isLoading={false} liveToolEvents={[]} />,
